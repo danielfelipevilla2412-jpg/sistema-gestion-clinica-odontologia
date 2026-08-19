@@ -1,0 +1,192 @@
+﻿/* ════════════════════════════════════════════════════════
+   SMILETRACK — ESTILOS PARA REGISTRO DE USUARIOS
+   Archivo: views/auth/register/register.css
+   Propósito: Estilos específicos del formulario de registro
+   ════════════════════════════════════════════════════════ */
+
+/* ── CONFIGURACIÓN BASE ───────────────────────────────── */
+/* Box-sizing border-box para que padding no afecte el ancho total de los elementos */
+* {
+    box-sizing: border-box;
+}
+
+/* ── ICONOS MATERIAL SYMBOLS ──────────────────────────── */
+/* Configuración estándar para todos los iconos de esta vista */
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    /* FILL=0: estilo outline, wght=400: peso normal, opsz=24: tamaño óptico */
+}
+
+/* ── ANIMACIONES DE ENTRADA ───────────────────────────── */
+/* Fade In Up: el contenedor aparece desvaneciéndose y subiendo suavemente */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Float: efecto de flotación sutil para elementos decorativos */
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+/* Aplicar animación de entrada al contenedor principal */
+main {
+    animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── BARRA DE FORTALEZA DE CONTRASEÑA ─────────────────── */
+/* Gradiente que cambia de color según la fortaleza: rojo → amarillo → verde */
+#passwordStrength {
+    transition: all 0.3s ease;
+    background: linear-gradient(90deg, #E53935 0%, #FBC02D 50%, #43A047 100%);
+    background-size: 200% 100%;
+}
+
+/* Clases para posicionar el gradiente según el nivel de fortaleza */
+.strength-weak {
+    background-position: 0%;
+}
+
+/* Rojo: contraseña débil */
+.strength-medium {
+    background-position: 50%;
+}
+
+/* Amarillo: contraseña media */
+.strength-strong {
+    background-position: 100%;
+}
+
+/* Verde: contraseña fuerte */
+
+/* ── ESTILOS DE FIELDSET (SECCIONES DEL FORMULARIO) ───── */
+/* Borde sutil y padding para separar visualmente cada sección */
+fieldset {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    background: transparent;
+}
+
+/* Espaciado para el título de cada sección */
+fieldset legend {
+    padding: 0 1rem;
+}
+
+/* ── CHECKBOX PERSONALIZADO ───────────────────────────── */
+/* Transición suave para el estado del checkbox */
+input[type="checkbox"]+div {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Efecto de escala y sombra cuando el checkbox está marcado */
+input[type="checkbox"]:checked+div {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(30, 136, 229, 0.4);
+}
+
+/* ── BOTÓN DE REGISTRO CON EFECTO HOVER ───────────────── */
+/* Contenedor relativo para posicionar el efecto de brillo */
+#registerBtn {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Efecto de brillo que se desplaza de izquierda a derecha al hacer hover */
+#registerBtn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+#registerBtn:hover::before {
+    left: 100%;
+}
+
+/* ── RESPONSIVE PARA TABLETS Y MÓVILES ────────────────── */
+@media (max-width: 768px) {
+
+    /* Reducir tamaño de títulos en pantallas medianas */
+    .font-h1 {
+        font-size: 28px !important;
+    }
+
+    .font-h2 {
+        font-size: 22px !important;
+    }
+
+    /* Ajustar márgenes y bordes para que no toque los bordes de la pantalla */
+    main>div {
+        margin: 0 -1rem;
+        border-radius: 2rem;
+    }
+
+    /* Reducir padding interno de las secciones */
+    fieldset {
+        padding: 1.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+
+    /* Padding mínimo en móviles muy pequeños */
+    main {
+        padding: 1rem;
+    }
+}
+
+/* ── SPINNER DE CARGA ─────────────────────────────────── */
+/* Contenedor flex para alinear spinner y texto */
+.loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Animación de rotación para el spinner */
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── ACCESIBILIDAD: FOCO VISIBLE ──────────────────────── */
+/* Borde azul visible al navegar con teclado para mejor accesibilidad */
+*:focus-visible {
+    outline: 2px solid #1E88E5;
+    outline-offset: 2px;
+}
+
+/* ── SCROLL SUAVE PARA ANCLAS INTERNAS ────────────────── */
+html {
+    scroll-behavior: smooth;
+}

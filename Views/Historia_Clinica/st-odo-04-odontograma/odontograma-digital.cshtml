@@ -1,0 +1,278 @@
+﻿﻿﻿@using System.Text.Json
+@using SmileTrack_MVC.Models.ViewModels
+@model OdontogramaViewModel
+@{
+    Layout = null;
+    var configJson = JsonSerializer.Serialize(new
+    {
+        pacienteId = Model.PacienteId,
+        historiaId = Model.HistoriaId,
+        pacienteNombre = Model.PacienteNombre,
+        codigoHC = Model.CodigoHC,
+        fechaNacimiento = Model.FechaNacimiento,
+        profesionalNombre = Model.ProfesionalNombre,
+        profesionalCorreo = Model.ProfesionalCorreo,
+        estadoPersistido = Model.ObservacionesGenerales
+    });
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmileTrack — Odontograma Digital 3D</title>
+    <meta name="description" content="Visualiza y gestiona el estado dental con odontograma 3D holográfico" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
+
+    <script>
+        window.smiletrackOdontogramaConfig = @Html.Raw(configJson);
+    </script>
+
+    <!-- API de Sketchfab -->
+    <script type="text/javascript" src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.css")" />
+    <!-- Shared: sidebar responsive (Sprint 1) -->
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+
+
+ <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- BANNER MODO MAPEO -->
+    <div class="modo-mapeo-banner" id="modo-mapeo-banner" role="status" aria-live="polite">
+        🎯 MODO MAPEO ACTIVO — Haz clic en un diente del modelo 3D
+    </div>
+
+
+        <!-- HEADER -->
+        <header class="page-header">
+            <div class="header-left">
+                <nav class="breadcrumb" aria-label="Ruta de navegación">
+                    <span>Odontólogo</span>
+                    <span class="bc-sep" aria-hidden="true">→</span>
+                    <span class="bc-active">Odontograma Digital 3D</span>
+                </nav>
+                <h1 class="page-title">Odontograma Digital 3D</h1>
+                <p class="page-subtitle">
+                    <time datetime="" id="headerDate" aria-live="polite">Cargando fecha…</time> ·
+                    <span id="patientName" aria-label="Paciente">@Model.PacienteNombre</span> ·
+                    <span id="patientHC" aria-label="Historia clínica">@Model.CodigoHC</span> ·
+                    <span id="dentitionType" aria-label="Tipo de dentición">Dentición adulta</span>
+                </p>
+            </div>
+            <div class="page-header-actions">
+                <button class="btn-secondary" id="btnMapeo" aria-label="Mapear numeración FDI">🔧 Mapear FDI</button>
+                <button class="btn-primary" id="btnGuardar" aria-label="Guardar cambios">💾 Guardar cambios</button>
+            </div>
+        </header>
+
+        <!-- STATS GRID -->
+        <section class="stats-grid" aria-label="Resumen de odontograma">
+            <div class="stat-card" data-color="green">
+                <span class="stat-number" id="stat-sanos" data-target="0" aria-live="polite">0</span>
+                <span class="stat-label">Sanos</span>
+            </div>
+            <div class="stat-card" data-color="orange">
+                <span class="stat-number" id="stat-caries" data-target="0" aria-live="polite">0</span>
+                <span class="stat-label">Con caries</span>
+            </div>
+            <div class="stat-card" data-color="purple">
+                <span class="stat-number" id="stat-tratamientos" data-target="0" aria-live="polite">0</span>
+                <span class="stat-label">Tratados</span>
+            </div>
+            <div class="stat-card" data-color="blue">
+                <span class="stat-number" id="stat-total" data-target="32" aria-live="polite">0</span>
+                <span class="stat-label">Total piezas</span>
+            </div>
+        </section>
+
+        <!-- CONTENT GRID -->
+        <div class="content-grid">
+
+            <!-- SECCIÓN IZQUIERDA: ODONTOGRAMA 3D -->
+            <section class="odontograma-section" aria-labelledby="odontograma-title">
+
+                <div class="odontograma-widget" aria-labelledby="odontograma-widget-title">
+                    <h2 class="widget-title" id="odontograma-widget-title">🦷 Odontograma 3D Holográfico</h2>
+
+                    <div class="viewer-wrap">
+                        <!-- Indicador de carga -->
+                        <div class="viewer-loading" id="viewerLoading">
+                            <div class="loading-spinner"></div>
+                            <p>Cargando modelo 3D...</p>
+                        </div>
+
+                        <!-- Mensaje de error -->
+                        <div class="viewer-error" id="viewerError" style="display:none;">
+                            <p>⚠️ No se pudo cargar el modelo 3D</p>
+                            <button class="btn-secondary" onclick="reintentarCarga()">Reintentar</button>
+                        </div>
+
+                        <iframe id="api-frame" class="api-frame-style"
+                                allow="autoplay; fullscreen; xr-spatial-tracking"
+                                role="img"
+                                aria-label="Modelo 3D interactivo de dentadura. Haz clic en un diente para seleccionarlo."></iframe>
+                    </div>
+
+                    <!-- Leyenda -->
+                    <div class="legend" aria-label="Leyenda de estados">
+                        <div class="li"><span class="li-dot" style="background:#ff4d6d"></span>Caries</div>
+                        <div class="li"><span class="li-bar" style="background:#378ADD"></span>Endodoncia</div>
+                        <div class="li"><span class="li-dot" style="background:#f4a62a"></span>Sellante</div>
+                        <div class="li"><span class="li-bar" style="background:#1D9E75"></span>Placa</div>
+                        <div class="li"><span class="li-dot" style="background:#00d4ff"></span>Sano</div>
+                    </div>
+                </div>
+
+                <!-- PANEL DE MAPEO FDI -->
+                <div class="mapeo-panel" id="mapeo-panel" aria-labelledby="mapeo-title">
+                    <div class="mapeo-title" id="mapeo-title">🗺️ Mapeo de Numeración FDI</div>
+                    <div class="mapeo-instruction">
+                        <strong>Instrucciones:</strong> Haz clic en un diente del modelo 3D y luego selecciona su número FDI (11-48).
+                    </div>
+                    <div class="mapeo-progress" id="mapeo-progress">Dientes mapeados: 0 / 32</div>
+                    <div class="mapeo-current" id="mapeo-current">
+                        <div class="mapeo-current-label">Diente seleccionado:</div>
+                        <div class="mapeo-current-value" id="mapeo-current-value">-</div>
+                    </div>
+                    <div class="mapeo-grid" id="mapeo-grid"></div>
+                    <div class="mapeo-actions">
+                        <button class="btn-secondary" onclick="toggleMapeoFDI()">Cerrar Panel</button>
+                        <button class="btn-danger" onclick="resetearMapeo()">Resetear</button>
+                    </div>
+                </div>
+
+                <!-- PANEL DE PIEZA SELECCIONADA -->
+                <div class="card card-pieza" id="cardPieza" style="display:none;" aria-labelledby="pieza-title" aria-live="polite">
+                    <h3 class="card-title" id="pieza-title">
+                        <span class="pieza-pin" aria-hidden="true">📍</span>
+                        <span id="piezaTitulo">Pieza seleccionada</span>
+                    </h3>
+                    <div class="pieza-estado" id="piezaEstado" role="status"></div>
+
+                    <div class="diag-form" id="diagForm">
+                        <div class="diag-label">Estado clínico:</div>
+                        <div class="estado-btns" id="estadoBtns" role="radiogroup" aria-label="Seleccionar estado clínico"></div>
+                        <label class="diag-label" for="obsTa">Observaciones:</label>
+                        <textarea class="obs" rows="2" id="obsTa" placeholder="Observaciones clínicas..."></textarea>
+                        <div class="diag-actions">
+                            <button class="btn-primary" onclick="guardarRegistro()">💾 Actualizar</button>
+                            <button class="btn-secondary" onclick="cerrarPanel()">Cancelar</button>
+                        </div>
+                    </div>
+
+                    <div class="pieza-hist-title">Historial de cambios</div>
+                    <div class="pieza-hist" id="piezaHist" role="list" aria-label="Historial"></div>
+                </div>
+
+            </section>
+
+            <!-- PANEL DERECHO -->
+            <aside class="right-panel" aria-label="Herramientas">
+
+                <div class="widget" aria-labelledby="mods-title">
+                    <h3 class="widget-title" id="mods-title">🕐 Últimas modificaciones</h3>
+                    <div id="ultimasMods" aria-live="polite" role="list"></div>
+                </div>
+
+                <div class="widget" aria-labelledby="acciones-title">
+                    <h3 class="widget-title" id="acciones-title">⚙️ Acciones</h3>
+                    <div class="acciones-list">
+                        <button class="estado-btn eb-exportar" onclick="exportarHistorial()">
+                            <span class="estado-ico" aria-hidden="true">📥</span> Exportar historial
+                        </button>
+                        <button class="estado-btn eb-limpiar" onclick="limpiarTodo()">
+                            <span class="estado-ico" aria-hidden="true">🗑️</span> Limpiar todo
+                        </button>
+                    </div>
+                </div>
+
+            </aside>
+        </div>
+
+    </main>
+
+    <!-- MODAL CONFIRMAR GUARDADO -->
+    <div class="modal-overlay" id="modalGuardar" role="dialog" aria-modal="true" aria-labelledby="modalGuardarTitle"
+         aria-hidden="true" inert>
+        <div class="modal modal--sm">
+            <button class="modal-close" id="modalGuardarClose" aria-label="Cerrar">×</button>
+            <h2 class="modal-title" id="modalGuardarTitle">Confirmar guardado</h2>
+            <p class="modal-desc">¿Deseas guardar los cambios realizados en el odontograma?</p>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="modalGuardarCancel">Cancelar</button>
+                <button class="btn-primary" id="modalGuardarConfirm">Sí, guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MOBILE BOTTOM NAV -->
+    <nav class="mobile-nav" aria-label="Navegación móvil">
+        <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">🏠</span>
+            <span>Dashboard</span>
+        </a>
+        <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+            <span>Agenda</span>
+        </a>
+        <a href="/historia-clinica/st-odo-06-pacientes" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">👥</span>
+            <span>Pacientes</span>
+        </a>
+        <a href="/historia-clinica/st-odo-03-historial" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">📋</span>
+            <span>Historial</span>
+        </a>
+        <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">👤</span>
+            <span>Perfil</span>
+        </a>
+    </nav>
+
+    <!-- TOAST -->
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- TOOLTIP FLOTANTE -->
+    <div id="holo-tooltip"></div>
+    <script src="@Url.Content("~/js/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.js")"></script>
+
+    <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+            <span style="font-size:1rem;">🦷</span>
+            <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+        </div>
+        <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+        <script src="@Url.Content("~/js/footer.js")"></script>
+        <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+    </footer>
+
+
+    <!-- Shared modules (Sprint 1): sidebar interactivo, toasts y confirm modal -->
+    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+    @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>

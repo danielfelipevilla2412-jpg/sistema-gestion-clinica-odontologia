@@ -1,0 +1,654 @@
+﻿@* ============================================
+SmileTrack — Gestión de Profesionales (st-adm-07-gestion-profesionales)
+============================================
+Autor: Johan Santamaria
+Fecha: 29/07/2026
+
+DESCRIPCIÓN:
+Vista de administración de profesionales que permite registrar, editar y eliminar odontólogos del sistema, asignarles especialidades y usuarios de acceso, y visualizar la lista completa con filtros y búsqueda en tiempo real.
+
+FUNCIONALIDADES PRINCIPALES:
+- CRUD completo de profesionales renderizado con Razor desde el Controller (server-side)
+- Modales de creación y edición con validación de formularios en cliente y servidor
+- Filtro de búsqueda y paginación en la tabla de profesionales con feedback ARIA
+- Contadores de métricas (total, activos, especialidades) con animación de conteo
+
+DEPENDENCIAS TÉCNICAS:
+- Controller: GestionProfesionalesController (ViewBag: Especialidades, Usuarios, Profesionales)
+- CSS: ~/css/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/styles.css
+- JS: ~/js/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/app.js
+- Partial / Otros: _Layout o Layout=null (verificar)
+
+NOTAS DE MANTENIMIENTO:
+- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+- La vista usa ViewData con fallback a colección vacía para evitar NullReferenceException si el Controller falla al poblar los datos.
+============================================ *@
+@{
+  // Extraer datos del ViewBag con fallback para evitar null reference en caso de error del Controller
+  var especialidades = ViewData["Especialidades"] as List<SmileTrack_MVC.Models.Entities.Especialidad> ?? new();
+  var usuarios       = ViewData["Usuarios"]       as List<SmileTrack_MVC.Models.Entities.Usuario>      ?? new();
+  var profesionales  = ViewData["Profesionales"]  as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
+  var pageResult     = ViewData["ProfesionalesPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Profesional>;
+  var editingProfesional = ViewData["EditingProfesional"] as SmileTrack_MVC.Models.Entities.Profesional;
+
+  // Stats globales: vienen del Controller como COUNT() sobre toda la BD (no de la página actual).
+  // WHY: si hay 80 profesionales y se muestran 10 por página, los stats deben decir 80, no 10.
+  var statTotal      = (int)(ViewData["StatTotal"]      ?? 0);
+  var statActivos    = (int)(ViewData["StatActivos"]    ?? 0);
+  var statVacaciones = (int)(ViewData["StatVacaciones"] ?? 0);
+  var statInactivos  = (int)(ViewData["StatInactivos"]  ?? 0);
+}
+
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Gestión de odontólogos y especialistas de la clínica SmileTrack" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>SmileTrack — Gestión de Profesionales</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/styles.css?v=2")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/footer.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Administración</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Gestión de Profesionales</span>
+        </nav>
+        <h1 class="page-title">Gestión de Profesionales</h1>
+        <p class="page-subtitle">Administra los odontólogos y especialistas de la clínica</p>
+      </div>
+      <button class="btn-primary" id="btnNewProfessional" aria-label="Crear nuevo profesional">
+        + Nuevo Profesional
+      </button>
+    </header>
+
+    <!--
+      Stats Grid: los data-target reciben valores reales de BD (COUNT global, sin filtros).
+      WHY: el JS lee data-target y anima el contador de 0 al valor real al cargar la página.
+           Los valores NO dependen de la página actual ni de filtros activos — siempre son el total real.
+    -->
+    <section class="stats-grid" aria-label="Estadísticas de profesionales">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-number" id="metricTotal" data-target="@statTotal" aria-live="polite">0</span>
+        <span class="stat-label">Total Profesionales</span>
+      </div>
+      <div class="stat-card" data-color="green">
+        <span class="stat-number" id="metricActives" data-target="@statActivos" aria-live="polite">0</span>
+        <span class="stat-label">Activos</span>
+      </div>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number" id="metricVacations" data-target="@statVacaciones" aria-live="polite">0</span>
+        <span class="stat-label">En vacaciones</span>
+      </div>
+      <div class="stat-card" data-color="red">
+        <span class="stat-number" id="metricInactives" data-target="@statInactivos" aria-live="polite">0</span>
+        <span class="stat-label">Inactivos</span>
+      </div>
+    </section>
+
+
+    <!-- Filtros: cada submit hace GET real al Controller — los parámetros van como query string -->
+    <!-- WHY: GET en lugar de POST permite compartir URLs con filtros aplicados (bookmarkeable) -->
+    <section class="filters-section" aria-label="Filtros de búsqueda">
+      <form method="get" class="filters-row">
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+          <input type="search" id="searchInput" name="search" class="search-input"
+            placeholder="Buscar por nombre, especialidad o registro..." aria-label="Buscar profesional" value="@ViewData["SearchFilter"]">
+        </div>
+        <div class="filter-wrap">
+          <label for="filterSpecialty" class="visually-hidden">Filtrar por especialidad</label>
+          <select id="filterSpecialty" name="especialidad" class="status-select" aria-label="Filtrar profesionales por especialidad">
+            <option value="">Todas las especialidades</option>
+            @foreach (var especialidad in especialidades)
+            {
+              var espSelected = ViewData["EspecialidadFilter"]?.ToString() == especialidad.Nombre;
+              <option value="@especialidad.Nombre" @(espSelected ? "selected" : null)>@especialidad.Nombre</option>
+            }
+          </select>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterStatus" class="visually-hidden">Filtrar por estado</label>
+          <select id="filterStatus" name="estado" class="status-select" aria-label="Filtrar profesionales por estado">
+            <option value="">Todos los estados</option>
+            @{
+              var estadoActual = ViewData["EstadoFilter"]?.ToString();
+              var estadosProf = new[] { ("activo", "Activo"), ("vacaciones", "Vacaciones"), ("inactivo", "Inactivo") };
+              foreach (var (clave, texto) in estadosProf)
+              {
+                if (estadoActual == clave)
+                {
+                  <option value="@clave" selected>@texto</option>
+                }
+                else
+                {
+                  <option value="@clave">@texto</option>
+                }
+              }
+            }
+          </select>
+        </div>
+        <!-- Resetear page=1 al filtrar: evita quedarse en una página que ya no existe tras filtrar -->
+        <input type="hidden" name="page" value="1" />
+        <button class="btn-primary" type="submit">Aplicar filtros</button>
+        <!-- Limpiar: enlace simple al GET sin params — más limpio que resetear el form con JS -->
+        <a class="btn-secondary" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales")">Limpiar</a>
+      </form>
+    </section>
+
+    <!-- Tabla de profesionales: renderizada server-side por Razor (SSR) -->
+    <!-- WHY: SSR garantiza que el contenido esté disponible inmediatamente sin esperar JS -->
+    <section class="table-card" aria-labelledby="professionalsTitle">
+      <h2 class="visually-hidden" id="professionalsTitle">Lista de profesionales</h2>
+      <div class="table-wrap">
+        <table id="professionalsTable" class="table-base" aria-label="Tabla de profesionales de la clínica">
+          <thead>
+            <tr>
+              <th scope="col">PROFESIONAL</th>
+              <th scope="col">ESPECIALIDAD</th>
+              <th scope="col">REGISTRO</th>
+              <th scope="col">TELÉFONO</th>
+              <th scope="col">ESTADO</th>
+              <th scope="col">ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody id="professionalsTbody" aria-live="polite">
+            @if (!profesionales.Any())
+            {
+              @* 
+                CASO LÍMITE: Lista vacía.
+                Puede ocurrir porque:
+                a) No hay profesionales registrados en BD todavía.
+                b) Los filtros aplicados (búsqueda, especialidad, estado) no coincidieron con nada.
+                Mostramos un mensaje amigable en lugar de una tabla en blanco que confunde al usuario.
+              *@
+              var hayFiltros = !string.IsNullOrWhiteSpace(ViewData["SearchFilter"]?.ToString())
+                            || !string.IsNullOrWhiteSpace(ViewData["EspecialidadFilter"]?.ToString())
+                            || !string.IsNullOrWhiteSpace(ViewData["EstadoFilter"]?.ToString());
+              <tr>
+                <td colspan="6" style="text-align:center; padding:48px 24px; color:var(--text-muted);">
+                  <div style="font-size:2rem; margin-bottom:8px;">🩺</div>
+                  @if (hayFiltros)
+                  {
+                    <strong>Sin resultados</strong>
+                    <br /><span style="font-size:0.875rem;">Ningún profesional coincide con los filtros aplicados. <a href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales")">Limpiar filtros</a></span>
+                  }
+                  else
+                  {
+                    <strong>Aún no hay profesionales registrados</strong>
+                    <br /><span style="font-size:0.875rem;">Haz clic en "Nuevo Profesional" para agregar el primero.</span>
+                  }
+                </td>
+              </tr>
+            }
+            @foreach (var profesional in profesionales)
+            {
+              var especialidadPrincipal = profesional.Especialidades.FirstOrDefault(pe => pe.Principal)?.Especialidad?.Nombre ?? profesional.Especialidades.FirstOrDefault()?.Especialidad?.Nombre;
+              <tr>
+                <td class="td-profesional">
+                  @{
+                    var name = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
+                    var initials = string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
+                  }
+                  <div class="p-avatar p-avatar--color-@(profesional.IdProfesional % 5)">@initials</div>
+                  <span class="p-name">@name</span>
+                </td>
+                <td><span class="badge-spec @((especialidadPrincipal ?? string.Empty).ToLowerInvariant())">@especialidadPrincipal</span></td>
+                <td>@profesional.RegistroMedico</td>
+                <td>@profesional.Telefono</td>
+                <td><span class="badge-status badge-@((profesional.Estado ?? string.Empty).ToLowerInvariant())">@profesional.Estado</span></td>
+                <td>
+          @{
+            var profNombreCompleto = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
+            var profIniciales = string.Concat(profNombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
+          }
+          <div class="actions-cell">
+            <!-- Ver detalles: abrir modal con data desde atributos -->
+            <button class="btn-icon action-btn btn-view" type="button"
+                    data-id="@profesional.IdProfesional"
+                    data-name="@Html.Encode(profNombreCompleto)"
+                    data-initials="@Html.Encode(profIniciales)"
+                    data-specialty="@Html.Encode(especialidadPrincipal)"
+                    data-registry="@Html.Encode(profesional.RegistroMedico)"
+                    data-phone="@Html.Encode(profesional.Telefono)"
+                    data-status="@Html.Encode(profesional.Estado)"
+                    aria-label="@Html.Encode($"Ver detalles del profesional {profesional.Nombres} {profesional.Apellidos}")"
+                    title="Ver detalles del profesional @Html.Encode(profNombreCompleto)">
+              👁️ <span class="btn-text">Ver</span>
+            </button>
+            <!-- Editar: GET con editId para que el Controller cargue el profesional en ViewData -->
+            <a class="btn-icon edit action-btn" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { editId = profesional.IdProfesional })" aria-label="Editar el profesional @profesional.Nombres @profesional.Apellidos" title="Editar profesional @Html.Encode(profNombreCompleto)" role="button">
+              ✏️ <span class="btn-text">Editar</span>
+            </a>
+            <!-- Eliminar: abrir modal de confirmación -->
+            <button class="btn-icon toggle action-btn btn-delete" type="button" 
+                    data-id="@profesional.IdProfesional" 
+                    data-name="@profesional.Nombres @profesional.Apellidos"
+                    aria-label="Eliminar el profesional @profesional.Nombres @profesional.Apellidos"
+                    title="Eliminar profesional @Html.Encode(profNombreCompleto)">
+              ❌ <span class="btn-text">Eliminar</span>
+            </button>
+          </div>
+        </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Paginación server-side: los links llevan page, pageSize y filtros actuales como query string -->
+      <!-- WHY: cada click es un GET real al Controller — no se cargan todos los registros en memoria -->
+      <div class="pagination" role="navigation" aria-label="Paginación de profesionales">
+        @{ }
+      <span id="paginationInfo" aria-live="polite">Mostrando <strong>@(pageResult?.Items.Count ?? 0)</strong> de <strong>@(pageResult?.TotalCount ?? 0)</strong> profesionales registrados</span>
+        <div class="pagination-buttons" id="paginationButtons">
+          @if (pageResult != null && pageResult.HasPreviousPage)
+          {
+            <a class="pagination-btn" aria-label="Página anterior" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { page = pageResult.Page - 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], especialidad = ViewData["EspecialidadFilter"], estado = ViewData["EstadoFilter"] })">‹</a>
+          }
+          else
+          {
+            <button class="pagination-btn" aria-label="Página anterior" disabled>‹</button>
+          }
+          @for (var i = 1; i <= (pageResult?.TotalPages ?? 1); i++)
+          {
+            var isActive = i == (pageResult?.Page ?? 1);
+            <a class="pagination-btn @(isActive ? "active" : string.Empty)" aria-current="@(isActive ? "page" : null)" aria-label="Página @i" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { page = i, pageSize = pageResult?.PageSize ?? 10, search = ViewData["SearchFilter"], especialidad = ViewData["EspecialidadFilter"], estado = ViewData["EstadoFilter"] })">@i</a>
+          }
+          @if (pageResult != null && pageResult.HasNextPage)
+          {
+            <a class="pagination-btn" aria-label="Página siguiente" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { page = pageResult.Page + 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], especialidad = ViewData["EspecialidadFilter"], estado = ViewData["EstadoFilter"] })">›</a>
+          }
+          else
+          {
+            <button class="pagination-btn" aria-label="Página siguiente" disabled>›</button>
+          }
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal Crear/Editar Profesional -->
+  <!--
+    inert attribute: bloquea focus y teclado dentro del modal cuando está cerrado (WCAG 2.1).
+    WHY: sin inert, Tab llegaría a los inputs aunque el modal sea invisible — falla de accesibilidad.
+    aria-hidden="true" oculta el modal de lectores de pantalla cuando está cerrado.
+  -->
+  <div class="modal-overlay" id="modalForm" role="dialog" aria-modal="true" aria-labelledby="modalFormTitle"
+    aria-hidden="true" inert>
+    <div class="modal">
+      <button class="modal-close" id="modalFormClose" aria-label="Cerrar ventana">×</button>
+      <h2 class="modal-title" id="modalFormTitle">Nuevo Profesional</h2>
+      <!-- novalidate: desactiva validación HTML nativa para controlar el flujo desde JS -->
+      <!-- WHY: la validación nativa del browser no muestra mensajes custom ni toast -->
+      <form id="formProfessional" method="post" action="/gestion-de-profesionales/guardar-profesional" novalidate>
+        @Html.AntiForgeryToken()
+        <!-- ReturnUrl: para que el redirect post-guardado vuelva a esta misma URL con sus filtros -->
+        <input type="hidden" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
+        <input type="hidden" name="IdProfesional" id="formIdProfesional" value="@(editingProfesional?.IdProfesional ?? 0)" />
+        <div class="form-group">
+          <label class="form-label" for="formNombres">Nombres *</label>
+          <input type="text" id="formNombres" name="Nombres" class="form-input" required aria-required="true" aria-describedby="error-formNombres" placeholder="Ej. Carlos" value="@(editingProfesional?.Nombres)">
+          <span class="error-message" id="error-formNombres" role="alert">Por favor ingresa los nombres.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="formApellidos">Apellidos *</label>
+          <input type="text" id="formApellidos" name="Apellidos" class="form-input" required aria-required="true" aria-describedby="error-formApellidos" placeholder="Ej. Méndez Ruiz" value="@(editingProfesional?.Apellidos)">
+          <span class="error-message" id="error-formApellidos" role="alert">Por favor ingresa los apellidos.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="formRegistroMedico">Registro Médico *</label>
+          <input type="text" id="formRegistroMedico" name="RegistroMedico" class="form-input" required aria-required="true" aria-describedby="error-formRegistroMedico" placeholder="Ej. RM-2026-001" value="@(editingProfesional?.RegistroMedico)">
+          <span class="error-message" id="error-formRegistroMedico" role="alert">Por favor ingresa el registro médico.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="formCategoria">Categoría</label>
+          <input type="text" id="formCategoria" name="Categoria" class="form-input" placeholder="Ej. Odontología General" value="@(editingProfesional?.Categoria)">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="formTelefono">Teléfono</label>
+          <input type="tel" id="formTelefono" name="Telefono" class="form-input" placeholder="Ej. 300 123 4567" value="@(editingProfesional?.Telefono)">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="formEspecialidad">Especialidad</label>
+          <select id="formEspecialidad" name="IdEspecialidad" class="form-input">
+            <option value="">Sin especialidad</option>
+            @foreach (var especialidad in especialidades)
+            {
+              var espSelected = editingProfesional?.Especialidades.Any(pe => pe.IdEspecialidad == especialidad.IdEspecialidad) == true;
+              if (espSelected)
+              {
+                <option value="@especialidad.IdEspecialidad" selected>@especialidad.Nombre</option>
+              }
+              else
+              {
+                <option value="@especialidad.IdEspecialidad">@especialidad.Nombre</option>
+              }
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="formUsuario">Usuario</label>
+          <select id="formUsuario" name="IdUsuario" class="form-input">
+            <option value="0">Sin usuario</option>
+            @foreach (var usuario in usuarios)
+            {
+              var usrSelected = editingProfesional?.IdUsuario == usuario.IdUsuario;
+              if (usrSelected)
+              {
+                <option value="@usuario.IdUsuario" selected>@usuario.Nombre @usuario.Apellidos</option>
+              }
+              else
+              {
+                <option value="@usuario.IdUsuario">@usuario.Nombre @usuario.Apellidos</option>
+              }
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="formStatus">Estado *</label>
+          <select id="formStatus" name="Estado" class="form-input" required aria-required="true" aria-describedby="error-formStatus">
+            @if (editingProfesional?.Estado == "activo")
+            {
+              <option value="activo" selected>Activo</option>
+            }
+            else
+            {
+              <option value="activo">Activo</option>
+            }
+            @if (editingProfesional?.Estado == "vacaciones")
+            {
+              <option value="vacaciones" selected>Vacaciones</option>
+            }
+            else
+            {
+              <option value="vacaciones">Vacaciones</option>
+            }
+            @if (editingProfesional?.Estado == "inactivo")
+            {
+              <option value="inactivo" selected>Inactivo</option>
+            }
+            else
+            {
+              <option value="inactivo">Inactivo</option>
+            }
+          </select>
+          <span class="error-message" id="error-formStatus" role="alert">Por favor selecciona un estado.</span>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="modalFormCancel">Cancelar</button>
+          <button type="submit" class="btn-primary">@(editingProfesional != null ? "Guardar Cambios" : "Guardar Profesional")</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Ver Detalle -->
+  <div class="modal-overlay" id="modalDetail" role="dialog" aria-modal="true" aria-labelledby="modalDetailTitle"
+    aria-hidden="true" inert>
+    <div class="modal">
+      <button class="modal-close" id="modalDetailClose" aria-label="Cerrar ventana">×</button>
+      <h2 class="modal-title" id="modalDetailTitle">Ficha de Profesional</h2>
+      <div class="modal-detail">
+        <div class="detail-avatar-wrap">
+          <div class="detail-avatar" id="detailAvatar" aria-hidden="true">--</div>
+        </div>
+        <h3 class="detail-name" id="detailName">--</h3>
+        <p class="detail-specialty" id="detailSpecialty">--</p>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <span class="detail-key">Registro Médico</span>
+            <span class="detail-value" id="detailRegistry">--</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-key">Teléfono</span>
+            <span class="detail-value" id="detailPhone">--</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-key">Estado</span>
+            <span class="detail-value"><span class="badge-status" id="detailStatus">--</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="modalDetailCloseBtn">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar Eliminación -->
+  <div class="modal-overlay" id="modalConfirmDelete" role="dialog" aria-modal="true" aria-labelledby="modalConfirmDeleteTitle"
+    aria-hidden="true" inert>
+    <div class="modal">
+      <button class="modal-close" id="modalConfirmDeleteClose" aria-label="Cerrar ventana">×</button>
+      <h2 class="modal-title" id="modalConfirmDeleteTitle">Confirmar eliminación</h2>
+      <p id="modalConfirmDeleteMessage" style="margin-bottom: 20px;">¿Estás seguro de eliminar a este profesional? Esta acción no se puede deshacer.</p>
+      <form id="formDeleteProfessional" method="post" action="/gestion-de-profesionales/eliminar-profesional">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="IdProfesional" id="deleteProfesionalId" value="" />
+        <input type="hidden" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="modalConfirmDeleteCancel" aria-label="Cancelar eliminación del profesional">Cancelar</button>
+          <button type="submit" class="btn-primary" style="background-color: var(--red); border-color: var(--red);" aria-label="Confirmar eliminación del profesional seleccionado">Eliminar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Mobile bottom nav -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon" aria-hidden="true">🩺</span>
+      <span>Profesionales</span>
+    </a>
+    <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span>Agenda</span>
+    </a>
+  </nav>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  @if (TempData["MensajeExito"] != null)
+  {
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const toast = document.getElementById('toast');
+        if (toast) {
+          toast.textContent = '✅ @TempData["MensajeExito"]';
+          toast.className = 'toast show';
+          setTimeout(() => toast.classList.remove('show'), 4000);
+        }
+      });
+    </script>
+  }
+
+  @if (TempData["ErrorValidacion"] != null)
+  {
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const toast = document.getElementById('toast');
+        if (toast) {
+          toast.textContent = '⚠️ @TempData["ErrorValidacion"]';
+          toast.className = 'toast warning show';
+          setTimeout(() => toast.classList.remove('show'), 5000);
+        }
+      });
+    </script>
+  }
+
+  <!-- Estilos para screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
+      <p>© @DateTime.Now.Year Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+  </footer>
+  <!-- Scripts finales (fuera del footer para HTML válido) -->
+  <script src="@Url.Content("~/js/footer.js")"></script>
+  <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/app.js")"></script>
+
+<script>
+   // Accordion y hamburger manejados por ~/js/shared/sidebar.js
+   const isEditing = '@(editingProfesional != null ? "true" : "false")' === 'true';
+    if (isEditing) {
+      const modal = document.getElementById('modalForm');
+      if (modal) {
+        modal.classList.add('open');
+        // CORRECCIÓN: setAttribute en lugar de removeAttribute para compatibilidad ARIA
+        modal.setAttribute('aria-hidden', 'false');
+        modal.removeAttribute('inert');
+        document.body.style.overflow = 'hidden';
+        // Focus en primer campo del formulario (WCAG 2.4.3)
+        setTimeout(() => {
+          modal.querySelector('input:not([type="hidden"])')?.focus();
+        }, 100);
+      }
+    };
+
+    // ═══ MODAL VER DETALLE: poblar desde data-attributes del botón 👁️ Ver ═══
+    (function () {
+      const SPEC_COLORS = {
+        'Odontología General': 'general', 'Ortodoncia': 'ortodoncia', 'Endodoncia': 'endodoncia',
+        'Odontopediatría': 'pediatria', 'Cirugía Oral': 'cirugia', 'Periodoncia': 'periodoncia',
+        'Implantología': 'implante', 'Rehabilitación Oral': 'rehab'
+      };
+      const getAvatarColor = (specName) => {
+        const key = SPEC_COLORS[specName] || 'general';
+        const map = { general: '#60a5fa', ortodoncia: '#a78bfa', endodoncia: '#fb7185',
+                      pediatria: '#4ade80', cirugia: '#f97316', periodoncia: '#facc15',
+                      implante: '#34d399', rehab: '#c084fc' };
+        return map[key] || map.general;
+      };
+      const getStatusBadgeClass = (status) => {
+        const map = { 'Activo': 'activo', 'Vacaciones': 'vacaciones', 'Inactivo': 'inactivo' };
+        return map[status] || 'inactivo';
+      };
+
+      const modalDetail = document.getElementById('modalDetail');
+      document.querySelectorAll('button.btn-view[data-id][data-name]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const avatar = document.getElementById('detailAvatar');
+          const name = document.getElementById('detailName');
+          const specialty = document.getElementById('detailSpecialty');
+          const registry = document.getElementById('detailRegistry');
+          const phone = document.getElementById('detailPhone');
+          const statusEl = document.getElementById('detailStatus');
+
+          if (avatar) {
+            avatar.textContent = btn.dataset.initials || '--';
+            avatar.style.background = getAvatarColor(btn.dataset.specialty || '');
+          }
+          if (name) name.textContent = btn.dataset.name || '--';
+          if (specialty) specialty.textContent = btn.dataset.specialty || '--';
+          if (registry) registry.textContent = btn.dataset.registry || '--';
+          if (phone) phone.textContent = btn.dataset.phone || '--';
+          if (statusEl) {
+            statusEl.textContent = btn.dataset.status || '--';
+            statusEl.className = `badge-status badge-${getStatusBadgeClass(btn.dataset.status || '')}`;
+          }
+
+          if (modalDetail) {
+            modalDetail.classList.add('open');
+            modalDetail.setAttribute('aria-hidden', 'false');
+            modalDetail.removeAttribute('inert');
+            document.body.style.overflow = 'hidden';
+            const closeBtn = document.getElementById('modalDetailClose');
+            if (closeBtn) closeBtn.focus();
+          }
+        });
+      });
+
+      if (modalDetail) {
+        modalDetail.addEventListener('click', (e) => {
+          if (e.target === modalDetail) {
+            modalDetail.classList.remove('open');
+            modalDetail.setAttribute('aria-hidden', 'true');
+            modalDetail.setAttribute('inert', '');
+            if (!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+          }
+        });
+      }
+    })();
+</script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
+</body>
+
+</html>
+
+

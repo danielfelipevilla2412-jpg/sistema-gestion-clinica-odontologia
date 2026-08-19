@@ -1,0 +1,213 @@
+@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Control Postoperatorio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-aux-07-control-postoperato/control-post.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <!-- ═════ SIDEBAR UNIFICADO (Activo: Control post-operatorio) ═════ -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+
+  <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Breadcrumb y header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Auxiliar</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span>Citas finalizadas</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Postoperatorio</span>
+        </nav>
+        <h1 class="page-title">Control Postoperatorio</h1>
+        <p class="page-subtitle" id="postopSubtitle">Cargando…</p>
+      </div>
+    </header>
+
+    <!-- Layout de contenido -->
+    <div class="content-layout">
+
+      <!-- Columna izquierda: Estado + Instrucciones -->
+      <div class="content-left">
+
+        <!-- Estado final del consultorio con role radiogroup -->
+        <div class="card status-card">
+          <h3 class="card-title" id="statusTitle">Estado final del consultorio</h3>
+          <div class="status-buttons" role="radiogroup" aria-labelledby="statusTitle">
+            <button class="status-btn stable active" role="radio" aria-checked="true" id="statusStable"
+              aria-label="Paciente estable - sin complicaciones">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span class="status-text"><strong>Estable</strong><small aria-hidden="true">✓</small></span>
+            </button>
+            <button class="status-btn molestia" role="radio" aria-checked="false" id="statusMolestia"
+              aria-label="Paciente con molestias leves">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span class="status-text"><strong>Molestia</strong></span>
+            </button>
+            <button class="status-btn dolor" role="radio" aria-checked="false" id="statusDolor"
+              aria-label="Paciente con dolor fuerte">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span class="status-text"><strong>Dolor Fuerte</strong></span>
+            </button>
+            <button class="status-btn urgencia" role="radio" aria-checked="false" id="statusUrgencia"
+              aria-label="Paciente requiere atención urgente">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span class="status-text"><strong>Urgenc.</strong></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Instrucciones postoperatorio con role list -->
+        <div class="card instructions-card">
+          <h3 class="card-title" id="instructionsTitle">Instrucciones postoperatorio</h3>
+
+          <ul class="instructions-list" id="instructionsList" role="list" aria-labelledby="instructionsTitle">
+            <!-- Las instrucciones reales se renderizan desde window.smiletrackPostopData (ver control-post.js) -->
+          </ul>
+
+          <!-- Input para agregar nueva instrucción -->
+          <div class="add-instruction-wrapper">
+            <input type="text" id="newInstructionInput" placeholder="Escribir nueva instrucción..."
+              aria-label="Nueva instrucción postoperatoria" />
+            <button class="add-btn" id="btnAddInstruction" aria-label="Agregar instrucción a la lista">+</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Columna derecha: Observaciones + Supervisión -->
+      <aside class="content-right">
+
+        <!-- Observaciones con textarea accesible -->
+        <div class="card observation-card">
+          <h3 class="card-title" id="observationsTitle">Observaciones</h3>
+          <textarea class="obs-textarea" id="obsTextarea" placeholder="Paciente toleró bien el procedimiento..."
+            aria-label="Observaciones del auxiliar sobre el estado postoperatorio"
+            aria-describedby="observationsTitle"></textarea>
+        </div>
+
+        <!-- Supervisión con botón de guardar -->
+        <div class="card supervision-card">
+          <div class="sup-info">
+            <p class="sup-label">Supervisado por:</p>
+            <p class="sup-name">Dr. Carlos Méndez</p>
+            <p class="sup-date"><time datetime="2026-03-20T11:45">20 Mar 2026 · 11:45 AM</time></p>
+          </div>
+          <button class="save-btn" id="btnSaveRecord" aria-label="Guardar registro de control postoperatorio">💾 Guardar
+            registro</button>
+        </div>
+
+      </aside>
+
+    </div>
+
+  </main>
+
+  <!-- Mobile bottom nav con aria-label para navegación móvil -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span>Panel</span>
+    </a>
+    <a href="#" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span>Agenda</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-05-historial-parcial" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
+      <span>Historial</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon" aria-hidden="true">🏥</span>
+      <span>Postop.</span>
+    </a>
+    <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
+      <span>Perfil</span>
+    </a>
+  </nav>
+
+  <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para contenido solo accesible por screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+  <script>
+    window.smiletrackPostopData = @Html.Raw(ViewData["PostopData"]);
+  </script>
+  @Html.AntiForgeryToken()
+  <script src="@Url.Content("~/js/Historia_Clinica/st-aux-07-control-postoperato/control-post.js")"></script>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span style="font-size:1rem;">🦷</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+

@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+docker-compose.override.yml
+docker-compose.vs.debug.yml
+*.db
+*.pdb

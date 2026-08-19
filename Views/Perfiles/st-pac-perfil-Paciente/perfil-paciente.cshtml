@@ -1,0 +1,309 @@
+@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Mi Perfil - SmileTrack Paciente: Consulta y edita tu información personal" />
+  <title>Mi Perfil — SmileTrack Paciente</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Perfiles/st-pac-perfil-Paciente/perfil-paciente.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <!-- ═════ SIDEBAR DEL PACIENTE (Activo: Mi Perfil) ═════ -->
+  @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
+
+  <!-- Overlay móvil -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- Hamburger -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span></span><span></span><span></span>
+  </button>
+
+  <!-- ═══ MAIN ═══ -->
+  <main class="main" id="main-content">
+    <!-- Breadcrumb -->
+    <div class="breadcrumb" aria-label="Ruta de navegación">
+      <span>Inicio</span>
+      <span class="sep" aria-hidden="true">→</span>
+      <span class="current">Mi Perfil</span>
+    </div>
+
+    <!-- Profile Header -->
+    <header class="profile-header">
+      <div class="header-avatar-wrap">
+        <div class="header-avatar" id="headerAvatar">PG</div>
+        <div>
+          <h1 class="header-name" id="headerNombre">Pedro García</h1>
+          <p class="header-sub">
+            Paciente activo · Odontólogo: <span>Dr. Carlos Méndez</span>
+          </p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn-editar" id="btnEditar" aria-label="Activar modo edición">✏️ Editar perfil</button>
+        <button class="btn-guardar" id="btnGuardar" aria-label="Guardar cambios">💾 Guardar</button>
+        <button class="btn-cancelar" id="btnCancelar" aria-label="Cancelar edición">✕ Cancelar</button>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+
+      <!-- Columna izquierda -->
+      <div class="left-col">
+
+        <!-- Card: Datos personales -->
+        <div class="card" id="cardPersonal">
+          <h2 class="card-title"><span class="card-icon" aria-hidden="true">👤</span> Datos personales</h2>
+
+          <!-- Avatar Upload (oculto fuera de edición) -->
+          <div class="avatar-upload" id="avatarUpload" style="display:none;">
+            <div class="avatar-preview" id="avatarPreview">PG</div>
+            <div class="avatar-upload-actions">
+              <label class="btn-upload" tabindex="0" role="button" aria-label="Subir foto de perfil">
+                📷 Cambiar foto
+                <input type="file" id="avatarInput" accept="image/*" style="display:none;" />
+              </label>
+              <span class="upload-hint">JPG, PNG. Máx 2MB</span>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="nombre">Nombre completo</label>
+              <input class="form-input" id="nombre" type="text" value="Pedro García" disabled />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cedula">Número de cédula</label>
+              <input class="form-input locked" id="cedula" type="text" value="1020345678" disabled />
+              <span class="field-note">🔒 No editable</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="fechaNac">Fecha de nacimiento</label>
+              <input class="form-input locked" id="fechaNac" type="text" value="12/03/1985" disabled />
+              <span class="field-note">🔒 No editable</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="genero">Género</label>
+              <select class="form-input" id="genero" disabled>
+                <option value="masculino" selected>Masculino</option>
+                <option value="femenino">Femenino</option>
+                <option value="otro">Otro</option>
+                <option value="no-responde">Prefiero no decir</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="tipoSangre">Tipo de sangre</label>
+              <select class="form-input locked" id="tipoSangre" disabled>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="O+" selected>O+</option>
+                <option value="O-">O-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+              </select>
+              <span class="field-note">🔒 No editable</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="estadoCivil">Estado civil</label>
+              <select class="form-input" id="estadoCivil" disabled>
+                <option value="soltero" selected>Soltero/a</option>
+                <option value="casado">Casado/a</option>
+                <option value="union-libre">Unión libre</option>
+                <option value="divorciado">Divorciado/a</option>
+                <option value="viudo">Viudo/a</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Información de contacto -->
+        <div class="card" id="cardContacto">
+          <h2 class="card-title"><span class="card-icon" aria-hidden="true">📞</span> Información de contacto</h2>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="email">Correo electrónico</label>
+              <input class="form-input" id="email" type="email" value="pedro.garcia@email.com" disabled />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="telefono">Teléfono</label>
+              <input class="form-input" id="telefono" type="tel" value="310 234 5678" disabled />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="direccion">Dirección</label>
+              <input class="form-input" id="direccion" type="text" value="Calle 45 #23-67" disabled />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ciudad">Ciudad</label>
+              <input class="form-input" id="ciudad" type="text" value="Bogotá" disabled />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="departamento">Departamento</label>
+              <input class="form-input" id="departamento" type="text" value="Cundinamarca" disabled />
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Contacto de emergencia -->
+        <div class="card" id="cardEmergencia">
+          <h2 class="card-title"><span class="card-icon" aria-hidden="true">🚨</span> Contacto de emergencia</h2>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="emergNombre">Nombre</label>
+              <input class="form-input" id="emergNombre" type="text" value="María García" disabled />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="emergParentesco">Parentesco</label>
+              <input class="form-input" id="emergParentesco" type="text" value="Madre" disabled />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="emergTelefono">Teléfono</label>
+              <input class="form-input" id="emergTelefono" type="tel" value="310 987 6543" disabled />
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Columna derecha -->
+      <div class="right-col">
+
+        <!-- Card: Información médica (solo lectura) -->
+        <div class="card" id="cardMedica">
+          <h2 class="card-title"><span class="card-icon" aria-hidden="true">🏥</span> Información médica</h2>
+          <div class="info-readonly-note">
+            🔒 Esta información solo puede ser modificada por tu odontólogo
+          </div>
+
+          <div class="med-section">
+            <div class="med-label">Alergias</div>
+            <div class="tags-wrap">
+              <span class="tag alerta">⚠️ Penicilina</span>
+              <span class="tag alerta">⚠️ Látex</span>
+            </div>
+          </div>
+
+          <div class="med-section">
+            <div class="med-label">Enfermedades o condiciones</div>
+            <div class="tags-wrap">
+              <span class="tag info">Hipertensión leve</span>
+            </div>
+          </div>
+
+          <div class="med-section">
+            <div class="med-label">Medicamentos actuales</div>
+            <div class="tags-wrap">
+              <span class="tag neutral">Losartán 50mg</span>
+              <span class="tag neutral">Ácido acetilsalicílico 100mg</span>
+            </div>
+          </div>
+
+          <div class="med-section">
+            <div class="med-label">Antecedentes familiares</div>
+            <div class="tags-wrap">
+              <span class="tag neutral">Diabetes tipo 2 (padre)</span>
+              <span class="tag neutral">Hipertensión (madre)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Seguro / EPS -->
+        <div class="card" id="cardSeguro">
+          <h2 class="card-title"><span class="card-icon" aria-hidden="true">🏦</span> Seguro / EPS</h2>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="eps">EPS / Aseguradora</label>
+              <input class="form-input" id="eps" type="text" value="Sura EPS" disabled />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="poliza">Número de póliza</label>
+              <input class="form-input" id="poliza" type="text" value="POL-2024-789456" disabled />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="afiliacion">Tipo de afiliación</label>
+              <select class="form-input" id="afiliacion" disabled>
+                <option value="contributivo" selected>Régimen contributivo</option>
+                <option value="subsidiado">Régimen subsidiado</option>
+                <option value="particular">Particular</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Seguridad -->
+        <div class="card" id="cardSeguridad">
+          <h2 class="card-title"><span class="card-icon" aria-hidden="true">🔑</span> Seguridad</h2>
+          <div class="form-grid" style="grid-template-columns: 1fr;">
+            <div class="form-group">
+              <label class="form-label" for="passActual">Contraseña actual</label>
+              <div class="pass-wrap">
+                <input class="form-input" id="passActual" type="password" placeholder="••••••••" disabled />
+                <button type="button" class="btn-eye" onclick="togglePass('passActual', this)" aria-label="Mostrar contraseña">👁️</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="passNueva">Nueva contraseña</label>
+              <div class="pass-wrap">
+                <input class="form-input" id="passNueva" type="password" placeholder="Mínimo 8 caracteres" disabled />
+                <button type="button" class="btn-eye" onclick="togglePass('passNueva', this)" aria-label="Mostrar contraseña">👁️</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="passConfirm">Confirmar contraseña</label>
+              <div class="pass-wrap">
+                <input class="form-input" id="passConfirm" type="password" placeholder="Repite la contraseña" disabled />
+                <button type="button" class="btn-eye" onclick="togglePass('passConfirm', this)" aria-label="Mostrar contraseña">👁️</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Mobile Nav -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">🏠</span>
+      <span>Inicio</span>
+    </a>
+    <a href="/perfiles/st-pac-perfil-paciente" class="mobile-nav-item active">
+      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
+      <span>Perfil</span>
+    </a>
+    <a href="/gestion-de-citas/st-pac-01-mis-citas" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span>Citas</span>
+    </a>
+    <a href="/historia-clinica/st-pac-02-historial" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
+      <span>Historial</span>
+    </a>
+    <a href="/gestion-de-citas/st-pac-03-notificaciones" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">🔔</span>
+      <span>Avisos</span>
+    </a>
+  </nav>
+  <script src="@Url.Content("~/js/Perfiles/st-pac-perfil-Paciente/perfil-paciente.js")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>
+

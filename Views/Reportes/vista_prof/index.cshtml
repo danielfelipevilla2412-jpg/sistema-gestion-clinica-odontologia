@@ -1,0 +1,341 @@
+﻿@model SmileTrack_MVC.Models.ViewModels.ReportesProfesionalViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Reportes Profesional";
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Reportes y estadísticas del profesional SmileTrack." />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>SmileTrack — @ViewData["Title"]</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Reportes/vista_prof/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Skip link accesibilidad -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <!-- ═════ SIDEBAR (partial compartido) ═════ -->
+  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Profesional</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Reportes y Estadísticas</span>
+        </nav>
+        <h1 class="page-title">Reportes y Estadísticas</h1>
+        <p class="page-subtitle">
+          Resumen de desempeño clínico, métricas de atención y citas del profesional
+        </p>
+      </div>
+      <div class="header-actions">
+  <button class="btn-primary" id="btnNuevaCita">+ Nueva Cita</button>
+  <button class="btn-secondary" id="btnDescargarPdf">📄 Descargar PDF</button>
+</div>
+    </header>
+
+    <!-- KPIs Grid Principal -->
+    <section class="stats-grid" aria-label="Indicadores clave">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-number">@Model.TotalCitas</span>
+        <span class="stat-label">Citas Totales</span>
+        <span class="stat-sub">↑ @Model.TendenciaCitas% vs mes anterior</span>
+      </div>
+
+      <div class="stat-card" data-color="green">
+        <span class="stat-number">$@Model.Ingresos.ToString("N0")</span>
+        <span class="stat-label">Ingresos Generados</span>
+        <span class="stat-sub">↑ @Model.TendenciaIngresos% vs mes anterior</span>
+      </div>
+
+      <div class="stat-card" data-color="purple">
+        <span class="stat-number">@Model.PacientesUnicos</span>
+        <span class="stat-label">Pacientes Únicos</span>
+        <span class="stat-sub">Atendidos este periodo</span>
+      </div>
+
+      <div class="stat-card" data-color="red">
+        <span class="stat-number">@Model.Cancelaciones</span>
+        <span class="stat-label">Cancelaciones</span>
+        <span class="stat-sub stat-sub--down">@Model.TasaCancelacion.ToString("0.0")% tasa de cancelación</span>
+      </div>
+
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number">@Model.SatisfaccionPaciente</span>
+        <span class="stat-label">Satisfacción Paciente</span>
+        <span class="stat-sub">⭐ @Model.ResenasTotales reseñas</span>
+      </div>
+
+      <div class="stat-card" data-color="teal">
+        <span class="stat-number">@Model.TasaPuntualidad%</span>
+        <span class="stat-label">Tasa de Puntualidad</span>
+        <span class="stat-sub">↑ 3% vs mes anterior</span>
+      </div>
+    </section>
+
+    <!-- Secciones de Gráficos y Tablas en Grid de 2 columnas -->
+    <section class="charts-grid">
+
+      <!-- Tratamientos Más Realizados -->
+      <div class="table-section" style="margin-bottom: 0;">
+        <div class="section-header">
+          <h2 class="section-title">Tratamientos Más Realizados</h2>
+        </div>
+        <div class="prof-revenue-list">
+          @foreach (var t in Model.Tratamientos)
+          {
+              <div class="prof-revenue-row" style="cursor:pointer" data-nombre="@t.Nombre" data-cantidad="@t.Cantidad" data-porcentaje="@t.Porcentaje">
+              <div class="prof-revenue-info">
+                <span class="prof-revenue-name">@t.Nombre</span>
+                <span class="prof-revenue-value">@t.Cantidad citas <small>(@t.Porcentaje%)</small></span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width:@t.Porcentaje.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Pacientes Frecuentes -->
+      <div class="table-section" style="margin-bottom: 0;">
+        <div class="section-header">
+          <h2 class="section-title">Pacientes Frecuentes</h2>
+        </div>
+        <div class="status-list">
+          @foreach (var p in Model.PacientesFrecuentes)
+          {
+            <div class="cell-icon-name" style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+              <span class="cell-icon" data-color="@(p.Color == "purple" ? "purple" : "blue")">@p.Iniciales</span>
+              <div style="flex:1;">
+                <div class="td-name">@p.Nombre</div>
+                <span class="badge">@p.Tipo</span>
+              </div>
+              <div style="text-align:right;">
+                <div class="td-strong">@p.Citas citas</div>
+                <small style="color:var(--text-muted);">@p.Periodo</small>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Próximos Días de Citas -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2 class="section-title">Próximos Días de Citas</h2>
+        <span class="section-badge">Resumen semanal</span>
+      </div>
+      <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom: 0;">
+        @foreach (var dia in Model.ProximosDias)
+        {
+          <div class="stat-card" data-color="@(dia.EsHoy ? "blue" : dia.EsPico ? "orange" : "teal")" style="text-align:center; padding: 14px 10px;">
+            <span class="stat-label" style="text-transform:uppercase; font-weight:700; font-size:.7rem;">@dia.DiaNombre</span>
+            <span class="stat-number" style="font-size:1.6rem; margin: 4px 0;">@dia.CantidadCitas</span>
+            <span class="stat-label" style="font-size:.7rem;">@dia.Fecha</span>
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- Últimas Citas -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2 class="section-title">Últimas Citas</h2>
+        <a href="/historia-clinica/st-odo-03-historial" class="btn-link">Ver todo el historial →</a>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Paciente</th>
+              <th>Servicio</th>
+              <th>Hora</th>
+              <th>Estado</th>
+              <th class="text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var cita in Model.UltimasCitas)
+            {
+              <tr>
+                <td>
+                  <div class="cell-icon-name">
+                    <span class="cell-icon" data-color="blue">
+                      @{
+                        var initials = string.Concat(cita.NombrePaciente.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
+                      }
+                      @(string.IsNullOrWhiteSpace(initials) ? "P" : initials)
+                    </span>
+                    <div>
+                      <div class="td-name">@cita.NombrePaciente</div>
+                      <small style="color:var(--text-muted)">ID: #@cita.IdPaciente</small>
+                    </div>
+                  </div>
+                </td>
+                <td>@cita.Servicio</td>
+                <td>@cita.Hora</td>
+                <td>
+                  <span class="status @(cita.EstadoClase == "status--completed" ? "status--ready" : "status--pending")">
+                    <span class="status__dot"></span> @cita.Estado
+                  </span>
+                </td>
+                <td class="text-right">
+                  <button class="btn-icon" title="Ver detalle"
+                          data-paciente="@cita.NombrePaciente"
+                          data-id="@cita.IdPaciente"
+                          data-servicio="@cita.Servicio"
+                          data-hora="@cita.Hora"
+                          data-estado="@cita.Estado">⋮</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+        <!-- Modal: Detalle de cita -->
+<div class="modal-overlay" id="modalDetalleCita" hidden aria-hidden="true">
+  <div class="modal">
+    <button class="modal-close" data-modal-close="modalDetalleCita" aria-label="Cerrar">&times;</button>
+    <h3 class="modal-title">Detalle de la cita</h3>
+    <p class="modal-desc">Información registrada para esta cita.</p>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Paciente</label>
+        <div class="form-input" id="detalleCitaPaciente" style="background:var(--bg);"></div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Servicio</label>
+          <div class="form-input" id="detalleCitaServicio" style="background:var(--bg);"></div>
+        </div>
+        <div class="form-group">
+          <label>Hora</label>
+          <div class="form-input" id="detalleCitaHora" style="background:var(--bg);"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Estado</label>
+        <div class="form-input" id="detalleCitaEstado" style="background:var(--bg);"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal-close="modalDetalleCita">Cerrar</button>
+      <a class="btn-primary" href="/historia-clinica/st-odo-03-historial">Ver historial completo</a>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nueva cita rápida -->
+<div class="modal-overlay" id="modalNuevaCita" hidden aria-hidden="true">
+  <div class="modal">
+    <button class="modal-close" data-modal-close="modalNuevaCita" aria-label="Cerrar">&times;</button>
+    <h3 class="modal-title">Nueva cita rápida</h3>
+    <p class="modal-desc">Registra los datos básicos. Un recepcionista confirmará el horario en la agenda.</p>
+    <form id="formNuevaCita">
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="ncPaciente">Paciente</label>
+          <input class="form-input" id="ncPaciente" name="paciente" type="text" placeholder="Nombre del paciente" required>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="ncServicio">Servicio</label>
+            <select class="form-input" id="ncServicio" name="servicio" required>
+              <option value="">Selecciona...</option>
+              <option>Ortodoncia</option>
+              <option>Limpieza dental</option>
+              <option>Endodoncia</option>
+              <option>Blanqueamiento</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ncFecha">Fecha y hora</label>
+            <input class="form-input" id="ncFecha" name="fecha" type="datetime-local" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="ncNotas">Notas (opcional)</label>
+          <input class="form-input" id="ncNotas" name="notas" type="text" placeholder="Ej. paciente nuevo, requiere rayos X">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-modal-close="modalNuevaCita">Cancelar</button>
+        <button type="submit" class="btn-primary">Guardar solicitud</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Confirmar exportar PDF -->
+<div class="modal-overlay" id="modalExportarPdf" hidden aria-hidden="true">
+  <div class="modal">
+    <button class="modal-close" data-modal-close="modalExportarPdf" aria-label="Cerrar">&times;</button>
+    <h3 class="modal-title">Exportar reporte a PDF</h3>
+    <p class="modal-desc">Se generará un PDF con los indicadores y tablas visibles en esta página usando el diálogo de impresión de tu navegador.</p>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal-close="modalExportarPdf">Cancelar</button>
+      <button class="btn-primary" id="btnConfirmarExportar">Exportar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Detalle de tratamiento -->
+<div class="modal-overlay" id="modalDetalleTratamiento" hidden aria-hidden="true">
+  <div class="modal">
+    <button class="modal-close" data-modal-close="modalDetalleTratamiento" aria-label="Cerrar">&times;</button>
+    <h3 class="modal-title" id="detalleTratNombre">Tratamiento</h3>
+    <p class="modal-desc">Resumen de este tratamiento en el periodo seleccionado.</p>
+    <div class="modal-body">
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Citas realizadas</label>
+          <div class="form-input" id="detalleTratCantidad" style="background:var(--bg);"></div>
+        </div>
+        <div class="form-group">
+          <label>% del total</label>
+          <div class="form-input" id="detalleTratPorcentaje" style="background:var(--bg);"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal-close="modalDetalleTratamiento">Cerrar</button>
+    </div>
+  </div>
+</div>
+  </main>
+
+  <script src="@Url.Content("~/js/Reportes/vista_prof/main.js")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>
+

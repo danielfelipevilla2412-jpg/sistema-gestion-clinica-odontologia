@@ -1,0 +1,224 @@
+﻿﻿﻿﻿@{ Layout = null; }
+
+?<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Generar Factura</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-rec-04-generar-factura/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+
+  <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ----- MAIN ----- -->
+  <main class="main" id="main-content">
+
+    <!-- Page header -->
+    <header class="page-header">
+      <div class="header-left">
+        <div class="breadcrumb">Recepción ? Facturas ? Generar</div>
+        <h1 class="page-title">Generar Factura</h1>
+        <p class="page-subtitle">Cita del 20 Mar 2026 — Pedro García — Dr. Carlos Méndez</p>
+      </div>
+      <!-- Badge de estado con role status para anuncio dinámico -->
+      <span class="status-badge status-pendiente" id="statusBadge" role="status" aria-live="polite">
+        <span aria-hidden="true"></span> Pendiente de pago
+      </span>
+    </header>
+
+    <!-- Header de factura con estructura semántica para impresión -->
+    <section class="invoice-header" aria-labelledby="invoiceTitle">
+      <h2 id="invoiceTitle" class="visually-hidden">Detalles de factura</h2>
+      <div class="invoice-header-top">
+        <div>
+          <p class="invoice-logo">SmileTrack</p>
+          <p class="invoice-logo-sub">Sistema de Gestión Odontológica</p>
+          <p style="font-size:.7rem;opacity:.7;margin-top:2px;">Calle 45 #12-30, Bogotá D.C.</p>
+        </div>
+        <div class="invoice-meta">
+          <p class="invoice-number" aria-label="Número de factura">FAC-2026-0018</p>
+          <div class="invoice-dates">
+            <p><strong>Fecha:</strong> <time datetime="2026-03-20">20 de marzo 2026</time></p>
+            <p><strong>Vence:</strong> <time datetime="2026-03-27">27 de marzo 2026</time></p>
+          </div>
+        </div>
+      </div>
+      <div class="invoice-info">
+        <div class="invoice-info-section">
+          <p class="invoice-info-label">Paciente</p>
+          <p class="invoice-info-value" id="invoicePatientName">Seleccione un paciente</p>
+          <p class="invoice-info-sub" id="invoicePatientDoc">—</p>
+        </div>
+        <div class="invoice-info-section">
+          <p class="invoice-info-label">Profesional</p>
+          <p class="invoice-info-value" id="invoiceProfessional">Dr. Carlos Méndez</p>
+          <p class="invoice-info-sub">Odontología General</p>
+        </div>
+      </div>
+    </section>
+
+    @{
+      var pacientesFactura = ViewData["Pacientes"] as List<SmileTrack_MVC.Models.Entities.Paciente> ?? new List<SmileTrack_MVC.Models.Entities.Paciente>();
+      var serviciosFactura = ViewData["Servicios"] as List<SmileTrack_MVC.Models.Entities.Servicio> ?? new List<SmileTrack_MVC.Models.Entities.Servicio>();
+    }
+    <!-- Formulario de selección con aria-labels en controles -->
+    <div class="form-row no-print">
+      <div class="form-group">
+        <label class="form-label" for="pacienteSelect">Paciente</label>
+        <select id="pacienteSelect" class="form-select" aria-label="Seleccionar paciente">
+          <option value="" data-doc="">Seleccione un paciente...</option>
+          @foreach (var p in pacientesFactura)
+          {
+            <option value="@p.IdPaciente" data-doc="@p.TipoDocumento @p.Documento">@p.Nombres @p.Apellidos</option>
+          }
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="profesionalSelect">Profesional</label>
+        <select id="profesionalSelect" class="form-select" aria-label="Seleccionar profesional">
+          <option value="Dr. Carlos Méndez">Dr. Carlos Méndez - Odontología General</option>
+          <option value="Dra. Laura Gómez">Dra. Laura Gómez - Ortodoncia</option>
+          <option value="Dr. Andrés Torres">Dr. Andrés Torres - Endodoncia</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="servicioSelect">Añadir Servicio</label>
+        <div style="display:flex;gap:8px;">
+          <select id="servicioSelect" class="form-select" aria-label="Seleccionar servicio a añadir">
+            @if (serviciosFactura.Count > 0)
+            {
+              @foreach (var s in serviciosFactura)
+              {
+                <option value="@s.IdServicio" data-price="@s.Precio" data-desc="@s.Descripcion">@s.Nombre - $@(s.Precio.ToString("N0"))</option>
+              }
+            }
+            else
+            {
+              <option value="consulta" data-price="50000" data-desc="Valoración y diagnóstico">Consulta General - $50.000</option>
+            }
+          </select>
+          <button class="btn-add" id="btnAddService" aria-label="Añadir servicio seleccionado a la factura"><span class="material-symbols-outlined" aria-hidden="true">add</span> Añadir</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla de items con estructura accesible -->
+    <table class="items-table" aria-label="Detalle de servicios facturados">
+      <thead>
+        <tr>
+          <th scope="col">Descripción</th>
+          <th scope="col" class="text-center">Cant.</th>
+          <th scope="col" class="text-right">Unitario</th>
+          <th scope="col" class="text-right">Desc.</th>
+          <th scope="col" class="text-right">Total</th>
+          <th scope="col" class="text-center no-print"><span class="visually-hidden">Acciones</span></th>
+        </tr>
+      </thead>
+      <tbody id="invoiceItemsBody" aria-live="polite"></tbody>
+    </table>
+
+    <!-- Totales con aria-live para actualización dinámica -->
+    <div class="totals-section" aria-label="Resumen de totales">
+      <div class="totals-box">
+        <div class="total-row">
+          <span class="label">Subtotal</span>
+          <span class="value" id="invoiceSubtotal">$0</span>
+        </div>
+        <div class="total-row discount">
+          <span class="label">Descuento</span>
+          <span class="value" id="invoiceDiscount">$0</span>
+        </div>
+        <div class="total-row">
+          <span class="label">IVA (0%)</span>
+          <span class="value" id="invoiceIva">$0</span>
+        </div>
+        <div class="total-row final">
+          <span class="label">TOTAL</span>
+          <span class="value" id="invoiceTotal" aria-live="polite">$0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sección de pago con controles deshabilitables -->
+    <section class="payment-section no-print" aria-labelledby="paymentTitle">
+      <h3 id="paymentTitle" class="payment-section-title">Registrar pago</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="paymentMethod">Método de pago</label>
+          <select id="paymentMethod" class="form-select" aria-label="Seleccionar método de pago">
+            <option value="Efectivo">Efectivo</option>
+            <option value="Transferencia">Transferencia</option>
+            <option value="Tarjeta">Tarjeta</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="amountReceived">Monto recibido</label>
+          <input type="text" id="amountReceived" class="form-input" value="$0" aria-label="Monto recibido para el pago"
+            inputmode="numeric" />
+        </div>
+      </div>
+      <div class="payment-actions">
+        <button class="btn-secondary" id="btnPrint" aria-label="Imprimir factura actual"><span class="material-symbols-outlined" aria-hidden="true">print</span> Imprimir factura</button>
+        <button class="btn-success" id="btnPay" aria-label="Registrar pago de la factura"><span class="material-symbols-outlined" aria-hidden="true">payment</span> Registrar pago — $0</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast container con atributos ARIA para notificaciones -->
+  <div id="toastContainer" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
+
+  <!-- Estilos para contenido solo accesible por screen readers -->
+  <style>
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
+      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+
+ <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-rec-04-generar-factura/app.js")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+

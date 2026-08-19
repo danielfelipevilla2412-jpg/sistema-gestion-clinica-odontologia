@@ -1,0 +1,194 @@
+@*
+  SmileTrack — Sidebar Admin (_SidebarAdmin.cshtml)
+  Partial reutilizable para el rol Administrador.
+  Incluye: <aside> completo, logo, nav con grupos colapsables y bloque de usuario.
+*@
+@{
+    var currentPath = Context.Request.Path.Value ?? "/";
+    Func<string, string> linkClass = href =>
+        currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+
+    var _aName     = User.Identity?.Name ?? "Administrador";
+    var _aEmail    = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "admin@smiletrack.co";
+    var _aInitials = string.Concat(
+        _aName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+              .Take(2)
+              .Select(s => s[0])
+    ).ToUpperInvariant();
+    if (string.IsNullOrWhiteSpace(_aInitials)) _aInitials = "AD";
+}
+
+<aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+
+  <div class="sidebar-logo">
+    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Inicio <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/" class="@linkClass("/")" data-icon="🏠">Homepage</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Reportes y Analítica <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/reportes" class="@linkClass("/reportes")" data-icon="📊">Panel de Analítica</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Acceso y Seguridad <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios"
+           class="@linkClass("/acceso-y-seguridad/st-adm-02-gestion-usuarios")"
+           data-icon="👥">Gestión de Usuarios</a>
+        <a href="/acceso-y-seguridad/st-adm-03-gestion-roles"
+           class="@linkClass("/acceso-y-seguridad/st-adm-03-gestion-roles")"
+           data-icon="🛡️">Gestión de Roles</a>
+        <a href="/acceso-y-seguridad/st-adm-15-bitacora"
+           class="@linkClass("/acceso-y-seguridad/st-adm-15-bitacora")"
+           data-icon="📜">Bitácora del Sistema</a>
+        <a href="/acceso-y-seguridad/cambiar-contrasena"
+           class="@linkClass("/acceso-y-seguridad/cambiar-contrasena")"
+           data-icon="🔐">Cambiar Contraseña</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes"
+           class="@linkClass("/gestion-de-pacientes/st-adm-05-gestion-pacientes")"
+           data-icon="👥">Gestión de Pacientes</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/historia-clinica/st-adm-historial"
+           class="@linkClass("/historia-clinica/st-adm-historial")"
+           data-icon="📋">Historial Clínico</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de Profesionales <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales"
+           class="@linkClass("/gestion-de-profesionales/st-adm-07-gestion-profesionales")"
+           data-icon="🩺">Gestión de Profesionales</a>
+        <a href="/gestion-de-profesionales/st-adm-14-reportes-clinicos"
+           class="@linkClass("/gestion-de-profesionales/st-adm-14-reportes-clinicos")"
+           data-icon="📈">Reportes Clínicos</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-citas/st-adm-01-dashboard"
+           class="@linkClass("/gestion-de-citas/st-adm-01-dashboard")"
+           data-icon="📊">Dashboard General</a>
+        <a href="/gestion-de-citas/st-adm-08-agenda"
+           class="@linkClass("/gestion-de-citas/st-adm-08-agenda")"
+           data-icon="📅">Agenda General</a>
+        <a href="/gestion-de-citas/st-adm-09-citas"
+           class="@linkClass("/gestion-de-citas/st-adm-09-citas")"
+           data-icon="🗓️">Gestión Integral de Citas</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Facturación y Pagos <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/facturacion-y-pagos/st-adm-12-facturacion"
+           class="@linkClass("/facturacion-y-pagos/st-adm-12-facturacion")"
+           data-icon="💰">Gestión de Facturación</a>
+        <a href="/facturacion-y-pagos/st-adm-13-reportes-financieros"
+           class="@linkClass("/facturacion-y-pagos/st-adm-13-reportes-financieros")"
+           data-icon="📊">Reportes Financieros</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Servicios y Recursos <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/servicios-y-recursos/st-adm-10-servicios"
+           class="@linkClass("/servicios-y-recursos/st-adm-10-servicios")"
+           data-icon="🔧">Catálogo de Servicios</a>
+        <a href="/servicios-y-recursos/st-adm-16-configuracion-general"
+           class="@linkClass("/servicios-y-recursos/st-adm-16-configuracion-general")"
+           data-icon="⚙️">Configuración General</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de PQR <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-pqr/st-adm-17-gestion-pqr"
+           class="@linkClass("/gestion-de-pqr/st-adm-17-gestion-pqr")"
+           data-icon="📮">Peticiones, Quejas y Reclamos</a>
+        <a href="/gestion-de-pqr/st-pac-04-nueva-pqr"
+           class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")"
+           data-icon="📝">Nueva Solicitud</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Centro de Ayuda <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/centro-de-ayuda/como-programar-cita"
+           class="@linkClass("/centro-de-ayuda/como-programar-cita")"
+           data-icon="📅">Cómo programar una cita</a>
+        <a href="/centro-de-ayuda/guias-tutoriales"
+           class="@linkClass("/centro-de-ayuda/guias-tutoriales")"
+           data-icon="📚">Guías y Tutoriales</a>
+        <a href="/centro-de-ayuda/soporte"
+           class="@linkClass("/centro-de-ayuda/soporte")"
+           data-icon="🎫">Soporte y Tickets</a>
+      </div>
+    </div>
+
+    <div class="nav-separator" aria-hidden="true"></div>
+
+    <a href="/acceso-y-seguridad/login"
+       class="nav-item nav-item--logout"
+       data-icon="🚪"
+       aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
+  </nav>
+
+  <div class="sidebar-user">
+    <div class="user-avatar" aria-hidden="true">@_aInitials</div>
+    <div class="user-info">
+      <span class="user-role">@_aName</span>
+      <span class="user-email">@_aEmail</span>
+    </div>
+  </div>
+
+</aside>

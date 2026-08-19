@@ -1,0 +1,185 @@
+@using System.Linq
+@model IEnumerable<SmileTrack_MVC.Models.ViewModels.PacienteViewModel>
+@{
+    Layout = null;
+    var pacientes = (Model ?? Enumerable.Empty<SmileTrack_MVC.Models.ViewModels.PacienteViewModel>()).ToList();
+    var pacientesJson = System.Text.Json.JsonSerializer.Serialize(pacientes);
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Gestiona y consulta el historial de pacientes atendidos en SmileTrack." />
+  <title>SmileTrack — Gestión de Pacientes</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Pacientes/st-adm-05-gestion-pacientes/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+<body>
+  @Html.AntiForgeryToken()
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <main class="main" id="main-content">
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Administración</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Gestión de Pacientes</span>
+        </nav>
+        <h1 class="page-title">Gestión de Pacientes</h1>
+        <p class="page-subtitle">Historial de pacientes — Solo lectura</p>
+      </div>
+      <div class="header-actions">
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+          <input type="search" id="searchPatients" class="search-input" placeholder="Buscar paciente, cédula o diagnóstico..." aria-label="Buscar paciente" />
+        </div>
+      </div>
+    </header>
+
+    <section class="stats-grid" aria-label="Resumen de pacientes">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-icon">🦷</span>
+        <span class="stat-number" id="statTotal" data-target="@pacientes.Count()">0</span>
+        <span class="stat-label">Total Pacientes</span>
+        <span class="stat-sub">Registrados en el sistema</span>
+      </div>
+      <div class="stat-card" data-color="green">
+        <span class="stat-icon">📋</span>
+        <span class="stat-number" id="statHistory" data-target="@pacientes.Count(p => p.History != null && p.History.Count > 0)">0</span>
+        <span class="stat-label">Con Historial Clínico</span>
+        <span class="stat-sub">Tienen registros médicos</span>
+      </div>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-icon">📅</span>
+        <span class="stat-number" id="statNext" data-target="@pacientes.Count(p => p.NextVisit.HasValue && p.NextVisit.Value >= DateTime.Today)">0</span>
+        <span class="stat-label">Próximas Citas</span>
+        <span class="stat-sub">Citas programadas</span>
+      </div>
+      <div class="stat-card" data-color="purple">
+        <span class="stat-icon">✅</span>
+        <span class="stat-number" id="statNoAllergy" data-target="@pacientes.Count(p => p.Allergies == null || p.Allergies.Count == 0)">0</span>
+        <span class="stat-label">Sin Alergias</span>
+        <span class="stat-sub">Sin restricciones</span>
+      </div>
+    </section>
+
+    <section class="filters-bar" aria-label="Filtros de búsqueda">
+      <div class="filters-row">
+        <div class="filter-group">
+          <label class="filter-label" for="filterAlergias">Alergias</label>
+          <select id="filterAlergias" class="filter-select" aria-label="Filtrar por alergias">
+            <option value="">Todas</option>
+            <option value="con">Con alergias</option>
+            <option value="sin">Sin alergias</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label" for="filterCita">Próxima cita</label>
+          <select id="filterCita" class="filter-select" aria-label="Filtrar por próxima cita">
+            <option value="">Todas</option>
+            <option value="con">Con cita programada</option>
+            <option value="sin">Sin cita programada</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label" for="filterHistorial">Historial clínico</label>
+          <select id="filterHistorial" class="filter-select" aria-label="Filtrar por historial clínico">
+            <option value="">Todos</option>
+            <option value="con">Con historial</option>
+            <option value="sin">Sin historial</option>
+          </select>
+        </div>
+        <button class="btn-clear-filters" id="btnClearFilters" aria-label="Limpiar todos los filtros">✕ Limpiar filtros</button>
+      </div>
+      <span class="filter-results" id="filterResults"></span>
+    </section>
+
+    <section class="table-section" aria-labelledby="tableTitle">
+      <h2 class="visually-hidden" id="tableTitle">Lista de pacientes atendidos</h2>
+
+      <div class="table-header" role="row">
+        <div class="table-col col-paciente" role="columnheader">Paciente</div>
+        <div class="table-col col-fecha" role="columnheader">Última consulta</div>
+        <div class="table-col col-diagnostico" role="columnheader">Diagnóstico</div>
+        <div class="table-col col-cita" role="columnheader">Próxima cita</div>
+        <div class="table-col col-alergias" role="columnheader">Alergias</div>
+        <div class="table-col col-acciones" role="columnheader">Acciones</div>
+      </div>
+
+      <div id="patientsBody" class="table-body" role="rowgroup" aria-live="polite"></div>
+
+      <div class="empty-state" id="emptyState" style="display:none" role="status" aria-live="polite" aria-hidden="true">
+        No se encontraron pacientes con los criterios de búsqueda.
+      </div>
+    </section>
+
+    <footer class="page-footer" aria-label="Navegación de páginas">
+      <span>Mostrando <strong id="pageShowing">0</strong> de <strong id="pageTotal">0</strong> pacientes</span>
+      <nav class="pagination" aria-label="Páginas de resultados">
+        <button class="pagination-btn" id="btnPrev" aria-label="Página anterior" disabled>‹</button>
+        <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">›</button>
+      </nav>
+    </footer>
+  </main>
+
+  <div class="modal-overlay" id="modalPatient" role="dialog" aria-modal="true" aria-labelledby="modalPatientTitle" aria-hidden="true" inert>
+    <div class="modal">
+      <button class="modal-close" id="modalPatientClose" aria-label="Cerrar ventana">×</button>
+      <h2 class="modal-title" id="modalPatientTitle">Detalle de Paciente</h2>
+      <div id="modalPatientContent" class="modal-content" role="document"></div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="modalPatientCancel">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true"></span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">👥</span>
+      <span>Usuarios</span>
+    </a>
+    <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon" aria-hidden="true">🦷</span>
+      <span>Pacientes</span>
+    </a>
+    <a href="/facturacion-y-pagos/st-adm-12-facturacion" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">💳</span>
+      <span>Facturación</span>
+    </a>
+    <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">⚙️</span>
+      <span>Config</span>
+    </a>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<script>
+  window.RAZOR_PATIENTS = @Html.Raw(pacientesJson);
+</script>
+<script src="@Url.Content("~/js/Gestion_De_Pacientes/st-adm-05-gestion-pacientes/script.js?v=2")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>
+

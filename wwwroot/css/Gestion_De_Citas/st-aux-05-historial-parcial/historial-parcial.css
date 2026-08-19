@@ -1,0 +1,250 @@
+/* ============================================
+SmileTrack — Historial Clínico Parcial (st-aux-05-historial-parcial)
+============================================
+Autor: Johan Santamaria
+Fecha: 29/07/2026
+
+DESCRIPCIÓN:
+Hojas de estilo para la historia parcial del paciente, regulando el aspecto del banner de alerta médica destacado, el formato tabular de consultas anteriores y la animación del skeleton loader.
+
+FUNCIONALIDADES PRINCIPALES:
+- Diseño del banner de alerta médica con coloración de advertencia y bordes de alta visibilidad
+- Tabla de historial estructurada y responsive (conversión a bloque en pantallas de ancho reducido)
+- Animación de desvanecimiento con brillo (shimmer effect) para skeleton loaders de carga asíncrona
+- Soporte para navegación accesible e impresión física legible del historial médico
+
+DEPENDENCIAS TÉCNICAS:
+- Controller: GestionCitasController y Stadm09Citas
+- CSS: ~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css
+- JS: ~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js
+- Partial / Otros: historial-parcial.cshtml
+
+NOTAS DE MANTENIMIENTO:
+- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+- La animación shimmer utiliza transiciones CSS optimizadas para evitar retrasos de procesamiento de fotogramas (jank).
+============================================ */
+
+/* Variables globales consistentes con el sistema SmileTrack */
+:root {
+  /* Variables base idénticas a st-aux-01 */
+  --sidebar-w: 220px;
+  --bg: #f4f6fb;
+  --white: #ffffff;
+  --primary: #1a56cc;
+  --primary-light: #eef2ff;
+  --green: #22c55e;
+  --orange: #f59e0b;
+  --purple: #9333ea;
+  --danger: #dc2626;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --shadow: 0 1px 4px rgba(0,0,0,.07);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.1);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: 'DM Sans', sans-serif;
+  --font-display: 'Syne', sans-serif;
+  --tr: .18s ease;
+
+  /* Variables específicas de historial */
+  --alert-amber-bg: #ffedd5;
+  --alert-amber-border: #f97316;
+  --alert-amber-text: #9a3412;
+  --alert-red-bg: #fee2e2;
+  --alert-red-border: #fecaca;
+  --alert-red-text: #991b1b;
+  
+  /* Variables para consistencia */
+  --radius-full: 9999px;
+  --input-focus-ring: rgba(26, 86, 204, 0.15);
+}
+
+/* Reset y configuración base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; scroll-behavior: smooth; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+a { text-decoration: none; color: inherit; }
+button { font-family: inherit; cursor: pointer; }
+img { max-width: 100%; height: auto; display: block; }
+
+/* Enlace para saltar al contenido principal, accesibilidad keyboard-first */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--primary);
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 1000;
+  transition: top var(--tr);
+}
+.skip-link:focus { top: 0; }
+
+/* Indicador visual de foco para navegación con teclado */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Contenido solo para lectores de pantalla */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Soporte para usuarios que prefieren menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
+
+/* ═══ SIDEBAR (IDÉNTICO A st-aux-01 - SIN MODIFICAR DISEÑO) ═══ */
+.sidebar { width: var(--sidebar-w); background: linear-gradient(180deg, #0f2057 0%, #1a3580 100%); color: #c8d3e8; display: flex; flex-direction: column; padding: 20px 0 16px; position: fixed; top: 0; left: 0; bottom: 0; z-index: 200; transition: transform var(--tr); }
+.sidebar-logo { padding: 0 18px 20px; border-bottom: 1px solid rgba(255,255,255,.1); margin-bottom: 10px; text-align: center; }
+.logo-img { width: 100%; max-width: 150px; height: auto; display: block; object-fit: contain; border-radius: 8px; }
+.sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 10px; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); text-decoration: none; color: #8fa3c8; font-size: .84rem; font-weight: 500; transition: background var(--tr), color var(--tr); }
+.nav-item--logout { color: #f87171; margin-top: auto; }
+.nav-item--logout:hover { background: rgba(239,68,68,.15); color: #fca5a5; }
+.nav-item::before { content: attr(data-icon); font-size: 15px; }
+.nav-item:hover { background: rgba(255,255,255,.08); color: #dce6f5; }
+.nav-item.active { background: var(--primary); color: #fff; }
+.nav-separator { height: 1px; background: rgba(255,255,255,.1); margin: 8px 10px; }
+.sidebar-user { display: flex; align-items: center; gap: 10px; padding: 14px 14px 0; border-top: 1px solid rgba(255,255,255,.1); margin-top: 10px; }
+.user-avatar { width: 34px; height: 34px; border-radius: 50%; background: #2563eb; color: #fff; display: flex; align-items: center; justify-content: center; font-size: .73rem; font-weight: 700; flex-shrink: 0; }
+.user-info { display: flex; flex-direction: column; overflow: hidden; }
+.user-role { font-size: .75rem; color: #e2e8f0; font-weight: 600; }
+.user-email { font-size: .68rem; color: #6a80a8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+
+/* ═══ HAMBURGER (IDÉNTICO A st-aux-01) ═══ */
+.hamburger { display: none; position: fixed; top: 14px; left: 14px; z-index: 300; background: #0f2057; border: none; border-radius: 8px; padding: 9px 10px; cursor: pointer; flex-direction: column; gap: 5px; }
+.hamburger span { display: block; width: 20px; height: 2px; background: #fff; border-radius: 2px; }
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 150; }
+
+/* ═══ MAIN & HEADER (IDÉNTICO A st-aux-01) ═══ */
+.main { margin-left: var(--sidebar-w); flex: 1; padding: 24px 28px 40px; min-width: 0; animation: fadeIn .3s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.page-header { background: var(--white); border-radius: var(--radius); padding: 16px 22px; margin-bottom: 18px; box-shadow: var(--shadow); border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.breadcrumb { font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
+.page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; color: var(--primary); }
+.page-subtitle { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ═══ COMPONENTES ESPECÍFICOS DE HISTORIAL PARCIAL ═══ */
+
+/* Alerta médica con estilos de advertencia */
+.alerta-medica { background: var(--alert-amber-bg); border: 1px solid var(--alert-amber-border); border-left: 4px solid var(--orange); border-radius: var(--radius); padding: 16px; margin-bottom: 20px; }
+.alerta-medica-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .9rem; color: var(--alert-amber-text); margin-bottom: 12px; }
+.alerta-medica-row { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--text); margin-bottom: 6px; }
+.alerta-medica-row:last-child { margin-bottom: 0; }
+.alerta-medica-icon { font-size: 1.1rem; flex-shrink: 0; }
+.alerta-medica-value { font-weight: 600; }
+.alerta-medica-value.red { color: var(--danger); }
+
+/* Tabla de historial con scroll horizontal en móvil */
+.table-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
+.table-scroll { overflow-x: auto; }
+.hist-table { width: 100%; border-collapse: collapse; font-size: .83rem; min-width: 540px; }
+.hist-table thead { background: var(--bg); border-bottom: 2px solid var(--border); }
+.hist-table th { padding: 12px 16px; text-align: left; font-size: .69rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; }
+.hist-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+.hist-table tbody tr:last-child td { border-bottom: none; }
+.hist-table tbody tr:hover { background: #f8fafc; }
+.td-fecha { font-weight: 700; color: var(--text); white-space: nowrap; }
+.td-profesional { font-weight: 600; color: var(--text); white-space: nowrap; }
+
+/* Skeleton loader para feedback visual durante carga de datos */
+.skeleton-cell {
+  height: 13px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Footer de tabla con nota informativa */
+.table-footer {
+  padding: 12px 16px;
+  font-size: .78rem;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  font-style: italic;
+  text-align: center;
+}
+
+
+
+/* ═══ RESPONSIVE (IDÉNTICO A st-aux-01) ═══ */
+@media (max-width: 700px) {
+  .hist-table thead { display: none; }
+  .hist-table, .hist-table tbody, .hist-table tr, .hist-table td { display: block; width: 100%; }
+  .hist-table tbody tr { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .hist-table td { padding: 3px 0; display: flex; gap: 6px; }
+  .hist-table td::before {
+    content: attr(data-label);
+    font-size: .69rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    min-width: 90px;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+}
+@media (max-width: 680px) {
+  .hamburger { display: flex; }
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-md); }
+  .overlay.open { display: block; }
+  .main { margin-left: 0; padding: 58px 14px 32px; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .alerta-medica { flex-direction: column; align-items: flex-start; }
+
+}
+
+/* ═══ ESTILOS DE IMPRESIÓN ═══ */
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .sidebar, .hamburger, .overlay, .toast { display: none !important; }
+  .main { margin-left: 0 !important; padding: 0 !important; }
+  .table-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+  .alerta-medica { border: 1px solid #ccc !important; background: #fff !important; }
+  @page { size: letter; margin: 1.5cm; }
+}
+/* ═════ NUEVO: SOLO PARA COMPORTAMIENTO DESPLEGABLE ═════ */
+.nav-group { margin-bottom: 6px; }
+.nav-group-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; cursor: pointer; user-select: none;
+  font-size: .84rem; font-weight: 600; color: #c8d3e8;
+  border-radius: var(--radius-sm);
+  transition: background var(--tr), color var(--tr);
+}
+.nav-group-header:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-group-header:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.nav-arrow { font-size: .65rem; transition: transform 0.25s ease; opacity: 0.7; }
+.nav-group-items {
+  display: flex; flex-direction: column; gap: 2px;
+  overflow: hidden; transition: max-height 0.3s ease;
+}
+/* Pequeña indentación visual para diferenciar sub-menú */
+.nav-group-items .nav-item { padding-left: 24px; }

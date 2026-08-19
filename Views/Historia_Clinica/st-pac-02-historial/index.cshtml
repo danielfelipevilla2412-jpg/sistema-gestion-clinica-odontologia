@@ -1,0 +1,725 @@
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿@using System.Text.Json
+@using SmileTrack_MVC.Models.ViewModels
+@model HistorialPacienteViewModel
+@{
+    Layout = null;
+    var odonto = Model.Odontograma;
+    var odontoConfigJson = JsonSerializer.Serialize(new
+    {
+        pacienteId = odonto.PacienteId,
+        historiaId = odonto.HistoriaId,
+        pacienteNombre = odonto.PacienteNombre,
+        codigoHC = odonto.CodigoHC,
+        fechaNacimiento = odonto.FechaNacimiento,
+        estadoPersistido = odonto.ObservacionesGenerales
+    });
+    var registrosJson = JsonSerializer.Serialize(Model.Registros.Select(r => new
+    {
+        fecha = r.Fecha.ToString("yyyy-MM-dd"),
+        fechaTexto = r.Fecha.ToString("dd MMM yyyy"),
+        tipo = r.Tipo,
+        descripcion = r.Descripcion,
+        doctor = r.Doctor,
+        estado = r.Estado
+    }));
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Mi Historial Clínico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-pac-02-historial/styles.css")" />
+  <style>
+    @@keyframes scan {
+      0% {
+        transform: translateY(0);
+      }
+
+      100% {
+        transform: translateY(900px);
+      }
+    }
+
+    .hw button {
+      transform: none !important;
+    }
+
+    .tb {
+      font-size: 10px;
+      padding: 4px 13px;
+      border-radius: 20px;
+      border: 1px solid rgba(0, 212, 255, 0.25);
+      background: transparent;
+      color: rgba(0, 212, 255, 0.5);
+      cursor: pointer;
+      letter-spacing: 0.03em;
+    }
+
+    .tb.active {
+      border-color: rgba(0, 212, 255, 0.7);
+      background: rgba(0, 212, 255, 0.15);
+      color: #00d4ff;
+      box-shadow: 0 0 8px rgba(0, 212, 255, 0.2);
+    }
+  </style>
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- [MEJORA]: Skip link para accesibilidad keyboard-first (consistente con st-pac-01) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <!-- ----- SIDEBAR UNIFICADO (Activo: Historial) ----- -->
+  @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
+
+  <!-- ----- HAMBURGER (mÓvil) ----- -->
+  <!-- [MEJORA]: aria-expanded y aria-controls para accesibilidad de menú mÓvil -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+  </button>
+  <!-- [MEJORA]: aria-hidden inicial para overlay -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ----- MAIN ----- -->
+  <main class="main" id="main-content">
+
+    <!-- Page header -->
+    <header class="page-header">
+      <div class="header-left">
+        <div class="breadcrumb">Paciente › Mi historial</div>
+        <h1 class="page-title">Mi Historial Clínico</h1>
+        <p class="page-subtitle">Consulta tus registros, tratamientos y odontograma</p>
+      </div>
+      <!-- [MEJORA]: aria-label para botón de acción principal -->
+      <button class="btn-primary" id="btnDescargar" aria-label="Descargar informe clínico completo"><span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar
+        informe</button>
+    </header>
+
+    <!-- Stats -->
+    <!-- [MEJORA]: aria-label para sección de estadÍdsticas -->
+    <section class="stats-grid" aria-label="Resumen de historial clínico">
+      <div class="stat-card" data-color="blue"><span class="stat-number" id="cnt-total">0</span><span
+          class="stat-label">Total registros</span></div>
+      <div class="stat-card" data-color="green"><span class="stat-number" id="cnt-atendidas">0</span><span
+          class="stat-label">Atendidas</span><span class="stat-sub" id="stat-sub-atendidas"></span></div>
+      <div class="stat-card" data-color="orange"><span class="stat-number" id="cnt-pendientes">0</span><span
+          class="stat-label">Pendientes</span></div>
+      <div class="stat-card" data-color="purple"><span class="stat-number" id="cnt-alertas">0</span><span
+          class="stat-label">Alertas médicas</span></div>
+    </section>
+
+    <!-- Sección principal -->
+    <section class="agenda-section" aria-label="Contenido de historial">
+
+      <!-- Toolbar -->
+      <div class="toolbar" role="toolbar" aria-label="Filtros de historial">
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+          <!-- [MEJORA]: aria-label para input de búsqueda (consistente con st-pac-01) -->
+          <input type="search" id="searchInput" class="search-input" placeholder="Buscar en historial\…"
+            autocomplete="off" aria-label="Buscar en historial clínico" />
+        </div>
+        <!-- [MEJORA]: aria-label para select de filtro -->
+        <select id="filterTipo" class="status-select" aria-label="Filtrar por tipo de registro">
+          <option value="">Todos los tipos</option>
+          <option value="consulta">Consulta</option>
+          <option value="limpieza">Limpieza</option>
+          <option value="tratamiento">Tratamiento</option>
+          <option value="radiografia">Radiografía</option>
+        </select>
+        <span class="count-label" id="countLabel" aria-live="polite"></span>
+      </div>
+
+      <!-- Grid: Odontograma + Sidebar cards -->
+      <div class="content-grid">
+
+        <!-- Columna principal -->
+        <div class="col-main">
+
+          <!-- --- ODONTOGRAMA INTERACTIVO COMPLETO --- -->
+          <div class="odontogram-widget">
+            <div class="odontogram-header">
+              <h3 id="odontogramTitle"><span class="material-symbols-outlined" aria-hidden="true">medical_information</span> Mi odontograma</h3>
+              <span class="odontogram-badge" aria-label="Modo de visualización">Solo lectura</span>
+            </div>
+
+            <!-- Widget odontograma original (ESTRUCTURA VISUAL PRESERVADA) -->
+            <div class="hw"
+              style="background:#030d1a;border-radius:12px;padding:14px;font-family:sans-serif;position:relative;overflow:hidden;"
+              role="region" aria-labelledby="odontogramTitle">
+              <div class="sl"
+                style="position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,200,255,0.22),transparent);animation:scan 3s linear infinite;pointer-events:none;z-index:1;top:0"
+                aria-hidden="true"></div>
+
+              <!-- Corner decorations (decorativos, aria-hidden) -->
+              <div
+                style="position:absolute;top:7px;left:7px;width:10px;height:10px;border-top:1px solid rgba(0,212,255,0.4);border-left:1px solid rgba(0,212,255,0.4)"
+                aria-hidden="true"></div>
+              <div
+                style="position:absolute;top:7px;right:7px;width:10px;height:10px;border-top:1px solid rgba(0,212,255,0.4);border-right:1px solid rgba(0,212,255,0.4)"
+                aria-hidden="true"></div>
+              <div
+                style="position:absolute;bottom:7px;left:7px;width:10px;height:10px;border-bottom:1px solid rgba(0,212,255,0.4);border-left:1px solid rgba(0,212,255,0.4)"
+                aria-hidden="true"></div>
+              <div
+                style="position:absolute;bottom:7px;right:7px;width:10px;height:10px;border-bottom:1px solid rgba(0,212,255,0.4);border-right:1px solid rgba(0,212,255,0.4)"
+                aria-hidden="true"></div>
+
+              <div
+                style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;position:relative;z-index:2">
+                <div>
+                  <div
+                    style="font-size:12px;font-weight:600;color:#00d4ff;letter-spacing:0.08em;text-transform:uppercase">
+                    SmileTrack — Odontograma</div>
+                  <div id="sub" style="font-size:9px;color:rgba(0,212,255,0.45);margin-top:2px">Paciente: @Model.Odontograma.PacienteNombre —
+    @Model.Odontograma.CodigoHC</div>
+                </div>
+                <!-- [MEJORA]: role="radiogroup" para toggles de dentición -->
+                <div style="display:flex;gap:5px" role="radiogroup" aria-label="Tipo de dentición">
+                  <button class="tb active" onclick="setTipo('adulto',this)" role="radio" aria-checked="true"
+                    aria-label="Dentición permanente (Adulto)">Adulto</button>
+                  <button class="tb" onclick="setTipo('nino',this)" role="radio" aria-checked="false"
+                    aria-label="Dentición temporal (Niño)">Niño</button>
+                </div>
+              </div>
+
+              <!-- [MEJORA]: Contenedor con role y aria-label para accesibilidad -->
+              <div id="odonto" style="position:relative;z-index:2" role="grid"
+                aria-label="Representación visual de piezas dentales"></div>
+
+              <!-- Leyenda -->
+              <div
+                style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0 0;position:relative;z-index:2"
+                role="list" aria-label="Leyenda de estados dentales">
+                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
+                  role="listitem"><span style="width:7px;height:7px;border-radius:50%;background:#ff4d6d;flex-shrink:0"
+                    aria-hidden="true"></span>Caries</div>
+                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
+                  role="listitem"><span style="width:12px;height:3px;border-radius:2px;background:#378ADD;flex-shrink:0"
+                    aria-hidden="true"></span>Endodoncia</div>
+                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
+                  role="listitem"><span style="width:7px;height:7px;border-radius:50%;background:#f4a62a;flex-shrink:0"
+                    aria-hidden="true"></span>Sellante</div>
+                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
+                  role="listitem"><span class="material-symbols-outlined" style="font-size:10px;color:#888" aria-hidden="true">circle</span>&nbsp;Ausente</div>
+                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
+                  role="listitem"><span style="width:12px;height:3px;border-radius:2px;background:#1D9E75;flex-shrink:0"
+                    aria-hidden="true"></span>Placa</div>
+                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
+                  role="listitem"><span style="width:7px;height:7px;border-radius:50%;background:#00d4ff;flex-shrink:0"
+                    aria-hidden="true"></span>Sano</div>
+              </div>
+
+              <!-- Panel solo lectura -->
+              <div id="panel"
+                style="margin-top:10px;background:rgba(0,25,50,0.9);border:1px solid rgba(0,212,255,0.25);border-radius:10px;padding:10px 14px;display:none;position:relative;z-index:2"
+                role="region" aria-live="polite" aria-label="Detalle de pieza dental seleccionada">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                  <div id="ptit" style="font-size:11px;font-weight:600;color:#00d4ff">Diente —</div>
+                  <!-- [MEJORA]: aria-label para botón de cerrar panel -->
+                  <button onclick="cerrarPanel()"
+                    style="font-size:9px;color:rgba(0,212,255,0.5);background:none;border:none;cursor:pointer;padding:0"
+                    aria-label="Cerrar panel de detalle"><span class="material-symbols-outlined" aria-hidden="true">close</span> cerrar</button>
+                </div>
+                <div id="panel-estado" style="margin-bottom:6px"></div>
+                <div id="panel-obs" style="font-size:9px;color:rgba(180,220,255,0.6);font-style:italic"></div>
+              </div>
+
+              <!-- Historial clínico del odontograma -->
+              <div
+                style="background:rgba(0,30,60,0.7);border:1px solid rgba(0,212,255,0.18);border-radius:10px;padding:10px 12px;margin-top:10px;position:relative;z-index:2">
+                <div
+                  style="font-size:10px;font-weight:600;color:#00d4ff;margin-bottom:6px;display:flex;align-items:center;gap:4px;">
+                  <span class="material-symbols-outlined" aria-hidden="true" style="opacity:0.5">diagnosis</span> Diagnósticos registrados por tu odontólogo
+                </div>
+                <div id="hitems" role="list" aria-label="Lista de diagnósticos"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lista de registros -->
+          <!-- [MEJORA]: role="list" explÍcito para lectores de pantalla -->
+          <div class="records-list" id="recordsList" role="list" aria-label="Lista de registros clínicos"></div>
+
+        </div>
+
+        <!-- Columna derecha -->
+        <aside class="col-sidebar" aria-label="Información complementaria">
+
+          <div class="sidebar-card">
+            <h4 class="sidebar-card-title"><span class="material-symbols-outlined" aria-hidden="true">medical_services</span> Antecedentes</h4>
+            <div class="antecedentes-content">
+              <!-- [MEJORA]: role="alert" para alerta crítica de alergias -->
+              @if (Model.Alergias.Any())
+              {
+                  <div class="allergy-alert" role="alert" aria-live="assertive">
+                      <span class="material-symbols-outlined allergy-icon" aria-hidden="true">warning</span>
+                      <div><strong>Alergias</strong>
+                          <p>@string.Join(", ", Model.Alergias)</p>
+                      </div>
+                  </div>
+              }
+              else
+              {
+                  <div class="info-row"><span>Alergias</span><strong>Sin alergias registradas</strong></div>
+              }
+              <div class="info-row"><span>Grupo sanguíneo</span><strong>@Model.GrupoSanguineo</strong></div>
+              <div class="info-row"><span>Antecedentes</span><strong>@Model.AntecedentesMedicos</strong></div>
+            </div>
+          </div>
+
+          <div class="appointment-card-mini">
+            <h4><span class="material-symbols-outlined" aria-hidden="true">event_upcoming</span> Próxima cita</h4>
+            @if (Model.ProximaCitaFecha.HasValue)
+            {
+                <p class="appointment-date">@Model.ProximaCitaFecha.Value.ToString("dd 'de' MMMM yyyy")</p>
+                <p class="appointment-doctor">@(Model.ProximaCitaProfesional ?? "Por asignar")</p>
+                <button class="btn-small" id="btnAgendarSugerida"
+                  aria-label="Ver detalle de la próxima cita">Ver detalle</button>
+            }
+            else
+            {
+                <p class="appointment-date">Sin citas próximas</p>
+                <button class="btn-small" id="btnAgendarSugerida"
+                  aria-label="Agendar una nueva cita">Agendar</button>
+            }
+          </div>
+
+          <div class="sidebar-card">
+            <h4 class="sidebar-card-title"><span class="material-symbols-outlined" aria-hidden="true">download_for_offline</span> Descargas</h4>
+            <!-- [MEJORA]: aria-label para botones de descarga -->
+            <button class="download-btn" id="btnDescargaPDF"
+              aria-label="Descargar historial clínico completo en formato PDF"><span class="material-symbols-outlined" aria-hidden="true">download</span>
+              Historial completo (PDF)</button>
+            <button class="download-btn" id="btnDescargaZIP"
+              aria-label="Descargar paquete de radiografías en formato ZIP"><span class="material-symbols-outlined" aria-hidden="true">download</span>
+              Radiografías (ZIP)</button>
+          </div>
+
+        </aside>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: Detalle de registro -->
+  <!-- [MEJORA]: aria-hidden e inert gestionados por JS para accesibilidad -->
+  <div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
+    aria-hidden="true" inert>
+    <div class="modal">
+      <button class="modal-close" id="modalClose" aria-label="Cerrar modal">—</button>
+      <h2 class="modal-title" id="modalTitle">Detalle del Registro</h2>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: Confirmar descarga -->
+  <div class="modal-overlay" id="modalDescargar" role="dialog" aria-modal="true" aria-labelledby="descargarTitle"
+    aria-hidden="true" inert>
+    <div class="modal modal--sm">
+      <h2 class="modal-title" id="descargarTitle">¿Descargar historial?</h2>
+      <p class="modal-desc">Se generarÁ un PDF con todos tus registros clínicos, odontograma y radiografías.</p>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelarDescarga">Volver</button>
+        <button class="btn-primary" id="confirmarDescarga">Sí, descargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <!-- [MEJORA]: aria-atomic="true" para que lectores anuncien mensaje completo -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Scripts -->
+  <script>
+    window.smiletrackOdontogramaConfig = @Html.Raw(odontoConfigJson);
+    window.smiletrackHistorialRegistros = @Html.Raw(registrosJson);
+</script>
+
+  <!-- --- ODONTOGRAMA JS COMPLETO (OPTIMIZADO) --- -->
+  <script>
+    // [MEJORA]: Utilidad safeGetElement reutilizable (consistente con st-pac-01)
+    const safeGetElement = (id) => {
+      const el = document.getElementById(id);
+      if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
+      return el;
+    };
+
+    // [MEJORA]: Animación de contador con requestAnimationFrame (mejor performance)
+    const animateCounterRAF = (el, target) => {
+      if (!el) return;
+      let cur = 0;
+      const duration = 900;
+      const startTime = performance.now();
+      const animate = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        cur = Math.floor(eased * target);
+        el.textContent = cur;
+        if (progress < 1) requestAnimationFrame(animate);
+        else el.textContent = target;
+      };
+      requestAnimationFrame(animate);
+    };
+
+    // --- DATOS Y CONFIGURACIÓN DEL ODONTOGRAMA ---
+    const ODONTO_ESTADOS = [
+      { key: 'caries', label: 'Caries', color: '#ff4d6d', tipo: 'dot' },
+      { key: 'endodoncia', label: 'Endodoncia', color: '#378ADD', tipo: 'bar' },
+      { key: 'sellante', label: 'Sellante', color: '#f4a62a', tipo: 'dot' },
+      { key: 'ausente', label: 'Ausente', color: '#888780', tipo: 'x' },
+      { key: 'placa', label: 'Placa', color: '#1D9E75', tipo: 'bar' },
+      { key: 'sano', label: 'Sano', color: '#00d4ff', tipo: 'dot' },
+    ];
+
+    const ODONTO_CONFIG = {
+      adulto: {
+        TW: 30, TH: 38,
+        groups: [
+          {
+            label: 'MAXILAR SUPERIOR', rows: [
+              { label: 'SUPERIOR IZQUIERDO (18 al 11)', nums: [18, 17, 16, 15, 14, 13, 12, 11] },
+              { label: 'SUPERIOR DERECHO (21 al 28)', nums: [21, 22, 23, 24, 25, 26, 27, 28] },
+            ]
+          },
+          {
+            label: 'MAXILAR INFERIOR', rows: [
+              { label: 'INFERIOR IZQUIERDO (38 al 31)', nums: [38, 37, 36, 35, 34, 33, 32, 31] },
+              { label: 'INFERIOR DERECHO (41 al 48)', nums: [41, 42, 43, 44, 45, 46, 47, 48] },
+            ]
+          },
+        ]
+      },
+      nino: {
+        TW: 34, TH: 42,
+        groups: [
+          {
+            label: 'MAXILAR SUPERIOR', rows: [
+              { label: 'SUPERIOR IZQUIERDO (55 al 51)', nums: [55, 54, 53, 52, 51] },
+              { label: 'SUPERIOR DERECHO (61 al 65)', nums: [61, 62, 63, 64, 65] },
+            ]
+          },
+          {
+            label: 'MAXILAR INFERIOR', rows: [
+              { label: 'INFERIOR IZQUIERDO (85 al 81)', nums: [85, 84, 83, 82, 81] },
+              { label: 'INFERIOR DERECHO (71 al 75)', nums: [71, 72, 73, 74, 75] },
+            ]
+          },
+        ]
+      }
+    };
+
+    const buildEstadoInicial = () => {
+      const cfg = window.smiletrackOdontogramaConfig || {};
+      const estados = {};
+      const obsD = {};
+      try {
+        if (cfg.estadoPersistido) {
+          const persistido = typeof cfg.estadoPersistido === 'string'
+            ? JSON.parse(cfg.estadoPersistido)
+            : cfg.estadoPersistido;
+          const registros = persistido?.registros || {};
+          Object.entries(registros).forEach(([numDiente, registro]) => {
+            const tratamientos = registro?.tratamientos || registro?.Tratamientos || [];
+            if (!tratamientos.length) return;
+            const ultimo = tratamientos[tratamientos.length - 1];
+            const key = ultimo?.key || ultimo?.Key;
+            const obs = ultimo?.obs || ultimo?.Obs;
+            if (key) estados[numDiente] = key;
+            if (obs) obsD[numDiente] = obs;
+          });
+        }
+      } catch (e) {
+        console.warn('[SmileTrack] No se pudo leer el odontograma guardado:', e);
+      }
+      return { estados, obsD };
+    };
+
+    const estadoInicial = buildEstadoInicial();
+    let odontogramState = {
+      tipo: 'adulto',
+      estados: estadoInicial.estados,
+      obsD: estadoInicial.obsD,
+      sel: null
+    };
+
+    // --- FUNCIONES DE DIBUJO (VISUAL PRESERVADO) ---
+    const isMolar = (n) => { const d = n % 10; return d >= 6 && d <= 8; };
+    const isPremolar = (n) => { const d = n % 10; return d === 4 || d === 5; };
+    const isCanine = (n) => n % 10 === 3;
+
+    const rr = (ctx, x, y, w, h, r) => {
+      ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+    };
+
+    const applyStyle = (ctx, fill, border, glow, isSel, lw) => {
+      ctx.fillStyle = fill;
+      if (isSel) { ctx.shadowColor = glow; ctx.shadowBlur = 6; }
+      ctx.fill(); ctx.shadowBlur = 0;
+      ctx.strokeStyle = border; ctx.lineWidth = lw; ctx.stroke();
+    };
+
+    const drawMolar = (ctx, ox, oy, tw, th, fill, border, glow, isSel, lw) => {
+      rr(ctx, ox, oy, tw, th, 4); applyStyle(ctx, fill, border, glow, isSel, lw);
+      ctx.strokeStyle = 'rgba(0,180,255,0.2)'; ctx.lineWidth = 0.5;
+      const cx = ox + tw / 2, cy = oy + th / 2 - 2;
+      ctx.beginPath(); ctx.moveTo(cx - 5, cy - 2); ctx.lineTo(cx + 5, cy - 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, cy - 6); ctx.lineTo(cx, cy + 3); ctx.stroke();
+    };
+    const drawPremolar = (ctx, ox, oy, tw, th, fill, border, glow, isSel, lw) => {
+      rr(ctx, ox, oy, tw, th, 4); applyStyle(ctx, fill, border, glow, isSel, lw);
+      ctx.strokeStyle = 'rgba(0,180,255,0.18)'; ctx.lineWidth = 0.5;
+      const cx = ox + tw / 2, cy = oy + th / 2 - 2;
+      ctx.beginPath(); ctx.moveTo(cx, cy - 5); ctx.lineTo(cx, cy + 3); ctx.stroke();
+    };
+    const drawCanine = (ctx, ox, oy, tw, th, fill, border, glow, isSel, lw) => {
+      const cx = ox + tw / 2;
+      ctx.beginPath(); ctx.moveTo(ox + 3, oy); ctx.lineTo(ox + tw - 3, oy);
+      ctx.quadraticCurveTo(ox + tw, oy, ox + tw, oy + 3);
+      ctx.lineTo(ox + tw, oy + th - 8);
+      ctx.quadraticCurveTo(ox + tw - 1, oy + th + 2, cx, oy + th + 2);
+      ctx.quadraticCurveTo(ox + 1, oy + th + 2, ox, oy + th - 8);
+      ctx.lineTo(ox, oy + 3); ctx.quadraticCurveTo(ox, oy, ox + 3, oy); ctx.closePath();
+      applyStyle(ctx, fill, border, glow, isSel, lw);
+    };
+    const drawIncisor = (ctx, ox, oy, tw, th, fill, border, glow, isSel, lw) => {
+      const cx = ox + tw / 2;
+      ctx.beginPath(); ctx.moveTo(ox + 2, oy); ctx.lineTo(ox + tw - 2, oy);
+      ctx.quadraticCurveTo(ox + tw, oy, ox + tw, oy + 2);
+      ctx.lineTo(ox + tw, oy + th - 4);
+      ctx.quadraticCurveTo(ox + tw - 0.5, oy + th, cx, oy + th);
+      ctx.quadraticCurveTo(ox + 0.5, oy + th, ox, oy + th - 4);
+      ctx.lineTo(ox, oy + 2); ctx.quadraticCurveTo(ox, oy, ox + 2, oy); ctx.closePath();
+      applyStyle(ctx, fill, border, glow, isSel, lw);
+    };
+
+    const drawToothCanvas = (canvas, num, isSel) => {
+      const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+      const borderC = isSel ? '#00d4ff' : 'rgba(0,160,220,0.65)',
+        fillC = isSel ? 'rgba(0,45,88,0.97)' : 'rgba(0,18,42,0.9)',
+        glowC = 'rgba(0,212,255,0.9)', lw = isSel ? 1.8 : 1;
+      const pad = 3, tw = W - pad * 2, th = H - pad * 2 - 8, ox = pad, oy = pad + 2;
+
+      if (isMolar(num)) drawMolar(ctx, ox, oy, tw, th, fillC, borderC, glowC, isSel, lw);
+      else if (isPremolar(num)) drawPremolar(ctx, ox, oy, tw, th, fillC, borderC, glowC, isSel, lw);
+      else if (isCanine(num)) drawCanine(ctx, ox, oy, tw, th, fillC, borderC, glowC, isSel, lw);
+      else drawIncisor(ctx, ox, oy, tw, th, fillC, borderC, glowC, isSel, lw);
+
+      const e = ODONTO_ESTADOS.find(x => x.key === odontogramState.estados[num]);
+      if (e) {
+        const cx = W / 2, cy = oy + 6;
+        if (e.tipo === 'dot') {
+          ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, 2 * Math.PI);
+          ctx.fillStyle = e.color; ctx.shadowColor = e.color; ctx.shadowBlur = 8; ctx.fill(); ctx.shadowBlur = 0;
+        } else if (e.tipo === 'bar') {
+          ctx.fillStyle = e.color; ctx.shadowColor = e.color; ctx.shadowBlur = 5;
+          ctx.beginPath(); ctx.roundRect?.(cx - 5, cy - 2, 10, 3, 1.5) || ctx.fillRect(cx - 5, cy - 2, 10, 3);
+          ctx.fill(); ctx.shadowBlur = 0;
+        } else {
+          ctx.strokeStyle = e.color; ctx.lineWidth = 1.5; ctx.shadowColor = e.color; ctx.shadowBlur = 5;
+          ctx.beginPath(); ctx.moveTo(cx - 4, cy - 4); ctx.lineTo(cx + 4, cy + 4);
+          ctx.moveTo(cx + 4, cy - 4); ctx.lineTo(cx - 4, cy + 4); ctx.stroke(); ctx.shadowBlur = 0;
+        }
+      }
+      ctx.font = 'bold 7px sans-serif'; ctx.fillStyle = isSel ? '#00eeff' : 'rgba(0,200,255,0.75)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(num, W / 2, oy + th - 4);
+    };
+
+    const getAllNums = () => ODONTO_CONFIG[odontogramState.tipo].groups.flatMap(g => g.rows.flatMap(r => r.nums));
+
+    const rebuildCanvases = () => {
+      const nums = getAllNums();
+      const container = safeGetElement('odonto');
+      if (!container) return;
+      // [MEJORA]: Usar requestAnimationFrame para agrupar repaints
+      requestAnimationFrame(() => {
+        container.querySelectorAll('canvas').forEach((cv, i) => {
+          if (i < nums.length) drawToothCanvas(cv, nums[i], odontogramState.sel === nums[i]);
+        });
+      });
+    };
+
+    const buildOdonto = () => {
+      const container = safeGetElement('odonto');
+      if (!container) return;
+      container.innerHTML = '';
+      const cfg = ODONTO_CONFIG[odontogramState.tipo];
+
+      cfg.groups.forEach((g, gi) => {
+        const lw = document.createElement('div');
+        lw.style.cssText = 'display:flex;justify-content:center;gap:4px;margin-bottom:3px';
+        g.rows.forEach(r => {
+          const sp = document.createElement('span');
+          sp.style.cssText = 'font-size:7.5px;color:rgba(0,212,255,0.38);letter-spacing:0.04em;text-transform:uppercase;flex:1;text-align:center';
+          sp.textContent = r.label; lw.appendChild(sp);
+        });
+        container.appendChild(lw);
+
+        const rowDiv = document.createElement('div');
+        rowDiv.style.cssText = 'display:flex;justify-content:center;align-items:stretch;gap:2px;position:relative;z-index:2;margin-bottom:8px';
+
+        g.rows.forEach((r, ri) => {
+          const half = document.createElement('div'); half.style.cssText = 'display:flex;gap:2px';
+          r.nums.forEach(num => {
+            const cv = document.createElement('canvas');
+            cv.width = cfg.TW; cv.height = cfg.TH;
+            cv.style.cssText = 'display:block;cursor:pointer;border-radius:3px';
+            // [MEJORA]: Atributos ARIA para cada diente interactivo
+            cv.setAttribute('role', 'gridcell');
+            cv.setAttribute('aria-label', `Pieza dental ${num}, seleccionar para ver detalle`);
+            cv.setAttribute('tabindex', '0');
+            drawToothCanvas(cv, num, odontogramState.sel === num);
+
+            // [MEJORA]: Evento click con validación
+            cv.addEventListener('click', () => {
+              odontogramState.sel = num;
+              rebuildCanvases();
+              showPanel(num);
+            });
+            // [MEJORA]: Soporte para teclado (Enter/Space)
+            cv.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                cv.click();
+              }
+            });
+            half.appendChild(cv);
+          });
+          rowDiv.appendChild(half);
+          if (ri === 0) {
+            const mid = document.createElement('div');
+            mid.style.cssText = 'width:1px;background:rgba(0,212,255,0.22);align-self:stretch;flex-shrink:0;margin:0 3px;border-radius:1px';
+            rowDiv.appendChild(mid);
+          }
+        });
+        container.appendChild(rowDiv);
+        if (gi === 0) {
+          const sep = document.createElement('div');
+          sep.style.cssText = 'height:8px;border-top:1px dashed rgba(0,212,255,0.12);margin:0 0 10px';
+          container.appendChild(sep);
+        }
+      });
+    };
+
+    const showPanel = (num) => {
+      const p = safeGetElement('panel');
+      if (!p) return;
+      p.style.display = 'block';
+      const ptit = safeGetElement('ptit');
+      if (ptit) ptit.textContent = `Diente ${num}`;
+
+      const estadoEl = safeGetElement('panel-estado');
+      const e = ODONTO_ESTADOS.find(x => x.key === odontogramState.estados[num]);
+      if (estadoEl) {
+        if (e) {
+          const ind = e.tipo === 'dot'
+            ? `<span style="width:8px;height:8px;border-radius:50%;background:${e.color};display:inline-block;box-shadow:0 0 5px ${e.color}" aria-hidden="true"></span>`
+            : `<span style="width:13px;height:3px;border-radius:2px;background:${e.color};display:inline-block;box-shadow:0 0 5px ${e.color}" aria-hidden="true"></span>`;
+          estadoEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:rgba(180,220,255,0.85)">${ind}<span>${e.label}</span></div>`;
+        } else {
+          estadoEl.innerHTML = `<div style="font-size:10px;color:rgba(0,212,255,0.4)">Sin diagnóstico registrado</div>`;
+        }
+      }
+
+      const obsEl = safeGetElement('panel-obs');
+      if (obsEl) obsEl.textContent = odontogramState.obsD[num] ? `${odontogramState.obsD[num]}` : '';
+    };
+
+    // [MEJORA]: Función global para cerrar panel (compatible con onclick en HTML)
+    window.cerrarPanel = () => {
+      const p = safeGetElement('panel');
+      if (p) p.style.display = 'none';
+      odontogramState.sel = null;
+      rebuildCanvases();
+    };
+
+    const updateHist = () => {
+      const items = safeGetElement('hitems');
+      if (!items) return;
+      const entries = Object.entries(odontogramState.estados);
+      if (!entries.length) {
+        items.innerHTML = '<div style="font-size:9px;color:rgba(0,212,255,0.3);padding:3px 0">Sin registros</div>';
+        return;
+      }
+      items.innerHTML = entries.map(([num, key]) => {
+        const e = ODONTO_ESTADOS.find(x => x.key === key);
+        if (!e) return '';
+        const ind = e.tipo === 'dot'
+          ? `<span style="width:8px;height:8px;border-radius:50%;background:${e.color};flex-shrink:0;display:inline-block;box-shadow:0 0 4px ${e.color}" aria-hidden="true"></span>`
+          : `<span style="width:13px;height:3px;border-radius:2px;background:${e.color};flex-shrink:0;display:inline-block;box-shadow:0 0 4px ${e.color}" aria-hidden="true"></span>`;
+        const obs = odontogramState.obsD[num] ? `<span style="color:rgba(0,212,255,0.3);font-size:8px;margin-left:4px">— ${odontogramState.obsD[num]}</span>` : '';
+        return `<div style="display:flex;align-items:center;gap:6px;font-size:9px;color:rgba(180,220,255,0.85);padding:3px 0;border-bottom:1px solid rgba(0,212,255,0.07)" role="listitem">${ind}<span>${e.label}</span><span style="color:rgba(0,212,255,0.35);font-size:8px">Diente ${num}</span>${obs}</div>`;
+      }).join('');
+    };
+
+    // [MEJORA]: Función global para cambiar tipo de dentición (compatible con onclick)
+    window.setTipo = (t, btn) => {
+      odontogramState.tipo = t;
+      odontogramState.estados = {};
+      odontogramState.obsD = {};
+      odontogramState.sel = null;
+
+      // [MEJORA]: Actualizar aria-checked en toggles
+      document.querySelectorAll('.tb').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-checked', 'false');
+        b.style.cssText = 'font-size:10px;padding:4px 13px;border-radius:20px;border:1px solid rgba(0,212,255,0.25);background:transparent;color:rgba(0,212,255,0.5);cursor:pointer;letter-spacing:0.03em;';
+      });
+      if (btn) {
+        btn.classList.add('active');
+        btn.setAttribute('aria-checked', 'true');
+        btn.style.cssText = 'font-size:10px;padding:4px 13px;border-radius:20px;border:1px solid rgba(0,212,255,0.7);background:rgba(0,212,255,0.15);color:#00d4ff;cursor:pointer;letter-spacing:0.03em;box-shadow:0 0 8px rgba(0,212,255,0.2);';
+      }
+
+      const panel = safeGetElement('panel');
+      if (panel) panel.style.display = 'none';
+      const sub = safeGetElement('sub');
+      const cfgNombre = (window.smiletrackOdontogramaConfig || {}).pacienteNombre || 'Paciente';
+      const cfgCodigo = (window.smiletrackOdontogramaConfig || {}).codigoHC || '';
+      if (sub) sub.textContent = t === 'adulto'
+        ? `Paciente: ${cfgNombre} — ${cfgCodigo} — Dentición permanente`
+        : `Paciente: ${cfgNombre} — ${cfgCodigo} — Dentición temporal`;
+
+      buildOdonto();
+      updateHist();
+    };
+
+    // Inicializar odontograma al cargar DOM
+    document.addEventListener('DOMContentLoaded', () => {
+      buildOdonto();
+      updateHist();
+    });
+  </script>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
+      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+

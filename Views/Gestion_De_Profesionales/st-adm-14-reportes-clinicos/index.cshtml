@@ -1,0 +1,307 @@
+﻿@* ============================================
+SmileTrack — Reportes Clínicos (st-adm-14-reportes-clinicos)
+============================================
+Autor: Johan Santamaria
+Fecha: 29/07/2026
+
+DESCRIPCIÓN:
+Vista de administración de reportes clínicos que permite al administrador consultar, filtrar y paginar los reportes generados por los odontólogos, con acceso al detalle de cada procedimiento realizado.
+
+FUNCIONALIDADES PRINCIPALES:
+- Tabla paginada de reportes clínicos renderizada server-side con Razor desde PagedResult
+- Filtros por profesional, rango de fechas y estado del reporte
+- Detalle del reporte expandible con datos del procedimiento, diagnóstico y observaciones
+- Exportación del listado de reportes a CSV desde el cliente
+
+DEPENDENCIAS TÉCNICAS:
+- Controller: GestionProfesionalesController (ViewData: ProfesionalesReportes, ReportesClinicos, ReportesClinicosPage)
+- CSS: ~/css/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/styles.css
+- JS: ~/js/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/reportes.js
+- Partial / Otros: Layout o Layout=null (verificar)
+
+NOTAS DE MANTENIMIENTO:
+- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+- La vista usa PagedResult para no cargar todos los reportes en memoria y mantener tiempos de respuesta aceptables.
+============================================ *@
+@{
+    var profesionales = ViewData["ProfesionalesReportes"] as List<string> ?? new();
+    var reportes = ViewData["ReportesClinicos"] as List<SmileTrack_MVC.Models.ViewModels.ReporteClinicoViewModel> ?? new();
+    var pageResult = ViewData["ReportesClinicosPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.ViewModels.ReporteClinicoViewModel>;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Consulta reportes clínicos, indicadores de pacientes y rendimiento médico en SmileTrack." />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>SmileTrack — Reportes Clínicos</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/styles.css?v=2")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+    <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+
+    <!-- ═══ HAMBURGER (móvil) ═══ -->
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+    </button>
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+    <!-- ═══ MAIN ═══ -->
+    <main class="main" id="main-content">
+
+        <!-- Header -->
+        <header class="page-header">
+            <div class="header-left">
+                <nav class="breadcrumb" aria-label="Ruta de navegación">
+                    <span>Administración</span>
+                    <span class="bc-sep" aria-hidden="true">→</span>
+                    <span class="bc-active">Reportes Clínicos</span>
+                </nav>
+                <h1 class="page-title">Reportes Clínicos</h1>
+                <p class="page-subtitle">Análisis médico y seguimiento de pacientes</p>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <section class="stats-grid" aria-label="Resumen clínico">
+            <div class="stat-card" data-color="blue">
+                <span class="stat-number" id="metricTotal" data-target="@(ViewData["TotalPacientesReportes"] ?? 0)" aria-live="polite">0</span>
+                <span class="stat-label">Pacientes Registrados</span>
+            </div>
+            <div class="stat-card" data-color="green">
+                <span class="stat-number" id="metricActives" data-target="@(ViewData["ConsultasMes"] ?? 0)" aria-live="polite">0</span>
+                <span class="stat-label">Consultas Este Mes</span>
+            </div>
+            <div class="stat-card" data-color="purple">
+                <span class="stat-number" id="metricVacations" data-target="@(ViewData["SatisfaccionPromedio"] ?? 0)" aria-live="polite">0</span>
+                <span class="stat-label">Satisfacción Pacientes</span>
+            </div>
+        </section>
+
+
+        <!-- Filtros -->
+        <section class="filters-section" aria-label="Filtros de búsqueda">
+            <form method="get" class="filters-row">
+                <div class="search-wrap">
+                    <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+                    <input type="search" id="searchInput" name="search" class="search-input" placeholder="Buscar por nombre o documento..." aria-label="Buscar paciente" value="@ViewData["SearchFilter"]">
+                </div>
+                <div class="filter-wrap">
+                    <label for="filterProfessional" class="visually-hidden">Filtrar por profesional</label>
+                    <select id="filterProfessional" name="profesional" class="status-select" aria-label="Filtrar por profesional">
+                        <option value="">Todos los profesionales</option>
+                        @foreach (var prof in profesionales)
+                        {
+                            var profSelected = ViewData["ProfesionalFilter"]?.ToString() == prof;
+                            <option value="@prof" @(profSelected ? "selected" : null)>@prof</option>
+                        }
+                    </select>
+                </div>
+                <div class="filter-wrap">
+                    <label for="filterMes" class="visually-hidden">Filtrar por mes</label>
+                    <select id="filterMes" name="mes" class="status-select" aria-label="Filtrar por mes">
+                        <option value="">Todos los meses</option>
+                        @for (int i = 0; i < 12; i++)
+                        {
+                            var mes = DateTime.Now.AddMonths(-i).ToString("yyyy-MM");
+                            var mesTexto = DateTime.Now.AddMonths(-i).ToString("MMMM yyyy");
+                            var mesSelected = ViewData["MesFilter"]?.ToString() == mes;
+                            <option value="@mes" @(mesSelected ? "selected" : null)>@mesTexto</option>
+                        }
+                    </select>
+                </div>
+                <!-- Resetear page=1 al filtrar -->
+                <input type="hidden" name="page" value="1" />
+                <button class="btn-primary" type="submit">Aplicar</button>
+                <a class="btn-secondary" href="@Url.Action("Stadm14ReportesClinicos", "GestionProfesionales")">Limpiar</a>
+            </form>
+        </section>
+
+        <!-- Tabla de reportes -->
+        <section class="table-card" aria-labelledby="reportesTitle">
+            <h2 class="visually-hidden" id="reportesTitle">Lista de reportes clínicos</h2>
+            <div class="table-wrap">
+                <table id="reportesTable" class="table-base" aria-label="Tabla de reportes clínicos">
+                    <thead>
+                        <tr>
+                            <th scope="col">PACIENTE</th>
+                            <th scope="col">ÚLTIMA CONSULTA</th>
+                            <th scope="col">DIAGNÓSTICO</th>
+                            <th scope="col">PROFESIONAL</th>
+                            <th scope="col">PRÓXIMA CITA</th>
+                            <th scope="col">ALERTA</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportesTbody" aria-live="polite">
+                        @if (!reportes.Any())
+                        {
+                            <tr>
+                                <td colspan="6" style="text-align:center; padding:48px 24px; color:var(--text-muted);">
+                                    <div style="font-size:2rem; margin-bottom:8px;">🩺</div>
+                                    <strong>Sin resultados</strong>
+                                    <br /><span style="font-size:0.875rem;">Ningún reporte coincide con los filtros aplicados. <a href="@Url.Action("Stadm14ReportesClinicos", "GestionProfesionales")">Limpiar filtros</a></span>
+                                </td>
+                            </tr>
+                        }
+                        @foreach (var reporte in reportes)
+                        {
+                            <tr>
+                                <td class="td-profesional">
+                                    @{
+                                        var name = reporte.NombrePaciente;
+                                        var initials = reporte.Avatar;
+                                    }
+                                    <div class="p-avatar p-avatar--color-@(reporte.Id % 5)">@initials</div>
+                                    <div>
+                                        <span class="p-name">@name</span>
+                                        <span style="font-size: 0.75rem; color: var(--text-muted);">@reporte.Documento · @reporte.Edad años</span>
+                                    </div>
+                                </td>
+                                <td>@reporte.UltimaConsulta.ToString("dd/MM/yyyy")</td>
+                                <td>@reporte.Diagnostico</td>
+                                <td>@reporte.ProfesionalNombre</td>
+                                <td>
+                                    @if (reporte.ProximaCita.HasValue)
+                                    {
+                                        <span class="badge-spec general">@reporte.ProximaCita.Value.ToString("dd/MM/yyyy")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-status badge-inactivo">Sin cita</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(reporte.Alerta))
+                                    {
+                                        <span class="badge-status badge-inactivo">⚠️ @reporte.Alerta</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            <div class="pagination" role="navigation" aria-label="Paginación de reportes">
+                <span id="paginationInfo" aria-live="polite">Mostrando <strong>@(pageResult?.Items.Count ?? 0)</strong> de <strong>@(pageResult?.TotalCount ?? 0)</strong> reportes clínicos</span>
+                <div class="pagination-buttons" id="paginationButtons">
+                    @if (pageResult != null && pageResult.HasPreviousPage)
+                    {
+                        <a class="pagination-btn" aria-label="Página anterior" href="@Url.Action("Stadm14ReportesClinicos", "GestionProfesionales", new { page = pageResult.Page - 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], profesional = ViewData["ProfesionalFilter"], mes = ViewData["MesFilter"] })">‹</a>
+                    }
+                    else
+                    {
+                        <button class="pagination-btn" aria-label="Página anterior" disabled>‹</button>
+                    }
+                    @for (var i = 1; i <= (pageResult?.TotalPages ?? 1); i++)
+                    {
+                        var isActive = i == (pageResult?.Page ?? 1);
+                        <a class="pagination-btn @(isActive ? "active" : string.Empty)" aria-current="@(isActive ? "page" : null)" aria-label="Página @i" href="@Url.Action("Stadm14ReportesClinicos", "GestionProfesionales", new { page = i, pageSize = pageResult?.PageSize ?? 10, search = ViewData["SearchFilter"], profesional = ViewData["ProfesionalFilter"], mes = ViewData["MesFilter"] })">@i</a>
+                    }
+                    @if (pageResult != null && pageResult.HasNextPage)
+                    {
+                        <a class="pagination-btn" aria-label="Página siguiente" href="@Url.Action("Stadm14ReportesClinicos", "GestionProfesionales", new { page = pageResult.Page + 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], profesional = ViewData["ProfesionalFilter"], mes = ViewData["MesFilter"] })">›</a>
+                    }
+                    else
+                    {
+                        <button class="pagination-btn" aria-label="Página siguiente" disabled>›</button>
+                    }
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Mobile bottom nav -->
+    <nav class="mobile-nav" aria-label="Navegación móvil">
+        <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+            <span>Dashboard</span>
+        </a>
+        <a href="#" class="mobile-nav-item active" aria-current="page">
+            <span class="mobile-nav-icon" aria-hidden="true">📋</span>
+            <span>Reportes</span>
+        </a>
+        <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+            <span>Agenda</span>
+        </a>
+    </nav>
+
+    <!-- Toast -->
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Estilos para screen readers -->
+    <style>
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--primary);
+            color: #fff;
+            padding: 8px 16px;
+            z-index: 1000;
+            transition: top var(--tr);
+        }
+
+        .skip-link:focus {
+            top: 0;
+            outline: 2px solid #fff;
+            outline-offset: 2px;
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+
+    <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
+            <p>© @DateTime.Now.Year Smile Track. Todos los derechos reservados.</p>
+        </div>
+        <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    </footer>
+
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/reportes.js")"></script>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
+</body>
+
+</html>
+
+

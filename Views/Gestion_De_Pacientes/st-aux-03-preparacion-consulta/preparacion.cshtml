@@ -1,0 +1,238 @@
+@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Preparación de Consulta</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Pacientes/st-aux-03-preparacion-consulta/preparacion.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
+  <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true">☰</span>
+  </button>
+
+  <!-- Overlay para menú móvil -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+  <!-- ═════ MAIN ═════ -->
+  <main class="main-content" id="main-content">
+
+    <!-- Top Header -->
+    <div class="top-header">
+      <div class="header-left">
+        <div class="breadcrumb">Auxiliar → Preparación Consulta</div>
+        <h1>Preparación de Consulta</h1>
+        <div class="subtitle">
+          <time datetime="2026-03-20T10:00">10:00 AM</time> · Pedro García · Control · Consultorio 1
+        </div>
+      </div>
+      <div class="header-badge" role="status" aria-live="polite">
+        En 15 minutos
+      </div>
+    </div>
+
+    <!-- Barra de progreso con accesibilidad ARIA -->
+    <div class="progress-section">
+      <div class="progress-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="43"
+        aria-label="Progreso de preparación">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-text" id="progressText">3 de 7 ítems completados</div>
+    </div>
+
+    <!-- Content Layout -->
+    <div class="content-layout">
+
+      <!-- Main Card: Checklist de preparación -->
+      <div class="content-main">
+        <div class="card">
+          <div class="card-title">
+            <span class="icon-check" aria-hidden="true">✅</span> Checklist de preparación
+          </div>
+
+          <!-- Lista de verificación con role list para accesibilidad -->
+          <div class="checklist" id="checklist" role="list" aria-label="Lista de tareas de preparación">
+            <label class="checklist-item checked" role="listitem">
+              <input type="checkbox" checked aria-label="Consultorio limpio y desinfectado - completado" />
+              <span class="custom-checkbox" aria-hidden="true">✓</span>
+              <span>Consultorio limpio y desinfectado</span>
+            </label>
+            <label class="checklist-item checked" role="listitem">
+              <input type="checkbox" checked aria-label="Instrumental esterilizado listo - completado" />
+              <span class="custom-checkbox" aria-hidden="true">✓</span>
+              <span>Instrumental esterilizado listo</span>
+            </label>
+            <label class="checklist-item checked" role="listitem">
+              <input type="checkbox" checked aria-label="Guantes y tapabocas disponibles - completado" />
+              <span class="custom-checkbox" aria-hidden="true">✓</span>
+              <span>Guantes y tapabocas disponibles</span>
+            </label>
+            <label class="checklist-item" role="listitem">
+              <input type="checkbox" aria-label="Historia clínica revisada" />
+              <span class="custom-checkbox" aria-hidden="true">✓</span>
+              <span>Historia clínica revisada</span>
+            </label>
+            <label class="checklist-item" role="listitem">
+              <input type="checkbox" aria-label="Radiografías cargadas en el sistema" />
+              <span class="custom-checkbox" aria-hidden="true">✓</span>
+              <span>Radiografías cargadas en el sistema</span>
+            </label>
+            <label class="checklist-item" role="listitem">
+              <input type="checkbox" aria-label="Materiales de resina preparados" />
+              <span class="custom-checkbox" aria-hidden="true">✓</span>
+              <span>Materiales de resina preparados</span>
+            </label>
+            <label class="checklist-item" role="listitem">
+              <input type="checkbox" aria-label="Lámpara de fotocurado verificada" />
+              <span class="custom-checkbox" aria-hidden="true">✓</span>
+              <span>Lámpara de fotocurado verificada</span>
+            </label>
+          </div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <!-- Campo de observaciones -->
+          <label class="observations-label" for="observations">Observaciones de preparación</label>
+          <textarea class="observations-textarea" id="observations"
+            placeholder="Ej: Paciente con alergia a penicilina, se informó al Dr. Méndez..."
+            aria-label="Observaciones adicionales para la preparación de la consulta"></textarea>
+
+          <!-- Botón de confirmación -->
+          <button class="confirm-btn" id="btnConfirmPreparation"
+            aria-label="Confirmar que la preparación está completa">
+            Confirmar preparación completa
+          </button>
+        </div>
+      </div>
+
+      <!-- Right Sidebar: Información del paciente y consultorio -->
+      <div class="content-right">
+
+        <!-- Alertas del paciente -->
+        <div class="alert-card" aria-labelledby="alertsTitle">
+          <div class="alert-card-title" id="alertsTitle">⚠️ ALERTAS DEL PACIENTE</div>
+          <div class="alert-item" role="listitem">
+            <span class="alert-icon" aria-hidden="true">🚨</span>
+            <span><strong>Alergia:</strong> Penicilina</span>
+          </div>
+          <div class="alert-item" role="listitem">
+            <span class="alert-icon" aria-hidden="true">💊</span>
+            <span><strong>Medicamentos:</strong> Enalapril 5mg</span>
+          </div>
+          <div class="alert-item" role="listitem">
+            <span class="alert-icon" aria-hidden="true">🩸</span>
+            <span><strong>Grupo sanguíneo:</strong> O+</span>
+          </div>
+        </div>
+
+        <!-- Datos de la cita -->
+        <div class="data-card" aria-labelledby="appointmentDataTitle">
+          <div class="data-card-title" id="appointmentDataTitle">Datos de la cita</div>
+          <div class="data-row"><strong>Paciente:</strong> Pedro García</div>
+          <div class="data-row"><strong>Profesional:</strong> Dr. Carlos Méndez</div>
+          <div class="data-row"><strong>Servicio:</strong> Control de tratamiento</div>
+          <div class="data-row"><strong>Consultorio:</strong> Consultorio 1- piso 1</div>
+          <div class="data-row"><strong>Duración:</strong> 30 minutos</div>
+        </div>
+
+        <!-- Estado del consultorio -->
+        <div class="estado-card" aria-labelledby="officeStatusTitle">
+          <div class="estado-card-title" id="officeStatusTitle">Estado del consultorio</div>
+          <div class="estado-row">
+            <div class="estado-row-left">
+              <span class="estado-icon" aria-hidden="true">🧹</span> Limpieza
+            </div>
+            <span class="status-badge listo" role="status">
+              <span class="status-dot green" aria-hidden="true"></span>Listo
+            </span>
+          </div>
+          <div class="estado-row">
+            <div class="estado-row-left">
+              <span class="estado-icon" aria-hidden="true">🔬</span> Esterilización
+            </div>
+            <span class="status-badge listo" role="status">
+              <span class="status-dot green" aria-hidden="true"></span>Listo
+            </span>
+          </div>
+          <div class="estado-row">
+            <div class="estado-row-left">
+              <span class="estado-icon" aria-hidden="true">⚙️</span> Equipos
+            </div>
+            <span class="status-badge verificando" role="status">
+              <span class="status-dot orange" aria-hidden="true"></span>Verificando
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast para notificaciones temporales -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para contenido solo accesible por screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+
+  <script src="@Url.Content("~/js/Gestion_De_Pacientes/st-aux-03-preparacion-consulta/preparacion.js")"></script>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+

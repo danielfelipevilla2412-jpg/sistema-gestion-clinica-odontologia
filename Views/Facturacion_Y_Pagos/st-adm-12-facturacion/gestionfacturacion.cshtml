@@ -1,0 +1,257 @@
+﻿@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Gestiona facturas, cobros y estados de pago en SmileTrack." />
+  <title>SmileTrack — Gestión de Facturación</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Administración</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Facturación</span>
+        </nav>
+        <h1 class="page-title">Facturación</h1>
+        <p class="page-subtitle">Ingresos y cobros</p>
+      </div>
+    </header>
+
+    <!-- KPI Cards con aria-live para contadores -->
+    <section class="stats-grid" aria-label="Resumen de facturación">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-number" id="statTotal" data-target="1248" aria-live="polite">0</span>
+        <span class="stat-label">Total Facturas</span>
+        <span class="stat-sub">Este año fiscal</span>
+      </div>
+      <div class="stat-card" data-color="green">
+        <span class="stat-number" id="statPending" data-target="4200000" aria-live="polite">$0</span>
+        <span class="stat-label">Por Cobrar</span>
+        <span class="stat-sub">↑ 8% vs mes anterior</span>
+      </div>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number" id="statPaidToday" data-target="12" aria-live="polite">0</span>
+        <span class="stat-label">Pagadas Hoy</span>
+        <span class="stat-sub">Actualizado hace 5 min</span>
+      </div>
+      <div class="stat-card" data-color="red">
+        <span class="stat-number" id="statCancelled" data-target="3" aria-live="polite">0</span>
+        <span class="stat-label">Anuladas</span>
+        <span class="stat-sub">Últimas 24 horas</span>
+      </div>
+    </section>
+
+    <!-- Controles y filtros -->
+    <section class="controls-section">
+      <div class="filters-wrap">
+        <div class="search-wrap">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input type="search" id="searchInvoices" class="search-input" placeholder="Buscar por N° o Paciente..."
+            aria-label="Buscar factura">
+        </div>
+        <select id="filterStatus" class="filter-select" aria-label="Filtrar por estado">
+          <option value="">Todos los Estados</option>
+          <option value="pagada">Pagada</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="parcial">Parcial</option>
+          <option value="anulada">Anulada</option>
+        </select>
+        <select id="filterMonth" class="filter-select" aria-label="Filtrar por mes">
+          <option value="">Todos los meses</option>
+          <option value="2026-05">Mayo 2026</option>
+          <option value="2026-04">Abril 2026</option>
+          <option value="2026-03">Marzo 2026</option>
+        </select>
+        <button class="btn-primary" id="btnNewInvoice" aria-label="Crear nueva factura">
+          ➕ Nueva factura
+        </button>
+      </div>
+    </section>
+
+    <!-- Tabla de facturas -->
+    <section class="table-section" aria-labelledby="tableTitle">
+      <h2 class="visually-hidden" id="tableTitle">Lista de facturas</h2>
+
+      <!-- Cabecera de tabla accesible -->
+      <div class="table-header" role="row">
+        <div class="table-col col-numero" role="columnheader">N° Factura</div>
+        <div class="table-col col-paciente" role="columnheader">Paciente</div>
+        <div class="table-col col-fecha" role="columnheader">Fecha</div>
+        <div class="table-col col-total" role="columnheader">Total</div>
+        <div class="table-col col-pendiente" role="columnheader">Pendiente</div>
+        <div class="table-col col-estado text-center" role="columnheader">Estado</div>
+        <div class="table-col col-acciones text-right" role="columnheader">Acciones</div>
+      </div>
+
+      <!-- Cuerpo de tabla con aria-live -->
+      <div id="invoicesBody" class="table-body" role="rowgroup" aria-live="polite">
+        <!-- Filas inyectadas por JS -->
+      </div>
+
+      <!-- Paginación accesible -->
+      <footer class="table-footer" aria-label="Navegación de páginas">
+        <span>Mostrando <strong id="pageShowing">10</strong> de <strong id="pageTotal">45</strong> registros</span>
+        <nav class="pagination" aria-label="Páginas de resultados">
+          <button class="pagination-btn" id="btnPrev" aria-label="Página anterior" disabled>‹</button>
+          <button class="pagination-btn active" aria-current="page" aria-label="Página 1">1</button>
+          <button class="pagination-btn" aria-label="Página 2">2</button>
+          <button class="pagination-btn" aria-label="Página 3">3</button>
+          <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">›</button>
+        </nav>
+      </footer>
+    </section>
+
+  </main>
+
+  <!-- Drawer: Detalle de Factura (accesible) -->
+  <div class="drawer-overlay" id="drawerOverlay" role="dialog" aria-modal="true" aria-labelledby="drawerTitle"
+    aria-hidden="true" inert>
+    <div class="drawer-panel" id="drawerPanel">
+      <header class="drawer-header">
+        <h3 class="drawer-title" id="drawerTitle">Detalle de Factura</h3>
+        <button class="drawer-close" id="drawerClose" aria-label="Cerrar panel">×</button>
+      </header>
+      <div class="drawer-content" role="document">
+        <div class="invoice-status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="drawerStatus" class="status-label">Pago Pendiente</span>
+        </div>
+        <div class="invoice-summary">
+          <div class="summary-row">
+            <span>Subtotal:</span>
+            <strong id="drawerSubtotal">$0</strong>
+          </div>
+          <div class="summary-row">
+            <span>IVA (19%):</span>
+            <strong id="drawerTax">$0</strong>
+          </div>
+          <div class="summary-row summary-total">
+            <span>Total:</span>
+            <strong id="drawerTotal">$0</strong>
+          </div>
+        </div>
+        <div class="invoice-history">
+          <h4>Historial de Cobros</h4>
+          <ul id="drawerHistory" class="history-list" role="list"></ul>
+        </div>
+      </div>
+      <footer class="drawer-footer">
+        <button class="btn-secondary" id="btnRemind">Recordar</button>
+        <button class="btn-primary" id="btnRegisterPayment">Registrar Pago</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Mobile bottom nav -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">👥</span>
+      <span>Usuarios</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon" aria-hidden="true">💳</span>
+      <span>Facturación</span>
+    </a>
+    <a href="/facturacion-y-pagos/st-adm-13-reportes-financieros" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📈</span>
+      <span>Reportes</span>
+    </a>
+    <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">⚙️</span>
+      <span>Config</span>
+    </a>
+  </nav>
+
+  <!-- Toast para notificaciones accesibles -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span style="font-size:1rem;">🦷</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+<script>
+  window.RAZOR_INVOICES = @Html.Raw(ViewData["FacturasJson"] ?? "[]");
+</script>
+<script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.js")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+

@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+<ItemGroup>
+  <Content Include="Database\**\*">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+  </Content>
+</ItemGroup>
+<PropertyGroup>
+  <TargetFramework>net9.0</TargetFramework>
+  <Nullable>enable</Nullable>
+  <ImplicitUsings>enable</ImplicitUsings>
+  <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+  <TieredCompilation>true</TieredCompilation>
+  <!-- Saltar validación de paquetes en cada build -->
+  <SkipValidatePackageReferences>true</SkipValidatePackageReferences>
+  <UserSecretsId>ff5d4b9c-690c-44b5-a2e6-8cd9fe7ea759</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="SmileTrack_MVC.Tests\**" />
+    <Content Remove="SmileTrack_MVC.Tests\**" />
+    <EmbeddedResource Remove="SmileTrack_MVC.Tests\**" />
+    <None Remove="SmileTrack_MVC.Tests\**" />
+  </ItemGroup>
+
+  <!-- Excluir el proyecto de tests del compilador del proyecto MVC principal.
+       SmileTrack_MVC.Tests tiene su propio .csproj con xunit; sin esta exclusión,
+       el SDK.Web incluye automáticamente los .cs de subdirectorios y falla porque
+       xunit no está referenciado aquí. -->
+  <ItemGroup>
+    <Compile Remove="SmileTrack_MVC.Tests\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
+    <PackageReference Include="MailKit" Version="4.17.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.15">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.15" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.15">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.15" />
+  </ItemGroup>
+
+</Project>

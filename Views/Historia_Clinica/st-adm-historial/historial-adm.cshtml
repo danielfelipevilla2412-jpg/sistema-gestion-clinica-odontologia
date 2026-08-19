@@ -1,0 +1,239 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "Historial Clínico Global";
+    ViewData["Description"] = "Historial Clínico Global - SmileTrack Admin: Acceso de solo lectura a todos los historiales del sistema";
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="@ViewData["Description"]" />
+    <title>@ViewData["Title"] — SmileTrack Admin</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-adm-historial/historial-adm.css")" asp-append-version="true" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+    <!-- Overlay móvil -->
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+    <!-- Hamburger -->
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+        <span></span><span></span><span></span>
+    </button>
+
+    <!-- ═══ MAIN ═══ -->
+    <main class="main" id="main-content">
+        <!-- Header -->
+        <header class="page-header">
+            <div>
+                <div class="breadcrumb" aria-label="Ruta de navegación">
+                    <span>Administración</span>
+                    <span aria-hidden="true">→</span>
+                    <span class="current">Historia Clínica Global</span>
+                </div>
+                <h1 class="page-title">Historia Clínica Global</h1>
+                <p class="page-subtitle">Acceso de solo lectura a todos los historiales del sistema</p>
+            </div>
+            <span class="badge-admin" role="status" aria-label="Modo de visualización">
+                🔒 Solo lectura
+            </span>
+        </header>
+
+        <!-- Stats -->
+        <section class="stats-grid" aria-label="Estadísticas de historiales">
+            <div class="stat-card" data-color="blue">
+                <span class="stat-number" id="statTotal" data-target="0">0</span>
+                <span class="stat-label">Historiales totales</span>
+            </div>
+            <div class="stat-card" data-color="green">
+                <span class="stat-number" id="statHoy" data-target="0">0</span>
+                <span class="stat-label">Actualizados hoy</span>
+            </div>
+            <div class="stat-card" data-color="orange">
+                <span class="stat-number" id="statAlerta" data-target="0">0</span>
+                <span class="stat-label">Con alerta médica</span>
+            </div>
+            <div class="stat-card" data-color="purple">
+                <span class="stat-number" id="statOdo" data-target="0">0</span>
+                <span class="stat-label">Odontólogos activos</span>
+            </div>
+        </section>
+
+        <!-- Filtros -->
+        <section class="filters-section" aria-label="Filtros de búsqueda">
+            <div class="filters-row">
+                <div class="search-wrap">
+                    <span class="search-icon" aria-hidden="true">🔍</span>
+                    <input type="search" id="searchInput" class="search-input" placeholder="Buscar por nombre, cédula o correo..." aria-label="Buscar pacientes" />
+                </div>
+                <div class="filter-wrap">
+                    <select id="filterOdontologo" class="status-select" aria-label="Filtrar por odontólogo">
+                        <option value="">Todos los odontólogos</option>
+                        <!-- Opciones cargadas dinámicamente desde los datos reales (ver poblarFiltroOdontologos en historial-adm.js) -->
+                    </select>
+                </div>
+                <div class="filter-wrap">
+                    <select id="filterAlerta" class="status-select" aria-label="Filtrar por alerta médica">
+                        <option value="">Todas las alertas</option>
+                        <option value="si">Con alerta médica</option>
+                        <option value="no">Sin alerta</option>
+                    </select>
+                </div>
+                <div class="filter-wrap">
+                    <select id="filterEstado" class="status-select" aria-label="Filtrar por estado">
+                        <option value="">Todos los estados</option>
+                        <option value="activo">Activo</option>
+                        <option value="inactivo">Inactivo</option>
+                    </select>
+                </div>
+                <div class="filter-wrap">
+                    <select id="pageSizeSelect" class="status-select" aria-label="Pacientes por página">
+                        <option value="5">5 por página</option>
+                        <option value="10" selected>10 por página</option>
+                        <option value="20">20 por página</option>
+                        <option value="all">Mostrar todos</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabla -->
+        <section class="table-card" aria-label="Lista de historiales clínicos">
+            <div class="table-header-row">
+                <h2 class="table-title">Pacientes registrados</h2>
+                <span class="results-count" id="resultsCount">Mostrando 0 pacientes</span>
+            </div>
+            <div class="table-wrap">
+                <table class="table-base" aria-label="Historiales clínicos">
+                    <thead>
+                        <tr>
+                            <th scope="col">Paciente</th>
+                            <th scope="col">Cédula</th>
+                            <th scope="col">Odontólogo tratante</th>
+                            <th scope="col">Última consulta</th>
+                            <th scope="col">Alerta</th>
+                            <th scope="col">Estado</th>
+                            <th scope="col">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaBody">
+                        <!-- Renderizado dinámicamente por JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="no-results" id="noResults" style="display:none;">
+                <span aria-hidden="true">🔍</span>
+                <p>No se encontraron pacientes con ese criterio</p>
+            </div>
+            <!-- Controles de paginación -->
+            <footer class="page-footer" id="paginationControls" style="display:none;">
+                <span>Mostrando <strong id="pageShowing">0</strong> de <strong id="pageTotal">0</strong> pacientes (Página <span id="pageInfo">1 de 1</span>)</span>
+                <nav class="pagination" aria-label="Páginas de resultados">
+                    <button class="pagination-btn" id="btnPrev" aria-label="Página anterior" disabled>‹</button>
+                    <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">›</button>
+                </nav>
+            </footer>
+        </section>
+    </main>
+
+    <!-- ═══ PANEL LATERAL ═══ -->
+    <div class="panel-overlay" id="panelOverlay" aria-hidden="true"></div>
+    <aside class="panel-lateral" id="panelLateral" role="dialog" aria-modal="true" aria-labelledby="panelNombre" aria-hidden="true" inert>
+        <header class="panel-header">
+            <div>
+                <h2 class="panel-title" id="panelNombre">—</h2>
+                <span class="panel-sub" id="panelCedula">—</span>
+            </div>
+            <button class="panel-close" id="panelClose" aria-label="Cerrar panel" title="Cerrar">✕</button>
+        </header>
+
+        <div class="panel-body">
+            <!-- Alerta médica -->
+            <div class="panel-alerta" id="panelAlerta" style="display:none;" role="alert">
+                <span class="alerta-icon" aria-hidden="true">⚠️</span>
+                <div>
+                    <div class="alerta-titulo">Alerta médica</div>
+                    <div class="alerta-texto" id="panelAlertaTexto">—</div>
+                </div>
+            </div>
+
+            <!-- Info grid -->
+            <div class="panel-info-grid" id="panelInfoGrid">
+                <!-- Renderizado dinámicamente por JS -->
+            </div>
+
+            <!-- Tabs -->
+            <div class="panel-tabs" role="tablist" aria-label="Secciones del historial">
+                <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-consultas" onclick="switchTab('consultas', this)">Consultas</button>
+                <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-tratamientos" onclick="switchTab('tratamientos', this)">Tratamientos</button>
+                <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-documentos" onclick="switchTab('documentos', this)">Documentos</button>
+            </div>
+
+            <!-- Tab: Consultas -->
+            <div class="tab-content active" id="tab-consultas" role="tabpanel">
+                <div id="consultasList"></div>
+            </div>
+
+            <!-- Tab: Tratamientos -->
+            <div class="tab-content" id="tab-tratamientos" role="tabpanel">
+                <div id="tratamientosList"></div>
+            </div>
+
+            <!-- Tab: Documentos -->
+            <div class="tab-content" id="tab-documentos" role="tabpanel">
+                <div id="documentosList"></div>
+            </div>
+        </div>
+
+        <footer class="panel-footer">
+            <div class="readonly-note">
+                 Vista de solo lectura — Administrador
+            </div>
+        </footer>
+    </aside>
+
+    <!-- Toast -->
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <!-- Mobile Nav -->
+    <nav class="mobile-nav" aria-label="Navegación móvil">
+        <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+            <span>Dashboard</span>
+        </a>
+        <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">👥</span>
+            <span>Usuarios</span>
+        </a>
+        <a href="/historia-clinica/st-adm-historial" class="mobile-nav-item active">
+            <span class="mobile-nav-icon" aria-hidden="true">📋</span>
+            <span>Historial</span>
+        </a>
+        <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+            <span>Agenda</span>
+        </a>
+        <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="mobile-nav-item">
+            <span class="mobile-nav-icon" aria-hidden="true">⚙️</span>
+            <span>Config</span>
+        </a>
+    </nav>
+
+    <script src="/js/Historia_Clinica/st-adm-historial/historial-adm.js"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>
+

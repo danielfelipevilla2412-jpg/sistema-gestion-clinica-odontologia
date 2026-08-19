@@ -1,0 +1,185 @@
+﻿﻿﻿﻿﻿﻿@{
+    Layout = null;
+    ViewData["Title"] = "Historial Clínico";
+    ViewData["Description"] = "Consulta del historial clínico con navegación de recepción en SmileTrack.";
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content='@(ViewData["Description"])' />
+    <title>@(ViewData["Title"]) — SmileTrack Recepción</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href='@(Url.Content("~/css/Historia_Clinica/st-rec-historial/historial-rec.css"))' asp-append-version="true" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+    </button>
+
+    <main class="main" id="main-content">
+        <div class="content">
+            <nav class="breadcrumb" aria-label="Ruta de navegación">
+                <span>Recepción</span>
+                <span class="sep" aria-hidden="true">›</span>
+                <span class="current">Historial Clínico</span>
+            </nav>
+
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title">Historial Clínico</h1>
+                    <p class="page-subtitle">Consulta rápida de pacientes, odontólogos y alertas médicas.</p>
+                </div>
+                <div class="badge-admin"><span class="material-symbols-outlined" aria-hidden="true">visibility</span> Solo lectura</div>
+            </header>
+
+            <section class="stats-grid" aria-label="Resumen de historiales">
+                <div class="stat-card" data-color="blue">
+                    <span class="stat-number" id="statTotal">8</span>
+                    <span class="stat-label">Historiales totales</span>
+                </div>
+                <div class="stat-card" data-color="green">
+                    <span class="stat-number" id="statHoy">0</span>
+                    <span class="stat-label">Actualizados hoy</span>
+                </div>
+                <div class="stat-card" data-color="orange">
+                    <span class="stat-number" id="statAlerta">4</span>
+                    <span class="stat-label">Con alerta médica</span>
+                </div>
+                <div class="stat-card" data-color="purple">
+                    <span class="stat-number" id="statOdo">4</span>
+                    <span class="stat-label">Odontólogos activos</span>
+                </div>
+            </section>
+
+            <section class="filters-section" aria-label="Filtros de búsqueda">
+                <div class="filters-row">
+                    <div class="search-wrap">
+                        <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+                        <input id="searchInput" class="search-input" type="search" placeholder="Buscar pacientes, cédula o correo" />
+                    </div>
+                    <select id="filterOdontologo" class="status-select" aria-label="Filtro por odontólogo">
+                        <option value="">Todos los odontólogos</option>
+                        <!-- Opciones cargadas dinámicamente desde los datos reales (ver poblarFiltroOdontologosRec en historial-rec.js) -->
+                    </select>
+                    <select id="filterAlerta" class="status-select" aria-label="Filtro por alerta">
+                        <option value="">Todas las alertas</option>
+                        <option value="si">Con alerta</option>
+                        <option value="no">Sin alerta</option>
+                    </select>
+                    <select id="filterEstado" class="status-select" aria-label="Filtro por estado">
+                        <option value="">Todos los estados</option>
+                        <option value="activo">Activo</option>
+                        <option value="inactivo">Inactivo</option>
+                    </select>
+                    <select id="pageSizeSelect" class="status-select" aria-label="Tamaño de página">
+                        <option value="5">5 por página</option>
+                        <option value="10" selected>10 por página</option>
+                        <option value="15">15 por página</option>
+                        <option value="all">Todos</option>
+                    </select>
+                </div>
+            </section>
+
+            <section class="table-card">
+                <div class="table-header">
+                    <div>
+                        <h2 class="table-title">Pacientes registrados</h2>
+                        <span class="table-meta" id="resultsCount">Mostrando 0 de 0 pacientes</span>
+                    </div>
+                    <span class="table-meta" id="pageSummary">Página 1 de 1</span>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="table-base" aria-label="Listado de historiales clínicos">
+                        <thead>
+                            <tr>
+                                <th scope="col">Paciente</th>
+                                <th scope="col">Cédula</th>
+                                <th scope="col">Odontólogo</th>
+                                <th scope="col">última consulta</th>
+                                <th scope="col">Alerta</th>
+                                <th scope="col">Estado</th>
+                                <th scope="col">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaBody"></tbody>
+                    </table>
+                </div>
+                <div class="no-results" id="noResults" style="display:none;">
+                    <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+                    <p>No se encontraron pacientes con ese criterio</p>
+                </div>
+                <footer class="page-footer" id="paginationControls" style="display:none;">
+                    <span class="pagination-info" id="paginationInfo">Mostrando <strong id="pageShowing">0</strong> de <strong id="pageTotal">0</strong> pacientes</span>
+                    <nav class="pagination" aria-label="Páginas de resultados">
+                        <button class="pagination-btn" id="btnPrev" aria-label="Página anterior" disabled>—</button>
+                        <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">—</button>
+                    </nav>
+                </footer>
+            </section>
+
+            <section class="detail-panel" id="historyPanel" aria-label="Detalle del historial" style="display:none;">
+                <div class="detail-panel-header">
+                    <div>
+                        <h2 class="detail-title">Historial de <span id="historyPatientName">—</span></h2>
+                        <p class="detail-sub">Consulta rápida de la información clínica del paciente seleccionado.</p>
+                    </div>
+                    <button type="button" class="btn-view btn-close-panel" id="closeHistoryPanel">Cerrar historial</button>
+                </div>
+                <div class="history-grid">
+                    <div class="history-block">
+                        <div class="block-label">Cédula</div>
+                        <div id="historyCedula">—</div>
+                    </div>
+                    <div class="history-block">
+                        <div class="block-label">Odontólogo</div>
+                        <div id="historyOdontologo">—</div>
+                    </div>
+                    <div class="history-block">
+                        <div class="block-label">última consulta</div>
+                        <div id="historyUltimaConsulta">—</div>
+                    </div>
+                    <div class="history-block">
+                        <div class="block-label">Alerta médica</div>
+                        <div id="historyAlerta">—</div>
+                    </div>
+                </div>
+                <div class="history-section">
+                    <h3>Consultas recientes</h3>
+                    <ul class="history-list" id="historyConsultations"></ul>
+                </div>
+                <div class="history-section">
+                    <h3>Tratamientos</h3>
+                    <ul class="history-list" id="historyTreatments"></ul>
+                </div>
+                <div class="history-section">
+                    <h3>Documentos</h3>
+                    <ul class="history-list" id="historyDocuments"></ul>
+                </div>
+            </section>
+        </div>
+    </main>
+    <script src='@(Url.Content("~/js/Historia_Clinica/st-rec-historial/historial-rec.js"))' asp-append-version="true"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>
+
+

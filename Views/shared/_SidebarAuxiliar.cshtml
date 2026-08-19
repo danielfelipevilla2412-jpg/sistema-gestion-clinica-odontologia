@@ -1,0 +1,120 @@
+@*
+  SmileTrack — Sidebar Auxiliar (_SidebarAuxiliar.cshtml)
+  Partial reutilizable para el rol Auxiliar/Asistente Dental.
+  Incluye: <aside> completo, logo, nav con grupos colapsables y bloque de usuario.
+*@
+@{
+    var currentPath = Context.Request.Path.Value ?? "/";
+    Func<string, string> linkClass = href =>
+        currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+
+    var _auxName     = User.Identity?.Name ?? "Auxiliar";
+    var _auxEmail    = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "auxiliar@smiletrack.co";
+    var _auxInitials = string.Concat(
+        _auxName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Take(2)
+                .Select(s => s[0])
+    ).ToUpperInvariant();
+    if (string.IsNullOrWhiteSpace(_auxInitials)) _auxInitials = "AU";
+}
+
+<aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+
+  <div class="sidebar-logo">
+    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Inicio <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/" class="@linkClass("/")" data-icon="🏠">Homepage</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo"
+           class="@linkClass("/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo")"
+           data-icon="📊">Panel Auxiliar</a>
+        <a href="/gestion-de-citas/st-aux-02-agenda-apoyo"
+           class="@linkClass("/gestion-de-citas/st-aux-02-agenda-apoyo")"
+           data-icon="📅">Gestión de Citas</a>
+        <a href="/gestion-de-citas/st-aux-10-citas-finalizadas"
+           class="@linkClass("/gestion-de-citas/st-aux-10-citas-finalizadas")"
+           data-icon="✅">Citas Finalizadas</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-pacientes/st-aux-03-preparacion-consulta"
+           class="@linkClass("/gestion-de-pacientes/st-aux-03-preparacion-consulta")"
+           data-icon="🧪">Preparación de Consulta</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de PQR <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-pqr/st-pac-04-nueva-pqr"
+           class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")"
+           data-icon="📝">Nueva Solicitud</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de Ayuda <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/centro-de-ayuda/guias-tutoriales"
+           class="@linkClass("/centro-de-ayuda/guias-tutoriales")"
+           data-icon="❓">Centro de Ayuda</a>
+        <a href="/gestion-de-pqr/st-pac-04-nueva-pqr"
+           class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")"
+           data-icon="📝">Nueva Solicitud</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Perfil <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/perfiles/st-aux-11-perfil-auxiliar"
+           class="@linkClass("/perfiles/st-aux-11-perfil-auxiliar")"
+           data-icon="👤">Mi Perfil</a>
+        <a href="/acceso-y-seguridad/cambiar-contrasena"
+           class="@linkClass("/acceso-y-seguridad/cambiar-contrasena")"
+           data-icon="🔐">Cambiar Contraseña</a>
+      </div>
+    </div>
+
+    <div class="nav-separator" aria-hidden="true"></div>
+
+    <a href="/acceso-y-seguridad/login"
+       class="nav-item nav-item--logout"
+       data-icon="🚪"
+       aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
+  </nav>
+
+  <div class="sidebar-user">
+    <div class="user-avatar" aria-hidden="true">@_auxInitials</div>
+    <div class="user-info">
+      <span class="user-role">@_auxName</span>
+      <span class="user-email">@_auxEmail</span>
+    </div>
+  </div>
+
+</aside>

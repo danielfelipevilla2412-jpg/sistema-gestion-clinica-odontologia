@@ -1,0 +1,370 @@
+@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmileTrack — Gestión de PQR</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_PQR/st-adm-17-gestion-pqr/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+    </button>
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="page-header">
+                <h1>Peticiones, Quejas y Reclamos</h1>
+                <p>Módulo PQR - SmileTrack</p>
+            </div>
+            <div class="action-buttons">
+                <button class="btn btn-primary active" onclick="showManagement()">
+                    <i class="fas fa-list"></i>
+                    Gestión de PQR
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon blue">
+                    <i class="fas fa-inbox"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>6</h3>
+                    <p>Total PQR</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon yellow">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>1</h3>
+                    <p>Sin responder</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon purple">
+                    <i class="fas fa-tasks"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>1</h3>
+                    <p>En gestión</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon red">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>2</h3>
+                    <p>Vencidas</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-bar">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Buscar por paciente, ID o asunto..."
+                    onkeyup="filterTable()">
+            </div>
+            <select class="filter-select" id="filterTipo" onchange="filterTable()">
+                <option value="todos">Todos los tipos</option>
+                <option value="peticion">Petición</option>
+                <option value="queja">Queja</option>
+                <option value="reclamo">Reclamo</option>
+            </select>
+            <select class="filter-select" id="filterEstado" onchange="filterTable()">
+                <option value="todos">Todos los estados</option>
+                <option value="recibido">Recibido</option>
+                <option value="proceso">En proceso</option>
+                <option value="pendiente">Pend. info</option>
+                <option value="resuelto">Resuelto</option>
+                <option value="cerrado">Cerrado</option>
+            </select>
+        </div>
+
+        <!-- Content Container -->
+        <div class="content-container">
+            <!-- Table -->
+            <div class="table-container">
+                <div class="table-wrapper">
+                    <table id="pqrsTable">
+                        <thead>
+                            <tr>
+                                <th>Radicado</th>
+                                <th>Paciente</th>
+                                <th>Tipo</th>
+                                <th>Asunto</th>
+                                <th>Estado</th>
+                                <th>Prioridad</th>
+                                <th>Tiempo</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-id="1" data-tipo="queja" data-estado="resuelto">
+                                <td class="radicado">PQR-2024-001847</td>
+                                <td class="paciente-info">
+                                    <strong>Laura Milena Ríos</strong>
+                                    <span>1023456789</span>
+                                </td>
+                                <td><span class="badge badge-queja">Queja</span></td>
+                                <td>Demora en entrega de historia...</td>
+                                <td><span class="badge badge-resuelto">Resuelto</span></td>
+                                <td><span class="badge badge-prioridad-alta">Alta</span></td>
+                                <td>74d 6h</td>
+                                <td>
+                                    <button class="action-btn" onclick="showDetail(1)" title="Ver detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr data-id="2" data-tipo="reclamo" data-estado="pendiente">
+                                <td class="radicado">PQR-2024-001782</td>
+                                <td class="paciente-info">
+                                    <strong>Carlos Andrés Puentes</strong>
+                                    <span>79845632</span>
+                                </td>
+                                <td><span class="badge badge-reclamo">Reclamo</span></td>
+                                <td>Cobro incorrecto en tratamien...</td>
+                                <td><span class="badge badge-pendiente">Pend. Info</span></td>
+                                <td><span class="badge badge-prioridad-alta">Alta</span></td>
+                                <td class="tiempo-vencido">753d 1h <i class="fas fa-exclamation-triangle"></i></td>
+                                <td>
+                                    <button class="action-btn" onclick="showDetail(2)" title="Ver detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr data-id="3" data-tipo="peticion" data-estado="resuelto">
+                                <td class="radicado">PQR-2024-001621</td>
+                                <td class="paciente-info">
+                                    <strong>María Fernanda López</strong>
+                                    <span>52014789</span>
+                                </td>
+                                <td><span class="badge badge-peticion">Petición</span></td>
+                                <td>Solicitud de certificado de ate...</td>
+                                <td><span class="badge badge-resuelto">Resuelto</span></td>
+                                <td><span class="badge badge-prioridad-baja">Baja</span></td>
+                                <td>770d 5h</td>
+                                <td>
+                                    <button class="action-btn" onclick="showDetail(3)" title="Ver detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr data-id="4" data-tipo="queja" data-estado="cerrado">
+                                <td class="radicado">PQR-2024-001540</td>
+                                <td class="paciente-info">
+                                    <strong>Andrés Felipe Gómez</strong>
+                                    <span>1012345678</span>
+                                </td>
+                                <td><span class="badge badge-queja">Queja</span></td>
+                                <td>Tiempo de espera excesivo en...</td>
+                                <td><span class="badge badge-cerrado">Cerrado</span></td>
+                                <td><span class="badge badge-prioridad-media">Media</span></td>
+                                <td>781d 23h</td>
+                                <td>
+                                    <button class="action-btn" onclick="showDetail(4)" title="Ver detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr data-id="5" data-tipo="reclamo" data-estado="resuelto">
+                                <td class="radicado">PQR-2024-001380</td>
+                                <td class="paciente-info">
+                                    <strong>Sandra Milena Torres</strong>
+                                    <span>43215678</span>
+                                </td>
+                                <td><span class="badge badge-reclamo">Reclamo</span></td>
+                                <td>Error en facturación electrónica</td>
+                                <td><span class="badge badge-resuelto">Resuelto</span></td>
+                                <td><span class="badge badge-prioridad-media">Media</span></td>
+                                <td>804d 7h</td>
+                                <td>
+                                    <button class="action-btn" onclick="showDetail(5)" title="Ver detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr data-id="6" data-tipo="peticion" data-estado="recibido">
+                                <td class="radicado">PQR-2024-002010</td>
+                                <td class="paciente-info">
+                                    <strong>Jorge Esteban Vargas</strong>
+                                    <span>71234560</span>
+                                </td>
+                                <td><span class="badge badge-peticion">Petición</span></td>
+                                <td>Cambio de odontólogo tratante</td>
+                                <td><span class="badge badge-recibido">Recibido</span></td>
+                                <td><span class="badge badge-prioridad-media">Media</span></td>
+                                <td class="tiempo-vencido">733d 6h <i class="fas fa-exclamation-triangle"></i></td>
+                                <td>
+                                    <button class="action-btn" onclick="showDetail(6)" title="Ver detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Detail Panel -->
+            <div class="detail-panel" id="detailPanel">
+                <div class="empty-state" id="emptyState">
+                    <i class="fas fa-mouse-pointer"></i>
+                    <h3>Selecciona un caso</h3>
+                    <p>Haz clic en cualquier PQR de la lista para ver el detalle y gestionar la respuesta.</p>
+                </div>
+
+                <div id="detailContent" style="display: none;">
+                    <div class="detail-header">
+                        <div>
+                            <h2 id="detailTitle">Demora en entrega de historia clínica</h2>
+                            <div class="radicado-code" id="detailRadicado">PQR-2024-001847</div>
+                        </div>
+                        <button class="close-panel" onclick="closeDetail()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <div class="detail-badges">
+                        <span class="badge badge-queja" id="detailTipo">Queja</span>
+                        <span class="badge badge-resuelto" id="detailEstado">Resuelto</span>
+                        <span class="badge badge-prioridad-alta">Alta</span>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Información General</h3>
+                        <div class="info-row">
+                            <i class="fas fa-calendar"></i>
+                            <div>
+                                <strong>Radicado:</strong> <span id="infoRadicado">14 de jun de 2024</span>
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <i class="fas fa-clock"></i>
+                            <div>
+                                <strong>Tiempo abierto:</strong> <span id="infoTiempo">747d 6h</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Paciente</h3>
+                        <div class="info-row">
+                            <i class="fas fa-user"></i>
+                            <div>
+                                <strong id="infoPaciente">Laura Milena Ríos</strong>
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <i class="fas fa-id-card"></i>
+                            <div id="infoDocumento">1023456789</div>
+                        </div>
+                        <div class="info-row">
+                            <i class="fas fa-envelope"></i>
+                            <div id="infoEmail">laura.rios@gmail.com</div>
+                        </div>
+                        <div class="info-row">
+                            <i class="fas fa-user-md"></i>
+                            <div>Dr/a. Dra. Patricia Mora</div>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Descripción</h3>
+                        <div class="description-box" id="detailDescripcion">
+                            Solicité mi historia clínica hace más de 20 días hábiles y aún no he recibido respuesta ni
+                            documento.
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Hilo de Respuestas (1)</h3>
+                        <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-header">
+                                    <span class="timeline-author">Admin PQR</span>
+                                    <span class="timeline-date">15 de jun de 2024</span>
+                                </div>
+                                <div class="timeline-content">
+                                    Estimada Laura, hemos recibido su queja y estamos gestionando la solicitud con el
+                                    área de archivo.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-section response-box">
+                        <h3>Responder</h3>
+                        <textarea placeholder="Escribe tu respuesta al paciente..."></textarea>
+                        <button class="btn btn-primary" style="width: 100%;">
+                            <i class="fas fa-paper-plane"></i>
+                            Enviar respuesta
+                        </button>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Cambiar Estado</h3>
+                        <div class="status-buttons">
+                            <button class="status-btn recibido" onclick="changeStatus(this, 'recibido')">
+                                <i class="fas fa-inbox"></i> Recibido
+                            </button>
+                            <button class="status-btn proceso" onclick="changeStatus(this, 'proceso')">
+                                <i class="fas fa-tasks"></i> En proceso
+                            </button>
+                            <button class="status-btn pendiente" onclick="changeStatus(this, 'pendiente')">
+                                <i class="fas fa-hourglass-half"></i> Pend. Info
+                            </button>
+                            <button class="status-btn resuelto active" onclick="changeStatus(this, 'resuelto')">
+                                <i class="fas fa-check-circle"></i> Resuelto
+                            </button>
+                            <button class="status-btn cerrado" onclick="changeStatus(this, 'cerrado')"
+                                style="grid-column: span 2;">
+                                <i class="fas fa-lock"></i> Cerrado
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <script>
+        window.RAZOR_PQRS = @Html.Raw(ViewData["PqrsJson"] ?? "[]");
+    </script>
+    <script src="@Url.Content("~/js/Gestion_De_PQR/st-adm-17-gestion-pqr/script.js")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+

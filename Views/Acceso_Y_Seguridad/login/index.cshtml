@@ -1,0 +1,209 @@
+﻿@removeTagHelper "Microsoft.AspNetCore.Mvc.TagHelpers.BodyTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers"
+@{
+    Layout = null;
+    var mensajeErrorServidor = "";
+    var errorStatus = 0;
+    var successMessage = string.Empty;
+
+    if (ViewData["ErrorStatus"] is int statusCode)
+    {
+        errorStatus = statusCode;
+    }
+
+    if (TempData["SuccessMessage"] is string tempSuccess)
+    {
+        successMessage = tempSuccess;
+    }
+
+    foreach (var estadoModelo in ViewData.ModelState.Values)
+    {
+        foreach (var error in estadoModelo.Errors)
+        {
+            mensajeErrorServidor = error.ErrorMessage;
+        }
+    }
+
+    // showAuthModal: solo se activa cuando el servidor devuelve 401 o 403
+    // (credenciales inválidas o cuenta bloqueada), NUNCA para errores de campos
+    // vacíos (status 0) ni errores de servidor (500).
+    var showAuthModal = errorStatus is 401 or 403;
+
+    // El error-box inline solo se muestra para errores que NO son de credenciales
+    // (campos vacíos, rol inválido, etc.) para evitar duplicar el mismo mensaje.
+    var mensajeInline = showAuthModal ? string.Empty : mensajeErrorServidor;
+    var infoMessage = string.Empty;
+    if (TempData["InfoMessage"] is string tempInfo)
+    {
+        infoMessage = tempInfo;
+    }
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Inicia sesión en SmileTrack para acceder a tu cuenta y gestionar tus citas, historial y más.">
+  <title>SmileTrack — Iniciar Sesión</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/login/login.css")">
+</head>
+<body data-error-status="@errorStatus">
+  <div class="login-bg">
+    <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1920&q=80" alt="Clínica dental" class="bg-img">
+    <div class="bg-overlay"></div>
+  </div>
+
+  <a href="/" class="back-link" aria-label="Volver al inicio">
+    <span class="material-symbols-outlined back-arrow" aria-hidden="true">arrow_back</span>
+    <span>Volver al inicio</span>
+  </a>
+
+  <main class="login-main" role="main">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="logo-wrap">
+          <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="Logo SmileTrack" class="logo-img">
+        </div>
+        <h1 class="login-title">SmileTrack</h1>
+        <p class="login-subtitle">Sistema de Gestión Odontológica</p>
+      </div>
+
+      <div class="login-section">
+        <p class="section-label" id="roleLabel">Selecciona tu rol</p>
+        <div class="role-grid" role="radiogroup" aria-labelledby="roleLabel">
+          <button class="role-btn" type="button" data-role="administrador" data-role-label="Administrador" role="radio" aria-label="Ingresar como Administrador">
+            <span class="role-text">Administrador</span>
+          </button>
+          <button class="role-btn" type="button" data-role="profesional" data-role-label="Profesional" role="radio" aria-label="Ingresar como Profesional">
+            <span class="role-text">Profesional</span>
+          </button>
+          <button class="role-btn" type="button" data-role="paciente" data-role-label="Paciente" role="radio" aria-label="Ingresar como Paciente">
+            <span class="role-text">Paciente</span>
+          </button>
+          <button class="role-btn" type="button" data-role="recepcionista" data-role-label="Recepcionista" role="radio" aria-label="Ingresar como Recepcionista">
+            <span class="role-text">Recepcionista</span>
+          </button>
+          <button class="role-btn" type="button" data-role="auxiliar" data-role-label="Auxiliar" role="radio" aria-label="Ingresar como Auxiliar">
+            <span class="role-text">Auxiliar</span>
+          </button>
+        </div>
+      </div>
+
+      <form id="loginForm" class="login-form" action="/acceso-y-seguridad/login" method="post" novalidate>
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="rol" id="selectedRole" value="Profesional" />
+        <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+
+        <div class="form-group">
+          <label class="form-label" for="email">
+            CORREO ELECTRÓNICO <span class="text-error" aria-hidden="true">*</span>
+          </label>
+          <div class="input-wrap">
+            <span class="material-symbols-outlined input-icon" aria-hidden="true">mail</span>
+            <input class="form-input" id="email" name="email" placeholder="dr.smith@smiletrack.com" type="email" autocomplete="email" aria-required="true">
+          </div>
+          <span id="emailError" class="error-msg" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">
+            CONTRASEÑA <span class="text-error" aria-hidden="true">*</span>
+          </label>
+          <div class="input-wrap">
+            <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
+            <input class="form-input" id="password" name="password" placeholder="••••••••" type="password" autocomplete="current-password" aria-required="true" required>
+            <button id="togglePassword" class="toggle-pass" type="button" aria-label="Mostrar contraseña" aria-pressed="false">
+              <span id="toggleIcon" class="material-symbols-outlined" aria-hidden="true">visibility</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-options">
+          <label class="checkbox-wrap">
+            <input class="checkbox-input" type="checkbox" id="rememberMe" name="remember">
+            <span class="checkbox-custom"></span>
+            <span class="checkbox-label">Recordarme</span>
+          </label>
+          <a class="link-forgot" href="/acceso-y-seguridad/recover">¿Olvidaste tu contraseña?</a>
+        </div>
+
+        <div id="errorMsg" class="error-box @(string.IsNullOrEmpty(mensajeInline) ? "hidden" : "")" role="alert" aria-live="assertive">
+          <span class="material-symbols-outlined" aria-hidden="true">error</span>
+          <span id="errorText">@mensajeInline</span>
+        </div>
+
+        <div id="successMsg" class="success-box @(string.IsNullOrEmpty(successMessage) ? "hidden" : "")" role="status" aria-live="polite">
+          <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+          <span id="successText">@successMessage</span>
+        </div>
+
+        <div id="infoMsg" class="info-box @(string.IsNullOrEmpty(infoMessage) ? "hidden" : "")" role="status" aria-live="polite">
+          <span class="material-symbols-outlined" aria-hidden="true">info</span>
+          <span id="infoText">@infoMessage</span>
+        </div>
+
+        <button id="loginBtn" class="btn-login" type="submit" aria-busy="false">
+          <span class="material-symbols-outlined" aria-hidden="true">login</span>
+          <span id="btnText">Iniciar Sesión</span>
+        </button>
+
+        <div class="form-footer">
+          <p class="footer-text">
+            ¿No tienes cuenta?
+            <a class="link-register" href="/acceso-y-seguridad/register">Regístrate aquí</a>
+          </p>
+        </div>
+      </form>
+    </div>
+
+    <footer class="login-footer">
+      <p class="footer-badge">
+        <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+        Portal Clínico Seguro · v2.4.0
+      </p>
+    </footer>
+  </main>
+
+  <!--
+    Modal de error de credenciales:
+    - Se activa solo cuando el servidor devuelve HTTP 401 (credenciales incorrectas)
+      o HTTP 403 (cuenta bloqueada). No se muestra para otros tipos de error.
+    - inert: bloquea el foco del teclado cuando el modal está cerrado (WCAG 2.1).
+    - aria-hidden="true" lo oculta de lectores de pantalla cuando está cerrado.
+    - El mensaje siempre muestra el texto exacto requerido, en minúsculas.
+  -->
+  <div
+    id="authErrorModal"
+    class="modal-overlay @(showAuthModal ? "" : "hidden")"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="authErrorTitle"
+    aria-describedby="authErrorMessage"
+    aria-hidden="@(showAuthModal ? "false" : "true")"
+    @(showAuthModal ? "" : "inert")>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 id="authErrorTitle">Error de autenticación</h2>
+        <button type="button" id="authErrorClose" class="modal-close" aria-label="Cerrar ventana">×</button>
+      </div>
+      <div class="modal-body">
+        <!-- Mensaje exacto requerido. Se muestra en minúsculas según especificación. -->
+        <p id="authErrorMessage">correo o contraseña incorrectos</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="authErrorCloseBtn" class="btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="@Url.Content("~/js/shared/validation-utils.js")" defer></script>
+  <script src="@Url.Content("~/js/Acceso_Y_Seguridad/login/login.js")" defer></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>
+

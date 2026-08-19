@@ -1,0 +1,235 @@
+/* ============================================
+   SmileTrack — Estilos de Impresión (shared/print.css)
+   ============================================
+   Autor: Johan Santamaria
+   Fecha: 05/08/2026
+
+   PROPÓSITO:
+   Estilos exclusivos para @media print aplicados a las vistas de
+   Agenda General y Gestión de Citas. Oculta elementos de navegación
+   y UI, y optimiza tablas y calendarios para impresión en A4.
+
+   INCLUSIÓN:
+   Incluir SOLO en las vistas que lo requieren mediante:
+     <link rel="stylesheet" href="~/css/shared/print.css" media="print" />
+
+   El atributo media="print" garantiza que este CSS no afecta el
+   renderizado en pantalla ni penaliza el performance de carga.
+   ============================================ */
+
+@media print {
+
+  /* ── Elementos a ocultar completamente ──────────────────────────── */
+  .sidebar,
+  .hamburger,
+  .overlay,
+  .mobile-nav,
+  .fab,
+  .modal-overlay,
+  .toast,
+  .pagination,
+  .filter-bar,
+  .view-toggles,
+  .page-header .btn-primary,
+  .page-header button,
+  .action-btn,
+  .btn-primary,
+  .btn-secondary,
+  .no-print,
+  #dynamic-footer .footer-sub,
+  nav.breadcrumb,
+  .skip-link,
+  .availability-alert,
+  .sidebar-collapse-btn,
+  .agenda-controls .controls-right {
+    display: none !important;
+  }
+
+  /* ── Reset de layout: eliminar margin-left del sidebar ──────────── */
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  .main {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* ── Encabezado de página impresa ───────────────────────────────── */
+  .page-header {
+    border-bottom: 2px solid #000;
+    padding-bottom: 8pt;
+    margin-bottom: 16pt;
+  }
+
+  .page-title {
+    font-size: 16pt;
+    font-weight: bold;
+    color: #000 !important;
+  }
+
+  .page-subtitle {
+    font-size: 10pt;
+    color: #444 !important;
+  }
+
+  /* ── Tabla de citas: optimizada para A4 ─────────────────────────── */
+  .table-wrap {
+    overflow: visible !important;
+  }
+
+  .table-base {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+    page-break-inside: auto;
+  }
+
+  .table-base thead {
+    background: #e8eaf6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .table-base th,
+  .table-base td {
+    border: 1px solid #aaa;
+    padding: 4pt 6pt;
+    text-align: left;
+    vertical-align: top;
+    color: #000 !important;
+  }
+
+  .table-base th {
+    font-weight: bold;
+    font-size: 9pt;
+    background: #e8eaf6;
+  }
+
+  /* Alternar filas para legibilidad */
+  .table-base tbody tr:nth-child(even) {
+    background: #f5f5f5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Evitar que una fila se parta entre páginas */
+  .table-base tr {
+    page-break-inside: avoid;
+  }
+
+  /* ── Calendario semanal (st-adm-08-agenda) ──────────────────────── */
+  .calendar-section {
+    page-break-before: auto;
+  }
+
+  .calendar-header {
+    display: flex !important;
+    border-bottom: 2px solid #000;
+    margin-bottom: 4pt;
+  }
+
+  .calendar-day-header {
+    flex: 1;
+    text-align: center;
+    font-weight: bold;
+    font-size: 9pt;
+    padding: 4pt;
+    border-right: 1px solid #aaa;
+  }
+
+  .calendar-body {
+    display: flex !important;
+  }
+
+  .calendar-day {
+    flex: 1;
+    border-right: 1px solid #ccc;
+    min-height: 80pt;
+    padding: 4pt;
+    font-size: 8pt;
+    page-break-inside: avoid;
+  }
+
+  .calendar-day.closed {
+    background: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .appointment {
+    border-left: 3px solid #1a3580;
+    padding: 2pt 4pt;
+    margin-bottom: 4pt;
+    font-size: 8pt;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .appointment.confirmed  { border-left-color: #2563eb !important; background: #eff6ff !important; }
+  .appointment.attended   { border-left-color: #16a34a !important; background: #f0fdf4 !important; }
+  .appointment.cancelled  { border-left-color: #dc2626 !important; background: #fef2f2 !important; }
+  .appointment.available  { border-left-color: #9ca3af !important; background: #f9fafb !important; }
+
+  /* ── Leyenda de estados ──────────────────────────────────────────── */
+  .legend-section {
+    margin-top: 16pt;
+    border-top: 1px solid #ccc;
+    padding-top: 8pt;
+  }
+
+  .legend-grid {
+    display: flex;
+    gap: 16pt;
+    font-size: 9pt;
+  }
+
+  /* ── Stats grid: imprimir como fila compacta ────────────────────── */
+  .stats-grid {
+    display: flex !important;
+    gap: 8pt;
+    margin-bottom: 12pt;
+  }
+
+  .stat-card {
+    flex: 1;
+    border: 1px solid #ccc;
+    padding: 6pt;
+    text-align: center;
+    font-size: 9pt;
+  }
+
+  .stat-number {
+    font-size: 14pt;
+    font-weight: bold;
+    display: block;
+  }
+
+  /* ── Footer minimalista ──────────────────────────────────────────── */
+  #dynamic-footer {
+    margin-top: 24pt;
+    border-top: 1px solid #ccc;
+    padding-top: 8pt;
+    font-size: 8pt;
+    color: #666 !important;
+    text-align: center;
+  }
+
+  /* ── Información de página (número de página via CSS) ───────────── */
+  @page {
+    size: A4 landscape; /* Landscape para tablas anchas */
+    margin: 15mm 12mm;
+  }
+
+  /* Título del documento en la primera página */
+  .page-title::after {
+    content: " — SmileTrack";
+    font-size: 12pt;
+    color: #666;
+  }
+}

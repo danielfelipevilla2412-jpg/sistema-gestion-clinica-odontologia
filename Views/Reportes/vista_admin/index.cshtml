@@ -1,0 +1,517 @@
+﻿@model SmileTrack_MVC.Models.ViewModels.ReportesViewModel
+
+@{
+    Layout = null;
+    ViewData["Title"] = "Reportes y Estadísticas";
+    var maxIngreso = Model.IngresosPorProfesional.Any() ? Model.IngresosPorProfesional.Max(p => p.Monto) : 1m;
+    if (maxIngreso <= 0m) maxIngreso = 1m;
+    var radius = 15.9155;
+    var circumference = 2 * Math.PI * radius;
+    var servicioPrincipal = Model.DistribucionServicios.OrderByDescending(s => s.Porcentaje).FirstOrDefault();
+    var totalPorcentaje = Model.DistribucionServicios.Sum(s => s.Porcentaje);
+    var progress = 0d;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Reportes y estadísticas administrativas de la clínica SmileTrack." />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>SmileTrack — Reportes y Estadísticas</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Reportes/vista_admin/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Skip link accesibilidad -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Administración</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Reportes y Estadísticas</span>
+        </nav>
+        <h1 class="page-title">Reportes y Estadísticas</h1>
+        <p class="page-subtitle">
+          Comparado con el mismo período del año anterior ·
+          Actualizado hace @(Model.UltimaActualizacion <= DateTime.Now ? ((int)(DateTime.Now - Model.UltimaActualizacion).TotalMinutes) : 5) min
+        </p>
+      </div>
+      <div class="header-actions">
+        <button class="btn-secondary" id="btnPDF">📄 Descargar PDF</button>
+        <button class="btn-secondary" id="btnCSV">📊 Exportar CSV</button>
+      </div>
+    </header>
+
+    <!-- KPIs Grid -->
+    <section class="stats-grid" aria-label="Indicadores clave">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-number">$@Model.IngresosTotales.ToString("N0")</span>
+        <span class="stat-label">Ingresos Totales</span>
+        <span class="stat-sub @(Model.VariacionIngresos >= 0 ? "" : "stat-sub--down")">
+          @(Model.VariacionIngresos >= 0 ? "↑" : "↓") @Math.Abs(Model.VariacionIngresos)% vs mes anterior
+        </span>
+      </div>
+      <div class="stat-card" data-color="green">
+        <span class="stat-number">@Model.NuevosPacientes</span>
+        <span class="stat-label">Nuevos Pacientes</span>
+        <span class="stat-sub @(Model.VariacionPacientes >= 0 ? "" : "stat-sub--down")">
+          @(Model.VariacionPacientes >= 0 ? "↑" : "↓") @Math.Abs(Model.VariacionPacientes)% vs mes anterior
+        </span>
+      </div>
+      <div class="stat-card" data-color="purple">
+        <span class="stat-number">@Model.CitasCompletadas</span>
+        <span class="stat-label">Citas Completadas</span>
+        <span class="stat-sub @(Model.VariacionCitas >= 0 ? "" : "stat-sub--down")">
+          @(Model.VariacionCitas >= 0 ? "↑" : "↓") @Math.Abs(Model.VariacionCitas)% vs mes anterior
+        </span>
+      </div>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number">@Model.TasaRetencion%</span>
+        <span class="stat-label">Tasa de Retención</span>
+        <span class="stat-sub @(Model.VariacionRetencion >= 0 ? "" : "stat-sub--down")">
+          @(Model.VariacionRetencion >= 0 ? "↑" : "↓") @Math.Abs(Model.VariacionRetencion)% vs mes anterior
+        </span>
+      </div>
+      <div class="stat-card" data-color="red">
+        <span class="stat-number">@Model.TasaInasistencia%</span>
+        <span class="stat-label">Tasa de Inasistencia</span>
+        <span class="stat-sub @(Model.VariacionInasistencia <= 0 ? "" : "stat-sub--down")">
+          @(Model.VariacionInasistencia <= 0 ? "↓" : "↑") @Math.Abs(Model.VariacionInasistencia)% vs mes anterior
+        </span>
+      </div>
+      <div class="stat-card" data-color="teal">
+        <span class="stat-number">@Model.OcupacionAgenda%</span>
+        <span class="stat-label">Ocupación de Agenda</span>
+        <span class="stat-sub @(Model.VariacionOcupacion >= 0 ? "" : "stat-sub--down")">
+          @(Model.VariacionOcupacion >= 0 ? "↑" : "↓") @Math.Abs(Model.VariacionOcupacion)% vs mes anterior
+        </span>
+      </div>
+    </section>
+
+    <!-- Charts Grid -->
+    <section class="charts-grid">
+      <!-- Growth Chart -->
+      <div class="chart-card">
+        <div class="chart-card__header">
+          <h2 class="chart-card__title">Crecimiento de la Clínica</h2>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-dot" style="background:#1a56cc"></span> Este año</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#cbd5e1"></span> Año pasado</span>
+          </div>
+        </div>
+        <div class="bar-chart" id="barChart" role="img" aria-label="Evolución mensual del crecimiento de la clínica">
+          @foreach (var dato in Model.CrecimientoClinica)
+          {
+            var currentHeight = Math.Max(8, Math.Min(100, dato.ValorActual));
+            var previousHeight = Math.Max(8, Math.Min(100, dato.ValorAnterior));
+            <div class="bar-group" data-curr="@dato.ValorActual" data-prev="@dato.ValorAnterior" title="@dato.Mes: @dato.ValorActual% este año, @dato.ValorAnterior% el año pasado">
+              <div class="bar-group__bars">
+                <div class="bar bar--prev" style="height:@previousHeight%"></div>
+                <div class="bar bar--current" style="height:@currentHeight%"></div>
+              </div>
+              <div class="bar-group__meta">
+                <span class="bar-group__label">@dato.Mes</span>
+                <span class="bar-group__value">@dato.ValorActual%</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Donut Chart -->
+      <div class="chart-card">
+        <h2 class="chart-card__title">Distribución de Servicios</h2>
+        <p class="chart-card__sub">
+          <strong>@Model.CitasCompletadas</strong> citas totales
+        </p>
+        <div class="donut-wrap">
+          <svg viewBox="0 0 36 36" class="donut-svg" role="img" aria-label="Distribución de servicios">
+            <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#e2e8f0" stroke-width="3"/>
+            @foreach (var servicio in Model.DistribucionServicios)
+            {
+              var segmentLength = Math.Max(1, circumference * (servicio.Porcentaje / 100d));
+              var dashOffset = -progress;
+              progress += segmentLength;
+              <circle cx="18" cy="18" r="15.9155" fill="none"
+                      stroke="@servicio.Color" stroke-width="3"
+                      stroke-dasharray="@segmentLength.ToString(System.Globalization.CultureInfo.InvariantCulture) @circumference.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                      stroke-dashoffset="@dashOffset.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                      stroke-linecap="round"
+                      class="donut-segment"/>
+            }
+          </svg>
+          <div class="donut-center">
+            <span class="donut-total">@Model.CitasCompletadas</span>
+            <span class="donut-sublabel">Totales</span>
+            @if (servicioPrincipal != null)
+            {
+              <span class="donut-highlight">Mayor: @servicioPrincipal.Nombre (@servicioPrincipal.Porcentaje%)</span>
+            }
+          </div>
+        </div>
+        <div class="donut-legend">
+          @foreach (var servicio in Model.DistribucionServicios)
+          {
+            <div class="donut-legend__item">
+              <span class="legend-dot" style="background:@servicio.Color"></span>
+              <span>@servicio.Nombre</span>
+              <span class="donut-legend__pct">@servicio.Porcentaje%</span>
+            </div>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Revenue by Professional -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2 class="section-title">Ingresos por Profesional</h2>
+      </div>
+      <div class="prof-revenue-list">
+        @foreach (var prof in Model.IngresosPorProfesional)
+        {
+          var anchoBarra = (prof.Monto / maxIngreso) * 100;
+          <div class="prof-revenue-row" data-name="@prof.Nombre" data-amount="$@prof.Monto.ToString("N0")" data-share="@prof.Porcentaje%">
+            <div class="prof-revenue-info">
+              <span class="prof-revenue-name">@prof.Nombre</span>
+              <span class="prof-revenue-value">$@prof.Monto.ToString("N0") <small>(@prof.Porcentaje%)</small></span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width:@anchoBarra.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- Appointment Status -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2 class="section-title">Estado de Citas</h2>
+        <span class="section-badge">@Model.EstadoCitas.Sum(e => e.Cantidad) citas</span>
+      </div>
+      <div class="status-list">
+        @foreach (var estado in Model.EstadoCitas)
+        {
+          <div class="status-row">
+            <div class="status-row__info">
+              <span>@estado.Estado</span>
+              <strong>@estado.Porcentaje%</strong>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill progress-fill--@estado.Estado.ToLower().Replace(" ", "")" style="width:@estado.Porcentaje.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- Procedures Table -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2 class="section-title">Procedimientos Más Solicitados</h2>
+        <button type="button" id="btnViewAllProcedures" class="btn-link">Ver todo →</button>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Procedimiento</th>
+              <th>Cantidad</th>
+              <th>Ingresos</th>
+              <th>Precio Prom.</th>
+              <th>Tendencia</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var proc in Model.Procedimientos)
+            {
+              <tr>
+                <td>
+                  <div class="cell-icon-name">
+                    <span class="cell-icon" data-color="blue">@proc.Icono.Substring(0, 1).ToUpper()</span>
+                    @proc.Nombre
+                  </div>
+                </td>
+                <td>@proc.Cantidad</td>
+                <td>$@proc.IngresosGenerados.ToString("N0")</td>
+                <td>$@proc.PrecioPromedio.ToString("N0")</td>
+                <td>
+                  <span class="trend @(proc.Tendencia >= 0 ? "trend--up" : "trend--down")">
+                    @(proc.Tendencia >= 0 ? "↑" : "↓") @Math.Abs(proc.Tendencia)%
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="modal-overlay" id="modalProcedimientos" role="dialog" aria-modal="true" aria-labelledby="modalProcedimientosTitle" hidden>
+      <div class="modal modal--lg" role="document">
+        <button type="button" class="modal-close" data-modal-close="modalProcedimientos" aria-label="Cerrar ventana">×</button>
+        <h2 class="modal-title" id="modalProcedimientosTitle">Todos los Procedimientos</h2>
+        <p class="modal-desc">Visualiza la lista completa de procedimientos más solicitados de la clínica.</p>
+        <div class="modal-body">
+          <div class="table-responsive modal-table">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Procedimiento</th>
+                  <th>Cantidad</th>
+                  <th>Ingresos</th>
+                  <th>Precio Prom.</th>
+                  <th>Tendencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach (var proc in Model.Procedimientos)
+                {
+                  <tr>
+                    <td>
+                      <div class="cell-icon-name">
+                        <span class="cell-icon" data-color="blue">@proc.Icono.Substring(0,1).ToUpper()</span>
+                        @proc.Nombre
+                      </div>
+                    </td>
+                    <td>@proc.Cantidad</td>
+                    <td>$@proc.IngresosGenerados.ToString("N0")</td>
+                    <td>$@proc.PrecioPromedio.ToString("N0")</td>
+                    <td>
+                      <span class="trend @(proc.Tendencia >= 0 ? "trend--up" : "trend--down")">
+                        @(proc.Tendencia >= 0 ? "↑" : "↓") @Math.Abs(proc.Tendencia)%
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" data-modal-close="modalProcedimientos">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Reports -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2 class="section-title">Reportes Recientes</h2>
+        <div class="section-header__actions">
+          <button id="newReportBtn" class="btn-primary">+ Nuevo Reporte</button>
+          <button type="button" id="btnViewAllReports" class="btn-link">Ver todo →</button>
+        </div>
+      </div>
+
+      <!-- Category Filters -->
+      <div class="filter-chips">
+        @foreach (var categoria in new[] { "Todos", "Financiero", "Pacientes", "Operativo", "Logística" })
+        {
+          var catValue = categoria == "Todos" ? "todos" : categoria.ToLower();
+          <button class="chip-btn @(catValue == Model.FiltroCategoria ? "chip-btn--active" : "")"
+                  data-category="@catValue">
+            @categoria
+          </button>
+        }
+      </div>
+
+      <div class="table-responsive" id="tableWrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nombre del Reporte</th>
+              <th>Fecha Generado</th>
+              <th>Categoría</th>
+              <th>Estado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="reportsTableBody">
+            @if (Model.ReportesRecientes.Any())
+            {
+              @foreach (var reporte in Model.ReportesRecientes)
+              {
+                <tr data-category="@reporte.Categoria.ToLower()">
+                  <td>
+                    <div class="cell-icon-name">
+                      <span class="cell-icon" data-color="@(reporte.Categoria.ToLower() == "financiero" ? "blue" : reporte.Categoria.ToLower() == "pacientes" ? "green" : reporte.Categoria.ToLower() == "logística" ? "red" : "purple")">@reporte.Icono.Substring(0, 1).ToUpper()</span>
+                      @reporte.Nombre
+                    </div>
+                  </td>
+                  <td>@reporte.FechaGenerado.ToString("dd MMM, yyyy")</td>
+                  <td><span class="badge">@reporte.Categoria</span></td>
+                  <td>
+                    <span class="status @(reporte.Estado == "Listo" ? "status--ready" : "status--pending")">
+                      <span class="status__dot"></span> @reporte.Estado
+                    </span>
+                  </td>
+                  <td>
+                    <form action="/reportes/descargar/@reporte.Id" method="post" style="display:inline">
+                      <button type="submit" class="btn-icon" title="Descargar">📥</button>
+                    </form>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty State -->
+      <div id="tableEmptyState" class="empty-state" style="display:none">
+        <div class="empty-state__icon">📄</div>
+        <div class="empty-state__title">No se encontraron reportes</div>
+        <p class="empty-state__desc">Prueba con otra categoría o genera un nuevo reporte.</p>
+        <button id="emptyStateNewReportBtn" class="btn-primary">+ Generar Reporte</button>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination" id="reportsPagination">
+        <button class="pg-btn" disabled>← Anterior</button>
+        <button class="pg-btn pg-btn--active">1</button>
+        <button class="pg-btn">2</button>
+        <button class="pg-btn">3</button>
+        <button class="pg-btn">Siguiente →</button>
+      </div>
+
+      <!-- Modales de Reportes -->
+      <div class="modal-overlay" id="modalNewReport" role="dialog" aria-modal="true" aria-labelledby="modalNewReportTitle" hidden>
+        <div class="modal modal--lg" role="document">
+          <button type="button" class="modal-close" data-modal-close="modalNewReport" aria-label="Cerrar ventana">×</button>
+          <h2 class="modal-title" id="modalNewReportTitle">Nuevo Reporte</h2>
+          <p class="modal-desc">Configura los detalles del nuevo reporte y genera la vista previa antes de descargarlo.</p>
+          <form id="formNewReport" class="modal-body" novalidate>
+            <div class="form-group">
+              <label class="form-label" for="reportName">Nombre del reporte</label>
+              <input id="reportName" name="reportName" class="form-input" type="text" placeholder="Informe de ingresos mensuales" required />
+            </div>
+            <div class="form-group grid-2">
+              <div class="form-group">
+                <label class="form-label" for="reportCategory">Categoría</label>
+                <select id="reportCategory" name="reportCategory" class="form-input">
+                  <option value="Financiero">Financiero</option>
+                  <option value="Pacientes">Pacientes</option>
+                  <option value="Operativo">Operativo</option>
+                  <option value="Logística">Logística</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="reportPeriod">Periodo</label>
+                <input id="reportPeriod" name="reportPeriod" class="form-input" type="month" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="reportNotes">Notas u objetivos</label>
+              <textarea id="reportNotes" name="reportNotes" class="form-input" rows="4" placeholder="Ej. Comparar con el trimestre anterior"></textarea>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn-secondary" data-modal-close="modalNewReport">Cancelar</button>
+              <button type="submit" class="btn-primary">Crear Reporte</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="modalViewAllReports" role="dialog" aria-modal="true" aria-labelledby="modalViewAllTitle" hidden>
+        <div class="modal modal--lg" role="document">
+          <button type="button" class="modal-close" data-modal-close="modalViewAllReports" aria-label="Cerrar ventana">×</button>
+          <h2 class="modal-title" id="modalViewAllTitle">Todos los reportes</h2>
+          <p class="modal-desc">Accede a un resumen de los reportes recientes y descarga el que necesites.</p>
+          <div class="modal-body">
+            <div class="table-responsive modal-table">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Reporte</th>
+                    <th>Fecha</th>
+                    <th>Categoría</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @foreach (var reporte in Model.ReportesRecientes.Take(8))
+                  {
+                    <tr>
+                      <td>@reporte.Nombre</td>
+                      <td>@reporte.FechaGenerado.ToString("dd MMM, yyyy")</td>
+                      <td>@reporte.Categoria</td>
+                      <td>@reporte.Estado</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" data-modal-close="modalViewAllReports">Cerrar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="modalDownloadPDF" role="dialog" aria-modal="true" aria-labelledby="modalDownloadPDFTitle" hidden>
+        <div class="modal" role="document">
+          <button type="button" class="modal-close" data-modal-close="modalDownloadPDF" aria-label="Cerrar ventana">×</button>
+          <h2 class="modal-title" id="modalDownloadPDFTitle">Descargar PDF</h2>
+          <p class="modal-desc">Selecciona el contenido que deseas incluir en el PDF del reporte actual.</p>
+          <div class="modal-body">
+            <label class="checkbox-label"><input type="checkbox" id="includeCharts" checked /> Incluir gráficos y tablas</label>
+            <label class="checkbox-label"><input type="checkbox" id="includeSummary" checked /> Incluir resumen ejecutivo</label>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" data-modal-close="modalDownloadPDF">Cancelar</button>
+            <button type="button" class="btn-primary" id="confirmPdfDownload">Descargar PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="modalExportCSV" role="dialog" aria-modal="true" aria-labelledby="modalExportCSVTitle" hidden>
+        <div class="modal" role="document">
+          <button type="button" class="modal-close" data-modal-close="modalExportCSV" aria-label="Cerrar ventana">×</button>
+          <h2 class="modal-title" id="modalExportCSVTitle">Exportar CSV</h2>
+          <p class="modal-desc">Elige los datos a exportar y descarga los registros en formato CSV.</p>
+          <div class="modal-body">
+            <label class="checkbox-label"><input type="checkbox" id="csvIncludeHeaders" checked /> Incluir encabezados de columna</label>
+            <label class="checkbox-label"><input type="checkbox" id="csvIncludeAll" checked /> Exportar todos los reportes</label>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" data-modal-close="modalExportCSV">Cancelar</button>
+            <button type="button" class="btn-primary" id="confirmCsvExport">Exportar CSV</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="@Url.Content("~/js/Reportes/vista_admin/app.js")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>
+

@@ -1,0 +1,262 @@
+﻿﻿﻿﻿@* ============================================
+SmileTrack — Recordatorios (st-rec-05-recordatorios)
+============================================
+Autor: Johan Santamaria
+Fecha: 29/07/2026
+
+DESCRIPCIÓN:
+Vista que permite a los recepcionistas enviar recordatorios manuales o programar notificaciones automáticas de citas médicas a los pacientes a través de múltiples canales.
+
+FUNCIONALIDADES PRINCIPALES:
+- Listado de citas próximas para envío de recordatorios
+- Envío directo e individualizado de recordatorios vía mensajería
+- Panel de configuración para mensajes automáticos y estados del canal
+
+DEPENDENCIAS TÉCNICAS:
+- Controller: GestionCitasController y Recordatorios
+- CSS: ~/css/Gestion_De_Citas/st-rec-05-recordatorios/styles.css
+- JS: ~/js/Gestion_De_Citas/st-rec-05-recordatorios/app.js
+- Partial / Otros: Sidebar unificado
+
+NOTAS DE MANTENIMIENTO:
+- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+============================================ *@
+@{ Layout = null; }
+@using SmileTrack_MVC.Models.Entities
+@{
+    dynamic recData = ViewData["RecordatoriosData"]!;
+    IEnumerable<dynamic> pendientes = recData.pendientes;
+    int sinConfirmar = recData.sinConfirmar;
+    int facturasVencidas = recData.facturasVencidas;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Recordatorios</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-rec-05-recordatorios/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+
+  <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ----- MAIN ----- -->
+  <main class="main" id="main-content">
+
+    <!-- Page header -->
+    <header class="page-header">
+      <div class="header-left">
+        <div class="breadcrumb">Recepción <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span> Recordatorios</div>
+        <h1 class="page-title">Recordatorios y Notificaciones</h1>
+        <p class="page-subtitle">Gestiona los recordatorios automáticos y manuales de citas para pacientes</p>
+      </div>
+      <a href="/gestion-de-citas/st-rec-03-gestion-citas" class="btn-primary" aria-label="Crear nueva cita">+ Nueva cita</a>
+    </header>
+
+    <!-- Stats con aria-label para sección de estadÍdsticas -->
+    <section class="stats-container" aria-label="Resumen de recordatorios">
+      <div class="stat-card success-card">
+        <span class="stat-value" id="statsSentCount" aria-live="polite">12</span>
+        <span class="stat-label">Enviados hoy</span>
+      </div>
+      <div class="stat-card warning-card">
+        <span class="stat-value" id="statsPendingCount" aria-live="polite">5</span>
+        <span class="stat-label">Pendientes de envío</span>
+      </div>
+    </section>
+
+    <!-- Grid: Lista + Alertas -->
+    <div class="dashboard-grid">
+
+      <!-- Columna izquierda: Recordatorios pendientes + Historial -->
+      <div style="display:flex;flex-direction:column;gap:20px;">
+
+        <!-- Recordatorios pendientes con role region -->
+        <section class="reminders-section" aria-labelledby="pendingTitle">
+          <div class="section-header">
+            <h2 id="pendingTitle">Pendientes de envío</h2>
+            <button class="btn-success" id="btnSendSelected"
+              aria-label="Enviar recordatorios a pacientes seleccionados"><span class="material-symbols-outlined" aria-hidden="true">send</span> Enviar</button>
+          </div>
+
+          <!-- Lista con role list y aria-live para anuncios dinámicos -->
+          <div class="patient-list" id="patientListContainer" role="list" aria-label="Lista de pacientes pendientes"
+            aria-live="polite">
+            @{
+                string[] paletaAvatares = { "avatar-blue", "avatar-green", "avatar-gray", "avatar-amber" };
+                int colorIdx = 0;
+            }
+            @if (!pendientes.Any())
+            {
+                <p style="padding:12px;color:var(--text-secondary,#64748b);">No hay citas programadas para mañana o pasado mañana que requieran recordatorio.</p>
+            }
+            @foreach (var p in pendientes)
+            {
+                string avatarClass = paletaAvatares[colorIdx++ % paletaAvatares.Length];
+                string diaTexto = p.esManana ? "Mañana" : "Pasado mañana";
+                string horaTexto = ((DateTime)p.fechaHora).ToString("h:mm tt");
+                string isoTexto = ((DateTime)p.fechaHora).ToString("yyyy-MM-ddTHH:mm");
+                string canalIcono = p.canal == "email" ? "email" : "sms";
+                string canalTexto = p.canal == "email" ? "Correo" : "SMS";
+                string filaClase = p.confirmada ? "patient-row dimmed" : "patient-row selected";
+
+                <div class="@filaClase" data-id="@p.id" role="listitem">
+                  <input type="checkbox" class="custom-checkbox" checked="@(!((bool)p.confirmada))"
+                    aria-label="Seleccionar recordatorio para @p.paciente" />
+                  <div class="avatar-circle @avatarClass" aria-hidden="true">@p.iniciales</div>
+                  <div class="patient-info">
+                    <p class="patient-name">@p.paciente</p>
+                    <div class="patient-meta">
+                      <span><time datetime="@isoTexto">@diaTexto @horaTexto</time></span>
+                      <span class="meta-dot" aria-hidden="true"></span>
+                      <span class="meta-channel"><span class="material-symbols-outlined" aria-hidden="true">@canalIcono</span> @canalTexto</span>
+                    </div>
+                  </div>
+                </div>
+            }
+          </div>
+
+          <!-- Botón mÓvil "Enviar a todos" -->
+          <button class="mobile-action-btn" id="btnSendAllMobile"
+            aria-label="Enviar recordatorios a todos los pacientes programados para mañana"><span class="material-symbols-outlined" aria-hidden="true">send</span> Enviar a todos para
+            mañana</button>
+        </section>
+
+        <!-- Historial de enviados -->
+        <section class="history-section" aria-labelledby="historyTitle">
+          <div class="history-header">
+            <h3 id="historyTitle">Enviados recientemente</h3>
+            <a href="#" class="view-all-link" aria-label="Ver historial completo de recordatorios enviados">Ver todos <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></a>
+          </div>
+          <div class="history-scroller" id="historyScroller" role="list"
+            aria-label="Historial de recordatorios enviados">
+            <!-- No existe una tabla que registre el historial de recordatorios enviados en el
+                 esquema actual, así que se muestra el estado vacío real (antes había 3 envíos
+                 inventados aquí: María López, Carlos Ruiz, Jorge Díaz). -->
+            <p style="padding:12px;color:var(--text-secondary,#64748b);">Aún no se ha registrado el envío de recordatorios.</p>
+          </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Columna derecha: Alertas -->
+      <aside class="alerts-sidebar-card" aria-labelledby="alertsTitle">
+        <div class="alerts-header">
+          <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+          <h3 id="alertsTitle">Alertas pendientes</h3>
+        </div>
+        <div class="alerts-list" role="list" aria-label="Lista de alertas pendientes">
+          <!-- Alerta roja: sin confirmar -->
+          <div class="alert-item-card red-alert" role="listitem" style="@(sinConfirmar > 0 ? "" : "display:none;")">
+            <div class="alert-icon-box material-symbols-outlined" aria-hidden="true">error</div>
+            <div class="alert-content-box">
+              <h4>@sinConfirmar paciente@(sinConfirmar == 1 ? "" : "s") sin confirmar</h4>
+              <p>Las citas para mañana requieren confirmación manual.</p>
+              <button class="btn-alert-action" id="btnAlertUnconfirmed"
+                aria-label="Notificar a pacientes sin confirmar cita">Notificar</button>
+            </div>
+          </div>
+          <!-- Alerta amarilla: facturas vencidas -->
+          <div class="alert-item-card yellow-alert" role="listitem" style="@(facturasVencidas > 0 ? "" : "display:none;")">
+            <div class="alert-icon-box material-symbols-outlined" aria-hidden="true">invoice</div>
+            <div class="alert-content-box">
+              <h4>@facturasVencidas factura@(facturasVencidas == 1 ? "" : "s") vencida@(facturasVencidas == 1 ? "" : "s")</h4>
+              <p>Pacientes con pagos pendientes por más de 15 días.</p>
+              <button class="btn-alert-action" id="btnAlertOverdue"
+                aria-label="Notificar a pacientes con facturas vencidas">Notificar</button>
+            </div>
+          </div>
+          @if (sinConfirmar == 0 && facturasVencidas == 0)
+          {
+              <p style="padding:12px;color:var(--text-secondary,#64748b);">No hay alertas pendientes.</p>
+          }
+        </div>
+      </aside>
+
+    </div>
+
+  </main>
+
+  <!-- Mobile bottom nav con aria-label para navegación mÓvil -->
+  <nav class="mobile-nav" aria-label="Navegación mÓvil">
+    <a href="/gestion-de-citas/st-rec-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">dashboard</span>
+      <span>Panel</span>
+    </a>
+    <a href="/gestion-de-citas/st-rec-03-gestion-citas" class="mobile-nav-item">
+      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">event</span>
+      <span>Citas</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">notifications</span>
+      <span>Recordatorios</span>
+    </a>
+    <a href="/acceso-y-seguridad/login" class="mobile-nav-item">
+      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">login</span>
+      <span>Login</span>
+    </a>
+  </nav>
+
+  <!-- Toast container con atributos ARIA para notificaciones -->
+  <div id="toastContainer" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
+
+  <!-- Estilos para contenido solo accesible por screen readers -->
+  <style>
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
+      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+  <script src="@Url.Content("~/js/Gestion_De_Citas/st-rec-05-recordatorios/app.js")"></script>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
+    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
+</body>
+
+</html>
+
+
+
+
+

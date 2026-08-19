@@ -1,0 +1,70 @@
+/* =============================================
+   SMILETRACK — REPORTES PROFESIONAL (styles.css)
+   Estilos específicos de la vista vista_prof.
+   El layout base (sidebar, main, hamburger, variables)
+   viene de shared/sidebar.css + vista_admin/styles.css.
+   ============================================= */
+
+/* Importar la base de Reportes Admin (KPIs, tablas, gráficos, modales) */
+@import url("../vista_admin/styles.css");
+
+/* ─── Grid de métricas del profesional ──────────────────────────────────── */
+/* Sobreescritura legítima: la vista profesional tiene más tarjetas */
+.stats-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+/* ─── Barras de progreso de tratamientos ─────────────────────────────────── */
+.prof-revenue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 6px 0;
+}
+
+.prof-revenue-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prof-revenue-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.prof-revenue-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.prof-revenue-value {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.progress-track {
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1a56cc, #3b82f6);
+  border-radius: 9999px;
+  transition: width 0.6s ease;
+}
+
+/* ─── Responsive móvil ───────────────────────────────────────────────────── */
+/* shared/sidebar.css gestiona el drawer; aquí solo el padding del main */
+@media (max-width: 680px) {
+  .main {
+    padding: 58px 14px 32px;
+  }
+}

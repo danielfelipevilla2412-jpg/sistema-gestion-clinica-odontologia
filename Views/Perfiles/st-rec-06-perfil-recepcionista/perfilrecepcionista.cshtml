@@ -1,0 +1,295 @@
+﻿﻿﻿﻿@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmileTrack — Mi Perfil</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="@Url.Content("~/css/Perfiles/st-rec-06-perfil-recepcionista/perfil-recepcionista.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+    <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
+    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+    <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+    </button>
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+    <!-- ----- MAIN ----- -->
+    <main class="main" id="main-content">
+
+        <!-- Page header -->
+        <header class="page-header">
+            <div class="header-left">
+                <div class="breadcrumb">Recepción ? Mi perfil</div>
+                <h1 class="page-title">Mi Perfil</h1>
+                <p class="page-subtitle">Gestiona tu información personal y preferencias de cuenta</p>
+            </div>
+        </header>
+
+        <!-- Layout de perfil -->
+        <div class="profile-layout">
+
+            <!-- Columna izquierda: Tarjeta de perfil -->
+            <aside class="profile-card" aria-labelledby="profileHeading">
+                <h2 id="profileHeading" class="visually-hidden">Información del perfil</h2>
+                <div class="profile-avatar-large" id="profileAvatar" aria-label="Foto de perfil">RE</div>
+                <p class="profile-name" id="profileName">Recepcionista</p>
+                <p class="profile-role">Recepción — SmileTrack</p>
+                <p class="profile-email" id="profileEmail">recepcion@smiletrack.co</p>
+                <button class="btn-upload" id="btnUploadPhoto" aria-label="Cambiar foto de perfil"><span class="material-symbols-outlined" aria-hidden="true">photo_camera</span> Cambiar foto</button>
+                <input type="file" id="fileInput" accept="image/*" class="visually-hidden"
+                    aria-label="Seleccionar imagen de perfil" />
+            </aside>
+
+            <!-- Columna derecha: Formularios -->
+            <div>
+
+                <!-- Formulario: Datos personales -->
+                <section class="profile-form" aria-labelledby="personalDataTitle">
+                    <h3 class="profile-form-title" id="personalDataTitle">Datos personales</h3>
+                    <form id="profileForm" class="modal-form" novalidate>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="nombre">Nombre completo</label>
+                                <input type="text" id="nombre" name="nombre" class="form-input" value="Recepcionista"
+                                    autocomplete="name" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="cargo">Cargo</label>
+                                <input type="text" id="cargo" name="cargo" class="form-input" value="Recepción"
+                                    autocomplete="organization-title" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="email">Correo electrÓnico</label>
+                                <input type="email" id="email" name="email" class="form-input"
+                                    value="recepcion@smiletrack.co" autocomplete="email" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="telefono">TelÉfono</label>
+                                <input type="tel" id="telefono" name="telefono" class="form-input"
+                                    value="+57 300 123 4567" autocomplete="tel" />
+                            </div>
+                            <div class="form-group full-width">
+                                <label class="form-label" for="bio">Biografía</label>
+                                <textarea id="bio" name="bio" class="form-textarea"
+                                    placeholder="Cu—ntanos sobre ti...">Encargada de recepción en SmileTrack. Apasionada por la atención al paciente.</textarea>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="btnCancel">Cancelar</button>
+                            <button type="submit" class="btn-primary" id="btnSaveProfile"><span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar cambios</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Sección: Cambiar contraseña -->
+                <section class="profile-form password-section" aria-labelledby="passwordTitle">
+                    <h3 class="password-section-title" id="passwordTitle"><span class="material-symbols-outlined" aria-hidden="true">lock</span> Cambiar contraseña</h3>
+                    <form id="passwordForm" class="modal-form" novalidate>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="currentPassword">Contraseña actual</label>
+                                <input type="password" id="currentPassword" name="currentPassword" class="form-input"
+                                    placeholder="" autocomplete="current-password" required />
+                                <span class="error-message" id="error-currentPassword">Por favor ingresa tu contraseña
+                                    actual</span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="newPassword">Nueva contraseña</label>
+                                <input type="password" id="newPassword" name="newPassword" class="form-input"
+                                    placeholder="" autocomplete="new-password" required minlength="8" />
+                                <span class="error-message" id="error-newPassword">Mínimo 8 caracteres</span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="confirmPassword">Confirmar nueva contraseña</label>
+                                <input type="password" id="confirmPassword" name="confirmPassword" class="form-input"
+                                    placeholder="" autocomplete="new-password" required />
+                                <span class="error-message" id="error-confirmPassword">Las contraseñas no
+                                    coinciden</span>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-success" id="btnChangePassword"><span class="material-symbols-outlined" aria-hidden="true">lock</span> Actualizar
+                                contraseña</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Sección: Preferencias -->
+                <section class="profile-form preferences-section" aria-labelledby="preferencesTitle">
+                    <h3 class="profile-form-title" id="preferencesTitle"><span class="material-symbols-outlined" aria-hidden="true">settings</span> Preferencias</h3>
+
+                    <div class="preference-item">
+                        <div>
+                            <p class="preference-label">Notificaciones por correo</p>
+                            <p class="preference-desc">Recibir recordatorios y alertas por email</p>
+                        </div>
+                        <button class="toggle-switch active" id="toggleEmail" role="switch" aria-checked="true"
+                            aria-label="Activar notificaciones por correo">
+                            <span class="visually-hidden">Notificaciones por correo: activado</span>
+                        </button>
+                    </div>
+
+                    <div class="preference-item">
+                        <div>
+                            <p class="preference-label">Notificaciones SMS</p>
+                            <p class="preference-desc">Recibir alertas urgentes por mensaje de texto</p>
+                        </div>
+                        <button class="toggle-switch" id="toggleSMS" role="switch" aria-checked="false"
+                            aria-label="Activar notificaciones SMS">
+                            <span class="visually-hidden">Notificaciones SMS: desactivado</span>
+                        </button>
+                    </div>
+
+                    <div class="preference-item">
+                        <div>
+                            <p class="preference-label">Modo oscuro</p>
+                            <p class="preference-desc">Activar tema oscuro en la interfaz</p>
+                        </div>
+                        <button class="toggle-switch" id="toggleDark" role="switch" aria-checked="false"
+                            aria-label="Activar modo oscuro">
+                            <span class="visually-hidden">Modo oscuro: desactivado</span>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Sección: Historial de actividad -->
+                <section class="activity-section" aria-labelledby="activityTitle">
+                    <h3 class="activity-section-title" id="activityTitle"><span class="material-symbols-outlined" aria-hidden="true">history</span> Actividad reciente</h3>
+                    <div class="activity-list" role="list" aria-label="Lista de actividades recientes">
+                        <div class="activity-item" role="listitem">
+                            <span class="activity-icon material-symbols-outlined" aria-hidden="true">login</span>
+                            <div class="activity-info">
+                                <p class="activity-title">Inicio de sesión</p>
+                                <p class="activity-time"><time datetime="2026-03-20T09:47">Hoy, 09:47 AM</time> —
+                                    Bogotá, CO</p>
+                            </div>
+                        </div>
+                        <div class="activity-item" role="listitem">
+                            <span class="activity-icon material-symbols-outlined" aria-hidden="true">edit</span>
+                            <div class="activity-info">
+                                <p class="activity-title">Perfil actualizado</p>
+                                <p class="activity-time"><time datetime="2026-03-19T15:22">Ayer, 03:22 PM</time></p>
+                            </div>
+                        </div>
+                        <div class="activity-item" role="listitem">
+                            <span class="activity-icon material-symbols-outlined" aria-hidden="true">settings</span>
+                            <div class="activity-info">
+                                <p class="activity-title">Preferencias modificadas</p>
+                                <p class="activity-time"><time datetime="2026-03-15T11:05">15 Mar, 11:05 AM</time></p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Sección: Zona de peligro -->
+                <section class="danger-section" aria-labelledby="dangerTitle">
+                    <h3 class="danger-section-title" id="dangerTitle"><span class="material-symbols-outlined" aria-hidden="true">warning</span> Zona de peligro</h3>
+                    <p class="danger-section-desc">Estas acciones son irreversibles. Por favor, procede con precaución.
+                    </p>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                        <button class="btn-danger" id="btnLogoutAll"
+                            aria-label="Cerrar sesión en todos los dispositivos"><span class="material-symbols-outlined" aria-hidden="true">logout</span> Cerrar sesión en todos</button>
+                        <button class="btn-danger" id="btnDeleteAccount"
+                            aria-label="Eliminar cuenta permanentemente"><span class="material-symbols-outlined" aria-hidden="true">delete_forever</span> Eliminar cuenta</button>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Mobile bottom nav con aria-label para navegación mÓvil -->
+    <nav class="mobile-nav" aria-label="Navegación mÓvil">
+        <a href="/gestion-de-citas/st-rec-01-dashboard" class="mobile-nav-item">
+            <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">dashboard</span>
+            <span>Panel</span>
+        </a>
+        <a href="/gestion-de-pacientes/st-rec-02-registrar-paciente" class="mobile-nav-item">
+            <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">person_add</span>
+            <span>Pacientes</span>
+        </a>
+        <a href="/gestion-de-citas/st-rec-03-gestion-citas" class="mobile-nav-item">
+            <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">calendar_month</span>
+            <span>Citas</span>
+        </a>
+        <a href="/facturacion-y-pagos/st-rec-04-generar-factura" class="mobile-nav-item">
+            <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">receipt_long</span>
+            <span>Facturas</span>
+        </a>
+        <a href="#" class="mobile-nav-item active" aria-current="page">
+            <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">person</span>
+            <span>Perfil</span>
+        </a>
+    </nav>
+
+    <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Estilos para contenido solo accesible por screen readers -->
+    <style>
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--primary);
+            color: #fff;
+            padding: 8px 16px;
+            z-index: 1000;
+            transition: top var(--tr);
+        }
+
+        .skip-link:focus {
+            top: 0;
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+
+
+    <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+    <script src="@Url.Content("~/js/Perfiles/st-rec-06-perfil-recepcionista/perfil-recepcionista.js")"></script>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+

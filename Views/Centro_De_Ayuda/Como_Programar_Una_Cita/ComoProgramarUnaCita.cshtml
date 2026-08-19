@@ -1,0 +1,326 @@
+﻿﻿﻿﻿@* Vista con sidebar unificado (igual que st-adm-01 dashboard) usando _SidebarAdmin parcial *@
+@{
+    Layout = null;
+
+    // Contenido estÁtico del artÍculo
+    var articleTitle = "Cómo programar una cita";
+    var articleIntro = "Aprende paso a paso cómo agendar una nueva cita en SmileTrack de forma correcta, asignando paciente, profesional, consultorio y servicio en menos de 1 minuto.";
+    var videoThumb = Url.Content("~/images/logo.jpg");
+    var videoAlt = "Tutorial para programar una cita en SmileTrack";
+
+    // Pasos de la guía
+    var steps = new[]
+    {
+        new { Num = 1, Title = "Ir a la Agenda General", Desc = "Desde el panel principal haz clic en <strong>Citas</strong> o accede a la ruta <code>/gestion-de-citas/st-adm-08-agenda</code>." },
+        new { Num = 2, Title = "Presionar + Nueva Cita", Desc = "En la esquina superior derecha haz clic en el botón <strong>+ Nueva Cita</strong>. El modal de creación se abrirÁ automáticamente." },
+        new { Num = 3, Title = "Seleccionar Paciente", Desc = "Elige el paciente desde el menú desplegable. Si no estÁ registrado, usa el atajo para crearlo desde la misma pantalla." },
+        new { Num = 4, Title = "Asignar Profesional, Servicio y Horario", Desc = "Selecciona el profesional, el servicio dental, el consultorio y la fecha/hora. El sistema validarÁ disponibilidad automáticamente." },
+        new { Num = 5, Title = "Confirmar y Guardar", Desc = "Verifica los datos y haz clic en <strong>Guardar</strong>. La cita aparecerÁ de inmediato en la agenda general y se enviarÁ el recordatorio al paciente." }
+    };
+
+    // Temas relacionados (coinciden con script.js)
+    var relatedTopics = new[]
+    {
+        "Editar citas existentes",
+        "Cancelar o reprogramar",
+        "Gestión de consultorios",
+        "Envío de recordatorios",
+        "Guía paso a paso"
+    };
+
+    // Etiquetas
+    var tags = new[] { "citas", "agenda", "recepción", "nueva cita", "tutorial", "smiletrack" };
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Guía paso a paso para programar una cita en SmileTrack" />
+  <title>SmileTrack — Cómo programar una cita</title>
+
+  <!-- Fuentes del proyecto (igual que st-adm-01) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind (componentes de la guía) -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface": "#f7fafc",
+            "surface-dim": "#d7dadc",
+            "primary-fixed-dim": "#a9c7ff",
+            "secondary": "#1e68b3",
+            "primary-container": "#081c33",
+            "primary": "#081c33",
+            "error": "#ba1a1a",
+            "surface-container-lowest": "#ffffff",
+            "surface-container": "#ebeef0",
+            "surface-container-high": "#e5e9eb",
+            "on-surface-variant": "#424750",
+            "outline-variant": "#c3c6d2",
+            "secondary-container": "#1e68b3",
+            "surface-container-low": "#f1f4f6"
+          },
+          spacing: {
+            "margin-page": "32px",
+            "gutter": "24px",
+            "card-padding": "20px",
+            "sidebar-width": "260px"
+          },
+          fontFamily: {
+            "label-sm": ["Montserrat"],
+            "headline-lg": ["Montserrat"],
+            "headline-md": ["Montserrat"],
+            "body-md": ["Montserrat"],
+            "body-lg": ["Montserrat"],
+            "label-bold": ["Montserrat"]
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- ? CSS PRINCIPAL: sidebar + layout (MISMO que st-adm-01) -->
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-adm-01-dashboard/styles.css")" />
+
+  <!-- ? CSS ESPECÍFICO DE ESTA GU—A (bento grid, video, etc.) -->
+  <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Como_Programar_Una_Cita/styles.css")" />
+
+  <!-- Footer styles (igual que st-adm-01) -->
+  <link rel="stylesheet" href="@Url.Content("~/css/footer.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+<body>
+
+  <!-- Skip link (accesibilidad, igual que st-adm-01) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <!-- ============================================================= -->
+  <!--  SIDEBAR UNIFICADO (MISMA ESTRUCTURA QUE st-adm-01)          -->
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+  <!-- ============================================================= -->
+  <!--  HAMBURGER + OVERLAY (MÓVIL) — IGUAL QUE st-adm-01           -->
+  <!-- ============================================================= -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ============================================================= -->
+  <!--  MAIN CONTENT                                                 -->
+  <!-- ============================================================= -->
+  <main class="main" id="main-content">
+
+    <!-- Page Header (igual que st-adm-01) -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Centro de Ayuda</span>
+          <span class="bc-sep material-symbols-outlined" aria-hidden="true">chevron_right</span>
+          <span class="bc-active">@articleTitle</span>
+        </nav>
+        <h1 class="page-title">Guía: @articleTitle</h1>
+        <p class="page-subtitle">
+          Tutorial paso a paso —
+          <time datetime="@DateTime.Now.ToString("yyyy-MM-dd")">Actualizado el @DateTime.Now.ToString("dddd d 'de' MMMM yyyy", new System.Globalization.CultureInfo("es-ES"))</time>
+        </p>
+      </div>
+    </header>
+
+    <!-- Contenido de la guía (Bento grid) -->
+    <section style="padding:0 var(--page-padding); max-width:1100px; margin:0 auto;" aria-label="Contenido de la guía">
+      <div class="bento-grid">
+        <!-- Main Article -->
+        <div class="col-span-12 lg:col-span-8 space-y-gutter">
+          <article class="bg-white rounded-[24px] p-card-padding shadow-[0_10px_32px_rgba(15,39,71,0.08)] border border-slate-200">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="p-3 rounded-xl bg-secondary/10 text-secondary">
+                <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">calendar_add_on</span>
+              </div>
+              <h2 class="font-headline-lg text-headline-lg text-primary">@articleTitle</h2>
+            </div>
+            <p class="font-body-lg text-body-lg text-on-surface-variant mb-8 leading-relaxed">
+              @articleIntro
+            </p>
+
+            <!-- Video -->
+            <div class="relative w-full aspect-video rounded-xl overflow-hidden group cursor-pointer mb-10 shadow-md"
+                 role="button" tabindex="0" aria-label="Reproducir tutorial en video">
+              <img class="w-full h-full object-cover" alt="@videoAlt" src="@videoThumb" />
+              <div class="absolute inset-0 video-overlay flex items-center justify-center transition-all group-hover:bg-black/30">
+                <div class="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+                  <span class="material-symbols-outlined text-secondary text-5xl" style="font-variation-settings:'FILL' 1;">play_arrow</span>
+                </div>
+              </div>
+              <div class="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-error animate-pulse" aria-hidden="true"></span>
+                <span class="text-white text-xs font-bold uppercase tracking-wider">Tutorial de Video</span>
+              </div>
+            </div>
+
+            <!-- Step-by-step -->
+            <div class="space-y-8">
+              <h3 class="font-headline-md text-headline-md text-primary flex items-center gap-2">
+                <span class="material-symbols-outlined text-secondary">format_list_numbered</span>
+                Guía paso a paso
+              </h3>
+              <div class="grid gap-6">
+                @foreach (var step in steps)
+                {
+                  <div class="flex gap-6 group">
+                    <div class="shrink-0 w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-secondary text-xl border-2 border-transparent group-hover:border-secondary transition-all" aria-hidden="true">
+                      @step.Num
+                    </div>
+                    <div class="flex-1 pt-2">
+                      <h4 class="font-headline-md text-headline-md text-on-surface mb-2">@step.Title</h4>
+                      <p class="font-body-md text-body-md text-on-surface-variant">
+                        @Html.Raw(step.Desc)
+                      </p>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="mt-12 pt-8 border-t border-outline-variant/30 flex flex-col md:flex-row justify-between items-center gap-6">
+              <div class="flex items-center gap-4">
+                <button id="prevButton" type="button" class="flex items-center gap-2 px-6 py-2.5 rounded-full border border-secondary text-secondary font-bold hover:bg-secondary/5 transition-all" aria-label="Guía anterior">
+                  <span class="material-symbols-outlined">chevron_left</span>
+                  Anterior
+                </button>
+                <button id="nextButton" type="button" class="flex items-center gap-2 px-6 py-2.5 rounded-full bg-secondary text-white font-bold hover:bg-primary shadow-lg shadow-secondary/20 transition-all" aria-label="Guía siguiente">
+                  Siguiente
+                  <span class="material-symbols-outlined">chevron_right</span>
+                </button>
+              </div>
+              <div class="flex flex-col gap-3 bg-surface-container p-3 px-6 rounded-2xl">
+                <div class="flex items-center gap-6">
+                  <p class="font-label-bold text-label-bold text-on-surface-variant">¿Te resultÓ —til?</p>
+                  <div class="flex gap-3" role="radiogroup" aria-label="Valorar utilidad">
+                    <button class="rating-button w-10 h-10 rounded-full bg-white flex items-center justify-center text-green-600 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                            data-rating="success" role="radio" aria-checked="false" aria-label="Guía —til">
+                      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 0;">thumb_up</span>
+                    </button>
+                    <button class="rating-button w-10 h-10 rounded-full bg-white flex items-center justify-center text-error hover:scale-110 active:scale-95 transition-all shadow-sm"
+                            data-rating="error" role="radio" aria-checked="false" aria-label="Guía no —til">
+                      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 0;">thumb_down</span>
+                    </button>
+                  </div>
+                </div>
+                <div id="ratingResponseBox" class="hidden rounded-2xl bg-emerald-50 border border-emerald-200 p-3 text-sm font-medium text-emerald-900" role="status" aria-live="polite">
+                  Respuesta exitosa
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <!-- Sidebar de la guía -->
+        <div class="col-span-12 lg:col-span-4 space-y-gutter">
+          <!-- Relacionados -->
+          <div class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(0,0,0,0.08)]">
+            <h3 class="font-headline-md text-headline-md text-primary mb-4">Temas relacionados</h3>
+            <div class="space-y-3" role="list">
+              @foreach (var topic in relatedTopics)
+              {
+                <button type="button" class="related-topic-button flex w-full items-center justify-between p-3 rounded-lg hover:bg-surface-container transition-colors group text-left"
+                        data-topic="@topic" role="listitem" aria-label="Ver detalles sobre @topic">
+                  <span class="font-body-md text-body-md text-on-surface-variant group-hover:text-secondary">@topic</span>
+                  <span class="material-symbols-outlined text-[18px] opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden="true">arrow_forward</span>
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Soporte -->
+          <div class="bg-primary rounded-xl p-card-padding shadow-xl text-white relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full" aria-hidden="true"></div>
+            <div class="relative z-10">
+              <span class="material-symbols-outlined mb-4" style="font-variation-settings:'FILL' 1;" aria-hidden="true">live_help</span>
+              <h3 class="font-headline-md text-headline-md mb-2">¿Necesitas soporte t—cnico?</h3>
+              <p class="font-body-md text-body-md opacity-80 mb-6">Estamos aquÍ para ayudarte. Nuestro equipo responde en menos de 10 minutos.</p>
+              <button id="supportButton" type="button" class="w-full py-3 bg-secondary-container text-white font-bold rounded-xl hover:bg-white hover:text-secondary transition-all" aria-label="Abrir soporte">
+                Hablar con Soporte
+              </button>
+            </div>
+          </div>
+
+          <!-- Tags -->
+          <div class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(0,0,0,0.08)]">
+            <h3 class="font-headline-md text-headline-md text-primary mb-4">Etiquetas</h3>
+            <div class="flex flex-wrap gap-2">
+              @foreach (var tag in tags)
+              {
+                <span class="px-3 py-1 bg-surface-container rounded-full text-[12px] font-medium text-on-surface-variant">#@tag</span>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Spacer mÓvil (bottom nav) -->
+    <div class="h-20 md:hidden" aria-hidden="true"></div>
+
+    <!-- Footer (igual que st-adm-01) -->
+    <footer>
+      <script src="@Url.Content("~/js/footer.js")"></script>
+    </footer>
+  </main>
+
+  <!-- ============================================================= -->
+  <!--  MODAL DE TEMA RELACIONADO                                    -->
+  <!-- ============================================================= -->
+  <div id="topicModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/40 p-4"
+       role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="max-w-lg w-full bg-white rounded-[28px] shadow-[0_28px_80px_rgba(15,39,71,0.18)] border border-slate-200 overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-5 border-b border-slate-200">
+        <h3 id="modalTitle" class="font-headline-md text-headline-md font-bold text-slate-900">Título del tema</h3>
+        <button id="modalCloseBtn" type="button" class="rounded-full p-2 text-slate-500 hover:bg-slate-100 transition" aria-label="Cerrar modal">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6">
+        <p id="modalDescription" class="font-body-md text-body-md text-slate-700 leading-7">
+          Aqué puedes ver más detalles relacionados con el tema seleccionado.
+        </p>
+        <div class="mt-6 rounded-3xl bg-surface-container-lowest p-4 border border-slate-200">
+          <p class="font-label-bold text-label-bold text-slate-600">Consejo:</p>
+          <p id="modalAdvice" class="mt-2 text-sm text-slate-600">
+            Selecciona la opción de soporte y explica brevemente tu problema para recibir ayuda más rápida.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!--  SCRIPTS                                                      -->
+  <!-- ============================================================= -->
+  <script>
+    window.APP_CONFIG = { ApiBase: '/api' };
+  </script>
+  <!-- ? JS UNIFICADO SIDEBAR: mismo que st-adm-01 para que funcione colapsado, hamburger, overlay, grupos -->
+  <script src="@Url.Content("~/js/Gestion_De_Citas/st-adm-01-dashboard/app.js")"></script>
+
+  <!-- JS ESPECÍFICO DE LA GU—A (rating, modal temas) -->
+  <script src="@Url.Content("~/js/Centro_De_Ayuda/Como_Programar_Una_Cita/script.js")" defer></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>
+
+
+

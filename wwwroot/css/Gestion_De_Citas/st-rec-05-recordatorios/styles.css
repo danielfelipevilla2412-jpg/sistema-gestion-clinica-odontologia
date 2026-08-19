@@ -1,0 +1,256 @@
+/* ============================================
+SmileTrack — Recordatorios (st-rec-05-recordatorios)
+============================================
+Autor: Johan Santamaria
+Fecha: 29/07/2026
+
+DESCRIPCIÓN:
+Hojas de estilo para el panel de recordatorios de citas que definen las tarjetas de configuración de mensajes, tablas de destinatarios y adaptabilidad.
+
+FUNCIONALIDADES PRINCIPALES:
+- Diseño del panel de configuración de canales
+- Estilos de lista de pacientes para envío manual
+- Variación de estados de envío y feedback visual en los botones
+
+DEPENDENCIAS TÉCNICAS:
+- Controller: GestionCitasController y Recordatorios
+- CSS: ~/css/Gestion_De_Citas/st-rec-05-recordatorios/styles.css
+- JS: ~/js/Gestion_De_Citas/st-rec-05-recordatorios/app.js
+- Partial / Otros: index.cshtml
+
+NOTAS DE MANTENIMIENTO:
+- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+============================================ */
+
+/* Variables globales consistentes con módulos anteriores */
+:root {
+  /* Variables base idénticas a st-rec-01/02/03/04 */
+  --sidebar-w: 220px;
+  --bg: #f4f6fb;
+  --white: #ffffff;
+  --primary: #1a56cc;
+  --primary-light: #eef2ff;
+  --green: #22c55e;
+  --orange: #f59e0b;
+  --purple: #9333ea;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --shadow: 0 1px 4px rgba(0,0,0,.07);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.1);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: 'DM Sans', sans-serif;
+  --font-display: 'Syne', sans-serif;
+  --tr: .18s ease;
+
+  /* Variables específicas de recordatorios */
+  --alert-red-bg: #fee2e2;
+  --alert-red-border: #ef4444;
+  --alert-red-text: #991b1b;
+  --alert-yellow-bg: #ffedd5;
+  --alert-yellow-border: #f97316;
+  --alert-yellow-text: #9a3412;
+  --avatar-blue: #dbeafe;
+  --avatar-green: #dcfce7;
+  --avatar-amber: #fef3c7;
+  --avatar-gray: #e2e8f0;
+  
+  /* Variable adicional para consistencia */
+  --radius-full: 9999px;
+  --danger: #ef4444;
+}
+
+/* Reset y base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; scroll-behavior: smooth; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+a { text-decoration: none; color: inherit; }
+button { font-family: inherit; cursor: pointer; }
+img { max-width: 100%; height: auto; display: block; }
+
+/* Skip link para acceso rápido al contenido principal */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--primary);
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 1000;
+  transition: top var(--tr);
+}
+.skip-link:focus { top: 0; }
+
+/* Indicador visual de foco para navegación con teclado */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Soporte para usuarios que prefieren menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
+
+/* Sidebar idéntico a st-rec-01, sin modificaciones visuales */
+.sidebar { width: var(--sidebar-w); background: linear-gradient(180deg, #0f2057 0%, #1a3580 100%); color: #c8d3e8; display: flex; flex-direction: column; padding: 20px 0 16px; position: fixed; top: 0; left: 0; bottom: 0; z-index: 200; transition: transform var(--tr); }
+.sidebar-logo { padding: 0 18px 20px; border-bottom: 1px solid rgba(255,255,255,.1); margin-bottom: 10px; text-align: center; }
+.logo-img { width: 100%; max-width: 150px; height: auto; display: block; object-fit: contain; border-radius: 8px; }
+.sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); text-decoration: none; color: #8fa3c8; font-size: .84rem; font-weight: 500; transition: background var(--tr), color var(--tr); }
+.nav-item--logout { color: #f87171; margin-top: auto; }
+.nav-item--logout:hover { background: rgba(239,68,68,.15); color: #fca5a5; }
+.nav-item::before { content: attr(data-icon); font-size: 15px; }
+.nav-item:hover { background: rgba(255,255,255,.08); color: #dce6f5; }
+.nav-item.active { background: var(--primary); color: #fff; }
+.nav-separator { height: 1px; background: rgba(255,255,255,.1); margin: 8px 10px; }
+.sidebar-user { display: flex; align-items: center; gap: 10px; padding: 14px 14px 0; border-top: 1px solid rgba(255,255,255,.1); margin-top: 10px; }
+.user-avatar { width: 34px; height: 34px; border-radius: 50%; background: #2563eb; color: #fff; display: flex; align-items: center; justify-content: center; font-size: .73rem; font-weight: 700; flex-shrink: 0; }
+.user-info { display: flex; flex-direction: column; overflow: hidden; }
+.user-role { font-size: .75rem; color: #e2e8f0; font-weight: 600; }
+.user-email { font-size: .68rem; color: #6a80a8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Hamburger menu idéntico a st-rec-01 */
+.hamburger { display: none; position: fixed; top: 14px; left: 14px; z-index: 300; background: #0f2057; border: none; border-radius: 8px; padding: 9px 10px; cursor: pointer; flex-direction: column; gap: 5px; }
+.hamburger span { display: block; width: 20px; height: 2px; background: #fff; border-radius: 2px; }
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 150; }
+
+/* Main & header idénticos a st-rec-01 */
+.main { margin-left: var(--sidebar-w); flex: 1; padding: 24px 28px 40px; min-width: 0; animation: fadeIn .3s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.page-header { background: var(--white); border-radius: var(--radius); padding: 16px 22px; margin-bottom: 18px; box-shadow: var(--shadow); border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.breadcrumb { font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
+.page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; color: var(--primary); }
+.page-subtitle { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
+
+/* Botones y badges idénticos a st-rec-01 */
+.btn-primary { background: var(--primary); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
+.btn-primary:hover { background: #1547a8; }
+.btn-secondary { background: var(--white); color: var(--text); border: 1.5px solid var(--border); padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr), border-color var(--tr); }
+.btn-secondary:hover { background: var(--primary-light); border-color: var(--primary); }
+.btn-success { background: var(--green); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
+.btn-success:hover { background: #16a34a; }
+.btn-icon { background: none; border: none; cursor: pointer; font-size: 16px; padding: 5px 7px; border-radius: 6px; transition: background var(--tr), color var(--tr); color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
+.btn-icon:hover { background: var(--primary-light); color: var(--primary); }
+.btn-icon.danger:hover { background: #fee2e2; color: #dc2626; }
+
+/* Stats cards para resumen de recordatorios */
+.stats-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 20px; }
+.stat-card { background: var(--white); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); border-left: 4px solid transparent; display: flex; flex-direction: column; justify-content: center; min-height: 90px; }
+.stat-card.success-card { border-left-color: var(--green); }
+.stat-card.warning-card { border-left-color: var(--orange); }
+.stat-value { font-family: var(--font-display); font-size: 2rem; font-weight: 700; margin-bottom: 4px; }
+.stat-card.success-card .stat-value { color: var(--green); }
+.stat-card.warning-card .stat-value { color: var(--orange); }
+.stat-label { font-size: .77rem; color: var(--text-muted); font-weight: 500; }
+
+/* Sección de recordatorios pendientes */
+.reminders-section { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow); }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-header h2 { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--primary); }
+.patient-list { display: flex; flex-direction: column; gap: 12px; }
+.patient-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); transition: background var(--tr), border-color var(--tr); }
+.patient-row:hover { background: #f8fafc; border-color: var(--primary); }
+.patient-row.selected { background: var(--primary-light); border-color: var(--primary); }
+.patient-row.dimmed { opacity: .65; }
+.custom-checkbox { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--text-muted); accent-color: var(--primary); cursor: pointer; }
+.custom-checkbox:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.avatar-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; }
+.avatar-blue { background: var(--avatar-blue); color: #1d4ed8; }
+.avatar-green { background: var(--avatar-green); color: #166534; }
+.avatar-amber { background: var(--avatar-amber); color: #92400e; }
+.avatar-gray { background: var(--avatar-gray); color: #334155; }
+.patient-info { flex: 1; min-width: 0; }
+.patient-name { font-weight: 600; font-size: .9rem; color: var(--text); margin-bottom: 2px; }
+.patient-meta { display: flex; align-items: center; gap: 8px; font-size: .75rem; color: var(--text-muted); }
+.meta-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); opacity: .5; }
+.meta-channel { display: flex; align-items: center; gap: 4px; }
+
+/* Historial de recordatorios enviados */
+.history-section { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
+.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.history-header h3 { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--primary); }
+.view-all-link { font-size: .78rem; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 4px; }
+.history-scroller { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.history-card { flex-shrink: 0; width: 220px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; display: flex; align-items: center; gap: 10px; }
+.history-info { flex: 1; min-width: 0; }
+.history-name { font-weight: 600; font-size: .85rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-time { font-size: .7rem; color: var(--text-muted); margin-top: 2px; }
+.status-badge { font-size: .7rem; font-weight: 600; padding: 4px 8px; border-radius: 20px; background: var(--status-pagada); color: var(--status-pagada-text); }
+
+/* Panel de alertas laterales */
+.alerts-sidebar-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
+.alerts-header { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .95rem; color: var(--primary); margin-bottom: 16px; }
+.alerts-list { display: flex; flex-direction: column; gap: 12px; }
+.alert-item-card { border-radius: var(--radius-sm); padding: 12px; display: flex; gap: 10px; align-items: flex-start; }
+.alert-item-card.red-alert { background: var(--alert-red-bg); border: 1px solid var(--alert-red-border); }
+.alert-item-card.yellow-alert { background: var(--alert-yellow-bg); border: 1px solid var(--alert-yellow-border); }
+.alert-icon-box { padding: 6px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+.red-alert .alert-icon-box { background: var(--danger); }
+.yellow-alert .alert-icon-box { background: var(--orange); }
+.alert-content-box { flex: 1; }
+.alert-content-box h4 { font-weight: 600; font-size: .85rem; margin-bottom: 4px; }
+.red-alert h4 { color: var(--alert-red-text); }
+.yellow-alert h4 { color: var(--alert-yellow-text); }
+.alert-content-box p { font-size: .78rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.4; }
+.btn-alert-action { width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .78rem; cursor: pointer; transition: background var(--tr); }
+.red-alert .btn-alert-action { background: var(--danger); color: #fff; }
+.red-alert .btn-alert-action:hover { background: #dc2626; }
+.yellow-alert .btn-alert-action { background: var(--orange); color: #fff; }
+.yellow-alert .btn-alert-action:hover { background: #d97706; }
+.btn-alert-action:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+
+/* Botón de acción móvil para enviar recordatorios */
+.mobile-action-btn { display: none; width: 100%; margin-top: 16px; padding: 12px 16px; background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.mobile-action-btn:hover { background: #1547a8; }
+.mobile-action-btn:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+
+/* Toast notifications para mensajes temporales */
+
+
+/* Mobile bottom nav para navegación en pantallas pequeñas */
+.mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--white); border-top: 1px solid var(--border); padding: 8px 0; z-index: 100; justify-content: space-around; align-items: center; height: 56px; }
+.mobile-nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 8px; border-radius: var(--radius-sm); font-size: .65rem; font-weight: 600; color: var(--text-muted); transition: color var(--tr), background var(--tr); }
+.mobile-nav-item.active { color: var(--primary); background: var(--primary-light); }
+.mobile-nav-item:hover:not(.active) { color: var(--primary); }
+.mobile-nav-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.mobile-nav-icon { font-size: 1.2rem; }
+
+/* Responsive idéntico a st-rec-01 */
+@media (max-width: 1050px) { .stats-container { grid-template-columns: repeat(2, 1fr); } .dashboard-grid { grid-template-columns: 1fr; } }
+@media (max-width: 680px) {
+  .hamburger { display: flex; }
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-md); }
+  .overlay.open { display: block; }
+  .main { margin-left: 0; padding: 58px 14px 32px; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .section-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .mobile-action-btn { display: flex; }
+  .mobile-nav { display: flex; }
+
+}
+/* ═════ NUEVO: SOLO PARA COMPORTAMIENTO DESPLEGABLE ═════ */
+.nav-group { margin-bottom: 6px; }
+.nav-group-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; cursor: pointer; user-select: none;
+  font-size: .84rem; font-weight: 600; color: #c8d3e8;
+  border-radius: var(--radius-sm);
+  transition: background var(--tr), color var(--tr);
+}
+.nav-group-header:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-group-header:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.nav-arrow { font-size: .65rem; transition: transform 0.25s ease; opacity: 0.7; }
+.nav-group-items {
+  display: flex; flex-direction: column; gap: 2px;
+  overflow: hidden; transition: max-height 0.3s ease;
+}
+/* Pequeña indentación visual para diferenciar sub-menú */
+.nav-group-items .nav-item { padding-left: 24px; }

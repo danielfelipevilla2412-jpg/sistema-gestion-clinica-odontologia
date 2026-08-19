@@ -1,0 +1,80 @@
+@{
+    var currentPath = Context.Request.Path.Value ?? "/";
+    Func<string, string> linkClass = href => currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+}
+<aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+  <div class="sidebar-logo">
+    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
+  </div>
+
+ <nav class="sidebar-nav">
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Mi Dashboard <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="@linkClass("/gestion-de-profesionales/st-odo-01-dashboard")" data-icon="📊">Mi Dashboard</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Mi Agenda <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-citas/st-odo-02-agenda" class="@linkClass("/gestion-de-citas/st-odo-02-agenda")" data-icon="📅">Mi Agenda</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/historia-clinica/st-odo-03-historial" class="@linkClass("/historia-clinica/st-odo-03-historial")" data-icon="📋">Historia Clínica</a>
+        <a href="/historia-clinica/st-odo-04-odontograma" class="@linkClass("/historia-clinica/st-odo-04-odontograma")" data-icon="🦷">Odontograma</a>
+        <a href="/historia-clinica/st-odo-06-pacientes" class="@linkClass("/historia-clinica/st-odo-06-pacientes")" data-icon="👥">Mis Pacientes</a>
+        <a href="/historia-clinica/st-odo-07-seguimiento-tratamiento" class="@linkClass("/historia-clinica/st-odo-07-seguimiento-tratamiento")" data-icon="📈">Tratamientos</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Servicios <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/servicios-y-recursos/st-odo-05-servicios" class="@linkClass("/servicios-y-recursos/st-odo-05-servicios")" data-icon="💼">Servicios</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Reportes <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/reportes/vista-prof" class="@linkClass("/reportes/vista-prof")" data-icon="📈">Reportes y Analítica</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Perfil <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="@linkClass("/gestion-de-profesionales/st-odo-09-perfil-profesional")" data-icon="👤">Mi Perfil</a>
+        <a href="/acceso-y-seguridad/cambiar-contrasena" class="@linkClass("/acceso-y-seguridad/cambiar-contrasena")" data-icon="🔐">Cambiar Contraseña</a>
+      </div>
+    </div>
+      <div class="nav-group">
+    <div class="nav-group-header" role="button" tabindex="0">Gestión de PQR <span class="nav-arrow" aria-hidden="true">▼</span></div>
+    <div class="nav-group-items">
+      <a href="/gestion-de-pqr/st-pac-04-nueva-pqr" class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")" data-icon="📝"> Nueva Solicitud </a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-header" role="button" tabindex="0">Gestión de Ayuda <span class="nav-arrow" aria-hidden="true">▼</span></div>
+    <div class="nav-group-items">
+      <a href="/centro-de-ayuda/guias-tutoriales" class="@linkClass("/centro-de-ayuda/guias-tutoriales")" data-icon="❓">Centro de Ayuda</a>
+      <a href="/gestion-de-pqr/st-pac-04-nueva-pqr" class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")" data-icon="📝">Nueva Solicitud</a>
+    </div>
+  </div>
+    <div class="nav-separator" aria-hidden="true"></div>
+    <a href="/acceso-y-seguridad/login" class="nav-item nav-item--logout" data-icon="🚪" aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
+  </nav>
+
+  <div class="sidebar-user">
+    @{
+      var _pName     = User.Identity?.Name ?? "Profesional";
+      var _pEmail    = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "profesional@smiletrack.co";
+      var _pInitials = string.Concat(_pName.Split(' ', System.StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
+    }
+    <div class="user-avatar" aria-hidden="true">@(string.IsNullOrWhiteSpace(_pInitials) ? "PR" : _pInitials)</div>
+    <div class="user-info">
+      <span class="user-role">@_pName</span>
+      <span class="user-email">@_pEmail</span>
+    </div>
+  </div>
+</aside>

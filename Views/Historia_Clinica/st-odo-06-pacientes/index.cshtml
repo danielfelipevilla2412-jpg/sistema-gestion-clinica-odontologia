@@ -1,0 +1,224 @@
+﻿﻿﻿﻿﻿﻿﻿﻿﻿@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Mis Pacientes</title>
+  <meta name="description" content="Gestiona y consulta la información de tus pacientes en SmileTrack." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-06-pacientes/pacientes.css")" asp-append-version="true" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
+
+  <!-- ----- HAMBURGER (mÓvil) ----- -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ----- MAIN ----- -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Odontólogo</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active">Mis Pacientes</span>
+        </nav>
+        <h1 class="page-title">Mis Pacientes</h1>
+        <p class="page-subtitle">Consulta y gestiona la información de tus pacientes atendidos</p>
+      </div>
+    </header>
+
+    <!-- Stats Grid -->
+    <section class="stats-grid" aria-label="Resumen de pacientes">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-number" id="statTotal" data-target="42" aria-live="polite">0</span>
+        <span class="stat-label">Total pacientes</span>
+      </div>
+      <div class="stat-card" data-color="green">
+        <span class="stat-number" id="statActivos" data-target="28" aria-live="polite">0</span>
+        <span class="stat-label">Activos</span>
+      </div>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number" id="statSeguimiento" data-target="9" aria-live="polite">0</span>
+        <span class="stat-label">En seguimiento</span>
+      </div>
+      <div class="stat-card" data-color="purple">
+        <span class="stat-number" id="statAltas" data-target="5" aria-live="polite">0</span>
+        <span class="stat-label">Altas médicas</span>
+      </div>
+    </section>
+
+    <!-- Filtros y búsqueda -->
+    <section class="filters-section" aria-label="Filtros de pacientes">
+      <div class="filters-row">
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+          <input type="search" id="searchInput" class="search-input" placeholder="Buscar por nombre, cédula o servicio..."
+            aria-label="Buscar paciente por nombre, cédula o servicio">
+        </div>
+        <div class="filter-wrap">
+          <label for="filterEstado" class="filter-label">Estado</label>
+          <select id="filterEstado" class="status-select" aria-label="Filtrar pacientes por estado">
+            <option value="">Todos los estados</option>
+            <option value="activo">Activos</option>
+            <option value="seguimiento">En seguimiento</option>
+            <option value="alta">Altas médicas</option>
+          </select>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterAlergias" class="filter-label">Alergias</label>
+          <select id="filterAlergias" class="status-select" aria-label="Filtrar por alergias">
+            <option value="">Todas</option>
+            <option value="con">Con alergias</option>
+            <option value="sin">Sin alergias</option>
+          </select>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterCita" class="filter-label">Próxima cita</label>
+          <select id="filterCita" class="status-select" aria-label="Filtrar por próxima cita">
+            <option value="">Todas</option>
+            <option value="con">Con cita</option>
+            <option value="sin">Sin cita</option>
+          </select>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterServicio" class="filter-label">Servicio</label>
+          <select id="filterServicio" class="status-select" aria-label="Filtrar por servicio">
+            <option value="">Todos los servicios</option>
+          </select>
+        </div>
+        <button class="btn-clear" id="btnClearFilters" aria-label="Limpiar todos los filtros"><span class="material-symbols-outlined" aria-hidden="true">clear</span> Limpiar</button>
+      </div>
+      <div class="filters-meta">
+        <span class="filter-results" id="filterResults"></span>
+        <select id="pageSizeSelect" class="status-select status-select--sm" aria-label="Pacientes por página">
+          <option value="5">5 por página</option>
+          <option value="10" selected>10 por página</option>
+          <option value="15">15 por página</option>
+          <option value="all">Todos</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Tabla de pacientes -->
+    <section class="table-card" aria-labelledby="pacientesTitle">
+      <h2 class="visually-hidden" id="pacientesTitle">Lista de pacientes</h2>
+      <div class="table-wrap">
+        <table id="pacientesTable" class="table-base" aria-label="Tabla de pacientes atendidos">
+          <thead>
+            <tr>
+              <th scope="col">PACIENTE</th>
+              <th scope="col">ÚLTIMA CONSULTA</th>
+              <th scope="col">SERVICIO</th>
+              <th scope="col">PRÓXIMA CITA</th>
+              <th scope="col">ESTADO</th>
+              <th scope="col">ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody id="pacientesTbody" aria-live="polite">
+            <!-- Filas inyectadas por pacientes.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Paginación -->
+    <footer class="page-footer" id="paginationControls" aria-label="Navegación de páginas">
+      <span class="pagination-info">
+        Mostrando <strong id="pageShowing">0</strong> de <strong id="pageTotal">0</strong> pacientes
+      </span>
+      <nav class="pagination" aria-label="Páginas de resultados">
+        <button class="pagination-btn" id="btnPrev" aria-label="Página anterior" disabled>—</button>
+        <span id="pageNumBtns" class="page-num-wrap"></span>
+        <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">—</button>
+      </nav>
+    </footer>
+
+  </main>
+
+  <!-- ----- MODAL DETALLE ----- -->
+  <div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
+    aria-hidden="true" inert>
+    <div class="modal">
+      <button class="modal-close" id="modalClose" aria-label="Cerrar ventana de detalle">—</button>
+      <h2 class="modal-title" id="modalTitle">Detalle del Paciente</h2>
+      <div id="modalContent" role="document"></div>
+    </div>
+  </div>
+
+  <!-- ----- MODAL HISTORIAL CL—NICO ----- -->
+  <div class="modal-overlay" id="modalHistorialOverlay" role="dialog" aria-modal="true" aria-labelledby="modalHistorialTitle"
+    aria-hidden="true" inert>
+    <div class="modal modal--wide">
+      <button class="modal-close" id="modalHistorialClose" aria-label="Cerrar historial clínico">—</button>
+      <h2 class="modal-title" id="modalHistorialTitle">Historial Clínico</h2>
+      <div id="modalHistorialContent" role="document"></div>
+    </div>
+  </div>
+
+  <!-- Mobile bottom nav -->
+  <nav class="mobile-nav" aria-label="Navegación mÓvil">
+    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">dashboard</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+      <span>Agenda</span>
+    </a>
+    <a href="/historia-clinica/st-odo-06-pacientes" class="mobile-nav-item active" aria-current="page">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">group</span>
+      <span>Pacientes</span>
+    </a>
+    <a href="/historia-clinica/st-odo-03-historial" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">description</span>
+      <span>Historial</span>
+    </a>
+    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
+      <span>Perfil</span>
+    </a>
+  </nav>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+  <script src="@Url.Content("~/js/Historia_Clinica/st-odo-06-pacientes/pacientes.js")" asp-append-version="true"></script>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
+      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+

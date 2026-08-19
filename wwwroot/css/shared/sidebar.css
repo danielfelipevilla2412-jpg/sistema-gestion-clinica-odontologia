@@ -1,0 +1,612 @@
+/* ============================================
+   SmileTrack — Sidebar Compartido (shared/sidebar.css)
+   ============================================
+   Autor: Johan Santamaria
+   Fecha: 05/08/2026
+
+   PROPÓSITO:
+   Hoja de estilos compartida para el sidebar de navegación lateral.
+   Se incluye en TODAS las vistas que usen un sidebar, eliminando la
+   duplicación de estilos del sidebar en cada CSS de módulo (~40 vistas).
+
+   RESPONSABILIDADES:
+   - Sidebar fijo con scroll vertical garantizado (overflow-y: auto).
+   - Scrollbar personalizado, delgado y sutil (WebKit + Firefox).
+   - Grupos de navegación colapsables con transición suave de maxHeight.
+   - Hamburger y overlay para navegación móvil.
+   - Bloque de usuario (avatar + nombre + email) al pie del sidebar.
+   - Soporte de prefers-reduced-motion para accesibilidad.
+
+   JERARQUÍA DE ARCHIVOS:
+   Este archivo define los estilos BASE del sidebar. Los CSS de cada módulo
+   pueden sobreescribir variables CSS o clases específicas si necesitan
+   personalización, pero no deben redefinir la estructura completa.
+
+   VARIABLES CSS USADAS (definidas en el CSS de cada módulo o en :root):
+   - --sidebar-w:    ancho del sidebar (default 220px)
+   - --primary:      color primario del sistema (#1a56cc)
+   - --tr:           duración de transiciones (.18s ease)
+   - --radius-sm:    radio de borde pequeño (8px)
+   - --text-muted:   color de texto secundario (#64748b)
+   - --bg-soft:      fondo suave para hover (#f8fafc)
+
+   COMPATIBILIDAD:
+   - Chrome 80+, Firefox 75+, Edge 80+, Safari 14+
+   - Scrollbar WebKit: Chrome, Edge, Safari
+   - Scrollbar Firefox: scrollbar-width thin
+   ============================================ */
+
+
+/* ═══════════════════════════════════════════
+   SIDEBAR PRINCIPAL
+   ═══════════════════════════════════════════ */
+
+/**
+ * Contenedor raíz del sidebar.
+ *
+ * overflow-y: auto — GARANTIZA que el sidebar tenga scroll vertical
+ * cuando el contenido (grupos expandidos) excede la altura de la ventana.
+ * WHY: sin esto, en pantallas pequeñas o con muchos módulos expandidos,
+ * los ítems del fondo quedan inaccesibles sin reducir el zoom del navegador.
+ *
+ * position: fixed — el sidebar permanece visible al hacer scroll en el
+ * contenido principal (comportamiento estándar de sidebar de aplicación).
+ */
+.sidebar {
+  width: var(--sidebar-w, 220px);
+  background: linear-gradient(180deg, #0f2057 0%, #1a3580 100%);
+  color: #c8d3e8;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0 16px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 200;
+  transition: transform var(--tr, .18s ease);
+
+  /* SCROLL VERTICAL: fundamental para sidebar con muchos módulos expandidos */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar personalizado — WebKit (Chrome, Edge, Safari) ─────────────── */
+
+/**
+ * WHY scrollbar personalizado: el scrollbar predeterminado del navegador
+ * es visualmente intrusivo en un sidebar oscuro y estrecho. Un scrollbar
+ * delgado y sutil mantiene la coherencia visual sin sacrificar usabilidad.
+ */
+.sidebar::-webkit-scrollbar {
+  width: 4px; /* Delgado: no compite visualmente con el contenido */
+}
+.sidebar::-webkit-scrollbar-track {
+  background: transparent; /* Sin fondo para integración visual */
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18); /* Visible pero discreto */
+  border-radius: 4px;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32); /* Feedback visual al hover */
+}
+
+/* ── Scrollbar personalizado — Firefox ──────────────────────────────────── */
+.sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+
+/* ═══════════════════════════════════════════
+   LOGO
+   ═══════════════════════════════════════════ */
+
+/**
+ * Contenedor del logo en la parte superior del sidebar.
+ * flex-shrink: 0 — impide que el logo se comprima cuando el sidebar
+ * tiene overflow activo. Sin esto, el logo podría deformarse al hacer scroll.
+ */
+.sidebar-logo {
+  padding: 0 18px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  margin-bottom: 10px;
+  text-align: center;
+  flex-shrink: 0; /* Mantener tamaño fijo: el logo nunca se encoge */
+}
+
+.logo-img {
+  width: 100%;
+  max-width: 150px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  border-radius: 8px;
+  margin: 0 auto;
+}
+
+
+/* ═══════════════════════════════════════════
+   NAV PRINCIPAL
+   ═══════════════════════════════════════════ */
+
+/**
+ * Contenedor de la navegación.
+ *
+ * overflow: visible — el nav NO debe cortar el contenido de los grupos
+ * expandidos. El scroll lo gestiona el .sidebar padre, no el nav.
+ * WHY: si el nav tuviera overflow: auto o hidden, los grupos expandidos
+ * podrían quedar cortados visualmente a pesar de que el sidebar hace scroll.
+ */
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px;
+  overflow: visible; /* El sidebar padre gestiona el scroll, no este nav */
+}
+
+/* ── Ítems de navegación individuales ───────────────────────────────────── */
+
+/**
+ * Enlace de navegación individual.
+ * data-icon: usado por el pseudo-elemento ::before para mostrar el emoji
+ * del ícono sin necesidad de un <span> extra en el HTML.
+ */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm, 8px);
+  text-decoration: none;
+  color: #8fa3c8;
+  font-size: .84rem;
+  font-weight: 500;
+  transition: background var(--tr, .18s ease), color var(--tr, .18s ease);
+}
+
+/* WHY ::before con attr(data-icon): centraliza los íconos en el HTML (data-icon="🏠")
+   en lugar de duplicarlos en el CSS. Facilita el mantenimiento y evita discrepancias. */
+.nav-item::before {
+  content: attr(data-icon);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, .08);
+  color: #dce6f5;
+}
+
+/* Estado activo: ítem correspondiente a la ruta actual */
+.nav-item.active {
+  background: var(--primary, #1a56cc);
+  color: #fff;
+}
+
+/* Foco visible para navegación por teclado (WCAG 2.4.7) */
+.nav-item:focus-visible {
+  outline: 2px solid var(--primary, #1a56cc);
+  outline-offset: 2px;
+}
+
+/* Variante especial: botón de cerrar sesión */
+.nav-item--logout {
+  color: #f87171;
+  margin-top: 4px;
+}
+.nav-item--logout:hover {
+  background: rgba(239, 68, 68, .15);
+  color: #fca5a5;
+}
+
+/* Línea separadora decorativa entre secciones del nav */
+.nav-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, .1);
+  margin: 8px 10px;
+  flex-shrink: 0;
+}
+
+
+/* ═══════════════════════════════════════════
+   ACCORDION — GRUPOS COLAPSABLES
+   ═══════════════════════════════════════════ */
+
+/**
+ * Grupo de navegación colapsable.
+ * flex-shrink: 0 — los grupos no deben comprimirse cuando el sidebar
+ * tiene overflow. Sin esto, podrían aplastarse visualmente.
+ */
+.nav-group {
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+/**
+ * Header del grupo (botón de accordion).
+ * role="button" + tabindex="0" en el HTML + listeners JS =
+ * componente de accordion accesible (ARIA Authoring Practices Guide).
+ */
+.nav-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none; /* Evitar selección de texto al hacer doble clic */
+  font-size: .84rem;
+  font-weight: 600;
+  color: #c8d3e8;
+  border-radius: var(--radius-sm, 8px);
+  transition: background var(--tr, .18s ease), color var(--tr, .18s ease);
+}
+.nav-group-header:hover {
+  background: rgba(255, 255, 255, .08);
+  color: #fff;
+}
+.nav-group-header:focus-visible {
+  outline: 2px solid var(--primary, #1a56cc);
+  outline-offset: 2px;
+}
+
+/**
+ * Flecha indicadora del estado del accordion.
+ * JS rota este elemento: rotate(0deg) = expandido, rotate(-90deg) = colapsado.
+ * WHY transform: la rotación vía transform es acelerada por GPU y no causa
+ * reflow del layout, a diferencia de cambiar width/height.
+ */
+.nav-arrow {
+  font-size: .65rem;
+  transition: transform 0.25s ease; /* Independiente de --tr para control preciso */
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/**
+ * Contenedor de ítems del grupo (elemento que se colapsa/expande).
+ *
+ * max-height: 0 — estado inicial colapsado.
+ * overflow: hidden — oculta el contenido cuando max-height < scrollHeight.
+ * transition — anima la expansión/colapso con suavidad.
+ *
+ * WHY max-height en lugar de height: CSS no puede animar de/a "auto".
+ * max-height permite la transición usando el valor numérico establecido
+ * por JS (scrollHeight). La alternativa (height fijo) requeriría
+ * hardcodear alturas que cambiarían al agregar ítems.
+ */
+.nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  max-height: 0; /* Colapsado por defecto; sidebar.js expande el grupo activo */
+}
+
+/* Sangría visual para distinguir sub-ítems del grupo padre */
+.nav-group-items .nav-item {
+  padding-left: 24px;
+}
+
+
+/* ═══════════════════════════════════════════
+   BLOQUE DE USUARIO (pie del sidebar)
+   ═══════════════════════════════════════════ */
+
+/**
+ * Bloque de avatar + nombre + email del usuario autenticado.
+ * flex-shrink: 0 — no debe comprimirse ni desaparecer al hacer scroll.
+ * Siempre debe ser visible (o al menos accesible mediante scroll).
+ */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 0;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
+/**
+ * Avatar circular con iniciales del usuario.
+ * Las iniciales son generadas en el partial Razor desde los claims
+ * de autenticación (User.Identity.Name).
+ */
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .73rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Permite text-overflow en los hijos */
+}
+
+.user-role {
+  font-size: .75rem;
+  color: #e2e8f0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Truncar nombres muy largos con "..." */
+}
+
+.user-email {
+  font-size: .68rem;
+  color: #6a80a8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+/* ═══════════════════════════════════════════
+   HAMBURGER (botón de menú móvil)
+   ═══════════════════════════════════════════ */
+
+/**
+ * Botón hamburger — visible solo en pantallas pequeñas (< 680px).
+ * display: none en desktop evita que ocupe espacio o sea focuseable
+ * cuando no es necesario (reduce ruido de accesibilidad en teclado).
+ */
+.hamburger {
+  display: none; /* Visible solo en @media móvil */
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 300; /* Por encima del sidebar (z-index 200) y del overlay (z-index 150) */
+  background: #0f2057;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Las tres líneas del icono hamburger */
+.hamburger span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transition: transform var(--tr, .18s ease), opacity var(--tr, .18s ease);
+}
+
+.hamburger:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/**
+ * Overlay semitransparente que cubre el contenido principal cuando
+ * el sidebar móvil está abierto.
+ *
+ * WHY overlay: sin él el usuario no tiene una forma intuitiva de cerrar
+ * el menú al tocar fuera. Es el patrón estándar de drawer en apps móviles.
+ * z-index 150: entre el contenido (0) y el sidebar (200) para que el
+ * sidebar quede visualmente por delante del overlay.
+ */
+.overlay {
+  display: none; /* Visible solo cuando tiene clase .open */
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  z-index: 150;
+}
+
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE — MÓVIL (< 680px)
+   ═══════════════════════════════════════════ */
+
+/**
+ * En móvil el sidebar se desplaza fuera de pantalla hacia la izquierda
+ * (translateX(-100%)) y vuelve con la clase .open.
+ * El hamburger pasa a display:flex para ser visible.
+ *
+ * WHY 680px: punto de quiebre usado consistentemente en todos los CSS
+ * de módulo del proyecto SmileTrack.
+ */
+@media (max-width: 680px) {
+  .hamburger {
+    display: flex; /* Mostrar el botón en móvil */
+  }
+
+  .sidebar {
+    transform: translateX(-100%); /* Ocultar fuera de pantalla */
+  }
+
+  .sidebar.open {
+    transform: translateX(0); /* Mostrar con animación CSS */
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
+  }
+
+  .overlay.open {
+    display: block; /* Mostrar overlay cuando el menú está abierto */
+  }
+}
+
+
+/* ═══════════════════════════════════════════
+   MINI-SIDEBAR — MODO COLAPSADO (Desktop)
+   ═══════════════════════════════════════════ */
+
+/**
+ * En pantallas grandes, el sidebar puede colapsarse a solo íconos (48px).
+ * La clase .mini se aplica via JS al <aside#sidebar> y persiste en localStorage.
+ *
+ * WHY: Libera espacio horizontal valioso para el calendario y tablas densas
+ * sin perder la navegación rápida por íconos.
+ *
+ * Solo aplica en desktop (> 680px): en móvil el comportamiento de drawer
+ * es independiente y no se mezcla con el modo mini.
+ */
+@media (min-width: 681px) {
+  /* Sidebar colapsado: ancho mínimo para mostrar solo íconos */
+  .sidebar.mini {
+    width: 56px;
+    overflow: visible; /* Permite que los tooltips salgan del borde */
+  }
+
+  /* Ocultar texto de ítems de nav en modo mini */
+  .sidebar.mini .nav-item::after,
+  .sidebar.mini .nav-group-header .nav-group-label,
+  .sidebar.mini .nav-group-header .nav-arrow,
+  .sidebar.mini .user-info,
+  .sidebar.mini .sidebar-logo .logo-img {
+    display: none;
+  }
+
+  /* Centrar el ícono en el ancho reducido */
+  .sidebar.mini .nav-item {
+    padding: 10px 0;
+    justify-content: center;
+    gap: 0;
+    position: relative;
+  }
+
+  /* Ocultar texto del nav-item dejando solo el ::before (ícono emoji) */
+  .sidebar.mini .nav-item .nav-text {
+    display: none;
+  }
+
+  /* Tooltip nativo al hover: muestra el texto del ítem en modo mini */
+  .sidebar.mini .nav-item[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1e3a6e;
+    color: #e2e8f0;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: .78rem;
+    white-space: nowrap;
+    z-index: 400;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+
+  /* Ocultar texto de headers de grupo y colapsar visualmente */
+  .sidebar.mini .nav-group-header {
+    padding: 10px 0;
+    justify-content: center;
+    pointer-events: none; /* Desactivar accordion en modo mini */
+  }
+
+  /* Forzar expansión de todos los grupos en mini para mostrar íconos */
+  .sidebar.mini .nav-group-items {
+    max-height: none !important;
+    overflow: visible;
+  }
+
+  /* Avatar centrado en modo mini */
+  .sidebar.mini .sidebar-user {
+    justify-content: center;
+    padding: 14px 0 0;
+  }
+  .sidebar.mini .user-avatar {
+    flex-shrink: 0;
+  }
+
+  /* Ajustar el logo a ícono pequeño */
+  .sidebar.mini .sidebar-logo {
+    padding: 0 4px 12px;
+  }
+  .sidebar.mini .sidebar-logo .logo-img {
+    max-width: 36px;
+    display: block;
+  }
+
+  /* Compensar el ancho del main cuando sidebar está en mini */
+  .main.sidebar-mini-offset {
+    margin-left: 56px;
+  }
+}
+
+/* Botón de colapso/expansión del sidebar en desktop */
+.sidebar-collapse-btn {
+  display: none; /* Oculto en móvil */
+  position: absolute;
+  bottom: 70px;
+  right: -14px;
+  width: 28px;
+  height: 28px;
+  background: #1a3580;
+  border: 2px solid rgba(255,255,255,.2);
+  border-radius: 50%;
+  color: #c8d3e8;
+  font-size: .75rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  z-index: 210;
+  transition: background var(--tr, .18s ease), transform var(--tr, .18s ease);
+  line-height: 1;
+}
+
+.sidebar-collapse-btn:hover {
+  background: var(--primary, #1a56cc);
+  color: #fff;
+}
+
+.sidebar-collapse-btn:focus-visible {
+  outline: 2px solid var(--primary, #1a56cc);
+  outline-offset: 2px;
+}
+
+@media (min-width: 681px) {
+  .sidebar-collapse-btn {
+    display: flex;
+  }
+}
+
+/* Rotar flecha cuando está en modo mini */
+.sidebar.mini .sidebar-collapse-btn {
+  transform: rotate(180deg);
+  right: -14px;
+}
+
+
+/* ═══════════════════════════════════════════
+   ACCESIBILIDAD — REDUCED MOTION
+   ═══════════════════════════════════════════ */
+
+/**
+ * Desactiva todas las transiciones y animaciones del sidebar cuando el
+ * usuario ha indicado preferencia de movimiento reducido en su sistema.
+ *
+ * WHY: las animaciones pueden causar malestar o desorientación en usuarios
+ * con vestibular disorders u otras condiciones de salud. WCAG 2.3.3 (AAA)
+ * y criterio de buenas prácticas de accesibilidad recomiendan respetar
+ * prefers-reduced-motion.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .nav-group-items,
+  .nav-arrow,
+  .nav-item,
+  .nav-group-header,
+  .hamburger span {
+    transition: none !important;
+    animation: none !important;
+  }
+}

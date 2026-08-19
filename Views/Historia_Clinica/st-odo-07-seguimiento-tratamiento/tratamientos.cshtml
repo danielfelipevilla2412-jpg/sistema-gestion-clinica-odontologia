@@ -1,0 +1,243 @@
+@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Seguimiento de Tratamientos</title>
+  <meta name="description" content="Seguimiento de tratamientos dentales en curso, completados y pausados." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-07-seguimiento-tratamiento/tratamientos.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
+
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Odontólogo</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Seguimiento de Tratamientos</span>
+        </nav>
+        <h1 class="page-title">Seguimiento de Tratamientos</h1>
+        <p class="page-subtitle" id="pageSub">
+          Tratamientos en curso, pausados y completados de tus pacientes
+        </p>
+      </div>
+    </header>
+
+    <!-- ═════ TARJETAS DE ESTADÍSTICAS ═════ -->
+    <section class="stats-grid" aria-label="Estadísticas de tratamientos">
+      <div class="stat-card stat-total">
+        <div class="stat-icon">📊</div>
+        <div class="stat-content">
+          <span class="stat-number" id="statTotal">0</span>
+          <span class="stat-label">Total de tratamientos</span>
+        </div>
+      </div>
+      
+      <div class="stat-card stat-en-curso">
+        <div class="stat-icon">🔄</div>
+        <div class="stat-content">
+          <span class="stat-number" id="statEnCurso">0</span>
+          <span class="stat-label">En curso</span>
+        </div>
+      </div>
+      
+      <div class="stat-card stat-completado">
+        <div class="stat-icon">✅</div>
+        <div class="stat-content">
+          <span class="stat-number" id="statCompletado">0</span>
+          <span class="stat-label">Completados</span>
+        </div>
+      </div>
+      
+      <div class="stat-card stat-pausado">
+        <div class="stat-icon">⏸️</div>
+        <div class="stat-content">
+          <span class="stat-number" id="statPausado">0</span>
+          <span class="stat-label">Pausados</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════ FILTROS Y BUSCADOR ═════ -->
+    <section class="filters-section" aria-label="Filtros de búsqueda">
+      <div class="search-box">
+        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
+        <input type="text" id="searchInput" class="search-input" placeholder="Buscar por nombre de paciente..." aria-label="Buscar paciente" />
+      </div>
+      
+      <div class="filters-grid">
+        <div class="filter-group">
+          <label for="filterPaciente" class="filter-label">Paciente</label>
+          <select id="filterPaciente" class="filter-select">
+            <option value="">Todos los pacientes</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="filterEstado" class="filter-label">Estado</label>
+          <select id="filterEstado" class="filter-select">
+            <option value="">Todos los estados</option>
+            <option value="en-curso">En curso</option>
+            <option value="completado">Completado</option>
+            <option value="pausado">Pausado</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="filterTipo" class="filter-label">Tipo de tratamiento</label>
+          <select id="filterTipo" class="filter-select">
+            <option value="">Todos los tipos</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="filterOdontologo" class="filter-label">Odontólogo</label>
+          <select id="filterOdontologo" class="filter-select">
+            <option value="">Todos los odontólogos</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="filterPorPagina" class="filter-label">Por página</label>
+          <select id="filterPorPagina" class="filter-select">
+            <option value="5">5 por página</option>
+            <option value="10" selected>10 por página</option>
+            <option value="15">15 por página</option>
+            <option value="20">20 por página</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════ LISTA DE TRATAMIENTOS ═════ -->
+    <section class="section" aria-labelledby="tratamientosTitle">
+      <div class="section-header">
+        <h2 class="section-title" id="tratamientosTitle">Tratamientos registrados</h2>
+        <span class="results-count" id="resultsCount" aria-live="polite">Mostrando 0 de 0 tratamientos</span>
+      </div>
+
+      <div id="tratamientosList" aria-live="polite" role="list" aria-label="Lista de tratamientos">
+        <!-- JS renderiza aquí -->
+      </div>
+
+      <div class="empty-state" id="emptyState" style="display:none" role="status" aria-live="polite" aria-hidden="true">
+        <div class="empty-icon"></div>
+        <p>No se encontraron tratamientos con los filtros seleccionados.</p>
+        <button class="btn-clear-filters" id="btnClearFilters">Limpiar filtros</button>
+      </div>
+
+      <!-- ═════ PAGINACIÓN ════ -->
+      <nav class="pagination" id="pagination" aria-label="Paginación de tratamientos" style="display:none">
+        <button class="pagination-btn" id="btnFirst" aria-label="Primera página">««</button>
+        <button class="pagination-btn" id="btnPrev" aria-label="Página anterior">«</button>
+        
+        <div class="pagination-numbers" id="paginationNumbers">
+          <!-- Números de página generados por JS -->
+        </div>
+        
+        <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">»</button>
+        <button class="pagination-btn" id="btnLast" aria-label="Última página">»»</button>
+      </nav>
+    </section>
+
+  </main>
+
+  <!-- Mobile bottom nav -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true"></span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true"></span>
+      <span>Agenda</span>
+    </a>
+    <a href="/historia-clinica/st-odo-06-pacientes" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">👥</span>
+      <span>Pacientes</span>
+    </a>
+    <a href="/historia-clinica/st-odo-03-historial" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
+      <span>Historial</span>
+    </a>
+    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true"></span>
+      <span>Perfil</span>
+    </a>
+  </nav>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+    .skip-link:focus {
+      top: 0;
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+  
+  <script src="@Url.Content("~/js/Historia_Clinica/st-odo-07-seguimiento-tratamiento/tratamientos.js")"></script>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span style="font-size:1rem;"></span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>

@@ -1,0 +1,34 @@
+@*
+  SmileTrack — Toasts Compartidos (_Toasts.cshtml)
+  Debe incluirse en los layouts (o al final del body en vistas sin layout)
+*@
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="@Url.Content("~/css/shared/toasts.css")" />
+<script src="@Url.Content("~/js/shared/toasts.js")"></script>
+
+@* Script para inicializar automáticamente Toasts si vienen mensajes desde TempData *@
+@if (TempData["SuccessMessage"] != null || TempData["ErrorMessage"] != null || TempData["InfoMessage"] != null)
+{
+    var successMsg = TempData["SuccessMessage"]?.ToString()?.Replace("'", "\\'");
+    var errorMsg = TempData["ErrorMessage"]?.ToString()?.Replace("'", "\\'");
+    var infoMsg = TempData["InfoMessage"]?.ToString()?.Replace("'", "\\'");
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            @if (!string.IsNullOrEmpty(successMsg))
+            {
+                <text>window.ToastService.success('Éxito', '@Html.Raw(successMsg)');</text>
+            }
+            @if (!string.IsNullOrEmpty(errorMsg))
+            {
+                <text>window.ToastService.error('Error', '@Html.Raw(errorMsg)');</text>
+            }
+            @if (!string.IsNullOrEmpty(infoMsg))
+            {
+                <text>window.ToastService.info('Información', '@Html.Raw(infoMsg)');</text>
+            }
+        });
+    </script>
+}

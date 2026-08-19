@@ -1,0 +1,544 @@
+﻿@model SmileTrack_MVC.Models.ViewModels.SupportTicketViewModel
+@{
+    ViewData["Title"] = "SmileTrack - Soporte";
+    Layout = null; // Cambia esto por tu _Layout.cshtml si esta vista debe usar un layout compartido
+}
+
+<!DOCTYPE html>
+<html lang="es" class="light overflow-x-hidden">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Guia_De_Usuario/styles.css")" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-tint": "#305ea0",
+              "on-tertiary-container": "#5ec160",
+              "on-surface-variant": "#424750",
+              "on-primary": "#ffffff",
+              "on-error": "#ffffff",
+              "tertiary-fixed-dim": "#78dc77",
+              "on-tertiary": "#ffffff",
+              "inverse-surface": "#2d3133",
+              "error-container": "#ffdad6",
+              "surface-container-high": "#e5e9eb",
+              "on-primary-fixed-variant": "#0e4686",
+              "on-surface": "#181c1e",
+              "tertiary": "#003308",
+              "primary-fixed": "#d6e3ff",
+              "inverse-on-surface": "#eef1f3",
+              background: "#f7fafc",
+              "on-secondary": "#ffffff",
+              "secondary-container": "#47a1ff",
+              "outline-variant": "#c3c6d2",
+              "on-tertiary-fixed": "#002204",
+              "on-secondary-fixed": "#001c38",
+              "surface-container-low": "#f1f4f6",
+              secondary: "#0060a8",
+              "surface-variant": "#e0e3e5",
+              "secondary-fixed": "#d3e4ff",
+              "surface-container-highest": "#e0e3e5",
+              outline: "#737781",
+              "on-primary-fixed": "#001b3d",
+              "on-primary-container": "#83aef5",
+              "on-error-container": "#93000a",
+              "surface-bright": "#f7fafc",
+              "secondary-fixed-dim": "#a2c9ff",
+              primary: "#002a58",
+              "on-secondary-container": "#003663",
+              "tertiary-container": "#004c11",
+              "on-tertiary-fixed-variant": "#005313",
+              "tertiary-fixed": "#94f990",
+              "primary-container": "#004080",
+              "primary-fixed-dim": "#a9c7ff",
+              "inverse-primary": "#a9c7ff",
+              surface: "#f7fafc",
+              "surface-container": "#ebeef0",
+              "surface-dim": "#d7dadc",
+              "surface-container-lowest": "#ffffff",
+              error: "#ba1a1a",
+              "on-background": "#181c1e",
+              "on-secondary-fixed-variant": "#004881"
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px"
+            },
+            spacing: {
+              "sidebar-width": "260px",
+              base: "4px",
+              "margin-page": "32px",
+              "card-padding": "20px",
+              gutter: "24px"
+            },
+            fontFamily: {
+              "body-md": ["Montserrat"],
+              "headline-xl": ["Montserrat"],
+              "headline-md": ["Montserrat"],
+              "label-sm": ["Montserrat"],
+              "label-bold": ["Montserrat"],
+              "headline-lg": ["Montserrat"],
+              "headline-lg-mobile": ["Montserrat"],
+              "body-lg": ["Montserrat"]
+            },
+            fontSize: {
+              "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+              "headline-xl": ["32px", { lineHeight: "40px", letterSpacing: "-0.5px", fontWeight: "700" }],
+              "headline-md": ["20px", { lineHeight: "28px", fontWeight: "600" }],
+              "label-sm": ["12px", { lineHeight: "16px", fontWeight: "500" }],
+              "label-bold": ["12px", { lineHeight: "16px", fontWeight: "700" }],
+              "headline-lg": ["24px", { lineHeight: "32px", fontWeight: "700" }],
+              "headline-lg-mobile": ["22px", { lineHeight: "28px", fontWeight: "700" }],
+              "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }]
+            }
+          }
+        }
+      };
+    </script>
+    <style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        display: inline-block;
+        vertical-align: middle;
+      }
+      body {
+        font-family: 'Montserrat', sans-serif;
+        background-color: #f7fafc;
+      }
+      .form-shadow {
+        box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.08);
+      }
+      .sidebar-active-gradient {
+        background: linear-gradient(90deg, rgba(71, 161, 255, 0.2) 0%, rgba(255, 255, 255, 0) 100%);
+        border-left: 4px solid #47a1ff;
+      }
+      .brand-logo {
+        background: linear-gradient(135deg, #ffffff 0%, #eaf4ff 100%);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+      }
+      .topbar-pill {
+        border: 1px solid rgba(0, 42, 88, 0.12);
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(12px);
+      }
+      .support-card {
+        border: 1px solid rgba(0, 42, 88, 0.08);
+      }
+    </style>
+  </head>
+  <body class="text-on-surface overflow-x-hidden">
+    <!-- Mobile Sidebar Overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden transition-opacity duration-300 opacity-0"></div>
+
+    <aside id="sidebar" class="h-screen w-[260px] fixed left-0 top-0 bg-[#002a58] flex flex-col pt-4 pb-0 gap-2 z-50 transition-transform duration-300 -translate-x-full md:translate-x-0">
+      <!-- Close button for mobile -->
+      <button id="close-sidebar-btn" class="md:hidden absolute top-4 right-4 z-50 text-white/70 hover:text-white flex items-center justify-center p-1 rounded-lg hover:bg-white/10 transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+
+      <!-- Logo container -->
+      <div class="mx-5 mt-4 mb-6 overflow-hidden rounded-[20px] flex justify-center items-center">
+        <img src="~/images/logo.jpg" alt="SmileTrack logo" class="w-[82%] max-w-[170px] h-auto object-contain" />
+      </div>
+
+      <!-- Navigation menu -->
+      <nav class="flex-1 flex flex-col px-0 gap-1">
+        <!-- Panel -->
+        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Dashboard" asp-action="Index">
+          <div class="grid grid-cols-2 gap-[3px] w-[18px] h-[18px] mr-4 flex-shrink-0">
+            <div class="bg-[#4ade80] rounded-[2px]"></div>
+            <div class="bg-[#f43f5e] rounded-[2px]"></div>
+            <div class="bg-[#3b82f6] rounded-[2px]"></div>
+            <div class="bg-[#fbbf24] rounded-[2px]"></div>
+          </div>
+          <span class="text-sm">Panel</span>
+        </a>
+
+        <!-- Pacientes -->
+        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Patients" asp-action="Index">
+          <span class="material-symbols-outlined mr-4 text-[#c084fc]">group</span>
+          <span class="text-sm">Pacientes</span>
+        </a>
+
+        <!-- Citas -->
+        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Appointments" asp-action="Index">
+          <span class="material-symbols-outlined mr-4 text-[#60a5fa]">calendar_month</span>
+          <span class="text-sm">Citas</span>
+        </a>
+
+        <!-- Facturas -->
+        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Invoices" asp-action="Index">
+          <span class="material-symbols-outlined mr-4 text-slate-300">description</span>
+          <span class="text-sm">Facturas</span>
+        </a>
+
+        <!-- Recordatorios -->
+        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Reminders" asp-action="Index">
+          <span class="material-symbols-outlined mr-4 text-[#fbbf24]">notifications</span>
+          <span class="text-sm">Recordatorios</span>
+        </a>
+
+        <!-- Ayuda (Active) -->
+        <a class="bg-[#0060a8] text-white border-l-[6px] border-white flex items-center px-[18px] py-4 transition-all duration-200 font-semibold" asp-controller="HelpCenter" asp-action="Index">
+          <span class="material-symbols-outlined mr-4 text-white" style="font-variation-settings: 'FILL' 1;">help</span>
+          <span class="text-sm">Ayuda</span>
+        </a>
+
+        <!-- Mi perfil -->
+        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Profile" asp-action="Index">
+          <span class="material-symbols-outlined mr-4 text-[#e879f9]">person</span>
+          <span class="text-sm">Mi perfil</span>
+        </a>
+      </nav>
+
+      <!-- Bottom Profile Section -->
+      <div class="border-t border-white/10 bg-[#002a58] px-6 py-4 flex items-center gap-3 mt-auto">
+        <div class="w-10 h-10 rounded-full bg-[#47a1ff] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">@Model.User.Initials</div>
+        <div class="overflow-hidden">
+          <p class="text-white text-xs font-bold truncate">@Model.User.FullName</p>
+          <p class="text-blue-200 text-[10px] truncate">@Model.User.Email</p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="ml-0 md:ml-[260px] min-h-screen transition-all duration-300">
+      <header class="w-full top-0 sticky bg-surface-container-lowest shadow-sm border-b border-outline-variant flex items-center justify-between px-margin-page py-4 z-20">
+        <div class="flex items-center gap-4">
+          <!-- Hamburger menu button -->
+          <button id="mobile-menu-btn" class="md:hidden p-2 text-on-surface-variant hover:bg-surface-container rounded-lg focus:outline-none flex items-center justify-center">
+            <span class="material-symbols-outlined">menu</span>
+          </button>
+          <div class="border-l-[3px] border-[#002a58] pl-3.5 flex flex-col justify-center my-0.5">
+            <h1 class="text-[19px] font-bold text-[#002a58] leading-none mb-1">Centro de Ayuda</h1>
+            <p class="text-[11px] text-slate-500 font-medium leading-none">Guía de usuario SmileTrack</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-6">
+          <div class="relative">
+            <button id="guides-toggle" class="topbar-pill flex items-center gap-2 text-on-surface-variant hover:bg-surface-container-high transition-colors px-3 py-1.5 rounded-lg cursor-pointer" type="button">
+              <span class="font-label-bold text-label-bold">Guías</span>
+            </button>
+            <div id="guides-menu" class="hidden absolute right-0 mt-2 w-72 rounded-xl border border-[#c3c6d2] bg-white p-2 shadow-lg z-30">
+              @foreach (var panel in Model.GuidePanels)
+              {
+                <div class="mt-1 rounded-lg">
+                  <button type="button" class="guide-trigger flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#002a58] hover:bg-[#eaf3ff]" data-target="@panel.Id" aria-expanded="false">
+                    <span class="flex items-center gap-2">
+                      <span class="material-symbols-outlined text-sm">@panel.IconName</span>
+                      @panel.Title
+                    </span>
+                    <span class="material-symbols-outlined text-sm transition-transform duration-200">expand_more</span>
+                  </button>
+                  <div id="@panel.Id" class="guide-panel hidden mt-2 rounded-lg bg-[#f7fafc] p-3 text-sm text-[#002a58]">
+                    <p class="font-semibold mb-1">@panel.SectionHeading</p>
+                    <ul class="list-disc pl-5 space-y-1">
+                      @foreach (var item in panel.Items)
+                      {
+                        <li>@item</li>
+                      }
+                    </ul>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+          <button id="open-chatbot-btn" class="topbar-pill flex items-center gap-2 text-on-surface-variant hover:bg-surface-container-high transition-colors px-3 py-1.5 rounded-lg cursor-pointer" type="button">
+            <span class="material-symbols-outlined text-base">smart_toy</span>
+            <span class="font-label-bold text-label-bold">Asistente</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="p-margin-page max-w-5xl mx-auto">
+        <nav class="flex items-center gap-2 text-xs text-on-surface-variant mb-4">
+          <span>Support</span>
+          <span class="material-symbols-outlined text-[12px]">chevron_right</span>
+          <span class="font-semibold text-primary">Nuevo Ticket</span>
+        </nav>
+
+        <div class="bg-white p-card-padding rounded-xl form-shadow mb-gutter border-l-[6px] border-[#002a58] support-card">
+          <h2 class="font-headline-xl text-headline-xl text-[#002a58]">Nuevo Ticket de Soporte</h2>
+          <p class="font-body-md text-body-md text-[#424750] mt-1">Reporte cualquier inconveniente técnico o solicitud administrativa. Nuestro equipo responderá en menos de 2 horas.</p>
+        </div>
+
+        <form asp-controller="CentroDeAyuda" asp-action="CreateTicket" method="post" enctype="multipart/form-data" id="support-form" class="space-y-6">
+          @Html.AntiForgeryToken()
+          <div asp-validation-summary="ModelOnly" class="text-error text-sm"></div>
+
+          <div class="grid grid-cols-12 gap-gutter">
+            <div class="col-span-12 lg:col-span-8 space-y-6">
+              <div class="bg-white p-card-padding rounded-xl form-shadow border border-outline-variant/30">
+                <h3 class="font-headline-md text-headline-md text-[#002a58] mb-6 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-[#0060a8]">edit_note</span>
+                  Información del Incidente
+                </h3>
+                <div class="space-y-4">
+                  <div class="flex flex-col gap-1.5">
+                    <label asp-for="Subject" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
+                    <input asp-for="Subject" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md placeholder:text-[#737781]" placeholder="Ej: Error al procesar factura #8821" />
+                    <span asp-validation-for="Subject" class="text-error text-xs"></span>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="flex flex-col gap-1.5">
+                      <label asp-for="Category" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
+                      <select asp-for="Category" asp-items="Html.GetEnumSelectList<SmileTrack_MVC.Models.ViewModels.TicketCategory>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <span asp-validation-for="Category" class="text-error text-xs"></span>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                      <label asp-for="Module" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
+                      <select asp-for="Module" asp-items="Html.GetEnumSelectList<SmileTrack_MVC.Models.ViewModels.AffectedModule>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <span asp-validation-for="Module" class="text-error text-xs"></span>
+                    </div>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <label asp-for="Severity" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
+                    <div class="flex gap-4">
+                      <label class="flex-1 cursor-pointer group">
+                        <input class="sr-only peer" name="Severity" type="radio" value="Baja" />
+                        <div class="p-3 text-center rounded-lg border border-[#c3c6d2] bg-white text-[#424750] peer-checked:bg-[#fee2e2] peer-checked:border-[#ef4444] peer-checked:text-[#dc2626] transition-all">
+                          <span class="font-label-bold text-label-bold uppercase">Baja</span>
+                        </div>
+                      </label>
+                      <label class="flex-1 cursor-pointer group">
+                        <input class="sr-only peer" name="Severity" type="radio" value="Media" />
+                        <div class="p-3 text-center rounded-lg border border-[#c3c6d2] bg-white text-[#424750] peer-checked:bg-[#ffedd5] peer-checked:border-[#f59e0b] peer-checked:text-[#d97706] transition-all">
+                          <span class="font-label-bold text-label-bold uppercase">Media</span>
+                        </div>
+                      </label>
+                      <label class="flex-1 cursor-pointer group">
+                        <input class="sr-only peer" name="Severity" type="radio" value="Alta" />
+                        <div class="p-3 text-center rounded-lg border border-[#c3c6d2] bg-white text-[#424750] peer-checked:bg-[#dcfce7] peer-checked:border-[#22c55e] peer-checked:text-[#16a34a] transition-all">
+                          <span class="font-label-bold text-label-bold uppercase">Alta</span>
+                        </div>
+                      </label>
+                    </div>
+                    <span asp-validation-for="Severity" class="text-error text-xs"></span>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <label asp-for="Description" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
+                    <textarea asp-for="Description" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md resize-none" placeholder="Por favor proporcione pasos para reproducir el error o detalles específicos de su solicitud..." rows="6"></textarea>
+                    <span asp-validation-for="Description" class="text-error text-xs"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-span-12 lg:col-span-4 space-y-6">
+              <div class="bg-white p-card-padding rounded-xl form-shadow border border-outline-variant/30 flex flex-col items-center justify-center text-center">
+                <div class="w-16 h-16 rounded-full bg-[#eaf3ff] flex items-center justify-center mb-4">
+                  <span class="material-symbols-outlined text-[#0060a8] text-3xl">add_photo_alternate</span>
+                </div>
+                <h4 class="font-headline-md text-headline-md text-[#002a58] mb-2">Adjuntar Captura</h4>
+                <p class="font-label-sm text-label-sm text-[#424750] mb-4 px-4">Evidencias visuales ayudan a resolver el ticket un 40% más rápido.</p>
+                <input asp-for="Screenshot" id="screenshot-input" accept="image/*" class="hidden" />
+                <button id="upload-screenshot-btn" class="w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-[#c3c6d2] bg-[#f8fbff] text-[#424750] hover:border-[#0060a8] hover:text-[#0060a8] transition-all font-label-bold text-label-bold active:bg-[#eaf3ff] cursor-pointer" type="button">
+                  <span class="material-symbols-outlined">attachment</span>
+                  Adjuntar Captura de Pantalla
+                </button>
+                <div id="upload-preview" class="hidden mt-4 w-full rounded-lg border border-[#c3c6d2] bg-[#f8fbff] p-3 text-left">
+                  <p class="text-[10px] uppercase tracking-[0.2em] text-[#0060a8] font-semibold mb-2">Archivo adjunto</p>
+                  <div class="flex items-center gap-3">
+                    <img id="upload-preview-image" class="hidden h-16 w-16 rounded-lg object-cover border border-[#c3c6d2]" alt="Vista previa" />
+                    <div class="min-w-0 flex-1">
+                      <p id="upload-file-name" class="truncate text-sm font-semibold text-[#002a58]"></p>
+                      <p class="text-xs text-[#424750]">Listo para enviarse con el ticket</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-[#eaf3ff] text-[#002a58] p-card-padding rounded-xl shadow-md">
+                <div class="flex items-start gap-3">
+                  <span class="material-symbols-outlined text-[#0060a8]">verified_user</span>
+                  <div>
+                    <p class="font-label-bold text-label-bold uppercase tracking-widest text-[#0060a8] mb-1">Garantía SmileTrack</p>
+                    <p class="text-xs leading-relaxed opacity-80">Su ticket será asignado directamente a un especialista técnico certificado en la plataforma.</p>
+                  </div>
+                </div>
+              </div>
+
+              <button class="w-full bg-[#0060a8] text-white py-5 rounded-xl font-headline-md text-headline-md shadow-lg shadow-[#0060a8]/30 hover:bg-[#004080] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3" type="submit">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">send</span>
+                Enviar Ticket
+              </button>
+              <button id="cancel-ticket-btn" class="w-full bg-transparent text-[#424750] border border-[#c3c6d2] py-3 rounded-xl font-label-bold text-label-bold hover:bg-[#eaf3ff] transition-colors" type="button">
+                Cancelar y volver
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div class="mt-margin-page">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+            <button id="urgency-card" type="button" class="support-grid-card bg-white rounded-2xl p-4 border border-outline-variant/20 form-shadow text-left w-full cursor-pointer" aria-expanded="false">
+              <div class="support-grid-icon w-10 h-10 rounded-xl bg-[#eaf3ff] flex items-center justify-center text-primary mb-3">
+                <span class="material-symbols-outlined">support_agent</span>
+              </div>
+              <p class="font-label-bold text-label-bold text-on-surface">Soporte de urgencia</p>
+              <span class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#0060a8]">
+                <span class="material-symbols-outlined text-sm">expand_more</span>
+                Ver detalles
+              </span>
+            </button>
+            <button id="contact-card" type="button" class="support-grid-card bg-white rounded-2xl p-4 border border-outline-variant/20 form-shadow text-left w-full cursor-pointer" aria-expanded="false">
+              <div class="support-grid-icon w-10 h-10 rounded-xl bg-[#eaf8ff] flex items-center justify-center text-secondary mb-3">
+                <span class="material-symbols-outlined">contact_support</span>
+              </div>
+              <p class="font-label-bold text-label-bold text-on-surface">Contacto directo</p>
+              <span class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#0060a8]">
+                <span class="material-symbols-outlined text-sm">expand_more</span>
+                Ver detalles
+              </span>
+            </button>
+            <button id="schedule-card" type="button" class="support-grid-card bg-white rounded-2xl p-4 border border-outline-variant/20 form-shadow text-left w-full cursor-pointer" aria-expanded="false">
+              <div class="support-grid-icon w-10 h-10 rounded-xl bg-[#eef8ee] flex items-center justify-center text-[#2f7a3d] mb-3">
+                <span class="material-symbols-outlined">schedule</span>
+              </div>
+              <p class="font-label-bold text-label-bold text-on-surface">Disponibilidad</p>
+              <span class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#2f7a3d]">
+                <span class="material-symbols-outlined text-sm">expand_more</span>
+                Ver detalles
+              </span>
+            </button>
+            <button id="faq-card" type="button" class="support-grid-card bg-white rounded-2xl p-4 border border-outline-variant/20 form-shadow text-left w-full cursor-pointer" aria-expanded="false">
+              <div class="support-grid-icon w-10 h-10 rounded-xl bg-[#fff2f2] flex items-center justify-center text-error mb-3">
+                <span class="material-symbols-outlined">quiz</span>
+              </div>
+              <p class="font-label-bold text-label-bold text-on-surface">Preguntas frecuentes</p>
+              <span class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#b91c1c]">
+                <span class="material-symbols-outlined text-sm">expand_more</span>
+                Ver detalles
+              </span>
+            </button>
+            <button id="tracking-card" type="button" class="support-grid-card bg-white rounded-2xl p-4 border border-outline-variant/20 form-shadow text-left w-full cursor-pointer" aria-expanded="false">
+              <div class="support-grid-icon w-10 h-10 rounded-xl bg-[#f4f8eb] flex items-center justify-center text-[#5b7b1f] mb-3">
+                <span class="material-symbols-outlined">task_alt</span>
+              </div>
+              <p class="font-label-bold text-label-bold text-on-surface">Seguimiento</p>
+              <span class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#5b7b1f]">
+                <span class="material-symbols-outlined text-sm">expand_more</span>
+                Ver detalles
+              </span>
+            </button>
+          </div>
+
+          @foreach (var panel in Model.SupportPanels)
+          {
+            <div id="@panel.Id" class="hidden mb-6 rounded-2xl border p-5 shadow-sm">
+              <div class="flex items-start gap-3">
+                <span class="material-symbols-outlined text-3xl">@panel.IconName</span>
+                <div class="flex-1">
+                  <p class="text-[10px] uppercase tracking-[0.3em] font-semibold">@panel.Eyebrow</p>
+                  <h6 class="font-headline-md text-headline-md text-[#002a58] mt-1">@panel.Heading</h6>
+                  <p class="mt-2 text-sm text-[#424750] leading-relaxed">@panel.Description</p>
+                  <ul class="mt-3 space-y-2 text-sm text-[#424750]">
+                    @foreach (var bullet in panel.Bullets)
+                    {
+                      <li>• @bullet</li>
+                    }
+                  </ul>
+
+                  @if (panel.Id == "contact-detail-panel")
+                  {
+                    <div class="mt-4 flex flex-col gap-2 rounded-lg border border-[#bfdbfe] bg-white/70 p-3 text-sm">
+                      <a href="tel:+57@Model.Contact.Phone" class="inline-flex items-center gap-2 text-secondary font-semibold hover:underline">
+                        <span class="material-symbols-outlined text-sm">call</span>
+                        @Model.Contact.Phone
+                      </a>
+                      <a href="mailto:@Model.Contact.Email" class="inline-flex items-center gap-2 text-secondary font-semibold hover:underline">
+                        <span class="material-symbols-outlined text-sm">mail</span>
+                        @Model.Contact.Email
+                      </a>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+          <!--
+            Nota: los colores de borde/fondo de cada panel (naranja para urgencia, verde para seguimiento,
+            azul para contacto, etc.) eran distintos en el original. Si quieres conservarlos exactamente,
+            agrega un campo "ColorTheme" (ej. "orange" | "green" | "blue" | "red") a SupportInfoPanel
+            y arma la clase con un helper o un diccionario de clases; dímelo y te lo agrego.
+          -->
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="col-span-1 md:col-span-2 bg-white rounded-xl overflow-hidden form-shadow flex items-center p-6 border border-outline-variant/20">
+              <div class="flex-1">
+                <h5 class="font-headline-md text-headline-md text-primary mb-2">¿Necesita ayuda urgente?</h5>
+                <p class="font-body-md text-body-md text-on-surface-variant mb-4">Nuestro chat en vivo está disponible de 8:00 AM a 8:00 PM para emergencias de bloqueo de sistema.</p>
+                <button id="open-chat-inline-btn" class="inline-flex items-center justify-center text-white font-label-bold text-label-bold group bg-[#16a34a] px-4 py-3 rounded-lg border border-[#16a34a] hover:bg-[#15803d] transition-colors shadow-md shadow-green-200" type="button">
+                  Iniciar Chat en Vivo
+                </button>
+              </div>
+              <div class="hidden sm:block w-32 h-32 opacity-20 flex items-center justify-center">
+                <span class="material-symbols-outlined text-[128px] text-primary">contact_support</span>
+              </div>
+            </div>
+            <div class="bg-surface-container-highest rounded-xl p-6 flex flex-col justify-center">
+              <div class="flex items-center gap-3 mb-2">
+                <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Estado del Sistema</span>
+              </div>
+              <p class="font-headline-md text-headline-md text-on-surface">@Model.SystemStatusMessage</p>
+              <p class="text-[10px] text-outline mt-1 italic">@Model.SystemStatusUpdatedAt</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Chatbot Modal -->
+    <div id="chatbotModal" class="st-modal-overlay" role="dialog" aria-modal="true" hidden>
+      <div class="st-modal-content">
+        <header class="st-modal-header">
+          <div class="st-modal-brand">
+            <div class="st-modal-avatar overflow-hidden">
+              <img src="~/images/logo.jpg" alt="SmileTrack" class="w-full h-full object-cover" />
+            </div>
+            <div>
+              <h2 class="st-modal-title">Asistente SmileTrack</h2>
+              <p class="st-modal-status"><span class="st-status-dot"></span> En línea</p>
+            </div>
+          </div>
+          <button class="st-modal-close" id="chatbotClose" aria-label="Cerrar" type="button">×</button>
+        </header>
+        <main id="chatbotMessages" class="st-modal-messages modal-messages" role="log" aria-live="polite"></main>
+        <div id="typingIndicator" class="st-typing" hidden><span></span><span></span><span></span></div>
+        <div class="st-quick-replies">
+          <button class="st-quick-btn quick-reply" data-q="¿Cómo agendo una cita?" data-question="¿Cómo agendo una cita?" type="button">📅 Agendar</button>
+          <button class="st-quick-btn quick-reply" data-q="¿Qué métodos de pago aceptan?" data-question="¿Qué métodos de pago aceptan?" type="button">💳 Pagos</button>
+          <button class="st-quick-btn quick-reply" data-q="¿Qué servicios ofrecen?" data-question="¿Qué servicios ofrecen?" type="button">🦷 Servicios</button>
+          <button class="st-quick-btn quick-reply" data-q="¿Dónde están ubicados?" data-question="¿Dónde están ubicados?" type="button">📍 Ubicación</button>
+        </div>
+        <form id="chatbotForm" class="st-modal-input">
+          <input type="text" id="chatbotInput" class="st-input" placeholder="Escribe tu pregunta..." autocomplete="off" />
+          <button type="submit" class="st-send" aria-label="Enviar">➤</button>
+        </form>
+      </div>
+    </div>
+
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+    <script src="@Url.Content("~/js/Centro_De_Ayuda/Guia_De_Usuario/script.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  </body>
+</html>
+

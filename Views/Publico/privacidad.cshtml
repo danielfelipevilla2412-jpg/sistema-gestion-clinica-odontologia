@@ -1,0 +1,132 @@
+@{ Layout = null; }
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Política de Privacidad — SmileTrack</title>
+    <link href="@Url.Content("~/css/footer.css")" rel="stylesheet" />
+    <style>
+        .privacy-container {
+            max-width: 900px;
+            margin: 48px auto;
+            padding: 24px 32px;
+            font-family: Roboto, Arial, Helvetica, sans-serif;
+            line-height: 1.6;
+            color: #2b2b2b;
+        }
+        .privacy-container h1 {
+            margin-bottom: 4px;
+        }
+        .privacy-container .updated {
+            color: #6b6b6b;
+            font-size: 0.9rem;
+            margin-bottom: 32px;
+        }
+        .privacy-container h2 {
+            margin-top: 32px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .privacy-container ul {
+            padding-left: 22px;
+        }
+        .privacy-container .back-link {
+            display: inline-block;
+            margin-top: 40px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <main class="privacy-container">
+        <h1>Política de Privacidad</h1>
+        <p class="updated">Última actualización: @DateTime.Now.ToString("dd 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES"))</p>
+
+        <p>
+            En SmileTrack nos comprometemos a proteger la información personal y de salud de nuestros
+            pacientes, profesionales y usuarios, de acuerdo con la <strong>Ley 1581 de 2012</strong>,
+            el <strong>Decreto 1377 de 2013</strong> y demás normas concordantes sobre protección de
+            datos personales vigentes en Colombia.
+        </p>
+
+        <section>
+            <h2>1. Responsable del tratamiento</h2>
+            <p>
+                SmileTrack, identificada con NIT 900823456-7,
+                con domicilio en Cra. 15 #93-47, Oficina 302
+                Bogotá D.C., Colombia, es la responsable del tratamiento
+                de los datos personales recolectados a través de esta plataforma.
+            </p>
+        </section>
+
+        <section>
+            <h2>2. Información que recopilamos</h2>
+            <p>Dependiendo del rol del usuario, SmileTrack puede recopilar:</p>
+            <ul>
+                <li><strong>Datos de identificación:</strong> nombre completo, tipo y número de documento, fecha de nacimiento.</li>
+                <li><strong>Datos de contacto:</strong> dirección, teléfono, correo electrónico.</li>
+                <li><strong>Datos de salud (sensibles):</strong> historial de citas, diagnósticos y observaciones clínicas asociadas a los tratamientos odontológicos.</li>
+                <li><strong>Datos de acceso al sistema:</strong> usuario, rol asignado (paciente, profesional, administrador) y registros de actividad relevantes para la seguridad del sistema.</li>
+            </ul>
+            <p>
+                Los datos de salud son considerados <strong>datos sensibles</strong> conforme a la ley,
+                por lo que su tratamiento requiere autorización expresa del titular y se maneja con
+                un nivel adicional de reserva.
+            </p>
+        </section>
+
+        <section>
+            <h2>3. Finalidad del tratamiento</h2>
+            <ul>
+                <li>Gestionar la programación, modificación y seguimiento de citas médicas.</li>
+                <li>Administrar la información de los profesionales y su disponibilidad.</li>
+                <li>Mantener el historial clínico necesario para la continuidad del tratamiento del paciente.</li>
+                <li>Enviar notificaciones relacionadas con citas, recordatorios o cambios en el servicio.</li>
+                <li>Cumplir con obligaciones legales y reglamentarias del sector salud.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>4. Derechos del titular de los datos</h2>
+            <p>Como titular de tus datos personales, tienes derecho a:</p>
+            <ul>
+                <li><strong>Conocer:</strong> acceder de forma gratuita a los datos que se tienen sobre ti.</li>
+                <li><strong>Actualizar y rectificar:</strong> solicitar la corrección de información inexacta o incompleta.</li>
+                <li><strong>Suprimir:</strong> pedir la eliminación de tus datos cuando no exista un deber legal de conservarlos.</li>
+                <li><strong>Revocar la autorización:</strong> retirar el consentimiento otorgado para el tratamiento de tus datos, salvo que la ley u obligaciones contractuales exijan conservarlos.</li>
+                <li><strong>Presentar quejas:</strong> ante la Superintendencia de Industria y Comercio (SIC) por infracciones a la normativa de protección de datos.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>5. Seguridad de la información</h2>
+            <p>
+                SmileTrack implementa medidas técnicas y administrativas razonables para proteger los
+                datos personales contra pérdida, uso indebido, acceso no autorizado o alteración,
+                incluyendo control de acceso basado en roles y cifrado de credenciales.
+            </p>
+        </section>
+
+        <section>
+            <h2>6. Conservación de los datos</h2>
+            <p>
+                Los datos se conservarán durante el tiempo necesario para cumplir con las finalidades
+                descritas y con los plazos exigidos por la normatividad aplicable en materia de historia
+                clínica y archivos del sector salud.
+            </p>
+        </section>
+
+        <section>
+            <h2>7. Contacto</h2>
+            <p>
+                Para ejercer tus derechos o realizar consultas sobre el tratamiento de tus datos personales,
+                puedes contactar al administrador del sistema en:
+                <a href="mailto:smiletrackodontologia@gmail.com">smiletrackodontologia@gmail.com</a> o al teléfono [número].
+            </p>
+        </section>
+
+        <a class="back-link" href="@Url.Content("~/")">&larr; Volver al inicio</a>
+    </main>
+</body>
+</html>

@@ -1,0 +1,148 @@
+@*
+  SmileTrack — Sidebar Recepcionista (_SidebarRecepcionista.cshtml)
+  Partial reutilizable para el rol Recepcionista.
+  Incluye: <aside> completo, logo, nav con grupos colapsables y bloque de usuario.
+*@
+@{
+    var currentPath = Context.Request.Path.Value ?? "/";
+    Func<string, string> linkClass = href =>
+        currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+
+    var _recName     = User.Identity?.Name ?? "Recepcionista";
+    var _recEmail    = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "recepcionista@smiletrack.co";
+    var _recInitials = string.Concat(
+        _recName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Take(2)
+                .Select(s => s[0])
+    ).ToUpperInvariant();
+    if (string.IsNullOrWhiteSpace(_recInitials)) _recInitials = "RE";
+}
+
+<aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+
+  <div class="sidebar-logo">
+    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Inicio <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/" class="@linkClass("/")" data-icon="🏠">Homepage</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-citas/st-rec-01-dashboard"
+           class="@linkClass("/gestion-de-citas/st-rec-01-dashboard")"
+           data-icon="📊">Panel de Recepción</a>
+        <a href="/gestion-de-citas/st-rec-03-gestion-citas"
+           class="@linkClass("/gestion-de-citas/st-rec-03-gestion-citas")"
+           data-icon="📅">Gestión de Citas</a>
+        <a href="/gestion-de-citas/st-rec-05-recordatorios"
+           class="@linkClass("/gestion-de-citas/st-rec-05-recordatorios")"
+           data-icon="🔔">Recordatorios</a>
+        <a href="/gestion-de-citas/st-aux-10-citas-finalizadas"
+           class="@linkClass("/gestion-de-citas/st-aux-10-citas-finalizadas")"
+           data-icon="✅">Citas Finalizadas</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes"
+           class="@linkClass("/gestion-de-pacientes/st-adm-05-gestion-pacientes")"
+           data-icon="👥">Gestión de Pacientes</a>
+        <a href="/gestion-de-pacientes/st-rec-02-registrar-paciente"
+           class="@linkClass("/gestion-de-pacientes/st-rec-02-registrar-paciente")"
+           data-icon="➕">Registrar Paciente + Cita</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/historia-clinica/st-rec-historial"
+           class="@linkClass("/historia-clinica/st-rec-historial")"
+           data-icon="📋">Historial Clínico</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Facturación y Pagos <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/facturacion-y-pagos/st-rec-04-generar-factura"
+           class="@linkClass("/facturacion-y-pagos/st-rec-04-generar-factura")"
+           data-icon="🧾">Generar Factura y Pago</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de PQR <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-pqr/st-pac-04-nueva-pqr"
+           class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")"
+           data-icon="📝">Nueva Solicitud</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Gestión de Ayuda <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/centro-de-ayuda/guias-tutoriales"
+           class="@linkClass("/centro-de-ayuda/guias-tutoriales")"
+           data-icon="❓">Centro de Ayuda</a>
+        <a href="/gestion-de-pqr/st-pac-04-nueva-pqr"
+           class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")"
+           data-icon="📝">Nueva Solicitud</a>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Perfil <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/perfiles/st-rec-06-perfil-recepcionista"
+           class="@linkClass("/perfiles/st-rec-06-perfil-recepcionista")"
+           data-icon="👤">Perfil del Recepcionista</a>
+        <a href="/acceso-y-seguridad/cambiar-contrasena"
+           class="@linkClass("/acceso-y-seguridad/cambiar-contrasena")"
+           data-icon="🔐">Cambiar Contraseña</a>
+      </div>
+    </div>
+
+    <div class="nav-separator" aria-hidden="true"></div>
+
+    <a href="/acceso-y-seguridad/login"
+       class="nav-item nav-item--logout"
+       data-icon="🚪"
+       aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
+  </nav>
+
+  <div class="sidebar-user">
+    <div class="user-avatar" aria-hidden="true">@_recInitials</div>
+    <div class="user-info">
+      <span class="user-role">@_recName</span>
+      <span class="user-email">@_recEmail</span>
+    </div>
+  </div>
+
+</aside>

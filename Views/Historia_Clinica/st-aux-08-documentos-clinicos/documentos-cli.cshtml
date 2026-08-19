@@ -1,0 +1,189 @@
+@{ Layout = null; }
+
+﻿<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Carga de Documentos Clínicos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-aux-08-documentos-clinicos/documentos-cli.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb">
+          <span>Auxiliar</span>
+          <span class="bc-sep">→</span>
+          <span class="bc-active">Carga de documentos</span>
+        </nav>
+        <h1 class="page-title">Carga de Documentos Clínicos</h1>
+        <p class="page-subtitle">@ViewData["PacienteNombre"] · @ViewData["PacienteCodigoHC"]</p>
+      </div>
+    </header>
+
+    <!-- Layout -->
+    <div class="content-layout">
+
+      <!-- Columna izquierda: Formulario de carga -->
+      <div class="content-left">
+        <div class="card">
+          <h3 class="card-title">Adjuntar nuevo documento</h3>
+
+          <form id="uploadForm" novalidate>
+            <div class="form-group">
+              <label class="form-label" for="docType">Tipo de documento <span class="required">*</span></label>
+              <div class="select-wrapper">
+                <select class="form-select" id="docType" required>
+                  <option value="">Seleccionar tipo...</option>
+                  <option value="Radiografía panorámica">Radiografía panorámica</option>
+                  <option value="Radiografía periapical">Radiografía periapical</option>
+                  <option value="Fotografía inicial">Fotografía inicial</option>
+                  <option value="Fotografía final">Fotografía final</option>
+                  <option value="Examen de coagulación">Examen de coagulación</option>
+                  <option value="Consentimiento informado">Consentimiento informado</option>
+                  <option value="Historia clínica">Historia clínica</option>
+                  <option value="Otro">Otro</option>
+                </select>
+                <span class="error-message" id="error-docType">Selecciona un tipo</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="docDate">Fecha de expedición <span class="required">*</span></label>
+              <div class="date-input-wrapper">
+                <input type="date" class="form-input" id="docDate" required />
+                <span class="date-icon">📅</span>
+              </div>
+              <span class="error-message" id="error-docDate">Selecciona una fecha</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="docDesc">Descripción</label>
+              <input type="text" class="form-input" id="docDesc" placeholder="Descripción del documento..." />
+            </div>
+
+            <!-- Drag & Drop -->
+            <div class="drop-zone" id="dropZone" role="button" tabindex="0">
+              <input type="file" id="fileInput" class="file-input" accept=".jpg,.jpeg,.png,.pdf" />
+              <div class="drop-zone-content" id="dropContent">
+                <span class="folder-icon">📁</span>
+                <p class="drop-text-primary">Arrastra el archivo aquí</p>
+                <p class="drop-text-secondary">o haz clic para seleccionar</p>
+                <p class="drop-text-formats">JPG, PNG, PDF — Máx. 10MB</p>
+              </div>
+              <div class="file-preview" id="filePreview" style="display:none;">
+                <span class="file-icon" id="fileIcon"></span>
+                <div class="file-info">
+                  <p class="file-name" id="fileName"></p>
+                  <p class="file-size" id="fileSize"></p>
+                </div>
+                <button type="button" class="file-remove" id="btnRemoveFile">×</button>
+              </div>
+            </div>
+
+            <button type="submit" class="upload-btn" id="uploadBtn">Subir documento</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Columna derecha: Lista de documentos -->
+      <aside class="content-right">
+        <div class="card">
+          <h3 class="card-title">Documentos del paciente</h3>
+          <div class="docs-list" id="docsList">
+            <!-- Los documentos reales del paciente se cargan desde el servidor
+                 (ver cargarDocumentos() en documentos-cli.js). -->
+          </div>
+          <p id="docsEmptyState" class="doc-meta" style="display:none;padding:8px 0;">Este paciente no tiene documentos clínicos cargados todavía.</p>
+        </div>
+      </aside>
+
+    </div>
+
+  </main>
+
+  <!-- Modal de vista previa -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span class="modal-icon" id="modalIcon">📄</span>
+          <div>
+            <p class="modal-name" id="modalTitle"></p>
+            <p class="modal-role">Vista previa del documento</p>
+          </div>
+        </div>
+        <button class="modal-close" id="modalCloseBtn">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-doc-placeholder" id="modalPreview">
+          <span class="placeholder-icon">📄</span>
+          <p class="placeholder-text">Vista previa del documento</p>
+          <p class="placeholder-subtext">El archivo se cargará aquí</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="modal-btn modal-btn-secondary" id="modalCloseBtn2">Cerrar</button>
+        <button type="button" class="modal-btn modal-btn-primary" id="modalDownloadBtn">⬇ Descargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile nav -->
+  <nav class="mobile-nav">
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item"><span
+        class="mobile-nav-icon">📊</span><span>Panel</span></a>
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item"><span
+        class="mobile-nav-icon">📅</span><span>Agenda</span></a>
+    <a href="/gestion-de-citas/st-aux-05-historial-parcial" class="mobile-nav-item"><span
+        class="mobile-nav-icon">📋</span><span>Historial</span></a>
+    <a href="#" class="mobile-nav-item active"><span class="mobile-nav-icon">📎</span><span>Documentos</span></a>
+    <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item"><span
+        class="mobile-nav-icon">👤</span><span>Perfil</span></a>
+  </nav>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span style="font-size:1rem;">🦷</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+  <script src="@Url.Content("~/js/Historia_Clinica/st-aux-08-documentos-clinicos/documentos-cli.js")"></script>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+

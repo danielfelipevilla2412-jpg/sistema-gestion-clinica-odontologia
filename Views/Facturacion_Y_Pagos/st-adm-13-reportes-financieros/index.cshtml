@@ -1,0 +1,274 @@
+﻿﻿﻿﻿@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Consulta reportes financieros, ingresos y facturación en SmileTrack." />
+  <title>SmileTrack — Reportes Financieros</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-adm-13-reportes-financieros/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+
+  <!-- ----- HAMBURGER (mÓvil) ----- -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ----- MAIN ----- -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Administración</span>
+          <span class="bc-sep material-symbols-outlined" aria-hidden="true">chevron_right</span>
+          <span class="bc-active">Reportes Financieros</span>
+        </nav>
+        <h1 class="page-title">Reportes Financieros</h1>
+        <p class="page-subtitle">Análisis de ingresos y facturación del centro dental.</p>
+      </div>
+    </header>
+
+    <!-- KPI Cards con aria-live para contadores -->
+    <section class="stats-grid" aria-label="Resumen financiero">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-number" id="statIncome" data-target="18400000" aria-live="polite">$0</span>
+        <span class="stat-label">Ingresos del Mes</span>
+        <span class="stat-sub">+12% vs mes anterior</span>
+      </div>
+      <div class="stat-card" data-color="green">
+        <span class="stat-number" id="statReceived" data-target="14100000" aria-live="polite">$0</span>
+        <span class="stat-label">Pagos Recibidos</span>
+        <span class="stat-sub">76.6% cobrado</span>
+      </div>
+      <div class="stat-card" data-color="red">
+        <span class="stat-number" id="statPending" data-target="4200000" aria-live="polite">$0</span>
+        <span class="stat-label">Por Cobrar</span>
+        <span class="stat-sub">23 facturas pendientes</span>
+      </div>
+      <div class="stat-card" data-color="purple">
+        <span class="stat-number" id="statMargin" data-target="78" aria-live="polite">0%</span>
+        <span class="stat-label">Margen Neto</span>
+        <span class="stat-sub">+3% vs año pasado</span>
+      </div>
+    </section>
+
+    <!-- Gráficos: Barras + Donut accesibles -->
+    <section class="charts-grid" aria-label="Visualización de datos financieros">
+
+      <!-- Gráfico de barras: Ingresos mensuales -->
+      <div class="chart-card chart-bar" aria-labelledby="barChartTitle">
+        <div class="chart-header">
+          <div>
+            <h2 class="chart-title" id="barChartTitle">Ingresos Mensuales</h2>
+            <p class="chart-subtitle">últimos 6 meses (COP)</p>
+          </div>
+          <select id="filterYear" class="chart-select" aria-label="Seleccionar año">
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+          </select>
+        </div>
+        <div class="chart-container" role="img"
+          aria-label="Gráfico de barras: ingresos de diciembre a mayo, con mayo siendo el más alto en $18.4M">
+          <div id="barChart" class="bar-chart" aria-hidden="true">
+            <!-- Barras generadas por JS -->
+          </div>
+        </div>
+        <div class="chart-legend" role="list" aria-label="Leyenda de meses">
+          <!-- Leyenda generada por JS -->
+        </div>
+      </div>
+
+      <!-- Gráfico donut: Distribución por servicio -->
+      <div class="chart-card chart-donut" aria-labelledby="donutChartTitle">
+        <h2 class="chart-title" id="donutChartTitle">Por Servicio</h2>
+        <p class="chart-subtitle">Distribución de ingresos</p>
+        <div class="donut-wrapper">
+          <div id="donutChart" class="donut-chart" role="img"
+            aria-label="Gráfico circular: Ortodoncia 38%, Blanqueamiento 26%, Cirugía 18%, Otros 18%">
+            <!-- Donut generado por JS con conic-gradient accesible -->
+          </div>
+        </div>
+        <ul class="donut-legend" role="list" aria-label="Leyenda de servicios">
+          <li role="listitem" class="legend-item">
+            <span class="legend-color" style="background:#2563eb" aria-hidden="true"></span>
+            <span>Ortodoncia</span>
+            <strong>38%</strong>
+          </li>
+          <li role="listitem" class="legend-item">
+            <span class="legend-color" style="background:#16a34a" aria-hidden="true"></span>
+            <span>Blanqueamiento</span>
+            <strong>26%</strong>
+          </li>
+          <li role="listitem" class="legend-item">
+            <span class="legend-color" style="background:#d97706" aria-hidden="true"></span>
+            <span>Cirugía</span>
+            <strong>18%</strong>
+          </li>
+          <li role="listitem" class="legend-item">
+            <span class="legend-color" style="background:#7c3aed" aria-hidden="true"></span>
+            <span>Otros</span>
+            <strong>18%</strong>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Controles y filtros -->
+    <section class="controls-section">
+      <div class="filters-wrap">
+        <div class="search-wrap">
+          <span class="search-icon material-symbols-outlined" aria-hidden="true">search</span>
+          <input type="search" id="searchTransactions" class="search-input" placeholder="Buscar factura o paciente..."
+            aria-label="Buscar transacción">
+        </div>
+        <select id="filterMonth" class="filter-select" aria-label="Filtrar por mes">
+          <option value="">Todos los meses</option>
+          <option value="2026-05">Mayo 2026</option>
+          <option value="2026-04">Abril 2026</option>
+          <option value="2026-03">Marzo 2026</option>
+        </select>
+        <button class="btn-secondary" id="btnExport" aria-label="Exportar reporte a Excel">
+          <span class="material-symbols-outlined" aria-hidden="true">file_download</span> Exportar Excel
+        </button>
+      </div>
+    </section>
+
+    <!-- Tabla de transacciones -->
+    <section class="table-section" aria-labelledby="tableTitle">
+      <h2 class="visually-hidden" id="tableTitle">Lista de transacciones financieras</h2>
+
+      <!-- Cabecera de tabla accesible -->
+      <div class="table-header" role="row">
+        <div class="table-col col-numero" role="columnheader">N— Transacción</div>
+        <div class="table-col col-paciente" role="columnheader">Paciente</div>
+        <div class="table-col col-servicio" role="columnheader">Servicio</div>
+        <div class="table-col col-fecha" role="columnheader">Fecha</div>
+        <div class="table-col col-monto" role="columnheader">Monto</div>
+        <div class="table-col col-estado text-center" role="columnheader">Estado</div>
+        <div class="table-col col-accion text-right" role="columnheader">Acción</div>
+      </div>
+
+      <!-- Cuerpo de tabla con aria-live -->
+      <div id="transactionsBody" class="table-body" role="rowgroup" aria-live="polite">
+        <!-- Filas inyectadas por JS -->
+      </div>
+
+      <!-- Paginación accesible -->
+      <footer class="table-footer" aria-label="Navegación de páginas">
+        <span>Mostrando <strong id="pageShowing">5</strong> de <strong id="pageTotal">348</strong> transacciones</span>
+        <nav class="pagination" aria-label="Páginas de resultados">
+          <button class="pagination-btn" id="btnPrev" aria-label="Página anterior" disabled>—</button>
+          <button class="pagination-btn active" aria-current="page" aria-label="Página 1">1</button>
+          <button class="pagination-btn" aria-label="Página 2">2</button>
+          <button class="pagination-btn" aria-label="Página 3">3</button>
+          <span class="pagination-ellipsis">—</span>
+          <button class="pagination-btn" aria-label="Página 70">70</button>
+          <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">—</button>
+        </nav>
+      </footer>
+    </section>
+
+  </main>
+
+  <!-- Mobile bottom nav -->
+  <nav class="mobile-nav" aria-label="Navegación mÓvil">
+    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">dashboard</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios" class="mobile-nav-item">
+      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">groups</span>
+      <span>Usuarios</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">bar_chart</span>
+      <span>Reportes</span>
+    </a>
+    <a href="/facturacion-y-pagos/st-adm-12-facturacion" class="mobile-nav-item">
+      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">receipt_long</span>
+      <span>Facturación</span>
+    </a>
+    <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="mobile-nav-item">
+      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">settings</span>
+      <span>Config</span>
+    </a>
+  </nav>
+
+  <!-- Toast para notificaciones accesibles -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
+      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+  <script>
+    window.RAZOR_FINANCIAL_REPORT = @Html.Raw(ViewData["ReportesFinancierosJson"] ?? "null");
+  </script>
+  <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-adm-13-reportes-financieros/reportes.js")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+

@@ -1,0 +1,124 @@
+﻿@model SmileTrack_MVC.Models.ViewModels.CentroDeAyudaViewModel
+@* Vista del Centro de Ayuda usando el ViewModel simple con artículos y datos de soporte. *@
+@{
+    ViewData["Title"] = "SmileTrack - Centro de Ayuda";
+    Layout = null; // Cambia esto por tu _Layout.cshtml si esta vista debe usar un layout compartido
+    var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.ToLowerInvariant();
+    var sidebarPartial = role switch
+    {
+        "administrador" => "_SidebarAdmin",
+        "profesional" => "_SidebarProfesional",
+        "recepcionista" => "_SidebarRecepcionista",
+        "auxiliar" => "_SidebarAuxiliar",
+        "paciente" => "_SidebarPaciente",
+        _ => "_SidebarAdmin"
+    };
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/styles.css")">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Mobile Header -->
+        <div class="mobile-header">
+            <button id="menu-toggle" class="menu-btn">
+                <i class="fas fa-bars"></i>
+            </button>
+            <span class="mobile-title">SmileTrack</span>
+        </div>
+
+        <!-- Overlay for mobile -->
+        <div id="overlay" class="overlay"></div>
+
+        @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header Card with Support Button -->
+            <div class="header-card">
+                <div>
+                    <h1>Centro de Ayuda</h1>
+                    <p>Busca guías, tutoriales y soporte para tu clínica</p>
+                </div>
+                <button class="btn-support" type="button" aria-expanded="false">
+                    <i class="fas fa-headset"></i>
+                    <span>+ Soporte Directo</span>
+                </button>
+                <div id="support-panel" class="support-panel" hidden>
+                    <div class="support-panel-header">
+                        <i class="fas fa-circle-info"></i>
+                        <span>Canales de soporte</span>
+                    </div>
+                    <ul class="support-list">
+                        <li><i class="fas fa-comment-dots"></i> @Model.Support.ChatHours</li>
+                        <li><i class="fas fa-envelope"></i> @Model.Support.Email</li>
+                        <li><i class="fas fa-phone"></i> @Model.Support.Phone</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Articles Section -->
+            <section class="help-articles">
+                <div class="help-articles-header">
+                    <div>
+                        <h2>Artículos recomendados</h2>
+                        <p>Encuentra respuestas rápidas y pasos guiados para las tareas más comunes.</p>
+                    </div>
+                    <span class="article-count">@Model.Articles.Count artículos disponibles</span>
+                </div>
+            <div class="search-section">
+                <!-- Search Bar -->
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="search-input" placeholder="¿Cómo programar una cita?...">
+                    </div>
+                </div>
+
+                <!-- Articles -->
+                <div class="articles-section">
+                    <div class="articles-header">
+                        <h3>Artículos Recomendados</h3>
+                    </div>
+
+                    <!-- Article List -->
+                    <div class="article-list">
+                        @foreach (var article in Model.Articles)
+                        {
+                            <a href="@article.Url" class="article-item">
+                                <div class="article-icon">@article.Icono</div>
+                                <div class="article-content">
+                                    <span class="article-card-category">@article.Categoria</span>
+                                    <h4>@article.Titulo</h4>
+                                    <p>@article.Descripcion</p>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="@Url.Content("~/js/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/app.js")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")""></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+
+
+

@@ -1,0 +1,248 @@
+/* =============================================
+   SMILETRACK — MI PERFIL (styles.css)
+   Base unificada + componentes de perfil
+   ============================================= */
+
+/* Variables globales consistentes con el sistema SmileTrack */
+:root {
+  /* Variables base del sistema */
+  --sidebar-w: 220px;
+  --bg: #f4f6fb;
+  --white: #ffffff;
+  --primary: #1a56cc;
+  --primary-light: #eef2ff;
+  --green: #22c55e;
+  --orange: #f59e0b;
+  --purple: #9333ea;
+  --danger: #dc2626;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --shadow: 0 1px 4px rgba(0,0,0,.07);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.1);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: 'DM Sans', sans-serif;
+  --font-display: 'Syne', sans-serif;
+  --tr: .18s ease;
+
+  /* Variables específicas de perfil */
+  --avatar-bg: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  --avatar-text: #1d4ed8;
+  --status-active-bg: #dcfce7;
+  --status-active-text: #166534;
+  --strength-weak: #ef4444;
+  --strength-medium: #f59e0b;
+  --strength-strong: #22c55e;
+  
+  /* Variables para formularios y consistencia */
+  --input-focus-ring: rgba(26, 86, 204, 0.15);
+  --input-error-bg: #fee2e2;
+  --input-error-border: #ef4444;
+  --input-error-text: #991b1b;
+  --radius-full: 9999px;
+}
+
+/* Reset y configuración base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; scroll-behavior: smooth; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+a { text-decoration: none; color: inherit; }
+button { font-family: inherit; cursor: pointer; }
+img { max-width: 100%; height: auto; display: block; }
+
+/* Enlace para saltar al contenido principal, accesibilidad keyboard-first */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--primary);
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 1000;
+  transition: top var(--tr);
+}
+.skip-link:focus { top: 0; }
+
+/* Indicador visual de foco para navegación con teclado */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Contenido solo para lectores de pantalla */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Soporte para usuarios que prefieren menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
+
+/* ═══ SIDEBAR (IDÉNTICO A st-aux-01 - SIN MODIFICAR DISEÑO) ═══ */
+.sidebar { width: var(--sidebar-w); background: linear-gradient(180deg, #0f2057 0%, #1a3580 100%); color: #c8d3e8; display: flex; flex-direction: column; padding: 20px 0 16px; position: fixed; top: 0; left: 0; bottom: 0; z-index: 200; transition: transform var(--tr); }
+.sidebar-logo { padding: 0 18px 20px; border-bottom: 1px solid rgba(255,255,255,.1); margin-bottom: 10px; text-align: center; }
+.logo-img { width: 100%; max-width: 150px; height: auto; display: block; object-fit: contain; border-radius: 8px; }
+.sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 10px; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); text-decoration: none; color: #8fa3c8; font-size: .84rem; font-weight: 500; transition: background var(--tr), color var(--tr); }
+.nav-item--logout { color: #f87171; margin-top: auto; }
+.nav-item--logout:hover { background: rgba(239,68,68,.15); color: #fca5a5; }
+.nav-item::before { content: attr(data-icon); font-size: 15px; }
+.nav-item:hover { background: rgba(255,255,255,.08); color: #dce6f5; }
+.nav-item.active { background: var(--primary); color: #fff; }
+.nav-separator { height: 1px; background: rgba(255,255,255,.1); margin: 8px 10px; }
+.sidebar-user { display: flex; align-items: center; gap: 10px; padding: 14px 14px 0; border-top: 1px solid rgba(255,255,255,.1); margin-top: 10px; }
+.user-avatar { width: 34px; height: 34px; border-radius: 50%; background: #2563eb; color: #fff; display: flex; align-items: center; justify-content: center; font-size: .73rem; font-weight: 700; flex-shrink: 0; }
+.user-info { display: flex; flex-direction: column; overflow: hidden; }
+.user-role { font-size: .75rem; color: #e2e8f0; font-weight: 600; }
+.user-email { font-size: .68rem; color: #6a80a8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ═══ HAMBURGER (IDÉNTICO A st-aux-01) ═══ */
+.hamburger { display: none; position: fixed; top: 14px; left: 14px; z-index: 300; background: #0f2057; border: none; border-radius: 8px; padding: 9px 10px; cursor: pointer; flex-direction: column; gap: 5px; }
+.hamburger span { display: block; width: 20px; height: 2px; background: #fff; border-radius: 2px; }
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 150; }
+
+/* ═══ MAIN & HEADER (IDÉNTICO A st-aux-01) ═══ */
+.main { margin-left: var(--sidebar-w); flex: 1; padding: 24px 28px 40px; min-width: 0; animation: fadeIn .3s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.page-header { background: var(--white); border-radius: var(--radius); padding: 16px 22px; margin-bottom: 18px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+.breadcrumb { font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
+.page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; color: var(--primary); }
+.page-subtitle { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
+.greeting { font-size: 1rem; font-weight: 500; color: var(--primary); margin-bottom: 4px; }
+
+/* ═══ LAYOUT DE PERFIL ═══ */
+.profile-layout { display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; }
+
+/* ═══ TARJETA DE PERFIL ═══ */
+.profile-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
+.profile-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.avatar-large { width: 64px; height: 64px; border-radius: 50%; background: var(--avatar-bg); color: var(--avatar-text); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; flex-shrink: 0; }
+.profile-title { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--primary); margin: 0; }
+.btn-edit { padding: 8px 16px; background: var(--white); border: 1.5px solid var(--primary); border-radius: var(--radius-sm); color: var(--primary); font-weight: 600; font-size: .8rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background var(--tr); }
+.btn-edit:hover { background: var(--primary-light); }
+.btn-edit:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Grid de información personal */
+.info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.info-group { display: flex; flex-direction: column; gap: 4px; }
+.info-label { font-size: .7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.info-value { font-size: .85rem; color: var(--text); font-weight: 500; padding: 6px 0; }
+
+/* Badge de estado de cuenta */
+.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: .72rem; font-weight: 600; }
+.status-badge.active { background: var(--status-active-bg); color: var(--status-active-text); }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* Barra de progreso de perfil */
+.profile-progress { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.progress-bar-bg { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+.progress-bar-fill { height: 100%; background: var(--green); border-radius: 4px; transition: width .3s ease; }
+.progress-text { font-size: .75rem; color: var(--text-muted); }
+
+/* ═══ TARJETA DE CONTRASEÑA ═══ */
+.password-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
+.password-title { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--primary); margin-bottom: 16px; }
+
+/* Formulario de contraseña con validación */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: .78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.form-label .required { color: var(--danger); margin-left: 2px; }
+.input-with-icon { position: relative; }
+.form-input { width: 100%; padding: 9px 12px 9px 36px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: .85rem; font-family: var(--font); background: var(--white); color: var(--text); outline: none; transition: border-color var(--tr); }
+.form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--input-focus-ring); }
+.form-input.error { border-color: var(--input-error-border); background: var(--input-error-bg); }
+.error-message { font-size: .72rem; color: var(--input-error-text); display: none; margin-top: 4px; }
+.error-message.visible { display: block; }
+.form-input.error + .error-message, .form-input.error ~ .error-message { display: block; }
+
+/* Toggle de visibilidad de contraseña */
+.toggle-password { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1rem; color: var(--text-muted); padding: 4px; transition: color var(--tr); z-index: 1; }
+.toggle-password:hover { color: var(--primary); }
+.toggle-password:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Indicador de fuerza de contraseña accesible */
+.password-strength { height: 4px; border-radius: 2px; background: var(--border); margin-top: 6px; transition: all var(--tr); position: relative; overflow: hidden; }
+.password-strength::after { content: ''; position: absolute; top: 0; left: 0; height: 100%; border-radius: 2px; transition: width var(--tr), background var(--tr); }
+.password-strength.weak::after { background: var(--strength-weak); width: 33%; }
+.password-strength.medium::after { background: var(--strength-medium); width: 66%; }
+.password-strength.strong::after { background: var(--strength-strong); width: 100%; }
+
+/* Requisitos de contraseña */
+.password-requirements { display: block; font-size: .7rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+
+.divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+/* Botón de actualización */
+.btn-update { width: 100%; padding: 10px 16px; background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
+.btn-update:hover { background: #1547a8; }
+.btn-update:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+.btn-update:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ═══ TOAST NOTIFICATIONS ═══ */
+
+
+/* ═══ MOBILE BOTTOM NAV ═══ */
+.mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--white); border-top: 1px solid var(--border); padding: 8px 0; z-index: 100; justify-content: space-around; align-items: center; height: 56px; }
+.mobile-nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 8px; border-radius: var(--radius-sm); font-size: .65rem; font-weight: 600; color: var(--text-muted); transition: color var(--tr), background var(--tr); }
+.mobile-nav-item.active { color: var(--primary); background: var(--primary-light); }
+.mobile-nav-item:hover:not(.active) { color: var(--primary); }
+.mobile-nav-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.mobile-nav-icon { font-size: 1.2rem; }
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 1100px) { .profile-layout { grid-template-columns: 1fr; } .password-card { width: 100%; } }
+@media (max-width: 680px) {
+  .hamburger { display: flex; }
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-md); }
+  .overlay.open { display: block; }
+  .main { margin-left: 0; padding: 58px 14px 32px; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .profile-header { flex-direction: column; text-align: center; }
+  .btn-edit { width: 100%; justify-content: center; }
+  .info-grid { grid-template-columns: 1fr; }
+  .mobile-nav { display: flex; }
+
+}
+
+/* ═══ PRINT STYLES ═══ */
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .sidebar, .hamburger, .overlay, .mobile-nav, .toast, .btn-edit, .btn-update { display: none !important; }
+  .main { margin-left: 0 !important; padding: 0 !important; }
+  .profile-card, .password-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+  @page { size: letter; margin: 1.5cm; }
+}
+/* ═════ NUEVO: SOLO PARA COMPORTAMIENTO DESPLEGABLE ═════ */
+.nav-group { margin-bottom: 6px; }
+.nav-group-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; cursor: pointer; user-select: none;
+  font-size: .84rem; font-weight: 600; color: #c8d3e8;
+  border-radius: var(--radius-sm);
+  transition: background var(--tr), color var(--tr);
+}
+.nav-group-header:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-group-header:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.nav-arrow { font-size: .65rem; transition: transform 0.25s ease; opacity: 0.7; }
+.nav-group-items {
+  display: flex; flex-direction: column; gap: 2px;
+  overflow: hidden; transition: max-height 0.3s ease;
+}
+/* Pequeña indentación visual para diferenciar sub-menú */
+.nav-group-items .nav-item { padding-left: 24px; }

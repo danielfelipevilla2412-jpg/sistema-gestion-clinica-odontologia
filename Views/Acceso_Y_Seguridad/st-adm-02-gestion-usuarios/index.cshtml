@@ -1,0 +1,268 @@
+﻿@{
+    ViewData["Title"] = "Gestión de Usuarios";
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Gestión de usuarios y roles del sistema SmileTrack" />
+  <title>SmileTrack — Gestión de Usuarios</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/st-adm-02-gestion-usuarios/styles.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <!-- ═════ SIDEBAR UNIFICADO (Activo: Gestión Usuarios) ═════ -->
+   <!-- ═════ SIDEBAR UNIFICADO - ADMINISTRADOR (Con módulos desplegables) ═════ -->
+  
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Administración</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Gestión de Usuarios</span>
+        </nav>
+        <h1 class="page-title">Gestión de Usuarios</h1>
+        <p class="page-subtitle">Administra usuarios y roles del sistema SmileTrack</p>
+      </div>
+      <button class="btn-primary" id="btnAddUser" aria-label="Crear nuevo usuario">
+        + Nuevo usuario
+      </button>
+    </header>
+
+    <!-- Stats Grid -->
+    <section class="stats-grid" aria-label="Estadísticas de usuarios">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-number" id="statTotal" data-target="15" aria-live="polite">0</span>
+        <span class="stat-label">Total usuarios</span>
+      </div>
+      <div class="stat-card" data-color="green">
+        <span class="stat-number" id="statActive" data-target="12" aria-live="polite">0</span>
+        <span class="stat-label">Activos</span>
+      </div>
+      <div class="stat-card" data-color="red">
+        <span class="stat-number" id="statBlocked" data-target="2" aria-live="polite">0</span>
+        <span class="stat-label">Bloqueados</span>
+      </div>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number" id="statInactive" data-target="1" aria-live="polite">0</span>
+        <span class="stat-label">Inactivos</span>
+      </div>
+    </section>
+
+    <!-- Filtros -->
+    <section class="filters-section" aria-label="Filtros de búsqueda">
+      <div class="filters-row">
+        <div class="search-wrap">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input type="search" id="searchUser" class="search-input" placeholder="Buscar por nombre o correo..."
+            aria-label="Buscar usuario">
+        </div>
+        <div class="filter-wrap">
+          <label for="filterRole" class="visually-hidden">Filtrar por rol</label>
+          <select id="filterRole" class="status-select" aria-label="Filtrar usuarios por rol">
+            <option value="">Todos los roles</option>
+            <option value="Administrador">Administrador</option>
+            <option value="Recepcionista">Recepcionista</option>
+            <option value="Profesional">Profesional</option>
+            <option value="Auxiliar">Auxiliar</option>
+            <option value="Paciente">Paciente</option>
+          </select>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterStatus" class="visually-hidden">Filtrar por estado</label>
+          <select id="filterStatus" class="status-select" aria-label="Filtrar usuarios por estado">
+            <option value="">Todos los estados</option>
+            <option value="Activo">Activo</option>
+            <option value="Inactivo">Inactivo</option>
+            <option value="Bloqueado">Bloqueado</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabla de usuarios -->
+    <section class="table-card" aria-labelledby="usersTitle">
+      <h2 class="visually-hidden" id="usersTitle">Lista de usuarios</h2>
+      <div class="table-wrap">
+        <table id="usersTable" class="table-base" aria-label="Tabla de usuarios del sistema">
+          <thead>
+            <tr>
+              <th scope="col">USUARIO</th>
+              <th scope="col">CORREO</th>
+              <th scope="col">ROL</th>
+              <th scope="col">ESTADO</th>
+              <th scope="col">ÚLTIMO ACCESO</th>
+              <th scope="col">ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody id="usersTbody" aria-live="polite">
+            <!-- Filas inyectadas por JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Paginación -->
+      <div class="pagination" role="navigation" aria-label="Paginación de usuarios">
+        <span id="paginationInfo" aria-live="polite">Mostrando 1-5 de 15 usuarios</span>
+        <div class="pagination-buttons" id="paginationButtons">
+          <!-- Botones generados por JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal: Crear Usuario -->
+  <div class="modal-overlay" id="modalAddUser" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
+    aria-hidden="true" inert>
+    <div class="modal">
+      <button class="modal-close" id="modalClose" aria-label="Cerrar ventana">×</button>
+      <h2 class="modal-title" id="modalTitle">Crear Nuevo Usuario</h2>
+      <form id="formAddUser" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="userName">Nombre Completo</label>
+          <input type="text" id="userName" class="form-input" required placeholder="Ej. Dr. Andrés Soto">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="userEmail">Correo Electrónico</label>
+          <input type="email" id="userEmail" class="form-input" required placeholder="Ej. asoto@smiletrack.co">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="userRole">Rol</label>
+            <select id="userRole" class="form-input" required>
+              <option value="Administrador">Administrador</option>
+              <option value="Recepcionista">Recepcionista</option>
+              <option value="Profesional">Profesional</option>
+              <option value="Auxiliar">Auxiliar</option>
+              <option value="Paciente">Paciente</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="userStatus">Estado</label>
+            <select id="userStatus" class="form-input" required>
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+              <option value="Bloqueado">Bloqueado</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="modalCancel">Cancelar</button>
+          <button type="submit" class="btn-primary">Guardar Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Mobile bottom nav -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon" aria-hidden="true">👥</span>
+      <span>Usuarios</span>
+    </a>
+    <a href="/acceso-y-seguridad/st-adm-03-gestion-roles" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">🔑</span>
+      <span>Roles</span>
+    </a>
+    <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span>Agenda</span>
+    </a>
+    <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">⚙️</span>
+      <span>Config</span>
+    </a>
+  </nav>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+  <!-- En footer.js, modificar el HTML inyectado -->
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span style="font-size:1rem;">🦷</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+  
+<script>
+  window.RAZOR_USERS = @Html.Raw(ViewData["UsuariosJson"] ?? "[]");
+</script>
+<script src="@Url.Content("~/js/Acceso_Y_Seguridad/st-adm-02-gestion-usuarios/script.js")"></script>
+    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+</html>
+
+
+
+

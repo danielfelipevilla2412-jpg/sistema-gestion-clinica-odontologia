@@ -1,0 +1,107 @@
+@{
+    var currentPath = Context.Request.Path.Value ?? "/";
+
+    string linkState(string href) =>
+        currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+
+    var groups = new[]
+    {
+        new
+        {
+            Title = "Inicio",
+            Items = new[]
+            {
+                new { Label = "Inicio", Href = "/", Icon = "🏠" }
+            }
+        },
+        new
+        {
+            Title = "Mis citas",
+            Items = new[]
+            {
+                new { Label = "Mis citas", Href = "/gestion-de-citas/st-pac-01-mis-citas", Icon = "📅" },
+                new { Label = "Notificaciones", Href = "/gestion-de-citas/st-pac-03-notificaciones", Icon = "🔔" }
+            }
+        },
+        new
+        {
+            Title = "Mi historial",
+            Items = new[]
+            {
+                new { Label = "Mi historial", Href = "/historia-clinica/st-pac-02-historial", Icon = "📋" }
+            }
+        },
+        new
+        {
+            Title = "PQR",
+            Items = new[]
+            {
+                new { Label = "Nueva Solicitud", Href = "/gestion-de-pqr/st-pac-04-nueva-pqr", Icon = "📮" }
+            }
+        },
+        new
+        {
+            Title = "Gestión de Ayuda",
+            Items = new[]
+            {
+                new { Label = "Centro de Ayuda", Href = "/centro-de-ayuda/guias-tutoriales", Icon = "❓" },
+                new { Label = "Nueva Solicitud", Href = "/gestion-de-pqr/st-pac-04-nueva-pqr", Icon = "📝" }
+            }
+        },
+        new
+        {
+            Title = "Mi perfil",
+            Items = new[]
+            {
+                new { Label = "Mi perfil", Href = "/perfiles/st-pac-perfil-paciente", Icon = "👤" },
+                new { Label = "Cambiar Contraseña", Href = "/acceso-y-seguridad/cambiar-contrasena", Icon = "🔐" }
+            }
+        }
+    };
+}
+
+<aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <div class="sidebar-logo">
+        <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
+    </div>
+
+    <nav class="sidebar-nav">
+        @foreach (var group in groups)
+        {
+            <div class="nav-group">
+                <div class="nav-group-header" role="button" tabindex="0">
+                    @group.Title
+                    <span class="nav-arrow" aria-hidden="true">▼</span>
+                </div>
+
+                <div class="nav-group-items">
+                    @foreach (var item in group.Items)
+                    {
+                        <a href="@item.Href"
+                           class="@linkState(item.Href)"
+                           data-icon="@item.Icon">
+                            @item.Label
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="nav-separator" aria-hidden="true"></div>
+
+        <a href="/acceso-y-seguridad/login"
+           class="nav-item nav-item--logout"
+           data-icon="🚪"
+           aria-label="Cerrar sesión y volver al login">
+            Cerrar sesión
+        </a>
+    </nav>
+
+    <div class="sidebar-user">
+        <div class="user-avatar" aria-hidden="true">PA</div>
+        <div class="user-info">
+            <span class="user-role">Paciente</span>
+            <span class="user-email">paciente@smiletrack.co</span>
+        </div>
+    </div>
+</aside>

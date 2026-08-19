@@ -1,0 +1,352 @@
+@* ============================================
+SmileTrack — Dashboard del Odontólogo (st-odo-01-dashboard)
+============================================
+Autor: Johan Santamaria
+Fecha: 29/07/2026
+
+DESCRIPCIÓN:
+Vista de dashboard personal del odontólogo que muestra un resumen del día: próximas citas, procedimientos pendientes, estadísticas de la jornada y accesos directos a las funciones más usadas.
+
+FUNCIONALIDADES PRINCIPALES:
+- Tarjetas de métricas de la jornada (citas atendidas, pendientes, canceladas) con animación de conteo
+- Lista de próximas citas del día con estado visual por color de badge
+- Panel de accesos rápidos a agenda, reportes y perfil del profesional
+- Notificaciones activas del sistema con capacidad de dismissal individual
+
+DEPENDENCIAS TÉCNICAS:
+- Controller: GestionProfesionalesController o DashboardOdontologoController
+- CSS: ~/css/Gestion_De_Profesionales/st-odo-01-dashboard/styles.css
+- JS: ~/js/Gestion_De_Profesionales/st-odo-01-dashboard/app.js
+- Partial / Otros: Layout = null (standalone)
+
+NOTAS DE MANTENIMIENTO:
+- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+- Los contadores de métricas se animan al cargar la vista para atraer la atención del profesional hacia los KPIs del día.
+============================================ *@
+@{ Layout = null; }
+
+﻿<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Dashboard General de SmileTrack - Sistema de Gestión Dental" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>SmileTrack — Dashboard General</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Profesionales/st-odo-01-dashboard/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Administración</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Dashboard</span>
+        </nav>
+        <h1 class="page-title">Dashboard General</h1>
+        <p class="page-subtitle">
+          Resumen en tiempo real ·
+          <time datetime="2026-03-24" id="headerDate">martes 24 de marzo 2026</time>
+        </p>
+      </div>
+      <button class="btn-primary" id="btnExport" aria-label="Exportar reporte en PDF y Excel">
+        📊 Exportar reporte
+      </button>
+    </header>
+
+    <!-- Barra de progreso superior -->
+    <div class="progress-row" role="progressbar" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"
+      aria-label="Progreso del sistema: 75%">
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="topProgressBar" style="width:75%"></div>
+      </div>
+      <span class="progress-label" aria-live="polite">Sistema operativo</span>
+    </div>
+
+    <!-- Stats Grid -->
+    <section class="stats-grid" aria-label="Métricas principales">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-number" id="statPacientes" data-target="@(ViewData["OdoPacientesActivos"] ?? 0)" aria-live="polite">0</span>
+        <span class="stat-label">Pacientes del mes</span>
+      </div>
+      <div class="stat-card" data-color="green">
+        <span class="stat-number" id="statCitas" data-target="@(ViewData["OdoCitasHoy"] ?? 0)" aria-live="polite">0</span>
+        <span class="stat-label">Citas hoy</span>
+      </div>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number" id="statProfesionales" data-target="@(ViewData["OdoCitasAtendidas"] ?? 0)" aria-live="polite">0</span>
+        <span class="stat-label">Citas atendidas</span>
+      </div>
+      <div class="stat-card" data-color="purple">
+        <span class="stat-number" id="statIngresos" aria-live="polite">$@(Convert.ToDecimal(ViewData["OdoIngresosMes"] ?? 0).ToString("N0"))</span>
+        <span class="stat-label">Ingresos del mes</span>
+      </div>
+    </section>
+
+    <!-- Content Grid -->
+    <div class="content-grid">
+
+      <!-- Columna izquierda: Gráficos -->
+      <div class="content-left">
+
+        <!-- Gráfico de ingresos -->
+        <section class="card" aria-labelledby="revenueTitle">
+          <h2 class="card-title" id="revenueTitle">Ingresos por mes — 2026</h2>
+          <div class="chart-container" id="revenueChart" role="img" aria-label="Gráfico de barras: ingresos mensuales">
+            <div class="chart-row">
+              <span class="chart-label">Enero</span>
+              <div class="chart-bar-bg">
+                <div class="chart-bar-fill blue" data-width="65" style="width:0" role="progressbar" aria-valuenow="65"
+                  aria-valuemin="0" aria-valuemax="100" aria-label="Enero: $3.1M, 65% del máximo"></div>
+              </div>
+              <span class="chart-val">$3.1M</span>
+            </div>
+            <div class="chart-row">
+              <span class="chart-label">Febrero</span>
+              <div class="chart-bar-bg">
+                <div class="chart-bar-fill blue" data-width="75" style="width:0" role="progressbar" aria-valuenow="75"
+                  aria-valuemin="0" aria-valuemax="100" aria-label="Febrero: $3.7M, 75% del máximo"></div>
+              </div>
+              <span class="chart-val">$3.7M</span>
+            </div>
+            <div class="chart-row">
+              <span class="chart-label">Marzo</span>
+              <div class="chart-bar-bg">
+                <div class="chart-bar-fill green" data-width="85" style="width:0" role="progressbar" aria-valuenow="85"
+                  aria-valuemin="0" aria-valuemax="100" aria-label="Marzo: $4.2M, 85% del máximo"></div>
+              </div>
+              <span class="chart-val">$4.2M</span>
+            </div>
+          </div>
+          <p class="chart-summary" aria-live="polite">↑ 13.5% vs mes anterior</p>
+        </section>
+
+        <!-- Últimos pacientes atendidos -->
+        <section class="card" aria-labelledby="topProfTitle">
+          <h2 class="card-title" id="topProfTitle">Últimos pacientes atendidos</h2>
+          <div class="table-wrap">
+            <table class="table-base" aria-label="Tabla de últimos pacientes atendidos">
+              <thead>
+                <tr>
+                  <th scope="col">Paciente</th>
+                  <th scope="col" style="text-align:center">Servicio</th>
+                  <th scope="col" style="text-align:right">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                @{
+                  var avatarColors = new[] { "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444" };
+                  var ultimosPacientes = ViewData["OdoUltimosPacientes"] as List<SmileTrack_MVC.Models.Entities.Cita> ?? new();
+                  if (ultimosPacientes.Any())
+                  {
+                    int colorIdx = 0;
+                    foreach (var cita in ultimosPacientes)
+                    {
+                      var nombrePaciente = $"{cita.Paciente?.Nombres} {cita.Paciente?.Apellidos}".Trim();
+                      var initials = string.Concat(nombrePaciente.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
+                      var color = avatarColors[colorIdx % avatarColors.Length];
+                      colorIdx++;
+                      <tr>
+                        <td style="display:flex; align-items:center; gap:10px;">
+                          <div class="td-avatar" style="background:@color; color:#fff; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:700; flex-shrink:0;">@initials</div>
+                          <span class="td-name">@nombrePaciente</span>
+                        </td>
+                        <td style="text-align:center"><span class="badge-spec">@(cita.Servicio?.Nombre ?? "Consulta")</span></td>
+                        <td style="text-align:right; font-size:.85rem; color:var(--text-muted);">@cita.FechaHora.ToString("dd MMM")</td>
+                      </tr>
+                    }
+                  }
+                  else
+                  {
+                    <tr>
+                      <td colspan="3" style="text-align:center; color:var(--text-muted); padding:16px;">No hay pacientes atendidos este mes.</td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Columna derecha: Estado e invoices -->
+      <div class="content-right">
+        @{
+            var totalCitas = (int)(ViewData["OdoTotalCitasMes"] ?? 0);
+            var pctAtendidas = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasAtendidas"] ?? 0) / totalCitas * 100) : 0;
+            var pctProgramadas = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasProgramadas"] ?? 0) / totalCitas * 100) : 0;
+            var pctCanceladas = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasCanceladas"] ?? 0) / totalCitas * 100) : 0;
+            var pctNoAsistio = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasNoAsistio"] ?? 0) / totalCitas * 100) : 0;
+        }
+
+        <!-- Estado de citas -->
+        <section class="card" aria-labelledby="statusTitle">
+          <h2 class="card-title" id="statusTitle">Tus citas del mes</h2>
+          <div class="status-chart" id="statusChart" role="img" aria-label="Gráfico de estado de citas">
+            <div class="status-row">
+              <span class="status-label">Atendidas</span>
+              <div class="status-bar-bg">
+                <div class="status-bar-fill green" data-width="@pctAtendidas" style="width:0" role="progressbar" aria-valuenow="@pctAtendidas"
+                  aria-valuemin="0" aria-valuemax="100" aria-label="Atendidas: @(ViewData["OdoCitasAtendidas"] ?? 0) citas, @pctAtendidas%"></div>
+              </div>
+              <span class="status-val">@(ViewData["OdoCitasAtendidas"] ?? 0)</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">Programadas</span>
+              <div class="status-bar-bg">
+                <div class="status-bar-fill blue" data-width="@pctProgramadas" style="width:0" role="progressbar" aria-valuenow="@pctProgramadas"
+                  aria-valuemin="0" aria-valuemax="100" aria-label="Programadas: @(ViewData["OdoCitasProgramadas"] ?? 0) citas, @pctProgramadas%"></div>
+              </div>
+              <span class="status-val">@(ViewData["OdoCitasProgramadas"] ?? 0)</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">Canceladas</span>
+              <div class="status-bar-bg">
+                <div class="status-bar-fill red" data-width="@pctCanceladas" style="width:0" role="progressbar" aria-valuenow="@pctCanceladas"
+                  aria-valuemin="0" aria-valuemax="100" aria-label="Canceladas: @(ViewData["OdoCitasCanceladas"] ?? 0) citas, @pctCanceladas%"></div>
+              </div>
+              <span class="status-val">@(ViewData["OdoCitasCanceladas"] ?? 0)</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">No asistió</span>
+              <div class="status-bar-bg">
+                <div class="status-bar-fill orange" data-width="@pctNoAsistio" style="width:0" role="progressbar"
+                  aria-valuenow="@pctNoAsistio" aria-valuemin="0" aria-valuemax="100" aria-label="No asistió: @(ViewData["OdoCitasNoAsistio"] ?? 0) citas, @pctNoAsistio%"></div>
+              </div>
+              <span class="status-val">@(ViewData["OdoCitasNoAsistio"] ?? 0)</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Próximas citas -->
+        <section class="card" aria-labelledby="invoicesTitle">
+          <h2 class="card-title" id="invoicesTitle">Próximas citas de hoy</h2>
+          <div class="invoices-list" role="list">
+            @{
+                var proximasCitas = ViewData["OdoProximasCitas"] as List<SmileTrack_MVC.Models.Entities.Cita> ?? new();
+                if (proximasCitas.Any())
+                {
+                    foreach (var cita in proximasCitas)
+                    {
+                        <div class="invoice-item" role="listitem">
+                          <div>
+                            <p class="invoice-code">@(cita.HoraInicio?.ToString(@"hh\:mm") ?? "00:00")</p>
+                            <p class="invoice-desc">Paciente: @(cita.Paciente?.Nombres ?? "N/A") @(cita.Paciente?.Apellidos ?? "")</p>
+                          </div>
+                          <p class="invoice-amount" style="font-size: 0.9rem; font-weight: 500;">@(cita.Servicio?.Nombre ?? "Consulta")</p>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p style="padding: 16px; color: var(--text-muted); font-size: 0.9rem;">No tienes más citas programadas para hoy.</p>
+                }
+            }
+          </div>
+        </section>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Mobile bottom nav -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item active"
+      aria-current="page">
+      <span class="mobile-nav-icon" aria-hidden="true">🏠</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span>Agenda</span>
+    </a>
+    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional"
+      class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
+      <span>Perfil</span>
+    </a>
+  </nav>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+  <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-odo-01-dashboard/app.js")"></script>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
+</body>
+
+</html>

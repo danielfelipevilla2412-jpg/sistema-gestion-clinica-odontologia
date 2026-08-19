@@ -1,0 +1,347 @@
+@{
+  Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Registrar Paciente</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+  href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+  rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+  <link rel="stylesheet"
+        href="@Url.Content("~/css/Gestion_De_Pacientes/st-rec-02-registrar-paciente/nuevo_paciente.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- [MEJORA]: Skip link para accesibilidad keyboard-first (consistente con módulos anteriores) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  @{
+    await Html.RenderPartialAsync("_SidebarRecepcionista");
+  }
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <!-- [MEJORA]: aria-expanded y aria-controls para accesibilidad de menú móvil -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <!-- [MEJORA]: aria-hidden inicial para overlay -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Page header -->
+    <header class="page-header">
+      <div class="header-left">
+        <div class="breadcrumb">Recepción → Pacientes → Registrar</div>
+        <h1 class="page-title">Registrar Nuevo Paciente</h1>
+        <p class="page-subtitle">El sistema creará automáticamente su historia clínica</p>
+      </div>
+    </header>
+
+    <!-- Stepper multipaso -->
+    <!-- [MEJORA]: role="tablist" ya presente, agregamos aria-orientation para claridad -->
+    <div class="stepper" role="tablist" aria-label="Progreso de registro" aria-orientation="horizontal">
+      <button class="step-btn" id="stepBtn1" role="tab" aria-selected="true" aria-controls="stepContent1" tabindex="0">
+        <span class="step-num active" id="stepNum1" aria-hidden="true">1</span>
+        <span class="step-label active" id="stepLabel1">Datos personales</span>
+      </button>
+      <div class="step-connector" id="stepConnector" aria-hidden="true"></div>
+      <button class="step-btn" id="stepBtn2" role="tab" aria-selected="false" aria-controls="stepContent2"
+              tabindex="-1">
+        <span class="step-num inactive" id="stepNum2" aria-hidden="true">2</span>
+        <span class="step-label inactive" id="stepLabel2">Agendar cita</span>
+      </button>
+    </div>
+
+    <!-- Formulario principal -->
+    <!-- [MEJORA]: aria-describedby para instrucciones de validación -->
+    <form id="patientForm" novalidate aria-describedby="formInstructions">
+      @Html.AntiForgeryToken()
+      <span id="formInstructions" class="visually-hidden">Los campos marcados con asterisco son obligatorios</span>
+
+      <!-- PASO 1: Datos Personales -->
+      <div class="step-content active" id="stepContent1" role="tabpanel" aria-labelledby="stepBtn1">
+
+        <!-- Card: Datos personales -->
+        <section class="form-card" aria-labelledby="cardTitle1">
+          <h2 class="form-card-title" id="cardTitle1">
+            <span>Datos personales</span>
+            <span class="required" aria-hidden="true">* Campos obligatorios</span>
+          </h2>
+
+          <div class="form-grid">
+            <!-- Nombres -->
+            <div class="form-group">
+              <label class="form-label" for="nombres">Nombres <span class="required" aria-hidden="true">*</span></label>
+              <input type="text" id="nombres" name="nombres" class="form-input" placeholder="Ej. Juan Sebastián"
+                     required value="Juan Sebastián" autocomplete="given-name" />
+              <span class="error-message" id="error-nombres" role="alert" aria-live="polite">Por favor ingresa los
+                nombres.</span>
+              </div>
+
+              <!-- Apellidos -->
+              <div class="form-group">
+                <label class="form-label" for="apellidos">Apellidos <span class="required"
+                                                                            aria-hidden="true">*</span></label>
+                  <input type="text" id="apellidos" name="apellidos" class="form-input" placeholder="Ej. Morales Rincón"
+                         required value="Morales Rincón" autocomplete="family-name" />
+                  <span class="error-message" id="error-apellidos" role="alert" aria-live="polite">Por favor ingresa los
+                    apellidos.</span>
+                  </div>
+
+                  <!-- Tipo de documento -->
+                  <div class="form-group">
+                    <label class="form-label" for="tipoDoc">Tipo de documento <span class="required"
+                                                                                      aria-hidden="true">*</span></label>
+                      <select id="tipoDoc" name="tipoDoc" class="form-select" required autocomplete="off">
+                        <option value="">Seleccione...</option>
+                        <option value="CC" selected>CC — Cédula de ciudadanía</option>
+                        <option value="TI">TI — Tarjeta de identidad</option>
+                        <option value="CE">CE — Cédula de extranjería</option>
+                      </select>
+                      <span class="error-message" id="error-tipoDoc" role="alert" aria-live="polite">Por favor selecciona un
+                        tipo de documento.</span>
+                      </div>
+
+                      <!-- Número de documento -->
+                      <div class="form-group">
+                        <label class="form-label" for="documento">Número de documento <span class="required"
+                                                                                              aria-hidden="true">*</span></label>
+                          <input type="text" id="documento" name="documento" class="form-input" placeholder="Ej. 1098765432"
+                                 required value="1098765432" autocomplete="off" inputmode="numeric" pattern="[0-9]+" />
+                          <span class="error-message" id="error-documento" role="alert" aria-live="polite">Por favor ingresa un
+                            número válido (solo números).</span>
+                          </div>
+
+                          <!-- Fecha de nacimiento -->
+                          <div class="form-group">
+                            <label class="form-label" for="fechaNacimiento">Fecha de nacimiento <span class="required"
+                                                                                                        aria-hidden="true">*</span></label>
+                              <input type="date" id="fechaNacimiento" name="fechaNacimiento" class="form-input" required />
+                              <span class="error-message" id="error-fechaNacimiento" role="alert" aria-live="polite">Por favor ingresa
+                                una fecha válida.</span>
+                              </div>
+
+                              <!-- Género -->
+                              <div class="form-group">
+                                <label class="form-label" for="genero">Género</label>
+                                <select id="genero" name="genero" class="form-select" autocomplete="off">
+                                  <option value="M" selected>Masculino</option>
+                                  <option value="F">Femenino</option>
+                                  <option value="O">Otro</option>
+                                </select>
+                              </div>
+
+                              <!-- Teléfono -->
+                              <div class="form-group">
+                                <label class="form-label" for="telefono">Teléfono <span class="required"
+                                                                                          aria-hidden="true">*</span></label>
+                                  <input type="tel" id="telefono" name="telefono" class="form-input" placeholder="Ej. 312 456 7890" required
+                                         value="312 456 7890" autocomplete="tel" inputmode="tel" />
+                                  <span class="error-message" id="error-telefono" role="alert" aria-live="polite">Por favor ingresa un
+                                    teléfono válido (mínimo 7 dígitos).</span>
+                                  </div>
+
+                                  <!-- Correo -->
+                                  <div class="form-group">
+                                    <label class="form-label" for="correo">Correo electrónico <span class="required"
+                                                                                                      aria-hidden="true">*</span></label>
+                                      <input type="email" id="correo" name="correo" class="form-input" placeholder="Ej. juan@correo.com"
+                                             required value="juan@correo.com" autocomplete="email" />
+                                      <span class="error-message" id="error-correo" role="alert" aria-live="polite">Por favor ingresa un correo
+                                        válido.</span>
+                                      </div>
+
+                                      <!-- Grupo sanguíneo -->
+                                      <div class="form-group">
+                                        <label class="form-label" for="grupoSanguineo">Grupo sanguíneo</label>
+                                        <select id="grupoSanguineo" name="grupoSanguineo" class="form-select" autocomplete="off">
+                                          <option>O+</option>
+                                          <option>O-</option>
+                                          <option>A+</option>
+                                          <option>A-</option>
+                                          <option>B+</option>
+                                          <option>B-</option>
+                                          <option>AB+</option>
+                                          <option>AB-</option>
+                                        </select>
+                                      </div>
+
+                                      <!-- Ciudad -->
+                                      <div class="form-group">
+                                        <label class="form-label" for="ciudad">Ciudad</label>
+                                        <select id="ciudad" name="ciudad" class="form-select" autocomplete="address-level2">
+                                          <option>Bogotá D.C</option>
+                                          <option>Medellín</option>
+                                          <option>Cali</option>
+                                        </select>
+                                      </div>
+
+                                      <!-- Alergias -->
+                                      <div class="form-group full-width">
+                                        <label class="form-label" for="alergias">Alergias conocidas</label>
+                                        <input type="text" id="alergias" name="alergias" class="form-input" placeholder="Ninguna conocida"
+                                               value="Ninguna conocida" autocomplete="off" />
+                                      </div>
+                                    </div>
+                                  </section>
+
+                                  <!-- Banner de éxito: Historia clínica -->
+                                  <!-- [MEJORA]: role="status" para anuncio de información importante -->
+                                  <div class="success-banner" role="status" aria-live="polite">
+                                    <span class="success-banner-icon" aria-hidden="true">✅</span>
+                                    <div class="success-banner-content">
+                                      <p class="success-banner-title">Historia clínica creada automáticamente</p>
+                                      <p class="success-banner-desc">Al guardar, se creará la historia clínica <strong
+                                        id="autoHC">HC-2026-XXXX</strong></p>
+                                      </div>
+                                    </div>
+
+                                    <!-- Acciones Paso 1 -->
+                                    <div class="form-actions">
+                                      <button type="button" class="btn-secondary" id="cancelBtn1">Cancelar</button>
+                                      <button type="button" class="btn-primary" id="nextBtn">Continuar →</button>
+                                    </div>
+
+                                  </div>
+
+                                  <!-- PASO 2: Agendar Cita -->
+                                  <div class="step-content" id="stepContent2" role="tabpanel" aria-labelledby="stepBtn2" aria-hidden="true">
+
+                                    <!-- Card: Agendar cita -->
+                                    <section class="form-card" aria-labelledby="cardTitle2">
+                                      <h2 class="form-card-title" id="cardTitle2">Agendar primera cita</h2>
+
+                                      <div class="form-grid">
+                                        <!-- Profesional -->
+                                        <div class="form-group">
+                                          <label class="form-label" for="profesional">Profesional</label>
+                                          <select id="profesional" name="profesional" class="form-select" autocomplete="off">
+                                            <option>Dr. Carlos Méndez - Odontología General</option>
+                                            <option>Dra. Sandra Gómez - Ortodoncia</option>
+                                            <option>Dr. Jorge Silva - Endodoncia</option>
+                                          </select>
+                                        </div>
+
+                                        <!-- Servicio -->
+                                        <div class="form-group">
+                                          <label class="form-label" for="servicio">Servicio</label>
+                                          <select id="servicio" name="servicio" class="form-select" autocomplete="off">
+                                            <option>Consulta General - $50.000</option>
+                                            <option>Valoración Inicial - Gratis</option>
+                                            <option>Limpieza Dental - $80.000</option>
+                                          </select>
+                                        </div>
+
+                                        <!-- Fecha -->
+                                        <div class="form-group">
+                                          <label class="form-label" for="fechaCita">Fecha</label>
+                                          <input type="date" id="fechaCita" name="fechaCita" class="form-input" />
+                                          <span class="error-message" id="error-fechaCita" role="alert" aria-live="polite">La fecha no puede ser en
+                                            el pasado.</span>
+                                          </div>
+
+                                          <!-- Hora -->
+                                          <div class="form-group">
+                                            <label class="form-label" for="horaCita">Hora</label>
+                                            <select id="horaCita" name="horaCita" class="form-select" autocomplete="off">
+                                              <option>08:00 AM</option>
+                                              <option>09:00 AM</option>
+                                              <option>10:00 AM</option>
+                                              <option>11:00 AM</option>
+                                              <option>02:00 PM</option>
+                                              <option>03:00 PM</option>
+                                            </select>
+                                          </div>
+
+                                          <!-- Consultorio -->
+                                          <div class="form-group">
+                                            <label class="form-label" for="consultorio">Consultorio</label>
+                                            <select id="consultorio" name="consultorio" class="form-select" autocomplete="off">
+                                              <option>Consultorio - Piso 1</option>
+                                              <option>Consultorio - Piso 2</option>
+                                              <option>Consultorio Principal - Piso 1</option>
+                                            </select>
+                                          </div>
+
+                                          <!-- Motivo -->
+                                          <div class="form-group">
+                                            <label class="form-label" for="motivo">Motivo de consulta</label>
+                                            <select id="motivo" name="motivo" class="form-select" autocomplete="off">
+                                              <option>Primera visita para valoración general</option>
+                                              <option>Dolor o molestia dental</option>
+                                              <option>Revisión periódica de tratamiento</option>
+                                            </select>
+                                          </div>
+                                        </div>
+                                      </section>
+
+                                      <!-- Acciones Paso 2 -->
+                                      <div class="form-actions">
+                                        <button type="button" class="btn-secondary" id="prevBtn">← Atrás</button>
+                                        <div style="display:flex;gap:12px;">
+                                          <button type="button" class="btn-secondary" id="cancelBtn2">Cancelar</button>
+                                          <button type="submit" class="btn-success" id="saveBtn">✓ Guardar y agendar</button>
+                                        </div>
+                                      </div>
+
+                                    </div>
+
+                                  </form>
+
+                                </main>
+
+                                <!-- Toast container -->
+                                <!-- [MEJORA]: aria-atomic="true" ya presente, agregamos role para claridad -->
+                                <div id="toastContainer" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
+
+                                <!-- [MEJORA]: Estilos para contenido solo accesible por screen readers -->
+                                <style>
+                                    .visually-hidden {
+                                      position: absolute;
+                                      width: 1px;
+                                      height: 1px;
+                                      padding: 0;
+                                      margin: -1px;
+                                      overflow: hidden;
+                                      clip: rect(0, 0, 0, 0);
+                                      white-space: nowrap;
+                                      border: 0;
+                                    }
+                                </style>
+
+                                <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+                                  <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+                                    <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
+                                    <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+                                  </div>
+                                  <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+                                  <script src="@Url.Content("~/js/footer.js")"></script>
+                                  <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+                                </footer>
+                                <script src="@Url.Content("~/js/Gestion_De_Pacientes/st-rec-02-registrar-paciente/app_paciente.js")"></script>
+
+                                <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+                                @{
+                                  await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml");
+                                }
+                                @{
+                                  await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml");
+                                }
+                              </body>
+
+                            </html>
+

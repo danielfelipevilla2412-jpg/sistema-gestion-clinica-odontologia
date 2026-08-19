@@ -1,0 +1,24 @@
+/* General Styles and Custom Rules */
+
+/* Material Design Icons configuration */
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Base font family */
+body { 
+    font-family: 'Montserrat', sans-serif;
+    min-height: max(884px, 100dvh);
+}
+
+/* Bento Grid Layout */
+.bento-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 24px;
+}
+
+/* Video Player Hover Overlay */
+.video-overlay {
+    background: linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.4));
+}

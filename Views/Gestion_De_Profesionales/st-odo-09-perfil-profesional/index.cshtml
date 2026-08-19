@@ -1,0 +1,339 @@
+@* ============================================
+SmileTrack — Perfil Profesional (st-odo-09-perfil-profesional)
+============================================
+Autor: Johan Santamaria
+Fecha: 29/07/2026
+
+DESCRIPCIÓN:
+Vista que permite al profesional de la salud visualizar sus datos personales, especialidades asociadas, estado de su agenda, y actualizar información de contacto de manera segura.
+
+FUNCIONALIDADES PRINCIPALES:
+- Visualización de datos de perfil del odontólogo logueado (nombres, especialidades, registro médico)
+- Formulario interactivo para actualización de información personal y de contacto
+- Sección de seguridad para cambio de contraseña y credenciales de acceso
+
+DEPENDENCIAS TÉCNICAS:
+- Controller: GestionProfesionalesController (ViewData: LoggedProfesional)
+- CSS: ~/css/Gestion_De_Profesionales/st-odo-09-perfil-profesional/styles.css
+- JS: ~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js
+- Partial / Otros: Sidebar unificado
+
+NOTAS DE MANTENIMIENTO:
+- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+============================================ *@
+@{
+  Layout = null;
+  var loggedProfesional = ViewData["LoggedProfesional"] as SmileTrack_MVC.Models.Entities.Profesional;
+  var especialidades = loggedProfesional?.Especialidades?.Select(pe => pe.Especialidad?.Nombre).Where(n => n != null).ToList() ?? new List<string?>();
+  var initials = loggedProfesional != null 
+      ? string.Concat($"{loggedProfesional.Nombres} {loggedProfesional.Apellidos}".Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant()
+      : "CM";
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmileTrack — Perfil Profesional</title>
+  <meta name="description" content="Gestiona tu información profesional y configuración en SmileTrack." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Profesionales/st-odo-09-perfil-profesional/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Odontólogo</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Perfil Profesional</span>
+        </nav>
+        <h1 class="page-title">Mi Perfil Profesional</h1>
+        <p class="page-subtitle">Información personal y configuración del profesional</p>
+      </div>
+    </header>
+
+    <!-- Profile Header Card -->
+    <section class="profile-header-card" aria-labelledby="profileName">
+      <div class="profile-avatar-large" aria-hidden="true">@initials</div>
+      <div class="profile-info">
+        <h2 id="profileName">@(loggedProfesional != null ? $"Dr. {loggedProfesional.Nombres} {loggedProfesional.Apellidos}" : "Dr. Carlos Méndez")</h2>
+        <div class="profile-tags" role="list">
+          @if (loggedProfesional != null)
+          {
+            foreach (var esp in especialidades)
+            {
+              <span class="tag tag-blue" role="listitem">🦷 @esp</span>
+            }
+            <span class="tag tag-green" role="listitem">✓ @loggedProfesional.RegistroMedico</span>
+          }
+          else
+          {
+            <span class="tag tag-blue" role="listitem">🦷 Odontología General</span>
+            <span class="tag tag-purple" role="listitem">✨ Estética Dental</span>
+            <span class="tag tag-green" role="listitem">✓ RM-2026-001</span>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Content Layout -->
+    <div class="content-layout">
+
+      <!-- Left Column: Personal Info -->
+      <div class="content-left">
+        <div class="card info-card">
+          <h3 class="card-title">📝 Información personal</h3>
+
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-icon" aria-hidden="true">📞</div>
+              <div>
+                <label>Teléfono</label>
+                <div class="info-value">@(loggedProfesional?.Telefono ?? "300 123 4567")</div>
+              </div>
+            </div>
+            <div class="info-item">
+              <div class="info-icon" aria-hidden="true">✉️</div>
+              <div>
+                <label>Correo</label>
+                <div class="info-value">@(loggedProfesional?.Usuario?.Correo ?? "dr.mendez@smiletrack.co")</div>
+              </div>
+            </div>
+            <div class="info-item">
+              <div class="info-icon" aria-hidden="true">📅</div>
+              <div>
+                <label>Fecha de ingreso</label>
+                <div class="info-value">
+                  <time datetime="@(loggedProfesional?.FechaIngreso?.ToString("yyyy-MM-dd") ?? "2022-03-15")">
+                    @(loggedProfesional?.FechaIngreso?.ToString("dd MMM yyyy") ?? "15 Mar 2022")
+                  </time>
+                </div>
+              </div>
+            </div>
+            <div class="info-item">
+              <div class="info-icon" aria-hidden="true"></div>
+              <div>
+                <label>Estado</label>
+                <div class="info-value">
+                  <span class="status-badge active" role="status" aria-label="Estado: @(loggedProfesional?.Estado ?? "Activo")">
+                    <span class="status-dot" aria-hidden="true"></span>
+                    @(loggedProfesional?.Estado ?? "Activo")
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-divider"></div>
+
+          <!-- Change Password Section -->
+          <div class="password-section">
+            <h3 class="card-title">🔒 Cambiar contraseña</h3>
+
+            <form id="passwordForm" novalidate>
+              <div class="form-group">
+                <label class="form-label" for="currentPassword">Contraseña actual</label>
+                <div class="input-with-icon">
+                  <input type="password" class="form-input" id="currentPassword" placeholder="••••••••" required
+                    aria-required="true">
+                  <button type="button" class="toggle-password" aria-label="Mostrar u ocultar contraseña actual"
+                    aria-pressed="false">👁</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="newPassword">Nueva contraseña</label>
+                <div class="input-with-icon">
+                  <input type="password" class="form-input" id="newPassword" placeholder="••••••••" required
+                    aria-required="true" aria-describedby="passwordStrength">
+                  <button type="button" class="toggle-password" aria-label="Mostrar u ocultar nueva contraseña"
+                    aria-pressed="false">👁</button>
+                </div>
+                <div class="password-strength" id="passwordStrength" role="status" aria-live="polite"></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="confirmPassword">Confirmar nueva contraseña</label>
+                <div class="input-with-icon">
+                  <input type="password" class="form-input" id="confirmPassword" placeholder="••••••••" required
+                    aria-required="true">
+                  <button type="button" class="toggle-password"
+                    aria-label="Mostrar u ocultar confirmación de contraseña" aria-pressed="false">👁</button>
+                </div>
+              </div>
+              <button type="submit" class="btn-update">Actualizar contraseña</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Schedule -->
+      <div class="content-right">
+        <div class="card schedule-card">
+          <div class="schedule-header">
+            <h3 class="card-title" style="margin-bottom: 0;">📅 Horario Semanal</h3>
+            <span class="edit-hint">Click en un día para editar</span>
+          </div>
+
+          <div class="schedule-grid" id="scheduleGrid" role="list" aria-label="Horario semanal del profesional">
+            <!-- Generated by JS -->
+          </div>
+
+          <div class="schedule-legend" aria-hidden="true">
+            <div class="legend-item">
+              <span class="legend-dot active"></span>
+              <span>Día laboral</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot inactive"></span>
+              <span>No disponible</span>
+            </div>
+          </div>
+
+          <div class="schedule-summary" id="scheduleSummary" aria-live="polite">
+            <div class="summary-text">Total semanal</div>
+            <div class="summary-number" id="totalHours">0 horas</div>
+            <div class="summary-text" id="totalDays">0 días laborales</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ═════ MODAL EDITAR HORARIO ═════ -->
+  <div class="modal-backdrop" id="scheduleModal" role="dialog" aria-modal="true" aria-labelledby="modalDayName"
+    aria-hidden="true" inert>
+    <div class="modal-schedule" role="document">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <div class="modal-day-icon" id="modalDayIcon" aria-hidden="true"></div>
+          <div>
+            <h3 class="modal-day-name" id="modalDayName"></h3>
+            <div class="modal-day-subtitle">Editar horario laboral</div>
+          </div>
+        </div>
+        <button class="modal-close" id="modalClose" aria-label="Cerrar ventana de edición">×</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Toggle Activo/Inactivo -->
+        <div class="modal-toggle-section">
+          <label class="modal-toggle">
+            <input type="checkbox" id="modalDayActive" aria-describedby="toggleText">
+            <span class="toggle-slider" aria-hidden="true"></span>
+            <span class="toggle-text" id="toggleText">Día laboral</span>
+          </label>
+        </div>
+
+        <!-- Time Inputs (solo visibles si está activo) -->
+        <div class="modal-time-section" id="modalTimeSection">
+          <div class="time-input-group">
+            <label class="time-label" for="modalStartTime">🌅 Hora de inicio</label>
+            <input type="time" class="time-input" id="modalStartTime" value="08:00">
+          </div>
+          <div class="time-separator" aria-hidden="true">
+            <span>a</span>
+          </div>
+          <div class="time-input-group">
+            <label class="time-label" for="modalEndTime">🌇 Hora de fin</label>
+            <input type="time" class="time-input" id="modalEndTime" value="12:00">
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="modal-preview" id="modalPreview" aria-live="polite">
+          <div class="preview-label">Horario resultante:</div>
+          <div class="preview-time" id="previewTime">08:00 - 12:00</div>
+          <div class="preview-hours" id="previewHours">4 horas</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-secondary" id="modalCancel">Cancelar</button>
+        <button class="modal-btn modal-btn-primary" id="modalSave"><span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar horario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+  <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js")"></script>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+
+  </footer>
+
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
+</body>
+
+</html>
+

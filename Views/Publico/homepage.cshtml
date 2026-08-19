@@ -1,0 +1,1022 @@
+@{ Layout = null; }
+
+﻿<!DOCTYPE html>
+<html class="scroll-smooth" lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta name="robots" content="index, follow">
+    <meta name="description" content="SmileTrack es la plataforma de gestión odontológica para agendar citas, consultar tratamientos y contactar especialistas con confianza.">
+    <meta name="keywords" content="odontología, citas dentales, clínica dental, historial clínico, reserva cita">
+    <link rel="canonical" href="https://smiletrack.com/">
+    <meta property="og:title" content="SmileTrack | Agenda tu cita dental en línea">
+    <meta property="og:description" content="Reserva tu cita, consulta especialistas y gestiona tu salud bucal con seguridad y soporte profesional.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://smiletrack.com/">
+    <meta property="og:image" content="https://smiletrack.com/images/logo.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SmileTrack | Agenda tu cita dental en línea">
+    <meta name="twitter:description" content="Reserva tu cita, consulta especialistas y gestiona tu salud bucal con seguridad y soporte profesional.">
+    <title>SmileTrack | Agenda cita dental, gestiona tu salud bucal</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Roboto+Flex:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="@Url.Content("~/css/Publico/homepage.css")">
+    <script type="application/ld+json">
+    {
+      "@@context": "https://schema.org",
+      "@@type": "Dentist",
+      "name": "SmileTrack",
+      "image": "https://smiletrack.com/images/logo.jpg",
+      "description": "Clínica dental en Bogotá que ofrece citas en línea, atención especializada y gestión de historias clínicas.",
+      "address": {
+        "@@type": "PostalAddress",
+        "streetAddress": "Cra. 15 #93-47, Oficina 302",
+        "addressLocality": "Bogotá D.C.",
+        "addressRegion": "Bogotá",
+        "addressCountry": "CO"
+      },
+      "telephone": "+573001234567",
+      "priceRange": "$$",
+      "openingHours": [
+        "Mo-Fr 08:00-18:00",
+        "Sa 09:00-14:00"
+      ]
+    }
+    </script>
+</head>
+
+<body class="bg-[#f9f9ff] text-[#021c3a] font-[Roboto_Flex,sans-serif] overflow-x-hidden">
+
+    <!-- ══════════════ HEADER ══════════════ -->
+    <header id="site-header" class="fixed top-0 w-full z-50 transition-all duration-300 h-[72px]">
+        <div class="absolute inset-0 bg-white/80 backdrop-blur-xl border-b border-[#c0c7d4]/30 shadow-sm transition-opacity duration-300"
+            id="header-bg"></div>
+        <nav class="relative flex justify-between items-center px-10 h-full max-w-[1280px] mx-auto gap-6">
+            <!-- Logo -->
+            <a href="/" class="flex items-center gap-3 group">
+                <div class="h-10 w-10 rounded-xl overflow-hidden flex items-center justify-center bg-[#005ea4]/10">
+                    <img alt="Smile Track Logo" class="h-10 w-auto object-contain" loading="lazy" decoding="async"
+                        src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")"
+                        onerror="this.onerror=null;this.src='@Url.Content("~/images/logo.jpg")'">
+                </div>
+                <span class="font-[Montserrat,sans-serif] text-xl font-extrabold text-[#005ea4] tracking-tight">Smile
+                    Track</span>
+            </a>
+
+            <!-- Nav links -->
+            <div class="hidden md:flex items-center gap-8">
+                <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
+                    href="#servicios">Servicios</a>
+                <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
+                    href="#profesionales">Profesionales</a>
+                <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
+                    href="#testimonios">Testimonios</a>
+                <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
+                    href="#nosotros">Nosotros</a>
+                <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
+                    href="#contacto">Contacto</a>
+            </div>
+
+            <!-- CTA buttons -->
+            <div class="flex items-center gap-3">
+                <a href="/acceso-y-seguridad/login"
+                    class="hidden sm:inline-flex items-center gap-1.5 border border-[#005ea4] text-[#005ea4] px-5 py-2 rounded-xl text-sm font-bold hover:bg-[#005ea4]/8 transition-all active:scale-95">
+                    <span class="material-symbols-outlined text-base">login</span>
+                    Iniciar sesión
+                </a>
+                <a href="#contacto"
+                    class="inline-flex items-center gap-1.5 bg-[#005ea4] text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-[#004881] transition-all active:scale-95 shadow-md hover:shadow-lg">
+                    <span class="material-symbols-outlined text-base">calendar_month</span>
+                    Agendar cita
+                </a>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Floating side buttons -->
+    <div class="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-3 mr-5">
+        <button
+            class="bg-white text-[#021c3a] p-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-x-1 transition-all active:scale-95"
+            title="Chat">
+            <span class="material-symbols-outlined text-xl">chat_bubble</span>
+        </button>
+        <button
+            class="bg-white text-[#005ea4] p-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-x-1 transition-all active:scale-95"
+            title="Llamar">
+            <span class="material-symbols-outlined text-xl">phone</span>
+        </button>
+    </div>
+
+    <main class="pt-[72px]">
+
+        <!-- ══════════════ HERO ══════════════ -->
+        <section class="hero-gradient min-h-[90vh] flex items-center">
+            <div class="max-w-[1280px] mx-auto px-10 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center py-24">
+                <div class="text-white z-10">
+                    <div
+                        class="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 rounded-full border border-white/20 mb-8 animate-fade-in-up">
+                        <span class="material-symbols-outlined text-sm text-[#a4f0e9]">verified</span>
+                        <span class="text-xs font-semibold text-[#a4f0e9] tracking-wide">Clínica certificada · Bogotá,
+                            Colombia</span>
+                    </div>
+                    <h1
+                        class="font-[Montserrat,sans-serif] text-5xl lg:text-[52px] font-extrabold leading-[1.1] mb-6 animate-fade-in-up delay-100">
+                        Tu salud bucal en manos de <span class="text-[#a4f0e9]">especialistas</span> de confianza
+                    </h1>
+                    <p class="text-lg text-[#d5e3ff]/80 mb-10 max-w-xl animate-fade-in-up delay-200">
+                        Más de 15 años devolviendo sonrisas con diagnóstico digital y tecnología de vanguardia.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 animate-fade-in-up delay-300">
+                        <a href="/acceso-y-seguridad/login"
+                            class="bg-[#0077ce] text-white px-8 py-4 rounded-xl font-bold hover:bg-[#005ea4] hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                            Iniciar sesión
+                            <span class="material-symbols-outlined">login</span>
+                        </a>
+                        <a href="/acceso-y-seguridad/register"
+                            class="bg-white/10 backdrop-blur-sm border border-white/25 text-white px-8 py-4 rounded-xl font-bold hover:bg-white/20 transition-all active:scale-95 text-center">
+                            Crear cuenta
+                        </a>
+                    </div>
+                    <div class="mt-6 flex flex-wrap gap-3 text-sm text-[#d5e3ff]/80">
+                        <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1">Reserva fácil</span>
+                        <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1">Atención confiable</span>
+                        <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1">Seguimiento clínico</span>
+                    </div>
+                    <div class="mt-8 grid gap-3 sm:grid-cols-3">
+                        <a href="/acceso-y-seguridad/register" class="rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-left text-sm text-white hover:bg-white/15 transition focus:outline-none focus:ring-2 focus:ring-[#a4f0e9]/60">
+                            <p class="font-semibold">Soy paciente</p>
+                            <p class="text-[#d5e3ff]/80 mt-1 text-xs">Crea tu cuenta y agenda tu primera cita.</p>
+                        </a>
+                        <a href="/acceso-y-seguridad/login" class="rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-left text-sm text-white hover:bg-white/15 transition focus:outline-none focus:ring-2 focus:ring-[#a4f0e9]/60">
+                            <p class="font-semibold">Soy profesional</p>
+                            <p class="text-[#d5e3ff]/80 mt-1 text-xs">Accede a tu agenda y controla tus citas.</p>
+                        </a>
+                        <a href="#contacto" class="rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-left text-sm text-white hover:bg-white/15 transition focus:outline-none focus:ring-2 focus:ring-[#a4f0e9]/60">
+                            <p class="font-semibold">Contacto rápido</p>
+                            <p class="text-[#d5e3ff]/80 mt-1 text-xs">Habla con nuestro equipo para resolver tus dudas.</p>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Glass Card -->
+                <div class="relative flex justify-center lg:justify-end animate-fade-in-up delay-500">
+                    <div class="glass-card p-8 rounded-3xl w-full max-w-md">
+                        <h3
+                            class="font-[Montserrat,sans-serif] font-bold text-lg text-white mb-6 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[#a2c9ff]">dentistry</span>
+                            Servicios destacados
+                        </h3>
+                        <div class="space-y-3">
+                            <div
+                                class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-2xl">🪥</span>
+                                    <div>
+                                        <p class="font-semibold text-white text-sm">Limpieza dental</p>
+                                        <p class="text-xs text-[#d5e3ff]/70">Prevención · 45 min</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-[#a2c9ff] text-sm">Desde $80k</span>
+                            </div>
+                            <div
+                                class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-2xl">✨</span>
+                                    <div>
+                                        <p class="font-semibold text-white text-sm">Blanqueamiento</p>
+                                        <p class="text-xs text-[#d5e3ff]/70">Estética · 90 min</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-[#a2c9ff] text-sm">Desde $350k</span>
+                            </div>
+                            <div
+                                class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-2xl">🦷</span>
+                                    <div>
+                                        <p class="font-semibold text-white text-sm">Ortodoncia</p>
+                                        <p class="text-xs text-[#d5e3ff]/70">Corrección · Plan mes</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-[#a2c9ff] text-sm">Desde $200k/mes</span>
+                            </div>
+                        </div>
+                        <div class="mt-6 pt-5 border-t border-white/10 flex items-center justify-between">
+                            <div class="flex -space-x-3">
+                                <div class="w-9 h-9 rounded-full border-2 border-[#021c3a] overflow-hidden">
+                                    <img class="w-full h-full object-cover"
+                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJ0fnRd4JV9g461RdOVbYVclqZkk5CnSMxrgvTc86s37F285MIj1Zjfjarl_dpFmd4I5oLxrEfUMoC8-yoS-BCpQkt2oL4uHibCMUTHgqUUYWwRWM0P16xsdVlsgV00cr2vL1kcyrkcNefk3y7K3BVfQMfUddWsWVHjbAv0oYo_wOto7KGBDWl8lURw7RbKAv6bfY89aNp8p3rCktZscEzdqYbk8pRiPaYEjF4HNJedbzt2jKRShEIwkomuDj6NAwcLX39PcgUPQ"
+                                        alt="Especialista">
+                                </div>
+                                <div class="w-9 h-9 rounded-full border-2 border-[#021c3a] overflow-hidden">
+                                    <img class="w-full h-full object-cover"
+                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSErmwZfefFsds9d1aCAyLOFWl51yIhVzYBly5Y39iNSG6P4aZk9mXLhIs6T0T9_AIHXlgVAK-moPstWdCDZD2WIkiWTnGGYR3Pnf4RP69gR3irvmyCnfhhjIMz2-aqDapCHqF4quMQqCzwprjfBIZ0M9N1KBt-bLouFcFY-tnwpQaJU2KqcwiRJNv3WKPdVzAvrEWrMHt3zavsZFhhPshmnyfcn6o8YIhMPRMhY9_OEUOCMOl6sY2OlXOARYXQB0Yqk7utqhQ0w"
+                                        alt="Especialista">
+                                </div>
+                            </div>
+                            <p class="text-xs text-[#d5e3ff]/70 font-medium">Consultar con especialistas →</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════ TRUST STRIP ══════════════ -->
+        <div class="bg-[#1a3150] py-10 px-10">
+            <div class="max-w-[1280px] mx-auto flex flex-wrap justify-between gap-10 text-white">
+                <div class="flex items-center gap-4 flex-1 min-w-[180px]">
+                    <span class="material-symbols-outlined text-[#a4f0e9] text-4xl">group</span>
+                    <div>
+                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold">+2.400</p>
+                        <p class="text-sm text-[#d5e3ff]/60">Pacientes atendidos</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4 flex-1 min-w-[180px]">
+                    <span class="material-symbols-outlined text-[#a4f0e9] text-4xl">star</span>
+                    <div>
+                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold">4.9/5.0</p>
+                        <p class="text-sm text-[#d5e3ff]/60">Calificación Google</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4 flex-1 min-w-[180px]">
+                    <span class="material-symbols-outlined text-[#a4f0e9] text-4xl">medical_services</span>
+                    <div>
+                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold">15 años</p>
+                        <p class="text-sm text-[#d5e3ff]/60">De experiencia clínica</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4 flex-1 min-w-[180px]">
+                    <span class="material-symbols-outlined text-[#a4f0e9] text-4xl">verified_user</span>
+                    <div>
+                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold">INVIMA</p>
+                        <p class="text-sm text-[#d5e3ff]/60">Habilitados y certificados</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ SERVICES ══════════════ -->
+        <section class="py-24 bg-[#F5F7FA]" id="servicios">
+            <div class="max-w-[1280px] mx-auto px-10">
+                <div class="mb-16">
+                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest">Lo que hacemos</p>
+                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a] mb-4">Tratamientos que
+                        cambian sonrisas</h2>
+                    <p class="max-w-2xl text-[#404752]">Ofrecemos soluciones odontológicas de alta precisión, desde
+                        prevención básica hasta estética avanzada.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Card -->
+                    <div
+                        class="bg-white p-8 rounded-2xl card-shadow border border-[#c0c7d4]/30 hover:border-[#005ea4] hover:-translate-y-1 transition-all group">
+                        <div
+                            class="w-12 h-12 bg-[#005ea4]/10 rounded-xl flex items-center justify-center mb-6 text-[#005ea4] group-hover:bg-[#005ea4] group-hover:text-white transition-colors">
+                            <span class="material-symbols-outlined">cleaning_services</span>
+                        </div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Limpieza dental</h3>
+                            <span class="text-[#005ea4] font-bold text-sm">$80.000</span>
+                        </div>
+                        <p class="text-[#404752] text-sm mb-5">Elimina el sarro y placa bacteriana que el cepillo no
+                            alcanza.</p>
+                        <span
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Para
+                            toda la familia</span>
+                    </div>
+                    <div
+                        class="bg-white p-8 rounded-2xl card-shadow border border-[#c0c7d4]/30 hover:border-[#005ea4] hover:-translate-y-1 transition-all group">
+                        <div
+                            class="w-12 h-12 bg-[#005ea4]/10 rounded-xl flex items-center justify-center mb-6 text-[#005ea4] group-hover:bg-[#005ea4] group-hover:text-white transition-colors">
+                            <span class="material-symbols-outlined">auto_fix_high</span>
+                        </div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Blanqueamiento</h3>
+                            <span class="text-[#005ea4] font-bold text-sm">$350.000</span>
+                        </div>
+                        <p class="text-[#404752] text-sm mb-5">Recupera el brillo natural de tus dientes de forma segura
+                            y efectiva.</p>
+                        <span
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Estética
+                            avanzada</span>
+                    </div>
+                    <div
+                        class="bg-white p-8 rounded-2xl card-shadow border border-[#c0c7d4]/30 hover:border-[#005ea4] hover:-translate-y-1 transition-all group">
+                        <div
+                            class="w-12 h-12 bg-[#005ea4]/10 rounded-xl flex items-center justify-center mb-6 text-[#005ea4] group-hover:bg-[#005ea4] group-hover:text-white transition-colors">
+                            <span class="material-symbols-outlined">straighten</span>
+                        </div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Ortodoncia</h3>
+                            <span class="text-[#005ea4] font-bold text-sm">$200k/mes</span>
+                        </div>
+                        <p class="text-[#404752] text-sm mb-5">Corrección de la posición dental con técnicas fijas e
+                            invisibles.</p>
+                        <span
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Niños
+                            y adultos</span>
+                    </div>
+                    <div
+                        class="bg-white p-8 rounded-2xl card-shadow border border-[#c0c7d4]/30 hover:border-[#005ea4] hover:-translate-y-1 transition-all group">
+                        <div
+                            class="w-12 h-12 bg-[#005ea4]/10 rounded-xl flex items-center justify-center mb-6 text-[#005ea4] group-hover:bg-[#005ea4] group-hover:text-white transition-colors">
+                            <span class="material-symbols-outlined">healing</span>
+                        </div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Endodoncia</h3>
+                            <span class="text-[#005ea4] font-bold text-sm">$450.000</span>
+                        </div>
+                        <p class="text-[#404752] text-sm mb-5">Tratamiento de conductos para salvar piezas dentales
+                            comprometidas.</p>
+                        <span
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Alta
+                            precisión</span>
+                    </div>
+                    <div
+                        class="bg-white p-8 rounded-2xl card-shadow border border-[#c0c7d4]/30 hover:border-[#005ea4] hover:-translate-y-1 transition-all group">
+                        <div
+                            class="w-12 h-12 bg-[#005ea4]/10 rounded-xl flex items-center justify-center mb-6 text-[#005ea4] group-hover:bg-[#005ea4] group-hover:text-white transition-colors">
+                            <span class="material-symbols-outlined">sentiment_very_satisfied</span>
+                        </div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Implantes</h3>
+                            <span class="text-[#005ea4] font-bold text-sm">$2.800.000</span>
+                        </div>
+                        <p class="text-[#404752] text-sm mb-5">Reemplaza piezas perdidas con implantes de titanio de
+                            larga duración.</p>
+                        <span
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Solución
+                            permanente</span>
+                    </div>
+                    <div
+                        class="bg-white p-8 rounded-2xl card-shadow border border-[#c0c7d4]/30 hover:border-[#005ea4] hover:-translate-y-1 transition-all group">
+                        <div
+                            class="w-12 h-12 bg-[#005ea4]/10 rounded-xl flex items-center justify-center mb-6 text-[#005ea4] group-hover:bg-[#005ea4] group-hover:text-white transition-colors">
+                            <span class="material-symbols-outlined">child_care</span>
+                        </div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Odontopediatría</h3>
+                            <span class="text-[#005ea4] font-bold text-sm">Desde $60k</span>
+                        </div>
+                        <p class="text-[#404752] text-sm mb-5">Cuidado dental especializado para los más pequeños del
+                            hogar.</p>
+                        <span
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Niños
+                            0–12 años</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════ PROFESSIONALS ══════════════ -->
+        <section class="py-24 bg-white" id="profesionales">
+            <div class="max-w-[1280px] mx-auto px-10">
+                <div class="text-center mb-16">
+                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest">Nuestro equipo</p>
+                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a]">Especialistas que
+                        inspiran confianza</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div
+                        class="bg-white rounded-3xl overflow-hidden shadow-lg border border-[#c0c7d4]/20 hover:scale-[1.02] hover:shadow-2xl transition-all">
+                        <div class="h-28 bg-[#005ea4]"></div>
+                        <div class="px-8 pb-8 -mt-14 text-center">
+                            <div
+                                class="w-28 h-28 rounded-full border-4 border-white mx-auto overflow-hidden bg-[#d5e3ff] mb-4 shadow-md">
+                                <img class="w-full h-full object-cover" loading="lazy"
+                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6ykWxjq_u7VrORECIpU1f8vVfGCSEeOEJ3Bgyk9GHo3FAdsgzqIlvq1We5m1eNGw03xvScvm9Ct78MaKi3p9-8Xyc4ClXs6Q1kCgiwZgrpKVIt8AADlMetVr08as1Pv48MqFkNaxdPkhm9Lb3ocAqXdIWOFxVhAHzX0aLrlwyBDY2ngwHoNgkBAOBaR48p9xtNFXHbYrTaY-4Be-iIx7i4768dVNihPT9ZYKpKJ0VlIhuJT4Q9CjLH0IZwcYiFsZ0gVWMb6tUTA"
+                                    alt="Dr. Carlos Méndez">
+                            </div>
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold mb-1">Dr. Carlos Méndez</h3>
+                            <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-wide">Odontología General
+                                / Endodoncia</p>
+                            <p class="text-sm text-[#404752] mb-5">Experto con más de 12 años de experiencia en
+                                tratamientos radiculares complejos.</p>
+                            <div class="flex justify-center gap-2 flex-wrap">
+                                <span
+                                    class="bg-[#e7eeff] px-3 py-1 rounded-full text-xs font-semibold text-[#005ea4]">U.
+                                    Nacional</span>
+                                <span
+                                    class="bg-[#e7eeff] px-3 py-1 rounded-full text-xs font-semibold text-[#005ea4]">Esp.
+                                    Endodoncia</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white rounded-3xl overflow-hidden shadow-lg border border-[#c0c7d4]/20 hover:scale-[1.02] hover:shadow-2xl transition-all">
+                        <div class="h-28 bg-[#43A047]"></div>
+                        <div class="px-8 pb-8 -mt-14 text-center">
+                            <div
+                                class="w-28 h-28 rounded-full border-4 border-white mx-auto overflow-hidden bg-[#d5e3ff] mb-4 shadow-md">
+                                <img class="w-full h-full object-cover" loading="lazy"
+                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBASvdA2GzT6MGK0GZWsfYNSicnTvfMsWRmkf2vnDxLU_4VoOhDVLcp5lUN0q7iPTiIWikamhoagFtwyeDLkBmjWPSmEkEbYDPUQVJEg8DquQ0WWQggVFbKhXfj35MaTrOPAbeNUsHIi9do4xrzN4pQibkHnLaz149iQWaNDbFDvu0dEqtBd-X4W_I7MIRNMo0EJm8yIH-HhJQ4mQf50TmbZq1YJiGiv4mE5LjuOiyiDVkX8j6rb9rq37XC6EypMet1rMyqKX1O6Q"
+                                    alt="Dr. Andrés Torres">
+                            </div>
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold mb-1">Dr. Andrés Torres</h3>
+                            <p class="text-[#43A047] text-xs font-bold mb-3 uppercase tracking-wide">Cirugía Oral /
+                                Implantes</p>
+                            <p class="text-sm text-[#404752] mb-5">Especialista en restauraciones complejas y cirugía de
+                                terceros molares.</p>
+                            <div class="flex justify-center gap-2 flex-wrap">
+                                <span
+                                    class="bg-[#e7eeff] px-3 py-1 rounded-full text-xs font-semibold text-[#005ea4]">U.
+                                    Rosario</span>
+                                <span
+                                    class="bg-[#e7eeff] px-3 py-1 rounded-full text-xs font-semibold text-[#005ea4]">Esp.
+                                    Cirugía</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white rounded-3xl overflow-hidden shadow-lg border border-[#c0c7d4]/20 hover:scale-[1.02] hover:shadow-2xl transition-all">
+                        <div class="h-28 bg-[#2e74d0]"></div>
+                        <div class="px-8 pb-8 -mt-14 text-center">
+                            <div
+                                class="w-28 h-28 rounded-full border-4 border-white mx-auto overflow-hidden bg-[#d5e3ff] mb-4 shadow-md">
+                                <img class="w-full h-full object-cover" loading="lazy"
+                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHYdmiB5d_M1lKAEmjsQ9Pw-Tnh5te3ZCqt0EiC2WBxjFxABI_cuBv2MtDG3dHISiVzeWIiYXF_HukHpzyvX2eRDy5teLkRD_BVdNmKs1tZ4PfKJNG60inZNAFPG5q0AWF-mHxpzOH4zY-GitC0dcpqnmGOMGVgZ0ch2Wqd4t_IdMpmBM-4MblRRFaBPqHPNNVDtT9v0pQKMT1ZAN1V4EeYR3AJUUJKfY_bG95jTcPmp2g4JIN61avfFoT4utF7J-yIKTbYnq-sw"
+                                    alt="Dra. Laura Gómez">
+                            </div>
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold mb-1">Dra. Laura Gómez</h3>
+                            <p class="text-[#2e74d0] text-xs font-bold mb-3 uppercase tracking-wide">Ortodoncia /
+                                Odontopediatría</p>
+                            <p class="text-sm text-[#404752] mb-5">Dedicada a crear sonrisas perfectas en niños y
+                                adultos con las últimas técnicas.</p>
+                            <div class="flex justify-center gap-2 flex-wrap">
+                                <span
+                                    class="bg-[#e7eeff] px-3 py-1 rounded-full text-xs font-semibold text-[#005ea4]">U.
+                                    Javeriana</span>
+                                <span
+                                    class="bg-[#e7eeff] px-3 py-1 rounded-full text-xs font-semibold text-[#005ea4]">Esp.
+                                    Ortodoncia</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════ TESTIMONIALS ══════════════ -->
+        <section class="py-24 bg-[#f0f3ff]" id="testimonios">
+            <div class="max-w-[1280px] mx-auto px-10">
+                <div class="text-center mb-16">
+                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest">Lo que dicen</p>
+                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a]">Pacientes que ya sonríen
+                        con confianza</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white p-8 rounded-2xl shadow-sm border border-[#c0c7d4]/20">
+                        <div class="flex gap-1 mb-4">
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                        </div>
+                        <p class="text-[#404752] text-sm mb-6 italic">"El Dr. Méndez fue increíblemente profesional. Mi
+                            endodoncia fue indolora y el seguimiento fue excelente. Totalmente recomendados."</p>
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="w-10 h-10 rounded-full bg-[#005ea4] flex items-center justify-center text-white font-bold text-sm">
+                                M</div>
+                            <div>
+                                <p class="font-semibold text-sm">María P.</p>
+                                <p class="text-xs text-[#404752]/60">Paciente desde 2021</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-8 rounded-2xl shadow-sm border border-[#c0c7d4]/20">
+                        <div class="flex gap-1 mb-4">
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                        </div>
+                        <p class="text-[#404752] text-sm mb-6 italic">"Llevé a mis hijos y la Dra. Gómez los atendió con
+                            una paciencia y calidez únicas. La clínica es moderna y muy limpia."</p>
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="w-10 h-10 rounded-full bg-[#43A047] flex items-center justify-center text-white font-bold text-sm">
+                                C</div>
+                            <div>
+                                <p class="font-semibold text-sm">Carlos R.</p>
+                                <p class="text-xs text-[#404752]/60">Paciente desde 2020</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-8 rounded-2xl shadow-sm border border-[#c0c7d4]/20">
+                        <div class="flex gap-1 mb-4">
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                            <span class="text-yellow-400 material-symbols-outlined"
+                                style="font-variation-settings:'FILL' 1">star</span>
+                        </div>
+                        <p class="text-[#404752] text-sm mb-6 italic">"El blanqueamiento superó mis expectativas. En una
+                            sola sesión quedé encantada con los resultados. Volveré pronto."</p>
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="w-10 h-10 rounded-full bg-[#2e74d0] flex items-center justify-center text-white font-bold text-sm">
+                                L</div>
+                            <div>
+                                <p class="font-semibold text-sm">Luisa F.</p>
+                                <p class="text-xs text-[#404752]/60">Paciente desde 2023</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════ ABOUT US ══════════════ -->
+        <section class="py-24 bg-white" id="nosotros">
+            <div class="max-w-[1280px] mx-auto px-10 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div class="relative">
+                    <div class="bg-[#005ea4] rounded-[2rem] p-10 text-white relative shadow-2xl overflow-hidden">
+                        <div class="absolute top-0 right-0 -mr-12 -mt-12 w-56 h-56 bg-white/10 rounded-full blur-3xl">
+                        </div>
+                        <h2 class="font-[Montserrat,sans-serif] text-2xl font-bold mb-8">Una clínica con historia y
+                            resultados</h2>
+                        <div class="space-y-7">
+                            <div class="flex items-center gap-6">
+                                <span
+                                    class="font-[Montserrat,sans-serif] text-5xl font-extrabold text-[#a4f0e9]">2009</span>
+                                <p class="text-sm opacity-80">Año de fundación, estableciendo un estándar de calidad
+                                    superior en Bogotá.</p>
+                            </div>
+                            <div class="flex items-center gap-6">
+                                <span
+                                    class="font-[Montserrat,sans-serif] text-5xl font-extrabold text-[#a4f0e9]">+2.4k</span>
+                                <p class="text-sm opacity-80">Pacientes registrados con un 98% de satisfacción
+                                    garantizada.</p>
+                            </div>
+                            <div class="flex items-center gap-6">
+                                <span
+                                    class="font-[Montserrat,sans-serif] text-5xl font-extrabold text-[#a4f0e9]">100%</span>
+                                <p class="text-sm opacity-80">Digital: historia clínica electrónica y diagnóstico con
+                                    IA.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest">Nuestra historia</p>
+                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a] mb-5">Tecnología y calidez
+                        humana en cada consulta</h2>
+                    <p class="text-[#404752] mb-5">Somos una clínica familiar fundada en 2009 con la misión de
+                        democratizar el acceso a la odontología de alta calidad en Bogotá. Nuestro equipo
+                        multidisciplinario trabaja con los más altos estándares clínicos.</p>
+                    <p class="text-[#404752] mb-8">Integramos tecnología digital — radiografías 3D, diagnóstico asistido
+                        por IA y gestión de historias clínicas en la nube — para ofrecer tratamientos más precisos y
+                        seguros.</p>
+                    <div class="flex flex-wrap gap-3">
+                        <span
+                            class="inline-flex items-center gap-2 bg-[#e7eeff] px-4 py-2 rounded-full text-sm font-semibold text-[#005ea4]">
+                            <span class="material-symbols-outlined text-base">verified_user</span>INVIMA habilitados
+                        </span>
+                        <span
+                            class="inline-flex items-center gap-2 bg-[#e7eeff] px-4 py-2 rounded-full text-sm font-semibold text-[#005ea4]">
+                            <span class="material-symbols-outlined text-base">description</span>RIPS activo
+                        </span>
+                        <span
+                            class="inline-flex items-center gap-2 bg-[#e7eeff] px-4 py-2 rounded-full text-sm font-semibold text-[#005ea4]">
+                            <span class="material-symbols-outlined text-base">location_city</span>Registro Distrital
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════ FAQ ══════════════ -->
+        <section class="py-24 bg-[#F5F7FA]" id="faq">
+            <div class="max-w-[800px] mx-auto px-10">
+                <div class="text-center mb-16">
+                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest">Dudas Comunes</p>
+                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a]">Preguntas Frecuentes</h2>
+                </div>
+                <div class="space-y-4">
+                    <details class="bg-white p-6 rounded-2xl shadow-sm border border-[#c0c7d4]/20 group cursor-pointer transition-all">
+                        <summary class="font-[Montserrat,sans-serif] font-bold text-lg list-none flex justify-between items-center text-[#021c3a]">
+                            ¿Aceptan seguros o medicina prepagada?
+                            <span class="material-symbols-outlined transition-transform group-open:rotate-180">expand_more</span>
+                        </summary>
+                        <p class="text-[#404752] mt-4 text-sm leading-relaxed animate-fade-in-up">
+                            Sí, tenemos convenios con las principales entidades de medicina prepagada (Colsanitas, Sura, MedPlus). Por favor contáctanos para verificar la cobertura exacta de tu plan antes de agendar.
+                        </p>
+                    </details>
+                    <details class="bg-white p-6 rounded-2xl shadow-sm border border-[#c0c7d4]/20 group cursor-pointer transition-all">
+                        <summary class="font-[Montserrat,sans-serif] font-bold text-lg list-none flex justify-between items-center text-[#021c3a]">
+                            ¿Cuáles son los medios de pago disponibles?
+                            <span class="material-symbols-outlined transition-transform group-open:rotate-180">expand_more</span>
+                        </summary>
+                        <p class="text-[#404752] mt-4 text-sm leading-relaxed animate-fade-in-up">
+                            Aceptamos tarjetas de crédito/débito, transferencias bancarias, Nequi, DaviPlata y efectivo. Además, contamos con opciones de financiamiento para tratamientos complejos como ortodoncia o implantes.
+                        </p>
+                    </details>
+                    <details class="bg-white p-6 rounded-2xl shadow-sm border border-[#c0c7d4]/20 group cursor-pointer transition-all">
+                        <summary class="font-[Montserrat,sans-serif] font-bold text-lg list-none flex justify-between items-center text-[#021c3a]">
+                            ¿Cómo es el proceso para agendar una primera cita?
+                            <span class="material-symbols-outlined transition-transform group-open:rotate-180">expand_more</span>
+                        </summary>
+                        <p class="text-[#404752] mt-4 text-sm leading-relaxed animate-fade-in-up">
+                            Puedes usar el formulario de contacto en esta página o registrarte en nuestra plataforma ("Crear cuenta"). Una vez registrado, podrás agendar, reagendar y cancelar tus citas de manera 100% digital, así como revisar tu historia clínica.
+                        </p>
+                    </details>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════ FINAL CTA ══════════════ -->
+        <section class="py-20 hero-gradient relative overflow-hidden" id="final-cta">
+            <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9zdmc+')] opacity-50"></div>
+            <div class="max-w-[1280px] mx-auto px-10 relative z-10 text-center">
+                <h2 class="font-[Montserrat,sans-serif] text-4xl lg:text-5xl font-extrabold text-white mb-6">
+                    ¿Listo para transformar tu sonrisa?
+                </h2>
+                <p class="text-[#d5e3ff]/90 text-lg max-w-2xl mx-auto mb-10">
+                    Únete a nuestra plataforma y gestiona tu salud bucal de forma moderna y sin complicaciones.
+                </p>
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <a href="/acceso-y-seguridad/register" class="bg-white text-[#005ea4] px-8 py-4 rounded-xl font-bold hover:bg-[#f0f3ff] hover:shadow-xl transition-all active:scale-95 text-lg flex justify-center items-center gap-2">
+                        Comenzar ahora
+                        <span class="material-symbols-outlined">arrow_forward</span>
+                    </a>
+                    <a href="#contacto" class="bg-white/10 backdrop-blur-sm border border-white/25 text-white px-8 py-4 rounded-xl font-bold hover:bg-white/20 transition-all active:scale-95 text-lg flex justify-center items-center">
+                        Contáctanos
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════ CONTACT ══════════════ -->
+        <section class="py-24 bg-[#f0f3ff]" id="contacto">
+            <div class="max-w-[1280px] mx-auto px-10 grid grid-cols-1 lg:grid-cols-2 gap-16">
+                <!-- Info -->
+                <div>
+                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest">Encuéntranos</p>
+                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a] mb-8">Estamos aquí para
+                        atenderte</h2>
+                    <div class="space-y-5 mb-10">
+                        <div class="flex items-start gap-4">
+                            <div
+                                class="w-10 h-10 bg-[#005ea4]/10 rounded-xl flex items-center justify-center text-[#005ea4] shrink-0">
+                                <span class="material-symbols-outlined text-xl">location_on</span>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-sm mb-0.5">Dirección</p>
+                                <p class="text-[#404752] text-sm">Cra. 15 #93-47, Oficina 302<br>Bogotá D.C., Colombia
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <div
+                                class="w-10 h-10 bg-[#005ea4]/10 rounded-xl flex items-center justify-center text-[#005ea4] shrink-0">
+                                <span class="material-symbols-outlined text-xl">schedule</span>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-sm mb-0.5">Horarios</p>
+                                <p class="text-[#404752] text-sm">Lunes a Viernes: 8am – 6pm<br>Sábados: 9am – 2pm ·
+                                    Domingos: Cerrado</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <div
+                                class="w-10 h-10 bg-[#005ea4]/10 rounded-xl flex items-center justify-center text-[#005ea4] shrink-0">
+                                <span class="material-symbols-outlined text-xl">phone</span>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-sm mb-0.5">Teléfono / WhatsApp</p>
+                                <p class="text-[#404752] text-sm">+57 300 123 4567</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Map -->
+                    <div
+                        class="h-52 rounded-2xl overflow-hidden border border-[#c0c7d4]/30 shadow-sm grayscale opacity-80">
+                        <img class="w-full h-full object-cover" loading="lazy"
+                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuDAlXGYzdHVH34RGdCNL8pm7JrUqFK_kHKv07jn2MO6IHJgpQYXdKTvcDK2RCfLPNKhOWkyLK2iPVVALg9JukqtPVnwC8PzBZcqcZ-JLi38kNaCkGfG9nANwFFKJwcstUFprApvlCV-QxnWiNFDVQvQwiTJ61L94m2zbR0FQ2XMxJIn1NCh85Ba675ulHkI5q7VCEqkwPa2AuANGUjp56jjzCIa5ZSJfSKYmRqnZOy2p5pvRzVDmeiOi1evgININXVKnnn35cdeng"
+                            alt="Mapa clínica Bogotá">
+                    </div>
+                </div>
+
+                <!-- Form -->
+                <div>
+                    <div class="bg-white p-8 rounded-2xl shadow-md border border-[#c0c7d4]/20">
+                        <h3 class="font-[Montserrat,sans-serif] text-xl font-bold text-[#021c3a] mb-6">Agenda tu cita
+                            aquí</h3>
+                        <form class="space-y-4" id="contactForm">
+                            <input
+                                class="w-full px-4 py-3 rounded-xl border border-[#c0c7d4] focus:ring-2 focus:ring-[#005ea4]/30 focus:border-[#005ea4] outline-none transition-all text-sm"
+                                placeholder="Nombre completo" type="text" required>
+                            <input
+                                class="w-full px-4 py-3 rounded-xl border border-[#c0c7d4] focus:ring-2 focus:ring-[#005ea4]/30 focus:border-[#005ea4] outline-none transition-all text-sm"
+                                placeholder="Teléfono / WhatsApp" type="tel" required>
+                            <select
+                                class="w-full px-4 py-3 rounded-xl border border-[#c0c7d4] focus:ring-2 focus:ring-[#005ea4]/30 focus:border-[#005ea4] outline-none transition-all bg-white text-sm text-[#021c3a]">
+                                <option value="">Servicio de interés</option>
+                                <option>Limpieza dental</option>
+                                <option>Blanqueamiento</option>
+                                <option>Ortodoncia</option>
+                                <option>Endodoncia</option>
+                                <option>Implantes</option>
+                                <option>Consulta general</option>
+                            </select>
+                            <button type="submit"
+                                class="w-full bg-[#43A047] text-white py-4 rounded-xl font-bold hover:bg-[#388E3C] transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95">
+                                <span class="material-symbols-outlined">send</span>
+                                Confirmar por WhatsApp
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════ FINAL CTA ══════════════ -->
+        <section class="py-24 bg-[#005ea4] relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-br from-[#005ea4] to-[#021c3a] opacity-80"></div>
+            <div class="max-w-[1280px] mx-auto px-10 text-center relative z-10 text-white">
+                <h2 class="font-[Montserrat,sans-serif] text-4xl lg:text-5xl font-extrabold mb-5">Tu sonrisa no debería
+                    esperar más</h2>
+                <p class="text-lg mb-10 opacity-85 max-w-xl mx-auto">Primera valoración completa incluida. Sin
+                    compromiso.</p>
+                <div class="flex flex-col sm:flex-row gap-5 justify-center">
+                    <a href="#contacto"
+                        class="bg-white text-[#005ea4] px-10 py-4 rounded-2xl font-bold shadow-2xl hover:scale-105 hover:shadow-[0_20px_60px_rgba(0,0,0,0.3)] transition-all active:scale-95">
+                        Agendar cita ahora
+                    </a>
+                    <a href="https://wa.me/573123627335" target="_blank"
+                        class="bg-[#25D366] text-white px-10 py-4 rounded-2xl font-bold shadow-2xl hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined">chat</span>
+                        Escribir por WhatsApp
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+    <!-- ══════════════ FOOTER ══════════════ -->
+    <footer class="bg-[#1a3150] py-14 px-10 border-t border-white/10">
+        <div class="max-w-[1280px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-10 text-white/70">
+            <div class="col-span-1 md:col-span-2">
+                <div class="flex items-center gap-3 mb-5">
+                    <img alt="Smile Track" class="h-8 w-auto grayscale brightness-200"
+                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWdsdOlulbH1l8P8NDayRRP-_ktepKm4alKWQKbwiBw33rWAjDrLf5OV0Xzan7Ezxu2br8vV7IyWeTWyLe9f9kOqd37w5u4DQkxUjcN7fVFCK9X5MT1ssiI2NtfoETP1QeebXCm0WIfL6xLGUA54dJUfS-6ab80dfTAvc5R7QrL7jW8QHm_Yd_9E1BJ84ieSGmQa9fQ977nwZDXCEPGX6vfcvUYYwseRBk2EM0D2GNg3Wwz5-X5KZoxKae2Xd4750myYhdaFlV7w"
+                        onerror="this.onerror=null;this.src="@Url.Content("~/images/logo.jpg")"">
+                    <span class="font-[Montserrat,sans-serif] font-bold text-lg text-white">Smile Track</span>
+                </div>
+                <p class="text-sm max-w-xs mb-5 text-white/50 leading-relaxed">
+                    © 2025 Smile Track. Todos los derechos reservados. Gestión Dental de Alta Precisión.<br>
+                    Habilitado INVIMA · RIPS activo · Registro Distrital vigente.
+                </p>
+                <div class="flex gap-4">
+                    <a class="hover:text-white transition-colors" href="#" aria-label="Facebook"><span
+                            class="material-symbols-outlined">face_nod</span></a>
+                    <a class="hover:text-white transition-colors" href="#" aria-label="Instagram"><span
+                            class="material-symbols-outlined">photo_camera</span></a>
+                    <a class="hover:text-white transition-colors" href="#" aria-label="Email"><span
+                            class="material-symbols-outlined">alternate_email</span></a>
+                </div>
+            </div>
+            <div>
+                <h4 class="text-white text-xs font-bold mb-5 uppercase tracking-widest">Legal</h4>
+                <ul class="space-y-3 text-sm">
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Privacidad</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Términos</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Aviso Legal</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-white text-xs font-bold mb-5 uppercase tracking-widest">Compañía</h4>
+                <ul class="space-y-3 text-sm">
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Soporte</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Blog</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Preguntas frecuentes</a></li>
+                </ul>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Floating WhatsApp -->
+    <a class="fixed bottom-8 right-8 w-14 h-14 bg-[#25D366] text-white rounded-full flex items-center justify-center shadow-2xl z-50 hover:scale-110 transition-all active:scale-95 group"
+        href="https://wa.me/573123627335" target="_blank" aria-label="WhatsApp">
+        <span class="material-symbols-outlined text-3xl">chat</span>
+        <span
+            class="absolute right-full mr-4 bg-white text-[#021c3a] px-4 py-2 rounded-xl text-xs font-bold shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">¡Hola!
+            ¿En qué podemos ayudarte?</span>
+    </a>
+
+    <script src="@Url.Content("~/js/Publico/homepage.js")" defer></script>
+
+<!-- ═════ MODALES: Chatbot + PQRS (Funcionalidad sin alterar diseño) ═════ -->
+
+<!-- Chatbot Modal -->
+<div id="chatbotModal" class="st-modal-overlay" role="dialog" aria-modal="true" hidden>
+  <div class="st-modal-content">
+    <header class="st-modal-header">
+      <div class="st-modal-brand">
+        <div class="st-modal-avatar">🤖</div>
+        <div>
+          <h2 class="st-modal-title">Asistente SmileTrack</h2>
+          <p class="st-modal-status"><span class="st-status-dot"></span> En línea</p>
+        </div>
+      </div>
+      <button class="st-modal-close" id="chatbotClose" aria-label="Cerrar">×</button>
+    </header>
+    <main id="chatbotMessages" class="st-modal-messages" role="log" aria-live="polite"></main>
+    <div id="typingIndicator" class="st-typing" hidden><span></span><span></span><span></span></div>
+    <div class="st-quick-replies">
+      <button class="st-quick-btn" data-q="¿Cómo agendo una cita?">📅 Agendar</button>
+      <button class="st-quick-btn" data-q="¿Qué métodos de pago aceptan?">💳 Pagos</button>
+      <button class="st-quick-btn" data-q="¿Qué servicios ofrecen?">🦷 Servicios</button>
+      <button class="st-quick-btn" data-q="¿Dónde están ubicados?">📍 Ubicación</button>
+    </div>
+    <form id="chatbotForm" class="st-modal-input">
+      <input type="text" id="chatbotInput" class="st-input" placeholder="Escribe tu pregunta..." autocomplete="off">
+      <button type="submit" class="st-send" aria-label="Enviar">➤</button>
+    </form>
+  </div>
+</div>
+
+<!-- PQRS Modal -->
+<div id="pqrsModal" class="st-modal-overlay" role="dialog" aria-modal="true" hidden>
+  <div class="st-modal-content st-pqrs">
+    <header class="st-modal-header">
+      <div class="st-modal-brand">
+        <div class="st-modal-avatar">📋</div>
+        <div>
+          <h2 class="st-modal-title">PQRS - SmileTrack</h2>
+          <p class="st-modal-status">Respuesta en ≤ 48h hábiles</p>
+        </div>
+      </div>
+      <button class="st-modal-close" id="pqrsClose" aria-label="Cerrar">×</button>
+    </header>
+    <form id="pqrsForm" class="st-form">
+      <div class="st-form-row">
+        <select id="pqrsType" class="st-select" required>
+          <option value="">Tipo de solicitud *</option>
+          <option value="P">🔍 Petición</option><option value="Q">❓ Queja</option>
+          <option value="R">🙏 Reclamo</option><option value="S">💡 Sugerencia</option>
+        </select>
+      </div>
+      <div class="st-form-row st-row-2">
+        <input type="text" id="pqrsName" class="st-input" placeholder="Nombre completo *" required>
+        <input type="email" id="pqrsEmail" class="st-input" placeholder="Correo *" required>
+      </div>
+      <div class="st-form-row st-row-2">
+        <input type="tel" id="pqrsPhone" class="st-input" placeholder="Teléfono">
+        <input type="text" id="pqrsDoc" class="st-input" placeholder="Documento (opcional)">
+      </div>
+      <input type="text" id="pqrsSubject" class="st-input" placeholder="Asunto *" required>
+      <textarea id="pqrsMessage" class="st-textarea" rows="4" placeholder="Descripción detallada *" required></textarea>
+      <label class="st-checkbox"><input type="checkbox" id="pqrsConsent" required> Acepto la <a href="#" class="st-link">política de datos</a></label>
+      <div class="st-form-footer">
+        <button type="button" class="st-btn-secondary" id="pqrsCancel">Cancelar</button>
+        <button type="submit" class="st-btn-primary"><span class="st-btn-text">Enviar PQRS</span><span class="st-btn-load" hidden>⏳</span></button>
+      </div>
+    </form>
+    <div id="pqrsSuccess" class="st-success" hidden>
+      <div class="st-success-icon">✅</div>
+      <h3>¡Solicitud recibida!</h3>
+      <p>Tu PQRS #<strong id="pqrsTicket">ST-2025-XXXX</strong> ha sido registrada.</p>
+      <p>Te responderemos a <strong id="pqrsResponseEmail"></strong> en ≤ 48h hábiles.</p>
+      <button class="st-btn-primary" id="pqrsNew">Nueva solicitud</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="stToast" class="st-toast" hidden><span id="stToastIcon">✅</span><span id="stToastMsg"></span><button id="stToastClose" aria-label="Cerrar">×</button></div>
+
+<!-- CSS Inline Crítico (no interfiere con tu diseño) -->
+<style>
+  /* Scoped styles - prefix "st-" para no colisionar */
+  .st-modal-overlay{position:fixed;inset:0;background:rgba(2,28,58,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;animation:stFadeIn .2s ease}
+  .st-modal-overlay[hidden]{display:none}
+  @@keyframes stFadeIn{from{opacity:0}to{opacity:1}}
+  .st-modal-content{background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.2);width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;animation:stSlideUp .3s ease}
+  @@keyframes stSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  .st-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:linear-gradient(135deg,#005ea4,#021c3a);color:white}
+  .st-modal-brand{display:flex;align-items:center;gap:12px}
+  .st-modal-avatar{width:40px;height:40px;border-radius:50%;background:white;color:#005ea4;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+  .st-modal-title{font-family:'Montserrat',sans-serif;font-size:1rem;font-weight:700;margin:0}
+  .st-modal-status{font-size:.75rem;opacity:.9;margin:2px 0 0;display:flex;align-items:center;gap:6px}
+  .st-status-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;animation:stPulse 2s infinite}
+  @@keyframes stPulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .st-modal-close{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.2);color:white;border:none;font-size:1.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s}
+  .st-modal-close:hover{background:rgba(255,255,255,0.3)}
+  .st-modal-messages{flex:1;padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;background:#f8fafc}
+  .st-message{display:flex;gap:10px;max-width:85%;animation:stFadeIn .2s ease}
+  .st-message.bot{align-self:flex-start}.st-message.user{align-self:flex-end;flex-direction:row-reverse}
+  .st-msg-avatar{width:32px;height:32px;border-radius:50%;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:1rem}
+  .st-message.user .st-msg-avatar{background:#005ea4;color:white}
+  .st-msg-content{background:#f1f5f9;padding:10px 14px;border-radius:12px 12px 12px 4px;font-size:.9rem;line-height:1.4;color:#1e293b}
+  .st-message.user .st-msg-content{background:#005ea4;color:white;border-radius:12px 12px 4px 12px}
+  .st-msg-time{font-size:.7rem;color:#64748b;margin-top:4px;opacity:.8}
+  .st-message.user .st-msg-time{color:rgba(255,255,255,0.85)}
+  .st-typing{display:flex;gap:4px;padding:10px 14px;background:#f1f5f9;border-radius:12px 12px 12px 4px;width:fit-content;margin:0 20px 12px 52px}
+  .st-typing span{width:8px;height:8px;background:#64748b;border-radius:50%;animation:stBounce 1.4s infinite ease-in-out}
+  .st-typing span:nth-child(2){animation-delay:.2s}.st-typing span:nth-child(3){animation-delay:.4s}
+  @@keyframes stBounce{0%,80%,100%{transform:scale(0.8);opacity:.5}40%{transform:scale(1.2);opacity:1}}
+  .st-quick-replies{display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 12px;border-bottom:1px solid #e2e8f0}
+  .st-quick-btn{background:white;border:1.5px solid #e2e8f0;padding:6px 12px;border-radius:9999px;font-size:.8rem;font-weight:500;color:#1e293b;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:4px}
+  .st-quick-btn:hover{background:#dbeafe;border-color:#005ea4;color:#005ea4}
+  .st-modal-input{display:flex;padding:12px 16px;background:white;border-top:1px solid #e2e8f0;gap:8px;align-items:center}
+  .st-input{flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:9999px;font-size:.9rem;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s;background:white;color:#1e293b}
+  .st-input:focus{border-color:#005ea4;box-shadow:0 0 0 3px rgba(0,94,164,0.1)}
+  .st-input::placeholder{color:#64748b}
+  .st-send{width:40px;height:40px;border-radius:50%;background:#005ea4;color:white;border:none;display:flex;align-items:center;justify-content:center;font-size:1.2rem;cursor:pointer;transition:background .2s}
+  .st-send:hover{background:#004881}
+  .st-form{padding:20px;overflow-y:auto;flex:1}
+  .st-form-row{margin-bottom:16px}.st-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .st-select,.st-textarea{width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:.9rem;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s;background:white;color:#1e293b}
+  .st-select:focus,.st-textarea:focus{border-color:#005ea4;box-shadow:0 0 0 3px rgba(0,94,164,0.1)}
+  .st-textarea{resize:vertical;min-height:100px}
+  .st-checkbox{display:flex;align-items:flex-start;gap:8px;font-size:.85rem;color:#1e293b;margin-bottom:20px}
+  .st-checkbox input{margin-top:3px;accent-color:#005ea4}
+  .st-link{color:#005ea4;text-decoration:none}.st-link:hover{text-decoration:underline}
+  .st-form-footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid #e2e8f0;background:#f8fafc}
+  .st-btn-primary,.st-btn-secondary{padding:10px 20px;border-radius:12px;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+  .st-btn-primary{background:#005ea4;color:white;border:none}.st-btn-primary:hover{background:#004881}
+  .st-btn-primary:disabled{opacity:.6;cursor:not-allowed}
+  .st-btn-secondary{background:white;color:#1e293b;border:1.5px solid #e2e8f0}.st-btn-secondary:hover{background:#f1f5f9;border-color:#005ea4}
+  .st-btn-load{animation:stSpin .8s linear infinite}@@keyframes stSpin{to{transform:rotate(360deg)}}
+  .st-success{padding:32px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px}
+  .st-success-icon{width:64px;height:64px;border-radius:50%;background:#dcfce7;color:#166534;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:bold}
+  .st-success h3{font-family:'Montserrat',sans-serif;font-size:1.2rem;margin:0;color:#1e293b}
+  .st-success p{margin:0;color:#64748b;font-size:.9rem}.st-success p strong{color:#1e293b}
+  .st-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:white;padding:12px 20px;border-radius:12px;font-size:.85rem;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:10000;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.15)}
+  .st-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .st-toast.success{background:#22c55e}.st-toast.error{background:#ef4444}.st-toast.warning{background:#f59e0b;color:#1e293b}
+  .st-toast-close{background:none;border:none;cursor:pointer;color:inherit;font-size:1.2rem;margin-left:8px;padding:2px;border-radius:4px}
+  .st-toast-close:hover{background:rgba(255,255,255,0.2)}
+  @@media(max-width:680px){.st-modal-content{max-width:100%;max-height:100vh;border-radius:20px 20px 0 0}.st-modal-messages{padding:12px 16px}.st-message{max-width:90%}.st-quick-replies{padding:0 16px 12px;gap:6px}.st-quick-btn{font-size:.75rem;padding:5px 10px}.st-form{padding:16px}.st-row-2{grid-template-columns:1fr}.st-input{font-size:1rem}}
+  /* Accesibilidad */
+  :focus-visible{outline:3px solid #005ea4;outline-offset:2px}@@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}}
+</style>
+
+<!-- JavaScript funcionalidad (al final, después de tu script existente) -->
+<script>
+(function(){'use strict';const $=id=>document.getElementById(id);const $$=(sel,p=document)=>Array.from(p.querySelectorAll(sel));
+// Referencias
+const chatModal=$('chatbotModal'),pqrsModal=$('pqrsModal'),chatClose=$('chatbotClose'),pqrsClose=$('pqrsClose');
+const chatForm=$('chatbotForm'),chatInput=$('chatbotInput'),chatMessages=$('chatbotMessages'),typing=$('typingIndicator');
+const pqrsForm=$('pqrsForm'),pqrsSuccess=$('pqrsSuccess'),pqrsTicket=$('pqrsTicket'),pqrsResp=$('pqrsResponseEmail');
+const toast=$('stToast'),toastMsg=$('stToastMsg');
+// Chatbot knowledge
+const KB={citas:{kw:['cita','agendar','reservar','hora'],r:'📅 Para agendar: 1) Haz clic en "Agendar cita", 2) Completa el formulario, 3) Te confirmamos por WhatsApp.'},
+pagos:{kw:['pago','factura','tarjeta','efectivo','nequi'],r:'💳 Aceptamos: Efectivo, tarjetas, Nequi, Daviplata. Consulta tus pagos en tu cuenta.'},
+servicios:{kw:['servicio','limpieza','blanqueamiento','ortodoncia'],r:'🦷 Ofrecemos: Limpieza ($80k), Blanqueamiento ($350k), Ortodoncia y más. ¿Te interesa agendar?'},
+horarios:{kw:['horario','abre','cierra','lunes','sábado'],r:'🕒 Lunes-Viernes: 8AM-6PM | Sábados: 9AM-2PM | Urgencias: 300 123 4567'},
+urgencias:{kw:['urgencia','dolor','emergencia','ayuda'],r:'🚨 Para urgencias: Llama YA al 300 123 4567 o acude a nuestra sede.'},
+ubicacion:{kw:['ubicación','dirección','dónde','carrera'],r:'📍 Estamos en: Cra. 15 #93-47, Oficina 302, Bogotá. También ofrecemos consultas virtuales.'},
+fallback:{r:'😅 No entendí. Pregúntame sobre: citas, pagos, servicios, horarios, urgencias o ubicación.'}};
+// Utils
+const showToast=(m,t='success')=>{if(!toast||!toastMsg)return;const i={success:'✅',error:'❌',warning:'⚠️'};toast.className=`st-toast ${t} show`;$('#stToastIcon').textContent=i[t]||'✅';toastMsg.textContent=m;toast.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>{toast.classList.remove('show');setTimeout(()=>{toast.hidden=true},200)},4000)};
+const findReply=t=>{const s=t.toLowerCase().trim();for(const[k,d]of Object.entries(KB)){if(k==='fallback')continue;if(d.kw.some(w=>s.includes(w)))return d.r}return KB.fallback.r};
+const addMsg=(txt,user)=>{if(!chatMessages)return;const tm=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}),el=document.createElement('div');el.className=`st-message ${user?'user':'bot'}`;el.innerHTML=`<div class="st-msg-avatar">${user?'👤':'🤖'}</div><div class="st-msg-content"><p>${txt.replace(/\n/g,'<br>')}</p><time class="st-msg-time">${tm}</time></div>`;chatMessages.appendChild(el);chatMessages.scrollTop=chatMessages.scrollHeight};
+// Modal controls
+const openM=m=>{if(m){m.hidden=false;document.body.style.overflow='hidden'}};const closeM=m=>{if(m){m.hidden=true;document.body.style.overflow=''}};
+// Openers: usar botón flotante existente para chat (title="Chat")
+$$('button[title="Chat"]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();openM(chatModal);if(chatMessages.children.length===0)addMsg('¡Hola! 👋 Soy tu asistente de SmileTrack. ¿En qué puedo ayudarte?',false);setTimeout(()=>chatInput?.focus(),100)}));
+// PQRS: agregar botón en footer (sección Compañía)
+const footerPqrs=$$('footer a').find(a=>a.textContent.trim()==='Preguntas frecuentes')?.parentElement;
+if(footerPqrs){const li=document.createElement('li');li.innerHTML='<a href="#" id="openPqrsLink" class="hover:text-[#a4f0e9] transition-colors">PQRS</a>';footerPqrs.after(li);$('#openPqrsLink')?.addEventListener('click',e=>{e.preventDefault();openM(pqrsModal);if(pqrsForm)pqrsForm.reset();if(pqrsSuccess)pqrsSuccess.hidden=true;pqrsForm.hidden=false})}
+// Cerrar modales
+chatClose?.addEventListener('click',()=>closeM(chatModal));pqrsClose?.addEventListener('click',()=>closeM(pqrsModal));
+$$('.st-modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o){closeM(chatModal);closeM(pqrsModal)}}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeM(chatModal);closeM(pqrsModal)}});
+// Chatbot logic
+chatForm?.addEventListener('submit',e=>{e.preventDefault();const t=chatInput?.value.trim();if(!t)return;addMsg(t,true);if(chatInput)chatInput.value='';if(typing)typing.hidden=false;setTimeout(()=>{if(typing)typing.hidden=true;addMsg(findReply(t),false);if(t.toLowerCase().includes('urgencia')||t.toLowerCase().includes('dolor'))showToast('🚨 Para emergencias, llama al 300 123 4567','warning')},700)});
+$$('.st-quick-btn').forEach(b=>b.addEventListener('click',()=>{const q=b.dataset.q;if(q&&chatInput){chatInput.value=q;chatForm.requestSubmit()}}));
+// PQRS form
+pqrsForm?.addEventListener('submit',async e=>{e.preventDefault();const btn=pqrsForm.querySelector('button[type="submit"]'),bt=btn?.querySelector('.st-btn-text'),bl=btn?.querySelector('.st-btn-load');try{if(bt&&bl){bt.hidden=true;bl.hidden=false;btn.disabled=true}await new Promise(r=>setTimeout(r,1200));if(pqrsForm)pqrsForm.hidden=true;if(pqrsSuccess){pqrsSuccess.hidden=false;pqrsTicket.textContent=`ST-${new Date().getFullYear()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;pqrsResp.textContent=$('pqrsEmail')?.value||'tu@email.com'}showToast('✅ PQRS registrada exitosamente','success')}catch(err){console.error('PQRS error',err);showToast('❌ Error al enviar. Intenta de nuevo.','error')}finally{if(bt&&bl){bt.hidden=false;bl.hidden=true;btn.disabled=false}}});
+$('#pqrsNew')?.addEventListener('click',()=>{if(pqrsSuccess)pqrsSuccess.hidden=true;if(pqrsForm){pqrsForm.hidden=false;pqrsForm.reset()}});$('#pqrsCancel')?.addEventListener('click',()=>{if(confirm('¿Cancelar esta solicitud?'))closeM(pqrsModal)});$('#stToastClose')?.addEventListener('click',()=>{if(toast){toast.classList.remove('show');setTimeout(()=>{toast.hidden=true},200)}});console.log('✅ SmileTrack: Chatbot+PQRS listos');})();
+</script>
+
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>

@@ -1,0 +1,313 @@
+﻿﻿@* ============================================
+SmileTrack — Estado del Consultorio (st-aux-09-estado-consultorio)
+============================================
+Autor: Johan Santamaria
+Fecha: 29/07/2026
+
+DESCRIPCIÓN:
+Vista de gestión del estado del consultorio odontológico que permite al auxiliar completar el checklist post-atención, registrar observaciones, seleccionar el estado operativo y confirmar la disponibilidad del consultorio.
+
+FUNCIONALIDADES PRINCIPALES:
+- Checklist interactivo post-atención con barra de progreso ARIA accesible
+- Selector de estado del consultorio (Disponible / En mantenimiento / No disponible) con patrón radiogroup
+- Campo de observaciones con auto-guardado mediante debounce
+- Historial cronológico de cambios de estado del consultorio con marcas de tiempo accesibles
+
+DEPENDENCIAS TÉCNICAS:
+- Controller: GestionCitasController y Stadm09Citas
+- CSS: ~/css/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.css
+- JS: ~/js/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.js
+- Partial / Otros: Sidebar hardcoded en la vista (no usa partial)
+
+NOTAS DE MANTENIMIENTO:
+- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+- La barra de progreso usa role="progressbar" con aria-valuenow para anunciar el avance del checklist a lectores de pantalla.
+============================================ *@
+@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Estado del Consultorio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+
+  <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header con breadcrumb accesible -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Auxiliar</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Estado del consultorio</span>
+        </nav>
+        <h1 class="page-title">Estado del Consultorio</h1>
+        <p class="page-subtitle">Consultorio 1 · Piso 1 · Última limpieza hace 2 horas</p>
+      </div>
+    </header>
+
+    <!-- Layout de contenido -->
+    <div class="content-layout">
+
+      <!-- Columna izquierda: Checklist de preparación -->
+      <div class="content-left">
+        <div class="card checklist-card">
+          <div class="checklist-header">
+            <h3 class="card-title" id="checklistTitle">✅ Checklist post-atención</h3>
+            <span class="progress-info" id="progressInfo" aria-live="polite">3/7 - 43%</span>
+          </div>
+
+          <!-- Barra de progreso accesible -->
+          <div class="progress-section">
+            <div class="progress-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="43"
+              aria-label="Progreso del checklist">
+              <div class="progress-bar-fill" id="progressBar" style="width: 43%;"></div>
+            </div>
+            <p class="progress-text" id="progressText" aria-live="polite">3 de 7 ítems completados</p>
+          </div>
+
+          <!-- Lista de verificación con role list -->
+          <ul class="checklist" id="checklistItems" role="list" aria-labelledby="checklistTitle">
+            <li role="listitem">
+              <label class="check-item">
+                <input type="checkbox" checked aria-label="Limpieza y desinfección de superficies - completado" />
+                <span class="checkmark" aria-hidden="true"></span>
+                <span class="text">Limpieza y desinfección de superficies</span>
+              </label>
+            </li>
+            <li role="listitem">
+              <label class="check-item">
+                <input type="checkbox" checked aria-label="Instrumental esterilizado y empaquetado - completado" />
+                <span class="checkmark" aria-hidden="true"></span>
+                <span class="text">Instrumental esterilizado y empaquetado</span>
+              </label>
+            </li>
+            <li role="listitem">
+              <label class="check-item">
+                <input type="checkbox" checked aria-label="Residuos biológicos eliminados - completado" />
+                <span class="checkmark" aria-hidden="true"></span>
+                <span class="text">Residuos biológicos eliminados</span>
+              </label>
+            </li>
+            <li role="listitem">
+              <label class="check-item">
+                <input type="checkbox" aria-label="Guantes y tapabocas reabastecidos" />
+                <span class="checkmark" aria-hidden="true"></span>
+                <span class="text">Guantes y tapabocas reabastecidos</span>
+              </label>
+            </li>
+            <li role="listitem">
+              <label class="check-item">
+                <input type="checkbox" aria-label="Historia clínica lista para próximo" />
+                <span class="checkmark" aria-hidden="true"></span>
+                <span class="text">Historia clínica lista para próximo</span>
+              </label>
+            </li>
+            <li role="listitem">
+              <label class="check-item">
+                <input type="checkbox" aria-label="Equipos verificados y encendidos" />
+                <span class="checkmark" aria-hidden="true"></span>
+                <span class="text">Equipos verificados y encendidos</span>
+              </label>
+            </li>
+            <li role="listitem">
+              <label class="check-item">
+                <input type="checkbox" aria-label="Consultorio ventilado" />
+                <span class="checkmark" aria-hidden="true"></span>
+                <span class="text">Consultorio ventilado</span>
+              </label>
+            </li>
+          </ul>
+
+          <!-- Sección para agregar nuevo ítem -->
+          <div class="add-item-wrapper">
+            <div class="separator" aria-hidden="true"></div>
+            <div class="add-controls">
+              <input type="text" id="newItemInput" placeholder="Escribir nuevo ítem..."
+                aria-label="Descripción del nuevo ítem de checklist" />
+              <button class="add-btn" id="btnAddItem" aria-label="Agregar ítem al checklist">+</button>
+            </div>
+          </div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <!-- Campo de observaciones -->
+          <div class="form-group">
+            <label class="form-label" for="obsTextarea">Observaciones de consultorio</label>
+            <textarea class="form-textarea" id="obsTextarea"
+              placeholder="Ej: Camilla con humedad, se procedió a secar..."
+              aria-label="Observaciones adicionales sobre el estado del consultorio"></textarea>
+          </div>
+
+          <!-- Botón de confirmación -->
+          <button class="btn-confirm" id="btnConfirmPreparation"
+            aria-label="Confirmar que la preparación del consultorio está completa">Confirmar preparación
+            completa</button>
+        </div>
+      </div>
+
+      <!-- Columna derecha: Estado + Historial -->
+      <aside class="content-right">
+
+        <!-- Selector de estado del consultorio -->
+        <div class="card status-card">
+          <h3 class="card-title" id="statusTitle">Estado final del consultorio</h3>
+          <div class="status-options" role="radiogroup" aria-labelledby="statusTitle">
+            <label class="status-option selected" role="radio" aria-checked="true" tabindex="0" data-value="disponible">
+              <span class="status-check" aria-hidden="true">✅</span>
+              <span class="status-details"><strong>Disponible</strong><span>Listo para la próxima cita</span></span>
+            </label>
+            <label class="status-option" role="radio" aria-checked="false" tabindex="-1" data-value="mantenimiento">
+              <span class="status-check" aria-hidden="true">🔧</span>
+              <span class="status-details"><strong>En mantenimiento</strong><span>Requiere revisión
+                  técnica</span></span>
+            </label>
+            <label class="status-option" role="radio" aria-checked="false" tabindex="-1" data-value="no-disponible">
+              <span class="status-check" aria-hidden="true">❌</span>
+              <span class="status-details"><strong>No disponible</strong><span>Fuera de servicio
+                  temporalmente</span></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Historial de estados -->
+        <div class="card history-card">
+          <h3 class="card-title" id="historyTitle">Historial de estados</h3>
+          <ul class="history-list" role="list" aria-labelledby="historyTitle">
+            <li role="listitem">
+              <p class="history-time"><time datetime="2026-03-20T11:00">20 Mar 11:00</time></p>
+              <p class="history-detail">Sara Jiménez · Limpieza completada</p>
+            </li>
+            <li role="listitem">
+              <p class="history-time"><time datetime="2026-03-20T09:30">20 Mar 09:30</time></p>
+              <p class="history-detail">Sara Jiménez · Preparación iniciada</p>
+            </li>
+            <li role="listitem">
+              <p class="history-time"><time datetime="2026-03-19T17:00">19 Mar 17:00</time></p>
+              <p class="history-detail">Carlos Pérez · Fin de jornada</p>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Botón de confirmación de estado -->
+        <button class="btn-confirm btn-status" id="btnConfirmStatus"
+          aria-label="Confirmar estado actual del consultorio">Confirmar estado</button>
+
+      </aside>
+
+    </div>
+
+  </main>
+
+  <!-- Mobile bottom nav con aria-label para navegación móvil -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo">
+      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span>Panel</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span>Agenda</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon" aria-hidden="true">🚑</span>
+      <span>Consultorio</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">✅</span>
+      <span>Finalizadas</span>
+    </a>
+    <a href="/acceso-y-seguridad/login" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
+      <span>Login</span>
+    </a>
+  </nav>
+
+  <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para contenido solo accesible por screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span style="font-size:1rem;">🦷</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+
+  <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.js")"></script>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")""></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")""></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
+    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
+</body>
+
+</html>
+
+
+
+
+
+
+
+

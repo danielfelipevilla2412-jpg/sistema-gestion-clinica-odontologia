@@ -1,0 +1,460 @@
+﻿@{
+    ViewData["Title"] = "Bitácora del Sistema";
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Bitácora de auditoría del sistema SmileTrack" />
+  <title>SmileTrack — Bitácora del Sistema</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/st-adm-15-bitacora/bitacora.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Administración</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Bitácora del Sistema</span>
+        </nav>
+        <h1 class="page-title">Bitácora del Sistema</h1>
+        <p class="page-subtitle">Auditoría y registro de operaciones</p>
+      </div>
+      <div class="header-actions">
+        <label class="toggle-live" aria-label="Actualizar en tiempo real">
+          <input type="checkbox" id="toggleLive" checked>
+          <span class="toggle-slider" aria-hidden="true"></span>
+          <span class="toggle-label">🔄 Live</span>
+        </label>
+        <button class="btn-primary" id="btnExport" aria-label="Exportar bitácora">
+          📥 Exportar
+        </button>
+      </div>
+    </header>
+
+    <!-- KPI Cards -->
+    <section class="stats-grid" aria-label="Indicadores de bitácora">
+      <div class="stat-card" data-color="blue">
+        <span class="stat-number" id="kpiTotal" data-target="3842" aria-live="polite">0</span>
+        <span class="stat-label">Total Eventos</span>
+        <span class="stat-sub">Hoy</span>
+      </div>
+      <div class="stat-card" data-color="red">
+        <span class="stat-number" id="kpiCritical" data-target="7" aria-live="polite">0</span>
+        <span class="stat-label">Alertas Críticas</span>
+        <span class="stat-sub error">Requieren atención</span>
+      </div>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number" id="kpiWarnings" data-target="23" aria-live="polite">0</span>
+        <span class="stat-label">Advertencias</span>
+        <span class="stat-sub">Últimas 24 h</span>
+      </div>
+      <div class="stat-card" data-color="green">
+        <div class="stat-live">
+          <span class="pulse-dot" aria-hidden="true"></span>
+          <span class="stat-number" id="liveClock" aria-live="polite">--:--:--</span>
+        </div>
+        <span class="stat-label">Sistema Activo</span>
+        <span class="stat-sub">Uptime: 99.97%</span>
+      </div>
+    </section>
+
+    <!-- Filtros -->
+    <section class="filters-section" aria-label="Filtros de bitácora">
+      <div class="filters-row">
+        <div class="search-wrap">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input type="search" id="searchLog" class="search-input" placeholder="Buscar en bitácora..."
+            aria-label="Buscar evento">
+          <button class="search-clear" id="searchClear" aria-label="Limpiar búsqueda" hidden>×</button>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterLevel" class="visually-hidden">Filtrar por nivel</label>
+          <select id="filterLevel" class="status-select" aria-label="Filtrar por nivel de evento">
+            <option value="">Todos los niveles</option>
+            <option value="critical">🔴 Crítico</option>
+            <option value="error">🟠 Error</option>
+            <option value="warning">🟡 Advertencia</option>
+            <option value="info">🔵 Info</option>
+            <option value="success">🟢 Éxito</option>
+            <option value="debug">⚪ Debug</option>
+          </select>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterModule" class="visually-hidden">Filtrar por módulo</label>
+          <select id="filterModule" class="status-select" aria-label="Filtrar por módulo">
+            <option value="">Todos los módulos</option>
+            <option value="auth">Autenticación</option>
+            <option value="citas">Citas</option>
+            <option value="facturacion">Facturación</option>
+            <option value="database">Base de Datos</option>
+            <option value="servicios">Servicios</option>
+            <option value="system">Sistema</option>
+          </select>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterDate" class="visually-hidden">Filtrar por fecha</label>
+          <input type="date" id="filterDate" class="status-select" aria-label="Filtrar por fecha">
+        </div>
+        <!-- Badge de filtros activos -->
+        <span class="filter-badge" id="filterBadge" aria-live="polite" hidden>
+          <span aria-hidden="true">🎯</span> <span id="filterBadgeText">0 filtros</span>
+          <button class="filter-reset" id="filterReset" aria-label="Resetear filtros">×</button>
+        </span>
+      </div>
+      <!-- Acciones masivas -->
+      <div class="bulk-actions" id="bulkActions" hidden role="group" aria-label="Acciones masivas">
+        <span class="bulk-count" id="bulkCount">0 seleccionados</span>
+        <button class="btn-secondary btn-sm" id="btnMarkRead" aria-label="Marcar seleccionados como leídos">👁️ Marcar
+          leídos</button>
+        <button class="btn-secondary btn-sm btn-danger" id="btnArchive" aria-label="Archivar seleccionados">📦
+          Archivar</button>
+        <button class="btn-secondary btn-sm" id="btnClearSelection" aria-label="Limpiar selección">✕ Limpiar</button>
+      </div>
+    </section>
+
+    <!-- Tabla de logs -->
+    <section class="table-card" aria-labelledby="logsTitle">
+      <h2 class="visually-hidden" id="logsTitle">Registro de eventos del sistema</h2>
+
+      <!-- Controles de tabla -->
+      <div class="table-controls">
+        <span class="table-info" aria-live="polite">
+          <strong id="tableCount">3,842</strong> eventos registrados
+        </span>
+        <div class="table-actions">
+          <label for="itemsPerPage" class="visually-hidden">Elementos por página</label>
+          <select id="itemsPerPage" class="status-select status-select-sm" aria-label="Elementos por página">
+            <option value="10">10 por página</option>
+            <option value="25" selected>25 por página</option>
+            <option value="50">50 por página</option>
+            <option value="100">100 por página</option>
+          </select>
+          <button class="btn-icon" id="btnRefresh" aria-label="Actualizar bitácora">🔄</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="logsTable" class="table-base" aria-label="Tabla de eventos de bitácora" role="grid">
+          <thead>
+            <tr role="row">
+              <th scope="col" role="columnheader" class="checkbox-col">
+                <input type="checkbox" id="selectAll" aria-label="Seleccionar todos los eventos">
+              </th>
+              <th scope="col" role="columnheader">
+                <button class="sort-btn" aria-label="Ordenar por fecha" aria-sort="descending">
+                  TIMESTAMP <span aria-hidden="true">↕</span>
+                </button>
+              </th>
+              <th scope="col" role="columnheader">NIVEL</th>
+              <th scope="col" role="columnheader">MÓDULO</th>
+              <th scope="col" role="columnheader">DESCRIPCIÓN</th>
+              <th scope="col" role="columnheader">USUARIO</th>
+              <th scope="col" role="columnheader" class="text-right">ACCIÓN</th>
+            </tr>
+          </thead>
+          <tbody id="logsTbody" aria-live="polite" role="rowgroup">
+            <!-- Filas inyectadas por JS con mejoras de accesibilidad -->
+          </tbody>
+        </table>
+
+        <!-- Empty state mejorado -->
+        <div class="table-empty" id="tableEmpty" role="status" aria-live="polite" hidden>
+          <div class="empty-icon" aria-hidden="true">📋</div>
+          <h3 class="empty-title">No se encontraron eventos</h3>
+          <p class="empty-desc">Intenta ajustar los filtros o cambiar el rango de fechas</p>
+          <button class="btn-secondary" id="emptyResetBtn">Resetear filtros</button>
+        </div>
+
+        <!-- Loading state -->
+        <div class="table-loading" id="tableLoading" hidden aria-live="polite">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <span>Cargando eventos...</span>
+        </div>
+      </div>
+
+      <!-- Paginación mejorada -->
+      <div class="pagination" role="navigation" aria-label="Paginación de eventos">
+        <span id="paginationInfo" aria-live="polite">Mostrando 1-25 de 3,842 eventos</span>
+        <div class="pagination-controls">
+          <button class="pagination-btn" id="btnFirst" aria-label="Primera página" disabled>««</button>
+          <button class="pagination-btn" id="btnPrev" aria-label="Página anterior" disabled>«</button>
+
+          <div class="pagination-pages" id="paginationButtons" role="tablist" aria-label="Navegación de páginas">
+            <!-- Botones generados por JS con aria-current -->
+          </div>
+
+          <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">»</button>
+          <button class="pagination-btn" id="btnLast" aria-label="Última página">»»</button>
+
+          <!-- Jump to page -->
+          <div class="pagination-jump">
+            <label for="jumpPage" class="visually-hidden">Ir a página</label>
+            <input type="number" id="jumpPage" class="jump-input" min="1" aria-label="Número de página">
+            <button class="jump-btn" id="jumpBtn" aria-label="Ir">↵</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Leyenda de niveles -->
+    <section class="legend-section" aria-labelledby="legendTitle">
+      <h2 class="section-title" id="legendTitle">Niveles de evento</h2>
+      <div class="legend-grid">
+        <div class="legend-item">
+          <span class="legend-dot critical" aria-hidden="true"></span>
+          <span>Crítico - Requiere atención inmediata</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot error" aria-hidden="true"></span>
+          <span>Error - Fallo en operación</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot warning" aria-hidden="true"></span>
+          <span>Advertencia - Situación inusual</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot info" aria-hidden="true"></span>
+          <span>Info - Evento informativo</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot success" aria-hidden="true"></span>
+          <span>Éxito - Operación completada</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═════ MODAL: DETALLE DE EVENTO ═════ -->
+  <div class="modal-overlay" id="modalLog" role="dialog" aria-modal="true" aria-labelledby="modalLogTitle"
+    aria-hidden="true" inert>
+    <div class="modal modal-lg">
+      <button class="modal-close" id="modalLogClose" aria-label="Cerrar ventana de detalle">×</button>
+
+      <!-- Header del modal -->
+      <div class="modal-header">
+        <div class="modal-level-badge" id="modalLevelBadge">
+          <span class="level-icon" aria-hidden="true">🔴</span>
+          <span class="level-text" id="modalLevelText">Crítico</span>
+        </div>
+        <h2 class="modal-title" id="modalLogTitle">Detalle de Evento</h2>
+      </div>
+
+      <!-- Body del modal -->
+      <div class="modal-body">
+        <div class="log-detail-grid">
+          <div class="detail-item">
+            <span class="detail-key">🕐 Timestamp</span>
+            <span class="detail-value"><time datetime="" id="modalTimestamp">--</time></span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-key">🔧 Módulo</span>
+            <span class="detail-value" id="modalModule">--</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-key">👤 Usuario</span>
+            <span class="detail-value" id="modalUser">--</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-key">🌐 IP</span>
+            <span class="detail-value" id="modalIp">--</span>
+          </div>
+          <div class="detail-item full-width">
+            <span class="detail-key">📝 Descripción</span>
+            <p class="detail-desc" id="modalDescription">--</p>
+          </div>
+          <div class="detail-item full-width" id="modalStackTraceWrap" hidden>
+            <span class="detail-key">🔍 Stack Trace</span>
+            <pre class="detail-stack" id="modalStackTrace">--</pre>
+          </div>
+          <div class="detail-item full-width" id="modalMetadataWrap" hidden>
+            <span class="detail-key">📦 Metadata</span>
+            <pre class="detail-metadata" id="modalMetadata">--</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer del modal -->
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="modalLogCancel">Cerrar</button>
+        <button type="button" class="btn-outline" id="modalLogCopy" aria-label="Copiar detalles del evento">📋
+          Copiar</button>
+        <button type="button" class="btn-primary" id="modalLogReport" aria-label="Reportar este evento">🚨
+          Reportar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════ MODAL: EXPORTAR ═════ -->
+  <div class="modal-overlay" id="modalExport" role="dialog" aria-modal="true" aria-labelledby="modalExportTitle"
+    aria-hidden="true" inert>
+    <div class="modal">
+      <button class="modal-close" id="modalExportClose" aria-label="Cerrar">×</button>
+      <h2 class="modal-title" id="modalExportTitle">Exportar Bitácora</h2>
+
+      <div class="export-options">
+        <label class="export-option">
+          <input type="radio" name="exportFormat" value="pdf" checked>
+          <span class="export-icon">📄</span>
+          <div>
+            <strong>PDF</strong>
+            <span class="export-desc">Documento para imprimir o archivar</span>
+          </div>
+        </label>
+        <label class="export-option">
+          <input type="radio" name="exportFormat" value="csv">
+          <span class="export-icon">📊</span>
+          <div>
+            <strong>CSV</strong>
+            <span class="export-desc">Datos para Excel o análisis</span>
+          </div>
+        </label>
+        <label class="export-option">
+          <input type="radio" name="exportFormat" value="json">
+          <span class="export-icon">🔧</span>
+          <div>
+            <strong>JSON</strong>
+            <span class="export-desc">Formato técnico para desarrolladores</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="export-range">
+        <span class="export-range-label">Rango de eventos:</span>
+        <label class="export-range-option">
+          <input type="radio" name="exportRange" value="filtered" checked>
+          <span>Solo eventos filtrados</span>
+        </label>
+        <label class="export-range-option">
+          <input type="radio" name="exportRange" value="all">
+          <span>Todos los eventos</span>
+        </label>
+      </div>
+
+      <div class="export-progress" id="exportProgress" hidden>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="exportProgressBar" style="width:0%"></div>
+        </div>
+        <span class="progress-text" id="exportProgressText">Preparando archivo...</span>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="modalExportCancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="modalExportConfirm">📥 Descargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile bottom nav -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/facturacion-y-pagos/st-adm-13-reportes-financieros" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📈</span>
+      <span>Reportes</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon" aria-hidden="true">📜</span>
+      <span>Bitácora</span>
+    </a>
+    <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">⚙️</span>
+      <span>Config</span>
+    </a>
+    <a href="/acceso-y-seguridad/login" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">🚪</span>
+      <span>Salir</span>
+    </a>
+  </nav>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Announcer for screen readers -->
+  <div id="announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span style="font-size:1rem;">🦷</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+<script>
+  window.RAZOR_BITACORA = @Html.Raw(ViewData["BitacoraJson"] ?? "[]");
+</script>
+<script src="@Url.Content("~/js/Acceso_Y_Seguridad/st-adm-15-bitacora/bitacora.js")"></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+

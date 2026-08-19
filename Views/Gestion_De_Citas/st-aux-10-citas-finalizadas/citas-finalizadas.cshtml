@@ -1,0 +1,200 @@
+﻿﻿@* ============================================
+SmileTrack — Citas Finalizadas (st-aux-10-citas-finalizadas)
+============================================
+Autor: Johan Santamaria
+Fecha: 29/07/2026
+
+DESCRIPCIÓN:
+Vista de resumen de la jornada que muestra todas las citas finalizadas del día con sus estados (Atendida, Cancelada, No asistió), tarjetas de métricas por tipo y la opción de exportar el informe en formato CSV.
+
+FUNCIONALIDADES PRINCIPALES:
+- Tabla accesible de citas finalizadas del día con badges de estado coloreados
+- Tarjetas de resumen numérico por estado con animación de conteo suave
+- Botón de exportación del resumen diario a CSV generado en el cliente (sin servidor)
+- Tbody con aria-live="polite" para que lectores de pantalla anuncien los cambios de datos
+
+DEPENDENCIAS TÉCNICAS:
+- Controller: GestionCitasController y Stadm09Citas
+- CSS: ~/css/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.css
+- JS: ~/js/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.js
+- Partial / Otros: Sidebar hardcoded en la vista (no usa partial)
+
+NOTAS DE MANTENIMIENTO:
+- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+- El tbody se renderiza vía JS para poder aplicar badges de estado dinámicos sin duplicar lógica en Razor.
+============================================ *@
+@{ Layout = null; }
+@using System.Text.Json
+@{ var citasFinalizadasDataJson = JsonSerializer.Serialize(ViewData["CitasFinalizadasData"]); }
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmileTrack — Citas Finalizadas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+
+<body>
+
+  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+
+  <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header con metadatos accesibles -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Auxiliar</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Citas finalizadas</span>
+        </nav>
+        <h1 class="page-title">Citas Finalizadas del Día</h1>
+        <p class="page-subtitle">Resumen de la jornada · <time datetime="2026-03-20">20 de marzo 2026</time></p>
+      </div>
+      <button class="btn-export" id="btnExport" aria-label="Descargar resumen de citas finalizadas">📥 Descargar
+        resumen</button>
+    </header>
+
+    <!-- Stats Grid: patrón canónico (stats-grid + stat-card[data-color]) unificado con
+         st-adm-07, st-rec-01, st-adm-01 y el resto del módulo de Citas/Profesionales.
+         Antes usaba summary-cards/summary-card.green que era un diseño ad-hoc distinto. -->
+    <section class="stats-grid" aria-label="Resumen de citas por estado">
+      <div class="stat-card" data-color="green">
+        <span class="stat-number" id="countAtendidas" aria-live="polite">0</span>
+        <span class="stat-label">Atendidas</span>
+      </div>
+      <div class="stat-card" data-color="red">
+        <span class="stat-number" id="countCanceladas" aria-live="polite">0</span>
+        <span class="stat-label">Canceladas</span>
+      </div>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number" id="countNoAsistio" aria-live="polite">0</span>
+        <span class="stat-label">No asistió</span>
+      </div>
+    </section>
+
+    <!-- Tabla de citas con estructura accesible -->
+    <div class="table-card">
+      <table class="appointments-table" aria-label="Listado de citas finalizadas del día">
+        <thead>
+          <tr>
+            <th scope="col">HORA</th>
+            <th scope="col">PACIENTE</th>
+            <th scope="col">PROFESIONAL</th>
+            <th scope="col">SERVICIO</th>
+            <th scope="col">ESTADO</th>
+          </tr>
+        </thead>
+        <tbody id="appointmentsBody" aria-live="polite">
+          <!-- Las filas se generan dinámicamente por JavaScript -->
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+
+  <!-- Mobile bottom nav con aria-label para navegación móvil -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span>Panel</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span>Agenda</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon" aria-hidden="true">✅</span>
+      <span>Finalizadas</span>
+    </a>
+    <a href="/acceso-y-seguridad/login" class="mobile-nav-item">
+      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
+      <span>Login</span>
+    </a>
+  </nav>
+
+  <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para contenido solo accesible por screen readers -->
+  <style>
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 1000;
+      transition: top var(--tr);
+    }
+
+    .skip-link:focus {
+      top: 0;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span style="font-size:1rem;">🦷</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+
+
+  <script>
+    window.smiletrackCitasFinalizadasData = @Html.Raw(citasFinalizadasDataJson);
+  </script>
+  <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.js")"></script>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
+    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
+</body>
+
+</html>
+
+
+
+
+
+
+
+

@@ -1,0 +1,130 @@
+/* ============================================
+   SmileTrack — Toasts Compartidos (shared/toasts.css)
+   ============================================
+   Sistema de notificaciones flotantes (Toasts).
+   ============================================ */
+
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 9999;
+    pointer-events: none; /* Permite clic a través del contenedor */
+}
+
+.toast {
+    min-width: 300px;
+    max-width: 400px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: flex-start;
+    padding: 16px;
+    gap: 12px;
+    pointer-events: auto; /* Restaura eventos para el toast individual */
+    transform: translateX(120%);
+    opacity: 0;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+    border-left: 5px solid transparent;
+}
+
+.toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.toast.hide {
+    transform: translateX(120%);
+    opacity: 0;
+}
+
+/* Variantes */
+.toast-success {
+    border-left-color: #10b981; /* Emerald 500 */
+}
+.toast-success .toast-icon {
+    color: #10b981;
+}
+
+.toast-error {
+    border-left-color: #ef4444; /* Red 500 */
+}
+.toast-error .toast-icon {
+    color: #ef4444;
+}
+
+.toast-warning {
+    border-left-color: #f59e0b; /* Amber 500 */
+}
+.toast-warning .toast-icon {
+    color: #f59e0b;
+}
+
+.toast-info {
+    border-left-color: #3b82f6; /* Blue 500 */
+}
+.toast-info .toast-icon {
+    color: #3b82f6;
+}
+
+.toast-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-title {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    color: #111827; /* Gray 900 */
+    margin: 0 0 4px 0;
+}
+
+.toast-message {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: #4b5563; /* Gray 600 */
+    margin: 0;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: transparent;
+    border: none;
+    color: #9ca3af; /* Gray 400 */
+    cursor: pointer;
+    font-size: 20px;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s ease;
+}
+
+.toast-close:hover {
+    color: #4b5563; /* Gray 600 */
+}
+
+@media (max-width: 640px) {
+    .toast-container {
+        bottom: 16px;
+        right: 16px;
+        left: 16px; /* Ocupa el ancho en móvil */
+        align-items: stretch;
+    }
+    .toast {
+        min-width: 0;
+        max-width: 100%;
+    }
+}

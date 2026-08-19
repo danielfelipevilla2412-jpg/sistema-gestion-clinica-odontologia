@@ -1,0 +1,453 @@
+﻿@{
+    ViewData["Title"] = "Gestión de Roles";
+}
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Configura permisos por rol y módulo en SmileTrack" />
+  <title>SmileTrack — Gestión de Roles</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+    rel="stylesheet" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/st-adm-03-gestion-roles/styles.css")" />
+
+  <!-- Preload critical assets -->
+  <link rel="preload" href="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" as="image" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+</head>
+<body>
+
+  <!-- ═════ SKIP LINKS PARA ACCESIBILIDAD ═════ -->
+  <div class="skip-links">
+    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+    <a href="#sidebar" class="skip-link">Saltar a navegación</a>
+    <a href="#matrixBody" class="skip-link">Saltar a matriz de permisos</a>
+  </div>
+
+  <!-- ═════ SIDEBAR UNIFICADO ═════ -->
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+  <!-- ═════ HAMBURGER PARA MÓVIL ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú de navegación" aria-expanded="false"
+    aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ CONTENIDO PRINCIPAL ═════ -->
+  <main class="main" id="main-content" role="main" aria-label="Contenido principal">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <a href="/gestion-de-citas/st-adm-01-dashboard" class="bc-link">Administración</a>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active" aria-current="page">Gestión de Roles</span>
+        </nav>
+        <h1 class="page-title">Gestión de Roles y Permisos</h1>
+        <p class="page-subtitle">Configura qué puede hacer cada rol en cada módulo del sistema</p>
+      </div>
+      <div class="header-actions">
+        <!-- Badge de cambios pendientes -->
+        <span id="pendingBadge" class="pending-badge hidden" role="status" aria-live="polite" aria-atomic="true">
+          <span aria-hidden="true">⚠️</span>
+          <span id="pendingCount">0</span>
+          <span class="visually-hidden">cambios pendientes de guardar</span>
+        </span>
+
+        <!-- Botones de acción -->
+        <div class="action-buttons">
+          <button class="btn-icon" id="btnShortcuts" aria-label="Ver atajos de teclado"
+            title="Atajos de teclado (Shift+?)">⌨️</button>
+          <button class="btn-secondary" id="btnExport" aria-label="Exportar configuración">📤 Exportar</button>
+          <button class="btn-primary" id="btnSave" disabled aria-label="Guardar configuración de permisos"
+            aria-disabled="true">
+            <span aria-hidden="true">💾</span>
+            <span id="saveBtnText">Guardar</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Panel de ayuda contextual (oculto por defecto) -->
+    <div id="helpPanel" class="help-panel hidden" role="complementary" aria-label="Ayuda y atajos">
+      <button class="help-close" id="helpClose" aria-label="Cerrar ayuda">×</button>
+      <h3 class="help-title">⌨️ Atajos de teclado</h3>
+      <ul class="help-list">
+        <li><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> — Navegar matriz</li>
+        <li><kbd>Enter</kbd> — Editar permiso seleccionado</li>
+        <li><kbd>Espacio</kbd> — Ciclo rápido de niveles</li>
+        <li><kbd>Ctrl</kbd> + <kbd>Click</kbd> — Selección múltiple</li>
+        <li><kbd>Shift</kbd> + <kbd>Click</kbd> — Selección de rango</li>
+        <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> — Deshacer cambio</li>
+        <li><kbd>Ctrl</kbd> + <kbd>Y</kbd> — Rehacer cambio</li>
+        <li><kbd>Ctrl</kbd> + <kbd>S</kbd> — Guardar cambios</li>
+        <li><kbd>Esc</kbd> — Cerrar modal / Cancelar</li>
+      </ul>
+    </div>
+
+    <!-- Filtros y Búsqueda -->
+    <section class="filters-section" aria-label="Filtros de matriz">
+      <div class="filters-row">
+        <div class="search-wrap">
+          <label for="searchMatrix" class="visually-hidden">Buscar módulo o permiso</label>
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input type="search" id="searchMatrix" class="search-input" placeholder="Buscar módulo o permiso..."
+            aria-label="Buscar en matriz de permisos" autocomplete="off">
+          <button class="search-clear" id="searchClear" aria-label="Limpiar búsqueda" hidden>×</button>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterRole" class="filter-label">Rol:</label>
+          <select id="filterRole" class="status-select" aria-label="Filtrar matriz por rol">
+            <option value="">Todos los roles</option>
+            <option value="admin">Administrador</option>
+            <option value="profesional">Profesional</option>
+            <option value="auxiliar">Auxiliar</option>
+            <option value="recepcion">Recepción</option>
+            <option value="paciente">Paciente</option>
+          </select>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterModule" class="filter-label">Módulo:</label>
+          <select id="filterModule" class="status-select" aria-label="Filtrar matriz por módulo">
+            <option value="">Todos los módulos</option>
+            <option value="usuarios">Usuarios</option>
+            <option value="pacientes">Pacientes</option>
+            <option value="citas">Citas</option>
+            <option value="historia">Historia Clínica</option>
+            <option value="facturacion">Facturación</option>
+            <option value="reportes">Reportes</option>
+            <option value="config">Configuración</option>
+          </select>
+        </div>
+        <button class="btn-secondary" id="btnResetFilters" aria-label="Resetear todos los filtros">🔄 Resetear</button>
+      </div>
+
+      <!-- Filtros activos -->
+      <div id="activeFilters" class="active-filters hidden" role="list" aria-label="Filtros aplicados">
+        <!-- Chips de filtros inyectados por JS -->
+      </div>
+    </section>
+
+    <!-- Matriz de Permisos -->
+    <section class="matrix-section" aria-labelledby="matrixTitle">
+      <h2 id="matrixTitle" class="visually-hidden">Matriz de permisos por rol y módulo</h2>
+
+      <!-- Cabecera de la matriz -->
+      <div class="matrix-header" role="row">
+        <div class="matrix-col-module" role="columnheader" scope="col">
+          <span>Módulo / Permiso</span>
+          <button class="sort-btn" id="btnSortModules" aria-label="Ordenar módulos" aria-sort="none"
+            title="Ordenar alfabéticamente">↕</button>
+        </div>
+        <div class="matrix-col-roles" role="rowgroup">
+          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Administrador">
+            <span class="role-badge admin" aria-hidden="true">Admin</span>
+            <span class="visually-hidden">Columna: Administrador</span>
+          </div>
+          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Profesional">
+            <span class="role-badge odo" aria-hidden="true">Profesional</span>
+            <span class="visually-hidden">Columna: Profesional</span>
+          </div>
+          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Auxiliar">
+            <span class="role-badge aux" aria-hidden="true">Auxiliar</span>
+            <span class="visually-hidden">Columna: Auxiliar</span>
+          </div>
+          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Recepción">
+            <span class="role-badge rec" aria-hidden="true">Recepción</span>
+            <span class="visually-hidden">Columna: Recepción</span>
+          </div>
+          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Paciente">
+            <span class="role-badge pac" aria-hidden="true">Paciente</span>
+            <span class="visually-hidden">Columna: Paciente</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cuerpo de la matriz (renderizado dinámico) -->
+      <div class="matrix-body" id="matrixBody" role="grid" aria-label="Matriz de permisos" tabindex="0">
+        <!-- Filas inyectadas por JS con role="row" -->
+      </div>
+
+      <!-- Empty state -->
+      <div class="empty-state" id="matrixEmpty" hidden role="status" aria-live="polite">
+        <div class="empty-icon" aria-hidden="true">🔍</div>
+        <h3 class="empty-title">No se encontraron permisos</h3>
+        <p class="empty-desc">Intenta ajustar los filtros o limpiar la búsqueda</p>
+        <button class="btn-secondary" id="emptyResetBtn">Resetear filtros</button>
+      </div>
+
+      <!-- Loading state -->
+      <div class="loading-state" id="matrixLoading" hidden aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span>Cargando permisos...</span>
+      </div>
+    </section>
+
+    <!-- Leyenda de niveles -->
+    <section class="legend-section" aria-labelledby="legendTitle">
+      <h2 class="section-title" id="legendTitle">Niveles de acceso</h2>
+      <div class="legend-grid">
+        <div class="legend-item">
+          <span class="legend-dot crud" aria-hidden="true"></span>
+          <div><strong>CRUD</strong>
+            <p>Crear, Leer, Actualizar, Eliminar</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot cru" aria-hidden="true"></span>
+          <div><strong>CRU</strong>
+            <p>Crear, Leer, Actualizar</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot ru" aria-hidden="true"></span>
+          <div><strong>R+U</strong>
+            <p>Leer y Actualizar</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot r" aria-hidden="true"></span>
+          <div><strong>Lectura</strong>
+            <p>Solo visualizar</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot c" aria-hidden="true"></span>
+          <div><strong>Crear</strong>
+            <p>Solo registrar nuevos</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot none" aria-hidden="true"></span>
+          <div><strong>Sin acceso</strong>
+            <p>Sin permisos</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Historial de cambios (panel lateral opcional) -->
+    <aside class="history-panel" id="historyPanel" aria-label="Historial de cambios" hidden>
+      <h3 class="history-title">📋 Cambios recientes</h3>
+      <ul class="history-list" id="historyList" role="list" aria-live="polite">
+        <!-- Items inyectados por JS -->
+      </ul>
+      <button class="btn-secondary btn-sm" id="btnClearHistory">Limpiar historial</button>
+    </aside>
+
+  </main>
+
+  <!-- ═════ MODAL: EDITAR PERMISO ═════ -->
+  <div class="modal-overlay" id="modalPerm" role="dialog" aria-modal="true" aria-labelledby="modalPermTitle"
+    aria-describedby="modalPermDesc" aria-hidden="true" inert>
+    <div class="modal" role="document">
+      <button class="modal-close" id="modalPermClose" aria-label="Cerrar ventana de edición">×</button>
+
+      <h3 class="modal-title" id="modalPermTitle">Editar Permiso</h3>
+      <p id="modalPermDesc" class="modal-subtitle">
+        Módulo: <strong id="modalModule">—</strong><br>
+        Rol: <strong id="modalRole">—</strong>
+      </p>
+
+      <form id="formPerm" class="permission-form" novalidate>
+        <fieldset class="permission-options" role="radiogroup" aria-label="Seleccionar nivel de acceso">
+          <legend class="visually-hidden">Niveles de permiso disponibles</legend>
+
+          <label class="permission-option">
+            <input type="radio" name="level" value="crud" id="perm-crud" class="perm-radio">
+            <span class="perm-label">
+              <span class="perm-badge crud" aria-hidden="true">CRUD</span>
+              <span class="perm-desc">Acceso completo: crear, leer, actualizar y eliminar</span>
+            </span>
+          </label>
+
+          <label class="permission-option">
+            <input type="radio" name="level" value="cru" id="perm-cru" class="perm-radio">
+            <span class="perm-label">
+              <span class="perm-badge cru" aria-hidden="true">CRU</span>
+              <span class="perm-desc">Crear, leer y actualizar (sin eliminar)</span>
+            </span>
+          </label>
+
+          <label class="permission-option">
+            <input type="radio" name="level" value="ru" id="perm-ru" class="perm-radio">
+            <span class="perm-label">
+              <span class="perm-badge ru" aria-hidden="true">R+U</span>
+              <span class="perm-desc">Solo leer y actualizar registros existentes</span>
+            </span>
+          </label>
+
+          <label class="permission-option">
+            <input type="radio" name="level" value="r" id="perm-r" class="perm-radio">
+            <span class="perm-label">
+              <span class="perm-badge r" aria-hidden="true">Lectura</span>
+              <span class="perm-desc">Solo visualizar información, sin modificar</span>
+            </span>
+          </label>
+
+          <label class="permission-option">
+            <input type="radio" name="level" value="c" id="perm-c" class="perm-radio">
+            <span class="perm-label">
+              <span class="perm-badge c" aria-hidden="true">Crear</span>
+              <span class="perm-desc">Solo registrar nuevos elementos</span>
+            </span>
+          </label>
+
+          <label class="permission-option">
+            <input type="radio" name="level" value="none" id="perm-none" class="perm-radio">
+            <span class="perm-label">
+              <span class="perm-badge none" aria-hidden="true">Sin acceso</span>
+              <span class="perm-desc">El rol no tendrá acceso a este módulo</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="modalPermCancel">Cancelar</button>
+          <button type="submit" class="btn-primary">Aplicar cambio</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═════ MODAL: CONFIRMAR GUARDADO ═════ -->
+  <div class="modal-overlay" id="modalConfirm" role="alertdialog" aria-modal="true" aria-labelledby="modalConfirmTitle"
+    aria-describedby="modalConfirmDesc" aria-hidden="true" inert>
+    <div class="modal" role="document">
+      <h3 class="modal-title" id="modalConfirmTitle">Confirmar cambios</h3>
+      <p id="modalConfirmDesc" class="modal-subtitle">
+        Se aplicarán <strong id="changesCount">0</strong> cambios. ¿Deseas continuar?
+      </p>
+      <div class="changes-preview" id="changesPreview" role="list" aria-label="Resumen de cambios a aplicar">
+        <!-- Cambios inyectados por JS -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="modalConfirmCancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="modalConfirmApply">✅ Sí, guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════ TOAST NOTIFICATIONS ═════ -->
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <span id="toastIcon" aria-hidden="true">✅</span>
+    <span id="toastMsg"></span>
+    <button class="toast-close" id="toastClose" aria-label="Cerrar notificación">×</button>
+  </div>
+
+  <!-- ═════ ANNOUNCER PARA SCREEN READERS ═════ -->
+  <div id="announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- ═════ ESTILOS INLINE PARA ACCESIBILIDAD CRÍTICA ═════ -->
+  <style>
+    /* Skip links - siempre visibles al enfocar */
+    .skip-links {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 9999;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 12px 20px;
+      z-index: 10000;
+      transition: top 0.2s ease;
+      text-decoration: none;
+      font-weight: 600;
+      border-radius: 0 0 8px 0;
+    }
+
+    .skip-link:focus {
+      top: 0;
+      outline: 3px solid #fff;
+      outline-offset: -3px;
+    }
+
+    /* Visually hidden - accesible solo para screen readers */
+    .visually-hidden:not(:focus):not(:active) {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    /* Focus visible - accesibilidad teclado */
+    :focus-visible {
+      outline: 3px solid var(--primary);
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px var(--input-focus-ring);
+    }
+
+    /* High contrast support */
+    @@media (prefers-contrast: high) {
+      :focus-visible {
+        outline-width: 4px;
+      }
+
+      .perm-cell {
+        border-width: 3px;
+      }
+
+      .btn-primary,
+      .btn-secondary {
+        border-width: 2px;
+      }
+    }
+
+    /* Reduced motion support */
+    @@media (prefers-reduced-motion: reduce) {
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+
+  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span style="font-size:1rem;">🦷</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <script src="@Url.Content("~/js/footer.js")"></script>
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+  </footer>
+<script>
+  window.RAZOR_ROLES = @Html.Raw(ViewData["RolesJson"] ?? "[]");
+</script>
+<script src="@Url.Content("~/js/Acceso_Y_Seguridad/st-adm-03-gestion-roles/script.js")" defer></script>
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+</body>
+
+</html>
+
+

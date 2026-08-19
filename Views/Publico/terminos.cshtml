@@ -1,0 +1,149 @@
+@{ Layout = null; }
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Términos y Condiciones — SmileTrack</title>
+    <link href="@Url.Content("~/css/footer.css")" rel="stylesheet" />
+    <style>
+        .privacy-container {
+            max-width: 900px;
+            margin: 48px auto;
+            padding: 24px 32px;
+            font-family: Roboto, Arial, Helvetica, sans-serif;
+            line-height: 1.6;
+            color: #2b2b2b;
+        }
+        .privacy-container h1 {
+            margin-bottom: 4px;
+        }
+        .privacy-container .updated {
+            color: #6b6b6b;
+            font-size: 0.9rem;
+            margin-bottom: 32px;
+        }
+        .privacy-container h2 {
+            margin-top: 32px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .privacy-container ul {
+            padding-left: 22px;
+        }
+        .privacy-container .back-link {
+            display: inline-block;
+            margin-top: 40px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <main class="privacy-container">
+        <h1>Términos y Condiciones</h1>
+        <p class="updated">Última actualización: @DateTime.Now.ToString("dd 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES"))</p>
+
+        <p>
+            Los presentes Términos y Condiciones regulan el acceso y uso de la plataforma
+            <strong>SmileTrack</strong>, sistema de gestión de citas y profesionales odontológicos.
+            Al registrarte o utilizar el sistema, aceptas los términos aquí descritos.
+        </p>
+
+        <section>
+            <h2>1. Identificación del prestador del servicio</h2>
+            <p>
+                SmileTrack, identificada con NIT 900823456-7, con domicilio en
+                Cra. 15 #93-47, Oficina 302, Bogotá D.C., Colombia, es la entidad
+                responsable de la plataforma y del contenido aquí descrito.
+            </p>
+        </section>
+
+        <section>
+            <h2>2. Objeto del sistema</h2>
+            <p>
+                SmileTrack es una plataforma de uso interno diseñada para la gestión de citas médicas,
+                profesionales de la salud y demás procesos administrativos asociados a una clínica
+                odontológica. Su uso está restringido a los roles autorizados: pacientes, profesionales
+                y personal administrativo.
+            </p>
+        </section>
+
+        <section>
+            <h2>3. Registro y cuentas de usuario</h2>
+            <ul>
+                <li>El usuario debe suministrar información veraz, completa y actualizada al momento del registro.</li>
+                <li>Cada usuario es responsable de la confidencialidad de sus credenciales de acceso.</li>
+                <li>Está prohibido compartir cuentas o suplantar la identidad de otro usuario dentro del sistema.</li>
+                <li>SmileTrack se reserva el derecho de suspender cuentas que incumplan estos términos o generen actividad sospechosa.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>4. Uso adecuado de la plataforma</h2>
+            <p>El usuario se compromete a:</p>
+            <ul>
+                <li>Utilizar el sistema únicamente para los fines relacionados con la gestión de citas y la atención odontológica.</li>
+                <li>No intentar vulnerar la seguridad del sistema, acceder a información de otros usuarios sin autorización, ni alterar su funcionamiento.</li>
+                <li>No introducir contenido malicioso, código dañino o realizar prácticas que afecten la disponibilidad del servicio.</li>
+                <li>Respetar los horarios y condiciones establecidas para la programación y cancelación de citas.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>5. Responsabilidad sobre la información clínica</h2>
+            <p>
+                La información clínica registrada en el sistema (historial de citas, diagnósticos y
+                observaciones) es responsabilidad de los profesionales que la registran. SmileTrack actúa
+                como plataforma tecnológica de soporte y no sustituye el criterio médico profesional ni
+                asume responsabilidad por decisiones clínicas tomadas por los profesionales registrados.
+            </p>
+        </section>
+
+        <section>
+            <h2>6. Disponibilidad del servicio</h2>
+            <p>
+                SmileTrack procura mantener la plataforma disponible de forma continua, sin embargo,
+                no garantiza disponibilidad ininterrumpida y no será responsable por fallas derivadas
+                de mantenimiento, causas de fuerza mayor o factores externos fuera de su control.
+            </p>
+        </section>
+
+        <section>
+            <h2>7. Propiedad intelectual</h2>
+            <p>
+                El código fuente, diseño, logotipos y demás elementos de SmileTrack son propiedad de
+                sus desarrolladores y están protegidos por la normatividad vigente en materia de
+                propiedad intelectual. Queda prohibida su reproducción o distribución sin autorización.
+            </p>
+        </section>
+
+        <section>
+            <h2>8. Tratamiento de datos personales</h2>
+            <p>
+                El tratamiento de los datos personales recolectados a través de SmileTrack se rige por
+                nuestra <a href="@Url.Content("~/Publico/PoliticaPrivacidad")">Política de Privacidad</a>,
+                elaborada conforme a la Ley 1581 de 2012 y demás normas concordantes.
+            </p>
+        </section>
+
+        <section>
+            <h2>9. Modificaciones a los términos</h2>
+            <p>
+                SmileTrack podrá actualizar estos Términos y Condiciones en cualquier momento para
+                reflejar cambios en el servicio o en la normatividad aplicable. Las modificaciones
+                entrarán en vigencia desde su publicación en esta misma página.
+            </p>
+        </section>
+
+        <section>
+            <h2>10. Contacto</h2>
+            <p>
+                Para consultas relacionadas con estos Términos y Condiciones, puedes escribir a:
+                <a href="mailto:smiletrackodontologia@gmail.com">smiletrackodontologia@gmail.com</a>.
+            </p>
+        </section>
+
+        <a class="back-link" href="@Url.Content("~/")">&larr; Volver al inicio</a>
+    </main>
+</body>
+</html>
