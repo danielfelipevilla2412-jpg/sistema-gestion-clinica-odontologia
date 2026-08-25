@@ -1,4 +1,4 @@
-﻿@* ============================================
+@* ============================================
 SmileTrack — Gestión de Profesionales (st-adm-07-gestion-profesionales)
 ============================================
 Autor: Johan Santamaria
@@ -26,7 +26,6 @@ NOTAS DE MANTENIMIENTO:
 @{
   // Extraer datos del ViewBag con fallback para evitar null reference en caso de error del Controller
   var especialidades = ViewData["Especialidades"] as List<SmileTrack_MVC.Models.Entities.Especialidad> ?? new();
-  var usuarios       = ViewData["Usuarios"]       as List<SmileTrack_MVC.Models.Entities.Usuario>      ?? new();
   var profesionales  = ViewData["Profesionales"]  as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
   var pageResult     = ViewData["ProfesionalesPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Profesional>;
   var editingProfesional = ViewData["EditingProfesional"] as SmileTrack_MVC.Models.Entities.Profesional;
@@ -363,52 +362,56 @@ NOTAS DE MANTENIMIENTO:
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="formUsuario">Usuario</label>
-          <select id="formUsuario" name="IdUsuario" class="form-input">
-            <option value="0">Sin usuario</option>
-            @foreach (var usuario in usuarios)
-            {
-              var usrSelected = editingProfesional?.IdUsuario == usuario.IdUsuario;
-              if (usrSelected)
+          <label class="form-label" for="formCorreoAcceso">Correo de acceso *</label>
+          <input type="email" id="formCorreoAcceso" name="CorreoAcceso" class="form-input" required aria-required="true" placeholder="Ej. profesional@smiletrack.co" value="@(editingProfesional?.Usuario?.Correo ?? "")">
+          <span class="error-message" id="error-formCorreoAcceso" role="alert">Ingresa un correo válido.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="formContrasenaAcceso">@(editingProfesional != null ? "Nueva contraseña (opcional)" : "Contraseña inicial *")</label>
+          <div style="position:relative;">
+            <input type="password" id="formContrasenaAcceso" name="ContrasenaAcceso" class="form-input" @(editingProfesional == null ? "required" : "") minlength="8" placeholder="Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo" style="padding-right:44px;">
+            <button type="button" id="toggleProfesionalPassword" aria-label="Mostrar contraseña" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;font-size:16px;">👁</button>
+          </div>
+          <small id="formContrasenaHelp" style="display:block;margin-top:5px;color:var(--text-muted);">@(editingProfesional != null ? "Déjala vacía para conservar la contraseña actual." : "Debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo.")</small>
+        </div>
+        <div class="form-group" id="professionalPasswordRules">
+          <div style="font-size:12px;line-height:1.6;">
+            <div style="font-weight:600;margin-bottom:4px;">La contraseña debe cumplir:</div>
+            <div data-rule="length">✗ Mínimo 8 caracteres</div>
+            <div data-rule="upper">✗ Una letra mayúscula</div>
+            <div data-rule="lower">✗ Una letra minúscula</div>
+            <div data-rule="number">✗ Un número</div>
+            <div data-rule="symbol">✗ Un símbolo especial</div>
+          </div>
+        </div>
+        <div class="form-group" id="statusGroup">
+          <label class="form-label" for="formStatus">Estado</label>
+          @if (editingProfesional != null)
+          {
+            <select id="formStatus" name="Estado" class="form-input" required>
+              @if (editingProfesional.Estado == "activo")
               {
-                <option value="@usuario.IdUsuario" selected>@usuario.Nombre @usuario.Apellidos</option>
+                <option value="activo" selected>Activo</option>
               }
               else
               {
-                <option value="@usuario.IdUsuario">@usuario.Nombre @usuario.Apellidos</option>
+                <option value="activo">Activo</option>
               }
-            }
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="formStatus">Estado *</label>
-          <select id="formStatus" name="Estado" class="form-input" required aria-required="true" aria-describedby="error-formStatus">
-            @if (editingProfesional?.Estado == "activo")
-            {
-              <option value="activo" selected>Activo</option>
-            }
-            else
-            {
-              <option value="activo">Activo</option>
-            }
-            @if (editingProfesional?.Estado == "vacaciones")
-            {
-              <option value="vacaciones" selected>Vacaciones</option>
-            }
-            else
-            {
-              <option value="vacaciones">Vacaciones</option>
-            }
-            @if (editingProfesional?.Estado == "inactivo")
-            {
-              <option value="inactivo" selected>Inactivo</option>
-            }
-            else
-            {
-              <option value="inactivo">Inactivo</option>
-            }
-          </select>
-          <span class="error-message" id="error-formStatus" role="alert">Por favor selecciona un estado.</span>
+              @if (editingProfesional.Estado == "inactivo")
+              {
+                <option value="inactivo" selected>Inactivo</option>
+              }
+              else
+              {
+                <option value="inactivo">Inactivo</option>
+              }
+            </select>
+          }
+          else
+          {
+            <input type="hidden" name="Estado" value="activo" />
+            <input type="text" class="form-input" value="Activo" readonly aria-readonly="true" />
+          }
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" id="modalFormCancel">Cancelar</button>

@@ -696,10 +696,34 @@ public class GestionCitasController(
                 string? claim =
                     User.FindFirstValue("IdProfesional");
 
-                if (!int.TryParse(claim, out int idProfesional) ||
+                int idProfesional;
+
+                if (!int.TryParse(claim, out idProfesional) ||
                     idProfesional <= 0)
                 {
-                    return Forbid();
+                    // Compatibilidad con sesiones antiguas: si el claim no existe,
+                    // resolver la relación segura desde el usuario autenticado.
+                    string? userIdClaim =
+                        User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                    if (!int.TryParse(userIdClaim, out int idUsuario) ||
+                        idUsuario <= 0)
+                    {
+                        return Forbid();
+                    }
+
+                    int? resolvedId = await _context.Profesionales
+                        .AsNoTracking()
+                        .Where(p => p.IdUsuario == idUsuario)
+                        .Select(p => (int?)p.IdProfesional)
+                        .FirstOrDefaultAsync(ct);
+
+                    if (!resolvedId.HasValue || resolvedId.Value <= 0)
+                    {
+                        return Forbid();
+                    }
+
+                    idProfesional = resolvedId.Value;
                 }
 
                 citasQuery = citasQuery.Where(
@@ -1097,7 +1121,462 @@ public class GestionCitasController(
     }
 
     // ================================================================
-    // API: CANCELAR CITA
+    // API: EDITAR NOTAS DE CITA (PROFESIONAL)
+    // ================================================================
+
+    public sealed class CitaNotasDto
+    {
+        public int IdCita { get; set; }
+        public string? Notas { get; set; }
+    }
+
+    [HttpPut]
+    [Authorize(Roles = "Profesional")]
+    [Route("api/citas/{id:int}/notas")]
+    public async Task<IActionResult> ApiActualizarNotasCita(
+        int id,
+        [FromBody] CitaNotasDto dto,
+        CancellationToken ct = default)
+    {
+        if (dto == null || id != dto.IdCita || id <= 0)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = "Datos de notas inválidos."
+            });
+        }
+
+        try
+        {
+            string? claim = User.FindFirstValue("IdProfesional");
+
+            if (!int.TryParse(claim, out int idProfesional) ||
+                idProfesional <= 0)
+            {
+                return Forbid();
+            }
+
+            var cita = await _context.Citas
+                .FirstOrDefaultAsync(c => c.IdCita == id, ct);
+
+            if (cita == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Cita no encontrada."
+                });
+            }
+
+            if (cita.IdProfesional != idProfesional)
+            {
+                return Forbid();
+            }
+
+            string notasNuevas = (dto.Notas ?? string.Empty).Trim();
+
+            if (notasNuevas.Length > 4000)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Las notas no pueden superar los 4000 caracteres."
+                });
+            }
+
+            string notasAnteriores = cita.Notas ?? string.Empty;
+
+            cita.Notas = string.IsNullOrWhiteSpace(notasNuevas)
+                ? null
+                : notasNuevas;
+
+            await _context.SaveChangesAsync(ct);
+
+            await RegistrarAuditoriaAsync(
+                accion: "UPDATE",
+                tablaAfectada: "Cita",
+                idRegistro: cita.IdCita,
+                descripcion: "Profesional actualizó las notas de la cita.",
+                datosAnteriores:
+                    System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        cita.IdCita,
+                        Notas = notasAnteriores
+                    }),
+                datosNuevos:
+                    System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        cita.IdCita,
+                        Notas = cita.Notas ?? string.Empty
+                    }),
+                ct: ct);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Notas actualizadas correctamente.",
+                id = cita.IdCita,
+                notas = cita.Notas ?? string.Empty
+            });
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Concurrencia ApiActualizarNotasCita IdCita={Id}",
+                id);
+
+            return Conflict(new
+            {
+                success = false,
+                message = "La cita fue modificada por otro usuario. Recarga la agenda e inténtalo nuevamente."
+            });
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(
+                ex,
+                "DbUpdateException ApiActualizarNotasCita IdCita={Id}",
+                id);
+
+            return StatusCode(
+                (int)HttpStatusCode.InternalServerError,
+                new
+                {
+                    success = false,
+                    message = "No se pudieron guardar las notas de la cita."
+                });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error ApiActualizarNotasCita IdCita={Id}",
+                id);
+
+            return StatusCode(
+                (int)HttpStatusCode.InternalServerError,
+                new
+                {
+                    success = false,
+                    message = "Error interno al actualizar las notas de la cita."
+                });
+        }
+    }
+// ================================================================
+// API: CAMBIAR ESTADO DE CITA (PROFESIONAL)
+// ================================================================
+//
+// Flujo permitido para el profesional:
+//
+//   programada -> confirmada
+//   programada -> cancelada
+//   programada -> no_asistida
+//
+//   confirmada -> en_proceso
+//   confirmada -> cancelada
+//   confirmada -> no_asistida
+//
+//   en_proceso -> atendida
+//
+// Estados terminales:
+//   atendida, cancelada, no_asistida
+//
+// El profesional nunca puede cambiar el paciente, profesional,
+// servicio, consultorio o fecha desde este endpoint.
+// Solo modifica el estado de su propia cita.
+//
+
+public sealed class CambiarEstadoCitaDto
+{
+    public string? Estado { get; set; }
+}
+
+[HttpPut]
+[Authorize(Roles = "Profesional")]
+[Route("api/citas/{id:int}/estado")]
+public async Task<IActionResult> ApiActualizarEstadoCita(
+    int id,
+    [FromBody] CambiarEstadoCitaDto dto,
+    CancellationToken ct = default)
+{
+    if (id <= 0 || dto == null ||
+        string.IsNullOrWhiteSpace(dto.Estado))
+    {
+        return BadRequest(new
+        {
+            success = false,
+            message = "El estado de la cita es obligatorio."
+        });
+    }
+
+    try
+    {
+        // 1) Resolver el profesional autenticado.
+        string? claimProfesional =
+            User.FindFirstValue("IdProfesional");
+
+        int idProfesional;
+
+        if (!int.TryParse(
+                claimProfesional,
+                out idProfesional) ||
+            idProfesional <= 0)
+        {
+            // Compatibilidad con sesiones antiguas:
+            // resolver por IdUsuario autenticado.
+            string? claimUsuario =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            if (!int.TryParse(
+                    claimUsuario,
+                    out int idUsuario) ||
+                idUsuario <= 0)
+            {
+                return Forbid();
+            }
+
+            int? profesionalResuelto =
+                await _context.Profesionales
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.IdUsuario == idUsuario &&
+                        p.Estado == "activo")
+                    .Select(p =>
+                        (int?)p.IdProfesional)
+                    .FirstOrDefaultAsync(ct);
+
+            if (!profesionalResuelto.HasValue ||
+                profesionalResuelto.Value <= 0)
+            {
+                return Forbid();
+            }
+
+            idProfesional =
+                profesionalResuelto.Value;
+        }
+
+        // 2) Buscar la cita.
+        var cita =
+            await _context.Citas
+                .FirstOrDefaultAsync(
+                    c => c.IdCita == id,
+                    ct);
+
+        if (cita == null)
+        {
+            return NotFound(new
+            {
+                success = false,
+                message = "La cita no existe."
+            });
+        }
+
+        // 3) Ownership: el profesional solo modifica sus propias citas.
+        if (cita.IdProfesional != idProfesional)
+        {
+            return Forbid();
+        }
+
+        // 4) Normalizar estados.
+        string estadoActual =
+            NormalizarEstado(cita.Estado);
+
+        string nuevoEstado =
+            NormalizarEstado(dto.Estado);
+
+        if (string.IsNullOrWhiteSpace(nuevoEstado))
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = "El estado seleccionado no es válido."
+            });
+        }
+
+        // 5) Evitar saltos arbitrarios del ciclo de vida.
+        if (!EsTransicionEstadoPermitida(
+                estadoActual,
+                nuevoEstado))
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message =
+                    ConstruirMensajeTransicionNoPermitida(
+                        estadoActual,
+                        nuevoEstado),
+                estadoActual,
+                estadoSolicitado = nuevoEstado
+            });
+        }
+
+        // 6) Resolver el estado contra el catálogo Estado_Cita.
+        var estadosCatalogo =
+            await _context.EstadosCita
+                .AsNoTracking()
+                .ToListAsync(ct);
+
+        var estadoDestino =
+            estadosCatalogo.FirstOrDefault(
+                e =>
+                    NormalizarEstado(
+                        e.NombreEstado) ==
+                    nuevoEstado);
+
+        if (estadoDestino == null)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message =
+                    "El estado seleccionado no existe en el catálogo de estados de citas."
+            });
+        }
+
+        string estadoAnteriorTexto =
+            cita.Estado ?? string.Empty;
+
+        int? idEstadoAnterior =
+            cita.IdEstado;
+
+        // 7) Sincronizar IdEstado + Estado textual.
+        cita.IdEstado =
+            estadoDestino.IdEstado;
+
+        cita.Estado =
+            estadoDestino.NombreEstado;
+
+        await _context.SaveChangesAsync(ct);
+
+        // 8) Auditoría.
+        string datosAnteriores =
+            System.Text.Json.JsonSerializer.Serialize(
+                new
+                {
+                    cita.IdCita,
+                    IdEstado = idEstadoAnterior,
+                    Estado = estadoAnteriorTexto
+                });
+
+        string datosNuevos =
+            System.Text.Json.JsonSerializer.Serialize(
+                new
+                {
+                    cita.IdCita,
+                    IdEstado = cita.IdEstado,
+                    Estado = cita.Estado
+                });
+
+        await RegistrarAuditoriaAsync(
+            accion: "UPDATE",
+            tablaAfectada: "Cita",
+            idRegistro: cita.IdCita,
+            descripcion:
+                $"Profesional cambió el estado de la cita de " +
+                $"'{estadoAnteriorTexto}' a '{cita.Estado}'.",
+            datosAnteriores:
+                datosAnteriores,
+            datosNuevos:
+                datosNuevos,
+            ct: ct);
+
+        // 9) Notificar únicamente los cambios que corresponden.
+        string estadoNotificacion =
+            NormalizarEstado(cita.Estado);
+
+        if (estadoNotificacion == "confirmada" ||
+            estadoNotificacion == "cancelada")
+        {
+            await EnviarNotificacionCitaAsync(
+                cita.IdCita,
+                estadoNotificacion,
+                ct);
+        }
+
+        _logger.LogInformation(
+            "Estado de cita actualizado por profesional. " +
+            "IdCita={IdCita}, IdProfesional={IdProfesional}, " +
+            "EstadoAnterior={EstadoAnterior}, EstadoNuevo={EstadoNuevo}",
+            cita.IdCita,
+            idProfesional,
+            estadoActual,
+            nuevoEstado);
+
+        return Ok(new
+        {
+            success = true,
+            id = cita.IdCita,
+            idEstado = cita.IdEstado,
+            estado = cita.Estado,
+            estadoAnterior = estadoAnteriorTexto,
+            message =
+                $"Cita actualizada a '{cita.Estado}' correctamente."
+        });
+    }
+    catch (OperationCanceledException)
+    {
+        _logger.LogWarning(
+            "Cambio de estado cancelado. IdCita={IdCita}",
+            id);
+
+        return BadRequest(new
+        {
+            success = false,
+            message = "La operación fue cancelada."
+        });
+    }
+    catch (DbUpdateConcurrencyException ex)
+    {
+        _logger.LogError(
+            ex,
+            "Concurrencia ApiActualizarEstadoCita IdCita={IdCita}",
+            id);
+
+        return Conflict(new
+        {
+            success = false,
+            message =
+                "La cita fue modificada por otro usuario. Recarga la agenda e inténtalo nuevamente."
+        });
+    }
+    catch (DbUpdateException ex)
+    {
+        _logger.LogError(
+            ex,
+            "DbUpdateException ApiActualizarEstadoCita IdCita={IdCita}",
+            id);
+
+        return StatusCode(
+            (int)HttpStatusCode.InternalServerError,
+            new
+            {
+                success = false,
+                message =
+                    "No se pudo guardar el nuevo estado de la cita."
+            });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(
+            ex,
+            "Error ApiActualizarEstadoCita IdCita={IdCita}",
+            id);
+
+        return StatusCode(
+            (int)HttpStatusCode.InternalServerError,
+            new
+            {
+                success = false,
+                message =
+                    "Error interno al actualizar el estado de la cita."
+            });
+    }
+}
+
+// API: CANCELAR CITA
     // ================================================================
 
     [HttpDelete]
@@ -4515,7 +4994,87 @@ public class GestionCitasController(
         };
     }
 
-    private static bool EsEstadoCancelado(
+    private static bool EsTransicionEstadoPermitida(
+    string estadoActual,
+    string nuevoEstado)
+{
+    return estadoActual switch
+    {
+        // Cita recién agendada:
+        // todavía puede confirmarse, cancelarse o marcarse como no asistida.
+        "programada" =>
+            nuevoEstado is
+                "confirmada" or
+                "cancelada" or
+                "no_asistida",
+
+        // Confirmada:
+        // puede pasar a consulta, cancelarse o marcarse como no asistida.
+        "confirmada" =>
+            nuevoEstado is
+                "en_proceso" or
+                "cancelada" or
+                "no_asistida",
+
+        // En consulta:
+        // solo puede finalizar como atendida.
+        "en_proceso" =>
+            nuevoEstado == "atendida",
+
+        // Estados terminales: no se pueden revertir desde la agenda.
+        "atendida" or
+        "finalizada" or
+        "cancelada" or
+        "no_asistida" =>
+            false,
+
+        _ => false
+    };
+}
+
+private static string ConstruirMensajeTransicionNoPermitida(
+    string estadoActual,
+    string nuevoEstado)
+{
+    string estadoActualUi =
+        EstadoCitaHelper.ResolveEstadoNombre(
+            estadoActual,
+            "programada");
+
+    string nuevoEstadoUi =
+        EstadoCitaHelper.ResolveEstadoNombre(
+            nuevoEstado,
+            nuevoEstado);
+
+    return estadoActual switch
+    {
+        "programada" =>
+            "Una cita agendada solo puede pasar a " +
+            "Confirmada, Cancelada o No asistió.",
+
+        "confirmada" =>
+            "Una cita confirmada solo puede pasar a " +
+            "En consulta, Cancelada o No asistió.",
+
+        "en_proceso" =>
+            "Una cita en consulta solo puede pasar a Atendida.",
+
+        "atendida" or
+        "finalizada" =>
+            "Una cita atendida ya está finalizada y no puede regresar a otro estado.",
+
+        "cancelada" =>
+            "Una cita cancelada es definitiva y no puede reactivarse desde la agenda del profesional.",
+
+        "no_asistida" =>
+            "Una cita marcada como No asistió es definitiva y no puede reactivarse desde la agenda del profesional.",
+
+        _ =>
+            $"No está permitido cambiar una cita de '{estadoActualUi}' a '{nuevoEstadoUi}'."
+    };
+}
+
+private static bool EsEstadoCancelado(
         string? estado)
     {
         return NormalizarEstado(estado) is

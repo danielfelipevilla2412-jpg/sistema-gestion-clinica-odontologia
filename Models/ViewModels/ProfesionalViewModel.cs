@@ -6,8 +6,6 @@ namespace SmileTrack_MVC.Models.ViewModels
     {
         public int? IdProfesional { get; set; }
 
-        public int? IdUsuario { get; set; }
-
         [Required(ErrorMessage = "El nombre es obligatorio")]
         [StringLength(100, MinimumLength = 2, ErrorMessage = "El nombre debe tener entre 2 y 100 caracteres")]
         public string Nombres { get; set; } = string.Empty;
@@ -30,10 +28,17 @@ namespace SmileTrack_MVC.Models.ViewModels
 
         public int? IdEspecialidad { get; set; }
 
+        [Required(ErrorMessage = "El correo de acceso es obligatorio.")]
+        [EmailAddress(ErrorMessage = "El correo de acceso no es válido.")]
+        [StringLength(150)]
+        public string CorreoAcceso { get; set; } = string.Empty;
+
+        [StringLength(100, MinimumLength = 8, ErrorMessage = "La contraseña debe tener entre 8 y 100 caracteres.")]
+        public string? ContrasenaAcceso { get; set; }
+
         [StringLength(255, ErrorMessage = "La descripción no puede superar los 255 caracteres")]
         public string? Descripcion { get; set; }
 
-        [Required(ErrorMessage = "El estado es obligatorio")]
         [StringLength(15)]
         public string Estado { get; set; } = "activo";
 

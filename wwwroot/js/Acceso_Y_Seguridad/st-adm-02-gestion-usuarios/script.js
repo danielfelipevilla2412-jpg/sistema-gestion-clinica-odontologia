@@ -1,538 +1,1730 @@
-/**
- * SMILETRACK — GESTIÓN USUARIOS (usuarios.js)
- * API-ready + Accesibilidad + Persistencia fallback
- */
+const API_BASE = '/api/admin/usuarios';
+const SAMPLE_USERS = [];
 
-// ═══════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN API
-// ═══════════════════════════════════════════════════════════════════
-const API_BASE = '/api';
+const safeGetElement = (id) => document.getElementById(id);
 
-// ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
-// ═══════════════════════════════════════════════════════════════════
-
-// Obtiene elemento del DOM con manejo seguro de null
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  return el;
-};
-
-// Reduce llamadas a función en eventos frecuentes
 const debounce = (fn, delay) => {
   let timeoutId;
   return (...args) => {
     clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
+    timeoutId = setTimeout(() => fn(...args), delay);
   };
 };
 
-// Muestra notificación temporal con auto-cierre
 const showToast = (message, type = 'success') => {
   const toast = safeGetElement('toast');
   if (!toast) return;
 
   toast.textContent = message;
-  toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
+  toast.className =
+    `toast ${
+      type === 'error'
+        ? 'error'
+        : type === 'warning'
+          ? 'warning'
+          : ''
+    } show`;
 
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
+  clearTimeout(toast._timeoutId);
+
+  toast._timeoutId = setTimeout(() => {
+    toast.classList.remove('show');
+  }, 3500);
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  DATOS DE EJEMPLO (Fallback si API falla)
-// ═══════════════════════════════════════════════════════════════════
-const SAMPLE_USERS = [
-  { id: 1, name: 'Administrador', initials: 'AD', email: 'admin@smiletrack.co', role: 'Administrador', status: 'Activo', lastAccess: '2026-05-27T10:00:00', color: 'purple' },
-  { id: 2, name: 'María Rodríguez', initials: 'MR', email: 'mrodriguez@smiletrack.co', role: 'Recepcionista', status: 'Activo', lastAccess: '2026-05-27T08:00:00', color: 'orange' },
-  { id: 3, name: 'Dr. Carlos Méndez', initials: 'CM', email: 'cmendez@smiletrack.co', role: 'Profesional', status: 'Activo', lastAccess: '2026-05-27T07:00:00', color: 'green' },
-  { id: 4, name: 'Sara Jiménez', initials: 'SJ', email: 'sjimenez@smiletrack.co', role: 'Auxiliar', status: 'Activo', lastAccess: '2026-05-24T14:00:00', color: 'pink' },
-  { id: 5, name: 'Juan Pérez', initials: 'JP', email: 'juan@correo.com', role: 'Paciente', status: 'Inactivo', lastAccess: null, color: 'blue' },
-  { id: 6, name: 'Ana Torres', initials: 'AT', email: 'atorres@smiletrack.co', role: 'Profesional', status: 'Bloqueado', lastAccess: '2026-05-20T09:00:00', color: 'red' },
-  { id: 7, name: 'Luis Herrera', initials: 'LH', email: 'lherrera@smiletrack.co', role: 'Administrador', status: 'Activo', lastAccess: '2026-05-26T16:00:00', color: 'purple' },
-  { id: 8, name: 'Carmen López', initials: 'CL', email: 'clopez@smiletrack.co', role: 'Recepcionista', status: 'Activo', lastAccess: '2026-05-27T09:30:00', color: 'orange' },
-  { id: 9, name: 'Pedro García', initials: 'PG', email: 'pgarcia@smiletrack.co', role: 'Auxiliar', status: 'Inactivo', lastAccess: '2026-05-15T11:00:00', color: 'pink' },
-  { id: 10, name: 'Laura Sánchez', initials: 'LS', email: 'lsanchez@smiletrack.co', role: 'Profesional', status: 'Activo', lastAccess: '2026-05-27T06:00:00', color: 'green' },
-  { id: 11, name: 'Miguel Torres', initials: 'MT', email: 'mtorres@smiletrack.co', role: 'Paciente', status: 'Activo', lastAccess: '2026-05-26T18:00:00', color: 'blue' },
-  { id: 12, name: 'Sofía Martínez', initials: 'SM', email: 'smartinez@smiletrack.co', role: 'Administrador', status: 'Bloqueado', lastAccess: '2026-05-10T10:00:00', color: 'purple' },
-  { id: 13, name: 'Andrés Gómez', initials: 'AG', email: 'agomez@smiletrack.co', role: 'Profesional', status: 'Activo', lastAccess: '2026-05-27T05:00:00', color: 'green' },
-  { id: 14, name: 'Isabel Ruiz', initials: 'IR', email: 'iruiz@smiletrack.co', role: 'Recepcionista', status: 'Activo', lastAccess: '2026-05-27T08:30:00', color: 'orange' },
-  { id: 15, name: 'Roberto Díaz', initials: 'RD', email: 'rdiaz@smiletrack.co', role: 'Auxiliar', status: 'Activo', lastAccess: '2026-05-26T15:00:00', color: 'pink' },
-];
+let users = Array.isArray(window.RAZOR_USERS)
+  ? window.RAZOR_USERS
+  : [];
 
-let users = Array.isArray(window.RAZOR_USERS) && window.RAZOR_USERS.length > 0 ? window.RAZOR_USERS : [...SAMPLE_USERS];
 let searchQuery = '';
 let selectedRole = '';
 let selectedStatus = '';
 let currentPage = 1;
+let editingUserId = null;
+
 const itemsPerPage = 5;
 
-// ═══════════════════════════════════════════════════════════════════
-//  FUNCIONES DE RENDERIZADO
-// ═══════════════════════════════════════════════════════════════════
+/* ================================================================
+   CSRF
+================================================================ */
 
-// Anima contador numérico
-const animateCounter = (el, target) => {
-  if (!el) return;
-  let cur = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const t = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = cur;
-    if (cur >= target) clearInterval(t);
-  }, 30);
+const getCsrfToken = () =>
+  document.querySelector(
+    '#formAddUser input[name="__RequestVerificationToken"]'
+  )?.value || '';
+
+/* ================================================================
+   API
+================================================================ */
+
+const apiFetch = async (url, options = {}) => {
+  const headers = new Headers(options.headers || {});
+
+  headers.set('Accept', 'application/json');
+
+  if (
+    options.body &&
+    typeof options.body !== 'string'
+  ) {
+    headers.set('Content-Type', 'application/json');
+    options.body = JSON.stringify(options.body);
+  }
+
+  const csrf = getCsrfToken();
+
+  if (csrf) {
+    headers.set('X-CSRF-TOKEN', csrf);
+  }
+
+  const response = await fetch(url, {
+    credentials: 'same-origin',
+    ...options,
+    headers
+  });
+
+  const contentType =
+    response.headers.get('content-type') || '';
+
+  const payload = contentType.includes('application/json')
+    ? await response.json()
+    : {
+        success: response.ok,
+        message: await response.text()
+      };
+
+  if (!response.ok || payload.success === false) {
+    throw new Error(
+      payload.message ||
+      `Error HTTP ${response.status}`
+    );
+  }
+
+  return payload;
 };
 
-// Obtiene clase CSS para badge de rol
-const getRoleBadgeClass = (role) => {
-  const map = {
-    'Administrador': 'admin',
-    'Recepcionista': 'recep',
-    'Profesional': 'prof',
-    'Auxiliar': 'aux',
-    'Paciente': 'paciente',
-  };
-  return map[role] || 'paciente';
+/* ================================================================
+   ESTADOS
+================================================================ */
+
+const normalizeStatus = (status) => {
+  const value = String(status || '').toLowerCase();
+
+  if (value === 'bloqueado') {
+    return 'Bloqueado';
+  }
+
+  return value === 'activo'
+    ? 'Activo'
+    : 'Inactivo';
 };
 
-// Obtiene clase CSS para badge de estado
-const getStatusBadgeClass = (status) => {
-  const map = {
-    'Activo': 'activo',
-    'Inactivo': 'inactivo',
-    'Bloqueado': 'bloqueado',
-  };
-  return map[status] || 'inactivo';
-};
+/* ================================================================
+   CONTRASEÑA
+================================================================ */
 
-// Formatea fecha para último acceso
-const fmtLastAccess = (iso) => {
-  if (!iso) return 'Nunca';
-  const now = new Date();
-  const date = new Date(iso);
-  const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-  
-  if (diffMins < 60) return `Hace ${diffMins} min`;
-  if (diffHours < 24) return `Hace ${diffHours} h`;
-  if (diffDays < 7) return `Hace ${diffDays} d`;
-  return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-};
+const PASSWORD_RULES = [
+  {
+    id: 'passwordRuleLength',
+    label: 'Mínimo 8 caracteres',
+    test: (value) => value.length >= 8
+  },
+  {
+    id: 'passwordRuleUppercase',
+    label: 'Una letra mayúscula',
+    test: (value) => /[A-Z]/.test(value)
+  },
+  {
+    id: 'passwordRuleLowercase',
+    label: 'Una letra minúscula',
+    test: (value) => /[a-z]/.test(value)
+  },
+  {
+    id: 'passwordRuleNumber',
+    label: 'Un número',
+    test: (value) => /\d/.test(value)
+  },
+  {
+    id: 'passwordRuleSymbol',
+    label: 'Un símbolo especial',
+    test: (value) => /[^A-Za-z\d]/.test(value)
+  }
+];
 
-// Renderiza tabla de usuarios con accesibilidad
-const renderTable = (data) => {
-  const tbody = safeGetElement('usersTbody');
-  if (!tbody) return;
-  
-  // Filtrar datos
-  const filtered = data.filter(u =>
-    (!searchQuery || u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase())) &&
-    (!selectedRole || u.role === selectedRole) &&
-    (!selectedStatus || u.status === selectedStatus)
+const isPasswordValid = (password) =>
+  PASSWORD_RULES.every((rule) => rule.test(password));
+
+const createPasswordRequirements = () => {
+  const passwordInput = safeGetElement('userPassword');
+
+  if (!passwordInput) {
+    return null;
+  }
+
+  let requirements =
+    safeGetElement('passwordRequirements');
+
+  if (requirements) {
+    return requirements;
+  }
+
+  requirements = document.createElement('div');
+  requirements.id = 'passwordRequirements';
+
+  requirements.style.marginTop = '8px';
+  requirements.style.fontSize = '12px';
+  requirements.style.lineHeight = '1.6';
+
+  const title = document.createElement('div');
+  title.textContent = 'La contraseña debe cumplir:';
+  title.style.fontWeight = '600';
+  title.style.marginBottom = '4px';
+
+  requirements.appendChild(title);
+
+  PASSWORD_RULES.forEach((rule) => {
+    const row = document.createElement('div');
+
+    row.id = rule.id;
+
+    row.dataset.valid = 'false';
+
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '6px';
+    row.style.color = '#6b7280';
+
+    const icon = document.createElement('span');
+
+    icon.className = 'password-rule-icon';
+    icon.textContent = '✗';
+    icon.style.fontWeight = '700';
+
+    const text = document.createElement('span');
+
+    text.textContent = rule.label;
+
+    row.appendChild(icon);
+    row.appendChild(text);
+
+    requirements.appendChild(row);
+  });
+
+const passwordWrapper =
+  passwordInput.parentElement?.dataset.passwordWrapper === 'true'
+    ? passwordInput.parentElement
+    : null;
+
+if (passwordWrapper) {
+  passwordWrapper.insertAdjacentElement(
+    'afterend',
+    requirements
   );
-  
-  // Paginar
-  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
-  if (currentPage > totalPages) currentPage = totalPages;
-  
-  const startIdx = (currentPage - 1) * itemsPerPage;
-  const paginated = filtered.slice(startIdx, startIdx + itemsPerPage);
-  
-  tbody.innerHTML = '';
-  
-  if (!paginated.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No se encontraron usuarios con los filtros aplicados.</td></tr>`;
-    updatePagination(0, 0);
+} else {
+  passwordInput.insertAdjacentElement(
+    'afterend',
+    requirements
+  );
+}
+
+  return requirements;
+};
+
+const createPasswordToggle = () => {
+  const passwordInput = safeGetElement('userPassword');
+
+  if (!passwordInput) {
     return;
   }
-  
-  paginated.forEach(u => {
-    const tr = document.createElement('tr');
-    tr.setAttribute('role', 'row');
-    
-    const roleClass = getRoleBadgeClass(u.role);
-    const statusClass = getStatusBadgeClass(u.status);
-    
+
+  let button = safeGetElement('togglePasswordVisibility');
+
+  /*
+   * Crear un wrapper exclusivamente para el input
+   * y el botón de visibilidad.
+   */
+  let wrapper = passwordInput.parentElement;
+
+  if (
+    !wrapper ||
+    wrapper.dataset.passwordWrapper !== 'true'
+  ) {
+    wrapper = document.createElement('div');
+
+    wrapper.dataset.passwordWrapper = 'true';
+
+    wrapper.style.setProperty(
+      'position',
+      'relative',
+      'important'
+    );
+
+    wrapper.style.setProperty(
+      'width',
+      '100%',
+      'important'
+    );
+
+    wrapper.style.setProperty(
+      'height',
+      'auto',
+      'important'
+    );
+
+    wrapper.style.setProperty(
+      'display',
+      'block',
+      'important'
+    );
+
+    passwordInput.parentNode.insertBefore(
+      wrapper,
+      passwordInput
+    );
+
+    wrapper.appendChild(passwordInput);
+  }
+
+  /*
+   * Configuración del input.
+   */
+  passwordInput.style.setProperty(
+    'width',
+    '100%',
+    'important'
+  );
+
+  passwordInput.style.setProperty(
+    'box-sizing',
+    'border-box',
+    'important'
+  );
+
+  passwordInput.style.setProperty(
+    'padding-right',
+    '46px',
+    'important'
+  );
+
+  /*
+   * Si el botón ya existe en el HTML,
+   * lo reutilizamos.
+   */
+  if (!button) {
+    button = document.createElement('button');
+
+    button.type = 'button';
+    button.id = 'togglePasswordVisibility';
+
+    button.textContent = '👁';
+
+    wrapper.appendChild(button);
+
+    button.addEventListener('click', () => {
+      const visible =
+        passwordInput.type === 'text';
+
+      passwordInput.type =
+        visible ? 'password' : 'text';
+
+      button.textContent =
+        visible ? '👁' : '🙈';
+
+      button.setAttribute(
+        'aria-label',
+        visible
+          ? 'Mostrar contraseña'
+          : 'Ocultar contraseña'
+      );
+
+      button.setAttribute(
+        'aria-pressed',
+        String(!visible)
+      );
+    });
+  } else {
+    /*
+     * Mover el botón existente al wrapper.
+     */
+    wrapper.appendChild(button);
+  }
+
+  /*
+   * POSICIÓN REAL DEL BOTÓN
+   * Dentro del input, lado derecho.
+   */
+  button.style.setProperty(
+    'position',
+    'absolute',
+    'important'
+  );
+
+  button.style.setProperty(
+    'right',
+    '6px',
+    'important'
+  );
+
+  button.style.setProperty(
+    'top',
+    '50%',
+    'important'
+  );
+
+  button.style.setProperty(
+    'transform',
+    'translateY(-50%)',
+    'important'
+  );
+
+  button.style.setProperty(
+    'height',
+    '30px',
+    'important'
+  );
+
+  button.style.setProperty(
+    'width',
+    '34px',
+    'important'
+  );
+
+  button.style.setProperty(
+    'display',
+    'flex',
+    'important'
+  );
+
+  button.style.setProperty(
+    'align-items',
+    'center',
+    'important'
+  );
+
+  button.style.setProperty(
+    'justify-content',
+    'center',
+    'important'
+  );
+
+  button.style.setProperty(
+    'border',
+    '0',
+    'important'
+  );
+
+  button.style.setProperty(
+    'background',
+    'transparent',
+    'important'
+  );
+
+  button.style.setProperty(
+    'padding',
+    '0',
+    'important'
+  );
+
+  button.style.setProperty(
+    'margin',
+    '0',
+    'important'
+  );
+
+  button.style.setProperty(
+    'cursor',
+    'pointer',
+    'important'
+  );
+
+  button.style.setProperty(
+    'font-size',
+    '16px',
+    'important'
+  );
+
+  button.style.setProperty(
+    'line-height',
+    '1',
+    'important'
+  );
+
+  button.style.setProperty(
+    'z-index',
+    '100',
+    'important'
+  );
+
+  button.setAttribute(
+    'aria-label',
+    passwordInput.type === 'text'
+      ? 'Ocultar contraseña'
+      : 'Mostrar contraseña'
+  );
+
+  button.setAttribute(
+    'aria-pressed',
+    String(
+      passwordInput.type === 'text'
+    )
+  );
+};
+
+const updatePasswordRequirements = () => {
+  const passwordInput =
+    safeGetElement('userPassword');
+
+  const saveButton =
+    safeGetElement('btnSaveUser');
+
+  if (!passwordInput) {
+    return;
+  }
+
+  const value = passwordInput.value || '';
+
+  const requirements =
+    createPasswordRequirements();
+
+  if (!requirements) {
+    return;
+  }
+
+  PASSWORD_RULES.forEach((rule) => {
+    const row = safeGetElement(rule.id);
+
+    if (!row) {
+      return;
+    }
+
+    const icon =
+      row.querySelector('.password-rule-icon');
+
+    const valid =
+      rule.test(value);
+
+    row.dataset.valid =
+      String(valid);
+
+    row.style.color =
+      valid
+        ? '#15803d'
+        : '#b91c1c';
+
+    if (icon) {
+      icon.textContent =
+        valid ? '✓' : '✗';
+    }
+  });
+
+  const valid =
+    isPasswordValid(value);
+
+  const editing =
+    Boolean(editingUserId);
+
+  /*
+   * Al editar:
+   * - contraseña vacía = mantener la actual
+   * - contraseña escrita = debe cumplir las reglas
+   */
+  const allowed =
+    editing
+      ? value.length === 0 || valid
+      : valid;
+
+  if (saveButton) {
+    saveButton.disabled = !allowed;
+
+    saveButton.style.opacity =
+      allowed ? '1' : '0.6';
+
+    saveButton.style.cursor =
+      allowed ? 'pointer' : 'not-allowed';
+  }
+
+  const help =
+    safeGetElement('userPasswordHelp');
+
+  if (help) {
+    if (!editing) {
+      help.textContent =
+        valid
+          ? 'Contraseña válida.'
+          : 'Completa todos los requisitos para continuar.';
+
+      help.style.color =
+        valid ? '#15803d' : '#b91c1c';
+    } else {
+      if (value.length === 0) {
+        help.textContent =
+          'Déjala vacía para conservar la contraseña actual.';
+        help.style.color = '#6b7280';
+      } else {
+        help.textContent =
+          valid
+            ? 'La nueva contraseña cumple todos los requisitos.'
+            : 'Completa todos los requisitos para cambiar la contraseña.';
+        help.style.color =
+          valid ? '#15803d' : '#b91c1c';
+      }
+    }
+  }
+};
+
+const initPasswordControls = () => {
+  createPasswordToggle();
+  createPasswordRequirements();
+
+  const passwordInput =
+    safeGetElement('userPassword');
+
+  if (!passwordInput) {
+    return;
+  }
+
+  passwordInput.addEventListener(
+    'input',
+    updatePasswordRequirements
+  );
+
+  updatePasswordRequirements();
+};
+
+/* ================================================================
+   ESTADÍSTICAS
+================================================================ */
+
+const updateStats = () => {
+  const total = users.length;
+
+  const active = users.filter(
+    (u) =>
+      normalizeStatus(u.status) === 'Activo'
+  ).length;
+
+  const blocked = users.filter(
+    (u) =>
+      normalizeStatus(u.status) === 'Bloqueado'
+  ).length;
+
+  const inactive =
+    total - active - blocked;
+
+  const set = (id, value) => {
+    const element = safeGetElement(id);
+
+    if (element) {
+      element.textContent = value;
+    }
+  };
+
+  set('statTotal', total);
+  set('statActive', active);
+  set('statBlocked', blocked);
+  set('statInactive', inactive);
+};
+
+/* ================================================================
+   BADGES
+================================================================ */
+
+const getRoleBadgeClass = (role) => ({
+  Administrador: 'admin',
+  Recepcionista: 'recep',
+  Profesional: 'prof',
+  Auxiliar: 'aux',
+  Paciente: 'paciente'
+}[role] || 'paciente');
+
+const getStatusBadgeClass = (status) => {
+  const normalized =
+    normalizeStatus(status);
+
+  if (normalized === 'Bloqueado') {
+    return 'bloqueado';
+  }
+
+  return normalized === 'Activo'
+    ? 'activo'
+    : 'inactivo';
+};
+
+/* ================================================================
+   ÚLTIMO ACCESO
+================================================================ */
+
+const fmtLastAccess = (iso) => {
+  if (!iso) {
+    return 'Nunca';
+  }
+
+  const date = new Date(iso);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Nunca';
+  }
+
+  const now = new Date();
+
+  const diffMins = Math.max(
+    0,
+    Math.floor(
+      (now - date) / 60000
+    )
+  );
+
+  if (diffMins < 60) {
+    return `Hace ${diffMins} min`;
+  }
+
+  const diffHours =
+    Math.floor(diffMins / 60);
+
+  if (diffHours < 24) {
+    return `Hace ${diffHours} h`;
+  }
+
+  const diffDays =
+    Math.floor(diffHours / 24);
+
+  if (diffDays < 7) {
+    return `Hace ${diffDays} d`;
+  }
+
+  return date.toLocaleDateString(
+    'es-CO',
+    {
+      day: 'numeric',
+      month: 'short'
+    }
+  );
+};
+
+/* ================================================================
+   PAGINACIÓN
+================================================================ */
+
+const updatePagination = (total) => {
+  const info =
+    safeGetElement('paginationInfo');
+
+  const buttons =
+    safeGetElement('paginationButtons');
+
+  if (!info || !buttons) {
+    return;
+  }
+
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(
+        total / itemsPerPage
+      )
+    );
+
+  currentPage =
+    Math.min(
+      currentPage,
+      totalPages
+    );
+
+  const start =
+    total === 0
+      ? 0
+      : (currentPage - 1) *
+          itemsPerPage +
+        1;
+
+  const end =
+    Math.min(
+      currentPage * itemsPerPage,
+      total
+    );
+
+  info.textContent =
+    `Mostrando ${start}-${end} de ${total} usuarios`;
+
+  buttons.innerHTML = '';
+
+  const addButton = (
+    text,
+    label,
+    disabled,
+    active,
+    handler
+  ) => {
+    const btn =
+      document.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = text;
+    btn.setAttribute(
+      'aria-label',
+      label
+    );
+
+    btn.disabled =
+      disabled;
+
+    if (active) {
+      btn.classList.add('active');
+    }
+
+    btn.addEventListener(
+      'click',
+      handler
+    );
+
+    buttons.appendChild(btn);
+  };
+
+  addButton(
+    '«',
+    'Página anterior',
+    currentPage === 1,
+    false,
+    () => {
+      currentPage--;
+      renderTable(users);
+    }
+  );
+
+  for (
+    let page = 1;
+    page <= totalPages;
+    page++
+  ) {
+    addButton(
+      String(page),
+      `Ir a página ${page}`,
+      false,
+      page === currentPage,
+      () => {
+        currentPage = page;
+        renderTable(users);
+      }
+    );
+  }
+
+  addButton(
+    '»',
+    'Página siguiente',
+    currentPage === totalPages,
+    false,
+    () => {
+      currentPage++;
+      renderTable(users);
+    }
+  );
+};
+
+/* ================================================================
+   ESCAPE HTML
+================================================================ */
+
+const escapeHtml = (value) =>
+  String(value ?? '').replace(
+    /[&<>'"]/g,
+    (c) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[c])
+  );
+
+/* ================================================================
+   TABLA
+================================================================ */
+
+const renderTable = (data) => {
+  const tbody =
+    safeGetElement('usersTbody');
+
+  if (!tbody) {
+    return;
+  }
+
+  const filtered =
+    data.filter((u) => {
+      const text =
+        `${u.name || ''} ${u.email || ''}`
+          .toLowerCase();
+
+      return (
+        (!searchQuery ||
+          text.includes(
+            searchQuery.toLowerCase()
+          )) &&
+        (!selectedRole ||
+          u.role === selectedRole) &&
+        (!selectedStatus ||
+          normalizeStatus(u.status) ===
+            selectedStatus)
+      );
+    });
+
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(
+        filtered.length /
+          itemsPerPage
+      )
+    );
+
+  currentPage =
+    Math.min(
+      currentPage,
+      totalPages
+    );
+
+  const start =
+    (currentPage - 1) *
+    itemsPerPage;
+
+  const paginated =
+    filtered.slice(
+      start,
+      start + itemsPerPage
+    );
+
+  tbody.innerHTML = '';
+
+  if (!paginated.length) {
+    tbody.innerHTML =
+      '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No se encontraron usuarios.</td></tr>';
+
+    updatePagination(0);
+    return;
+  }
+
+  for (const u of paginated) {
+    const tr =
+      document.createElement('tr');
+
+    const status =
+      normalizeStatus(u.status);
+
+    const blocked =
+      status === 'Bloqueado';
+
     tr.innerHTML = `
       <td class="td-usuario">
-        <div class="u-avatar" style="background:var(--${u.color}-500)" aria-hidden="true">${u.initials}</div>
-        <span class="u-name">${u.name}</span>
+        <div
+          class="u-avatar"
+          style="background:var(--${u.color || 'blue'}-500)"
+          aria-hidden="true"
+        >
+          ${u.initials || '?'}
+        </div>
+
+        <span class="u-name">
+          ${escapeHtml(u.name || '')}
+        </span>
       </td>
-      <td>${u.email}</td>
-      <td><span class="badge-role ${roleClass}">${u.role}</span></td>
-      <td><span class="badge-status ${statusClass}" role="status" aria-label="Estado: ${u.status}">${u.status}</span></td>
-      <td><time datetime="${u.lastAccess || ''}">${fmtLastAccess(u.lastAccess)}</time></td>
+
+      <td>
+        ${escapeHtml(u.email || '')}
+      </td>
+
+      <td>
+        <span
+          class="badge-role ${getRoleBadgeClass(u.role)}"
+        >
+          ${escapeHtml(u.role || 'Sin Rol')}
+        </span>
+      </td>
+
+      <td>
+        <span
+          class="badge-status ${getStatusBadgeClass(status)}"
+        >
+          ${status}
+        </span>
+      </td>
+
+      <td>
+        <time>
+          ${fmtLastAccess(u.lastAccess)}
+        </time>
+      </td>
+
       <td>
         <div class="actions-cell">
-          <button class="btn-icon view" title="Ver detalles" aria-label="Ver detalles de ${u.name}" onclick="viewUser(${u.id})">👁️</button>
-          <button class="btn-icon edit" title="Editar usuario" aria-label="Editar ${u.name}" onclick="editUser(${u.id})">✏️</button>
-          <button class="btn-icon lock" title="${u.status === 'Bloqueado' ? 'Desbloquear' : 'Bloquear'}" aria-label="${u.status === 'Bloqueado' ? 'Desbloquear' : 'Bloquear'} ${u.name}" onclick="toggleStatus(${u.id})">${u.status === 'Bloqueado' ? '🔓' : '🔒'}</button>
+
+          <button
+            class="btn-icon view"
+            title="Ver detalles"
+            onclick="viewUser(${u.id})"
+          >
+            👁️
+          </button>
+
+          <button
+            class="btn-icon edit"
+            title="Editar usuario"
+            onclick="editUser(${u.id})"
+          >
+            ✏️
+          </button>
+
+          <button
+            class="btn-icon lock"
+            title="${blocked ? 'Activar' : 'Desactivar'}"
+            onclick="toggleStatus(${u.id})"
+          >
+            ${blocked ? '🔓' : '🔒'}
+          </button>
+
         </div>
       </td>
     `;
-    
+
     tbody.appendChild(tr);
-  });
-  
-  // Actualizar paginación
-  updatePagination(filtered.length, paginated.length);
-};
-
-// Actualiza contadores de estadísticas
-const updateStats = () => {
-  const total = users.length;
-  const active = users.filter(u => u.status === 'Activo').length;
-  const blocked = users.filter(u => u.status === 'Bloqueado').length;
-  const inactive = users.filter(u => u.status === 'Inactivo').length;
-  
-  animateCounter(safeGetElement('statTotal'), total);
-  animateCounter(safeGetElement('statActive'), active);
-  animateCounter(safeGetElement('statBlocked'), blocked);
-  animateCounter(safeGetElement('statInactive'), inactive);
-};
-
-// Actualiza botones de paginación
-const updatePagination = (total, count) => {
-  const info = safeGetElement('paginationInfo');
-  const buttons = safeGetElement('paginationButtons');
-  if (!info || !buttons) return;
-  
-  const totalPages = Math.ceil(total / itemsPerPage) || 1;
-  const start = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
-  const end = Math.min(currentPage * itemsPerPage, total);
-  
-  info.textContent = `Mostrando ${start}-${end} de ${total} usuarios`;
-  
-  buttons.innerHTML = '';
-  
-  // Botón anterior
-  const btnPrev = document.createElement('button');
-  btnPrev.textContent = '«';
-  btnPrev.setAttribute('aria-label', 'Página anterior');
-  btnPrev.disabled = currentPage === 1;
-  btnPrev.className = currentPage === 1 ? '' : '';
-  btnPrev.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderTable(users); } });
-  buttons.appendChild(btnPrev);
-  
-  // Botones numéricos
-  for (let i = 1; i <= totalPages; i++) {
-    const btn = document.createElement('button');
-    btn.textContent = i;
-    btn.setAttribute('aria-label', `Ir a página ${i}`);
-    btn.setAttribute('aria-current', i === currentPage ? 'page' : 'false');
-    if (i === currentPage) btn.classList.add('active');
-    btn.addEventListener('click', () => { currentPage = i; renderTable(users); });
-    buttons.appendChild(btn);
   }
-  
-  // Botón siguiente
-  const btnNext = document.createElement('button');
-  btnNext.textContent = '»';
-  btnNext.setAttribute('aria-label', 'Página siguiente');
-  btnNext.disabled = currentPage === totalPages;
-  btnNext.addEventListener('click', () => { if (currentPage < totalPages) { currentPage++; renderTable(users); } });
-  buttons.appendChild(btnNext);
+
+  updatePagination(filtered.length);
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  ACCIONES DE USUARIO
-// ═══════════════════════════════════════════════════════════════════
+/* ================================================================
+   GET USERS
+================================================================ */
 
-// Ver detalles de usuario (simulado)
-window.viewUser = (id) => {
-  const user = users.find(u => u.id === id);
-  if (user) showToast(`👁️ Visualizando: ${user.name}`);
+const fetchUsers = async () => {
+  const response =
+    await apiFetch(
+      API_BASE,
+      {
+        method: 'GET'
+      }
+    );
+
+  return Array.isArray(response.data)
+    ? response.data
+    : [];
 };
 
-// Editar usuario (simulado)
-window.editUser = (id) => {
-  const user = users.find(u => u.id === id);
-  if (user) showToast(`✏️ Editando: ${user.name}`);
-};
+/* ================================================================
+   MODAL
+================================================================ */
 
-// Alternar estado de usuario (bloquear/desbloquear)
-window.toggleStatus = (id) => {
-  const user = users.find(u => u.id === id);
-  if (!user) return;
-  
-  if (user.status === 'Bloqueado') {
-    user.status = 'Activo';
-    showToast(`🔓 ${user.name} desbloqueado`);
-  } else {
-    user.status = 'Bloqueado';
-    showToast(`🔒 ${user.name} bloqueado`);
-  }
-  
-  updateStats();
-  renderTable(users);
-};
+const openModal = (user = null) => {
+  const modal =
+    safeGetElement('modalAddUser');
 
-// ═══════════════════════════════════════════════════════════════════
-//  MODAL: CREAR USUARIO
-// ═══════════════════════════════════════════════════════════════════
+  const form =
+    safeGetElement('formAddUser');
 
-// Abre modal de crear usuario
-const openModal = () => {
-  const modal = safeGetElement('modalAddUser');
-  if (modal) {
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    modal.removeAttribute('inert');
-    
-    // Enfocar primer input
-    const firstInput = modal.querySelector('input');
-    if (firstInput) firstInput.focus();
-    
-    // Bloquear scroll del body
-    document.body.style.overflow = 'hidden';
-  }
-};
-
-// Cierra modal de crear usuario
-const closeModal = () => {
-  const modal = safeGetElement('modalAddUser');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
-    
-    // Restaurar scroll
-    document.body.style.overflow = '';
-    
-    // Resetear formulario
-    const form = safeGetElement('formAddUser');
-    if (form) form.reset();
-  }
-};
-
-// Crea nuevo usuario
-const createUser = (e) => {
-  e.preventDefault();
-  
-  const name = safeGetElement('userName')?.value.trim();
-  const email = safeGetElement('userEmail')?.value.trim();
-  const role = safeGetElement('userRole')?.value;
-  const status = safeGetElement('userStatus')?.value;
-  
-  if (!name || !email || !role || !status) {
-    showToast('⚠️ Completa todos los campos', 'warning');
+  if (!modal || !form) {
     return;
   }
-  
-  // Generar iniciales
-  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  
-  // Color aleatorio para avatar
-  const colors = ['purple', 'green', 'orange', 'pink', 'blue', 'red'];
-  const color = colors[Math.floor(Math.random() * colors.length)];
-  
-  // Nuevo usuario
-  const newUser = {
-    id: users.length + 1,
-    name,
-    initials,
-    email,
-    role,
-    status,
-    lastAccess: null,
-    color,
-  };
-  
-  // Agregar al inicio
-  users.unshift(newUser);
-  
-  // Actualizar UI
-  closeModal();
-  updateStats();
-  renderTable(users);
-  
-  showToast(`✅ ${name} creado exitosamente`);
+
+  editingUserId =
+    user?.id ?? null;
+
+  safeGetElement('userId').value =
+    editingUserId ?? '';
+
+  safeGetElement('modalTitle').textContent =
+    editingUserId
+      ? 'Editar Usuario'
+      : 'Crear Nuevo Usuario';
+
+  safeGetElement('btnSaveUser').textContent =
+    editingUserId
+      ? 'Guardar cambios'
+      : 'Crear usuario';
+
+  safeGetElement('userName').value =
+    user
+      ? (user.name || '').split(' ')[0]
+      : '';
+
+  safeGetElement('userLastName').value =
+    user
+      ? (user.name || '')
+          .split(' ')
+          .slice(1)
+          .join(' ')
+      : '';
+
+  safeGetElement('userEmail').value =
+    user?.email || '';
+
+  const passwordInput =
+    safeGetElement('userPassword');
+
+  passwordInput.value = '';
+
+  safeGetElement('userRole').value =
+    user?.role || '';
+
+  safeGetElement('userStatus').value =
+    normalizeStatus(
+      user?.status || 'Activo'
+    );
+
+  const role =
+    safeGetElement('userRole');
+
+  [...role.options].forEach(
+    (o) => {
+      o.disabled = false;
+    }
+  );
+
+  if (!editingUserId) {
+    const adminOption =
+      [...role.options].find(
+        (o) =>
+          o.value === 'Administrador'
+      );
+
+    if (adminOption) {
+      adminOption.disabled = true;
+    }
+  }
+
+  if (
+    editingUserId &&
+    [
+      'Administrador',
+      'Profesional',
+      'Paciente'
+    ].includes(user?.role)
+  ) {
+    role.disabled = true;
+  }
+
+  passwordInput.required =
+    !editingUserId;
+
+  safeGetElement('userPasswordHelp').textContent =
+    editingUserId
+      ? 'Déjala vacía para conservar la contraseña actual.'
+      : 'Obligatoria al crear.';
+
+  modal.classList.add('open');
+
+  modal.setAttribute(
+    'aria-hidden',
+    'false'
+  );
+
+  modal.removeAttribute('inert');
+
+  document.body.style.overflow =
+    'hidden';
+
+  safeGetElement('userName')?.focus();
+
+  updatePasswordRequirements();
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  API CALLS (Listas para conectar al backend C#)
-// ═══════════════════════════════════════════════════════════════════
+const closeModal = () => {
+  const modal =
+    safeGetElement('modalAddUser');
 
-// Obtiene lista de usuarios desde API
-async function fetchUsers() {
-  try {
-    // En producción: fetch real a API
-    // const res = await fetch(`${API_BASE}/admin/users`);
-    // if (!res.ok) throw new Error('API error');
-    // return await res.json();
-    
-    // Simulación con fallback
-    return SAMPLE_USERS;
-  } catch (error) {
-    console.warn('Fallback a datos locales:', error);
-    return SAMPLE_USERS;
+  if (!modal) {
+    return;
   }
-}
 
-// Crea usuario en API
-async function createUserAPI(userData) {
-  try {
-    // En producción: POST real a API
-    // const res = await fetch(`${API_BASE}/admin/users`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(userData),
-    // });
-    // if (!res.ok) throw new Error('Create failed');
-    // return await res.json();
-    
-    // Simulación
-    return { success: true, id: Date.now() };
-  } catch (error) {
-    console.warn('Error creando usuario en API:', error);
-    return null;
+  modal.classList.remove('open');
+
+  modal.setAttribute(
+    'aria-hidden',
+    'true'
+  );
+
+  modal.setAttribute(
+    'inert',
+    ''
+  );
+
+  document.body.style.overflow = '';
+
+  safeGetElement('formAddUser')?.reset();
+
+  editingUserId = null;
+
+  /*
+   * Recalcular el estado del botón después del reset.
+   */
+  updatePasswordRequirements();
+};
+
+/* ================================================================
+   VER USUARIO
+================================================================ */
+
+window.viewUser = (id) => {
+  const user = users.find(
+    (u) => u.id === id
+  );
+
+  if (!user) {
+    return;
   }
-}
 
-// Actualiza usuario en API
-async function updateUserAPI(id, updates) {
-  try {
-    // En producción: PATCH real a API
-    // await fetch(`${API_BASE}/admin/users/${id}`, {
-    //   method: 'PATCH',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(updates),
-    // });
-    
-    // Simulación
-    return true;
-  } catch (error) {
-    console.warn('Error actualizando usuario en API:', error);
-    return false;
+  const existingModal =
+    document.getElementById('userDetailsModal');
+
+  if (existingModal) {
+    existingModal.remove();
   }
-}
 
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN DE COMPONENTES
-// ═══════════════════════════════════════════════════════════════════
+  const modal =
+    document.createElement('div');
 
-// Inicializa sidebar móvil con gestión de foco y ARIA
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
+  modal.id = 'userDetailsModal';
+  modal.className = 'modal-overlay open';
 
-  if (!hamburger || !sidebar || !overlay) return;
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'userDetailsTitle');
 
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
-    
-    if (show) {
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      hamburger.focus();
-    }
+  modal.innerHTML = `
+    <div class="modal">
+      <button
+        type="button"
+        class="modal-close"
+        id="closeUserDetails"
+        aria-label="Cerrar detalles"
+      >
+        ×
+      </button>
+
+      <h2
+        class="modal-title"
+        id="userDetailsTitle"
+      >
+        Detalles del usuario
+      </h2>
+
+      <div style="display:grid;gap:12px;margin-top:20px;">
+
+        <div>
+          <strong>Nombre</strong>
+          <div>${escapeHtml(user.name || '')}</div>
+        </div>
+
+        <div>
+          <strong>Correo</strong>
+          <div>${escapeHtml(user.email || '')}</div>
+        </div>
+
+        <div>
+          <strong>Rol</strong>
+          <div>
+            ${escapeHtml(user.role || 'Sin rol')}
+          </div>
+        </div>
+
+        <div>
+          <strong>Estado</strong>
+          <div>
+            ${escapeHtml(
+              normalizeStatus(user.status)
+            )}
+          </div>
+        </div>
+
+        <div>
+          <strong>Último acceso</strong>
+          <div>
+            ${escapeHtml(
+              fmtLastAccess(user.lastAccess)
+            )}
+          </div>
+        </div>
+
+        <div>
+          <strong>ID de usuario</strong>
+          <div>${user.id}</div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="btn-secondary"
+          id="closeUserDetailsFooter"
+        >
+          Cerrar
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  document.body.style.overflow = 'hidden';
+
+  const close = () => {
+    modal.remove();
+    document.body.style.overflow = '';
   };
 
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
+  document
+    .getElementById('closeUserDetails')
+    ?.addEventListener('click', close);
 
-  // ✅ Navegación: cerrar menú en móvil, SIN bloquear enlaces
-  sidebar.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      if (window.innerWidth <= 680) {
-        toggleMenu(false);
+  document
+    .getElementById('closeUserDetailsFooter')
+    ?.addEventListener('click', close);
+
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) {
+      close();
+    }
+  });
+};
+
+
+/* ================================================================
+   EDITAR
+================================================================ */
+
+window.editUser = (id) => {
+  const user =
+    users.find(
+      (u) => u.id === id
+    );
+
+  if (user) {
+    openModal(user);
+  }
+};
+
+/* ================================================================
+   CAMBIAR ESTADO
+================================================================ */
+
+window.toggleStatus = async (id) => {
+  const user =
+    users.find(
+      (u) => u.id === id
+    );
+
+  if (!user) {
+    return;
+  }
+
+  const currentStatus =
+    normalizeStatus(
+      user.status
+    );
+
+  const next =
+    currentStatus === 'Activo' ||
+    currentStatus === 'Bloqueado'
+      ? 'Inactivo'
+      : 'Activo';
+
+  try {
+    const response =
+      await apiFetch(
+        `${API_BASE}/${id}/estado`,
+        {
+          method: 'POST',
+          body: {
+            estado: next
+          }
+        }
+      );
+
+    user.status =
+      response.data.status;
+
+    updateStats();
+    renderTable(users);
+
+    showToast(
+      response.message ||
+      'Estado actualizado.'
+    );
+  } catch (error) {
+    showToast(
+      error.message,
+      'error'
+    );
+  }
+};
+
+/* ================================================================
+   SUBMIT
+================================================================ */
+
+const submitUser = async (event) => {
+  event.preventDefault();
+
+  const name =
+    safeGetElement(
+      'userName'
+    ).value.trim();
+
+  const lastName =
+    safeGetElement(
+      'userLastName'
+    ).value.trim();
+
+  const email =
+    safeGetElement(
+      'userEmail'
+    ).value.trim();
+
+  const password =
+    safeGetElement(
+      'userPassword'
+    ).value;
+
+  const role =
+    safeGetElement(
+      'userRole'
+    ).value;
+
+  const status =
+    safeGetElement(
+      'userStatus'
+    ).value;
+
+  /*
+   * Validaciones básicas.
+   */
+  if (
+    !name ||
+    !lastName ||
+    !email ||
+    !role ||
+    (!editingUserId && !password)
+  ) {
+    showToast(
+      'Completa los campos obligatorios.',
+      'warning'
+    );
+
+    return;
+  }
+
+  /*
+   * Validación fuerte de contraseña.
+   */
+  if (
+    password &&
+    !isPasswordValid(password)
+  ) {
+    updatePasswordRequirements();
+
+    showToast(
+      'La contraseña no cumple todos los requisitos.',
+      'warning'
+    );
+
+    return;
+  }
+
+  const payload = {
+    nombre: name,
+    apellidos: lastName,
+    correo: email,
+    idRol: roleToId(role),
+    estado: status
+  };
+
+  if (password) {
+    payload.contrasena =
+      password;
+  }
+
+  const saveButton =
+    safeGetElement(
+      'btnSaveUser'
+    );
+
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.textContent =
+      editingUserId
+        ? 'Guardando...'
+        : 'Creando...';
+  }
+
+  try {
+    const response =
+      editingUserId
+        ? await apiFetch(
+            `${API_BASE}/${editingUserId}`,
+            {
+              method: 'PUT',
+              body: payload
+            }
+          )
+        : await apiFetch(
+            API_BASE,
+            {
+              method: 'POST',
+              body: payload
+            }
+          );
+
+    if (editingUserId) {
+      const index =
+        users.findIndex(
+          (u) =>
+            u.id ===
+            editingUserId
+        );
+
+      if (index >= 0) {
+        users[index] =
+          response.data;
       }
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
+    } else {
+      users.unshift(
+        response.data
+      );
     }
-  });
+
+    closeModal();
+
+    currentPage = 1;
+
+    updateStats();
+    renderTable(users);
+
+    showToast(
+      response.message ||
+      'Operación realizada correctamente.'
+    );
+  } catch (error) {
+    showToast(
+      error.message ||
+      'No se pudo completar la operación.',
+      'error'
+    );
+
+    /*
+     * El modal permanece abierto para que
+     * el usuario pueda corregir los datos.
+     */
+  } finally {
+    if (saveButton) {
+      updatePasswordRequirements();
+
+      if (!editingUserId) {
+        saveButton.textContent =
+          'Crear usuario';
+      } else {
+        saveButton.textContent =
+          'Guardar cambios';
+      }
+    }
+  }
 };
 
-// Inicializa filtros de búsqueda
+/* ================================================================
+   ROLES
+================================================================ */
+
+const roleToId = (role) => ({
+  Administrador: 1,
+  Profesional: 2,
+  Auxiliar: 3,
+  Recepcionista: 4,
+  Paciente: 5
+}[role] || 0);
+
+/* ================================================================
+   FILTROS
+================================================================ */
+
 const initFilters = () => {
-  const searchInput = safeGetElement('searchUser');
-  const filterRole = safeGetElement('filterRole');
-  const filterStatus = safeGetElement('filterStatus');
-  
-  searchInput?.addEventListener('input', debounce((e) => {
-    searchQuery = e.target.value;
-    currentPage = 1;
-    renderTable(users);
-  }, 250));
-  
-  filterRole?.addEventListener('change', (e) => {
-    selectedRole = e.target.value;
-    currentPage = 1;
-    renderTable(users);
-  });
-  
-  filterStatus?.addEventListener('change', (e) => {
-    selectedStatus = e.target.value;
-    currentPage = 1;
-    renderTable(users);
-  });
-};
+  safeGetElement(
+    'searchUser'
+  )?.addEventListener(
+    'input',
+    debounce(
+      (e) => {
+        searchQuery =
+          e.target.value.trim();
 
-// Inicializa modal de crear usuario
-const initModal = () => {
-  const btnAdd = safeGetElement('btnAddUser');
-  const modalClose = safeGetElement('modalClose');
-  const modalCancel = safeGetElement('modalCancel');
-  const form = safeGetElement('formAddUser');
-  const modal = safeGetElement('modalAddUser');
-  
-  // Abrir modal
-  btnAdd?.addEventListener('click', openModal);
-  
-  // Cerrar modal
-  modalClose?.addEventListener('click', closeModal);
-  modalCancel?.addEventListener('click', closeModal);
-  modal?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeModal();
-  });
-  
-  // Submit del formulario
-  form?.addEventListener('submit', createUser);
-  
-  // Soporte para teclado en modal
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modal?.classList.contains('open')) {
-      e.preventDefault();
-      closeModal();
+        currentPage = 1;
+
+        renderTable(users);
+      },
+      250
+    )
+  );
+
+  safeGetElement(
+    'filterRole'
+  )?.addEventListener(
+    'change',
+    (e) => {
+      selectedRole =
+        e.target.value;
+
+      currentPage = 1;
+
+      renderTable(users);
     }
-  });
+  );
+
+  safeGetElement(
+    'filterStatus'
+  )?.addEventListener(
+    'change',
+    (e) => {
+      selectedStatus =
+        e.target.value;
+
+      currentPage = 1;
+
+      renderTable(users);
+    }
+  );
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
-// ═══════════════════════════════════════════════════════════════════
+/* ================================================================
+   MODAL INIT
+================================================================ */
+
+const initModal = () => {
+  safeGetElement(
+    'btnAddUser'
+  )?.addEventListener(
+    'click',
+    () => openModal()
+  );
+
+  safeGetElement(
+    'modalClose'
+  )?.addEventListener(
+    'click',
+    closeModal
+  );
+
+  safeGetElement(
+    'modalCancel'
+  )?.addEventListener(
+    'click',
+    closeModal
+  );
+
+  safeGetElement(
+    'modalAddUser'
+  )?.addEventListener(
+    'click',
+    (e) => {
+      if (
+        e.target ===
+        e.currentTarget
+      ) {
+        closeModal();
+      }
+    }
+  );
+
+  safeGetElement(
+    'formAddUser'
+  )?.addEventListener(
+    'submit',
+    submitUser
+  );
+};
+
+/* ================================================================
+   SIDEBAR
+================================================================ */
+
+const initSidebar = () => {
+  const hamburger =
+    safeGetElement('hamburger');
+
+  const sidebar =
+    safeGetElement('sidebar');
+
+  const overlay =
+    safeGetElement('overlay');
+
+  if (
+    !hamburger ||
+    !sidebar ||
+    !overlay
+  ) {
+    return;
+  }
+
+  const toggleMenu =
+    (show) => {
+      sidebar.classList.toggle(
+        'open',
+        show
+      );
+
+      overlay.classList.toggle(
+        'open',
+        show
+      );
+
+      hamburger.setAttribute(
+        'aria-expanded',
+        String(show)
+      );
+
+      overlay.setAttribute(
+        'aria-hidden',
+        String(!show)
+      );
+    };
+
+  hamburger.addEventListener(
+    'click',
+    () => toggleMenu(true)
+  );
+
+  overlay.addEventListener(
+    'click',
+    () => toggleMenu(false)
+  );
+};
+
+/* ================================================================
+   INIT
+================================================================ */
 
 const init = async () => {
-  // Inicializar componentes de UI
   initSidebar();
   initFilters();
   initModal();
-  
-  // Cargar datos iniciales
-  users = await fetchUsers();
-  
-  // Renderizar tabla y estadísticas
+  initPasswordControls();
+
+  try {
+    users =
+      await fetchUsers();
+  } catch (error) {
+    console.error(
+      '[SmileTrack] No se pudieron cargar usuarios:',
+      error
+    );
+
+    showToast(
+      'No se pudieron cargar los usuarios desde el servidor.',
+      'error'
+    );
+
+    users = [];
+  }
+
   updateStats();
   renderTable(users);
-  
-  // Limpieza al unload para evitar memory leaks
-  window.addEventListener('beforeunload', () => {
-    // Remover listeners en implementación SPA real
-  });
 };
 
-// Ejecutar al cargar DOM
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener(
+  'DOMContentLoaded',
+  init
+);

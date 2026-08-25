@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Mi Agenda Odontólogo (st-odo-02-agenda)
 ============================================
 Autor: Johan Santamaria
@@ -7,9 +7,9 @@ Fecha: 29/07/2026 (actualizado 2026-07-31)
 DESCRIPCIÓN:
 Controla el renderizado de la agenda semanal del odontólogo. Consume citas REALES desde
 GET /api/citas (el backend aplica filtro automático por rol Profesional → IdProfesional claim),
-y transiciona estados vía PUT /api/citas/{id}. Mantiene fallback a LocalStorage si la API
-no responde para no romper la UX.
-
+y transiciona estados vía PUT /api/citas/{id} y permite editar notas vía PUT /api/citas/{id}/notas. 
+La agenda del profesional utiliza únicamente
+  datos actuales del servidor.No se muestran datos almacenados localmente cuando la API no está disponible.
 FUNCIONALIDADES PRINCIPALES:
 - Carga reactiva de citas asociadas al odontólogo autenticado (filtro automático backend)
 - Transición de estados de citas (Iniciar atención, no asistió, etc.) vía PUT /api/citas/{id}
@@ -18,7 +18,7 @@ FUNCIONALIDADES PRINCIPALES:
 
 DEPENDENCIAS TÉCNICAS:
 - Controller: GestionCitasController → ApiListarCitas, ApiActualizarCita
-- Endpoints: GET /api/citas, PUT /api/citas/{id} [Authorize(Policy = "ApiOrCookie")]
+- Endpoints: GET /api/citas, PUT /api/citas/{id}, PUT /api/citas/{id}/notas [Authorize]
 - CSS: ~/css/Gestion_De_Citas/st-odo-02-agenda/agenda.css
 - JS: ~/js/Gestion_De_Citas/st-odo-02-agenda/agenda.js
 - Partial / Otros: index.cshtml
@@ -48,21 +48,21 @@ const LOCAL_STORAGE_KEY = 'smiletrack_agenda_odo';
 
 // Mapeo estado server (en_proceso / confirmada / ...) ↔ etiquetas UI amigables
 const ESTADO_MAP_SERVER = {
-  'programada':  { label: 'Agendada',    class: 'badge-agendada'   },
-  'confirmada':  { label: 'Confirmada',  class: 'badge-agendada'   },
-  'en_proceso':  { label: 'En consulta', class: 'badge-en-consulta' },
-  'finalizada':  { label: 'Atendida',    class: 'badge-atendida'   },
-  'atendida':    { label: 'Atendida',    class: 'badge-atendida'   },
-  'cancelada':   { label: 'Cancelada',   class: 'badge-cancelada'  },
-  'no_asistida': { label: 'No asistió',  class: 'badge-no-asistio' }
+  'programada': { label: 'Agendada', class: 'badge-agendada' },
+  'confirmada': { label: 'Confirmada', class: 'badge-agendada' },
+  'en_proceso': { label: 'En consulta', class: 'badge-en-consulta' },
+  'finalizada': { label: 'Atendida', class: 'badge-atendida' },
+  'atendida': { label: 'Atendida', class: 'badge-atendida' },
+  'cancelada': { label: 'Cancelada', class: 'badge-cancelada' },
+  'no_asistida': { label: 'No asistió', class: 'badge-no-asistio' }
 };
 const ESTADO_MAP_CLIENTE = {
-  'Atendida':    'finalizada',
+  'Atendida': 'finalizada',
   'En consulta': 'en_proceso',
-  'Agendada':    'programada',
-  'Confirmada':  'confirmada',
-  'No asistió':  'no_asistida',
-  'Cancelada':   'cancelada'
+  'Agendada': 'programada',
+  'Confirmada': 'confirmada',
+  'No asistió': 'no_asistida',
+  'Cancelada': 'cancelada'
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -100,6 +100,17 @@ function mostrarErrorUsuario(mensaje) {
 // ═══════════════════════════════════════════════════════════════════
 //  MAPEOS DE DATOS: Server → Cliente
 // ═══════════════════════════════════════════════════════════════════
+const escapeHtml = (value) =>
+  String(value ?? '').replace(
+    /[&<>'"]/g,
+    (c) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[c])
+  );
 
 const fmtFechaCorta = (fh) => {
   try {
@@ -119,36 +130,147 @@ const fmtHora12 = (fh) => {
   } catch { return '—'; }
 };
 const fmtDuracion = (servicioNombre) => {
-  // Aproximación por servicio (en un proyecto real lo devuelve la API).
-  if (!servicioNombre) return '30 min';
-  const s = servicioNombre.toLowerCase();
-  if (s.includes('ortodoncia') || s.includes('endodon')) return '60 min';
-  if (s.includes('limpieza') || s.includes('blanqueamiento')) return '45 min';
-  if (s.includes('revisión') || s.includes('control') || s.includes('general')) return '20 min';
-  return '30 min';
+  if (!servicioNombre) return '60 min';
+  return '60 min';
 };
 
+const calcularDuracion = (horaInicio, horaFin) => {
+  if (!horaInicio || !horaFin) return 60;
+
+  const inicio = new Date(`1970-01-01T${horaInicio}`);
+  const fin = new Date(`1970-01-01T${horaFin}`);
+
+  if (
+    Number.isNaN(inicio.getTime()) ||
+    Number.isNaN(fin.getTime())
+  ) {
+    return 60;
+  }
+
+  let minutos =
+    Math.round((fin - inicio) / 60000);
+
+  if (minutos < 0) {
+    minutos += 24 * 60;
+  }
+
+  return minutos;
+};
 const mapServerToClient = (srv) => {
-  const fechaHora = srv.FechaHora ? new Date(srv.FechaHora).toISOString() : null;
-  const estadoServer = (srv.Estado || 'programada').toLowerCase();
-  const estadoInfo = ESTADO_MAP_SERVER[estadoServer] || ESTADO_MAP_SERVER['programada'];
-  const paciente = srv.Paciente?.NombreCompleto || '—';
-  const servicio = srv.Servicio?.Nombre || 'Sin servicio';
-  const fechaISO = fechaHora ? fechaHora.split('T')[0] : new Date().toISOString().split('T')[0];
-  const active = estadoInfo.label === 'En consulta';
+  if (!srv) return null;
+
+  const fechaValor =
+    srv.FechaHora ??
+    srv.fechaHora ??
+    null;
+
+  const fechaHora = fechaValor
+    ? new Date(fechaValor)
+    : null;
+
+  const fechaHoraISO =
+    fechaHora && !Number.isNaN(fechaHora.getTime())
+      ? fechaHora.toISOString()
+      : null;
+
+  const estadoServer =
+    String(
+      srv.Estado ??
+      srv.estado ??
+      'programada'
+    ).trim().toLowerCase();
+
+  const estadoInfo =
+    ESTADO_MAP_SERVER[estadoServer] ??
+    ESTADO_MAP_SERVER.programada;
+
+  const paciente =
+    srv.Paciente?.NombreCompleto ??
+    srv.paciente?.nombreCompleto ??
+    '—';
+
+  const servicio =
+    srv.Servicio?.Nombre ??
+    srv.servicio?.nombre ??
+    'Sin servicio';
+
+  const horaInicio =
+    srv.HoraInicio ??
+    srv.horaInicio ??
+    null;
+
+  const horaFin =
+    srv.HoraFin ??
+    srv.horaFin ??
+    null;
 
   return {
-    id: srv.IdCita,
-    fecha: fmtFechaCorta(fechaHora),
-    fechaISO,
-    hora: fmtHora12(fechaHora),
-    horaISO: fechaHora ? `${String(new Date(fechaHora).getHours()).padStart(2,'0')}:${String(new Date(fechaHora).getMinutes()).padStart(2,'0')}` : '09:00',
+    id: srv.IdCita ?? srv.idCita,
+
+    idPaciente:
+      srv.IdPaciente ??
+      srv.idPaciente,
+
+    idProfesional:
+      srv.IdProfesional ??
+      srv.idProfesional,
+
+    idServicio:
+      srv.IdServicio ??
+      srv.idServicio,
+
+    idConsultorio:
+      srv.IdConsultorio ??
+      srv.idConsultorio,
+
+    idEstado:
+      srv.IdEstado ??
+      srv.idEstado,
+
+    fecha:
+      fechaHoraISO
+        ? fmtFechaCorta(fechaHoraISO)
+        : '—',
+
+    fechaISO:
+      fechaHoraISO
+        ? fechaHoraISO.split('T')[0]
+        : '',
+
+    hora:
+      fechaHoraISO
+        ? fmtHora12(fechaHoraISO)
+        : '—',
+
+    horaISO:
+      fechaHoraISO
+        ? `${String(fechaHora.getHours()).padStart(2, '0')}:${String(fechaHora.getMinutes()).padStart(2, '0')}`
+        : '00:00',
+
+    fechaHoraISO,
+
+    horaInicio,
+    horaFin,
+
     paciente,
     servicio,
-    duracion: fmtDuracion(servicio),
-    estado: estadoInfo.label,
-    estadoClass: estadoInfo.class,
-    active,
+
+    notas:
+      srv.Notas ??
+      srv.notas ??
+      '',
+
+    estado:
+      estadoInfo.label,
+
+    estadoServer,
+
+    estadoClass:
+      estadoInfo.class,
+
+    active:
+      estadoInfo.label === 'En consulta',
+
     _raw: srv
   };
 };
@@ -161,20 +283,15 @@ const mapServerToClient = (srv) => {
 //  CACHÉ LOCAL (respaldo de la última respuesta real del servidor)
 // ═══════════════════════════════════════════════════════════════════
 
-const loadLocal = () => {
-  try {
-    const s = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (s) return JSON.parse(s);
-  } catch {}
-  // Sin caché ni conexión: estado vacío real (antes se mostraban 6 citas ficticias)
-  return [];
-};
+const loadLocal = () => [];
 const saveLocal = (arr) => {
-  try { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(arr)); } catch {}
+  // Se conserva la función por compatibilidad, pero los datos del servidor
+  // son siempre la fuente de verdad para la agenda del profesional.
+  try { localStorage.removeItem(LOCAL_STORAGE_KEY); } catch { }
 };
 
-// Estado global
-let appointments = loadLocal();
+// Estado global: nunca iniciar con datos locales potencialmente obsoletos.
+let appointments = [];
 let weekOffset = 0;
 
 // ═══════════════════════════════════════════════════════════════════
@@ -189,7 +306,7 @@ const badgeClass = (estado) => {
 };
 const editIcon = (id, estado) => {
   const isRed = ['Cancelada', 'No asistió'].includes(estado);
-  return `<button class="btn-icon edit-icon${isRed ? ' red' : ''}" title="Editar estado" aria-label="Editar estado de cita" onclick="editAppointment(${id})">✏️</button>`;
+  return `<button class="btn-icon edit-icon${isRed ? ' red' : ''}" title="Editar notas" aria-label="Editar notas de cita" onclick="editAppointment(${id})">✏️</button>`;
 };
 const formatTimeISO = (horaAMPM) => {
   const parts = horaAMPM.split(' ');
@@ -198,63 +315,299 @@ const formatTimeISO = (horaAMPM) => {
   let [h, m] = (time || '09:00').split(':').map(Number);
   if (period === 'PM' && h !== 12) h += 12;
   if (period === 'AM' && h === 12) h = 0;
-  return `${String(h||0).padStart(2,'0')}:${String(m||0).padStart(2,'0')}`;
+  return `${String(h || 0).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`;
 };
 const getDateTimeISO = (fechaISO, horaAMPM) => `${fechaISO}T${formatTimeISO(horaAMPM)}:00`;
+const TRANSICIONES_ESTADO = {
+  'Agendada': [
+    'Confirmada',
+    'No asistió',
+    'Cancelada'
+  ],
+
+  'Confirmada': [
+    'En consulta',
+    'No asistió',
+    'Cancelada'
+  ],
+
+  'En consulta': [
+    'Atendida'
+  ],
+
+  'Atendida': [],
+  'Cancelada': [],
+  'No asistió': []
+};
+
+const renderStatusSelector = (appointment) => {
+  const opciones =
+    TRANSICIONES_ESTADO[
+    appointment.estado
+    ] || [];
+
+  if (!opciones.length) {
+    return '';
+  }
+
+  return `
+    <select
+      class="appointment-status-select"
+      data-cita-id="${appointment.id}"
+      aria-label="Cambiar estado de la cita"
+    >
+      <option value="">
+        Cambiar estado
+      </option>
+
+      ${opciones
+      .map(
+        (estado) =>
+          `<option value="${escapeHtml(estado)}">${escapeHtml(estado)}</option>`
+      )
+      .join('')}
+    </select>
+  `;
+};
 
 const renderTable = (data) => {
   const tbody = safeGetElement('agendaTbody');
+
   if (!tbody) return;
+
   tbody.innerHTML = '';
 
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">No hay citas para esta semana.</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td
+          colspan="7"
+          style="text-align:center;padding:24px;color:var(--text-muted);"
+        >
+          No hay citas para esta semana.
+        </td>
+      </tr>
+    `;
     return;
   }
 
-  const weekStart = getWeekStart(new Date(), weekOffset);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  const inWeek = data.filter(a => {
-    const d = new Date(a.fechaISO);
-    return d >= weekStart && d <= weekEnd;
+  const weekStart =
+    getWeekStart(
+      new Date(),
+      weekOffset
+    );
+
+  const weekEnd =
+    new Date(weekStart);
+
+  weekEnd.setDate(
+    weekStart.getDate() + 6
+  );
+
+  const startDate = new Date(weekStart);
+  startDate.setHours(0, 0, 0, 0);
+
+  const endDate = new Date(weekStart);
+  endDate.setDate(endDate.getDate() + 6);
+  endDate.setHours(23, 59, 59, 999);
+
+  const inWeek = data.filter((a) => {
+    if (!a.fechaISO) return false;
+
+    const d = new Date(`${a.fechaISO}T00:00:00`);
+
+    return d >= startDate && d <= endDate;
   });
-  const rows = inWeek.length ? inWeek : data.slice(0, 10);
 
-  rows.forEach(item => {
-    const tr = document.createElement('tr');
-    if (item.active) tr.classList.add('row-active');
-    if (item.estado === 'Cancelada') tr.classList.add('row-cancelada');
-    tr.setAttribute('role', 'row');
+  const rows =
+    inWeek.length
+      ? inWeek
+      : data.slice(0, 10);
+  rows.forEach((item) => {
+    const tr =
+      document.createElement('tr');
 
-    const dtiso = getDateTimeISO(item.fechaISO, item.hora);
+    if (item.active) {
+      tr.classList.add('row-active');
+    }
+
+    if (item.estado === 'Cancelada') {
+      tr.classList.add('row-cancelada');
+    }
+
+    tr.setAttribute(
+      'role',
+      'row'
+    );
+
+    const dtiso =
+      item.fechaHoraISO ||
+      getDateTimeISO(
+        item.fechaISO,
+        item.hora
+      );
+
     tr.innerHTML = `
-      <td class="td-fecha"><time datetime="${item.fechaISO}T00:00:00">${item.fecha}</time></td>
-      <td><span class="pill-hora"><time datetime="${dtiso}">${item.hora}</time></span></td>
-      <td class="td-paciente">${item.paciente}</td>
-      <td>${item.servicio}</td>
-      <td>${item.duracion}</td>
-      <td><span class="badge ${badgeClass(item.estado)}" role="status" aria-label="Estado: ${item.estado}">${item.estado}</span></td>
+      <td class="td-fecha">
+        <time
+          datetime="${escapeHtml(item.fechaISO)}"
+        >
+          ${escapeHtml(item.fecha)}
+        </time>
+      </td>
+
+      <td>
+        <span class="pill-hora">
+          <time datetime="${escapeHtml(dtiso)}">
+            ${escapeHtml(item.hora)}
+          </time>
+        </span>
+      </td>
+
+      <td class="td-paciente">
+        ${escapeHtml(item.paciente)}
+      </td>
+
+      <td>
+        ${escapeHtml(item.servicio)}
+      </td>
+ <td>
+  ${Number.isFinite(Number(item.duracion))
+        ? `${Number(item.duracion)} min`
+        : '60 min'}
+</td>
+
+      <td>
+        <div
+          style="
+            display:flex;
+            align-items:center;
+            gap:8px;
+            flex-wrap:wrap;
+          "
+        >
+          <span
+            class="badge ${badgeClass(item.estado)}"
+            role="status"
+            aria-label="Estado: ${escapeHtml(item.estado)}"
+          >
+            ${escapeHtml(item.estado)}
+          </span>
+
+          ${renderStatusSelector(item)
+      }
+        </div>
+      </td>
+
       <td>
         <div class="actions-cell">
-          <button class="btn-icon" title="Ver detalle" aria-label="Ver detalle de cita de ${item.paciente}" onclick="openModal(${item.id})">👁️</button>
-          ${editIcon(item.id, item.estado)}
+          <button
+            class="btn-icon"
+            type="button"
+            title="Ver detalle"
+            aria-label="Ver detalle de cita de ${escapeHtml(item.paciente)}"
+            onclick="openModal(${item.id})"
+          >
+            👁️
+          </button>
+
+          ${editIcon(
+        item.id,
+        item.estado
+      )}
         </div>
       </td>
     `;
+
     tr.style.cursor = 'pointer';
-    tr.setAttribute('tabindex', '0');
-    tr.setAttribute('aria-label', `Ver detalle de cita de ${item.paciente} el ${item.fecha} a las ${item.hora}`);
-    tr.addEventListener('click', e => { if (!e.target.closest('.btn-icon')) openModal(item.id); });
-    tr.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!e.target.closest('.btn-icon')) openModal(item.id); }
-    });
+
+    tr.setAttribute(
+      'tabindex',
+      '0'
+    );
+
+    tr.setAttribute(
+      'aria-label',
+      `Ver detalle de cita de ${item.paciente} el ${item.fecha} a las ${item.hora}`
+    );
+
+    tr.addEventListener(
+      'click',
+      (e) => {
+        if (
+          !e.target.closest('.btn-icon') &&
+          !e.target.closest('.appointment-status-select')
+        ) {
+          openModal(item.id);
+        }
+      }
+    );
+
+    tr.addEventListener(
+      'keydown',
+      (e) => {
+        if (
+          (e.key === 'Enter' ||
+            e.key === ' ') &&
+          !e.target.closest('.btn-icon') &&
+          !e.target.closest('.appointment-status-select')
+        ) {
+          e.preventDefault();
+          openModal(item.id);
+        }
+      }
+    );
+
     tbody.appendChild(tr);
+
+    const statusSelect =
+      tr.querySelector(
+        '.appointment-status-select'
+      );
+
+    if (statusSelect) {
+      statusSelect.addEventListener(
+        'change',
+        async (event) => {
+          const newStatus =
+            event.target.value;
+
+          if (!newStatus) return;
+
+          const previousStatus =
+            item.estado;
+
+          const confirmado =
+            window.confirm(
+              `¿Cambiar esta cita de "${previousStatus}" a "${newStatus}"?`
+            );
+
+          if (!confirmado) {
+            event.target.value = '';
+            return;
+          }
+
+          statusSelect.disabled = true;
+
+          const resultado =
+            await changeAppointmentStatus(
+              item,
+              newStatus
+            );
+
+          if (!resultado) {
+            statusSelect.disabled = false;
+          }
+
+          statusSelect.value = '';
+        }
+      );
+    }
   });
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  MODAL DETALLE + EDITAR ESTADO (con PUT API)
+// MODAL DETALLE + EDITAR NOTAS
 // ═══════════════════════════════════════════════════════════════════
 
 window.openModal = (id) => {
@@ -270,6 +623,7 @@ window.openModal = (id) => {
       <div class="modal-row"><span class="modal-key">Servicio</span><span class="modal-val">${item.servicio}</span></div>
       <div class="modal-row"><span class="modal-key">Duración</span><span class="modal-val">${item.duracion}</span></div>
       <div class="modal-row"><span class="modal-key">Estado</span><span class="modal-val"><span class="badge ${badgeClass(item.estado)}" role="status">${item.estado}</span></span></div>
+      <div class="modal-row"><span class="modal-key">Notas</span><span class="modal-val">${escapeHtml(item.notas || 'Sin notas')}</span></div>
     `;
   }
   const modalOverlay = safeGetElement('modalOverlay');
@@ -293,71 +647,129 @@ const closeModal = () => {
   }
 };
 
-window.editAppointment = async (id) => {
+window.editAppointment = (id) => {
   const item = appointments.find(a => a.id === id);
   if (!item) return;
 
-  const validos = Object.keys(ESTADO_MAP_CLIENTE);
-  const promptMsg = `Estado actual: ${item.estado}\n\nEscribe nuevo estado:\n` +
-    validos.map(v => `• ${v}`).join('\n');
-  const nuevo = prompt(promptMsg);
-  if (!nuevo) return;
+  const content = safeGetElement('modalContent');
+  const modalOverlay = safeGetElement('modalOverlay');
+  const modalTitle = safeGetElement('modalTitle');
 
-  const normalizado = validos.find(v => v.toLowerCase() === nuevo.trim().toLowerCase());
-  if (!normalizado) {
-    window.ToastService.error('Estado no válido. Usa uno de los valores permitidos.');
-    return;
-  }
+  if (!content || !modalOverlay || !modalTitle) return;
 
-  // 1. Optimistic update en UI (mejor UX)
-  const originalEstado = item.estado;
-  item.estado = normalizado;
-  item.active = normalizado === 'En consulta';
-  renderTable(appointments);
-  updateCounts();
+  modalTitle.textContent = 'Editar notas de la cita';
 
-  // 2. PUT /api/citas/{id}
-  const estadoServer = ESTADO_MAP_CLIENTE[normalizado] || normalizado.toLowerCase();
-  const raw = item._raw || {};
-  const fechaHora = item.fechaISO && item.horaISO
-    ? `${item.fechaISO}T${item.horaISO}:00`
-    : raw.FechaHora || new Date().toISOString();
+  content.innerHTML = `
+    <div class="modal-row"><span class="modal-key">Fecha</span><span class="modal-val">${item.fecha}</span></div>
+    <div class="modal-row"><span class="modal-key">Hora</span><span class="modal-val">${item.hora}</span></div>
+    <div class="modal-row"><span class="modal-key">Paciente</span><span class="modal-val">${escapeHtml(item.paciente)}</span></div>
+    <div class="modal-row"><span class="modal-key">Servicio</span><span class="modal-val">${escapeHtml(item.servicio)}</span></div>
+    <div class="modal-row"><span class="modal-key">Estado</span><span class="modal-val"><span class="badge ${badgeClass(item.estado)}">${escapeHtml(item.estado)}</span></span></div>
 
-  const body = {
-    IdCita: id,
-    IdPaciente: raw.IdPaciente || 0,
-    IdProfesional: raw.IdProfesional || null,
-    IdServicio: raw.IdServicio || 0,
-    FechaHora: fechaHora,
-    Estado: estadoServer,
-    Notas: raw.Notas || ''
+    <div style="margin-top:16px;">
+      <label for="editAppointmentNotes" style="display:block;margin-bottom:6px;font-weight:600;">Notas de la cita</label>
+      <textarea
+        id="editAppointmentNotes"
+        rows="5"
+        maxlength="4000"
+        style="width:100%;box-sizing:border-box;resize:vertical;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font:inherit;"
+        placeholder="Agrega observaciones o notas relevantes de la cita..."
+      >${escapeHtml(item.notas || '')}</textarea>
+      <div style="margin-top:5px;font-size:12px;color:#6b7280;">Desde tu agenda solo puedes modificar las notas de esta cita.</div>
+    </div>
+
+    <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px;">
+      <button type="button" class="btn-secondary" id="cancelEditAppointmentNotes">Cancelar</button>
+      <button type="button" class="btn-primary" id="saveEditAppointmentNotes">Guardar cambios</button>
+    </div>
+  `;
+
+  modalOverlay.classList.add('open');
+  modalOverlay.setAttribute('aria-hidden', 'false');
+  modalOverlay.removeAttribute('inert');
+  document.body.style.overflow = 'hidden';
+
+  const notesInput = safeGetElement('editAppointmentNotes');
+  const cancelBtn = safeGetElement('cancelEditAppointmentNotes');
+  const saveBtn = safeGetElement('saveEditAppointmentNotes');
+
+  notesInput?.focus();
+
+  const closeAndRestore = () => {
+    modalTitle.textContent = 'Detalle de Cita';
+    closeModal();
   };
 
-  try {
-    const res = await fetch(`${API_BASE}/citas/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(body)
-    });
-    let payload;
-    try { payload = await res.json(); } catch { payload = { success: res.ok }; }
+  cancelBtn?.addEventListener('click', closeAndRestore);
 
-    if (res.ok && payload.success) {
-      saveLocal(appointments);
-      window.ToastService.success(`Estado actualizado a "${normalizado}"`);
-    } else {
-      // Rollback UI si falla el server
-      item.estado = originalEstado;
-      item.active = originalEstado === 'En consulta';
+  saveBtn?.addEventListener('click', async () => {
+    if (!notesInput || !saveBtn) return;
+
+    const notas = notesInput.value.trim();
+    const notasOriginales = item.notas || '';
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando...';
+
+    try {
+      const res = await fetch(`${API_BASE}/citas/${id}/notas`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          IdCita: id,
+          Notas: notas
+        })
+      });
+
+      let payload;
+      try {
+        payload = await res.json();
+      } catch {
+        payload = { success: res.ok };
+      }
+
+      if (!res.ok || !payload.success) {
+        throw new Error(
+          payload.message ||
+          'No fue posible actualizar las notas.'
+        );
+      }
+
+      item.notas = payload.notas ?? notas;
+
+      if (item._raw) {
+        item._raw.Notas = item.notas;
+        item._raw.notas = item.notas;
+      }
+
       renderTable(appointments);
-      updateCounts();
-      window.ToastService.error(payload.message || 'No fue posible actualizar el estado en el servidor');
+      closeAndRestore();
+
+      if (window.ToastService) {
+        window.ToastService.success(
+          'Notas de la cita actualizadas correctamente.'
+        );
+      }
+    } catch (error) {
+      item.notas = notasOriginales;
+
+      if (window.ToastService) {
+        window.ToastService.error(
+          error.message ||
+          'No se pudieron actualizar las notas.'
+        );
+      } else {
+        showToast(
+          error.message ||
+          'No se pudieron actualizar las notas.',
+          'error'
+        );
+      }
+
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Guardar cambios';
     }
-  } catch (netErr) {
-    console.warn('[SmileTrack] PUT offline, guardado local:', netErr);
-    saveLocal(appointments);
-    window.ToastService.warning(`⚠️ Estado guardado localmente (sin conexión): ${normalizado}`);
-  }
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -453,9 +865,12 @@ async function fetchAppointments() {
       throw new Error('payload inválido');
     }
   } catch (err) {
-    console.warn('[SmileTrack] Agenda odontólogo: no se pudo conectar con el servidor:', err);
-    appointments = loadLocal();
-    if (window.ToastService) window.ToastService.error('No se pudo cargar la agenda desde el servidor');
+    console.error('[SmileTrack] Agenda odontólogo: no se pudo cargar la agenda real desde el servidor:', err);
+    appointments = [];
+    try { localStorage.removeItem(LOCAL_STORAGE_KEY); } catch { }
+    if (window.ToastService) {
+      window.ToastService.error('No se pudo cargar tu agenda. Verifica tu sesión o intenta nuevamente.');
+    }
   }
   renderTable(appointments);
   updateCounts();
@@ -491,36 +906,148 @@ const initSidebar = () => {
   });
 };
 
-const initGlobalStatus = () => {
-  const select = safeGetElement('globalStatus');
-  if (!select) return;
-  select.addEventListener('change', async function () {
-    const val = this.value;
-    if (!val) return;
-    if (!confirm(`¿Cambiar todas las citas visibles a "${val}"?`)) { this.value = ''; return; }
+const changeAppointmentStatus = async (
+  appointment,
+  newStatus
+) => {
+  if (
+    !appointment ||
+    !appointment.id ||
+    !newStatus
+  ) {
+    return false;
+  }
 
-    const weekStart = getWeekStart(new Date(), weekOffset);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
+  const estadosPermitidos =
+    TRANSICIONES_ESTADO[
+    appointment.estado
+    ] || [];
 
-    const targets = appointments.filter(a => {
-      const d = new Date(a.fechaISO);
-      return d >= weekStart && d <= weekEnd;
-    });
+  if (
+    !estadosPermitidos.includes(
+      newStatus
+    )
+  ) {
+    window.ToastService?.error?.(
+      `No está permitido cambiar de "${appointment.estado}" a "${newStatus}".`
+    );
 
-    for (const item of targets) {
-      // Usamos window.editAppointment (mismo flujo PUT API)
-      const fakePrompt = window.prompt;
-      window.prompt = () => val; // mock temporal
-      try { await window.editAppointment(item.id); } catch {}
-      window.prompt = fakePrompt;
+    return false;
+  }
+
+  const estadoServer =
+    ESTADO_MAP_CLIENTE[
+    newStatus
+    ];
+
+  if (!estadoServer) {
+    window.ToastService?.error?.(
+      'Estado inválido.'
+    );
+
+    return false;
+  }
+
+  try {
+    const response =
+      await fetch(
+        `${API_BASE}/citas/${appointment.id}/estado`,
+        {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            estado: estadoServer
+          })
+        }
+      );
+
+    let payload = null;
+
+    try {
+      payload =
+        await response.json();
+    } catch {
+      payload = {
+        success: response.ok
+      };
     }
 
-    renderTable(appointments);
+    if (
+      !response.ok ||
+      payload.success === false
+    ) {
+      throw new Error(
+        payload.message ||
+        `Error HTTP ${response.status}`
+      );
+    }
+
+    const estadoFinal =
+      String(
+        payload.estado ||
+        estadoServer
+      )
+        .trim()
+        .toLowerCase();
+
+    const estadoInfo =
+      ESTADO_MAP_SERVER[
+      estadoFinal
+      ];
+
+    if (!estadoInfo) {
+      throw new Error(
+        'El servidor devolvió un estado desconocido.'
+      );
+    }
+
+    appointment.estadoServer =
+      estadoFinal;
+
+    appointment.estado =
+      estadoInfo.label;
+
+    appointment.estadoClass =
+      estadoInfo.class;
+
+    appointment.active =
+      estadoInfo.label ===
+      'En consulta';
+
+    if (appointment._raw) {
+      appointment._raw.Estado =
+        estadoFinal;
+
+      appointment._raw.estado =
+        estadoFinal;
+    }
+
+    renderTable(
+      appointments
+    );
+
     updateCounts();
-    window.ToastService.success('Estados actualizados en servidor y local');
-    this.value = '';
-  });
+
+    window.ToastService?.success?.(
+      payload.message ||
+      'Estado actualizado correctamente.'
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      '[SmileTrack] Error cambiando estado de cita:',
+      error
+    );
+
+    window.ToastService?.error?.(
+      error.message ||
+      'No se pudo actualizar el estado.'
+    );
+
+    return false;
+  }
 };
 
 const initModal = () => {
@@ -534,8 +1061,8 @@ const initModal = () => {
 
 const updateHeaderDate = () => {
   const now = new Date();
-  const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const el = safeGetElement('headerDate');
   if (el) {
     el.textContent = `${days[now.getDay()]}, ${now.getDate()} de ${months[now.getMonth()]} ${now.getFullYear()}`;
@@ -550,7 +1077,6 @@ const updateHeaderDate = () => {
 const init = async () => {
   try {
     initSidebar();
-    initGlobalStatus();
     initModal();
     updateHeaderDate();
 
@@ -571,7 +1097,7 @@ const init = async () => {
     });
 
     await fetchAppointments();
-    window.addEventListener('beforeunload', () => {});
+    window.addEventListener('beforeunload', () => { });
   } catch (err) {
     console.error('[SmileTrack] Error init agenda.js:', err);
     mostrarErrorUsuario(err.message || 'Error cargando agenda odontólogo. Intente recargar.');

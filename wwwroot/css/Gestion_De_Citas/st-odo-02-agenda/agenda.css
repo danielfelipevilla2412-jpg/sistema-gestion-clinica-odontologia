@@ -475,3 +475,56 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+.appointment-status-select {
+  min-width: 120px;
+  height: 32px;
+  padding: 0 28px 0 10px;
+  border: 1px solid #d8dee9;
+  border-radius: 7px;
+  background: #fff;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.appointment-status-select:hover {
+  border-color: #9aa7ba;
+}
+
+.appointment-status-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+
+.appointment-status-select:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+.actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.td-paciente,
+.td-servicio {
+  white-space: nowrap;
+}
+
+table {
+  width: 100%;
+  table-layout: auto;
+}
+
+@media (max-width: 1000px) {
+  .appointment-status-select {
+    min-width: 105px;
+    font-size: 11px;
+  }
+}

@@ -140,29 +140,46 @@
 
   </main>
 
-  <!-- Modal: Crear Usuario -->
+  <!-- Modal: Crear/Editar Usuario -->
   <div class="modal-overlay" id="modalAddUser" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
     aria-hidden="true" inert>
     <div class="modal">
       <button class="modal-close" id="modalClose" aria-label="Cerrar ventana">×</button>
       <h2 class="modal-title" id="modalTitle">Crear Nuevo Usuario</h2>
       <form id="formAddUser" novalidate>
+        @Html.AntiForgeryToken()
+        <input type="hidden" id="userId" value="">
+
+        <div id="userModalInfo" style="margin-bottom:12px;color:var(--text-muted);font-size:.85rem;">
+          Las cuentas de Profesional y Paciente se crean desde sus módulos para mantener la vinculación con sus perfiles.
+        </div>
+
         <div class="form-group">
-          <label class="form-label" for="userName">Nombre Completo</label>
-          <input type="text" id="userName" class="form-input" required placeholder="Ej. Dr. Andrés Soto">
+          <label class="form-label" for="userName">Nombres</label>
+          <input type="text" id="userName" class="form-input" required placeholder="Ej. Andrés">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="userLastName">Apellidos</label>
+          <input type="text" id="userLastName" class="form-input" required placeholder="Ej. Beltrán García">
         </div>
         <div class="form-group">
           <label class="form-label" for="userEmail">Correo Electrónico</label>
-          <input type="email" id="userEmail" class="form-input" required placeholder="Ej. asoto@smiletrack.co">
+          <input type="email" id="userEmail" class="form-input" required placeholder="Ej. usuario@smiletrack.co">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="userPassword">Contraseña inicial / nueva contraseña</label>
+          <input type="password" id="userPassword" class="form-input" minlength="8" placeholder="Mínimo 8 caracteres, letra, número y símbolo">
+          <small id="userPasswordHelp" style="display:block;margin-top:5px;color:var(--text-muted);">Obligatoria al crear. Déjala vacía al editar para conservar la actual.</small>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label" for="userRole">Rol</label>
             <select id="userRole" class="form-input" required>
+              <option value="">Seleccionar rol...</option>
               <option value="Administrador">Administrador</option>
               <option value="Recepcionista">Recepcionista</option>
-              <option value="Profesional">Profesional</option>
               <option value="Auxiliar">Auxiliar</option>
+              <option value="Profesional">Profesional</option>
               <option value="Paciente">Paciente</option>
             </select>
           </div>
@@ -171,13 +188,12 @@
             <select id="userStatus" class="form-input" required>
               <option value="Activo">Activo</option>
               <option value="Inactivo">Inactivo</option>
-              <option value="Bloqueado">Bloqueado</option>
             </select>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" id="modalCancel">Cancelar</button>
-          <button type="submit" class="btn-primary">Guardar Usuario</button>
+          <button type="submit" class="btn-primary" id="btnSaveUser">Crear usuario</button>
         </div>
       </form>
     </div>

@@ -20,6 +20,11 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
     private const string MensajeErrorFallback =
         "Ocurrió un error inesperado al cargar la página. Por favor intente nuevamente. Si el problema persiste, contacte al soporte.";
 
+    private static readonly Regex PasswordAccesoRegex = new(
+        @"^(?=.{8,100}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$",
+        RegexOptions.Compiled,
+        TimeSpan.FromMilliseconds(500));
+
     private static bool EsTelefonoValido(string? telefono)
     {
         if (string.IsNullOrWhiteSpace(telefono)) return false;
@@ -122,16 +127,71 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
                     ViewData["OdoTotalCitasMes"] = citasDelMes.Count;
 
                     ViewData["OdoProximasCitas"] = citasDelMes
-                        .Where(c => c.FechaHora.Date == hoy && (string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase)))
+                        .Where(c =>
+                            c.FechaHora.Date == hoy &&
+                            (
+                                string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(c.Estado, "Confirmada", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(c.Estado, "confirmada", StringComparison.OrdinalIgnoreCase)
+                            ))
                         .OrderBy(c => c.FechaHora)
                         .Take(4)
                         .ToList();
 
                     ViewData["OdoUltimosPacientes"] = citasDelMes
-                        .Where(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase))
+                        .Where(c =>
+                            string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(c.Estado, "atendida", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(c.Estado, "finalizada", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(c.Estado, "completada", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(c.Estado, "realizada", StringComparison.OrdinalIgnoreCase))
                         .OrderByDescending(c => c.FechaHora)
                         .Take(3)
                         .ToList();
+
+                    // Ingresos reales de los últimos 3 meses del profesional autenticado.
+                    var inicioPeriodo = new DateTime(hoy.Year, hoy.Month, 1).AddMonths(-2);
+                    var finPeriodo = inicioMes;
+
+                    var citasPeriodo = await _context.Citas
+                        .AsNoTracking()
+                        .Include(c => c.Servicio)
+                        .Where(c =>
+                            c.IdProfesional == profesional.IdProfesional &&
+                            c.FechaHora >= inicioPeriodo &&
+                            c.FechaHora < finMes)
+                        .ToListAsync(ct);
+
+                    var revenueMonths = Enumerable.Range(0, 3)
+                        .Select(offset => inicioPeriodo.AddMonths(offset))
+                        .Select(monthStart =>
+                        {
+                            var nextMonth = monthStart.AddMonths(1);
+                            var amount = citasPeriodo
+                                .Where(c =>
+                                    c.FechaHora >= monthStart &&
+                                    c.FechaHora < nextMonth &&
+                                    (
+                                        NormalizarEstado(c.Estado) == "atendida" ||
+                                        NormalizarEstado(c.Estado) == "finalizada" ||
+                                        NormalizarEstado(c.Estado) == "completada" ||
+                                        NormalizarEstado(c.Estado) == "realizada"
+                                    ))
+                                .Sum(c => c.Servicio?.Precio ?? 0m);
+
+                            return new
+                            {
+                                Mes = monthStart.ToString("MMMM", new System.Globalization.CultureInfo("es-CO")),
+                                Valor = amount
+                            };
+                        })
+                        .ToList();
+
+                    ViewData["OdoRevenueMonthsJson"] =
+                        System.Text.Json.JsonSerializer.Serialize(revenueMonths);
+
+                    ViewData["OdoFechaActual"] = hoy;
                 }
             }
 
@@ -186,17 +246,6 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
         string returnUrlSafe = !string.IsNullOrWhiteSpace(model?.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl)
             ? model.ReturnUrl
             : "/gestion-de-profesionales/st-adm-07-gestion-profesionales";
-        int idOperacion = model?.IdProfesional ?? 0;
-        string operacion = idOperacion > 0 ? "Actualizacion" : "Creacion";
-
-        if (!ModelState.IsValid)
-        {
-            string? firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage;
-            string mensaje = firstError ?? "Datos inválidos en el formulario.";
-            _logger.LogWarning("GuardarProfesional: ModelState invalido ({Operacion}). Detalle: {Error}", operacion, mensaje);
-            TempData["ErrorValidacion"] = mensaje;
-            return Redirect(returnUrlSafe);
-        }
 
         if (model is null)
         {
@@ -204,120 +253,168 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
             return Redirect(returnUrlSafe);
         }
 
-        if (!EsRegistroMedicoValido(model.RegistroMedico))
+        int idOperacion = model.IdProfesional ?? 0;
+        bool esCreacion = idOperacion <= 0;
+        string operacion = esCreacion ? "Creacion" : "Actualizacion";
+
+        if (!ModelState.IsValid)
+        {
+            string? firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage;
+            TempData["ErrorValidacion"] = firstError ?? "Datos inválidos en el formulario.";
+            return Redirect(returnUrlSafe);
+        }
+
+        string nombres = model.Nombres.Trim();
+        string apellidos = model.Apellidos.Trim();
+        string registro = model.RegistroMedico.Trim();
+        string correo = model.CorreoAcceso.Trim();
+        string? password = model.ContrasenaAcceso;
+
+        if (!EsRegistroMedicoValido(registro))
         {
             TempData["ErrorValidacion"] = "El registro médico tiene un formato inválido. Use letras, números y guiones (3-30 caracteres).";
-            _logger.LogWarning("GuardarProfesional: Formato RegistroMedico invalido ({Registro})", model.RegistroMedico);
             return Redirect(returnUrlSafe);
         }
 
         if (!EsTelefonoValido(model.Telefono))
         {
             TempData["ErrorValidacion"] = "El número de teléfono es inválido. Debe contener entre 7 y 15 dígitos.";
-            _logger.LogWarning("GuardarProfesional: Telefono invalido ({Telefono})", model.Telefono);
             return Redirect(returnUrlSafe);
         }
 
-        if (!string.IsNullOrWhiteSpace(model.Nombres) && model.Nombres.Trim().Length < 2)
+        if (nombres.Length < 2 || apellidos.Length < 2)
         {
-            TempData["ErrorValidacion"] = "Los nombres deben contener al menos 2 caracteres.";
+            TempData["ErrorValidacion"] = "Los nombres y apellidos deben contener al menos 2 caracteres.";
             return Redirect(returnUrlSafe);
         }
 
-        if (!string.IsNullOrWhiteSpace(model.Apellidos) && model.Apellidos.Trim().Length < 2)
+        if (!esCreacion && !string.IsNullOrWhiteSpace(password) && !PasswordAccesoRegex.IsMatch(password))
         {
-            TempData["ErrorValidacion"] = "Los apellidos deben contener al menos 2 caracteres.";
+            TempData["ErrorValidacion"] = "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.";
             return Redirect(returnUrlSafe);
         }
 
-        if (model.IdUsuario != null && model.IdUsuario > 0)
+        if (esCreacion && (string.IsNullOrWhiteSpace(password) || !PasswordAccesoRegex.IsMatch(password)))
         {
-            bool usuarioValido = await _context.Usuarios.AnyAsync(u => u.IdUsuario == model.IdUsuario.Value, ct);
-            if (!usuarioValido)
-            {
-                TempData["ErrorValidacion"] = "El usuario vinculado seleccionado no existe en el sistema.";
-                _logger.LogWarning("GuardarProfesional: IdUsuario invalido Id={IdUsuario}", model.IdUsuario.Value);
-                return Redirect(returnUrlSafe);
-            }
+            TempData["ErrorValidacion"] = "La contraseña inicial debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.";
+            return Redirect(returnUrlSafe);
         }
 
         try
         {
             bool registroMedicoDuplicado = await _context.Profesionales
-                .AnyAsync(p => p.RegistroMedico == model.RegistroMedico && p.IdProfesional != idOperacion, ct);
+                .AnyAsync(p => p.RegistroMedico == registro && p.IdProfesional != idOperacion, ct);
 
             if (registroMedicoDuplicado)
             {
-                TempData["ErrorValidacion"] = $"El registro médico '{model.RegistroMedico}' ya está asignado a otro profesional.";
-                _logger.LogWarning("GuardarProfesional: RegistroMedico duplicado ({Registro}) en operacion {Operacion}", model.RegistroMedico, operacion);
+                TempData["ErrorValidacion"] = $"El registro médico '{registro}' ya está asignado a otro profesional.";
                 return Redirect(returnUrlSafe);
             }
 
-            string estado = string.IsNullOrWhiteSpace(model.Estado) ? "activo" : model.Estado;
-            int? idUsuario = model.IdUsuario is null or 0 ? (int?)null : model.IdUsuario;
-            int idEspecialidad = model.IdEspecialidad is > 0 ? model.IdEspecialidad.Value : 0;
+            var estrategia = _context.Database.CreateExecutionStrategy();
 
-            if (idEspecialidad > 0)
+            await estrategia.ExecuteAsync(async () =>
             {
-                bool espExiste = await _context.Especialidades.AnyAsync(e => e.IdEspecialidad == idEspecialidad, ct);
-                if (!espExiste)
+                await using var tx = await _context.Database.BeginTransactionAsync(ct);
+
+                try
                 {
-                    TempData["ErrorValidacion"] = "La especialidad seleccionada no existe.";
-                    return Redirect(returnUrlSafe);
-                }
-            }
+                    var rolProfesional = await _context.Roles
+                        .FirstOrDefaultAsync(r => r.NombreRol == "Profesional", ct);
 
-            await using var tx = await _context.Database.BeginTransactionAsync(ct);
-            Profesional? profesional;
+                    if (rolProfesional == null)
+                        throw new InvalidOperationException("No existe el rol Profesional en la base de datos.");
 
-            try
-            {
-                if (idOperacion > 0)
-                {
-                    profesional = await _context.Profesionales.Include(p => p.Especialidades)
-                        .FirstOrDefaultAsync(p => p.IdProfesional == idOperacion, ct);
+                    Profesional profesional;
+                    Usuario usuario;
 
-                    if (profesional == null)
+                    if (esCreacion)
                     {
-                        await tx.RollbackAsync(ct);
-                        TempData["ErrorValidacion"] = "El profesional que intenta actualizar no existe.";
-                        _logger.LogWarning("GuardarProfesional: Intento actualizar profesional inexistente IdProfesional={Id}", idOperacion);
-                        return Redirect(returnUrlSafe);
+                        bool correoExiste = await _context.Usuarios.AnyAsync(u => u.Correo == correo, ct);
+                        if (correoExiste)
+                            throw new UsuarioCorreoDuplicadoException();
+
+                        usuario = new Usuario
+                        {
+                            Nombre = nombres,
+                            Apellidos = apellidos,
+                            Correo = correo,
+                            Contrasena = BCrypt.Net.BCrypt.HashPassword(password!, workFactor: 11),
+                            IdRol = rolProfesional.IdRol,
+                            Estado = "activo",
+                            CreadoPor = GetCurrentUserId(),
+                            FechaCreacion = DateTime.UtcNow,
+                            IntentosFallidos = 0
+                        };
+
+                        _context.Usuarios.Add(usuario);
+                        await _context.SaveChangesAsync(ct);
+
+                        profesional = new Profesional
+                        {
+                            IdUsuario = usuario.IdUsuario,
+                            Nombres = nombres,
+                            Apellidos = apellidos,
+                            RegistroMedico = registro,
+                            Categoria = model.Categoria?.Trim(),
+                            Telefono = model.Telefono?.Trim(),
+                            Descripcion = model.Descripcion?.Trim(),
+                            Estado = "activo",
+                            FechaIngreso = DateTime.Today
+                        };
+
+                        _context.Profesionales.Add(profesional);
+                        await _context.SaveChangesAsync(ct);
+                    }
+                    else
+                    {
+                        profesional = await _context.Profesionales
+                            .Include(p => p.Usuario)
+                            .Include(p => p.Especialidades)
+                            .FirstOrDefaultAsync(p => p.IdProfesional == idOperacion, ct)
+                            ?? throw new InvalidOperationException("El profesional que intenta actualizar no existe.");
+
+                        usuario = profesional.Usuario
+                            ?? throw new InvalidOperationException("El profesional no tiene una cuenta de acceso vinculada. Corrija primero la vinculación.");
+
+                        bool correoDuplicado = await _context.Usuarios
+                            .AnyAsync(u => u.IdUsuario != usuario.IdUsuario && u.Correo == correo, ct);
+
+                        if (correoDuplicado)
+                            throw new UsuarioCorreoDuplicadoException();
+
+                        if (usuario.IdRol != rolProfesional.IdRol)
+                            throw new InvalidOperationException("La cuenta vinculada al profesional no tiene el rol Profesional.");
+
+                        usuario.Nombre = nombres;
+                        usuario.Apellidos = apellidos;
+                        usuario.Correo = correo;
+                        usuario.Estado = "activo";
+
+                        if (!string.IsNullOrWhiteSpace(password))
+                        {
+                            usuario.Contrasena = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11);
+                            usuario.IntentosFallidos = 0;
+                        }
+
+                        profesional.Nombres = nombres;
+                        profesional.Apellidos = apellidos;
+                        profesional.RegistroMedico = registro;
+                        profesional.Categoria = model.Categoria?.Trim();
+                        profesional.Telefono = model.Telefono?.Trim();
+                        profesional.Descripcion = model.Descripcion?.Trim();
+                        profesional.Estado = string.IsNullOrWhiteSpace(model.Estado)
+                            ? profesional.Estado
+                            : EstadoCitaHelper.ResolveEstadoNombre(model.Estado, profesional.Estado);
+
+                        // La cuenta de acceso debe seguir el mismo estado que el perfil profesional.
+                        usuario.Estado = profesional.Estado == "inactivo" ? "inactivo" : "activo";
+                        profesional.FechaIngreso ??= DateTime.Today;
+
+                        await _context.SaveChangesAsync(ct);
                     }
 
-                    profesional.IdUsuario = idUsuario;
-                    profesional.Nombres = model.Nombres?.Trim() ?? string.Empty;
-                    profesional.Apellidos = model.Apellidos?.Trim() ?? string.Empty;
-                    profesional.RegistroMedico = model.RegistroMedico.Trim();
-                    profesional.Categoria = model.Categoria?.Trim();
-                    profesional.Telefono = model.Telefono?.Trim();
-                    profesional.Descripcion = model.Descripcion?.Trim();
-                    profesional.Estado = EstadoCitaHelper.ResolveEstadoNombre(estado, profesional.Estado);
-                    profesional.FechaIngreso ??= DateTime.Today;
-
-                    _context.Profesionales.Update(profesional);
-                }
-                else
-                {
-                    profesional = new Profesional
-                    {
-                        IdUsuario = idUsuario,
-                        Nombres = model.Nombres?.Trim() ?? string.Empty,
-                        Apellidos = model.Apellidos?.Trim() ?? string.Empty,
-                        RegistroMedico = model.RegistroMedico.Trim(),
-                        Categoria = model.Categoria?.Trim(),
-                        Telefono = model.Telefono?.Trim(),
-                        Descripcion = model.Descripcion?.Trim(),
-                        Estado = EstadoCitaHelper.ResolveEstadoNombre(estado, "activo"),
-                        FechaIngreso = DateTime.Today
-                    };
-                    _context.Profesionales.Add(profesional);
-                }
-
-                await _context.SaveChangesAsync(ct);
-
-                if (idEspecialidad > 0)
-                {
+                    int idEspecialidad = model.IdEspecialidad is > 0 ? model.IdEspecialidad.Value : 0;
                     var relaciones = await _context.ProfesionalEspecialidades
                         .Where(pe => pe.IdProfesional == profesional.IdProfesional)
                         .ToListAsync(ct);
@@ -325,54 +422,74 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
                     if (relaciones.Count > 0)
                         _context.ProfesionalEspecialidades.RemoveRange(relaciones);
 
-                    _context.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+                    if (idEspecialidad > 0)
                     {
-                        IdProfesional = profesional.IdProfesional,
-                        IdEspecialidad = idEspecialidad,
-                        Principal = true
-                    });
+                        bool espExiste = await _context.Especialidades.AnyAsync(e => e.IdEspecialidad == idEspecialidad, ct);
+                        if (!espExiste)
+                            throw new InvalidOperationException("La especialidad seleccionada no existe.");
+
+                        _context.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+                        {
+                            IdProfesional = profesional.IdProfesional,
+                            IdEspecialidad = idEspecialidad,
+                            Principal = true
+                        });
+                    }
+
                     await _context.SaveChangesAsync(ct);
+
+                    _context.Auditorias.Add(new Auditoria
+                    {
+                        IdUsuario = GetCurrentUserId(),
+                        TablaAfectada = "Profesional",
+                        IdRegistro = profesional.IdProfesional,
+                        Accion = esCreacion ? "INSERT" : "UPDATE",
+                        IpOrigen = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        DatosNuevos = System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            profesional.IdProfesional,
+                            profesional.IdUsuario,
+                            profesional.Nombres,
+                            profesional.Apellidos,
+                            profesional.RegistroMedico,
+                            profesional.Estado,
+                            Correo = usuario.Correo,
+                            Rol = rolProfesional.NombreRol,
+                            IdEspecialidad = idEspecialidad
+                        }),
+                        Descripcion = esCreacion
+                            ? $"Profesional creado con cuenta de acceso. IdProfesional={profesional.IdProfesional}"
+                            : $"Profesional actualizado y cuenta de acceso sincronizada. IdProfesional={profesional.IdProfesional}",
+                        Fecha = DateTime.UtcNow
+                    });
+
+                    await _context.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
                 }
+                catch
+                {
+                    await tx.RollbackAsync(ct);
+                    throw;
+                }
+            });
 
-                await tx.CommitAsync(ct);
-            }
-            catch
-            {
-                await tx.RollbackAsync(ct);
-                throw;
-            }
-
-            _logger.LogInformation(
-                "Auditoria: {Operacion} de profesional correcta. IdProfesional={IdProfesional}, RegistroMedico={RegistroMedico}, Usuario={Usuario}, Estado={Estado}",
-                operacion,
-                profesional.IdProfesional,
-                profesional.RegistroMedico,
-                User.Identity?.Name ?? "anonimo",
-                profesional.Estado);
-
-            TempData["MensajeExito"] = operacion == "Creacion"
-                ? "El profesional se ha creado correctamente."
-                : "El profesional se ha actualizado correctamente.";
+            TempData["MensajeExito"] = esCreacion
+                ? "El profesional y su cuenta de acceso fueron creados correctamente."
+                : "El profesional y su cuenta de acceso fueron actualizados correctamente.";
         }
-        catch (OperationCanceledException ocex)
+        catch (UsuarioCorreoDuplicadoException)
         {
-            _logger.LogWarning(ocex, "Operacion cancelada al guardar profesional Id={Id}", idOperacion);
-            TempData["ErrorValidacion"] = "La operación fue cancelada antes de finalizar.";
+            TempData["ErrorValidacion"] = "El correo de acceso ya está registrado. Use otro correo.";
         }
-        catch (DbUpdateConcurrencyException cex)
+        catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogError(cex, "Concurrencia al guardar profesional Id={Id}", idOperacion);
-            TempData["ErrorValidacion"] = "Conflicto: los datos del profesional cambiaron durante la operación. Actualice y vuelva a intentar.";
+            _logger.LogError(ex, "Concurrencia al guardar profesional Id={Id}", idOperacion);
+            TempData["ErrorValidacion"] = "Conflicto: los datos cambiaron durante la operación. Actualice y vuelva a intentar.";
         }
         catch (DbUpdateException dbex) when (EsViolacionIndiceUnico(dbex, out string? indice))
         {
-            _logger.LogError(dbex, "Violacion UNIQUE al guardar profesional Id={Id}. Indice/mensaje: {Indice}", idOperacion, indice ?? "desconocido");
-            TempData["ErrorValidacion"] = "No se pudo guardar: se detectó un dato duplicado (posiblemente registro médico o usuario vinculado).";
-        }
-        catch (DbUpdateException dbex) when (EsViolacionIntegridadReferencial(dbex))
-        {
-            _logger.LogError(dbex, "Violacion FK integridad al guardar profesional Id={Id}", idOperacion);
-            TempData["ErrorValidacion"] = "No se pudo guardar: el usuario o especialidad vinculado no es válido.";
+            _logger.LogError(dbex, "Violación UNIQUE al guardar profesional Id={Id}. Índice={Indice}", idOperacion, indice ?? "desconocido");
+            TempData["ErrorValidacion"] = "No se pudo guardar: se detectó un dato duplicado, por ejemplo registro médico o correo.";
         }
         catch (DbUpdateException dbex)
         {
@@ -384,6 +501,11 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
             _logger.LogCritical(sqlex, "SqlException al guardar profesional Id={Id}. Number={Number}", idOperacion, sqlex.Number);
             TempData["ErrorValidacion"] = "Error de conectividad con la base de datos. Intente nuevamente.";
         }
+        catch (InvalidOperationException ioex)
+        {
+            _logger.LogError(ioex, "Error de operación al guardar profesional Id={Id}", idOperacion);
+            TempData["ErrorValidacion"] = ioex.Message;
+        }
         catch (Exception ex)
         {
             _logger.LogCritical(ex, "Error inesperado al guardar profesional Id={Id}", idOperacion);
@@ -392,6 +514,14 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
 
         return Redirect(returnUrlSafe);
     }
+
+    private int? GetCurrentUserId()
+    {
+        string? value = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(value, out int id) && id > 0 ? id : null;
+    }
+
+    private sealed class UsuarioCorreoDuplicadoException : Exception { }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -420,7 +550,9 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
                 return Redirect(returnUrlSafe);
             }
 
-            var profesional = await _context.Profesionales.FindAsync(IdProfesional, ct);
+            var profesional = await _context.Profesionales
+                .Include(p => p.Usuario)
+                .FirstOrDefaultAsync(p => p.IdProfesional == IdProfesional, ct);
             if (profesional == null)
             {
                 TempData["ErrorValidacion"] = "El profesional que intenta desactivar no existe.";
@@ -442,6 +574,12 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
 
             string estadoAnterior = profesional.Estado;
             profesional.Estado = "inactivo";
+
+            if (profesional.Usuario != null)
+            {
+                profesional.Usuario.Estado = "inactivo";
+            }
+
             _context.Profesionales.Update(profesional);
             await _context.SaveChangesAsync(ct);
 
@@ -523,9 +661,9 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
             {
                 string searchTerm = search.Trim();
                 citasQuery = citasQuery.Where(c =>
-                    (c.Paciente!.Nombres != null && c.Paciente.Nombres.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
-                    (c.Paciente.Apellidos != null && c.Paciente.Apellidos.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
-                    (c.Paciente.Documento != null && c.Paciente.Documento.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                    (c.Paciente!.Nombres != null && c.Paciente.Nombres.Contains(searchTerm)) ||
+                    (c.Paciente.Apellidos != null && c.Paciente.Apellidos.Contains(searchTerm)) ||
+                    (c.Paciente.Documento != null && c.Paciente.Documento.Contains(searchTerm))
                 );
             }
 
@@ -534,8 +672,8 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
                 string profTerm = profesional.Trim();
                 citasQuery = citasQuery.Where(c =>
                     c.Profesional != null && (
-                        ((c.Profesional.Nombres ?? "") + " " + (c.Profesional.Apellidos ?? "")).Contains(profTerm, StringComparison.OrdinalIgnoreCase) ||
-                        (c.Profesional.Usuario != null && ((c.Profesional.Usuario.Nombre ?? "") + " " + (c.Profesional.Usuario.Apellidos ?? "")).Contains(profTerm, StringComparison.OrdinalIgnoreCase))
+                        ((c.Profesional.Nombres ?? "") + " " + (c.Profesional.Apellidos ?? "")).Contains(profTerm) ||
+                        (c.Profesional.Usuario != null && ((c.Profesional.Usuario.Nombre ?? "") + " " + (c.Profesional.Usuario.Apellidos ?? "")).Contains(profTerm))
                     )
                 );
             }
@@ -692,23 +830,23 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
             {
                 string searchTerm = pagination.Search.Trim();
                 profesionalesQuery = profesionalesQuery.Where(p =>
-                    (p.Usuario != null && ((p.Usuario.Nombre != null && p.Usuario.Nombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) || (p.Usuario.Apellidos != null && p.Usuario.Apellidos.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)))) ||
-                    (p.Nombres != null && p.Nombres.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
-                    (p.Apellidos != null && p.Apellidos.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
-                    (p.RegistroMedico != null && p.RegistroMedico.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
-                    (p.Especialidades.Any(pe => pe.Especialidad != null && pe.Especialidad.Nombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))));
+                    (p.Usuario != null && ((p.Usuario.Nombre != null && p.Usuario.Nombre.Contains(searchTerm)) || (p.Usuario.Apellidos != null && p.Usuario.Apellidos.Contains(searchTerm)))) ||
+                    (p.Nombres != null && p.Nombres.Contains(searchTerm)) ||
+                    (p.Apellidos != null && p.Apellidos.Contains(searchTerm)) ||
+                    (p.RegistroMedico != null && p.RegistroMedico.Contains(searchTerm)) ||
+                    (p.Especialidades.Any(pe => pe.Especialidad != null && pe.Especialidad.Nombre.Contains(searchTerm))));
             }
 
             if (!string.IsNullOrWhiteSpace(pagination.Profesional))
             {
                 string especialidad = pagination.Profesional.Trim();
-                profesionalesQuery = profesionalesQuery.Where(p => p.Especialidades.Any(pe => pe.Especialidad != null && pe.Especialidad.Nombre.Equals(especialidad, StringComparison.OrdinalIgnoreCase)));
+                profesionalesQuery = profesionalesQuery.Where(p => p.Especialidades.Any(pe => pe.Especialidad != null && pe.Especialidad.Nombre == especialidad));
             }
 
             if (!string.IsNullOrWhiteSpace(pagination.Estado))
             {
                 string estado = pagination.Estado.Trim();
-                profesionalesQuery = profesionalesQuery.Where(p => p.Estado != null && p.Estado.Equals(estado, StringComparison.OrdinalIgnoreCase));
+                profesionalesQuery = profesionalesQuery.Where(p => p.Estado == estado);
             }
 
             profesionalesQuery = profesionalesQuery.OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres);
@@ -722,19 +860,17 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
             ViewData["EspecialidadFilter"] = pagination.Profesional ?? string.Empty;
             ViewData["EstadoFilter"] = pagination.Estado ?? string.Empty;
             ViewData["Especialidades"] = await _context.Especialidades.AsNoTracking().OrderBy(e => e.Nombre).ToListAsync(ct);
-            ViewData["Usuarios"] = await _context.Usuarios
-                .Include(u => u.Rol)
-                .Where(u => u.Rol != null && u.Rol.NombreRol == "Profesional")
-                .OrderBy(u => u.Nombre).ThenBy(u => u.Apellidos)
-                .AsNoTracking()
-                .ToListAsync(ct);
             ViewData["ReturnUrl"] = returnUrl;
 
             if (editId is > 0)
             {
                 try
                 {
-                    ViewData["EditingProfesional"] = await _context.Profesionales.AsNoTracking()
+                    ViewData["EditingProfesional"] = await _context.Profesionales
+                        .Include(p => p.Usuario)
+                        .Include(p => p.Especialidades)
+                        .ThenInclude(pe => pe.Especialidad)
+                        .AsNoTracking()
                         .FirstOrDefaultAsync(p => p.IdProfesional == editId.Value, ct);
                 }
                 catch (Exception exEditar)
@@ -779,7 +915,6 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
         ViewData["EspecialidadFilter"] = string.Empty;
         ViewData["EstadoFilter"] = string.Empty;
         ViewData["Especialidades"] = new List<Especialidad>();
-        ViewData["Usuarios"] = new List<Usuario>();
         ViewData["ReturnUrl"] = returnUrl;
         ViewData["EditingProfesional"] = null;
     }
@@ -813,4 +948,14 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
         if (sqlEx == null) return false;
         return sqlEx.Number is 547 or 515;
     }
+    private static string NormalizarEstado(string? estado)
+{
+    return estado?.Trim().ToLowerInvariant() switch
+    {
+        "activo" => "activo",
+        "vacaciones" => "vacaciones",
+        "inactivo" => "inactivo",
+        _ => "activo"
+    };
+}
 }

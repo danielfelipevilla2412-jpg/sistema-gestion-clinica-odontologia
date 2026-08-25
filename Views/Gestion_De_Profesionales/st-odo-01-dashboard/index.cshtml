@@ -73,7 +73,7 @@ NOTAS DE MANTENIMIENTO:
         <h1 class="page-title">Dashboard General</h1>
         <p class="page-subtitle">
           Resumen en tiempo real ·
-          <time datetime="2026-03-24" id="headerDate">martes 24 de marzo 2026</time>
+          <time datetime="" id="headerDate">Cargando fecha...</time>
         </p>
       </div>
       <button class="btn-primary" id="btnExport" aria-label="Exportar reporte en PDF y Excel">
@@ -118,34 +118,9 @@ NOTAS DE MANTENIMIENTO:
 
         <!-- Gráfico de ingresos -->
         <section class="card" aria-labelledby="revenueTitle">
-          <h2 class="card-title" id="revenueTitle">Ingresos por mes — 2026</h2>
-          <div class="chart-container" id="revenueChart" role="img" aria-label="Gráfico de barras: ingresos mensuales">
-            <div class="chart-row">
-              <span class="chart-label">Enero</span>
-              <div class="chart-bar-bg">
-                <div class="chart-bar-fill blue" data-width="65" style="width:0" role="progressbar" aria-valuenow="65"
-                  aria-valuemin="0" aria-valuemax="100" aria-label="Enero: $3.1M, 65% del máximo"></div>
-              </div>
-              <span class="chart-val">$3.1M</span>
-            </div>
-            <div class="chart-row">
-              <span class="chart-label">Febrero</span>
-              <div class="chart-bar-bg">
-                <div class="chart-bar-fill blue" data-width="75" style="width:0" role="progressbar" aria-valuenow="75"
-                  aria-valuemin="0" aria-valuemax="100" aria-label="Febrero: $3.7M, 75% del máximo"></div>
-              </div>
-              <span class="chart-val">$3.7M</span>
-            </div>
-            <div class="chart-row">
-              <span class="chart-label">Marzo</span>
-              <div class="chart-bar-bg">
-                <div class="chart-bar-fill green" data-width="85" style="width:0" role="progressbar" aria-valuenow="85"
-                  aria-valuemin="0" aria-valuemax="100" aria-label="Marzo: $4.2M, 85% del máximo"></div>
-              </div>
-              <span class="chart-val">$4.2M</span>
-            </div>
-          </div>
-          <p class="chart-summary" aria-live="polite">↑ 13.5% vs mes anterior</p>
+          <h2 class="card-title" id="revenueTitle">Ingresos de los últimos 3 meses</h2>
+          <div class="chart-container" id="revenueChart" role="img" aria-label="Ingresos reales de los últimos tres meses"></div>
+          <p class="chart-summary" aria-live="polite">Datos calculados exclusivamente con las citas del profesional autenticado.</p>
         </section>
 
         <!-- Últimos pacientes atendidos -->
@@ -341,6 +316,9 @@ NOTAS DE MANTENIMIENTO:
     <script src="@Url.Content("~/js/footer.js")"></script>
     <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
+  <script>
+    window.ODO_REVENUE = @Html.Raw((string)(ViewData["OdoRevenueMonthsJson"] ?? "[]"));
+  </script>
   <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-odo-01-dashboard/app.js")"></script>
 
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>

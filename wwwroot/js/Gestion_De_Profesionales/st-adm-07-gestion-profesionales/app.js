@@ -365,7 +365,7 @@ window.toggleStatus = (id) => {
   // Fallback client-side
   const p = professionals.find(prof => prof.id === id);
   if (!p) return;
-  const states = ['Activo', 'Vacaciones', 'Inactivo'];
+  const states = ['Activo', 'Inactivo'];
   const currentIndex = states.indexOf(p.status);
   p.status = states[(currentIndex + 1) % states.length];
   window.ToastService.success(`✅ ${p.name}: estado cambiado a "${p.status}"`);
@@ -449,11 +449,12 @@ const closeDetailModal = () => {
 
 const validateProfessionalForm = (form) => {
   let valid = true;
+
   const requiredFields = [
     { id: 'formNombres', message: 'Ingresa los nombres.' },
     { id: 'formApellidos', message: 'Ingresa los apellidos.' },
     { id: 'formRegistroMedico', message: 'Ingresa el registro médico.' },
-    { id: 'formStatus', message: 'Selecciona un estado.' }
+    { id: 'formCorreoAcceso', message: 'Ingresa un correo de acceso válido.' }
   ];
 
   if (window.ValidationUtils) {
@@ -467,7 +468,7 @@ const validateProfessionalForm = (form) => {
     const field = safeGetElement(id);
     const value = field?.value.trim() || '';
     const fieldValid = Boolean(value);
-    
+
     if (!fieldValid) {
       valid = false;
       if (window.ValidationUtils && field) {
@@ -476,8 +477,84 @@ const validateProfessionalForm = (form) => {
     }
   });
 
+  const correo = safeGetElement('formCorreoAcceso');
+  if (correo && correo.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.value.trim())) {
+    valid = false;
+    if (window.ValidationUtils) {
+      window.ValidationUtils.showError(correo, null, 'Ingresa un correo de acceso válido.');
+    }
+  }
+
+  const password = safeGetElement('formContrasenaAcceso');
+  const formId = safeGetElement('formIdProfesional');
+  const editing = Number(formId?.value || 0) > 0;
+
+  if (password) {
+    const value = password.value || '';
+    const passwordValid = /^(?=.{8,100}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/.test(value);
+    if ((!editing && !passwordValid) || (editing && value && !passwordValid)) {
+      valid = false;
+      updateProfessionalPasswordRules();
+    }
+  }
+
   return valid;
 };
+
+const updateProfessionalPasswordRules = () => {
+  const input = safeGetElement('formContrasenaAcceso');
+  if (!input) return;
+
+  const value = input.value || '';
+  const rules = {
+    length: value.length >= 8,
+    upper: /[A-Z]/.test(value),
+    lower: /[a-z]/.test(value),
+    number: /\d/.test(value),
+    symbol: /[^A-Za-z\d]/.test(value)
+  };
+
+  Object.entries(rules).forEach(([key, ok]) => {
+    const row = document.querySelector(`#professionalPasswordRules [data-rule="${key}"]`);
+    if (!row) return;
+    row.textContent = `${ok ? '✓' : '✗'} ${row.textContent.slice(2)}`;
+    row.style.color = ok ? '#15803d' : '#b91c1c';
+  });
+
+  const formId = safeGetElement('formIdProfesional');
+  const editing = Number(formId?.value || 0) > 0;
+  const help = safeGetElement('formContrasenaHelp');
+  const allValid = Object.values(rules).every(Boolean);
+
+  if (help) {
+    if (editing && value.length === 0) {
+      help.textContent = 'Déjala vacía para conservar la contraseña actual.';
+      help.style.color = '#6b7280';
+    } else {
+      help.textContent = allValid
+        ? 'Contraseña válida.'
+        : 'Completa todos los requisitos de la contraseña.';
+      help.style.color = allValid ? '#15803d' : '#b91c1c';
+    }
+  }
+};
+
+const initProfessionalPassword = () => {
+  const input = safeGetElement('formContrasenaAcceso');
+  const toggle = safeGetElement('toggleProfesionalPassword');
+  if (!input) return;
+
+  input.addEventListener('input', updateProfessionalPasswordRules);
+  updateProfessionalPasswordRules();
+
+  toggle?.addEventListener('click', () => {
+    const visible = input.type === 'text';
+    input.type = visible ? 'password' : 'text';
+    toggle.textContent = visible ? '👁' : '🙈';
+    toggle.setAttribute('aria-label', visible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+  });
+};
+
 
 const saveProfessional = (e) => {
   const form = e.currentTarget;
@@ -831,6 +908,7 @@ const init = async () => {
   initFilters();
   initModals();
   bindProfessionalFieldValidation();
+  initProfessionalPassword();
   initSearchDebounce(); // Debounce del buscador → GET real al servidor en modo SSR
 
   // Animar contadores del Stats Grid con los valores que Razor ya escribió en data-target.
