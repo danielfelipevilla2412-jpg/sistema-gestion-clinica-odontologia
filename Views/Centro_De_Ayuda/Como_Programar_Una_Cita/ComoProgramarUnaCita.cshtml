@@ -1,8 +1,8 @@
-﻿﻿﻿﻿@* Vista con sidebar unificado (igual que st-adm-01 dashboard) usando _SidebarAdmin parcial *@
+﻿@* Vista con sidebar unificado (igual que st-adm-01 dashboard) usando _SidebarAdmin parcial *@
 @{
     Layout = null;
 
-    // Contenido estÁtico del artÍculo
+    // Contenido estático del artículo
     var articleTitle = "Cómo programar una cita";
     var articleIntro = "Aprende paso a paso cómo agendar una nueva cita en SmileTrack de forma correcta, asignando paciente, profesional, consultorio y servicio en menos de 1 minuto.";
     var videoThumb = Url.Content("~/images/logo.jpg");
@@ -12,10 +12,10 @@
     var steps = new[]
     {
         new { Num = 1, Title = "Ir a la Agenda General", Desc = "Desde el panel principal haz clic en <strong>Citas</strong> o accede a la ruta <code>/gestion-de-citas/st-adm-08-agenda</code>." },
-        new { Num = 2, Title = "Presionar + Nueva Cita", Desc = "En la esquina superior derecha haz clic en el botón <strong>+ Nueva Cita</strong>. El modal de creación se abrirÁ automáticamente." },
-        new { Num = 3, Title = "Seleccionar Paciente", Desc = "Elige el paciente desde el menú desplegable. Si no estÁ registrado, usa el atajo para crearlo desde la misma pantalla." },
-        new { Num = 4, Title = "Asignar Profesional, Servicio y Horario", Desc = "Selecciona el profesional, el servicio dental, el consultorio y la fecha/hora. El sistema validarÁ disponibilidad automáticamente." },
-        new { Num = 5, Title = "Confirmar y Guardar", Desc = "Verifica los datos y haz clic en <strong>Guardar</strong>. La cita aparecerÁ de inmediato en la agenda general y se enviarÁ el recordatorio al paciente." }
+        new { Num = 2, Title = "Presionar + Nueva Cita", Desc = "En la esquina superior derecha haz clic en el botón <strong>+ Nueva Cita</strong>. El modal de creación se abrirá automáticamente." },
+        new { Num = 3, Title = "Seleccionar Paciente", Desc = "Elige el paciente desde el menú desplegable. Si no está registrado, usa el atajo para crearlo desde la misma pantalla." },
+        new { Num = 4, Title = "Asignar Profesional, Servicio y Horario", Desc = "Selecciona el profesional, el servicio dental, el consultorio y la fecha/hora. El sistema validará disponibilidad automáticamente." },
+        new { Num = 5, Title = "Confirmar y Guardar", Desc = "Verifica los datos y haz clic en <strong>Guardar</strong>. La cita aparecerá de inmediato en la agenda general y se enviará el recordatorio al paciente." }
     };
 
     // Temas relacionados (coinciden con script.js)
@@ -38,7 +38,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Guía paso a paso para programar una cita en SmileTrack" />
-  <title>SmileTrack — Cómo programar una cita</title>
+  <title>SmileTrack · Cómo programar una cita</title>
 
   <!-- Fuentes del proyecto (igual que st-adm-01) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -87,15 +87,14 @@
     }
   </script>
 
-  <!-- ? CSS PRINCIPAL: sidebar + layout (MISMO que st-adm-01) -->
+  <!-- ⭐ CSS PRINCIPAL: sidebar + layout (MISMO que st-adm-01) -->
   <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-adm-01-dashboard/styles.css")" />
 
-  <!-- ? CSS ESPECÍFICO DE ESTA GU—A (bento grid, video, etc.) -->
+  <!-- ⭐ CSS ESPECÍFICO DE ESTA GUÍA (bento grid, video, etc.) -->
   <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Como_Programar_Una_Cita/styles.css")" />
 
   <!-- Footer styles (igual que st-adm-01) -->
   <link rel="stylesheet" href="@Url.Content("~/css/footer.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 <body>
 
@@ -104,7 +103,26 @@
 
   <!-- ============================================================= -->
   <!--  SIDEBAR UNIFICADO (MISMA ESTRUCTURA QUE st-adm-01)          -->
+  <!-- ============================================================= -->
+  <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <div class="sidebar-logo">
+      <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
+    </div>
     @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+    <div class="sidebar-user">
+      <div class="user-avatar" aria-hidden="true">
+        @(
+          User.Identity?.Name?.Length >= 2
+            ? User.Identity.Name.Substring(0, 2).ToUpperInvariant()
+            : (User.Identity?.Name?.ToUpperInvariant() ?? "U")
+        )
+      </div>
+      <div class="user-info">
+        <span class="user-role">@User.Identity?.Name</span>
+        <span class="user-email">@User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value</span>
+      </div>
+    </div>
+  </aside>
 
   <!-- ============================================================= -->
   <!--  HAMBURGER + OVERLAY (MÓVIL) — IGUAL QUE st-adm-01           -->
@@ -126,12 +144,12 @@
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación">
           <span>Centro de Ayuda</span>
-          <span class="bc-sep material-symbols-outlined" aria-hidden="true">chevron_right</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active">@articleTitle</span>
         </nav>
         <h1 class="page-title">Guía: @articleTitle</h1>
         <p class="page-subtitle">
-          Tutorial paso a paso —
+          Tutorial paso a paso ·
           <time datetime="@DateTime.Now.ToString("yyyy-MM-dd")">Actualizado el @DateTime.Now.ToString("dddd d 'de' MMMM yyyy", new System.Globalization.CultureInfo("es-ES"))</time>
         </p>
       </div>
@@ -206,14 +224,14 @@
               </div>
               <div class="flex flex-col gap-3 bg-surface-container p-3 px-6 rounded-2xl">
                 <div class="flex items-center gap-6">
-                  <p class="font-label-bold text-label-bold text-on-surface-variant">¿Te resultÓ —til?</p>
+                  <p class="font-label-bold text-label-bold text-on-surface-variant">¿Te resultó útil?</p>
                   <div class="flex gap-3" role="radiogroup" aria-label="Valorar utilidad">
                     <button class="rating-button w-10 h-10 rounded-full bg-white flex items-center justify-center text-green-600 hover:scale-110 active:scale-95 transition-all shadow-sm"
-                            data-rating="success" role="radio" aria-checked="false" aria-label="Guía —til">
+                            data-rating="success" role="radio" aria-checked="false" aria-label="Guía útil">
                       <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 0;">thumb_up</span>
                     </button>
                     <button class="rating-button w-10 h-10 rounded-full bg-white flex items-center justify-center text-error hover:scale-110 active:scale-95 transition-all shadow-sm"
-                            data-rating="error" role="radio" aria-checked="false" aria-label="Guía no —til">
+                            data-rating="error" role="radio" aria-checked="false" aria-label="Guía no útil">
                       <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 0;">thumb_down</span>
                     </button>
                   </div>
@@ -248,8 +266,8 @@
             <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full" aria-hidden="true"></div>
             <div class="relative z-10">
               <span class="material-symbols-outlined mb-4" style="font-variation-settings:'FILL' 1;" aria-hidden="true">live_help</span>
-              <h3 class="font-headline-md text-headline-md mb-2">¿Necesitas soporte t—cnico?</h3>
-              <p class="font-body-md text-body-md opacity-80 mb-6">Estamos aquÍ para ayudarte. Nuestro equipo responde en menos de 10 minutos.</p>
+              <h3 class="font-headline-md text-headline-md mb-2">¿Necesitas soporte técnico?</h3>
+              <p class="font-body-md text-body-md opacity-80 mb-6">Estamos aquí para ayudarte. Nuestro equipo responde en menos de 10 minutos.</p>
               <button id="supportButton" type="button" class="w-full py-3 bg-secondary-container text-white font-bold rounded-xl hover:bg-white hover:text-secondary transition-all" aria-label="Abrir soporte">
                 Hablar con Soporte
               </button>
@@ -270,7 +288,7 @@
       </div>
     </section>
 
-    <!-- Spacer mÓvil (bottom nav) -->
+    <!-- Spacer móvil (bottom nav) -->
     <div class="h-20 md:hidden" aria-hidden="true"></div>
 
     <!-- Footer (igual que st-adm-01) -->
@@ -293,7 +311,7 @@
       </div>
       <div class="p-6">
         <p id="modalDescription" class="font-body-md text-body-md text-slate-700 leading-7">
-          Aqué puedes ver más detalles relacionados con el tema seleccionado.
+          Aquí puedes ver más detalles relacionados con el tema seleccionado.
         </p>
         <div class="mt-6 rounded-3xl bg-surface-container-lowest p-4 border border-slate-200">
           <p class="font-label-bold text-label-bold text-slate-600">Consejo:</p>
@@ -311,16 +329,11 @@
   <script>
     window.APP_CONFIG = { ApiBase: '/api' };
   </script>
-  <!-- ? JS UNIFICADO SIDEBAR: mismo que st-adm-01 para que funcione colapsado, hamburger, overlay, grupos -->
+  <!-- ⭐ JS UNIFICADO SIDEBAR: mismo que st-adm-01 para que funcione colapsado, hamburger, overlay, grupos -->
   <script src="@Url.Content("~/js/Gestion_De_Citas/st-adm-01-dashboard/app.js")"></script>
 
-  <!-- JS ESPECÍFICO DE LA GU—A (rating, modal temas) -->
+  <!-- JS ESPECÍFICO DE LA GUÍA (rating, modal temas) -->
   <script src="@Url.Content("~/js/Centro_De_Ayuda/Como_Programar_Una_Cita/script.js")" defer></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>
 </html>
-
-
 

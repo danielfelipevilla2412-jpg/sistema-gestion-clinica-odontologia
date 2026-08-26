@@ -56,13 +56,13 @@ const invoicesStorage = {
   key: 'smiletrack_facturas_admin',
   
   load: () => {
-    if (Array.isArray(window.RAZOR_INVOICES) && window.RAZOR_INVOICES.length > 0) {
-      return window.RAZOR_INVOICES;
-    }
     const stored = localStorage.getItem(invoicesStorage.key);
     if (stored) {
       try { return JSON.parse(stored); }
       catch (e) { console.warn('Error al cargar facturas, usando datos de ejemplo'); }
+    }
+    if (Array.isArray(window.RAZOR_INVOICES) && window.RAZOR_INVOICES.length > 0) {
+      return window.RAZOR_INVOICES;
     }
     // Datos de ejemplo con estados y fechas actualizadas
     return [
@@ -123,8 +123,8 @@ let currentPage = 1;
 const itemsPerPage = 10;
 
 const avatarColors = {
-  blue: 'bg-blue-100 text-blue-600', green: 'bg-green-100 text-green-600',
-  purple: 'bg-purple-100 text-purple-600', orange: 'bg-orange-100 text-orange-600', red: 'bg-red-100 text-red-600'
+  blue: 'avatar-blue', green: 'avatar-green',
+  purple: 'avatar-purple', orange: 'avatar-orange', red: 'avatar-red'
 };
 
 const statusLabels = {
@@ -177,6 +177,13 @@ const renderInvoices = () => {
   
   body.innerHTML = pageData.map(i => {
     const status = statusLabels[i.status] || statusLabels.pendiente;
+    const patientInitials = String(i.patient || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(namePart => namePart.charAt(0).toUpperCase())
+      .join('') || 'P';
     const pendingDisplay = i.pending > 0 ? fmtCurrency(i.pending) : '—';
     const pendingClass = i.pending > 0 ? 'text-[var(--red)]' : 'text-[var(--green)]';
     
@@ -185,7 +192,7 @@ const renderInvoices = () => {
         <div class="table-col col-numero" role="cell" data-label="N° Factura"><strong class="text-[var(--primary)]">${i.number}</strong></div>
         <div class="table-col col-paciente" role="cell" data-label="Paciente">
           <div class="patient-info">
-            <div class="patient-avatar ${avatarColors[i.color] || avatarColors.blue}" aria-hidden="true">${i.avatar}</div>
+            <div class="patient-avatar ${avatarColors[i.color] || avatarColors.blue}" aria-hidden="true">${patientInitials}</div>
             <div>
               <span class="patient-name">${i.patient}</span>
               <span class="patient-id">ID: ${i.doc}</span>
@@ -200,8 +207,7 @@ const renderInvoices = () => {
         </div>
         <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
           <div class="actions-cell">
-            <button class="action-btn btn-view" aria-label="Ver detalle de factura ${i.number}" data-id="${i.id}" title="Ver">👁️</button>
-            <button class="action-btn btn-email" aria-label="Enviar recordatorio de factura ${i.number}" data-id="${i.id}" title="Enviar email">📧</button>
+            <button class="action-btn btn-view" aria-label="Ver detalle de factura ${i.number}" data-id="${i.id}" title="Ver">👁️ <span class="btn-text">Ver</span></button>
           </div>
         </div>
       </div>
@@ -213,11 +219,6 @@ const renderInvoices = () => {
     btn.addEventListener('click', (e) => openDrawer(parseInt(e.currentTarget.dataset.id)));
     btn.addEventListener('keydown', (e) => { if (['Enter',' '].includes(e.key)) { e.preventDefault(); openDrawer(parseInt(e.currentTarget.dataset.id)); }});
   });
-  body.querySelectorAll('.btn-email').forEach(btn => {
-    btn.addEventListener('click', (e) => sendReminder(parseInt(e.currentTarget.dataset.id)));
-    btn.addEventListener('keydown', (e) => { if (['Enter',' '].includes(e.key)) { e.preventDefault(); sendReminder(parseInt(e.currentTarget.dataset.id)); }});
-  });
-  
   // Click en fila abre drawer
   body.querySelectorAll('.table-row').forEach(row => {
     row.addEventListener('click', (e) => {
@@ -244,7 +245,6 @@ const openDrawer = (id) => {
   const subtotalEl = safeGetElement('drawerSubtotal');
   const taxEl = safeGetElement('drawerTax');
   const totalEl = safeGetElement('drawerTotal');
-  const historyList = safeGetElement('drawerHistory');
   
   if (!drawer || !statusLabel) return;
   
@@ -261,21 +261,8 @@ const openDrawer = (id) => {
   if (taxEl) taxEl.textContent = fmtCurrency(tax);
   if (totalEl) totalEl.textContent = fmtCurrency(invoice.total);
   
-  // Renderizar historial
-  if (historyList) {
-    if (invoice.history?.length) {
-      historyList.innerHTML = invoice.history.map(h => `
-        <li class="history-item" role="listitem">
-          <span class="history-title">${h.note}</span>
-          <span class="history-date"><time datetime="${h.date}">${fmtDate(h.date)}</time>${h.amount ? ` · ${fmtCurrency(h.amount)}` : ''}</span>
-        </li>
-      `).join('');
-    } else {
-      historyList.innerHTML = '<li class="history-item" style="border:none;padding:0"><span class="text-muted">Sin historial registrado</span></li>';
-    }
-  }
-  
   // Mostrar drawer
+  drawer.dataset.invoiceId = String(id);
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden', 'false');
   drawer.removeAttribute('inert');
@@ -294,6 +281,67 @@ const closeDrawer = () => {
     drawer.setAttribute('inert', '');
     document.body.style.overflow = '';
   }
+};
+
+const closePaymentSuccess = () => {
+  const modal = safeGetElement('paymentSuccessOverlay');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  }
+};
+
+const closeInvoiceDetails = () => {
+  const modal = safeGetElement('invoiceDetailsOverlay');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  }
+};
+
+const showInvoiceDetails = (id) => {
+  const invoice = invoicesStorage.getInvoice(id);
+  const modal = safeGetElement('invoiceDetailsOverlay');
+  if (!invoice || !modal) return;
+
+  const details = {
+    invoiceDetailsNumber: invoice.number,
+    invoiceDetailsPatient: invoice.patient,
+    invoiceDetailsDocument: invoice.doc,
+    invoiceDetailsDate: fmtDate(invoice.date),
+    invoiceDetailsService: invoice.service || 'No especificado',
+    invoiceDetailsStatus: (statusLabels[invoice.status] || statusLabels.pendiente).label,
+    invoiceDetailsTotal: fmtCurrency(invoice.total),
+    invoiceDetailsPending: invoice.pending > 0 ? fmtCurrency(invoice.pending) : 'Pagada'
+  };
+  Object.entries(details).forEach(([elementId, value]) => {
+    const element = safeGetElement(elementId);
+    if (element) element.textContent = value;
+  });
+
+  closeDrawer();
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+  document.body.style.overflow = 'hidden';
+  safeGetElement('invoiceDetailsConfirm')?.focus();
+};
+
+const showPaymentSuccess = (amount, patient) => {
+  const modal = safeGetElement('paymentSuccessOverlay');
+  const message = safeGetElement('paymentSuccessMessage');
+  if (!modal) return;
+
+  if (message) message.textContent = `El pago de ${fmtCurrency(amount)} de ${patient} se registró correctamente.`;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+  document.body.style.overflow = 'hidden';
+  safeGetElement('paymentSuccessConfirm')?.focus();
 };
 
 // Enviar recordatorio de pago
@@ -350,8 +398,8 @@ const registerPayment = (id) => {
   
   renderInvoices();
   updateStats();
-  closeDrawer();
-  showToast(`✅ Pago de ${fmtCurrency(paymentAmount)} registrado para ${invoice.patient}`);
+  openDrawer(id);
+  showPaymentSuccess(paymentAmount, invoice.patient);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -471,22 +519,39 @@ const initPagination = () => {
 const initDrawer = () => {
   const drawer = safeGetElement('drawerOverlay');
   const drawerClose = safeGetElement('drawerClose');
-  const btnRemind = safeGetElement('btnRemind');
+  const btnViewDetails = safeGetElement('btnViewDetails');
   const btnRegister = safeGetElement('btnRegisterPayment');
+  const invoiceDetails = safeGetElement('invoiceDetailsOverlay');
+  const invoiceDetailsClose = safeGetElement('invoiceDetailsClose');
+  const invoiceDetailsConfirm = safeGetElement('invoiceDetailsConfirm');
+  const paymentSuccess = safeGetElement('paymentSuccessOverlay');
+  const paymentSuccessClose = safeGetElement('paymentSuccessClose');
+  const paymentSuccessConfirm = safeGetElement('paymentSuccessConfirm');
   
   // Cerrar drawer
   drawerClose?.addEventListener('click', closeDrawer);
   drawer?.addEventListener('click', (e) => { if (e.target === drawer) closeDrawer(); });
   
   // Botones del drawer
-  btnRemind?.addEventListener('click', () => {
+  btnViewDetails?.addEventListener('click', () => {
     const id = parseInt(drawer.dataset.invoiceId);
-    if (id) sendReminder(id);
+    if (id) showInvoiceDetails(id);
   });
   
   btnRegister?.addEventListener('click', () => {
     const id = parseInt(drawer.dataset.invoiceId);
     if (id) registerPayment(id);
+  });
+
+  paymentSuccessClose?.addEventListener('click', closePaymentSuccess);
+  paymentSuccessConfirm?.addEventListener('click', closePaymentSuccess);
+  paymentSuccess?.addEventListener('click', (e) => {
+    if (e.target === paymentSuccess) closePaymentSuccess();
+  });
+  invoiceDetailsClose?.addEventListener('click', closeInvoiceDetails);
+  invoiceDetailsConfirm?.addEventListener('click', closeInvoiceDetails);
+  invoiceDetails?.addEventListener('click', (e) => {
+    if (e.target === invoiceDetails) closeInvoiceDetails();
   });
   
   // Escape cierra drawer
@@ -495,12 +560,86 @@ const initDrawer = () => {
       e.preventDefault();
       closeDrawer();
     }
+    if (e.key === 'Escape' && paymentSuccess?.classList.contains('open')) {
+      e.preventDefault();
+      closePaymentSuccess();
+    }
+    if (e.key === 'Escape' && invoiceDetails?.classList.contains('open')) {
+      e.preventDefault();
+      closeInvoiceDetails();
+    }
   });
 };
 
 const initNewInvoice = () => {
   const btn = safeGetElement('btnNewInvoice');
-  btn?.addEventListener('click', () => showToast('📝 Funcionalidad de nueva factura en desarrollo', 'warning'));
+  const overlay = safeGetElement('newInvoiceOverlay');
+  const form = safeGetElement('newInvoiceForm');
+  const closeBtn = safeGetElement('newInvoiceClose');
+  const cancelBtn = safeGetElement('newInvoiceCancel');
+  const dateInput = safeGetElement('invoiceDate');
+
+  const closeModal = () => {
+    if (!overlay) return;
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  };
+
+  const openModal = () => {
+    if (!overlay) return;
+    if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().split('T')[0];
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+    overlay.removeAttribute('inert');
+    document.body.style.overflow = 'hidden';
+    safeGetElement('invoicePatient')?.focus();
+  };
+
+  btn?.addEventListener('click', openModal);
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+  overlay?.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    const patient = String(formData.get('patient') || '').trim();
+    const doc = String(formData.get('document') || '').trim();
+    const date = String(formData.get('date') || '');
+    const service = String(formData.get('service') || '').trim();
+    const total = Number(formData.get('total'));
+    if (!patient || !doc || !date || !service || !Number.isFinite(total) || total <= 0) return;
+
+    const year = date.slice(0, 4);
+    const nextNumber = invoices.reduce((highest, invoice) => {
+      const match = String(invoice.number).match(/(\d+)$/);
+      return Math.max(highest, match ? Number(match[1]) : 0);
+    }, 0) + 1;
+    const initials = patient.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+    const newInvoice = {
+      number: `FAC-${year}-${String(nextNumber).padStart(3, '0')}`,
+      patient, doc, date, service, total, pending: total, status: 'pendiente',
+      avatar: initials || 'P', color: 'blue', history: []
+    };
+
+    const createdInvoice = invoicesStorage.addInvoice(newInvoice);
+    invoices = invoicesStorage.load();
+    currentPage = 1;
+    form.reset();
+    closeModal();
+    renderInvoices();
+    updateStats();
+    showToast(`Factura ${createdInvoice.number} generada correctamente`);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay?.classList.contains('open')) {
+      e.preventDefault();
+      closeModal();
+    }
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
