@@ -25,7 +25,8 @@ public partial class ProfesionalService : IProfesionalService
 
     private static bool EsTelefonoValido(string? telefono)
     {
-        if (string.IsNullOrWhiteSpace(telefono)) return false;
+        // El teléfono es opcional; si está vacío o nulo se considera válido.
+        if (string.IsNullOrWhiteSpace(telefono)) return true;
         string digits = new(telefono.Where(char.IsDigit).ToArray());
         return digits.Length is >= 7 and <= 15;
     }

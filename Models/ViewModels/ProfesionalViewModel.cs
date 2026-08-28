@@ -15,8 +15,8 @@ namespace SmileTrack_MVC.Models.ViewModels
         public string Apellidos { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "El registro médico es obligatorio")]
-        [StringLength(50, ErrorMessage = "El registro médico no puede superar los 50 caracteres")]
-        [RegularExpression(@"^[A-Za-z0-9\-]{3,50}$", ErrorMessage = "El registro médico solo puede contener letras, números y guiones, y tener entre 3 y 50 caracteres")]
+        [StringLength(30, MinimumLength = 3, ErrorMessage = "El registro médico debe tener entre 3 y 30 caracteres")]
+        [RegularExpression(@"^[A-Za-z0-9\-\. ]+$", ErrorMessage = "El registro médico solo puede contener letras, números, puntos, guiones y espacios (3-30 caracteres)")]
         public string RegistroMedico { get; set; } = string.Empty;
 
         [StringLength(100, ErrorMessage = "La categoría no puede superar los 100 caracteres")]
