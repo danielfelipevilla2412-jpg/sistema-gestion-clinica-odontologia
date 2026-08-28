@@ -757,5 +757,79 @@ WHERE t.name = 'Registro_Odontograma'
 ORDER BY c.column_id;
 GO
 
+-- ============================================================
+-- SCRIPT: Agregar tablas Nota_Clinica y Control_Postoperatorio  (yeray)
+-- Mismo criterio que Registro_Odontograma: reemplazan los campos JSON
+-- "notasClinicas" y "controlesPostoperatorios" de Historia_Clinica por
+-- tablas reales, consultables con SQL en vez de texto libre parseado en C#.
+-- ============================================================
+
+-- ── 1. Crear tabla Nota_Clinica ──────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.objects
+    WHERE object_id = OBJECT_ID(N'dbo.Nota_Clinica') AND type = N'U'
+)
+BEGIN
+    CREATE TABLE dbo.Nota_Clinica (
+        id_nota        INT IDENTITY(1,1) PRIMARY KEY,
+        id_historia    INT NOT NULL,
+        id_profesional INT NULL,
+        fecha          DATETIME NOT NULL DEFAULT GETDATE(),
+        diagnostico    VARCHAR(MAX) NULL,
+        procedimiento  VARCHAR(MAX) NULL,
+        proxima_cita   VARCHAR(50) NULL,
+        estado         VARCHAR(20) NOT NULL DEFAULT 'Realizado',
+        CONSTRAINT FK_Nota_Historia
+            FOREIGN KEY (id_historia) REFERENCES dbo.Historia_Clinica(id_historia)
+            ON DELETE CASCADE,
+        CONSTRAINT FK_Nota_Profesional
+            FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional)
+            ON DELETE SET NULL
+    );
+    PRINT 'Tabla Nota_Clinica creada correctamente.';
+END
+ELSE
+BEGIN
+    PRINT 'Tabla Nota_Clinica ya existe — sin cambios.';
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_NC_Historia' AND object_id = OBJECT_ID(N'dbo.Nota_Clinica')
+)
+    CREATE INDEX IX_NC_Historia
+        ON dbo.Nota_Clinica (id_historia);
+GO
+
+-- ── 2. Crear tabla Control_Postoperatorio ────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.objects
+    WHERE object_id = OBJECT_ID(N'dbo.Control_Postoperatorio') AND type = N'U'
+)
+BEGIN
+    CREATE TABLE dbo.Control_Postoperatorio (
+        id_control         INT IDENTITY(1,1) PRIMARY KEY,
+        id_cita            INT NOT NULL UNIQUE,
+        status             VARCHAR(20) NOT NULL DEFAULT 'stable',
+        instrucciones_json VARCHAR(MAX) NULL,
+        observaciones      VARCHAR(MAX) NULL,
+        fecha_registro     DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_ControlPostop_Cita
+            FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita)
+            ON DELETE CASCADE
+    );
+    PRINT 'Tabla Control_Postoperatorio creada correctamente.';
+END
+ELSE
+BEGIN
+    PRINT 'Tabla Control_Postoperatorio ya existe — sin cambios.';
+END
+GO
+
+PRINT 'Script de Nota_Clinica y Control_Postoperatorio ejecutado correctamente.';
+GO
+
 PRINT 'Script ejecutado correctamente.';
+
 GO

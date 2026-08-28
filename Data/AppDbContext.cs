@@ -21,6 +21,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // Yeray - Agregado DbSet para tabla Registro_Odontograma
     // Permite trazabilidad real por diente en lugar de JSON en ObservacionesGenerales
     public DbSet<RegistroOdontograma> RegistrosOdontograma => Set<RegistroOdontograma>();
+
+    // Yeray - Agregados DbSet para Nota_Clinica y Control_Postoperatorio
+    // Reemplazan los JSON "notasClinicas" y "controlesPostoperatorios" que vivían
+    // dentro de Historia_Clinica.observaciones_generales por tablas reales,
+    // consultables con SQL (mismo criterio que ya se aplicó a Registro_Odontograma).
+    public DbSet<NotaClinica> NotasClinicas => Set<NotaClinica>();
+    public DbSet<ControlPostoperatorio> ControlesPostoperatorios => Set<ControlPostoperatorio>();
+
     public DbSet<Auditoria> Auditorias => Set<Auditoria>();
     public DbSet<AuditoriaRecuperacion> AuditoriasRecuperacion => Set<AuditoriaRecuperacion>();
     public DbSet<Factura> Facturas => Set<Factura>();
@@ -267,6 +275,54 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(r => r.IdCita)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Yeray - Configuración Fluent API para Nota_Clinica
+        // Reemplaza el arreglo JSON "notasClinicas" (mismo criterio que Registro_Odontograma)
+        modelBuilder.Entity<NotaClinica>(entity =>
+        {
+            entity.ToTable("Nota_Clinica");
+            entity.HasKey(n => n.IdNota);
+            entity.Property(n => n.IdNota).HasColumnName("id_nota");
+            entity.Property(n => n.IdHistoria).HasColumnName("id_historia");
+            entity.Property(n => n.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(n => n.Fecha).HasColumnName("fecha");
+            entity.Property(n => n.Diagnostico).HasColumnName("diagnostico");
+            entity.Property(n => n.Procedimiento).HasColumnName("procedimiento");
+            entity.Property(n => n.ProximaCita).HasColumnName("proxima_cita").HasMaxLength(50);
+            entity.Property(n => n.Estado).HasColumnName("estado").HasMaxLength(20);
+
+            entity.HasOne(n => n.HistoriaClinica)
+                  .WithMany()
+                  .HasForeignKey(n => n.IdHistoria)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.Profesional)
+                  .WithMany()
+                  .HasForeignKey(n => n.IdProfesional)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Yeray - Configuración Fluent API para Control_Postoperatorio
+        // Reemplaza el objeto JSON "controlesPostoperatorios" indexado por citaId como texto
+        modelBuilder.Entity<ControlPostoperatorio>(entity =>
+        {
+            entity.ToTable("Control_Postoperatorio");
+            entity.HasKey(c => c.IdControl);
+            entity.Property(c => c.IdControl).HasColumnName("id_control");
+            entity.Property(c => c.IdCita).HasColumnName("id_cita");
+            entity.Property(c => c.Status).HasColumnName("status").HasMaxLength(20);
+            entity.Property(c => c.InstruccionesJson).HasColumnName("instrucciones_json");
+            entity.Property(c => c.Observaciones).HasColumnName("observaciones");
+            entity.Property(c => c.FechaRegistro).HasColumnName("fecha_registro");
+
+            // Yeray - Una cita tiene, como máximo, un control postoperatorio (1 a 1)
+            entity.HasIndex(c => c.IdCita).IsUnique();
+
+            entity.HasOne(c => c.Cita)
+                  .WithMany()
+                  .HasForeignKey(c => c.IdCita)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Auditoria>(entity =>
