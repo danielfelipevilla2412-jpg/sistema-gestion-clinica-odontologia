@@ -20,6 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Auditoria> Auditorias => Set<Auditoria>();
     public DbSet<AuditoriaRecuperacion> AuditoriasRecuperacion => Set<AuditoriaRecuperacion>();
     public DbSet<Factura> Facturas => Set<Factura>();
+    public DbSet<DetalleFactura> DetallesFactura => Set<DetalleFactura>();
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
     public DbSet<Inventario> Inventarios => Set<Inventario>();
@@ -263,7 +264,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(f => f.IdPaciente).HasColumnName("id_paciente");
             entity.Property(f => f.Notas).HasColumnName("notas");
             entity.Property(f => f.GeneradaPor).HasColumnName("generada_por");
-
+            entity.Property(f => f.MontoPagado).HasColumnName("monto_pagado").HasPrecision(12, 2);
+            entity.Property(f => f.FechaPago).HasColumnName("fecha_pago");
             entity.HasOne(f => f.Paciente)
                   .WithMany()
                   .HasForeignKey(f => f.IdPaciente)
@@ -272,6 +274,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(f => f.GeneradaPorUsuario)
                   .WithMany()
                   .HasForeignKey(f => f.GeneradaPor)
+                  .OnDelete(DeleteBehavior.Restrict);
+                  entity.HasMany(f => f.Detalles)
+                 .WithOne(d => d.Factura)
+                  .HasForeignKey(d => d.IdFactura)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DetalleFactura>(entity =>
+        {
+            entity.ToTable("Detalle_Factura");
+            entity.HasKey(d => d.IdDetalle);
+            entity.Property(d => d.IdDetalle).HasColumnName("id_detalle");
+            entity.Property(d => d.IdFactura).HasColumnName("id_factura");
+            entity.Property(d => d.IdServicio).HasColumnName("id_servicio");
+            entity.Property(d => d.Descripcion).HasColumnName("descripcion");
+            entity.Property(d => d.Cantidad).HasColumnName("cantidad");
+            entity.Property(d => d.PrecioUnitario).HasColumnName("precio_unitario").HasPrecision(12, 2);
+            entity.Property(d => d.SubtotalLinea).HasColumnName("subtotal_linea").HasPrecision(12, 2);
+
+            entity.HasOne(d => d.Servicio)
+                  .WithMany()
+                  .HasForeignKey(d => d.IdServicio)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 

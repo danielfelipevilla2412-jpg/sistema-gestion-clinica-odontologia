@@ -107,6 +107,11 @@ const createInvoiceRow = (serviceData) => {
   const row = document.createElement('tr');
   row.dataset.price = price;
   row.dataset.discount = discount;
+  // id_servicio real (tabla Servicio en SQL Server); vacío si es un ítem
+  // libre sin servicio de catálogo asociado (ej. la opción de ejemplo "consulta").
+  row.dataset.serviceId = /^\d+$/.test(String(serviceId)) ? serviceId : '';
+  row.dataset.title = title;
+  row.dataset.desc = desc;
   row.setAttribute('role', 'row');
 
   row.innerHTML = `
@@ -251,22 +256,60 @@ const initPrint = () => {
   }
 };
 
-// Registra pago y actualiza estado de factura a pagada
-const initPayment = () => {
+// Construye el payload de ítems (uno por fila de la tabla) para la API real.
+// El descuento se incorpora al precio unitario efectivo de la línea, porque
+// la tabla Detalle_Factura no modela descuentos por separado.
+  const buildInvoiceItemsPayload = () => {
+  const itemsBody = safeGetElement('invoiceItemsBody');
+  if (!itemsBody) return [];
+
+  return Array.from(itemsBody.querySelectorAll('tr')).map(row => {
+    const price = parseFloat(row.dataset.price) || 0;
+    const discount = parseFloat(row.dataset.discount) || 0;
+    const idServicio = row.dataset.serviceId ? parseInt(row.dataset.serviceId, 10) : null;
+    const descripcionBase = row.dataset.title || row.querySelector('.item-desc')?.textContent || 'Servicio';
+    const descripcion = discount > 0 ? `${descripcionBase} (desc. ${formatCurrency(discount)})` : descripcionBase;
+
+    return {
+      idServicio,
+      descripcion,
+      cantidad: 1,
+      precioUnitario: Math.max(price - discount, 0)
+    };
+  });
+};
+
+// Crea la factura en SQL Server (POST) y de inmediato registra el pago (PUT)
+// contra la API real de FacturacionPagosController — reemplaza la simulación
+// que antes solo marcaba una bandera window.isPaid sin persistir nada.
+const initPayment = () => { 
   const btnPay = safeGetElement('btnPay');
   if (!btnPay) return;
 
-  btnPay.addEventListener('click', () => {
+  
+    btnPay.addEventListener('click', async () => {
     if (window.isPaid) {
       showToast('Esta factura ya ha sido pagada', 'info');
       return;
     }
-
+    const pacienteSelect = safeGetElement('pacienteSelect');
     const totalEl = safeGetElement('invoiceTotal');
     const amountReceived = safeGetElement('amountReceived');
     
-    if (!totalEl || !amountReceived) return;
+    
+    if (!totalEl || !amountReceived || !pacienteSelect) return;
+    const idPaciente = parseInt(pacienteSelect.value, 10);
+    if (!idPaciente) {
+      showToast('Seleccione un paciente antes de registrar el pago.', 'error');
+      pacienteSelect.focus();
+      return;
+    }
 
+    const items = buildInvoiceItemsPayload();
+    if (items.length === 0) {
+      showToast('Añada al menos un servicio a la factura.', 'error');
+      return;
+    }
     const total = parseCurrency(totalEl.textContent);
     const received = parseCurrency(amountReceived.value);
 

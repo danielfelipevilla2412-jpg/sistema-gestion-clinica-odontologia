@@ -383,6 +383,7 @@ NOTAS DE MANTENIMIENTO:
       </div>
       <footer class="drawer-footer">
         <button class="btn-secondary" id="btnViewDetails">Ver detalle</button>
+        <button class="btn-secondary" id="btnCancelInvoice" style="color: var(--red, #dc2626);">Anular</button>
         <!-- Inicia el proceso para registrar el pago de la factura seleccionada. -->
         <button class="btn-primary" id="btnRegisterPayment">Registrar Pago</button>
       </footer>
@@ -610,6 +611,7 @@ NOTAS DE MANTENIMIENTO:
 <script>
   window.RAZOR_INVOICES = @Html.Raw(ViewData["FacturasJson"] ?? "[]");
 </script>
+<script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
 <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.js")"></script>
 </body>
 

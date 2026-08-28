@@ -1,5 +1,5 @@
 using System;
-
+using System.Collections.Generic;
 namespace SmileTrack_MVC.Models.Entities;
 
 public class Factura
@@ -13,7 +13,10 @@ public class Factura
     public int IdPaciente { get; set; }
     public string? Notas { get; set; }
     public int GeneradaPor { get; set; }
-
+     public decimal MontoPagado { get; set; }
+     public DateTime? FechaPago { get; set; }
+ 
     public Paciente? Paciente { get; set; }
     public Usuario? GeneradaPorUsuario { get; set; }
+    public List<DetalleFactura> Detalles { get; set; } = new();
 }

@@ -1,18 +1,23 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Models.ViewModels;
 
-namespace SmileTrack_MVC.Controllers;
+namespace SmileTrack_MVC.Controllers; 
 
 public class FacturacionPagosController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly ILogger<FacturacionPagosController> _logger;
 
-    public FacturacionPagosController(AppDbContext context)
+
+     public FacturacionPagosController(AppDbContext context, ILogger<FacturacionPagosController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -128,5 +133,248 @@ public class FacturacionPagosController : Controller
         ViewData["Pacientes"] = pacientes;
         ViewData["Servicios"] = servicios;
         return View("~/Views/Facturacion_Y_Pagos/st-rec-04-generar-factura/index.cshtml");
+    }
+    // =========================================================================
+    // API REST - CRUD real de facturas (reemplaza la persistencia simulada
+    // que existía en localStorage del lado del frontend)
+    // =========================================================================
+
+    [HttpGet]
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [Route("facturacion-y-pagos/api/facturas/{id:int}")]
+    public async Task<IActionResult> ApiObtenerFactura(int id, CancellationToken ct = default)
+    {
+        var factura = await _context.Facturas
+            .AsNoTracking()
+            .Include(f => f.Paciente)
+            .Include(f => f.Detalles)
+            .FirstOrDefaultAsync(f => f.IdFactura == id, ct);
+
+        if (factura == null)
+        {
+            return NotFound(new { success = false, message = "Factura no encontrada." });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                id = factura.IdFactura,
+                numero = factura.NumeroFactura,
+                fecha = factura.FechaFactura,
+                paciente = factura.Paciente != null
+                    ? $"{factura.Paciente.Nombres} {factura.Paciente.Apellidos}"
+                    : "Paciente",
+                subtotal = factura.Subtotal,
+                total = factura.Total,
+                montoPagado = factura.MontoPagado,
+                estado = factura.Estado,
+                notas = factura.Notas,
+                items = factura.Detalles.Select(d => new
+                {
+                    id = d.IdDetalle,
+                    idServicio = d.IdServicio,
+                    descripcion = d.Descripcion,
+                    cantidad = d.Cantidad,
+                    precioUnitario = d.PrecioUnitario,
+                    subtotal = d.SubtotalLinea
+                })
+            }
+        });
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [Route("facturacion-y-pagos/api/facturas")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApiCrearFactura(
+        [FromBody] CrearFacturaRequest request,
+        CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            bool pacienteExiste = await _context.Pacientes.AnyAsync(
+                p => p.IdPaciente == request.IdPaciente && p.Estado == "activo", ct);
+
+            if (!pacienteExiste)
+            {
+                return BadRequest(new { success = false, message = "El paciente seleccionado no es válido." });
+            }
+
+            if (request.Items.Any(i => i.Cantidad <= 0 || i.PrecioUnitario < 0))
+            {
+                return BadRequest(new { success = false, message = "Uno o más ítems de la factura tienen valores inválidos." });
+            }
+
+            int? idOperador = ObtenerIdUsuarioActual();
+            if (idOperador is null)
+            {
+                return Unauthorized(new { success = false, message = "No se pudo identificar al usuario que genera la factura." });
+            }
+
+            var detalles = request.Items.Select(i => new DetalleFactura
+            {
+                IdServicio = i.IdServicio,
+                Descripcion = i.Descripcion.Trim(),
+                Cantidad = i.Cantidad,
+                PrecioUnitario = i.PrecioUnitario,
+                SubtotalLinea = i.Cantidad * i.PrecioUnitario
+            }).ToList();
+
+            decimal total = detalles.Sum(d => d.SubtotalLinea);
+
+            var factura = new Factura
+            {
+                NumeroFactura = await GenerarNumeroFacturaAsync(ct),
+                FechaFactura = DateTime.Now,
+                Subtotal = total,
+                Total = total,
+                Estado = "pendiente",
+                IdPaciente = request.IdPaciente,
+                Notas = string.IsNullOrWhiteSpace(request.Notas) ? null : request.Notas.Trim(),
+                GeneradaPor = idOperador.Value,
+                MontoPagado = 0,
+                Detalles = detalles
+            };
+
+            _context.Facturas.Add(factura);
+            await _context.SaveChangesAsync(ct);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Factura registrada correctamente.",
+                data = new { id = factura.IdFactura, numero = factura.NumeroFactura, total = factura.Total }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creando factura para el paciente {IdPaciente}.", request.IdPaciente);
+            return StatusCode(500, new { success = false, message = "No fue posible registrar la factura." });
+        }
+    }
+
+    [HttpPut]
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [Route("facturacion-y-pagos/api/facturas/{id:int}/pago")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApiRegistrarPago(
+        int id,
+        [FromBody] RegistrarPagoFacturaRequest request,
+        CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            var factura = await _context.Facturas.FirstOrDefaultAsync(f => f.IdFactura == id, ct);
+            if (factura == null)
+            {
+                return NotFound(new { success = false, message = "Factura no encontrada." });
+            }
+
+            if (factura.Estado == "anulada")
+            {
+                return BadRequest(new { success = false, message = "No se puede registrar un pago sobre una factura anulada." });
+            }
+
+            if (factura.Estado == "pagada")
+            {
+                return BadRequest(new { success = false, message = "La factura ya se encuentra pagada." });
+            }
+
+            decimal nuevoMontoPagado = factura.MontoPagado + request.MontoPagado;
+            if (nuevoMontoPagado > factura.Total)
+            {
+                return BadRequest(new { success = false, message = "El monto pagado no puede superar el total de la factura." });
+            }
+
+            factura.MontoPagado = nuevoMontoPagado;
+            factura.Estado = nuevoMontoPagado >= factura.Total ? "pagada" : "parcial";
+            factura.FechaPago = DateTime.Now;
+
+            await _context.SaveChangesAsync(ct);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Pago registrado correctamente.",
+                data = new { id = factura.IdFactura, estado = factura.Estado, montoPagado = factura.MontoPagado }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error registrando pago de la factura {IdFactura}.", id);
+            return StatusCode(500, new { success = false, message = "No fue posible registrar el pago." });
+        }
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Administrador")]
+    [Route("facturacion-y-pagos/api/facturas/{id:int}/anular")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApiAnularFactura(
+        int id,
+        [FromBody] AnularFacturaRequest request,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var factura = await _context.Facturas.FirstOrDefaultAsync(f => f.IdFactura == id, ct);
+            if (factura == null)
+            {
+                return NotFound(new { success = false, message = "Factura no encontrada." });
+            }
+
+            if (factura.Estado == "anulada")
+            {
+                return BadRequest(new { success = false, message = "La factura ya se encuentra anulada." });
+            }
+
+            factura.Estado = "anulada";
+            factura.Notas = string.IsNullOrWhiteSpace(request?.Motivo)
+                ? factura.Notas
+                : $"{factura.Notas} | Anulada: {request.Motivo.Trim()}".Trim(' ', '|');
+
+            await _context.SaveChangesAsync(ct);
+
+            return Ok(new { success = true, message = "Factura anulada correctamente.", data = new { id = factura.IdFactura } });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error anulando la factura {IdFactura}.", id);
+            return StatusCode(500, new { success = false, message = "No fue posible anular la factura." });
+        }
+    }
+
+    private async Task<string> GenerarNumeroFacturaAsync(CancellationToken ct)
+    {
+        int anio = DateTime.Now.Year;
+        int consecutivo = await _context.Facturas.CountAsync(f => f.FechaFactura.Year == anio, ct) + 1;
+        string candidato = $"FAC-{anio}-{consecutivo:D5}";
+
+        // Evita colisiones si hubo facturas anuladas/borradas fuera de este flujo.
+        while (await _context.Facturas.AnyAsync(f => f.NumeroFactura == candidato, ct))
+        {
+            consecutivo++;
+            candidato = $"FAC-{anio}-{consecutivo:D5}";
+        }
+
+        return candidato;
+    }
+
+    private int? ObtenerIdUsuarioActual()
+    {
+        string? claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(claim, out int id) && id > 0 ? id : null;
     }
 }

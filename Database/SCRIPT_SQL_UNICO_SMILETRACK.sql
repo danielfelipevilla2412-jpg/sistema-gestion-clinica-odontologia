@@ -512,6 +512,34 @@ BEGIN
     );
 END
 GO
++IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Detalle_Factura') AND type = N'U')
++BEGIN
++    CREATE TABLE Detalle_Factura (
++        id_detalle INT IDENTITY(1,1) PRIMARY KEY,
++        id_factura INT NOT NULL,
++        id_servicio INT NULL,
++        descripcion VARCHAR(200) NOT NULL,
++        cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
++        precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0.00,
++        subtotal_linea DECIMAL(12,2) NOT NULL DEFAULT 0.00,
++        CONSTRAINT FK_DetalleFactura_Factura FOREIGN KEY (id_factura) REFERENCES Factura(id_factura) ON DELETE CASCADE,
++        CONSTRAINT FK_DetalleFactura_Servicio FOREIGN KEY (id_servicio) REFERENCES Servicio(id_servicio)
++    );
++END
++GO
++
++IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'monto_pagado')
++BEGIN
++    ALTER TABLE dbo.Factura ADD monto_pagado DECIMAL(12,2) NOT NULL DEFAULT 0.00;
++END
++GO
++
++IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'fecha_pago')
++BEGIN
++    ALTER TABLE dbo.Factura ADD fecha_pago DATETIME NULL;
++END
++GO
++
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.PQR') AND type = N'U')
 BEGIN
