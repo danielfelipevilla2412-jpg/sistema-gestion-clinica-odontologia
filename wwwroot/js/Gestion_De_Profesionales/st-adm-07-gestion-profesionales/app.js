@@ -25,7 +25,7 @@ NOTAS DE MANTENIMIENTO:
 ============================================ */
 
 // Base URL para futuras migraciones a API REST (actualmente no se usa en producción)
-const API_BASE = '/gestion-de-profesionales';
+const API_BASE = '/api/profesionales';
 
 // ═══════════════════════════════════════════════════════════════════
 //  UTILIDADES GLOBALES
@@ -46,6 +46,41 @@ const safeGetElement = (id) => {
   return element;
 };
 window.safeGetElement = safeGetElement;
+
+/**
+ * Realiza una petición fetch centralizada a la API con manejo de CSRF.
+ */
+async function apiRequest(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    headers.set('Accept', 'application/json');
+
+    if (options.body && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+    }
+
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+    if (token) {
+        headers.set('X-CSRF-TOKEN', token);
+    }
+
+    const response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: 'same-origin'
+    });
+
+    let data = null;
+    try {
+        data = await response.json();
+    } catch { }
+
+    if (!response.ok) {
+        const message = data?.message || `Error HTTP ${response.status}.`;
+        throw new Error(message);
+    }
+
+    return data;
+}
 /**
  * Ejecuta una función después de que el usuario deja de escribir.
  * Evita envíos repetidos de formulario o recargas en cada tecla.
@@ -215,6 +250,67 @@ const renderTable = () => {
   // Actualizar paginación
   updatePagination(filtered.length, paginated.length);
 };
+
+function renderTableFromApi(result) {
+    const tbody = safeGetElement('professionalsTbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    const items = result?.data || []; // API devuelve 'data' como array de items
+
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No se encontraron profesionales con los filtros aplicados.</td></tr>`;
+        return;
+    }
+
+    const escapeHtml = (unsafe) => (unsafe || '').toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    for (const p of items) {
+        const tr = document.createElement('tr');
+        tr.setAttribute('role', 'row');
+
+        const name = `${escapeHtml(p.nombres)} ${escapeHtml(p.apellidos)}`;
+        
+        // Asumiendo que la especialidad principal es la primera para mostrar en la tabla (como hacía el MVC)
+        const especialidad = p.especialidades && p.especialidades.length > 0 
+            ? escapeHtml(p.especialidades[0].nombre) 
+            : 'General';
+
+        const specClass = getSpecBadgeClass(especialidad);
+        const statusClass = getStatusBadgeClass(p.estado);
+        const avatarColor = getAvatarColor(especialidad);
+        
+        // Obtener iniciales: primera letra de nombres y primera de apellidos
+        const initialN = p.nombres ? p.nombres.charAt(0).toUpperCase() : '';
+        const initialA = p.apellidos ? p.apellidos.charAt(0).toUpperCase() : '';
+        const initials = `${initialN}${initialA}`;
+
+        tr.innerHTML = `
+          <td class="td-profesional">
+            <div class="p-avatar" style="background:${avatarColor}" aria-hidden="true">${initials}</div>
+            <span class="p-name">${name}</span>
+          </td>
+          <td><span class="badge-spec ${specClass}">${especialidad}</span></td>
+          <td>${escapeHtml(p.registroMedico)}</td>
+          <td>${escapeHtml(p.telefono)}</td>
+          <td><span class="badge-status ${statusClass}" role="status" aria-label="Estado: ${escapeHtml(p.estado)}">${escapeHtml(p.estado)}</span></td>
+          <td>
+            <div class="actions-cell">
+              <button class="btn-icon view" title="Ver detalles" aria-label="Ver detalles de ${name}" onclick="viewProfessional(${p.idProfesional})">👁️</button>
+              <button class="btn-icon edit" title="Editar profesional" aria-label="Editar ${name}" onclick="editProfessional(${p.idProfesional})">✏️</button>
+              <button class="btn-icon toggle" title="Cambiar estado" aria-label="Cambiar estado de ${name}" onclick="toggleStatus(${p.idProfesional})">⚡</button>
+            </div>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+    }
+}
 
 /**
  * Actualiza contadores de estadísticas (solo modo fallback client-side).
@@ -607,35 +703,85 @@ const bindProfessionalFieldValidation = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Actualiza selector de especialidades desde datos en memoria.
- * WHY: Solo se usa en modo fallback; en producción las opciones vienen del servidor.
+ * Carga especialidades desde la API y pobla los selects.
  */
-const populateSpecialties = () => {
-  if (shouldUseServerRenderedTable()) return;
+async function loadSpecialties() {
+    try {
+        const result = await apiRequest(`${API_BASE}/especialidades`);
+        const specialties = result.data || [];
+        
+        const filterSelect = safeGetElement('filterSpecialty');
+        // El id exacto en el formulario dependerá de Razor, comúnmente 'IdEspecialidad' o 'formIdEspecialidad'
+        const formSelect = document.querySelector('select[name="IdEspecialidad"]') || safeGetElement('formIdEspecialidad');
 
-  const select = safeGetElement('filterSpecialty');
-  if (!select) return;
-  
-  const currentValue = select.value;
-  const specialties = ['', ...new Set(professionals.map(p => p.specialty))];
-  
-  select.innerHTML = '<option value="">Todas las especialidades</option>' +
-    specialties.filter(s => s).map(spec => `<option value="${spec}">${spec}</option>`).join('');
-  
-  if (currentValue) select.value = currentValue;
+        if (filterSelect) {
+            const currentVal = filterSelect.value;
+            filterSelect.innerHTML = '<option value="">Todas las especialidades</option>' +
+                specialties.map(s => `<option value="${s.nombre}">${s.nombre}</option>`).join('');
+            filterSelect.value = currentVal;
+        }
+
+        if (formSelect) {
+            const currentVal = formSelect.value;
+            formSelect.innerHTML = '<option value="" disabled selected>Selecciona una especialidad</option>' +
+                specialties.map(s => `<option value="${s.idEspecialidad}">${s.nombre}</option>`).join('');
+            if (currentVal) formSelect.value = currentVal;
+        }
+    } catch (e) {
+        console.error("Error al cargar especialidades", e);
+    }
+}
+
+/**
+ * Navega a una página específica y recarga la tabla.
+ */
+window.goToPage = async (page) => {
+    currentPage = page;
+    await loadProfessionals();
 };
 
 /**
- * Aplica filtros de búsqueda sobre datos en memoria.
- * WHY: Solo actúa en modo fallback; en producción los filtros son server-side via GET.
+ * Renderiza los controles de paginación desde la metadata de la API.
  */
-const applyFilters = () => {
-  searchQuery = safeGetElement('searchInput')?.value.toLowerCase() || '';
-  selectedSpecialty = safeGetElement('filterSpecialty')?.value || '';
-  selectedStatus = safeGetElement('filterStatus')?.value || '';
-  
-  currentPage = 1;
-  renderTable();
+const renderPaginationFromApi = (result) => {
+    const info = safeGetElement('paginationInfo');
+    const buttons = safeGetElement('paginationButtons');
+    if (!info || !buttons || !result.pagination) return;
+
+    const { page, pageSize, totalCount, totalPages } = result.pagination;
+
+    const start = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+    const end = Math.min(page * pageSize, totalCount);
+
+    info.textContent = `Mostrando ${start}-${end} de ${totalCount} profesionales`;
+    buttons.innerHTML = '';
+
+    // Botón anterior
+    const btnPrev = document.createElement('button');
+    btnPrev.textContent = '«';
+    btnPrev.setAttribute('aria-label', 'Página anterior');
+    btnPrev.disabled = page === 1 || totalCount === 0;
+    btnPrev.addEventListener('click', () => { if (page > 1) goToPage(page - 1); });
+    buttons.appendChild(btnPrev);
+
+    // Botones numéricos
+    for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        btn.setAttribute('aria-label', `Ir a página ${i}`);
+        btn.setAttribute('aria-current', i === page ? 'page' : 'false');
+        if (i === page) btn.classList.add('active');
+        btn.addEventListener('click', () => goToPage(i));
+        buttons.appendChild(btn);
+    }
+
+    // Botón siguiente
+    const btnNext = document.createElement('button');
+    btnNext.textContent = '»';
+    btnNext.setAttribute('aria-label', 'Página siguiente');
+    btnNext.disabled = page >= totalPages || totalCount === 0;
+    btnNext.addEventListener('click', () => { if (page < totalPages) goToPage(page + 1); });
+    buttons.appendChild(btnNext);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -644,11 +790,43 @@ const applyFilters = () => {
 
 /**
  * Obtiene lista de profesionales desde el servidor.
- * TODO: Implementar fetch real cuando el backend tenga endpoint API REST.
- *       Por ahora retorna [] porque la tabla ya viene renderizada en Razor (SSR).
  */
-async function fetchProfessionals() {
-  return [];
+async function fetchProfessionals(params = {}) {
+    const query = new URLSearchParams();
+
+    query.set('page', params.page ?? 1);
+    query.set('pageSize', params.pageSize ?? 10);
+
+    if (params.search) {
+        query.set('search', params.search);
+    }
+
+    if (params.especialidad) {
+        query.set('especialidad', params.especialidad);
+    }
+
+    if (params.estado) {
+        query.set('estado', params.estado);
+    }
+
+    return await apiRequest(`${API_BASE}?${query.toString()}`);
+}
+
+async function loadProfessionals() {
+    const search = document.querySelector('#searchInput')?.value?.trim() || '';
+    const especialidad = document.querySelector('#filterSpecialty')?.value || '';
+    const estado = document.querySelector('#filterStatus')?.value || '';
+
+    const result = await fetchProfessionals({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        search,
+        especialidad,
+        estado
+    });
+
+    renderTableFromApi(result);
+    renderPaginationFromApi(result);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -702,42 +880,37 @@ const initSidebar = () => {
 };
 
 /**
- * Inicializa filtros de búsqueda en modo fallback (client-side).
- * WHY: Solo actúa si no hay SSR; en producción los filtros se envían como GET al servidor.
+ * Inicializa los filtros para usar la API en lugar de submit de MVC.
  */
-const initFilters = () => {
-  if (shouldUseServerRenderedTable()) return;
-  const searchInput    = safeGetElement('searchInput');
-  const filterSpecialty = safeGetElement('filterSpecialty');
-  const filterStatus   = safeGetElement('filterStatus');
-
-  searchInput?.addEventListener('input', debounce(applyFilters, 250));
-  filterSpecialty?.addEventListener('change', applyFilters);
-  filterStatus?.addEventListener('change', applyFilters);
-};
-
-/**
- * Conecta el buscador de texto al submit del formulario GET de filtros en modo SSR.
- * WHY: En SSR applyFilters() opera sobre un array vacío y no hace nada.
- *      La búsqueda real debe llegar al Controller vía GET (?search=...) para que
- *      EF Core filtre en SQL Server.
- *      Esta función SOLO actúa cuando hay SSR y hay un form GET en la página.
- */
-const initSearchDebounce = () => {
-  if (!shouldUseServerRenderedTable()) return; // Solo en SSR
-
+const initFiltersAPI = () => {
   const searchInput = safeGetElement('searchInput');
-  if (!searchInput) return;
+  const filterSpecialty = safeGetElement('filterSpecialty');
+  const filterStatus = safeGetElement('filterStatus');
 
-  // El formulario GET de filtros está en la sección .filters-section
-  const filterForm = searchInput.closest('form') ?? document.querySelector('.filters-section form');
-  if (!filterForm) return;
+  // Prevenir que el formulario recargue la página si el usuario presiona Enter
+  const form = searchInput?.closest('form') || document.querySelector('.filters-section form');
+  if (form) {
+      form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          currentPage = 1;
+          loadProfessionals();
+      });
+  }
 
-  // Debounce: esperar 400ms después de que el usuario deje de escribir antes de enviar
-  // WHY: evitar disparar un request a cada tecla pulsada
-  searchInput.addEventListener('input', debounce(() => {
-    filterForm.submit();
+  searchInput?.addEventListener('input', debounce(() => {
+      currentPage = 1;
+      loadProfessionals();
   }, 400));
+
+  filterSpecialty?.addEventListener('change', () => {
+      currentPage = 1;
+      loadProfessionals();
+  });
+
+  filterStatus?.addEventListener('change', () => {
+      currentPage = 1;
+      loadProfessionals();
+  });
 };
 
 /**
@@ -894,33 +1067,22 @@ const initServerStats = () => {
 
 /**
  * Inicializa todos los componentes al cargar la página.
- * WHY: Punto de entrada único — facilita el debugging y el orden de inicialización.
- *
- * Orden de ejecución:
- *   1. initSidebar   — sidebar móvil y teclado
- *   2. initFilters   — filtros fallback (se saltea si hay SSR)
- *   3. initModals    — modales CRUD
- *   4. initServerStats — anima contadores desde data-target de Razor
- *   5. fetchProfessionals + renderTable — solo activos en modo fallback
  */
 const init = async () => {
   initSidebar();
-  initFilters();
   initModals();
   bindProfessionalFieldValidation();
   initProfessionalPassword();
-  initSearchDebounce(); // Debounce del buscador → GET real al servidor en modo SSR
+  
+  // Fase 2B: Inicializamos filtros y especialidades desde la API
+  initFiltersAPI();
+  await loadSpecialties();
 
   // Animar contadores del Stats Grid con los valores que Razor ya escribió en data-target.
-  // WHY: esto funciona en SSR y en fallback — siempre hay data-target en el HTML.
   initServerStats();
 
-  // Modo fallback: cargar datos y renderizar tabla desde JS
-  // (en SSR estos pasos producen un array vacío y la tabla ya tiene filas, así que no hacen nada)
-  professionals = await fetchProfessionals();
-  populateSpecialties();
-  updateStats();   // no-op en SSR (return temprano), anima en fallback
-  renderTable();   // no-op en SSR, renderiza en fallback
+  // Fase 2A: Cargar datos desde la API
+  await loadProfessionals();
 
   // Limpieza al unload para evitar memory leaks en implementaciones SPA
   window.addEventListener('beforeunload', () => {

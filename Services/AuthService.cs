@@ -191,6 +191,21 @@ namespace SmileTrack_MVC.Services
                         correoNormalizado);
                 }
 
+                if (user.IntentosFallidos >= MaxLoginFailedAttempts)
+                {
+                    _logger.LogWarning(
+                        "Login fallido: cuenta bloqueada por intentos fallidos. IdUsuario={IdUsuario}, Correo={Correo}, IpCliente={IpCliente}",
+                        user.IdUsuario,
+                        correoNormalizado,
+                        ipCliente);
+
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = MensajeCuentaBloqueada
+                    };
+                }
+
                 if (!string.Equals(
                         user.Estado,
                         "activo",
@@ -202,15 +217,6 @@ namespace SmileTrack_MVC.Services
                         correoNormalizado,
                         user.Estado,
                         ipCliente);
-
-                    if (user.IntentosFallidos >= MaxLoginFailedAttempts)
-                    {
-                        return new AuthResponse
-                        {
-                            Success = false,
-                            Message = MensajeCuentaBloqueada
-                        };
-                    }
 
                     return new AuthResponse
                     {
@@ -271,18 +277,13 @@ namespace SmileTrack_MVC.Services
                     {
                         usuarioActualizar.IntentosFallidos += 1;
 
-                        if (usuarioActualizar.IntentosFallidos >=
-                            MaxLoginFailedAttempts)
+                        if (usuarioActualizar.IntentosFallidos >= MaxLoginFailedAttempts)
                         {
-                            usuarioActualizar.Estado = "inactivo";
-                            estaBloqueada = true;
+                            estaBloqueada = true;   // ya no se toca Estado
 
                             _logger.LogWarning(
                                 "Cuenta bloqueada por intentos fallidos. IdUsuario={IdUsuario}, Correo={Correo}, IntentosFallidos={IntentosFallidos}, IpCliente={IpCliente}",
-                                user.IdUsuario,
-                                correoNormalizado,
-                                usuarioActualizar.IntentosFallidos,
-                                ipCliente);
+                                user.IdUsuario, correoNormalizado, usuarioActualizar.IntentosFallidos, ipCliente);
                         }
 
                         _context.Usuarios.Update(usuarioActualizar);
