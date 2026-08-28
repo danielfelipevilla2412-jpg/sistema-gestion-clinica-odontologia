@@ -454,6 +454,10 @@ builder.Services.AddScoped<
     SmileTrack_MVC.Services.Email.IEmailService,
     SmileTrack_MVC.Services.Email.EmailService>();
 
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IProfesionalService,
+    SmileTrack_MVC.Services.ProfesionalService>();
+
 // -----------------------------------------------------------------------------
 // URL DE ESCUCHA
 // -----------------------------------------------------------------------------
