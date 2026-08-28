@@ -64,6 +64,62 @@ const ValidationUtils = (function () {
     }
 
     /**
+ * Restringe un campo para que solo se puedan escribir letras (incluye tildes, ñ y espacios).
+ * Bloquea números y símbolos en tiempo real, mientras el usuario escribe.
+ * @param {HTMLElement} inputElement
+ */
+function restrictToLetters(inputElement) {
+    if (!inputElement) return;
+    inputElement.addEventListener('input', () => {
+        const start = inputElement.selectionStart;
+        const original = inputElement.value;
+        const cleaned = original.replace(/[^A-Za-zÀ-ÖØ-öø-ÿñÑ\s]/g, '');
+        if (cleaned !== original) {
+            inputElement.value = cleaned;
+            const diff = original.length - cleaned.length;
+            inputElement.setSelectionRange(start - diff, start - diff);
+        }
+    });
+}
+
+/**
+ * Restringe un campo para que solo se puedan escribir números.
+ * @param {HTMLElement} inputElement
+ */
+function restrictToNumbers(inputElement) {
+    if (!inputElement) return;
+    inputElement.addEventListener('input', () => {
+        const start = inputElement.selectionStart;
+        const original = inputElement.value;
+        const cleaned = original.replace(/[^0-9]/g, '');
+        if (cleaned !== original) {
+            inputElement.value = cleaned;
+            const diff = original.length - cleaned.length;
+            inputElement.setSelectionRange(start - diff, start - diff);
+        }
+    });
+}
+
+/**
+ * Restringe un campo de teléfono: números y espacios, más un "+" solo al inicio.
+ * @param {HTMLElement} inputElement
+ */
+function restrictToPhone(inputElement) {
+    if (!inputElement) return;
+    inputElement.addEventListener('input', () => {
+        const start = inputElement.selectionStart;
+        const original = inputElement.value;
+        let cleaned = original.replace(/[^0-9+\s]/g, '');
+        cleaned = cleaned.replace(/(?!^)\+/g, '');
+        if (cleaned !== original) {
+            inputElement.value = cleaned;
+            const diff = original.length - cleaned.length;
+            inputElement.setSelectionRange(start - diff, start - diff);
+        }
+    });
+}
+
+    /**
      * Añade estado de error visual a un input y muestra un mensaje
      * @param {HTMLElement} inputElement 
      * @param {HTMLElement} errorElement (opcional, para mostrar el texto)
@@ -123,7 +179,10 @@ const ValidationUtils = (function () {
         areEqual,
         showError,
         clearError,
-        showSuccess
+        showSuccess,
+        restrictToLetters,
+        restrictToNumbers,
+        restrictToPhone
     };
 })();
 
