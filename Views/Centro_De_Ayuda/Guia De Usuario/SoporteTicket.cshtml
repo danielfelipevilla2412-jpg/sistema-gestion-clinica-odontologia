@@ -1,4 +1,4 @@
-﻿@model SmileTrack_MVC.Models.ViewModels.SupportTicketViewModel
+@* Vista sin modelo tipado - datos estáticos *@
 @{
     ViewData["Title"] = "SmileTrack - Soporte";
     Layout = null; // Cambia esto por tu _Layout.cshtml si esta vista debe usar un layout compartido
@@ -278,7 +278,7 @@
           <p class="font-body-md text-body-md text-[#424750] mt-1">Reporte cualquier inconveniente técnico o solicitud administrativa. Nuestro equipo responderá en menos de 2 horas.</p>
         </div>
 
-        <form asp-controller="CentroDeAyuda" asp-action="CreateTicket" method="post" enctype="multipart/form-data" id="support-form" class="space-y-6">
+        <form asp-controller="Support" asp-action="CreateTicket" method="post" enctype="multipart/form-data" id="support-form" class="space-y-6">
           @Html.AntiForgeryToken()
           <div asp-validation-summary="ModelOnly" class="text-error text-sm"></div>
 
@@ -298,12 +298,12 @@
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="flex flex-col gap-1.5">
                       <label asp-for="Category" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
-                      <select asp-for="Category" asp-items="Html.GetEnumSelectList<SmileTrack_MVC.Models.ViewModels.TicketCategory>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <select asp-for="Category" asp-items="Html.GetEnumSelectList<SmileTrack_MVC.Models.TicketCategory>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
                       <span asp-validation-for="Category" class="text-error text-xs"></span>
                     </div>
                     <div class="flex flex-col gap-1.5">
                       <label asp-for="Module" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
-                      <select asp-for="Module" asp-items="Html.GetEnumSelectList<SmileTrack_MVC.Models.ViewModels.AffectedModule>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <select asp-for="Module" asp-items="Html.GetEnumSelectList<SmileTrack_MVC.Models.AffectedModule>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
                       <span asp-validation-for="Module" class="text-error text-xs"></span>
                     </div>
                   </div>
@@ -537,8 +537,6 @@
 
     @await Html.PartialAsync("_ValidationScriptsPartial")
     <script src="@Url.Content("~/js/Centro_De_Ayuda/Guia_De_Usuario/script.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
   </body>
 </html>
 

@@ -1,4 +1,52 @@
-﻿@{ Layout = null; }
+@*
+=========================================================
+SmileTrack — Gestión de Facturación (st-adm-12-facturacion)
+=========================================================
+
+Autor:Jhonatan Mora 
+Fecha: 26/08/2025 
+
+DESCRIPCIÓN:
+
+Vista Razor correspondiente al módulo de Gestión de Facturación
+de SmileTrack. Permite al administrador consultar y gestionar
+las facturas, revisar estados de pago, registrar pagos y generar
+nuevas facturas.
+
+FUNCIONALIDADES PRINCIPALES:
+
+- Visualización de indicadores generales de facturación.
+- Búsqueda de facturas por número o paciente.
+- Filtrado de facturas por estado y mes.
+- Consulta del detalle de una factura.
+- Registro de pagos.
+- Generación de nuevas facturas.
+- Paginación de los registros.
+- Navegación adaptable para dispositivos móviles.
+- Elementos de accesibilidad mediante atributos ARIA.
+
+DEPENDENCIAS TÉCNICAS:
+
+- Razor / ASP.NET MVC.
+- CSS: ~/css/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.css
+- JS: ~/js/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.js
+- Partial: _SidebarAdmin
+- Datos de facturación: ViewData["FacturasJson"]
+
+NOTAS DE MANTENIMIENTO:
+
+- Los comentarios explican principalmente el propósito y el
+  motivo de las decisiones importantes, evitando describir
+  innecesariamente cada etiqueta HTML.
+- La variable RAZOR_INVOICES recibe los datos enviados por el
+  backend y los deja disponibles para el archivo JavaScript.
+- Los elementos con aria-live permiten comunicar cambios
+  dinámicos a lectores de pantalla.
+=========================================================
+*@
+
+@{ Layout = null; }
+
 
 <!DOCTYPE html>
 <html lang="es">
@@ -14,19 +62,119 @@
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 
 <body>
 
-  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
+  <!--
+  =========================================================
+  ACCESIBILIDAD — ENLACE DE SALTO
+  =========================================================
+  Permite que usuarios que navegan mediante teclado puedan
+  saltar directamente al contenido principal sin recorrer
+  nuevamente todo el menú lateral.
+  =========================================================
+  -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+  <!--
+  =========================================================
+  BARRA LATERAL DE NAVEGACIÓN
+  =========================================================
+  Contiene las opciones principales disponibles para el
+  administrador y mantiene resaltado el módulo actual.
+
+  WHY: la navegación se mantiene centralizada mediante el
+  Partial View _SidebarAdmin para reutilizar la estructura
+  común del sistema.
+  =========================================================
+  -->
+  <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+  <div class="sidebar-logo">
+    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
+  </div>
+  @* 
+  Partial de navegación del administrador.
+  WHY: evita duplicar la estructura común del sidebar en
+  cada vista administrativa.
+  *@
+  @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Inicio <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/" class="nav-item" data-icon="🏠">Homepage</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Acceso y Seguridad <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios" class="nav-item" data-icon="👥">Gestión de Usuarios</a>
+        <a href="/acceso-y-seguridad/st-adm-03-gestion-roles" class="nav-item" data-icon="🛡️">Gestión de Roles</a>
+        <a href="/acceso-y-seguridad/st-adm-15-bitacora" class="nav-item" data-icon="📜">Bitácora del Sistema</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="nav-item" data-icon="👥">Gestión de Pacientes</a>
+
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Gestión de Profesionales <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" class="nav-item" data-icon="🩺">Gestión de Profesionales</a>
+        <a href="/gestion-de-profesionales/st-adm-14-reportes-clinicos" class="nav-item" data-icon="📈">Reportes Clínicos</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-citas/st-adm-01-dashboard" class="nav-item" data-icon="📊">Dashboard General</a>
+        <a href="/gestion-de-citas/st-adm-08-agenda" class="nav-item" data-icon="📅">Agenda General</a>
+        <a href="/gestion-de-citas/st-adm-09-citas" class="nav-item" data-icon="🗓️">Gestión Integral de Citas</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Facturación y Pagos <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/facturacion-y-pagos/st-adm-12-facturacion" class="nav-item active" data-icon="💰" aria-current="page">Gestión de Facturación</a>
+        <a href="/facturacion-y-pagos/st-adm-13-reportes-financieros" class="nav-item" data-icon="📊">Reportes Financieros</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0">Servicios y Recursos <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/servicios-y-recursos/st-adm-10-servicios" class="nav-item" data-icon="🔧">Catálogo de Servicios</a>
+        <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="nav-item" data-icon="⚙️">Configuración General</a>
+      </div>
+    </div>
+    <div class="nav-separator" aria-hidden="true"></div>
+    <a href="/acceso-y-seguridad/login" class="nav-item nav-item--logout" data-icon="🚪" aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
+  </nav>
+  <div class="sidebar-user">
+    <div class="user-avatar" aria-hidden="true">AD</div>
+    <div class="user-info">
+      <span class="user-role">Administrador</span>
+      <span class="user-email">admin@smiletrack.co</span>
+    </div>
+  </div>
+</aside>
 
 
 
-  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <!--
+  =========================================================
+  NAVEGACIÓN MÓVIL — HAMBURGER
+  =========================================================
+  El botón permite abrir o cerrar el menú lateral en
+  pantallas pequeñas. El overlay facilita cerrar o
+  identificar visualmente el menú abierto.
+  =========================================================
+  -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
     <span aria-hidden="true"></span>
     <span aria-hidden="true"></span>
@@ -34,10 +182,22 @@
   </button>
   <div class="overlay" id="overlay" aria-hidden="true"></div>
 
-  <!-- ═════ MAIN ═════ -->
+  <!--
+  =========================================================
+  CONTENIDO PRINCIPAL
+  =========================================================
+  Agrupa todo el contenido funcional de la página de
+  Gestión de Facturación y utiliza main-content como
+  destino del enlace de accesibilidad.
+  =========================================================
+  -->
   <main class="main" id="main-content">
 
-    <!-- Header -->
+    <!--
+    HEADER DE FACTURACIÓN
+    Muestra la ruta de navegación y el título principal
+    de la vista administrativa.
+    -->
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación">
@@ -50,7 +210,22 @@
       </div>
     </header>
 
-    <!-- KPI Cards con aria-live para contadores -->
+    <!--
+    =====================================================
+    INDICADORES DE FACTURACIÓN (KPI)
+    =====================================================
+    Muestra un resumen de la situación de facturación:
+    - Total de facturas.
+    - Valores pendientes por cobrar.
+    - Facturas pagadas durante el día.
+    - Facturas anuladas.
+
+    WHY: estos indicadores permiten al administrador
+    identificar rápidamente el estado general de los cobros.
+    Los atributos aria-live permiten comunicar cambios
+    dinámicos a tecnologías de asistencia.
+    =====================================================
+    -->
     <section class="stats-grid" aria-label="Resumen de facturación">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="statTotal" data-target="1248" aria-live="polite">0</span>
@@ -74,11 +249,22 @@
       </div>
     </section>
 
-    <!-- Controles y filtros -->
+    <!--
+    =====================================================
+    BÚSQUEDA Y FILTROS
+    =====================================================
+    Permite localizar facturas mediante texto y reducir
+    los resultados utilizando el estado y el mes.
+
+    El botón "Nueva factura" inicia el flujo de creación
+    de una nueva factura mediante el modal correspondiente.
+    =====================================================
+    -->
     <section class="controls-section">
       <div class="filters-wrap">
         <div class="search-wrap">
           <span class="search-icon" aria-hidden="true">🔍</span>
+          <!-- Búsqueda rápida por número de factura o nombre del paciente. -->
           <input type="search" id="searchInvoices" class="search-input" placeholder="Buscar por N° o Paciente..."
             aria-label="Buscar factura">
         </div>
@@ -95,17 +281,33 @@
           <option value="2026-04">Abril 2026</option>
           <option value="2026-03">Marzo 2026</option>
         </select>
+        <!-- Abre el formulario modal para registrar una nueva factura. -->
         <button class="btn-primary" id="btnNewInvoice" aria-label="Crear nueva factura">
           ➕ Nueva factura
         </button>
       </div>
     </section>
 
-    <!-- Tabla de facturas -->
+    <!--
+    =====================================================
+    TABLA DE FACTURAS
+    =====================================================
+    Presenta los registros de facturación y sus principales
+    datos: número, paciente, fecha, total, pendiente,
+    estado y acciones disponibles.
+
+    WHY: el cuerpo de la tabla se encuentra preparado para
+    recibir las filas generadas dinámicamente mediante JS.
+    =====================================================
+    -->
     <section class="table-section" aria-labelledby="tableTitle">
       <h2 class="visually-hidden" id="tableTitle">Lista de facturas</h2>
 
-      <!-- Cabecera de tabla accesible -->
+      <!--
+      Cabecera accesible de la tabla.
+      Los roles de columna permiten identificar cada dato
+      ante tecnologías de asistencia.
+      -->
       <div class="table-header" role="row">
         <div class="table-col col-numero" role="columnheader">N° Factura</div>
         <div class="table-col col-paciente" role="columnheader">Paciente</div>
@@ -116,27 +318,42 @@
         <div class="table-col col-acciones text-right" role="columnheader">Acciones</div>
       </div>
 
-      <!-- Cuerpo de tabla con aria-live -->
+      <!--
+      Cuerpo dinámico de la tabla.
+      Las filas son inyectadas por JavaScript en este
+      contenedor. aria-live permite anunciar los cambios.
+      -->
       <div id="invoicesBody" class="table-body" role="rowgroup" aria-live="polite">
-        <!-- Filas inyectadas por JS -->
+          <!-- Filas de facturas generadas dinámicamente por JavaScript. -->
       </div>
 
-      <!-- Paginación accesible -->
+      <!--
+      Paginación de resultados.
+      Permite dividir la información mostrada y proporciona
+      una navegación accesible entre las páginas disponibles.
+      -->
       <footer class="table-footer" aria-label="Navegación de páginas">
         <span>Mostrando <strong id="pageShowing">10</strong> de <strong id="pageTotal">45</strong> registros</span>
         <nav class="pagination" aria-label="Páginas de resultados">
-          <button class="pagination-btn" id="btnPrev" aria-label="Página anterior" disabled>‹</button>
           <button class="pagination-btn active" aria-current="page" aria-label="Página 1">1</button>
-          <button class="pagination-btn" aria-label="Página 2">2</button>
-          <button class="pagination-btn" aria-label="Página 3">3</button>
-          <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">›</button>
         </nav>
       </footer>
     </section>
 
   </main>
 
-  <!-- Drawer: Detalle de Factura (accesible) -->
+  <!--
+  =========================================================
+  DRAWER — DETALLE DE FACTURA
+  =========================================================
+  Panel lateral utilizado para mostrar rápidamente el
+  estado y el resumen económico de una factura seleccionada.
+
+  Desde este panel el usuario puede:
+  - Consultar el detalle completo.
+  - Registrar un pago.
+  =========================================================
+  -->
   <div class="drawer-overlay" id="drawerOverlay" role="dialog" aria-modal="true" aria-labelledby="drawerTitle"
     aria-hidden="true" inert>
     <div class="drawer-panel" id="drawerPanel">
@@ -163,19 +380,139 @@
             <strong id="drawerTotal">$0</strong>
           </div>
         </div>
-        <div class="invoice-history">
-          <h4>Historial de Cobros</h4>
-          <ul id="drawerHistory" class="history-list" role="list"></ul>
-        </div>
       </div>
       <footer class="drawer-footer">
-        <button class="btn-secondary" id="btnRemind">Recordar</button>
+        <button class="btn-secondary" id="btnViewDetails">Ver detalle</button>
+        <!-- Inicia el proceso para registrar el pago de la factura seleccionada. -->
         <button class="btn-primary" id="btnRegisterPayment">Registrar Pago</button>
       </footer>
     </div>
   </div>
 
-  <!-- Mobile bottom nav -->
+  <!--
+  =========================================================
+  MODAL — DETALLE COMPLETO
+  =========================================================
+  Muestra información detallada de la factura seleccionada:
+  paciente, documento, fecha, servicio, estado, total y
+  valor pendiente.
+  =========================================================
+  -->
+  <div class="invoice-details-overlay" id="invoiceDetailsOverlay" role="dialog" aria-modal="true"
+    aria-labelledby="invoiceDetailsTitle" aria-hidden="true" inert>
+    <div class="invoice-details-modal">
+      <header class="invoice-details-header">
+        <h3 class="invoice-details-title" id="invoiceDetailsTitle">Detalle de factura</h3>
+        <button class="invoice-details-close" id="invoiceDetailsClose" type="button" aria-label="Cerrar detalle">×</button>
+      </header>
+      <div class="invoice-details-content">
+        <div class="invoice-details-number" id="invoiceDetailsNumber"></div>
+        <dl class="invoice-details-list">
+          <div><dt>Paciente</dt><dd id="invoiceDetailsPatient"></dd></div>
+          <div><dt>Documento</dt><dd id="invoiceDetailsDocument"></dd></div>
+          <div><dt>Fecha</dt><dd id="invoiceDetailsDate"></dd></div>
+          <div><dt>Servicio</dt><dd id="invoiceDetailsService"></dd></div>
+          <div><dt>Estado</dt><dd id="invoiceDetailsStatus"></dd></div>
+          <div><dt>Total</dt><dd id="invoiceDetailsTotal"></dd></div>
+          <div><dt>Pendiente</dt><dd id="invoiceDetailsPending"></dd></div>
+        </dl>
+      </div>
+      <footer class="invoice-details-footer">
+        <button class="btn-primary" id="invoiceDetailsConfirm" type="button">Cerrar</button>
+      </footer>
+    </div>
+  </div>
+
+  <!--
+  =========================================================
+  MODAL — CONFIRMACIÓN DE PAGO
+  =========================================================
+  Informa al usuario cuando el registro del pago se ha
+  realizado correctamente y permite cerrar el mensaje.
+  =========================================================
+  -->
+  <div class="payment-success-overlay" id="paymentSuccessOverlay" role="dialog" aria-modal="true"
+    aria-labelledby="paymentSuccessTitle" aria-describedby="paymentSuccessMessage" aria-hidden="true" inert>
+    <div class="payment-success-modal">
+      <button class="payment-success-close" id="paymentSuccessClose" type="button" aria-label="Cerrar confirmación">×</button>
+      <div class="payment-success-icon" aria-hidden="true">✓</div>
+      <h3 class="payment-success-title" id="paymentSuccessTitle">Registro exitoso</h3>
+      <p class="payment-success-message" id="paymentSuccessMessage">El pago se registró correctamente.</p>
+      <button class="btn-primary payment-success-button" id="paymentSuccessConfirm" type="button">Aceptar</button>
+    </div>
+  </div>
+
+  <!--
+  =========================================================
+  MODAL — NUEVA FACTURA
+  =========================================================
+  Formulario utilizado para generar una nueva factura.
+  Solicita los datos mínimos del paciente, documento,
+  fecha, servicio y valor total a cobrar.
+
+  WHY: mantener el formulario dentro de un modal permite
+  crear la factura sin abandonar la pantalla principal.
+  =========================================================
+  -->
+  <div class="new-invoice-overlay" id="newInvoiceOverlay" role="dialog" aria-modal="true"
+    aria-labelledby="newInvoiceTitle" aria-hidden="true" inert>
+    <div class="new-invoice-modal">
+      <header class="new-invoice-header">
+        <h3 class="new-invoice-title" id="newInvoiceTitle">Nueva factura</h3>
+        <button class="new-invoice-close" id="newInvoiceClose" type="button" aria-label="Cerrar formulario">×</button>
+      </header>
+      <!-- Formulario de creación de factura. La validación requerida se realiza sobre sus campos. -->
+        <form id="newInvoiceForm" class="new-invoice-form">
+        <p class="new-invoice-required">Completa los datos para generar la factura.</p>
+        <div class="invoice-form-grid">
+          <label class="invoice-form-field">
+            <span>Nombre del paciente *</span>
+            <input id="invoicePatient" name="patient" type="text" required maxlength="100" autocomplete="name" placeholder="Ej. Ana Gómez">
+          </label>
+          <label class="invoice-form-field">
+            <span>Documento *</span>
+            <input id="invoiceDocument" name="document" type="text" required maxlength="30" placeholder="Ej. 1020304050">
+          </label>
+          <label class="invoice-form-field">
+            <span>Fecha de factura *</span>
+            <input id="invoiceDate" name="date" type="date" required>
+          </label>
+          <label class="invoice-form-field">
+            <span>Servicio o concepto *</span>
+            <select id="invoiceService" name="service" required>
+              <option value="" selected disabled>Selecciona un servicio</option>
+              <option value="Limpieza dental">Limpieza dental</option>
+              <option value="Blanqueamiento">Blanqueamiento</option>
+              <option value="Ortodoncia">Ortodoncia</option>
+              <option value="Endodoncia">Endodoncia</option>
+              <option value="Implantes">Implantes</option>
+              <option value="Odontopediatra">Odontopediatra</option>
+              <option value="Ortodoncia - consulta">Ortodoncia - consulta</option>
+              <option value="Implante dental">Implante dental</option>
+            </select>
+          </label>
+          <label class="invoice-form-field invoice-form-field--full">
+            <span>Total a cobrar (COP) *</span>
+            <!-- El valor se recibe en pesos colombianos (COP) y debe ser mayor que cero. -->
+            <input id="invoiceTotal" name="total" type="number" required min="1" step="100" inputmode="numeric" placeholder="Ej. 150000">
+          </label>
+        </div>
+        <footer class="new-invoice-footer">
+          <button class="btn-secondary" id="newInvoiceCancel" type="button">Cancelar</button>
+          <button class="btn-primary" type="submit">Generar factura</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <!--
+  =========================================================
+  NAVEGACIÓN INFERIOR PARA DISPOSITIVOS MÓVILES
+  =========================================================
+  Proporciona accesos rápidos a las secciones principales
+  cuando la aplicación se visualiza desde pantallas pequeñas.
+  =========================================================
+  -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
       <span class="mobile-nav-icon" aria-hidden="true">📊</span>
@@ -199,10 +536,29 @@
     </a>
   </nav>
 
-  <!-- Toast para notificaciones accesibles -->
+  <!--
+  =========================================================
+  SISTEMA DE NOTIFICACIONES TOAST
+  =========================================================
+  Contenedor utilizado para mostrar mensajes temporales
+  al usuario sin interrumpir el flujo principal de la vista.
+
+  aria-live permite que el mensaje sea anunciado por
+  lectores de pantalla.
+  =========================================================
+  -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Estilos para screen readers -->
+  <!--
+  =========================================================
+  ESTILOS DE ACCESIBILIDAD
+  =========================================================
+  Estas reglas permiten ocultar visualmente ciertos
+  elementos sin eliminarlos del árbol de accesibilidad.
+  También controlan la posición del enlace "Saltar al
+  contenido principal" cuando recibe el foco.
+  =========================================================
+  -->
   <style>
     .skip-link {
       position: absolute;
@@ -234,6 +590,14 @@
     }
   </style>
 
+  <!--
+  =========================================================
+  PIE DE PÁGINA
+  =========================================================
+  Muestra la información institucional de SmileTrack y
+  la referencia al proyecto formativo ADSO del SENA.
+  =========================================================
+  -->
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
       <span style="font-size:1rem;">🦷</span>
@@ -247,11 +611,6 @@
   window.RAZOR_INVOICES = @Html.Raw(ViewData["FacturasJson"] ?? "[]");
 </script>
 <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>
 
 </html>
-
-
