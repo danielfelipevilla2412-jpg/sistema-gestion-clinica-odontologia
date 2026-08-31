@@ -62,6 +62,14 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
     /// también el JSON en ObservacionesGenerales para compatibilidad con el
     /// visor 3D mientras se migra completamente.
     /// </summary>
+    /// <remarks>
+    /// Yeray (2025) - TRAZABILIDAD: se usa request.CitaId para enlazar cada
+    /// RegistroOdontograma con la cita en que se realizó el tratamiento.
+    /// Si CitaId es null (no llega desde el JS) el comportamiento es idéntico
+    /// al anterior — la fila queda con IdCita = null, sin romper nada.
+    /// El campo se valida opcionalmente: si el id de cita llega pero la cita
+    /// no existe en BD, se ignora (se guarda null) para no bloquear el guardado.
+    /// </remarks>
     public async Task<(bool Success, string Message, int? HistoriaId)> GuardarOdontogramaInternoAsync(
         int pacienteId,
         OdontogramaGuardarRequest request,
@@ -71,6 +79,18 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         var historia = await _context.HistoriasClinicas
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa, ct)
             ?? await CrearHistoriaClinicaAsync(pacienteId, ct);
+
+        // Yeray (2025) - Validar CitaId antes de usarlo.
+        // Si llega un valor pero la cita no pertenece al paciente (o no existe),
+        // se descarta silenciosamente para no bloquear el guardado del odontograma.
+        int? citaIdValidado = null;
+        if (request.CitaId is not null && request.CitaId > 0)
+        {
+            bool citaValida = await _context.Citas
+                .AnyAsync(c => c.IdCita == request.CitaId.Value && c.IdPaciente == pacienteId, ct);
+
+            citaIdValidado = citaValida ? request.CitaId : null;
+        }
 
         foreach (var (instanceId, registroPieza) in request.Registros)
         {
@@ -95,18 +115,19 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
             {
                 _context.RegistrosOdontograma.Add(new RegistroOdontograma
                 {
-                    IdHistoria = historia.IdHistoria,
-                    NumeroFdi = numeroFdi,
-                    NombrePieza = registroPieza.NombrePieza,
-                    Estado = ultimo.Key ?? "sano",
-                    Observacion = ultimo.Obs,
+                    IdHistoria    = historia.IdHistoria,
+                    NumeroFdi     = numeroFdi,
+                    NombrePieza   = registroPieza.NombrePieza,
+                    Estado        = ultimo.Key ?? "sano",
+                    Observacion   = ultimo.Obs,
                     FechaRegistro = string.IsNullOrWhiteSpace(ultimo.Fecha)
                         ? DateTime.UtcNow
                         : DateTime.TryParse(ultimo.Fecha, out DateTime fechaParsed)
                             ? fechaParsed
                             : DateTime.UtcNow,
                     IdProfesional = idProfesional,
-                    IdCita = null // se puede pasar desde el request en el futuro
+                    // Yeray (2025): antes siempre null; ahora se usa la cita validada
+                    IdCita        = citaIdValidado
                 });
             }
         }
@@ -117,7 +138,7 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
             : (JsonNode.Parse(historia.ObservacionesGenerales) as JsonObject) ?? new JsonObject();
 
         actual["registros"] = JsonSerializer.SerializeToNode(request.Registros);
-        actual["mapeoFDI"] = JsonSerializer.SerializeToNode(request.MapeoFDI);
+        actual["mapeoFDI"]  = JsonSerializer.SerializeToNode(request.MapeoFDI);
         actual["actualizadoEn"] = DateTime.UtcNow;
         historia.ObservacionesGenerales = actual.ToJsonString();
 

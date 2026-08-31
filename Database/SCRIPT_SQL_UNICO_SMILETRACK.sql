@@ -830,6 +830,54 @@ GO
 PRINT 'Script de Nota_Clinica y Control_Postoperatorio ejecutado correctamente.';
 GO
 
+-- ============================================================
+-- Yeray - Tabla Documento_Clinico (2025)
+--
+-- MOTIVO: la vista st-aux-08-documentos-clinicos devolvía un array vacío
+-- porque no había tabla de documentos. Esta tabla almacena los metadatos
+-- de cada archivo clínico subido (radiografías, PDFs, consentimientos, etc.).
+-- El archivo físico se guarda en wwwroot/uploads/documentos-clinicos/<idHistoria>/.
+--
+-- RELACIONES:
+--   - id_historia → Historia_Clinica (CASCADE delete)
+--   - subido_por  → Usuario          (SET NULL)
+--
+-- ÍNDICE IX_DC_Historia: agiliza el listado de documentos por historia clínica.
+-- ============================================================
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Documento_Clinico') AND type = N'U')
+BEGIN
+    CREATE TABLE Documento_Clinico (
+        id_documento    INT IDENTITY(1,1) PRIMARY KEY,
+        id_historia     INT NOT NULL,
+        subido_por      INT NULL,
+        tipo            VARCHAR(100) NOT NULL,
+        nombre_original VARCHAR(255) NOT NULL,
+        ruta_relativa   VARCHAR(500) NOT NULL,
+        content_type    VARCHAR(100) NOT NULL,
+        tamano_bytes    BIGINT NOT NULL DEFAULT 0,
+        fecha_subida    DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        observacion     VARCHAR(500) NULL,
+
+        CONSTRAINT FK_DocClinico_Historia
+            FOREIGN KEY (id_historia) REFERENCES Historia_Clinica(id_historia)
+            ON DELETE CASCADE,
+
+        CONSTRAINT FK_DocClinico_Usuario
+            FOREIGN KEY (subido_por) REFERENCES Usuario(id_usuario)
+            ON DELETE SET NULL
+    );
+
+    CREATE INDEX IX_DC_Historia ON Documento_Clinico(id_historia);
+
+    PRINT 'Tabla Documento_Clinico creada correctamente.';
+END
+ELSE
+BEGIN
+    PRINT 'Tabla Documento_Clinico ya existe — sin cambios.';
+END
+GO
+
 PRINT 'Script ejecutado correctamente.';
 
 GO

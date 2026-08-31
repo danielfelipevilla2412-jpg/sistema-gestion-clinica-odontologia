@@ -38,6 +38,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Equipo> Equipos => Set<Equipo>();
     public DbSet<ConfiguracionGeneral> ConfiguracionesGenerales => Set<ConfiguracionGeneral>();
 
+    // Yeray - DbSet para Documento_Clinico.
+    // Antes la vista st-aux-08-documentos-clinicos devolvía Array.Empty<object>() porque
+    // no existía ninguna tabla de documentos. Ahora cada archivo subido (radiografía,
+    // PDF, consentimiento, etc.) se persiste como fila real consultable con SQL.
+    public DbSet<DocumentoClinico> DocumentosClinicos => Set<DocumentoClinico>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Usuario>(entity =>
@@ -433,6 +439,44 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.UltimoMantenimiento).HasColumnName("ultimo_mantenimiento");
             entity.Property(e => e.ProximoMantenimiento).HasColumnName("proximo_mantenimiento");
             entity.Property(e => e.Ubicacion).HasColumnName("ubicacion");
+        });
+
+        // Yeray - Configuración Fluent API para Documento_Clinico.
+        // Tabla nueva que resuelve la vista st-aux-08 que antes devolvía lista vacía.
+        // Relaciones: HC → CASCADE delete (un documento sin HC no tiene sentido);
+        //             Usuario (SubidoPor) → SET NULL (el documento queda aunque el
+        //             usuario sea eliminado).
+        // Índice IX_DC_Historia agiliza el GET de documentos por historia clínica.
+        modelBuilder.Entity<DocumentoClinico>(entity =>
+        {
+            entity.ToTable("Documento_Clinico");
+            entity.HasKey(d => d.IdDocumento);
+            entity.Property(d => d.IdDocumento).HasColumnName("id_documento");
+            entity.Property(d => d.IdHistoria).HasColumnName("id_historia");
+            entity.Property(d => d.SubidoPor).HasColumnName("subido_por");
+            entity.Property(d => d.Tipo).HasColumnName("tipo").HasMaxLength(100);
+            entity.Property(d => d.NombreOriginal).HasColumnName("nombre_original").HasMaxLength(255);
+            entity.Property(d => d.RutaRelativa).HasColumnName("ruta_relativa").HasMaxLength(500);
+            entity.Property(d => d.ContentType).HasColumnName("content_type").HasMaxLength(100);
+            entity.Property(d => d.TamanoBytes).HasColumnName("tamano_bytes");
+            entity.Property(d => d.FechaSubida).HasColumnName("fecha_subida");
+            entity.Property(d => d.Observacion).HasColumnName("observacion").HasMaxLength(500);
+
+            // Índice para listar documentos de una HC sin full-scan
+            entity.HasIndex(d => d.IdHistoria).HasDatabaseName("IX_DC_Historia");
+
+            // Historia clínica → CASCADE: sin HC el documento no tiene sentido
+            entity.HasOne(d => d.HistoriaClinica)
+                  .WithMany()
+                  .HasForeignKey(d => d.IdHistoria)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // Usuario que subió → SET NULL: el documento sigue existiendo aunque el
+            // usuario sea eliminado
+            entity.HasOne(d => d.SubidoPorUsuario)
+                  .WithMany()
+                  .HasForeignKey(d => d.SubidoPor)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<ConfiguracionGeneral>(entity =>

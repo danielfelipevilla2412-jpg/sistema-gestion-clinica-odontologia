@@ -176,16 +176,205 @@ public class HistoriaClinicaController(
         return View("~/Views/Historia_Clinica/st-aux-08-documentos-clinicos/documentos-cli.cshtml");
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Yeray - Endpoint de datos reales para Documentos Clínicos (2025)
+    //
+    // ANTES: devolvía Array.Empty<object>() porque no existía ninguna tabla.
+    // AHORA: consulta Documento_Clinico filtrada por idHistoria del paciente,
+    //        devuelve los metadatos que el JS de documentos-cli.js ya espera
+    //        (tipo, fecha, nombreArchivo, subidoPor).
+    // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
     [Authorize(Roles = "Auxiliar")]
     [Route("historia-clinica/st-aux-08-documentos-clinicos/data")]
-    public IActionResult Staux08DocumentosClinicosData([FromQuery] int? pacienteId)
+    public async Task<IActionResult> Staux08DocumentosClinicosData([FromQuery] int? pacienteId)
     {
-        // NOTA: el esquema actual no tiene una tabla de "documentos clínicos" (adjuntos,
-        // radiografías, PDFs, etc.). Antes esta vista mostraba documentos inventados en el JS.
-        // Ahora se devuelve un arreglo vacío real (sin datos porque no hay ninguno cargado aún),
-        // en vez de simular archivos que nunca existieron.
-        return Json(Array.Empty<object>());
+        // Sin paciente: devolver lista vacía (el JS ya maneja el empty state)
+        if (pacienteId is null)
+            return Json(Array.Empty<object>());
+
+        var historia = await _context.HistoriasClinicas
+            .AsNoTracking()
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
+
+        if (historia is null)
+            return Json(Array.Empty<object>());
+
+        var documentos = await _context.DocumentosClinicos
+            .AsNoTracking()
+            .Include(d => d.SubidoPorUsuario)
+            .Where(d => d.IdHistoria == historia.IdHistoria)
+            .OrderByDescending(d => d.FechaSubida)
+            .Select(d => new
+            {
+                id            = d.IdDocumento,
+                tipo          = d.Tipo,
+                fecha         = d.FechaSubida.ToString("yyyy-MM-dd"),
+                nombreArchivo = d.NombreOriginal,
+                subidoPor     = d.SubidoPorUsuario != null
+                                    ? $"{d.SubidoPorUsuario.Nombre} {d.SubidoPorUsuario.Apellidos}"
+                                    : "Sin registrar",
+                contentType   = d.ContentType,
+                tamanoBytes   = d.TamanoBytes,
+                observacion   = d.Observacion ?? ""
+            })
+            .ToListAsync();
+
+        return Json(documentos);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Yeray - Endpoint de subida de archivos clínicos (2025)
+    //
+    // ANTES: el JS mostraba un setTimeout() que simulaba la subida localmente
+    //        y avisaba "la subida a servidor aún no está implementada".
+    // AHORA: recibe el archivo via multipart/form-data, lo valida (tipo y tamaño),
+    //        lo guarda en wwwroot/uploads/documentos-clinicos/<idHistoria>/,
+    //        y persiste los metadatos en Documento_Clinico.
+    //
+    // SEGURIDAD:
+    //   - Solo acepta image/jpeg, image/png, application/pdf.
+    //   - Máximo 10 MB por archivo.
+    //   - El nombre físico en disco se genera con un GUID para evitar colisiones
+    //     y ataques de path traversal; el nombre original se guarda solo en BD.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Auxiliar")]
+    [Route("historia-clinica/st-aux-08-documentos-clinicos/subir")]
+    public async Task<IActionResult> SubirDocumentoClinco(
+        [FromForm] int pacienteId,
+        [FromForm] string tipo,
+        [FromForm] string? observacion,
+        IFormFile archivo,
+        [FromServices] IWebHostEnvironment env)
+    {
+        // ── Validaciones básicas ────────────────────────────────────────────
+        if (archivo is null || archivo.Length == 0)
+            return BadRequest(new { success = false, message = "No se recibió ningún archivo." });
+
+        const long maxBytes = 10 * 1024 * 1024; // 10 MB
+        if (archivo.Length > maxBytes)
+            return BadRequest(new { success = false, message = "El archivo supera el límite de 10 MB." });
+
+        string[] tiposPermitidos = ["image/jpeg", "image/png", "application/pdf"];
+        string contentType = archivo.ContentType.ToLowerInvariant();
+        if (!tiposPermitidos.Contains(contentType))
+            return BadRequest(new { success = false, message = "Tipo de archivo no permitido. Solo JPG, PNG y PDF." });
+
+        if (string.IsNullOrWhiteSpace(tipo))
+            return BadRequest(new { success = false, message = "El tipo de documento es obligatorio." });
+
+        // ── Obtener o crear historia clínica ────────────────────────────────
+        var historia = await _context.HistoriasClinicas
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
+
+        if (historia is null)
+        {
+            bool pacienteExiste = await _context.Pacientes.AnyAsync(p => p.IdPaciente == pacienteId);
+            if (!pacienteExiste)
+                return NotFound(new { success = false, message = "Paciente no encontrado." });
+
+            historia = await _historiaService.CrearHistoriaClinicaAsync(pacienteId);
+        }
+
+        // ── Guardar archivo en disco ─────────────────────────────────────────
+        // El nombre en disco usa un GUID + extensión real para evitar colisiones
+        // y bloquear path traversal.
+        string extension = Path.GetExtension(archivo.FileName).ToLowerInvariant();
+        if (!new[] { ".jpg", ".jpeg", ".png", ".pdf" }.Contains(extension))
+            extension = contentType == "application/pdf" ? ".pdf"
+                      : contentType == "image/png"       ? ".png"
+                      : ".jpg";
+
+        string nombreFisico  = $"{Guid.NewGuid()}{extension}";
+        string carpetaRelativa = Path.Combine("uploads", "documentos-clinicos", historia.IdHistoria.ToString());
+        string carpetaFisica   = Path.Combine(env.WebRootPath, carpetaRelativa);
+
+        Directory.CreateDirectory(carpetaFisica);
+
+        string rutaFisica    = Path.Combine(carpetaFisica, nombreFisico);
+        string rutaRelativa  = Path.Combine(carpetaRelativa, nombreFisico).Replace('\\', '/');
+
+        await using (var stream = new FileStream(rutaFisica, FileMode.Create, FileAccess.Write))
+        {
+            await archivo.CopyToAsync(stream);
+        }
+
+        // ── Obtener el usuario actual ────────────────────────────────────────
+        string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        int? idUsuario = int.TryParse(userIdStr, out int uid) ? uid : null;
+
+        // ── Persistir metadatos en BD ────────────────────────────────────────
+        var documento = new SmileTrack_MVC.Models.Entities.DocumentoClinico
+        {
+            IdHistoria    = historia.IdHistoria,
+            SubidoPor     = idUsuario,
+            Tipo          = tipo.Trim(),
+            NombreOriginal = Path.GetFileName(archivo.FileName),
+            RutaRelativa  = rutaRelativa,
+            ContentType   = contentType,
+            TamanoBytes   = archivo.Length,
+            FechaSubida   = DateTime.UtcNow,
+            Observacion   = string.IsNullOrWhiteSpace(observacion) ? null : observacion.Trim()
+        };
+
+        _context.DocumentosClinicos.Add(documento);
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            // Si falla la BD, limpiar el archivo ya guardado en disco
+            if (System.IO.File.Exists(rutaFisica))
+                System.IO.File.Delete(rutaFisica);
+
+            return StatusCode(500, new { success = false, message = "No fue posible guardar el documento.", detail = ex.Message });
+        }
+
+        return Ok(new
+        {
+            success       = true,
+            message       = "Documento subido correctamente.",
+            id            = documento.IdDocumento,
+            tipo          = documento.Tipo,
+            fecha         = documento.FechaSubida.ToString("yyyy-MM-dd"),
+            nombreArchivo = documento.NombreOriginal,
+            tamanoBytes   = documento.TamanoBytes
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Yeray - Endpoint de descarga de archivos clínicos (2025)
+    //
+    // Devuelve el archivo físico con Content-Disposition: attachment para forzar
+    // la descarga. Solo puede acceder un Auxiliar que esté autenticado.
+    // Se valida que el idDocumento exista en BD antes de buscar el archivo en disco.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    [Authorize(Roles = "Auxiliar,Profesional,Administrador")]
+    [Route("historia-clinica/documentos-clinicos/descargar/{id:int}")]
+    public async Task<IActionResult> DescargarDocumentoClinco(
+        int id,
+        [FromServices] IWebHostEnvironment env)
+    {
+        var documento = await _context.DocumentosClinicos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.IdDocumento == id);
+
+        if (documento is null)
+            return NotFound(new { success = false, message = "Documento no encontrado." });
+
+        string rutaFisica = Path.Combine(env.WebRootPath, documento.RutaRelativa.Replace('/', Path.DirectorySeparatorChar));
+
+        if (!System.IO.File.Exists(rutaFisica))
+            return NotFound(new { success = false, message = "El archivo no se encuentra en el servidor." });
+
+        byte[] bytes = await System.IO.File.ReadAllBytesAsync(rutaFisica);
+
+        return File(bytes, documento.ContentType, documento.NombreOriginal);
     }
 
     [HttpGet]
@@ -200,9 +389,17 @@ public class HistoriaClinicaController(
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("historia-clinica/st-odo-04-odontograma")]
-    public async Task<IActionResult> Stodo04Odontograma([FromQuery] int? pacienteId, [FromQuery] int? historiaId)
+    public async Task<IActionResult> Stodo04Odontograma(
+        [FromQuery] int? pacienteId,
+        [FromQuery] int? historiaId,
+        // Yeray (2025): parámetro nuevo para enlazar el odontograma a una cita
+        // concreta. Si el profesional llega desde la agenda (?citaId=N), el
+        // guardado registra la cita en Registro_Odontograma.IdCita.
+        [FromQuery] int? citaId)
     {
         var vm = await BuildOdontogramaViewModelAsync(pacienteId, historiaId);
+        // Propagar la cita al ViewModel → la vista la inyecta en config JS
+        vm.CitaId = citaId;
         return View("~/Views/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.cshtml", vm);
     }
 
@@ -449,9 +646,20 @@ public async Task<IActionResult> Stpac02Historial()
 
 /// <summary>
 /// Construye el ViewModel completo de historial clínico (odontograma + alertas +
-/// registro de consultas) para un paciente dado, usado tanto por la vista del
-/// profesional (st-odo-03-historial) como por la del propio paciente (st-pac-02-historial).
+/// registro de consultas + notas clínicas) para un paciente dado.
+/// Usado por la vista del profesional (st-odo-03-historial) y por la del
+/// propio paciente (st-pac-02-historial).
 /// </summary>
+/// <remarks>
+/// Yeray (2025) - MIGRACIÓN: vm.NotasClinicas ahora se pobla consultando
+/// directamente la tabla Nota_Clinica en lugar de parsear el JSON en
+/// Historia_Clinica.ObservacionesGenerales. Eso elimina la dependencia del
+/// "dual-write" para la vista de historial del profesional.
+///
+/// vm.Registros sigue derivándose de Cita (para el mini-odontograma de solo
+/// lectura y el historial de consultas por fecha). Las notas clínicas libres
+/// van separadas en vm.NotasClinicas.
+/// </remarks>
 private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAsync(int? pacienteId, int? historiaId)
 {
     var vm = new HistorialPacienteViewModel
@@ -492,6 +700,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
         ? $"Dr(a). {proxima.Profesional.Nombres} {proxima.Profesional.Apellidos}"
         : null;
 
+    // Registros de consultas pasadas (derivados de Cita, para el odontograma de solo lectura)
     vm.Registros = citas
         .Where(c => c.FechaHora <= ahora)
         .Select(c => new RegistroHistorialItem
@@ -503,6 +712,35 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
             Estado = c.Estado
         })
         .ToList();
+
+    // ── Yeray (2025) - Notas clínicas reales desde Nota_Clinica ─────────────
+    // ANTES: el JS parseaba parseNotasClinicasPersistidas() sobre el JSON de
+    //        ObservacionesGenerales. Si ese JSON estaba vacío o corrupto, las
+    //        notas no aparecían aunque existieran en la tabla.
+    // AHORA: se consultan directamente aquí y se inyectan en vm.NotasClinicas,
+    //        que la vista serializa en window.smiletrackHistoriaData.notasClinicas.
+    //        El JS ya no necesita parsear ningún JSON para obtenerlas.
+    if (vm.Odontograma.HistoriaId is not null)
+    {
+        vm.NotasClinicas = await _context.NotasClinicas
+            .AsNoTracking()
+            .Include(n => n.Profesional)
+            .Where(n => n.IdHistoria == vm.Odontograma.HistoriaId.Value)
+            .OrderByDescending(n => n.Fecha)
+            .Select(n => new NotaClinicaHistorialItem
+            {
+                Titulo       = n.Procedimiento ?? n.Diagnostico ?? "Nota clínica",
+                Fecha        = n.Fecha.ToString("yyyy-MM-dd"),
+                Doctor       = n.Profesional != null
+                                   ? $"Dr(a). {n.Profesional.Nombres} {n.Profesional.Apellidos}"
+                                   : "Profesional",
+                Diagnostico  = n.Diagnostico  ?? string.Empty,
+                Procedimiento = n.Procedimiento ?? string.Empty,
+                ProximaCita  = n.ProximaCita,
+                Estado       = n.Estado
+            })
+            .ToListAsync();
+    }
 
     return vm;
 }

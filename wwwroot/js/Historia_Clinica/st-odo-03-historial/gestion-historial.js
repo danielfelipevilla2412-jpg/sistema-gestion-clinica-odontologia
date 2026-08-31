@@ -115,26 +115,27 @@ const parseOdontogramaPersistido = (estadoPersistidoRaw) => {
   return { tratamientos, observaciones };
 };
 
-// Extrae el historial de notas clínicas libres guardadas junto al odontograma
-// (no existe una tabla dedicada; se persisten como parte de ObservacionesGenerales).
-const parseNotasClinicasPersistidas = (estadoPersistidoRaw) => {
-  if (!estadoPersistidoRaw) return [];
-  try {
-    const persistido = typeof estadoPersistidoRaw === 'string' ? JSON.parse(estadoPersistidoRaw) : estadoPersistidoRaw;
-    return persistido?.notasClinicas || [];
-  } catch (e) {
-    return [];
-  }
-};
+// Yeray (2025) - MIGRACIÓN: parseNotasClinicasPersistidas ya no necesita
+// parsear el JSON de ObservacionesGenerales. Las notas clínicas llegan como
+// server.notasClinicas (array ya formateado por BuildHistorialPacienteViewModelAsync
+// leyendo directamente la tabla Nota_Clinica).
+// Se conserva la función por compatibilidad, pero devuelve [] porque las notas
+// ya vienen en server.notasClinicas.
+const parseNotasClinicasPersistidas = (_estadoPersistidoRaw) => [];
 
 // Fuente de datos real: inyectada por el servidor en window.smiletrackHistoriaData
 // (ver Views/Historia_Clinica/st-odo-03-historial/gestion-historial.cshtml).
 const historiaStorage = {
-  // Carga los datos reales del paciente enviados por el servidor.
+  // Yeray (2025) - MIGRACIÓN: las notas clínicas ya no se parsean del JSON de
+  // odontograma. Ahora vienen en server.notasClinicas, poblado por el servidor
+  // desde la tabla Nota_Clinica en BuildHistorialPacienteViewModelAsync.
+  // El historial que ve el profesional es: notas clínicas de BD + citas pasadas.
   load: () => {
     const server = window.smiletrackHistoriaData || {};
     const { tratamientos, observaciones } = parseOdontogramaPersistido(server.estadoPersistido);
-    const notasClinicas = parseNotasClinicasPersistidas(server.estadoPersistido);
+
+    // Notas clínicas reales desde Nota_Clinica (inyectadas por el servidor)
+    const notasClinicas = Array.isArray(server.notasClinicas) ? server.notasClinicas : [];
 
     return {
       paciente: {
@@ -149,7 +150,7 @@ const historiaStorage = {
         medicamentos: server.medicamentos || [],
         odontograma: tratamientos,
         observaciones,
-        // Notas clínicas libres + historial real de citas del paciente
+        // Notas clínicas reales de BD + historial de citas del paciente
         historial: [...notasClinicas, ...(server.historial || [])],
       }
     };
@@ -612,12 +613,15 @@ const initForm = () => {
       const result = await resp.json();
       if (!result.success) throw new Error(result.message || 'No se pudo guardar la nota');
 
-      // Reflejar la nota persistida (y todo el historial guardado) en memoria
-      const estadoActualizado = window.smiletrackHistoriaData?.estadoPersistido
-        ? JSON.parse(window.smiletrackHistoriaData.estadoPersistido)
-        : {};
-      estadoActualizado.notasClinicas = [result.nota, ...(estadoActualizado.notasClinicas || [])];
-      window.smiletrackHistoriaData.estadoPersistido = JSON.stringify(estadoActualizado);
+      // Yeray (2025) - MIGRACIÓN: antes se actualizaba el JSON de estadoPersistido
+      // para reflejar la nota en memoria (parseNotasClinicasPersistidas lo leía).
+      // Ahora se actualiza directamente server.notasClinicas, que es el array
+      // que historiaStorage.load() usa desde la migración a tablas reales.
+      window.smiletrackHistoriaData = window.smiletrackHistoriaData || {};
+      window.smiletrackHistoriaData.notasClinicas = [
+        result.nota,
+        ...(window.smiletrackHistoriaData.notasClinicas || [])
+      ];
 
       const data = historiaStorage.load();
       renderHistorial(data.paciente.historial);
