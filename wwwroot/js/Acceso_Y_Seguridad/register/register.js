@@ -75,6 +75,12 @@ class DentalRegister {
         // Manejar el envío del formulario cuando el usuario hace clic en "Crear Cuenta"
         this.form.addEventListener('submit', (e) => this.handleSubmit(e));
 
+        // Restringir lo que se puede escribir en cada campo según su tipo
+        ValidationUtils.restrictToLetters(document.getElementById('first-name'));
+        ValidationUtils.restrictToLetters(document.getElementById('last-name'));
+        ValidationUtils.restrictToNumbers(document.getElementById('doc-num'));
+        ValidationUtils.restrictToPhone(document.getElementById('phone'));
+
         // Validación en tiempo real para todos los campos requeridos del formulario
         this.form.querySelectorAll('input, select').forEach(field => {
             field.addEventListener('blur', () => this.validateField(field));
@@ -151,18 +157,17 @@ class DentalRegister {
      * @returns {object} Objeto con ancho porcentual y clase de color para la barra visual
      */
     calculateStrength(password) {
-        let score = 0;
-        // Criterios de evaluación: longitud, minúsculas, mayúsculas, números, caracteres especiales
-        if (password.length >= 8) score++;
-        if (/[a-z]/.test(password)) score++;
-        if (/[A-Z]/.test(password)) score++;
-        if (/[0-9]/.test(password)) score++;
-        if (/[^A-Za-z0-9]/.test(password)) score++;
+    let score = 0;
+    // Criterios de evaluación: exactamente los 4 que se muestran al usuario
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
 
-        // Retornar configuración visual según el puntaje obtenido
-        if (score <= 2) return { width: 33, class: 'strength-weak' };   /* Débil */
-        if (score <= 4) return { width: 66, class: 'strength-medium' }; /* Media */
-        return { width: 100, class: 'strength-strong' };                /* Fuerte */
+    // Retornar configuración visual según el puntaje obtenido (máximo 4 puntos)
+    if (score <= 1) return { width: 33, class: 'strength-weak' };   /* Débil */
+    if (score <= 3) return { width: 66, class: 'strength-medium' }; /* Media */
+    return { width: 100, class: 'strength-strong' };                /* Fuerte */
     }
 
     /**
