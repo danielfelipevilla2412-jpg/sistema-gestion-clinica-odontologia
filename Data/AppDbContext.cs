@@ -23,6 +23,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<DetalleFactura> DetallesFactura => Set<DetalleFactura>();
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
+    public DbSet<TicketSoporte> TicketsSoporte => Set<TicketSoporte>();
     public DbSet<Inventario> Inventarios => Set<Inventario>();
     public DbSet<Equipo> Equipos => Set<Equipo>();
     public DbSet<ConfiguracionGeneral> ConfiguracionesGenerales => Set<ConfiguracionGeneral>();
@@ -192,6 +193,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(c => c.IdPaciente)
                   .OnDelete(DeleteBehavior.NoAction);
+                  
 
             entity.HasOne(c => c.Profesional)
                   .WithMany()
@@ -330,6 +332,35 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(p => p.AtendidaPorUsuario)
                   .WithMany()
                   .HasForeignKey(p => p.AtendidaPor)
+                  .OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<TicketSoporte>(entity =>
+        {
+            entity.ToTable("Ticket_Soporte");
+            entity.HasKey(t => t.IdTicket);
+            entity.Property(t => t.IdTicket).HasColumnName("id_ticket");
+            entity.Property(t => t.Referencia).HasColumnName("referencia").HasMaxLength(20);
+            entity.Property(t => t.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(t => t.Asunto).HasColumnName("asunto");
+            entity.Property(t => t.Categoria).HasColumnName("categoria");
+            entity.Property(t => t.ModuloAfectado).HasColumnName("modulo_afectado");
+            entity.Property(t => t.Severidad).HasColumnName("severidad");
+            entity.Property(t => t.Descripcion).HasColumnName("descripcion");
+            entity.Property(t => t.CapturaPantalla).HasColumnName("captura_pantalla");
+            entity.Property(t => t.Estado).HasColumnName("estado");
+            entity.Property(t => t.FechaCreacion).HasColumnName("fecha_creacion");
+            entity.Property(t => t.FechaRespuesta).HasColumnName("fecha_respuesta");
+            entity.Property(t => t.Respuesta).HasColumnName("respuesta");
+            entity.Property(t => t.AtendidoPor).HasColumnName("atendido_por");
+
+            entity.HasOne(t => t.Usuario)
+                  .WithMany()
+                  .HasForeignKey(t => t.IdUsuario)
+                  .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(t => t.AtendidoPorUsuario)
+                  .WithMany()
+                  .HasForeignKey(t => t.AtendidoPor)
                   .OnDelete(DeleteBehavior.NoAction);
         });
 

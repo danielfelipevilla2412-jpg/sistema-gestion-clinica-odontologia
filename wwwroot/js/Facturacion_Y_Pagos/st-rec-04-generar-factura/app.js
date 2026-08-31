@@ -318,8 +318,43 @@ const initPayment = () => {
       return;
     }
 
-    // Marca factura como pagada
+    
+    btnPay.disabled = true;
+    btnPay.setAttribute('aria-disabled', 'true');
+
+    try {
+      // 1) Crear la factura real en SQL Server.
+      const creado = await window.apiRequest('/facturacion-y-pagos/api/facturas', {
+        method: 'POST',
+        body: { idPaciente, notas: null, items }
+      });
+
+      if (!creado || creado.success !== true) {
+        showToast(creado?.message || 'No fue posible registrar la factura.', 'error');
+        btnPay.disabled = false;
+        btnPay.removeAttribute('aria-disabled');
+        return;
+      }
+
+      const idFactura = creado.data.id;
+
+      // 2) Registrar el pago recibido sobre esa factura.
+      const pago = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${idFactura}/pago`, {
+        method: 'PUT',
+        body: { montoPagado: total }
+      });
+
+      if (!pago || pago.success !== true) {
+        showToast(pago?.message || 'La factura se creó pero no fue posible registrar el pago.', 'error');
+        btnPay.disabled = false;
+        btnPay.removeAttribute('aria-disabled');
+        return;
+      }
     window.isPaid = true;
+
+    // Actualiza número de factura visible con el generado por el servidor.
+      const invoiceNumberEl = document.querySelector('.invoice-number');
+      if (invoiceNumberEl) invoiceNumberEl.textContent = creado.data.numero;
 
     // Actualiza badge de estado visual y ARIA
     const statusBadge = safeGetElement('statusBadge');
@@ -335,6 +370,7 @@ const initPayment = () => {
     const btnAddService = safeGetElement('btnAddService');
     const paymentMethod = safeGetElement('paymentMethod');
 
+    if (pacienteSelect) pacienteSelect.disabled = true;
     if (profesionalSelect) profesionalSelect.disabled = true;
     if (servicioSelect) servicioSelect.disabled = true;
     if (btnAddService) {
@@ -364,9 +400,15 @@ const initPayment = () => {
     // Calcula y muestra cambio si aplica
     const change = received - total;
     if (change > 0) {
-      showToast(`✓ Pago registrado. Cambio: ${formatCurrency(change)}`, 'success');
+      showToast(`✓ Factura ${creado.data.numero} registrada. Cambio: ${formatCurrency(change)}`, 'success');
     } else {
-      showToast('✓ Pago registrado exitosamente', 'success');
+       showToast(`✓ Factura ${creado.data.numero} registrada y pagada exitosamente`, 'success');
+      }
+    } catch (error) {
+      console.error('Error al registrar la factura/pago:', error);
+      showToast('Error de conexión al registrar la factura.', 'error');
+      btnPay.disabled = false;
+      btnPay.removeAttribute('aria-disabled');
     }
   });
 };
@@ -416,37 +458,12 @@ const initMobileMenu = () => {
   });
 };
 
-// Inicializa datos de ejemplo en tabla de items
-const initSampleData = () => {
-  const itemsBody = safeGetElement('invoiceItemsBody');
-  if (!itemsBody) return;
-
-  itemsBody.innerHTML = `
-    <tr data-price="30000" data-discount="0">
-      <td><span class="item-desc">Control de tratamiento</span><div class="item-sub">Pieza 23 — Seguimiento endodoncia</div></td>
-      <td class="text-center">1</td>
-      <td class="text-right">$30.000</td>
-      <td class="text-right">—</td>
-      <td class="text-right item-total">$30.000</td>
-      <td class="text-center no-print"><button class="btn-delete" title="Eliminar" aria-label="Eliminar Control de tratamiento">✕</button></td>
-    </tr>
-    <tr data-price="50000" data-discount="5000">
-      <td><span class="item-desc">Consulta General</span><div class="item-sub">Valoración y diagnóstico</div></td>
-      <td class="text-center">1</td>
-      <td class="text-right">$50.000</td>
-      <td class="text-right item-discount">$5.000</td>
-      <td class="text-right item-total">$45.000</td>
-      <td class="text-center no-print"><button class="btn-delete" title="Eliminar" aria-label="Eliminar Consulta General">✕</button></td>
-    </tr>
-  `;
-};
 
 // Función principal de inicialización
 const init = () => {
   window.isPaid = false;
 
   initMobileMenu();
-  initSampleData();
   recalculateInvoice();
   initDeleteHandlers();
   initPatientSelect();
@@ -465,5 +482,6 @@ const init = () => {
     // Remover listeners en implementación SPA real
   });
 };
+
 
 document.addEventListener('DOMContentLoaded', init);

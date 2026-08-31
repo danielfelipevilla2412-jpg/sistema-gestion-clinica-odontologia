@@ -512,34 +512,57 @@ BEGIN
     );
 END
 GO
-+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Detalle_Factura') AND type = N'U')
-+BEGIN
-+    CREATE TABLE Detalle_Factura (
-+        id_detalle INT IDENTITY(1,1) PRIMARY KEY,
-+        id_factura INT NOT NULL,
-+        id_servicio INT NULL,
-+        descripcion VARCHAR(200) NOT NULL,
-+        cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
-+        precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-+        subtotal_linea DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-+        CONSTRAINT FK_DetalleFactura_Factura FOREIGN KEY (id_factura) REFERENCES Factura(id_factura) ON DELETE CASCADE,
-+        CONSTRAINT FK_DetalleFactura_Servicio FOREIGN KEY (id_servicio) REFERENCES Servicio(id_servicio)
-+    );
-+END
-+GO
-+
-+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'monto_pagado')
-+BEGIN
-+    ALTER TABLE dbo.Factura ADD monto_pagado DECIMAL(12,2) NOT NULL DEFAULT 0.00;
-+END
-+GO
-+
-+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'fecha_pago')
-+BEGIN
-+    ALTER TABLE dbo.Factura ADD fecha_pago DATETIME NULL;
-+END
-+GO
-+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Detalle_Factura') AND type = N'U')
+BEGIN
+   CREATE TABLE Detalle_Factura (
+      id_detalle INT IDENTITY(1,1) PRIMARY KEY,
+       id_factura INT NOT NULL,
+     id_servicio INT NULL,
+      descripcion VARCHAR(200) NOT NULL,
+       cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+        precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        subtotal_linea DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        CONSTRAINT FK_DetalleFactura_Factura FOREIGN KEY (id_factura) REFERENCES Factura(id_factura) ON DELETE CASCADE,
+        CONSTRAINT FK_DetalleFactura_Servicio FOREIGN KEY (id_servicio) REFERENCES Servicio(id_servicio)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'monto_pagado')
+BEGIN
+    ALTER TABLE dbo.Factura ADD monto_pagado DECIMAL(12,2) NOT NULL DEFAULT 0.00;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'fecha_pago')
+BEGIN
+    ALTER TABLE dbo.Factura ADD fecha_pago DATETIME NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Ticket_Soporte') AND type = N'U')
+BEGIN
+    CREATE TABLE Ticket_Soporte (
+        id_ticket INT IDENTITY(1,1) PRIMARY KEY,
+        referencia VARCHAR(20) NOT NULL UNIQUE,
+        id_usuario INT NOT NULL,
+        asunto VARCHAR(200) NOT NULL,
+        categoria VARCHAR(20) NOT NULL CHECK (categoria IN ('incidente','consulta','solicitud','otro')),
+        modulo_afectado VARCHAR(20) NOT NULL CHECK (modulo_afectado IN ('citas','pacientes','facturacion','reportes','sistema')),
+        severidad VARCHAR(10) NOT NULL DEFAULT 'media' CHECK (severidad IN ('baja','media','alta')),
+        descripcion VARCHAR(MAX) NOT NULL,
+        captura_pantalla VARCHAR(255) NULL,
+        estado VARCHAR(20) NOT NULL DEFAULT 'abierto' CHECK (estado IN ('abierto','en_proceso','resuelto','cerrado')),
+        fecha_creacion DATETIME NOT NULL DEFAULT GETDATE(),
+        fecha_respuesta DATETIME NULL,
+        respuesta VARCHAR(MAX) NULL,
+        atendido_por INT NULL,
+        CONSTRAINT FK_TicketSoporte_Usuario FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario),
+        CONSTRAINT FK_TicketSoporte_Atendido FOREIGN KEY (atendido_por) REFERENCES Usuario(id_usuario)
+    );
+END
+GO
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.PQR') AND type = N'U')
 BEGIN
