@@ -7,12 +7,21 @@ using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Services;
 
 namespace SmileTrack_MVC.Controllers;
 
-public class HistoriaClinicaController(AppDbContext context) : Controller
+// Yeray - ACTUALIZACIÓN: la lógica que antes vivía como métodos privados
+// (GuardarOdontogramaInternoAsync, RegistrarNotaClinicaAsync,
+// RegistrarControlPostoperatorioAsync, CrearHistoriaClinicaAsync) se movió a
+// HistoriaClinicaService para que la comparta también la API REST nueva
+// (Controllers/Api/HistoriaClinicaApiController.cs), sin duplicar reglas de negocio.
+public class HistoriaClinicaController(
+    AppDbContext context,
+    IHistoriaClinicaService historiaService) : Controller
 {
     private readonly AppDbContext _context = context;
+    private readonly IHistoriaClinicaService _historiaService = historiaService;
 
     [HttpGet]
     [Authorize(Roles = "Administrador")]
@@ -73,39 +82,11 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
         if (request is null || request.CitaId is null)
             return Json(new { success = false, message = "No se recibió la cita del control postoperatorio." });
 
-        var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == request.CitaId);
-        if (cita is null)
-            return Json(new { success = false, message = "No se encontró la cita indicada." });
+        var (success, message) = await _historiaService.RegistrarControlPostoperatorioAsync(request);
 
-        var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == cita.IdPaciente && h.Activa)
-            ?? await CrearHistoriaClinicaAsync(cita.IdPaciente);
-
-        var actual = string.IsNullOrWhiteSpace(historia.ObservacionesGenerales)
-            ? new JsonObject()
-            : (JsonNode.Parse(historia.ObservacionesGenerales) as JsonObject) ?? new JsonObject();
-
-        var controles = actual["controlesPostoperatorios"] as JsonObject ?? new JsonObject();
-        var instructionsArray = new JsonArray();
-        foreach (var ins in request.Instructions ?? [])
-        {
-            instructionsArray.Add(new JsonObject
-            {
-                ["text"] = ins.Text ?? "",
-                ["checked"] = ins.Checked
-            });
-        }
-        controles[request.CitaId.Value.ToString()] = new JsonObject
-        {
-            ["status"] = request.Status ?? "stable",
-            ["instructions"] = instructionsArray,
-            ["observations"] = request.Observations ?? ""
-        };
-        actual["controlesPostoperatorios"] = controles;
-
-        historia.ObservacionesGenerales = actual.ToJsonString();
-        await _context.SaveChangesAsync();
-
-        return Json(new { success = true });
+        return success
+            ? Json(new { success = true })
+            : Json(new { success = false, message });
     }
 
     private static (string status, List<object> instructions, string observations) LeerControlPostoperatorio(string? observacionesGenerales, int citaId)
@@ -238,73 +219,20 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
         if (pacienteId is null)
             return Json(new { success = false, message = "No hay pacientes registrados en el sistema." });
 
-        var historia = await _context.HistoriasClinicas
-            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa)
-            ?? await CrearHistoriaClinicaAsync(pacienteId.Value);
-
         // Obtener el profesional actual para trazabilidad
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
 
-        // Yeray - Guardar en tabla Registro_Odontograma (estructurado por diente)
-        // Cada diente modificado se guarda como fila individual con trazabilidad real
-        // Se conserva también el JSON en ObservacionesGenerales para compatibilidad
-        // con la vista del odontograma 3D mientras se migra completamente.
-        foreach (var (instanceId, registroPieza) in request.Registros)
-        {
-            // Obtener número FDI desde el mapeo; si no está mapeado se usa el instanceId
-            string numeroFdi = request.MapeoFDI.TryGetValue(instanceId, out string? fdi)
-                ? fdi
-                : instanceId;
+        var (success, message, historiaId) = await _historiaService.GuardarOdontogramaInternoAsync(
+            pacienteId.Value, request, idProfesional);
 
-            // Solo el último tratamiento de cada pieza se guarda como estado actual
-            var ultimo = registroPieza.Tratamientos.LastOrDefault();
-            if (ultimo is null) continue;
-
-            // Verificar si ya existe un registro para esta pieza en esta historia
-            var registroExistente = await _context.RegistrosOdontograma
-                .Where(r => r.IdHistoria == historia.IdHistoria && r.NumeroFdi == numeroFdi)
-                .OrderByDescending(r => r.FechaRegistro)
-                .FirstOrDefaultAsync();
-
-            // Solo agregar nuevo registro si el estado cambió
-            bool estadoCambio = registroExistente is null
-                || !string.Equals(registroExistente.Estado, ultimo.Key, StringComparison.OrdinalIgnoreCase);
-
-            if (estadoCambio)
-            {
-                _context.RegistrosOdontograma.Add(new RegistroOdontograma
-                {
-                    IdHistoria    = historia.IdHistoria,
-                    NumeroFdi     = numeroFdi,
-                    NombrePieza   = registroPieza.NombrePieza,
-                    Estado        = ultimo.Key ?? "sano",
-                    Observacion   = ultimo.Obs,
-                    FechaRegistro = string.IsNullOrWhiteSpace(ultimo.Fecha)
-                        ? DateTime.UtcNow
-                        : DateTime.TryParse(ultimo.Fecha, out DateTime fechaParsed)
-                            ? fechaParsed
-                            : DateTime.UtcNow,
-                    IdProfesional = idProfesional,
-                    IdCita        = null // se puede pasar desde el request en el futuro
-                });
-            }
-        }
-
-        // Mantener JSON en ObservacionesGenerales para compatibilidad con el visor 3D
-        historia.ObservacionesGenerales = JsonSerializer.Serialize(new
-        {
-            registros    = request.Registros,
-            mapeoFDI     = request.MapeoFDI,
-            actualizadoEn = DateTime.UtcNow
-        });
-
-        await _context.SaveChangesAsync();
+        if (!success)
+            return Json(new { success = false, message });
 
         return Json(new
         {
-            success   = true,
-            historiaId = historia.IdHistoria,
-            message   = "Odontograma guardado correctamente."
+            success = true,
+            historiaId,
+            message
         });
     }
 
@@ -379,9 +307,6 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
         if (request is null || request.PacienteId is null)
             return Json(new { success = false, message = "No se recibió el paciente para la nota clínica." });
 
-        var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId && h.Activa)
-            ?? await CrearHistoriaClinicaAsync(request.PacienteId.Value);
-
         string? idUsuarioStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         int? idUsuario = int.TryParse(idUsuarioStr, out int uid) ? uid : null;
         var profesional = idUsuario.HasValue
@@ -389,32 +314,27 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
             : null;
         string doctor = profesional is not null ? $"Dr(a). {profesional.Nombres} {profesional.Apellidos}" : "Profesional";
 
-        // El esquema no tiene una tabla dedicada a "notas clínicas" libres, así que se
-        // guardan dentro del mismo JSON de ObservacionesGenerales que ya usa el odontograma,
-        // preservando los registros/mapeoFDI existentes.
-        var actual = string.IsNullOrWhiteSpace(historia.ObservacionesGenerales)
-            ? new JsonObject()
-            : (JsonNode.Parse(historia.ObservacionesGenerales) as JsonObject) ?? new JsonObject();
+        var (success, message, nota) = await _historiaService.RegistrarNotaClinicaAsync(
+            request.PacienteId.Value, request, profesional?.IdProfesional, doctor);
 
-        var notas = actual["notasClinicas"] as JsonArray ?? new JsonArray();
-        var nuevaNota = new JsonObject
+        if (!success || nota is null)
+            return Json(new { success = false, message });
+
+        // Se mantiene la misma forma que ya consume el JS de st-odo-03-historial.
+        return Json(new
         {
-            ["titulo"] = request.Procedimiento ?? request.Diagnostico ?? "Nota clínica",
-            ["fecha"] = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-            ["doctor"] = doctor,
-            ["diagnostico"] = request.Diagnostico ?? "",
-            ["procedimiento"] = request.Procedimiento ?? "",
-            ["proximaCita"] = request.ProximaCita,
-            ["estado"] = "Realizado"
-        };
-        notas.Insert(0, nuevaNota);
-        actual["notasClinicas"] = notas;
-        actual["actualizadoEn"] = DateTime.UtcNow;
-
-        historia.ObservacionesGenerales = actual.ToJsonString();
-        await _context.SaveChangesAsync();
-
-        return Json(new { success = true, nota = nuevaNota });
+            success = true,
+            nota = new
+            {
+                titulo = nota.Procedimiento ?? nota.Diagnostico ?? "Nota clínica",
+                fecha = nota.Fecha.ToString("yyyy-MM-dd"),
+                doctor = nota.Doctor,
+                diagnostico = nota.Diagnostico ?? "",
+                procedimiento = nota.Procedimiento ?? "",
+                proximaCita = nota.ProximaCita,
+                estado = nota.Estado
+            }
+        });
     }
 
     [HttpGet]
@@ -619,7 +539,7 @@ private static string InferirTipoServicio(string? nombreServicio)
 
         var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdHistoria == historiaId)
             ?? await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == paciente.IdPaciente && h.Activa)
-            ?? await CrearHistoriaClinicaAsync(paciente.IdPaciente);
+            ?? await _historiaService.CrearHistoriaClinicaAsync(paciente.IdPaciente);
 
         string profesionalNombre = User.FindFirst(ClaimTypes.Name)?.Value ?? "Profesional";
         string profesionalCorreo = User.FindFirst(ClaimTypes.Email)?.Value ?? "";
@@ -635,27 +555,6 @@ private static string InferirTipoServicio(string? nombreServicio)
             ProfesionalCorreo = profesionalCorreo,
             ObservacionesGenerales = historia.ObservacionesGenerales
         };
-    }
-
-    private async Task<HistoriaClinica> CrearHistoriaClinicaAsync(int pacienteId)
-    {
-        var historiaExistente = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
-        if (historiaExistente is not null)
-        {
-            return historiaExistente;
-        }
-
-        var historia = new HistoriaClinica
-        {
-            IdPaciente = pacienteId,
-            FechaApertura = DateTime.UtcNow,
-            Activa = true,
-            ObservacionesGenerales = string.Empty
-        };
-
-        _context.HistoriasClinicas.Add(historia);
-        await _context.SaveChangesAsync();
-        return historia;
     }
 
     private async Task<int?> ObtenerPacientePredeterminadoAsync()
