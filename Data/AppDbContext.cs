@@ -17,6 +17,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<EstadoCita> EstadosCita => Set<EstadoCita>();
     public DbSet<Cita> Citas => Set<Cita>();
     public DbSet<HistoriaClinica> HistoriasClinicas => Set<HistoriaClinica>();
+
+    // Yeray - Agregado DbSet para tabla Registro_Odontograma
+    // Permite trazabilidad real por diente en lugar de JSON en ObservacionesGenerales
+    public DbSet<RegistroOdontograma> RegistrosOdontograma => Set<RegistroOdontograma>();
     public DbSet<Auditoria> Auditorias => Set<Auditoria>();
     public DbSet<AuditoriaRecuperacion> AuditoriasRecuperacion => Set<AuditoriaRecuperacion>();
     public DbSet<Factura> Facturas => Set<Factura>();
@@ -227,6 +231,42 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithOne()
                   .HasForeignKey<HistoriaClinica>(h => h.IdPaciente)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Yeray - Configuración Fluent API para Registro_Odontograma
+        // Tabla nueva que reemplaza el JSON en Historia_Clinica.observaciones_generales
+        // con registros estructurados por diente con trazabilidad real
+        modelBuilder.Entity<RegistroOdontograma>(entity =>
+        {
+            entity.ToTable("Registro_Odontograma");
+            entity.HasKey(r => r.IdRegistro);
+            entity.Property(r => r.IdRegistro).HasColumnName("id_registro");
+            entity.Property(r => r.IdHistoria).HasColumnName("id_historia");
+            entity.Property(r => r.NumeroFdi).HasColumnName("numero_fdi").HasMaxLength(5);
+            entity.Property(r => r.NombrePieza).HasColumnName("nombre_pieza").HasMaxLength(150);
+            entity.Property(r => r.Estado).HasColumnName("estado").HasMaxLength(50);
+            entity.Property(r => r.Observacion).HasColumnName("observacion");
+            entity.Property(r => r.FechaRegistro).HasColumnName("fecha_registro");
+            entity.Property(r => r.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(r => r.IdCita).HasColumnName("id_cita");
+
+            // Yeray - Relación: una HC tiene muchos registros (CASCADE al borrar HC)
+            entity.HasOne(r => r.HistoriaClinica)
+                  .WithMany()
+                  .HasForeignKey(r => r.IdHistoria)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // Yeray - Relación: profesional SET NULL al eliminar (no pierde el registro)
+            entity.HasOne(r => r.Profesional)
+                  .WithMany()
+                  .HasForeignKey(r => r.IdProfesional)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            // Yeray - Relación: cita SET NULL al eliminar (registro queda huérfano pero no se borra)
+            entity.HasOne(r => r.Cita)
+                  .WithMany()
+                  .HasForeignKey(r => r.IdCita)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Auditoria>(entity =>

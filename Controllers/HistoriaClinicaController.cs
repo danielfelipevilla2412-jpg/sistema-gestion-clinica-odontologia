@@ -232,26 +232,142 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
     public async Task<IActionResult> GuardarOdontograma([FromBody] OdontogramaGuardarRequest request)
     {
         if (request is null)
-        {
             return Json(new { success = false, message = "No se recibieron datos del odontograma." });
-        }
 
         int? pacienteId = request.PacienteId ?? await ObtenerPacientePredeterminadoAsync();
         if (pacienteId is null)
             return Json(new { success = false, message = "No hay pacientes registrados en el sistema." });
-        var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa)
-        ?? await CrearHistoriaClinicaAsync(pacienteId.Value);
 
+        var historia = await _context.HistoriasClinicas
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa)
+            ?? await CrearHistoriaClinicaAsync(pacienteId.Value);
+
+        // Obtener el profesional actual para trazabilidad
+        int? idProfesional = await ObtenerIdProfesionalActualAsync();
+
+        // Yeray - Guardar en tabla Registro_Odontograma (estructurado por diente)
+        // Cada diente modificado se guarda como fila individual con trazabilidad real
+        // Se conserva también el JSON en ObservacionesGenerales para compatibilidad
+        // con la vista del odontograma 3D mientras se migra completamente.
+        foreach (var (instanceId, registroPieza) in request.Registros)
+        {
+            // Obtener número FDI desde el mapeo; si no está mapeado se usa el instanceId
+            string numeroFdi = request.MapeoFDI.TryGetValue(instanceId, out string? fdi)
+                ? fdi
+                : instanceId;
+
+            // Solo el último tratamiento de cada pieza se guarda como estado actual
+            var ultimo = registroPieza.Tratamientos.LastOrDefault();
+            if (ultimo is null) continue;
+
+            // Verificar si ya existe un registro para esta pieza en esta historia
+            var registroExistente = await _context.RegistrosOdontograma
+                .Where(r => r.IdHistoria == historia.IdHistoria && r.NumeroFdi == numeroFdi)
+                .OrderByDescending(r => r.FechaRegistro)
+                .FirstOrDefaultAsync();
+
+            // Solo agregar nuevo registro si el estado cambió
+            bool estadoCambio = registroExistente is null
+                || !string.Equals(registroExistente.Estado, ultimo.Key, StringComparison.OrdinalIgnoreCase);
+
+            if (estadoCambio)
+            {
+                _context.RegistrosOdontograma.Add(new RegistroOdontograma
+                {
+                    IdHistoria    = historia.IdHistoria,
+                    NumeroFdi     = numeroFdi,
+                    NombrePieza   = registroPieza.NombrePieza,
+                    Estado        = ultimo.Key ?? "sano",
+                    Observacion   = ultimo.Obs,
+                    FechaRegistro = string.IsNullOrWhiteSpace(ultimo.Fecha)
+                        ? DateTime.UtcNow
+                        : DateTime.TryParse(ultimo.Fecha, out DateTime fechaParsed)
+                            ? fechaParsed
+                            : DateTime.UtcNow,
+                    IdProfesional = idProfesional,
+                    IdCita        = null // se puede pasar desde el request en el futuro
+                });
+            }
+        }
+
+        // Mantener JSON en ObservacionesGenerales para compatibilidad con el visor 3D
         historia.ObservacionesGenerales = JsonSerializer.Serialize(new
         {
-            registros = request.Registros,
-            mapeoFDI = request.MapeoFDI,
+            registros    = request.Registros,
+            mapeoFDI     = request.MapeoFDI,
             actualizadoEn = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
 
-        return Json(new { success = true, historiaId = historia.IdHistoria, message = "Odontograma guardado correctamente." });
+        return Json(new
+        {
+            success   = true,
+            historiaId = historia.IdHistoria,
+            message   = "Odontograma guardado correctamente."
+        });
+    }
+
+    // Yeray - Nuevo endpoint para tooltip del odontograma
+    // Consulta Registro_Odontograma por numero FDI y devuelve historial real del diente
+    // con profesional que lo trató, fecha y citas relacionadas desde BD
+    /// <summary>
+    /// Devuelve el historial de registros de un diente específico (por número FDI)
+    /// para mostrar en el tooltip del odontograma con datos reales de BD.
+    /// </summary>
+    [HttpGet]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-04-odontograma/diente-info")]
+    public async Task<IActionResult> ObtenerInfoDiente(
+        [FromQuery] int pacienteId,
+        [FromQuery] string numerofdi)
+    {
+        // Obtener la historia clínica activa del paciente
+        var historia = await _context.HistoriasClinicas
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
+
+        if (historia is null)
+            return Json(new { success = true, registros = Array.Empty<object>(), citas = Array.Empty<object>() });
+
+        // Historial de estados del diente desde Registro_Odontograma
+        var registrosDiente = await _context.RegistrosOdontograma
+            .Include(r => r.Profesional)
+            .Where(r => r.IdHistoria == historia.IdHistoria && r.NumeroFdi == numerofdi)
+            .OrderByDescending(r => r.FechaRegistro)
+            .Select(r => new
+            {
+                estado       = r.Estado,
+                observacion  = r.Observacion ?? "",
+                fecha        = r.FechaRegistro.ToString("dd MMM yyyy · HH:mm"),
+                profesional  = r.Profesional != null
+                    ? $"Dr(a). {r.Profesional.Nombres} {r.Profesional.Apellidos}"
+                    : "Sin asignar"
+            })
+            .ToListAsync();
+
+        // Citas completadas del paciente para contexto adicional
+        var citas = await _context.Citas
+            .Include(c => c.Profesional)
+            .Include(c => c.Servicio)
+            .Include(c => c.Consultorio)
+            .Where(c => c.IdPaciente == pacienteId
+                && (c.Estado == "Atendida" || c.Estado == "Completada" || c.Estado == "atendida"))
+            .OrderByDescending(c => c.FechaHora)
+            .Take(5)
+            .Select(c => new
+            {
+                fecha       = c.FechaHora.ToString("dd MMM yyyy · HH:mm"),
+                servicio    = c.Servicio != null ? c.Servicio.Nombre : "Servicio no especificado",
+                profesional = c.Profesional != null
+                    ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}"
+                    : "Sin asignar",
+                consultorio = c.Consultorio != null
+                    ? $"{c.Consultorio.Nombre}"
+                    : "Sin consultorio"
+            })
+            .ToListAsync();
+
+        return Json(new { success = true, registros = registrosDiente, citas });
     }
 
     [HttpPost]

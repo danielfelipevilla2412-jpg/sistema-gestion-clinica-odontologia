@@ -675,6 +675,8 @@ IF NOT EXISTS (SELECT 1 FROM Especialidad WHERE nombre='Odontopediatría')
     VALUES ('Odontopediatría','Odontología para niños y adolescentes');
 GO
 
+
+
 -- ============================================================
 -- 7.1) ADMINISTRADOR INICIAL
 -- Unico usuario creado automaticamente para poder iniciar sesion.
@@ -696,4 +698,111 @@ END
 GO
 
 PRINT 'SCRIPT_SQL_UNICO_SMILETRACK ejecutado: esquema y catalogos base listos, sin datos ficticios de negocio.';
+GO
+
+-- ============================================================
+-- SCRIPT: Agregar tabla Registro_Odontograma  (yeray)
+-- Propósito: Reemplazar el JSON en Historia_Clinica.observaciones_generales
+--            por registros estructurados por diente, con trazabilidad real.
+-- Ejecutar contra: SmileTrackDB
+-- ============================================================
+
+
+GO
+
+-- ── 1. Crear tabla Registro_Odontograma ──────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.objects
+    WHERE object_id = OBJECT_ID(N'dbo.Registro_Odontograma') AND type = N'U'
+)
+BEGIN
+    CREATE TABLE dbo.Registro_Odontograma (
+        id_registro       INT IDENTITY(1,1) PRIMARY KEY,
+
+        -- Relación con Historia Clínica (1 HC puede tener muchos registros)
+        id_historia       INT NOT NULL,
+
+        -- Número FDI del diente (11-48 adulto, 51-85 niño)
+        numero_fdi        VARCHAR(5)   NOT NULL,
+
+        -- Nombre legible del diente (ej: "Incisivo central superior derecho")
+        nombre_pieza      VARCHAR(150) NULL,
+
+        -- Estado clínico registrado (sano, caries, endodoncia, corona, etc.)
+        estado            VARCHAR(50)  NOT NULL,
+
+        -- Observación libre del profesional sobre ese diente
+        observacion       VARCHAR(MAX) NULL,
+
+        -- Fecha y hora exactas del registro
+        fecha_registro    DATETIME NOT NULL DEFAULT GETDATE(),
+
+        -- Profesional que hizo el registro (trazabilidad)
+        id_profesional    INT NULL,
+
+        -- Cita en la que se realizó el tratamiento (opcional pero recomendado)
+        id_cita           INT NULL,
+
+        CONSTRAINT FK_RO_Historia     FOREIGN KEY (id_historia)
+            REFERENCES dbo.Historia_Clinica(id_historia),
+
+        CONSTRAINT FK_RO_Profesional  FOREIGN KEY (id_profesional)
+            REFERENCES dbo.Profesional(id_profesional) ON DELETE SET NULL,
+
+        CONSTRAINT FK_RO_Cita         FOREIGN KEY (id_cita)
+            REFERENCES dbo.Cita(id_cita) ON DELETE SET NULL
+    );
+
+    PRINT 'Tabla Registro_Odontograma creada correctamente.';
+END
+ELSE
+    PRINT 'Tabla Registro_Odontograma ya existe — sin cambios.';
+GO
+
+-- ── 2. Índices para consultas frecuentes ─────────────────────
+
+-- Buscar todos los registros de una historia clínica
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_RO_Historia' AND object_id = OBJECT_ID(N'dbo.Registro_Odontograma')
+)
+    CREATE INDEX IX_RO_Historia
+        ON dbo.Registro_Odontograma (id_historia);
+GO
+
+-- Buscar registros de un diente específico dentro de una historia
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_RO_Historia_FDI' AND object_id = OBJECT_ID(N'dbo.Registro_Odontograma')
+)
+    CREATE INDEX IX_RO_Historia_FDI
+        ON dbo.Registro_Odontograma (id_historia, numero_fdi);
+GO
+
+-- Buscar por profesional (para reportes y auditoría)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_RO_Profesional' AND object_id = OBJECT_ID(N'dbo.Registro_Odontograma')
+)
+    CREATE INDEX IX_RO_Profesional
+        ON dbo.Registro_Odontograma (id_profesional);
+GO
+
+PRINT 'Índices de Registro_Odontograma creados correctamente.';
+GO
+
+-- ── 3. Verificación final ─────────────────────────────────────
+SELECT
+    t.name AS tabla,
+    c.name AS columna,
+    tp.name AS tipo,
+    c.is_nullable AS acepta_null
+FROM sys.tables t
+JOIN sys.columns c ON c.object_id = t.object_id
+JOIN sys.types tp  ON tp.user_type_id = c.user_type_id
+WHERE t.name = 'Registro_Odontograma'
+ORDER BY c.column_id;
+GO
+
+PRINT 'Script ejecutado correctamente.';
 GO
