@@ -446,6 +446,14 @@ builder.Services.AddScoped<
     SmileTrack_MVC.Services.IUsuarioAdminService,
     SmileTrack_MVC.Services.UsuarioAdminService>();
 
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IUsuariosApiService,
+    SmileTrack_MVC.Services.UsuariosApiService>();
+
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IReportesApiService,
+    SmileTrack_MVC.Services.ReportesApiService>();
+
 builder.Services.Configure<
     SmileTrack_MVC.Services.Email.EmailServiceOptions>(
         builder.Configuration.GetSection("Smtp"));
