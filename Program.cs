@@ -13,6 +13,7 @@ using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Email;
 using System.Security.Claims;
 using System.Net;
@@ -184,6 +185,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryCount: 3,
             maxRetryDelay: TimeSpan.FromSeconds(3),
             errorNumbersToAdd: null)));
+
+builder.Services.AddScoped<ICitaService, CitaService>();
 
 // -----------------------------------------------------------------------------
 // JWT

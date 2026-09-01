@@ -39,6 +39,7 @@ using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Email;
 using System.Net;
 using System.Security.Claims;
@@ -48,11 +49,13 @@ namespace SmileTrack_MVC.Controllers;
 public class GestionCitasController(
     AppDbContext context,
     ILogger<GestionCitasController> logger,
-    IEmailService emailService) : Controller
+    IEmailService emailService,
+    ICitaService citaService) : Controller
 {
     private readonly AppDbContext _context = context;
     private readonly ILogger<GestionCitasController> _logger = logger;
     private readonly IEmailService _emailService = emailService;
+    private readonly ICitaService _citaService = citaService;
 
     /*
      * REGLA DE NEGOCIO:

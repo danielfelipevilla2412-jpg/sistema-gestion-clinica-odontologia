@@ -678,7 +678,7 @@ public partial class ProfesionalService : IProfesionalService
     private static ProfesionalApiDto MapToDto(Profesional p) => new()
     {
         IdProfesional = p.IdProfesional,
-        IdUsuario = p.IdUsuario,
+        IdUsuario = p.IdUsuario ?? 0,
         Nombres = p.Nombres,
         Apellidos = p.Apellidos,
         RegistroMedico = p.RegistroMedico,
