@@ -91,17 +91,20 @@ const animateCounters = () => {
 //  VARIABLES GLOBALES
 // ═══════════════════════════════════════════════════════════════════
 
-// Yeray (2025) - Se agrega serverSearch para controlar si la búsqueda
-// activa ya llega del servidor o del array local de la primera carga.
-let searchQuery   = '';
+// Yeray (2025) - estadoFiltro: controla el filtro de estado del paciente
+// (activo / inactivo / retirado / todos). Se envía al endpoint /buscar
+// como parámetro estado= y se aplica siempre en el servidor, no en cliente.
+// ANTES: el listado solo mostraba activos y no había selector en la UI.
+let searchQuery    = '';
+let estadoFiltro   = 'activo';   // default: solo activos (comportamiento anterior)
 let filterAlergias = '';
 let filterCita     = '';
 let filterHistorial = '';
-let currentPage   = 1;
-let serverTotal   = 0;   // total de resultados según el servidor
-let serverPages   = 1;   // total de páginas según el servidor
+let currentPage    = 1;
+let serverTotal    = 0;
+let serverPages    = 1;
 
-const itemsPerPage = 20; // alineado con el pageSize del endpoint /buscar
+const itemsPerPage = 20;
 
 // ═══════════════════════════════════════════════════════════════════
 //  FORMATO DE FECHAS
@@ -250,11 +253,13 @@ const fetchPacientes = async () => {
   if (_fetchController) _fetchController.abort();
   _fetchController = new AbortController();
 
+  // Yeray (2025) - se agrega estado= para soportar inactivos/retirados/todos
   const params = new URLSearchParams({
     page:     String(currentPage),
-    pageSize: String(itemsPerPage)
+    pageSize: String(itemsPerPage),
+    estado:   estadoFiltro        // siempre se envía; default 'activo'
   });
-  if (searchQuery)  params.set('search', searchQuery);
+  if (searchQuery) params.set('search', searchQuery);
 
   try {
     const resp = await fetch(
@@ -269,7 +274,7 @@ const fetchPacientes = async () => {
     serverPages = json.totalPages ?? 1;
 
   } catch (err) {
-    if (err.name === 'AbortError') return; // fetch cancelado, ignorar
+    if (err.name === 'AbortError') return;
     console.error('[SmileTrack][Pacientes] Error búsqueda server-side:', err);
   }
 };
@@ -297,10 +302,10 @@ const renderPatients = async () => {
   let totalForPagination;
   let totalPagesForPagination;
 
-  if (searchQuery.trim() !== '') {
-    // ── Búsqueda activa: el servidor pagina y filtra por texto ──────────
+  if (searchQuery.trim() !== '' || estadoFiltro !== 'activo') {
+    // ── Búsqueda o estado distinto de activo: el servidor filtra ───────────
     await fetchPacientes();
-    displayPatients          = getFilteredPatients(); // filtros locales sobre la página
+    displayPatients          = getFilteredPatients();
     totalForPagination       = serverTotal;
     totalPagesForPagination  = serverPages;
   } else {
@@ -975,6 +980,64 @@ const openPatientModal = (id, type) => {
 
         </div>
 
+        <!-- Yeray (2025) - campos nuevos: antes solo editables vía API REST -->
+        <div class="form-group">
+
+          <label
+            class="form-label"
+            for="editContactoEmergencia"
+          >
+            Contacto de emergencia
+          </label>
+
+          <input
+            type="text"
+            id="editContactoEmergencia"
+            class="form-input"
+            placeholder="Nombre del contacto"
+            value="${patient.ContactoEmergencia || ''}"
+          />
+
+        </div>
+
+        <div class="form-group">
+
+          <label
+            class="form-label"
+            for="editTelefonoEmergencia"
+          >
+            Teléfono de emergencia
+          </label>
+
+          <input
+            type="tel"
+            id="editTelefonoEmergencia"
+            class="form-input"
+            placeholder="Ej. 300 123 4567"
+            value="${patient.TelefonoEmergencia || ''}"
+          />
+
+        </div>
+
+        <div class="form-group" style="grid-column: 1 / -1;">
+
+          <label
+            class="form-label"
+            for="editAntecedentesMedicos"
+          >
+            Antecedentes médicos
+          </label>
+
+          <textarea
+            id="editAntecedentesMedicos"
+            class="form-input"
+            rows="3"
+            placeholder="Enfermedades previas, cirugías, condiciones crónicas..."
+            style="resize:vertical;min-height:72px;"
+          >${patient.AntecedentesMedicos || ''}</textarea>
+
+        </div>
+
         <div
           style="
             display:flex;
@@ -1083,6 +1146,22 @@ const openPatientModal = (id, type) => {
           safeGetElement('editGenero')
             ?.value || '';
 
+        // Yeray (2025) - campos nuevos enviados al endpoint actualizar
+        const contactoEmergencia =
+          safeGetElement('editContactoEmergencia')
+            ?.value
+            .trim() ?? '';
+
+        const telefonoEmergencia =
+          safeGetElement('editTelefonoEmergencia')
+            ?.value
+            .trim() ?? '';
+
+        const antecedentesMedicos =
+          safeGetElement('editAntecedentesMedicos')
+            ?.value
+            .trim() ?? '';
+
         data.append(
           'idPaciente',
           String(patient.Id)
@@ -1122,6 +1201,11 @@ const openPatientModal = (id, type) => {
           'genero',
           genero
         );
+
+        // Yeray (2025) - append de los 3 campos nuevos
+        data.append('contactoEmergencia',  contactoEmergencia);
+        data.append('telefonoEmergencia',  telefonoEmergencia);
+        data.append('antecedentesMedicos', antecedentesMedicos);
 
         data.append(
           'estado',
@@ -1190,6 +1274,11 @@ const openPatientModal = (id, type) => {
                   .filter(Boolean)
 
               : [];
+
+          // Yeray (2025) - sincronizar los 3 campos nuevos en memoria
+          patient.ContactoEmergencia  = contactoEmergencia  || null;
+          patient.TelefonoEmergencia  = telefonoEmergencia  || null;
+          patient.AntecedentesMedicos = antecedentesMedicos || null;
 
           showToast(
             'Paciente actualizado correctamente.',
@@ -1643,9 +1732,16 @@ const initFilters = () => {
     await renderPatients();
     const clearBtn = safeGetElement('btnClearFilters');
     if (clearBtn) {
-      clearBtn.classList.toggle('active', !!(filterAlergias || filterCita || filterHistorial));
+      clearBtn.classList.toggle('active', !!(filterAlergias || filterCita || filterHistorial || estadoFiltro !== 'activo'));
     }
   };
+
+  // Yeray (2025) - selector de estado: conecta filterEstado a estadoFiltro
+  // y dispara fetchPacientes (server-side) porque el estado se filtra en BD.
+  safeGetElement('filterEstado')?.addEventListener('change', (e) => {
+    estadoFiltro = e.target.value;
+    applyFilters();
+  });
 
   safeGetElement('filterAlergias')?.addEventListener('change', (e) => {
     filterAlergias = e.target.value; applyFilters();
@@ -1658,13 +1754,21 @@ const initFilters = () => {
   });
 
   safeGetElement('btnClearFilters')?.addEventListener('click', () => {
-    filterAlergias = ''; filterCita = ''; filterHistorial = '';
-    const sel1 = safeGetElement('filterAlergias');
-    const sel2 = safeGetElement('filterCita');
-    const sel3 = safeGetElement('filterHistorial');
+    estadoFiltro    = 'activo';   // vuelve al default
+    filterAlergias  = '';
+    filterCita      = '';
+    filterHistorial = '';
+
+    const selEstado = safeGetElement('filterEstado');
+    const sel1      = safeGetElement('filterAlergias');
+    const sel2      = safeGetElement('filterCita');
+    const sel3      = safeGetElement('filterHistorial');
+
+    if (selEstado) selEstado.value = 'activo';
     if (sel1) sel1.value = '';
     if (sel2) sel2.value = '';
     if (sel3) sel3.value = '';
+
     applyFilters();
   });
 };

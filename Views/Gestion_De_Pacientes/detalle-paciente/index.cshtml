@@ -371,6 +371,56 @@
         }
       </div>
 
+      <!-- Archivo adjunto del paciente -->
+      @* Yeray (2025) - Sección nueva para ArchivoAdjunto.
+         ANTES: el campo existía en la entidad y la BD pero nunca tenía UI ni endpoint.
+         AHORA: muestra la imagen actual (si existe) y permite subir una nueva o eliminarla
+                usando el endpoint POST /gestion-de-pacientes/{id}/archivo-adjunto. *@
+      <div class="section-card" aria-labelledby="secArchivo">
+        <h2 class="section-title" id="secArchivo">📎 Foto / Documento adjunto</h2>
+
+        @if (!string.IsNullOrWhiteSpace(Model.ArchivoAdjunto))
+        {
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <img src="/@Model.ArchivoAdjunto"
+                 alt="Archivo adjunto de @Model.Name"
+                 style="max-width:120px;max-height:120px;border-radius:8px;
+                        border:1px solid var(--border);object-fit:cover;" />
+            <div>
+              <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">
+                Archivo actual: <strong>@System.IO.Path.GetFileName(Model.ArchivoAdjunto)</strong>
+              </p>
+              <button class="btn-secondary" id="btnCambiarArchivo" style="font-size:.82rem;padding:6px 14px;">
+                🔄 Cambiar
+              </button>
+              <button class="btn-secondary" id="btnEliminarArchivo"
+                      style="font-size:.82rem;padding:6px 14px;color:var(--red);border-color:var(--red);margin-left:6px;">
+                🗑️ Eliminar
+              </button>
+            </div>
+          </div>
+        }
+        else
+        {
+          <p class="field-value empty" style="margin-bottom:12px;">Sin archivo adjunto</p>
+        }
+
+        <!-- Input de subida (oculto, se activa con los botones) -->
+        <div id="uploadZone" style="margin-top:12px;@(string.IsNullOrWhiteSpace(Model.ArchivoAdjunto) ? "" : "display:none;")">
+          <input type="file" id="inputArchivo" accept="image/jpeg,image/png,image/webp"
+                 style="display:none;" aria-label="Seleccionar archivo adjunto" />
+          <button class="btn-secondary" id="btnSeleccionarArchivo"
+                  style="font-size:.85rem;padding:8px 18px;">
+            📁 Seleccionar imagen (JPG, PNG o WEBP — máx. 5 MB)
+          </button>
+          <span id="archivoNombre" style="font-size:.82rem;color:var(--text-muted);margin-left:10px;"></span>
+          <button class="btn-primary" id="btnSubirArchivo" disabled
+                  style="font-size:.85rem;padding:8px 18px;margin-left:8px;">
+            ⬆️ Subir
+          </button>
+        </div>
+      </div>
+
       <!-- Historial de citas -->
       <div class="section-card full-width" aria-labelledby="secHistorial">
         <h2 class="section-title" id="secHistorial">📋 Historial de citas</h2>
@@ -427,6 +477,99 @@
     document.getElementById('btnEditarPaciente')?.addEventListener('click', () => {
       window.location.href =
         `/gestion-de-pacientes/st-adm-05-gestion-pacientes#editar-${pacienteId}`;
+    });
+
+    // ── Archivo adjunto ───────────────────────────────────────────────────────
+    // Yeray (2025) - Lógica de upload / eliminación del ArchivoAdjunto.
+    //
+    // Flujo:
+    //   1. Si hay archivo → botones "Cambiar" y "Eliminar" visibles.
+    //   2. "Cambiar" muestra la zona de upload (igual que cuando no hay archivo).
+    //   3. "Seleccionar imagen" abre el input[type=file] oculto.
+    //   4. Al seleccionar el archivo se habilita el botón "Subir".
+    //   5. "Subir" hace POST multipart a /{id}/archivo-adjunto y recarga la página
+    //      para mostrar la nueva imagen (evita lógica compleja de reemplazo en DOM).
+    //   6. "Eliminar" hace POST a /{id}/archivo-adjunto/eliminar y recarga.
+
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+    // Botón "Cambiar" (solo visible si ya hay archivo)
+    document.getElementById('btnCambiarArchivo')?.addEventListener('click', () => {
+      document.getElementById('uploadZone').style.display = '';
+    });
+
+    // Botón "Seleccionar imagen" abre el input oculto
+    document.getElementById('btnSeleccionarArchivo')?.addEventListener('click', () => {
+      document.getElementById('inputArchivo')?.click();
+    });
+
+    // Al seleccionar archivo: mostrar nombre y habilitar botón Subir
+    document.getElementById('inputArchivo')?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      document.getElementById('archivoNombre').textContent = file.name;
+      const btn = document.getElementById('btnSubirArchivo');
+      if (btn) btn.disabled = false;
+    });
+
+    // Botón "Subir": envía multipart al servidor
+    document.getElementById('btnSubirArchivo')?.addEventListener('click', async () => {
+      const input = document.getElementById('inputArchivo');
+      const file  = input?.files?.[0];
+      if (!file) return;
+
+      const btn = document.getElementById('btnSubirArchivo');
+      btn.disabled    = true;
+      btn.textContent = '⏳ Subiendo...';
+
+      const fd = new FormData();
+      fd.append('archivo', file, file.name);
+
+      try {
+        const resp = await fetch(
+          `/gestion-de-pacientes/${pacienteId}/archivo-adjunto`,
+          {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+            body: fd,
+            credentials: 'same-origin'
+          }
+        );
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.ok === false) throw new Error(data.message || 'Error al subir el archivo.');
+
+        showToast('✅ Archivo adjunto guardado correctamente.');
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        showToast(err.message || 'No se pudo subir el archivo.', 'error');
+        btn.disabled    = false;
+        btn.textContent = '⬆️ Subir';
+      }
+    });
+
+    // Botón "Eliminar": elimina el archivo del disco y limpia el campo en BD
+    document.getElementById('btnEliminarArchivo')?.addEventListener('click', async () => {
+      if (!confirm('¿Seguro que deseas eliminar el archivo adjunto?')) return;
+
+      try {
+        const fd = new FormData();
+        const resp = await fetch(
+          `/gestion-de-pacientes/${pacienteId}/archivo-adjunto/eliminar`,
+          {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+            body: fd,
+            credentials: 'same-origin'
+          }
+        );
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.ok === false) throw new Error(data.message || 'Error al eliminar el archivo.');
+
+        showToast('✅ Archivo eliminado correctamente.');
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        showToast(err.message || 'No se pudo eliminar el archivo.', 'error');
+      }
     });
   </script>
 

@@ -89,6 +89,20 @@
 
     <section class="filters-bar" aria-label="Filtros de búsqueda">
       <div class="filters-row">
+        <!-- Yeray (2025) - Selector de estado:
+             ANTES: el listado solo mostraba pacientes activos y no había forma de
+                    ver inactivos o retirados desde la UI (solo vía API REST).
+             AHORA: este select pasa el valor al parámetro estado= del endpoint
+                    /gestion-de-pacientes/buscar, que ya soportaba este filtro. -->
+        <div class="filter-group">
+          <label class="filter-label" for="filterEstado">Estado</label>
+          <select id="filterEstado" class="filter-select" aria-label="Filtrar por estado del paciente">
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+            <option value="retirado">Retirados</option>
+            <option value="todos">Todos</option>
+          </select>
+        </div>
         <div class="filter-group">
           <label class="filter-label" for="filterAlergias">Alergias</label>
           <select id="filterAlergias" class="filter-select" aria-label="Filtrar por alergias">

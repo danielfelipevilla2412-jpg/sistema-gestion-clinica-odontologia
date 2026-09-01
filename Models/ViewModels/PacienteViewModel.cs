@@ -45,6 +45,12 @@ public class PacienteViewModel
     public int TotalCitas { get; set; }
     public int CitasPendientes { get; set; }
 
+    // Yeray (2025) - ArchivoAdjunto: ruta relativa desde wwwroot del archivo
+    // (foto o documento de identidad). null si no se ha subido ninguno.
+    // Se usa en la vista de detalle para mostrar la imagen y en los endpoints
+    // POST /{id}/archivo-adjunto y /{id}/archivo-adjunto/eliminar.
+    public string? ArchivoAdjunto { get; set; }
+
     public DateTime? LastVisit { get; set; }
     public string Diagnosis { get; set; } = string.Empty;
     public DateTime? NextVisit { get; set; }
