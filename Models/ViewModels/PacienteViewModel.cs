@@ -1,4 +1,17 @@
-﻿namespace SmileTrack_MVC.Models.ViewModels;
+﻿// ─────────────────────────────────────────────────────────────────────────────
+// Yeray (2025) - PacienteViewModel
+//
+// CAMBIOS respecto a la versión anterior:
+//   - Se agregan campos que antes solo existían en PacienteApiDto y no llegaban
+//     al módulo MVC: AntecedentesMedicos, ContactoEmergencia, TelefonoEmergencia,
+//     Direccion, FechaRegistro, TotalCitas, CitasPendientes.
+//   - Estos campos son necesarios para la nueva vista de detalle individual
+//     (GET /gestion-de-pacientes/{id}) — punto 4 del plan de mejoras.
+//   - El listado principal (Stadm05GestionPacientes) no los usa; son opcionales
+//     (nullable / default) para no romper el mapeo existente.
+// ─────────────────────────────────────────────────────────────────────────────
+
+namespace SmileTrack_MVC.Models.ViewModels;
 
 public class PacienteViewModel
 {
@@ -17,9 +30,20 @@ public class PacienteViewModel
     public string? Telefono { get; set; }
     public string? Correo { get; set; }
     public string? Ciudad { get; set; }
+    public string? Direccion { get; set; }
     public string? GrupoSanguineo { get; set; }
     public string? AlergiasTexto { get; set; }
     public string Estado { get; set; } = "activo";
+
+    // Yeray (2025) - Campos médicos adicionales para vista de detalle
+    public string? AntecedentesMedicos { get; set; }
+    public string? ContactoEmergencia { get; set; }
+    public string? TelefonoEmergencia { get; set; }
+
+    // Yeray (2025) - Metadatos de actividad para la vista de detalle
+    public DateTime? FechaRegistro { get; set; }
+    public int TotalCitas { get; set; }
+    public int CitasPendientes { get; set; }
 
     public DateTime? LastVisit { get; set; }
     public string Diagnosis { get; set; } = string.Empty;

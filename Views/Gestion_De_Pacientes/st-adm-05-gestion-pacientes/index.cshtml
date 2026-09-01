@@ -4,6 +4,14 @@
     Layout = null;
     var pacientes = (Model ?? Enumerable.Empty<SmileTrack_MVC.Models.ViewModels.PacienteViewModel>()).ToList();
     var pacientesJson = System.Text.Json.JsonSerializer.Serialize(pacientes);
+
+    @* Yeray (2025) - Los stats ahora vienen del ViewBag (COUNT en BD)
+       en lugar de calcularse sobre el array completo de pacientes.
+       Esto es necesario porque el listado solo carga la primera página. *@
+    int statTotal     = ViewBag.StatTotal     ?? pacientes.Count();
+    int statHistory   = ViewBag.StatHistory   ?? pacientes.Count(p => p.History != null && p.History.Count > 0);
+    int statNext      = ViewBag.StatNext      ?? pacientes.Count(p => p.NextVisit.HasValue && p.NextVisit.Value >= DateTime.Today);
+    int statNoAllergy = ViewBag.StatNoAllergy ?? pacientes.Count(p => p.Allergies == null || p.Allergies.Count == 0);
 }
 
 <!DOCTYPE html>
@@ -55,25 +63,25 @@
     <section class="stats-grid" aria-label="Resumen de pacientes">
       <div class="stat-card" data-color="blue">
         <span class="stat-icon">🦷</span>
-        <span class="stat-number" id="statTotal" data-target="@pacientes.Count()">0</span>
+        <span class="stat-number" id="statTotal" data-target="@statTotal">0</span>
         <span class="stat-label">Total Pacientes</span>
         <span class="stat-sub">Registrados en el sistema</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-icon">📋</span>
-        <span class="stat-number" id="statHistory" data-target="@pacientes.Count(p => p.History != null && p.History.Count > 0)">0</span>
+        <span class="stat-number" id="statHistory" data-target="@statHistory">0</span>
         <span class="stat-label">Con Historial Clínico</span>
         <span class="stat-sub">Tienen registros médicos</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="stat-icon">📅</span>
-        <span class="stat-number" id="statNext" data-target="@pacientes.Count(p => p.NextVisit.HasValue && p.NextVisit.Value >= DateTime.Today)">0</span>
+        <span class="stat-number" id="statNext" data-target="@statNext">0</span>
         <span class="stat-label">Próximas Citas</span>
         <span class="stat-sub">Citas programadas</span>
       </div>
       <div class="stat-card" data-color="purple">
         <span class="stat-icon">✅</span>
-        <span class="stat-number" id="statNoAllergy" data-target="@pacientes.Count(p => p.Allergies == null || p.Allergies.Count == 0)">0</span>
+        <span class="stat-number" id="statNoAllergy" data-target="@statNoAllergy">0</span>
         <span class="stat-label">Sin Alergias</span>
         <span class="stat-sub">Sin restricciones</span>
       </div>

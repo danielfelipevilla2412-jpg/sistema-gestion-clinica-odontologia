@@ -458,6 +458,14 @@ builder.Services.AddScoped<
     SmileTrack_MVC.Services.IProfesionalService,
     SmileTrack_MVC.Services.ProfesionalService>();
 
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IPacienteService,
+    SmileTrack_MVC.Services.PacienteService>();
+
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IHistoriaClinicaService,
+    SmileTrack_MVC.Services.HistoriaClinicaService>();
+
 // -----------------------------------------------------------------------------
 // URL DE ESCUCHA
 // -----------------------------------------------------------------------------

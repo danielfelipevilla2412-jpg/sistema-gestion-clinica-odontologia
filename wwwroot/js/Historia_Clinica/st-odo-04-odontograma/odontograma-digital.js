@@ -77,6 +77,10 @@ const paciente = {
     nombre: config.pacienteNombre || 'Paciente',
     codigoHC: config.codigoHC || 'HC-SIN-ASIGNAR',
     fechaNacimiento: config.fechaNacimiento || '',
+    // Yeray (2025): citaId activa inyectada por la vista si el profesional
+    // llegó desde la agenda. Se usa en persistirEstado() para registrar
+    // la trazabilidad diente↔cita en Registro_Odontograma.
+    citaId: config.citaId || null,
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -127,6 +131,10 @@ async function persistirEstado({ mostrarToast: shouldShowToast = true } = {}) {
             credentials: 'same-origin',
             body: JSON.stringify({
                 pacienteId: paciente.id,
+                // Yeray (2025): se incluye citaId para trazabilidad diente↔cita.
+                // Si no hay cita activa (config.citaId es null/undefined) se omite,
+                // lo que equivale al comportamiento anterior (IdCita = null en BD).
+                citaId: config.citaId || null,
                 registros: baseDatosTratamientos,
                 mapeoFDI: mapeoFDI
             })
