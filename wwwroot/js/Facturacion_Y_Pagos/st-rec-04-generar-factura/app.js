@@ -324,9 +324,9 @@ const initPayment = () => {
 
     try {
       // 1) Crear la factura real en SQL Server.
-      const creado = await window.apiRequest('/facturacion-y-pagos/api/facturas', {
+      const creado = await window.apiRequest('/api/facturas', {
         method: 'POST',
-        body: { idPaciente, notas: null, items }
+        body: { idPaciente, notas: null, detalles: items }
       });
 
       if (!creado || creado.success !== true) {
@@ -339,7 +339,7 @@ const initPayment = () => {
       const idFactura = creado.data.id;
 
       // 2) Registrar el pago recibido sobre esa factura.
-      const pago = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${idFactura}/pago`, {
+      const pago = await window.apiRequest(`/api/facturas/${idFactura}/pagos`, {
         method: 'PUT',
         body: { montoPagado: total }
       });

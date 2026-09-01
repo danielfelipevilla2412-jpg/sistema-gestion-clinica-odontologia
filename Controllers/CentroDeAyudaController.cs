@@ -2,6 +2,9 @@ using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Models.Api.CentroDeAyuda;
+using SmileTrack_MVC.Services.CentroDeAyuda;
+using System.Security.Claims;
 
 namespace SmileTrack_MVC.Controllers;
 
@@ -24,6 +27,13 @@ namespace SmileTrack_MVC.Controllers;
 [Authorize]
 public class CentroDeAyudaController : Controller
 {
+    private readonly ICentroDeAyudaService _ticketService;
+
+    public CentroDeAyudaController(ICentroDeAyudaService ticketService)
+    {
+        _ticketService = ticketService;
+    }
+
     // ─── Acción principal: Guías y Tutoriales ─────────────────────────────────
     /// <summary>
     /// Vista principal del Centro de Ayuda.
@@ -114,11 +124,43 @@ public class CentroDeAyudaController : Controller
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "Administrador")]
     [Route("centro-de-ayuda/soporte")]
-    public IActionResult CreateTicket(SupportTicketViewModel model)
+    public async Task<IActionResult> CreateTicket(SupportTicketViewModel model, CancellationToken ct)
     {
         if (!ModelState.IsValid)
         {
             ViewData["Title"] = "SmileTrack — Soporte";
+            return View("~/Views/Centro_De_Ayuda/Guia De Usuario/SoporteTicket.cshtml", BuildSupportTicketViewModel(model));
+        }
+
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdValue, out var userId) || userId <= 0)
+        {
+            ModelState.AddModelError(string.Empty, "No fue posible identificar al usuario autenticado.");
+            return View("~/Views/Centro_De_Ayuda/Guia De Usuario/SoporteTicket.cshtml", BuildSupportTicketViewModel(model));
+        }
+
+        var request = new CentroAyudaTicketRequest
+        {
+            Asunto = model.Subject,
+            Categoria = model.Category.ToString().ToLowerInvariant(),
+            ModuloAfectado = model.Module.ToString().ToLowerInvariant(),
+            Severidad = model.Severity.ToLowerInvariant(),
+            Descripcion = model.Description,
+            CapturaPantalla = model.Screenshot
+        };
+
+        try
+        {
+            var (ticket, error) = await _ticketService.CrearTicketAsync(request, userId, ct);
+            if (error is not null || ticket is null)
+            {
+                ModelState.AddModelError(string.Empty, error ?? "No fue posible registrar el ticket.");
+                return View("~/Views/Centro_De_Ayuda/Guia De Usuario/SoporteTicket.cshtml", BuildSupportTicketViewModel(model));
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
             return View("~/Views/Centro_De_Ayuda/Guia De Usuario/SoporteTicket.cshtml", BuildSupportTicketViewModel(model));
         }
 
