@@ -590,8 +590,11 @@ namespace SmileTrack_MVC.Services
                     FechaCreacion = DateTime.UtcNow
                 };
 
-                using var tx =
-                    await _context.Database.BeginTransactionAsync(ct);
+                var strategy = _context.Database.CreateExecutionStrategy();
+
+                AuthResponse? resultadoError = await strategy.ExecuteAsync(async () =>
+            {
+                    await using var tx = await _context.Database.BeginTransactionAsync(ct);
 
                 try
                 {
@@ -641,27 +644,15 @@ namespace SmileTrack_MVC.Services
                     }
 
                     await tx.CommitAsync(ct);
+                    return (AuthResponse?)null;
                 }
                 catch (DbUpdateException dbEx)
-                    when (EsViolacionIndiceUnico(
-                        dbEx,
-                        out string? nombreIndice))
+                    when (EsViolacionIndiceUnico( dbEx, out string? nombreIndice))
                 {
                     await tx.RollbackAsync(ct);
-
-                    _logger.LogWarning(
-                        dbEx,
-                        "Registro fallido: violación UNIQUE. Correo={Correo}, Indice={Indice}, IpCliente={IpCliente}",
-                        correoNormalizado,
-                        nombreIndice ?? "desconocido",
-                        ipCliente);
-
-                    return new AuthResponse
-                    {
-                        Success = false,
-                        Message = "El correo o documento ya se encuentran registrados."
-                    };
+                    return new AuthResponse { Success = false, Message = "El correo o documento ya se encuentran registrados." };
                 }
+                
                 catch (DbUpdateException dbEx)
                     when (EsViolacionIntegridadReferencial(dbEx))
                 {
@@ -722,6 +713,12 @@ namespace SmileTrack_MVC.Services
                         Message = MensajeErrorSeguridad
                     };
                 }
+            });                                   
+
+                if (resultadoError != null)             // ← AGREGAR: si hubo error, cortar aquí
+                {
+                    return resultadoError;
+                }
 
                 string token = GenerateJwtToken(
                     newUser.Correo,
@@ -745,6 +742,7 @@ namespace SmileTrack_MVC.Services
                     User = userPayload
                 };
             }
+            
             catch (OperationCanceledException)
             {
                 return new AuthResponse
@@ -776,6 +774,7 @@ namespace SmileTrack_MVC.Services
                 };
             }
         }
+        
 
         // ============================================================
         // RECUPERAR CONTRASEÑA
