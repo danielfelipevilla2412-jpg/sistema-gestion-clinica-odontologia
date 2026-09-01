@@ -8,6 +8,7 @@ using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Models.ViewModels;
 using System.Globalization;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace SmileTrack_MVC.Controllers;
@@ -27,7 +28,8 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
 
     private static bool EsTelefonoValido(string? telefono)
     {
-        if (string.IsNullOrWhiteSpace(telefono)) return false;
+        // El teléfono es opcional; si está vacío o nulo, se considera válido.
+        if (string.IsNullOrWhiteSpace(telefono)) return true;
         string digitsOnly = new string(telefono.Where(char.IsDigit).ToArray());
         return digitsOnly.Length is >= 7 and <= 15;
     }
@@ -46,11 +48,11 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
     [HttpGet]
     [Authorize(Roles = "Administrador")]
     [Route("gestion-de-profesionales/st-adm-07-gestion-profesionales")]
-    public async Task<IActionResult> Stadm07GestionProfesionales([FromQuery] int? editId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null, [FromQuery] string? especialidad = null, [FromQuery] string? estado = null, CancellationToken ct = default)
+    public async Task<IActionResult> Stadm07GestionProfesionales([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null, [FromQuery] string? especialidad = null, [FromQuery] string? estado = null, CancellationToken ct = default)
     {
         try
         {
-            await CargarDatosProfesionales(editId, BuildReturnUrl(), new PaginationQuery
+            await CargarDatosProfesionales(BuildReturnUrl(), new PaginationQuery
             {
                 Page = page,
                 PageSize = pageSize,
@@ -71,11 +73,11 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
     [HttpGet]
     [Authorize(Roles = "Administrador,Profesional")]
     [Route("gestion-de-profesionales/st-adm-14-reportes-clinicos")]
-    public async Task<IActionResult> Stadm14ReportesClinicos([FromQuery] int? editId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null, [FromQuery] string? profesional = null, [FromQuery] string? mes = null, CancellationToken ct = default)
+    public async Task<IActionResult> Stadm14ReportesClinicos([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null, [FromQuery] string? profesional = null, [FromQuery] string? mes = null, CancellationToken ct = default)
     {
         try
         {
-            await CargarDatosProfesionales(editId, BuildReturnUrl(), null, ct);
+            await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
             await CargarDatosReportesClinicos(page, pageSize, search, profesional, mes, ct);
             return View("~/Views/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/index.cshtml");
         }
@@ -90,11 +92,11 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("gestion-de-profesionales/st-odo-01-dashboard")]
-    public async Task<IActionResult> Stodo01Dashboard([FromQuery] int? editId, CancellationToken ct = default)
+    public async Task<IActionResult> Stodo01Dashboard(CancellationToken ct = default)
     {
         try
         {
-            await CargarDatosProfesionales(editId, BuildReturnUrl(), null, ct);
+            await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
 
             string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (int.TryParse(userIdStr, out int userId))
@@ -208,11 +210,11 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("gestion-de-profesionales/st-odo-09-perfil-profesional")]
-    public async Task<IActionResult> Stodo09PerfilProfesional([FromQuery] int? editId, CancellationToken ct = default)
+    public async Task<IActionResult> Stodo09PerfilProfesional(CancellationToken ct = default)
     {
         try
         {
-            await CargarDatosProfesionales(editId, BuildReturnUrl(), null, ct);
+            await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
 
             string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (int.TryParse(userIdStr, out int userId))
@@ -237,394 +239,10 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
         }
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador")]
-    [Route("gestion-de-profesionales/guardar-profesional")]
-    public async Task<IActionResult> GuardarProfesional([FromForm] ProfesionalViewModel model, CancellationToken ct = default)
-    {
-        string returnUrlSafe = !string.IsNullOrWhiteSpace(model?.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl)
-            ? model.ReturnUrl
-            : "/gestion-de-profesionales/st-adm-07-gestion-profesionales";
-
-        if (model is null)
-        {
-            TempData["ErrorValidacion"] = "No se recibieron datos del profesional.";
-            return Redirect(returnUrlSafe);
-        }
-
-        int idOperacion = model.IdProfesional ?? 0;
-        bool esCreacion = idOperacion <= 0;
-        string operacion = esCreacion ? "Creacion" : "Actualizacion";
-
-        if (!ModelState.IsValid)
-        {
-            string? firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage;
-            TempData["ErrorValidacion"] = firstError ?? "Datos inválidos en el formulario.";
-            return Redirect(returnUrlSafe);
-        }
-
-        string nombres = model.Nombres.Trim();
-        string apellidos = model.Apellidos.Trim();
-        string registro = model.RegistroMedico.Trim();
-        string correo = model.CorreoAcceso.Trim();
-        string? password = model.ContrasenaAcceso;
-
-        if (!EsRegistroMedicoValido(registro))
-        {
-            TempData["ErrorValidacion"] = "El registro médico tiene un formato inválido. Use letras, números y guiones (3-30 caracteres).";
-            return Redirect(returnUrlSafe);
-        }
-
-        if (!EsTelefonoValido(model.Telefono))
-        {
-            TempData["ErrorValidacion"] = "El número de teléfono es inválido. Debe contener entre 7 y 15 dígitos.";
-            return Redirect(returnUrlSafe);
-        }
-
-        if (nombres.Length < 2 || apellidos.Length < 2)
-        {
-            TempData["ErrorValidacion"] = "Los nombres y apellidos deben contener al menos 2 caracteres.";
-            return Redirect(returnUrlSafe);
-        }
-
-        if (!esCreacion && !string.IsNullOrWhiteSpace(password) && !PasswordAccesoRegex.IsMatch(password))
-        {
-            TempData["ErrorValidacion"] = "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.";
-            return Redirect(returnUrlSafe);
-        }
-
-        if (esCreacion && (string.IsNullOrWhiteSpace(password) || !PasswordAccesoRegex.IsMatch(password)))
-        {
-            TempData["ErrorValidacion"] = "La contraseña inicial debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.";
-            return Redirect(returnUrlSafe);
-        }
-
-        try
-        {
-            bool registroMedicoDuplicado = await _context.Profesionales
-                .AnyAsync(p => p.RegistroMedico == registro && p.IdProfesional != idOperacion, ct);
-
-            if (registroMedicoDuplicado)
-            {
-                TempData["ErrorValidacion"] = $"El registro médico '{registro}' ya está asignado a otro profesional.";
-                return Redirect(returnUrlSafe);
-            }
-
-            var estrategia = _context.Database.CreateExecutionStrategy();
-
-            await estrategia.ExecuteAsync(async () =>
-            {
-                await using var tx = await _context.Database.BeginTransactionAsync(ct);
-
-                try
-                {
-                    var rolProfesional = await _context.Roles
-                        .FirstOrDefaultAsync(r => r.NombreRol == "Profesional", ct);
-
-                    if (rolProfesional == null)
-                        throw new InvalidOperationException("No existe el rol Profesional en la base de datos.");
-
-                    Profesional profesional;
-                    Usuario usuario;
-
-                    if (esCreacion)
-                    {
-                        bool correoExiste = await _context.Usuarios.AnyAsync(u => u.Correo == correo, ct);
-                        if (correoExiste)
-                            throw new UsuarioCorreoDuplicadoException();
-
-                        usuario = new Usuario
-                        {
-                            Nombre = nombres,
-                            Apellidos = apellidos,
-                            Correo = correo,
-                            Contrasena = BCrypt.Net.BCrypt.HashPassword(password!, workFactor: 11),
-                            IdRol = rolProfesional.IdRol,
-                            Estado = "activo",
-                            CreadoPor = GetCurrentUserId(),
-                            FechaCreacion = DateTime.UtcNow,
-                            IntentosFallidos = 0
-                        };
-
-                        _context.Usuarios.Add(usuario);
-                        await _context.SaveChangesAsync(ct);
-
-                        profesional = new Profesional
-                        {
-                            IdUsuario = usuario.IdUsuario,
-                            Nombres = nombres,
-                            Apellidos = apellidos,
-                            RegistroMedico = registro,
-                            Categoria = model.Categoria?.Trim(),
-                            Telefono = model.Telefono?.Trim(),
-                            Descripcion = model.Descripcion?.Trim(),
-                            Estado = "activo",
-                            FechaIngreso = DateTime.Today
-                        };
-
-                        _context.Profesionales.Add(profesional);
-                        await _context.SaveChangesAsync(ct);
-                    }
-                    else
-                    {
-                        profesional = await _context.Profesionales
-                            .Include(p => p.Usuario)
-                            .Include(p => p.Especialidades)
-                            .FirstOrDefaultAsync(p => p.IdProfesional == idOperacion, ct)
-                            ?? throw new InvalidOperationException("El profesional que intenta actualizar no existe.");
-
-                        usuario = profesional.Usuario
-                            ?? throw new InvalidOperationException("El profesional no tiene una cuenta de acceso vinculada. Corrija primero la vinculación.");
-
-                        bool correoDuplicado = await _context.Usuarios
-                            .AnyAsync(u => u.IdUsuario != usuario.IdUsuario && u.Correo == correo, ct);
-
-                        if (correoDuplicado)
-                            throw new UsuarioCorreoDuplicadoException();
-
-                        if (usuario.IdRol != rolProfesional.IdRol)
-                            throw new InvalidOperationException("La cuenta vinculada al profesional no tiene el rol Profesional.");
-
-                        usuario.Nombre = nombres;
-                        usuario.Apellidos = apellidos;
-                        usuario.Correo = correo;
-                        usuario.Estado = "activo";
-
-                        if (!string.IsNullOrWhiteSpace(password))
-                        {
-                            usuario.Contrasena = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11);
-                            usuario.IntentosFallidos = 0;
-                        }
-
-                        profesional.Nombres = nombres;
-                        profesional.Apellidos = apellidos;
-                        profesional.RegistroMedico = registro;
-                        profesional.Categoria = model.Categoria?.Trim();
-                        profesional.Telefono = model.Telefono?.Trim();
-                        profesional.Descripcion = model.Descripcion?.Trim();
-                        profesional.Estado = string.IsNullOrWhiteSpace(model.Estado)
-                            ? profesional.Estado
-                            : EstadoCitaHelper.ResolveEstadoNombre(model.Estado, profesional.Estado);
-
-                        // La cuenta de acceso debe seguir el mismo estado que el perfil profesional.
-                        usuario.Estado = profesional.Estado == "inactivo" ? "inactivo" : "activo";
-                        profesional.FechaIngreso ??= DateTime.Today;
-
-                        await _context.SaveChangesAsync(ct);
-                    }
-
-                    int idEspecialidad = model.IdEspecialidad is > 0 ? model.IdEspecialidad.Value : 0;
-                    var relaciones = await _context.ProfesionalEspecialidades
-                        .Where(pe => pe.IdProfesional == profesional.IdProfesional)
-                        .ToListAsync(ct);
-
-                    if (relaciones.Count > 0)
-                        _context.ProfesionalEspecialidades.RemoveRange(relaciones);
-
-                    if (idEspecialidad > 0)
-                    {
-                        bool espExiste = await _context.Especialidades.AnyAsync(e => e.IdEspecialidad == idEspecialidad, ct);
-                        if (!espExiste)
-                            throw new InvalidOperationException("La especialidad seleccionada no existe.");
-
-                        _context.ProfesionalEspecialidades.Add(new Profesional_Especialidad
-                        {
-                            IdProfesional = profesional.IdProfesional,
-                            IdEspecialidad = idEspecialidad,
-                            Principal = true
-                        });
-                    }
-
-                    await _context.SaveChangesAsync(ct);
-
-                    _context.Auditorias.Add(new Auditoria
-                    {
-                        IdUsuario = GetCurrentUserId(),
-                        TablaAfectada = "Profesional",
-                        IdRegistro = profesional.IdProfesional,
-                        Accion = esCreacion ? "INSERT" : "UPDATE",
-                        IpOrigen = HttpContext.Connection.RemoteIpAddress?.ToString(),
-                        DatosNuevos = System.Text.Json.JsonSerializer.Serialize(new
-                        {
-                            profesional.IdProfesional,
-                            profesional.IdUsuario,
-                            profesional.Nombres,
-                            profesional.Apellidos,
-                            profesional.RegistroMedico,
-                            profesional.Estado,
-                            Correo = usuario.Correo,
-                            Rol = rolProfesional.NombreRol,
-                            IdEspecialidad = idEspecialidad
-                        }),
-                        Descripcion = esCreacion
-                            ? $"Profesional creado con cuenta de acceso. IdProfesional={profesional.IdProfesional}"
-                            : $"Profesional actualizado y cuenta de acceso sincronizada. IdProfesional={profesional.IdProfesional}",
-                        Fecha = DateTime.UtcNow
-                    });
-
-                    await _context.SaveChangesAsync(ct);
-                    await tx.CommitAsync(ct);
-                }
-                catch
-                {
-                    await tx.RollbackAsync(ct);
-                    throw;
-                }
-            });
-
-            TempData["MensajeExito"] = esCreacion
-                ? "El profesional y su cuenta de acceso fueron creados correctamente."
-                : "El profesional y su cuenta de acceso fueron actualizados correctamente.";
-        }
-        catch (UsuarioCorreoDuplicadoException)
-        {
-            TempData["ErrorValidacion"] = "El correo de acceso ya está registrado. Use otro correo.";
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            _logger.LogError(ex, "Concurrencia al guardar profesional Id={Id}", idOperacion);
-            TempData["ErrorValidacion"] = "Conflicto: los datos cambiaron durante la operación. Actualice y vuelva a intentar.";
-        }
-        catch (DbUpdateException dbex) when (EsViolacionIndiceUnico(dbex, out string? indice))
-        {
-            _logger.LogError(dbex, "Violación UNIQUE al guardar profesional Id={Id}. Índice={Indice}", idOperacion, indice ?? "desconocido");
-            TempData["ErrorValidacion"] = "No se pudo guardar: se detectó un dato duplicado, por ejemplo registro médico o correo.";
-        }
-        catch (DbUpdateException dbex)
-        {
-            _logger.LogError(dbex, "DbUpdateException al guardar profesional Id={Id}", idOperacion);
-            TempData["ErrorValidacion"] = "Ocurrió un error al guardar en la base de datos.";
-        }
-        catch (SqlException sqlex)
-        {
-            _logger.LogCritical(sqlex, "SqlException al guardar profesional Id={Id}. Number={Number}", idOperacion, sqlex.Number);
-            TempData["ErrorValidacion"] = "Error de conectividad con la base de datos. Intente nuevamente.";
-        }
-        catch (InvalidOperationException ioex)
-        {
-            _logger.LogError(ioex, "Error de operación al guardar profesional Id={Id}", idOperacion);
-            TempData["ErrorValidacion"] = ioex.Message;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogCritical(ex, "Error inesperado al guardar profesional Id={Id}", idOperacion);
-            TempData["ErrorValidacion"] = "Ocurrió un error inesperado. El incidente fue registrado.";
-        }
-
-        return Redirect(returnUrlSafe);
-    }
-
-    private int? GetCurrentUserId()
-    {
-        string? value = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        return int.TryParse(value, out int id) && id > 0 ? id : null;
-    }
-
-    private sealed class UsuarioCorreoDuplicadoException : Exception { }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador")]
-    [Route("gestion-de-profesionales/eliminar-profesional")]
-    public async Task<IActionResult> EliminarProfesional([FromForm] int IdProfesional, [FromForm] string? ReturnUrl, CancellationToken ct = default)
-    {
-        string returnUrlSafe = !string.IsNullOrWhiteSpace(ReturnUrl) && Url.IsLocalUrl(ReturnUrl)
-            ? ReturnUrl
-            : "/gestion-de-profesionales/st-adm-07-gestion-profesionales";
-
-        try
-        {
-            if (IdProfesional <= 0)
-            {
-                TempData["ErrorValidacion"] = "Identificador de profesional inválido.";
-                _logger.LogWarning("EliminarProfesional: IdProfesional invalido ({Id})", IdProfesional);
-                return Redirect(returnUrlSafe);
-            }
-
-            if (!User.IsInRole("Administrador"))
-            {
-                TempData["ErrorValidacion"] = "No tiene permisos suficientes para desactivar profesionales.";
-                _logger.LogWarning("EliminarProfesional: Usuario {Usuario} sin permisos para Id={Id}",
-                    User.Identity?.Name ?? "anonimo", IdProfesional);
-                return Redirect(returnUrlSafe);
-            }
-
-            var profesional = await _context.Profesionales
-                .Include(p => p.Usuario)
-                .FirstOrDefaultAsync(p => p.IdProfesional == IdProfesional, ct);
-            if (profesional == null)
-            {
-                TempData["ErrorValidacion"] = "El profesional que intenta desactivar no existe.";
-                _logger.LogWarning("EliminarProfesional: Profesional no encontrado Id={Id}", IdProfesional);
-                return Redirect(returnUrlSafe);
-            }
-
-            bool tieneCitasActivas = await _context.Citas
-                .AnyAsync(c => c.IdProfesional == IdProfesional
-                    && c.Estado != "Cancelada"
-                    && c.FechaHora >= DateTime.Today, ct);
-
-            if (tieneCitasActivas && profesional.Estado != "inactivo")
-            {
-                TempData["ErrorValidacion"] = "No se puede desactivar: este profesional tiene citas agendadas pendientes.";
-                _logger.LogWarning("EliminarProfesional: Intento desactivar profesional Id={Id} con citas activas.", IdProfesional);
-                return Redirect(returnUrlSafe);
-            }
-
-            string estadoAnterior = profesional.Estado;
-            profesional.Estado = "inactivo";
-
-            if (profesional.Usuario != null)
-            {
-                profesional.Usuario.Estado = "inactivo";
-            }
-
-            _context.Profesionales.Update(profesional);
-            await _context.SaveChangesAsync(ct);
-
-            _logger.LogInformation(
-                "Auditoria: Profesional desactivado (baja logica). IdProfesional={IdProfesional}, RegistroMedico={RegistroMedico}, EstadoAnterior={EstadoAnterior}, UsuarioEliminador={Usuario}",
-                profesional.IdProfesional,
-                profesional.RegistroMedico,
-                estadoAnterior,
-                User.Identity?.Name ?? "anonimo");
-
-            TempData["MensajeExito"] = "El profesional fue desactivado exitosamente.";
-        }
-        catch (OperationCanceledException ocex)
-        {
-            _logger.LogWarning(ocex, "Operacion cancelada en EliminarProfesional Id={Id}", IdProfesional);
-            TempData["ErrorValidacion"] = "La operación fue cancelada.";
-        }
-        catch (DbUpdateConcurrencyException cex)
-        {
-            _logger.LogError(cex, "Concurrencia al desactivar profesional Id={Id}", IdProfesional);
-            TempData["ErrorValidacion"] = "Conflicto: los datos cambiaron durante la operación. Actualice y vuelva a intentar.";
-        }
-        catch (DbUpdateException dbex) when (EsViolacionIntegridadReferencial(dbex))
-        {
-            _logger.LogError(dbex, "Violacion integridad al desactivar profesional Id={Id}", IdProfesional);
-            TempData["ErrorValidacion"] = "No se puede desactivar este profesional porque tiene registros dependientes activos.";
-        }
-        catch (DbUpdateException dbex)
-        {
-            _logger.LogError(dbex, "DbUpdateException al desactivar profesional Id={Id}", IdProfesional);
-            TempData["ErrorValidacion"] = "Ocurrió un error al intentar desactivar el profesional.";
-        }
-        catch (SqlException sqlex)
-        {
-            _logger.LogCritical(sqlex, "SqlException al desactivar profesional Id={Id}. Number={Number}", IdProfesional, sqlex.Number);
-            TempData["ErrorValidacion"] = "Error de conectividad con la base de datos. Intente nuevamente.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogCritical(ex, "Error inesperado al desactivar profesional Id={Id}", IdProfesional);
-            TempData["ErrorValidacion"] = "Ocurrió un error inesperado. El incidente fue registrado.";
-        }
-
-        return Redirect(returnUrlSafe);
-    }
+    // ─── CRUD MIGRADO A LA API ──────────────────────────────────────────────
+    // Las operaciones GuardarProfesional (POST/PUT) y EliminarProfesional (DELETE/PATCH)
+    // fueron eliminadas en la Fase 2E porque el frontend ahora consume directamente
+    // ProfesionalesApiController.cs.
 
     private async Task CargarDatosReportesClinicos(int page, int pageSize, string? search = null, string? profesional = null, string? mes = null, CancellationToken ct = default)
     {
@@ -806,7 +424,7 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
         ViewData["MesFilter"] = string.Empty;
     }
 
-    private async Task CargarDatosProfesionales(int? editId, string returnUrl, PaginationQuery? query = null, CancellationToken ct = default)
+    private async Task CargarDatosProfesionales(string returnUrl, PaginationQuery? query = null, CancellationToken ct = default)
     {
         try
         {
@@ -862,27 +480,7 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
             ViewData["Especialidades"] = await _context.Especialidades.AsNoTracking().OrderBy(e => e.Nombre).ToListAsync(ct);
             ViewData["ReturnUrl"] = returnUrl;
 
-            if (editId is > 0)
-            {
-                try
-                {
-                    ViewData["EditingProfesional"] = await _context.Profesionales
-                        .Include(p => p.Usuario)
-                        .Include(p => p.Especialidades)
-                        .ThenInclude(pe => pe.Especialidad)
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(p => p.IdProfesional == editId.Value, ct);
-                }
-                catch (Exception exEditar)
-                {
-                    _logger.LogWarning(exEditar, "Error cargando profesional para editar IdProfesional={Id}", editId.Value);
-                    ViewData["EditingProfesional"] = null;
-                }
-            }
-            else
-            {
-                ViewData["EditingProfesional"] = null;
-            }
+            ViewData["EditingProfesional"] = null;
         }
         catch (OperationCanceledException)
         {
@@ -934,11 +532,7 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
 
     private string BuildReturnUrl()
     {
-        var queryParams = HttpContext.Request.Query
-            .Where(kvp => !string.Equals(kvp.Key, "editId", StringComparison.OrdinalIgnoreCase))
-            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Count == 0 ? null : kvp.Value.ToString());
-
-        var queryString = QueryString.Create(queryParams);
+        var queryString = HttpContext.Request.QueryString;
         return HttpContext.Request.Path + queryString;
     }
 
