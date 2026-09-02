@@ -7,28 +7,27 @@ using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Services;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace SmileTrack_MVC.Controllers;
 
-public partial class GestionProfesionalesController(AppDbContext context, ILogger<GestionProfesionalesController> logger) : Controller
+public partial class GestionProfesionalesController(
+    AppDbContext context,
+    ILogger<GestionProfesionalesController> logger,
+    IProfesionalService profesionalService) : Controller
 {
     private readonly AppDbContext _context = context;
     private readonly ILogger<GestionProfesionalesController> _logger = logger;
+    private readonly IProfesionalService _profesionalService = profesionalService;
 
     private const string MensajeErrorFallback =
         "Ocurrió un error inesperado al cargar la página. Por favor intente nuevamente. Si el problema persiste, contacte al soporte.";
 
-    private static readonly Regex PasswordAccesoRegex = new(
-        @"^(?=.{8,100}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$",
-        RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(500));
-
     private static bool EsTelefonoValido(string? telefono)
     {
-        // El teléfono es opcional; si está vacío o nulo, se considera válido.
         if (string.IsNullOrWhiteSpace(telefono)) return true;
         string digitsOnly = new string(telefono.Where(char.IsDigit).ToArray());
         return digitsOnly.Length is >= 7 and <= 15;
@@ -175,10 +174,10 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
                                     c.FechaHora >= monthStart &&
                                     c.FechaHora < nextMonth &&
                                     (
-                                        NormalizarEstado(c.Estado) == "atendida" ||
-                                        NormalizarEstado(c.Estado) == "finalizada" ||
-                                        NormalizarEstado(c.Estado) == "completada" ||
-                                        NormalizarEstado(c.Estado) == "realizada"
+                                        c.Estado?.Trim().ToLowerInvariant() == "atendida" ||
+                                        c.Estado?.Trim().ToLowerInvariant() == "finalizada" ||
+                                        c.Estado?.Trim().ToLowerInvariant() == "completada" ||
+                                        c.Estado?.Trim().ToLowerInvariant() == "realizada"
                                     ))
                                 .Sum(c => c.Servicio?.Precio ?? 0m);
 
@@ -542,14 +541,4 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
         if (sqlEx == null) return false;
         return sqlEx.Number is 547 or 515;
     }
-    private static string NormalizarEstado(string? estado)
-{
-    return estado?.Trim().ToLowerInvariant() switch
-    {
-        "activo" => "activo",
-        "vacaciones" => "vacaciones",
-        "inactivo" => "inactivo",
-        _ => "activo"
-    };
-}
 }

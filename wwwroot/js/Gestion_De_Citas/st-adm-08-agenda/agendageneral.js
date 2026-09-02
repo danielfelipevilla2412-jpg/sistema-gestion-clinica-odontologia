@@ -629,7 +629,7 @@ const initNewAppointmentModal = () => {
                 credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
-                    'RequestVerificationToken': token
+                    'X-CSRF-TOKEN': token
                 },
                 body: JSON.stringify(formData)
             });

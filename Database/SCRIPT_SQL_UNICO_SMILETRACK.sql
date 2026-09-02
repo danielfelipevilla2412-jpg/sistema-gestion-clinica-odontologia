@@ -369,13 +369,23 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Profesional_Servicio') AND type = N'U')
 BEGIN
     CREATE TABLE Profesional_Servicio (
-        id_profesional INT NOT NULL,
-        id_servicio INT NOT NULL,
+        id_profesional        INT NOT NULL,
+        id_servicio           INT NOT NULL,
+        precio_personalizado  DECIMAL(12,2) NULL,
+        activo                BIT NOT NULL DEFAULT 1,
         PRIMARY KEY (id_profesional, id_servicio),
         CONSTRAINT FK_PS_Profesional FOREIGN KEY (id_profesional) REFERENCES Profesional(id_profesional),
-        CONSTRAINT FK_PS_Servicio FOREIGN KEY (id_servicio) REFERENCES Servicio(id_servicio)
+        CONSTRAINT FK_PS_Servicio    FOREIGN KEY (id_servicio)    REFERENCES Servicio(id_servicio)
     );
 END
+GO
+
+-- Columnas extendidas para BD existentes que ya tienen la tabla sin estas columnas (idempotentes)
+IF COL_LENGTH(N'dbo.Profesional_Servicio', N'precio_personalizado') IS NULL
+    ALTER TABLE dbo.Profesional_Servicio ADD precio_personalizado DECIMAL(12,2) NULL;
+GO
+IF COL_LENGTH(N'dbo.Profesional_Servicio', N'activo') IS NULL
+    ALTER TABLE dbo.Profesional_Servicio ADD activo BIT NOT NULL CONSTRAINT DF_PS_Activo DEFAULT 1;
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Consultorio') AND type = N'U')
@@ -542,6 +552,42 @@ BEGIN
 END
 GO
 
+-- ============================================================
+-- ÍNDICES NONCLUSTERED EN TABLA Cita (Hallazgo A-07 / C-03)
+-- Eliminan table-scans en las consultas más frecuentes:
+--   1. Agenda por profesional + fecha (filtro principal de la agenda semanal)
+--   2. Citas por paciente + fecha     (historial del paciente)
+--   3. Citas por consultorio + fecha  (verificación de disponibilidad)
+--   4. Estado + fecha                 (dashboards y KPIs de gestión)
+-- Todos son idempotentes: solo se crean si no existen.
+-- ============================================================
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cita_Profesional_Fecha' AND object_id = OBJECT_ID('dbo.Cita'))
+    CREATE NONCLUSTERED INDEX IX_Cita_Profesional_Fecha
+        ON dbo.Cita (id_profesional, fecha_hora)
+        INCLUDE (id_paciente, id_consultorio, estado)
+        WHERE id_profesional IS NOT NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cita_Paciente_Fecha' AND object_id = OBJECT_ID('dbo.Cita'))
+    CREATE NONCLUSTERED INDEX IX_Cita_Paciente_Fecha
+        ON dbo.Cita (id_paciente, fecha_hora)
+        INCLUDE (id_profesional, id_consultorio, estado);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cita_Consultorio_Fecha' AND object_id = OBJECT_ID('dbo.Cita'))
+    CREATE NONCLUSTERED INDEX IX_Cita_Consultorio_Fecha
+        ON dbo.Cita (id_consultorio, fecha_hora)
+        INCLUDE (id_profesional, id_paciente, estado)
+        WHERE id_consultorio IS NOT NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cita_Estado_Fecha' AND object_id = OBJECT_ID('dbo.Cita'))
+    CREATE NONCLUSTERED INDEX IX_Cita_Estado_Fecha
+        ON dbo.Cita (estado, fecha_hora)
+        INCLUDE (id_paciente, id_profesional, id_consultorio);
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Factura') AND type = N'U')
 BEGIN
     CREATE TABLE Factura (
@@ -648,6 +694,35 @@ BEGIN
         modulo VARCHAR(50) NOT NULL DEFAULT 'general'
     );
 END
+GO
+
+-- Datos de configuración base (idempotentes)
+IF NOT EXISTS (SELECT 1 FROM dbo.Configuracion_General WHERE clave = 'cita_duracion_minutos')
+    INSERT INTO dbo.Configuracion_General (clave, valor, descripcion, modulo)
+    VALUES ('cita_duracion_minutos', '60',
+            'Duración predeterminada de cada cita en minutos. Usado para calcular bloques de agenda y detectar conflictos de horario.',
+            'citas');
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Configuracion_General WHERE clave = 'horario_apertura')
+    INSERT INTO dbo.Configuracion_General (clave, valor, descripcion, modulo)
+    VALUES ('horario_apertura', '07:00',
+            'Hora de apertura de la clínica (formato HH:mm). Las citas no pueden agendarse antes de este horario.',
+            'citas');
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Configuracion_General WHERE clave = 'horario_cierre')
+    INSERT INTO dbo.Configuracion_General (clave, valor, descripcion, modulo)
+    VALUES ('horario_cierre', '18:00',
+            'Hora de cierre de la clínica (formato HH:mm). Las citas no pueden agendarse después de este horario.',
+            'citas');
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Configuracion_General WHERE clave = 'dias_atencion')
+    INSERT INTO dbo.Configuracion_General (clave, valor, descripcion, modulo)
+    VALUES ('dias_atencion', '1,2,3,4,5,6',
+            'Días de atención separados por coma (1=Lunes … 7=Domingo). Valor predeterminado: lunes a sábado.',
+            'citas');
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Equipo') AND type = N'U')

@@ -1,7 +1,14 @@
 using SmileTrack_MVC.Models.Api.Profesionales;
+using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Models.Shared;
 
 namespace SmileTrack_MVC.Services;
 
+/// <summary>
+/// Contrato base para la lógica de negocio de profesionales.
+/// La implementación concreta encapsula validaciones, persistencia
+/// y estadísticas compartidas entre la API REST y las vistas MVC.
+/// </summary>
 public interface IProfesionalService
 {
     Task<ProfesionalesApiResult> ObtenerAsync(
@@ -11,6 +18,11 @@ public interface IProfesionalService
         string? especialidad,
         string? estado,
         CancellationToken ct = default);
+
+    Task<(List<Profesional> Items, PagedResult<Profesional> Paginacion, ProfesionalesStats Stats)>
+        ObtenerVistaMVCAsync(
+            PaginationQuery q,
+            CancellationToken ct = default);
 
     Task<ProfesionalApiDto?> ObtenerPorIdAsync(
         int id,

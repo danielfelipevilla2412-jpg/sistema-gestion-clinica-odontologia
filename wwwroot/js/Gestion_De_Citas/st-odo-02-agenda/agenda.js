@@ -35,8 +35,15 @@ NOTAS DE MANTENIMIENTO:
 const API_BASE = '/api';
 const API_PAGE_SIZE = 200;
 
+const getCsrfToken = () => {
+  const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
+  return match ? decodeURIComponent(match[2]) : null;
+};
+
 const getAuthHeaders = () => {
   const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  const csrfToken = getCsrfToken();
+  if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
   try {
     const jwt = sessionStorage.getItem('st_jwt');
     if (jwt) headers['Authorization'] = `Bearer ${jwt}`;

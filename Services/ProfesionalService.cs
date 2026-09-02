@@ -1,8 +1,10 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Models.Shared;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -13,19 +15,19 @@ public partial class ProfesionalService : IProfesionalService
     private readonly AppDbContext _context;
     private readonly ILogger<ProfesionalService> _logger;
 
-    // ── Reglas de negocio (idénticas al MVC controller) ──────────────────────
+    // ── Reglas de negocio — delegan al Helper centralizado (P-04, P-05) ─────
 
-    private static readonly Regex PasswordRegex = new(
-        @"^(?=.{8,100}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$",
-        RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(500));
+    // La validación de contraseña usa ProfesionalEstadoHelper.EsPasswordValida()
+    // que encapsula la política única del sistema (mínimo 8 chars, mayúscula,
+    // minúscula, dígito y símbolo). Si cambia la política, solo se toca el Helper.
+    private static readonly HashSet<string> EstadosPermitidos =
+        new(StringComparer.OrdinalIgnoreCase) { "activo", "vacaciones", "inactivo" };
 
     [GeneratedRegex(@"^[A-Za-z0-9\-\. ]+$")]
     private static partial Regex RegistroMedicoRegex();
 
     private static bool EsTelefonoValido(string? telefono)
     {
-        // El teléfono es opcional; si está vacío o nulo se considera válido.
         if (string.IsNullOrWhiteSpace(telefono)) return true;
         string digits = new(telefono.Where(char.IsDigit).ToArray());
         return digits.Length is >= 7 and <= 15;
@@ -38,9 +40,6 @@ public partial class ProfesionalService : IProfesionalService
         if (registro.Length < 3 || registro.Length > 30) return false;
         return RegistroMedicoRegex().IsMatch(registro);
     }
-
-    private static readonly HashSet<string> EstadosPermitidos =
-        new(StringComparer.OrdinalIgnoreCase) { "activo", "vacaciones", "inactivo" };
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -125,6 +124,70 @@ public partial class ProfesionalService : IProfesionalService
             _logger.LogError(ex, "Error en ObtenerAsync (página={Page}, búsqueda={Search})", page, search);
             return ProfesionalesApiResult.Fail("Error interno al obtener profesionales.");
         }
+    }
+
+    // ── Vista MVC (paginación + filtros + estadísticas) ──────────────────────
+
+    public async Task<(List<Profesional> Items, PagedResult<Profesional> Paginacion, ProfesionalesStats Stats)>
+        ObtenerVistaMVCAsync(
+            PaginationQuery q,
+            CancellationToken ct = default)
+    {
+        var query = q ?? new PaginationQuery();
+        int page = query.Page < 1 ? 1 : query.Page;
+        int pageSize = query.PageSize < 1 ? 10 : query.PageSize;
+        if (pageSize > 100) pageSize = 100;
+
+        var stats = new ProfesionalesStats
+        {
+            StatTotal = await _context.Profesionales.CountAsync(ct),
+            StatActivos = await _context.Profesionales.CountAsync(p => p.Estado == "activo", ct),
+            StatVacaciones = await _context.Profesionales.CountAsync(p => p.Estado == "vacaciones", ct),
+            StatInactivos = await _context.Profesionales.CountAsync(p => p.Estado == "inactivo", ct)
+        };
+
+        var profesionales = _context.Profesionales
+            .Include(p => p.Usuario)
+            .Include(p => p.Especialidades)
+                .ThenInclude(pe => pe.Especialidad)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            string s = query.Search.Trim();
+            profesionales = profesionales.Where(p =>
+                (p.Nombres != null && p.Nombres.Contains(s)) ||
+                (p.Apellidos != null && p.Apellidos.Contains(s)) ||
+                (p.RegistroMedico != null && p.RegistroMedico.Contains(s)) ||
+                (p.Usuario != null &&
+                    ((p.Usuario.Nombre != null && p.Usuario.Nombre.Contains(s)) ||
+                     (p.Usuario.Apellidos != null && p.Usuario.Apellidos.Contains(s)))) ||
+                p.Especialidades.Any(pe =>
+                    pe.Especialidad != null && pe.Especialidad.Nombre.Contains(s)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Profesional))
+        {
+            string esp = query.Profesional.Trim();
+            profesionales = profesionales.Where(p =>
+                p.Especialidades.Any(pe =>
+                    pe.Especialidad != null && pe.Especialidad.Nombre == esp));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Estado))
+        {
+            string est = ProfesionalEstadoHelper.NormalizarEstado(query.Estado);
+            profesionales = profesionales.Where(p => p.Estado == est);
+        }
+
+        profesionales = profesionales.OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres);
+
+        var paged = await profesionales.ToPagedResultAsync(page, pageSize, ct);
+
+        var items = paged.Items.Cast<Profesional>().ToList();
+
+        return (items, paged, stats);
     }
 
     // ── Obtener por ID ────────────────────────────────────────────────────────
@@ -380,7 +443,7 @@ public partial class ProfesionalService : IProfesionalService
 
                     if (!string.IsNullOrWhiteSpace(request.ContrasenaAcceso))
                     {
-                        if (!PasswordRegex.IsMatch(request.ContrasenaAcceso))
+                        if (!ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
                             throw new InvalidOperationException(
                                 "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
 
@@ -719,13 +782,13 @@ public partial class ProfesionalService : IProfesionalService
         if (esCreacion)
         {
             if (string.IsNullOrWhiteSpace(request.ContrasenaAcceso) ||
-                !PasswordRegex.IsMatch(request.ContrasenaAcceso))
+                !ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
                 return (false, "La contraseña inicial debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
         }
         else
         {
             if (!string.IsNullOrWhiteSpace(request.ContrasenaAcceso) &&
-                !PasswordRegex.IsMatch(request.ContrasenaAcceso))
+                !ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
                 return (false, "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
         }
 

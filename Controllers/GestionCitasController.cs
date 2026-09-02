@@ -59,13 +59,14 @@ public class GestionCitasController(
 
     /*
      * REGLA DE NEGOCIO:
-     * Todas las citas del sistema duran exactamente 60 minutos.
+     * La duración de las citas se gestiona centralizadamente en
+     * ICitaService.ObtenerDuracionCitaMinutosAsync leyendo la clave
+     * "cita_duracion_minutos" de la tabla Configuracion_General.
      *
      * IMPORTANTE:
-     * Esta constante representa la fuente de verdad del backend.
-     * El cliente no puede decidir arbitrariamente la duración.
+     * Este controlador NO define una fuente de verdad propia para la duración.
+     * Si necesita saberla, consulte al servicio (fallback 60 min).
      */
-    private const int DuracionCitaMinutos = 60;
 
     private const string MensajeErrorFallback =
         "Ocurrió un error inesperado al cargar la página. " +
@@ -304,32 +305,6 @@ public class GestionCitasController(
         }
     }
 
-    // ================================================================
-    // CREAR CITA DESDE AGENDA
-    // ================================================================
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador,Recepcionista")]
-    [Route("api/appointments")]
-    public async Task<IActionResult> CrearCitaDesdeAppointments(
-        [FromBody] CitaAgendaDto dto,
-        CancellationToken ct = default)
-    {
-        return await CrearCitaDesdeAgendaInterna(dto, ct);
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador,Recepcionista")]
-    [Route("api/citas/agenda")]
-    public async Task<IActionResult> CrearCitaDesdeAgenda(
-        [FromBody] CitaAgendaDto dto,
-        CancellationToken ct = default)
-    {
-        return await CrearCitaDesdeAgendaInterna(dto, ct);
-    }
-
     private async Task<IActionResult> CrearCitaDesdeAgendaInterna(
         CitaAgendaDto dto,
         CancellationToken ct)
@@ -365,9 +340,12 @@ public class GestionCitasController(
 
         try
         {
+            int duracionMinutos =
+                await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+
             // La hora final siempre se deriva de la hora inicial.
             var inicio = dto.Fecha.Date.Add(dto.HoraInicio);
-            var fin = inicio.AddMinutes(DuracionCitaMinutos);
+            var fin = inicio.AddMinutes(duracionMinutos);
 
             if (inicio < DateTime.Now.AddMinutes(-5))
             {
@@ -456,7 +434,7 @@ public class GestionCitasController(
                     c.Estado != "Cancelada" &&
                     c.Estado != "cancelado" &&
                     c.FechaHora < fin &&
-                    c.FechaHora.AddMinutes(DuracionCitaMinutos) > inicio,
+                    c.FechaHora.AddMinutes(duracionMinutos) > inicio,
                 ct);
 
             if (hayConflicto)
@@ -564,7 +542,7 @@ public class GestionCitasController(
                 idEstado = citaEntidad.IdEstado,
                 estado = citaEntidad.Estado,
                 updated = esActualizacion,
-                duracionMinutos = DuracionCitaMinutos
+                duracionMinutos = duracionMinutos
             });
         }
         catch (OperationCanceledException ex)
@@ -656,474 +634,6 @@ public class GestionCitasController(
     }
 
     // ================================================================
-    // API: LISTAR CITAS
-    // ================================================================
-
-    [HttpGet]
-    [Authorize(Policy = "ApiOrCookie")]
-    [Route("api/citas")]
-    public async Task<IActionResult> ApiListarCitas(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50,
-        CancellationToken ct = default)
-    {
-        try
-        {
-            page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 500);
-
-            IQueryable<Cita> citasQuery = _context.Citas
-                .AsNoTracking()
-                .Include(c => c.Paciente)
-                .Include(c => c.Profesional)
-                .ThenInclude(p => p!.Usuario)
-                .Include(c => c.Servicio)
-                .Include(c => c.Consultorio)
-                .Include(c => c.EstadoCita);
-
-            if (User.IsInRole("Paciente"))
-            {
-                string? claim = User.FindFirstValue("IdPaciente");
-
-                if (!int.TryParse(claim, out int idPaciente) ||
-                    idPaciente <= 0)
-                {
-                    return Forbid();
-                }
-
-                citasQuery = citasQuery.Where(
-                    c => c.IdPaciente == idPaciente);
-            }
-            else if (User.IsInRole("Profesional"))
-            {
-                string? claim =
-                    User.FindFirstValue("IdProfesional");
-
-                int idProfesional;
-
-                if (!int.TryParse(claim, out idProfesional) ||
-                    idProfesional <= 0)
-                {
-                    // Compatibilidad con sesiones antiguas: si el claim no existe,
-                    // resolver la relación segura desde el usuario autenticado.
-                    string? userIdClaim =
-                        User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                    if (!int.TryParse(userIdClaim, out int idUsuario) ||
-                        idUsuario <= 0)
-                    {
-                        return Forbid();
-                    }
-
-                    int? resolvedId = await _context.Profesionales
-                        .AsNoTracking()
-                        .Where(p => p.IdUsuario == idUsuario)
-                        .Select(p => (int?)p.IdProfesional)
-                        .FirstOrDefaultAsync(ct);
-
-                    if (!resolvedId.HasValue || resolvedId.Value <= 0)
-                    {
-                        return Forbid();
-                    }
-
-                    idProfesional = resolvedId.Value;
-                }
-
-                citasQuery = citasQuery.Where(
-                    c => c.IdProfesional == idProfesional);
-            }
-
-            int totalRecords =
-                await citasQuery.CountAsync(ct);
-
-            var citas = await citasQuery
-                .OrderByDescending(c => c.FechaHora)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(c => new
-                {
-                    c.IdCita,
-                    c.IdPaciente,
-
-                    Paciente =
-                        c.Paciente == null
-                            ? null
-                            : new
-                            {
-                                NombreCompleto =
-                                    string.Concat(
-                                        c.Paciente.Nombres,
-                                        " ",
-                                        c.Paciente.Apellidos)
-                                    .Trim()
-                            },
-
-                    c.IdProfesional,
-
-                    Profesional =
-                        c.Profesional == null
-                            ? null
-                            : new
-                            {
-                                NombreCompleto =
-                                    c.Profesional.Usuario != null
-                                        ? string.Concat(
-                                            c.Profesional.Usuario.Nombre,
-                                            " ",
-                                            c.Profesional.Usuario.Apellidos)
-                                            .Trim()
-                                        : string.Concat(
-                                            c.Profesional.Nombres,
-                                            " ",
-                                            c.Profesional.Apellidos)
-                                            .Trim()
-                            },
-
-                    c.IdServicio,
-
-                    Servicio =
-                        c.Servicio == null
-                            ? null
-                            : new
-                            {
-                                c.Servicio.Nombre
-                            },
-
-                    c.IdConsultorio,
-                    c.IdEstado,
-                    EstadoCatalogo = c.EstadoCita == null ? null : c.EstadoCita.NombreEstado,
-
-                    c.FechaHora,
-
-                    HoraInicio = c.FechaHora.TimeOfDay,
-
-                    HoraFin =
-                        c.FechaHora
-                            .AddMinutes(DuracionCitaMinutos)
-                            .TimeOfDay,
-
-                    c.Estado,
-                    c.Notas
-                })
-                .ToListAsync(ct);
-
-            return Ok(new
-            {
-                success = true,
-                data = citas,
-                total = totalRecords,
-                page,
-                pageSize,
-                duracionMinutos = DuracionCitaMinutos
-            });
-        }
-        catch (OperationCanceledException ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Solicitud cancelada ApiListarCitas.");
-
-            return BadRequest(new
-            {
-                success = false,
-                message = "La operación fue cancelada."
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Error en ApiListarCitas.");
-
-            return StatusCode(
-                (int)HttpStatusCode.InternalServerError,
-                new
-                {
-                    success = false,
-                    message = "Error interno al listar citas."
-                });
-        }
-    }
-
-    // ================================================================
-    // API: ACTUALIZAR CITA
-    // ================================================================
-
-    [HttpPut]
-    [Authorize(Policy = "ApiOrCookie")]
-    [Route("api/citas/{id:int}")]
-    public async Task<IActionResult> ApiActualizarCita(
-        int id,
-        [FromBody] CitaApiUpdateDto dto,
-        CancellationToken ct = default)
-    {
-        if (dto == null ||
-            id != dto.IdCita ||
-            dto.IdPaciente <= 0)
-        {
-            return BadRequest(new
-            {
-                success = false,
-                message = "Datos de cita inválidos."
-            });
-        }
-
-        try
-        {
-            var cita = await _context.Citas
-                .FirstOrDefaultAsync(c => c.IdCita == id, ct);
-
-            if (cita == null)
-            {
-                return NotFound(new
-                {
-                    success = false,
-                    message = "Cita no encontrada."
-                });
-            }
-
-            if (User.IsInRole("Paciente"))
-            {
-                string? claim =
-                    User.FindFirstValue("IdPaciente");
-
-                if (!int.TryParse(claim, out int idPaciente) ||
-                    idPaciente != cita.IdPaciente)
-                {
-                    return Forbid();
-                }
-            }
-            else if (User.IsInRole("Profesional"))
-            {
-                string? claim =
-                    User.FindFirstValue("IdProfesional");
-
-                if (!int.TryParse(claim, out int idProfesional) ||
-                    cita.IdProfesional != idProfesional)
-                {
-                    return Forbid();
-                }
-            }
-            else if (!User.IsInRole("Administrador") &&
-                     !User.IsInRole("Recepcionista"))
-            {
-                return Forbid();
-            }
-
-            if (!await _context.Pacientes.AnyAsync(
-                    p => p.IdPaciente == dto.IdPaciente &&
-                         p.Estado == "activo",
-                    ct))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "El paciente seleccionado no es válido."
-                });
-            }
-
-            if (dto.IdProfesional is <= 0 ||
-                !await _context.Profesionales.AnyAsync(
-                    p => p.IdProfesional == dto.IdProfesional &&
-                         p.Estado == "activo",
-                    ct))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "El profesional seleccionado no es válido."
-                });
-            }
-
-            if (dto.IdServicio is <= 0 ||
-                !await _context.Servicios.AnyAsync(
-                    s => s.IdServicio == dto.IdServicio &&
-                         s.Estado == "activo",
-                    ct))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "El servicio seleccionado no es válido."
-                });
-            }
-
-            if (dto.IdConsultorio is <= 0 ||
-                !await _context.Consultorios.AnyAsync(
-                    c => c.IdConsultorio == dto.IdConsultorio &&
-                         (c.Estado == "disponible" ||
-                          c.Estado == "activo"),
-                    ct))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "El consultorio seleccionado no está disponible."
-                });
-            }
-
-            DateTime inicio = dto.FechaHora;
-            DateTime fin = inicio.AddMinutes(DuracionCitaMinutos);
-
-            if (inicio < DateTime.Now.AddMinutes(-5))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "No se puede mover la cita a un horario pasado."
-                });
-            }
-
-            bool hayConflicto =
-                await _context.Citas.AnyAsync(
-                    c =>
-                        c.IdCita != id &&
-                        c.IdProfesional == dto.IdProfesional &&
-                        c.Estado != "cancelada" &&
-                        c.Estado != "Cancelada" &&
-                        c.Estado != "cancelado" &&
-                        c.FechaHora < fin &&
-                        c.FechaHora.AddMinutes(DuracionCitaMinutos) > inicio,
-                    ct);
-
-            if (hayConflicto)
-            {
-                return Conflict(new
-                {
-                    success = false,
-                    message =
-                        "El profesional ya tiene otra cita en ese horario."
-                });
-            }
-
-            cita.IdPaciente = dto.IdPaciente;
-            cita.IdProfesional = dto.IdProfesional;
-            cita.IdServicio = dto.IdServicio;
-            cita.IdConsultorio = dto.IdConsultorio;
-            cita.FechaHora = inicio;
-
-            if (dto.IdEstado is > 0)
-            {
-                var estadoApi = await _context.EstadosCita
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(
-                        e => e.IdEstado == dto.IdEstado.Value,
-                        ct);
-
-                if (estadoApi == null)
-                {
-                    return BadRequest(new
-                    {
-                        success = false,
-                        message = "El estado de la cita no es válido."
-                    });
-                }
-
-                cita.IdEstado = estadoApi.IdEstado;
-                cita.Estado = estadoApi.NombreEstado;
-            }
-            else if (!string.IsNullOrWhiteSpace(dto.Estado))
-            {
-                string estadoSolicitud = dto.Estado.Trim();
-
-                var estadoApi = await _context.EstadosCita
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(
-                        e => e.NombreEstado.ToLower() == estadoSolicitud.ToLower() ||
-                             (estadoSolicitud.ToLower() == "agendada" &&
-                              e.NombreEstado.ToLower() == "programada"),
-                        ct);
-
-                if (estadoApi == null)
-                {
-                    return BadRequest(new
-                    {
-                        success = false,
-                        message = "El estado de la cita no es válido."
-                    });
-                }
-
-                cita.IdEstado = estadoApi.IdEstado;
-                cita.Estado = estadoApi.NombreEstado;
-            }
-
-            cita.Notas = dto.Notas?.Trim();
-
-            await _context.SaveChangesAsync(ct);
-
-            await RegistrarAuditoriaAsync(
-                accion: "UPDATE",
-                tablaAfectada: "Cita",
-                idRegistro: cita.IdCita,
-                descripcion:
-                    $"Cita actualizada mediante API. " +
-                    $"IdPaciente={cita.IdPaciente}, " +
-                    $"IdProfesional={cita.IdProfesional}, " +
-                    $"FechaHora={cita.FechaHora:yyyy-MM-dd HH:mm}",
-                datosNuevos:
-                    $"{{\"Estado\":\"{cita.Estado}\"," +
-                    $"\"FechaHora\":\"{cita.FechaHora:O}\"," +
-                    $"\"IdPaciente\":{cita.IdPaciente}," +
-                    $"\"IdProfesional\":{cita.IdProfesional}}}",
-                ct: ct);
-
-            return Ok(new
-            {
-                success = true,
-                message = "Cita actualizada exitosamente.",
-                id = cita.IdCita,
-                idEstado = cita.IdEstado,
-                estado = cita.Estado,
-                duracionMinutos = DuracionCitaMinutos
-            });
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            _logger.LogError(
-                ex,
-                "Concurrencia ApiActualizarCita IdCita={Id}",
-                id);
-
-            return Conflict(new
-            {
-                success = false,
-                message =
-                    "La cita fue modificada por otro usuario."
-            });
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogError(
-                ex,
-                "DbUpdateException ApiActualizarCita IdCita={Id}",
-                id);
-
-            return StatusCode(
-                (int)HttpStatusCode.InternalServerError,
-                new
-                {
-                    success = false,
-                    message = "No se pudo actualizar la cita."
-                });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Error ApiActualizarCita IdCita={Id}",
-                id);
-
-            return StatusCode(
-                (int)HttpStatusCode.InternalServerError,
-                new
-                {
-                    success = false,
-                    message = "Error interno al actualizar la cita."
-                });
-        }
-    }
-
-    // ================================================================
     // API: EDITAR NOTAS DE CITA (PROFESIONAL)
     // ================================================================
 
@@ -1131,141 +641,6 @@ public class GestionCitasController(
     {
         public int IdCita { get; set; }
         public string? Notas { get; set; }
-    }
-
-    [HttpPut]
-    [Authorize(Roles = "Profesional")]
-    [Route("api/citas/{id:int}/notas")]
-    public async Task<IActionResult> ApiActualizarNotasCita(
-        int id,
-        [FromBody] CitaNotasDto dto,
-        CancellationToken ct = default)
-    {
-        if (dto == null || id != dto.IdCita || id <= 0)
-        {
-            return BadRequest(new
-            {
-                success = false,
-                message = "Datos de notas inválidos."
-            });
-        }
-
-        try
-        {
-            string? claim = User.FindFirstValue("IdProfesional");
-
-            if (!int.TryParse(claim, out int idProfesional) ||
-                idProfesional <= 0)
-            {
-                return Forbid();
-            }
-
-            var cita = await _context.Citas
-                .FirstOrDefaultAsync(c => c.IdCita == id, ct);
-
-            if (cita == null)
-            {
-                return NotFound(new
-                {
-                    success = false,
-                    message = "Cita no encontrada."
-                });
-            }
-
-            if (cita.IdProfesional != idProfesional)
-            {
-                return Forbid();
-            }
-
-            string notasNuevas = (dto.Notas ?? string.Empty).Trim();
-
-            if (notasNuevas.Length > 4000)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Las notas no pueden superar los 4000 caracteres."
-                });
-            }
-
-            string notasAnteriores = cita.Notas ?? string.Empty;
-
-            cita.Notas = string.IsNullOrWhiteSpace(notasNuevas)
-                ? null
-                : notasNuevas;
-
-            await _context.SaveChangesAsync(ct);
-
-            await RegistrarAuditoriaAsync(
-                accion: "UPDATE",
-                tablaAfectada: "Cita",
-                idRegistro: cita.IdCita,
-                descripcion: "Profesional actualizó las notas de la cita.",
-                datosAnteriores:
-                    System.Text.Json.JsonSerializer.Serialize(new
-                    {
-                        cita.IdCita,
-                        Notas = notasAnteriores
-                    }),
-                datosNuevos:
-                    System.Text.Json.JsonSerializer.Serialize(new
-                    {
-                        cita.IdCita,
-                        Notas = cita.Notas ?? string.Empty
-                    }),
-                ct: ct);
-
-            return Ok(new
-            {
-                success = true,
-                message = "Notas actualizadas correctamente.",
-                id = cita.IdCita,
-                notas = cita.Notas ?? string.Empty
-            });
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            _logger.LogError(
-                ex,
-                "Concurrencia ApiActualizarNotasCita IdCita={Id}",
-                id);
-
-            return Conflict(new
-            {
-                success = false,
-                message = "La cita fue modificada por otro usuario. Recarga la agenda e inténtalo nuevamente."
-            });
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogError(
-                ex,
-                "DbUpdateException ApiActualizarNotasCita IdCita={Id}",
-                id);
-
-            return StatusCode(
-                (int)HttpStatusCode.InternalServerError,
-                new
-                {
-                    success = false,
-                    message = "No se pudieron guardar las notas de la cita."
-                });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Error ApiActualizarNotasCita IdCita={Id}",
-                id);
-
-            return StatusCode(
-                (int)HttpStatusCode.InternalServerError,
-                new
-                {
-                    success = false,
-                    message = "Error interno al actualizar las notas de la cita."
-                });
-        }
     }
 // ================================================================
 // API: CAMBIAR ESTADO DE CITA (PROFESIONAL)
@@ -1295,435 +670,6 @@ public sealed class CambiarEstadoCitaDto
 {
     public string? Estado { get; set; }
 }
-
-[HttpPut]
-[Authorize(Roles = "Profesional")]
-[Route("api/citas/{id:int}/estado")]
-public async Task<IActionResult> ApiActualizarEstadoCita(
-    int id,
-    [FromBody] CambiarEstadoCitaDto dto,
-    CancellationToken ct = default)
-{
-    if (id <= 0 || dto == null ||
-        string.IsNullOrWhiteSpace(dto.Estado))
-    {
-        return BadRequest(new
-        {
-            success = false,
-            message = "El estado de la cita es obligatorio."
-        });
-    }
-
-    try
-    {
-        // 1) Resolver el profesional autenticado.
-        string? claimProfesional =
-            User.FindFirstValue("IdProfesional");
-
-        int idProfesional;
-
-        if (!int.TryParse(
-                claimProfesional,
-                out idProfesional) ||
-            idProfesional <= 0)
-        {
-            // Compatibilidad con sesiones antiguas:
-            // resolver por IdUsuario autenticado.
-            string? claimUsuario =
-                User.FindFirstValue(
-                    ClaimTypes.NameIdentifier);
-
-            if (!int.TryParse(
-                    claimUsuario,
-                    out int idUsuario) ||
-                idUsuario <= 0)
-            {
-                return Forbid();
-            }
-
-            int? profesionalResuelto =
-                await _context.Profesionales
-                    .AsNoTracking()
-                    .Where(p =>
-                        p.IdUsuario == idUsuario &&
-                        p.Estado == "activo")
-                    .Select(p =>
-                        (int?)p.IdProfesional)
-                    .FirstOrDefaultAsync(ct);
-
-            if (!profesionalResuelto.HasValue ||
-                profesionalResuelto.Value <= 0)
-            {
-                return Forbid();
-            }
-
-            idProfesional =
-                profesionalResuelto.Value;
-        }
-
-        // 2) Buscar la cita.
-        var cita =
-            await _context.Citas
-                .FirstOrDefaultAsync(
-                    c => c.IdCita == id,
-                    ct);
-
-        if (cita == null)
-        {
-            return NotFound(new
-            {
-                success = false,
-                message = "La cita no existe."
-            });
-        }
-
-        // 3) Ownership: el profesional solo modifica sus propias citas.
-        if (cita.IdProfesional != idProfesional)
-        {
-            return Forbid();
-        }
-
-        // 4) Normalizar estados.
-        string estadoActual =
-            NormalizarEstado(cita.Estado);
-
-        string nuevoEstado =
-            NormalizarEstado(dto.Estado);
-
-        if (string.IsNullOrWhiteSpace(nuevoEstado))
-        {
-            return BadRequest(new
-            {
-                success = false,
-                message = "El estado seleccionado no es válido."
-            });
-        }
-
-        // 5) Evitar saltos arbitrarios del ciclo de vida.
-        if (!EsTransicionEstadoPermitida(
-                estadoActual,
-                nuevoEstado))
-        {
-            return BadRequest(new
-            {
-                success = false,
-                message =
-                    ConstruirMensajeTransicionNoPermitida(
-                        estadoActual,
-                        nuevoEstado),
-                estadoActual,
-                estadoSolicitado = nuevoEstado
-            });
-        }
-
-        // 6) Resolver el estado contra el catálogo Estado_Cita.
-        var estadosCatalogo =
-            await _context.EstadosCita
-                .AsNoTracking()
-                .ToListAsync(ct);
-
-        var estadoDestino =
-            estadosCatalogo.FirstOrDefault(
-                e =>
-                    NormalizarEstado(
-                        e.NombreEstado) ==
-                    nuevoEstado);
-
-        if (estadoDestino == null)
-        {
-            return BadRequest(new
-            {
-                success = false,
-                message =
-                    "El estado seleccionado no existe en el catálogo de estados de citas."
-            });
-        }
-
-        string estadoAnteriorTexto =
-            cita.Estado ?? string.Empty;
-
-        int? idEstadoAnterior =
-            cita.IdEstado;
-
-        // 7) Sincronizar IdEstado + Estado textual.
-        cita.IdEstado =
-            estadoDestino.IdEstado;
-
-        cita.Estado =
-            estadoDestino.NombreEstado;
-
-        await _context.SaveChangesAsync(ct);
-
-        // 8) Auditoría.
-        string datosAnteriores =
-            System.Text.Json.JsonSerializer.Serialize(
-                new
-                {
-                    cita.IdCita,
-                    IdEstado = idEstadoAnterior,
-                    Estado = estadoAnteriorTexto
-                });
-
-        string datosNuevos =
-            System.Text.Json.JsonSerializer.Serialize(
-                new
-                {
-                    cita.IdCita,
-                    IdEstado = cita.IdEstado,
-                    Estado = cita.Estado
-                });
-
-        await RegistrarAuditoriaAsync(
-            accion: "UPDATE",
-            tablaAfectada: "Cita",
-            idRegistro: cita.IdCita,
-            descripcion:
-                $"Profesional cambió el estado de la cita de " +
-                $"'{estadoAnteriorTexto}' a '{cita.Estado}'.",
-            datosAnteriores:
-                datosAnteriores,
-            datosNuevos:
-                datosNuevos,
-            ct: ct);
-
-        // 9) Notificar únicamente los cambios que corresponden.
-        string estadoNotificacion =
-            NormalizarEstado(cita.Estado);
-
-        if (estadoNotificacion == "confirmada" ||
-            estadoNotificacion == "cancelada")
-        {
-            await EnviarNotificacionCitaAsync(
-                cita.IdCita,
-                estadoNotificacion,
-                ct);
-        }
-
-        _logger.LogInformation(
-            "Estado de cita actualizado por profesional. " +
-            "IdCita={IdCita}, IdProfesional={IdProfesional}, " +
-            "EstadoAnterior={EstadoAnterior}, EstadoNuevo={EstadoNuevo}",
-            cita.IdCita,
-            idProfesional,
-            estadoActual,
-            nuevoEstado);
-
-        return Ok(new
-        {
-            success = true,
-            id = cita.IdCita,
-            idEstado = cita.IdEstado,
-            estado = cita.Estado,
-            estadoAnterior = estadoAnteriorTexto,
-            message =
-                $"Cita actualizada a '{cita.Estado}' correctamente."
-        });
-    }
-    catch (OperationCanceledException)
-    {
-        _logger.LogWarning(
-            "Cambio de estado cancelado. IdCita={IdCita}",
-            id);
-
-        return BadRequest(new
-        {
-            success = false,
-            message = "La operación fue cancelada."
-        });
-    }
-    catch (DbUpdateConcurrencyException ex)
-    {
-        _logger.LogError(
-            ex,
-            "Concurrencia ApiActualizarEstadoCita IdCita={IdCita}",
-            id);
-
-        return Conflict(new
-        {
-            success = false,
-            message =
-                "La cita fue modificada por otro usuario. Recarga la agenda e inténtalo nuevamente."
-        });
-    }
-    catch (DbUpdateException ex)
-    {
-        _logger.LogError(
-            ex,
-            "DbUpdateException ApiActualizarEstadoCita IdCita={IdCita}",
-            id);
-
-        return StatusCode(
-            (int)HttpStatusCode.InternalServerError,
-            new
-            {
-                success = false,
-                message =
-                    "No se pudo guardar el nuevo estado de la cita."
-            });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(
-            ex,
-            "Error ApiActualizarEstadoCita IdCita={IdCita}",
-            id);
-
-        return StatusCode(
-            (int)HttpStatusCode.InternalServerError,
-            new
-            {
-                success = false,
-                message =
-                    "Error interno al actualizar el estado de la cita."
-            });
-    }
-}
-
-// API: CANCELAR CITA
-    // ================================================================
-
-    [HttpDelete]
-    [Authorize(Policy = "ApiOrCookie")]
-    [Route("api/citas/{id:int}")]
-    public async Task<IActionResult> ApiEliminarCita(
-        int id,
-        CancellationToken ct = default)
-    {
-        if (id <= 0)
-        {
-            return BadRequest(new
-            {
-                success = false,
-                message = "Identificador de cita inválido."
-            });
-        }
-
-        try
-        {
-            var cita = await _context.Citas
-                .FirstOrDefaultAsync(c => c.IdCita == id, ct);
-
-            if (cita == null)
-            {
-                return NotFound(new
-                {
-                    success = false,
-                    message = "Cita no encontrada."
-                });
-            }
-
-            if (User.IsInRole("Paciente"))
-            {
-                string? claim =
-                    User.FindFirstValue("IdPaciente");
-
-                if (!int.TryParse(claim, out int idPaciente) ||
-                    idPaciente != cita.IdPaciente)
-                {
-                    return Forbid();
-                }
-            }
-            else if (User.IsInRole("Profesional"))
-            {
-                return Forbid();
-            }
-            else if (!User.IsInRole("Administrador") &&
-                     !User.IsInRole("Recepcionista"))
-            {
-                return Forbid();
-            }
-
-            if (EsEstadoCancelado(cita.Estado))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "La cita ya está cancelada."
-                });
-            }
-
-            var estadoCancelada = await _context.EstadosCita
-                .FirstOrDefaultAsync(
-                    e => e.NombreEstado.ToLower() == "cancelada",
-                    ct);
-
-            if (estadoCancelada != null)
-            {
-                cita.IdEstado = estadoCancelada.IdEstado;
-                cita.Estado = estadoCancelada.NombreEstado;
-            }
-            else
-            {
-                cita.Estado = "Cancelada";
-            }
-
-            await _context.SaveChangesAsync(ct);
-
-            await RegistrarAuditoriaAsync(
-                accion: "UPDATE",
-                tablaAfectada: "Cita",
-                idRegistro: cita.IdCita,
-                descripcion:
-                    $"Cita cancelada mediante API. " +
-                    $"IdPaciente={cita.IdPaciente}, " +
-                    $"FechaHora={cita.FechaHora:yyyy-MM-dd HH:mm}",
-                datosNuevos:
-                    $"{{\"Estado\":\"cancelada\"," +
-                    $"\"FechaHora\":\"{cita.FechaHora:O}\"}}",
-                ct: ct);
-
-            return Ok(new
-            {
-                success = true,
-                message = "Cita cancelada exitosamente.",
-                id = cita.IdCita
-            });
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            _logger.LogError(
-                ex,
-                "Concurrencia ApiEliminarCita IdCita={Id}",
-                id);
-
-            return Conflict(new
-            {
-                success = false,
-                message =
-                    "La cita fue modificada recientemente."
-            });
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogError(
-                ex,
-                "DbUpdateException ApiEliminarCita IdCita={Id}",
-                id);
-
-            return StatusCode(
-                (int)HttpStatusCode.InternalServerError,
-                new
-                {
-                    success = false,
-                    message = "No se pudo cancelar la cita."
-                });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Error ApiEliminarCita IdCita={Id}",
-                id);
-
-            return StatusCode(
-                (int)HttpStatusCode.InternalServerError,
-                new
-                {
-                    success = false,
-                    message = "Error interno al cancelar la cita."
-                });
-        }
-    }
 
     // ================================================================
     // GESTIÓN INTEGRAL DE CITAS
@@ -1858,255 +804,71 @@ public async Task<IActionResult> ApiActualizarEstadoCita(
                 return Redirect(returnUrlSafe);
             }
             // ------------------------------------------------------------
-            // PACIENTE
+            // PERSISTENCIA — LÓGICA DELEGADA 100% EN SERVICIO
+            // Incluye: existencia entidades, duración configurable,
+            // horario de clínica (M-15) y conflicto triple recurso
+            // (Profesional ∧ Paciente ∧ Consultorio — U-07).
             // ------------------------------------------------------------
 
-            bool pacienteExiste =
-                await _context.Pacientes.AnyAsync(
-                    p =>
-                        p.IdPaciente == model.IdPaciente &&
-                        p.Estado == "activo",
-                    ct);
-
-            if (!pacienteExiste)
-            {
-                TempData["ErrorValidacion"] =
-                    "El paciente seleccionado no existe o se encuentra inactivo.";
-
-                return Redirect(returnUrlSafe);
-            }
-
-            // ------------------------------------------------------------
-            // PROFESIONAL
-            // ------------------------------------------------------------
-
-            if (model.IdProfesional <= 0 ||
-                !await _context.Profesionales.AnyAsync(
-                    p =>
-                        p.IdProfesional ==
-                        model.IdProfesional &&
-                        p.Estado == "activo",
-                    ct))
-            {
-                TempData["ErrorValidacion"] =
-                    "El profesional seleccionado no existe o se encuentra inactivo.";
-
-                return Redirect(returnUrlSafe);
-            }
-
-            // ------------------------------------------------------------
-            // SERVICIO
-            // ------------------------------------------------------------
-
-            if (model.IdServicio <= 0 ||
-                !await _context.Servicios.AnyAsync(
-                    s =>
-                        s.IdServicio ==
-                        model.IdServicio &&
-                        s.Estado == "activo",
-                    ct))
-            {
-                TempData["ErrorValidacion"] =
-                    "El servicio seleccionado no existe o se encuentra inactivo.";
-
-                return Redirect(returnUrlSafe);
-            }
-
-            // ------------------------------------------------------------
-            // CONSULTORIO
-            // ------------------------------------------------------------
-
-            if (model.IdConsultorio <= 0 ||
-                !await _context.Consultorios.AnyAsync(
-                    c =>
-                        c.IdConsultorio ==
-                        model.IdConsultorio &&
-                        (
-                            c.Estado == "disponible" ||
-                            c.Estado == "activo"
-                        ),
-                    ct))
-            {
-                TempData["ErrorValidacion"] =
-                    "El consultorio seleccionado no existe o no está disponible.";
-
-                return Redirect(returnUrlSafe);
-            }
-
-            // ------------------------------------------------------------
-            // ESTADO
-            // ------------------------------------------------------------
-
-            if (model.IdEstado <= 0 ||
-                !await _context.EstadosCita.AnyAsync(
-                    e =>
-                        e.IdEstado ==
-                        model.IdEstado,
-                    ct))
-            {
-                TempData["ErrorValidacion"] =
-                    "El estado de la cita seleccionado no es válido.";
-
-                return Redirect(returnUrlSafe);
-            }
-
-            // ------------------------------------------------------------
-            // BLOQUE DE 60 MINUTOS
-            // ------------------------------------------------------------
-
-            DateTime inicio = model.FechaHora;
-
-            DateTime fin =
-                inicio.AddMinutes(
-                    DuracionCitaMinutos);
-
-            // ------------------------------------------------------------
-            // CREACIÓN / ACTUALIZACIÓN
-            // ------------------------------------------------------------
-
-            Cita? cita;
+            Cita cita;
 
             if (model.IdCita > 0)
             {
-                cita = await _context.Citas
-                    .FirstOrDefaultAsync(
-                        c => c.IdCita == model.IdCita.Value,
-                        ct);
-
-                if (cita == null)
+                var updateDto = new Models.DTOs.CitaApiUpdateDto
                 {
-                    TempData["ErrorValidacion"] =
-                        "La cita que intenta actualizar no existe.";
+                    IdCita = model.IdCita.Value,
+                    IdPaciente = model.IdPaciente,
+                    IdProfesional = model.IdProfesional > 0 ? model.IdProfesional : null,
+                    IdServicio = model.IdServicio > 0 ? model.IdServicio : null,
+                    IdConsultorio = model.IdConsultorio > 0 ? model.IdConsultorio : null,
+                    FechaHora = model.FechaHora,
+                    Estado = BuildNotasCita(model) is var b1 &&
+                             await BuildEstadoNombreAsync(
+                                 model.IdEstado,
+                                 model.Estado,
+                                 "programada",
+                                 ct) is var b2
+                                 ? EstadoCitaHelper.ResolveEstadoNombre(b2, "programada")
+                                 : "programada",
+                    Notas = BuildNotasCita(model),
+                    IdEstado = model.IdEstado > 0 ? model.IdEstado : null
+                };
 
-                    _logger.LogWarning(
-                        "GuardarCita: Intento actualizar cita inexistente IdCita={IdCita}",
-                        model.IdCita.Value);
+                cita = await _citaService.ActualizarAsync(
+                           model.IdCita.Value,
+                           updateDto,
+                           ct)
+                       ?? throw new InvalidOperationException(
+                           "La cita que intenta actualizar no existe.");
 
-                    return Redirect(returnUrlSafe);
-                }
-
-                bool hayConflicto =
-                    await _context.Citas.AnyAsync(
-                        c =>
-                            c.IdCita != model.IdCita.Value &&
-                            c.IdProfesional == model.IdProfesional &&
-                            c.Estado != "cancelada" &&
-                            c.Estado != "Cancelada" &&
-                            c.Estado != "cancelado" &&
-                            c.FechaHora < fin &&
-                            c.FechaHora.AddMinutes(DuracionCitaMinutos) > inicio,
-                        ct);
-
-                if (hayConflicto)
-                {
-                    TempData["ErrorValidacion"] =
-                        "El profesional ya tiene una cita asignada en ese horario.";
-
-                    return Redirect(returnUrlSafe);
-                }
-
-                cita.IdPaciente =
-                    model.IdPaciente;
-
-                cita.IdProfesional =
-                    model.IdProfesional;
-
-                cita.IdServicio =
-                    model.IdServicio;
-
-                cita.IdConsultorio =
-                    model.IdConsultorio;
-
-                cita.IdEstado =
-                    model.IdEstado;
-
-                cita.FechaHora =
-                    model.FechaHora;
-
-                cita.Estado =
-                    await BuildEstadoNombreAsync(
-                        model.IdEstado,
-                        model.Estado,
-                        cita.Estado,
-                        ct);
-
-                cita.Estado =
-                    EstadoCitaHelper.ResolveEstadoNombre(
-                        cita.Estado,
-                        "programada");
-
-                cita.Notas =
-                    BuildNotasCita(model);
-
-                _context.Citas.Update(cita);
+                operacion = "Actualizacion";
             }
             else
             {
-                bool hayConflicto =
-                    await _context.Citas.AnyAsync(
-                        c =>
-                            c.IdProfesional ==
-                            model.IdProfesional &&
-                            c.Estado != "cancelada" &&
-                            c.Estado != "Cancelada" &&
-                            c.Estado != "cancelado" &&
-                            c.FechaHora < fin &&
-                            c.FechaHora.AddMinutes(
-                                DuracionCitaMinutos) > inicio,
-                        ct);
-
-                if (hayConflicto)
+                var request = new Models.DTOs.CitaApiRequest
                 {
-                    TempData["ErrorValidacion"] =
-                        "El profesional ya tiene una cita asignada en ese horario.";
-
-                    return Redirect(returnUrlSafe);
-                }
-
-                cita = new Cita
-                {
-                    IdPaciente =
-                        model.IdPaciente,
-
-                    IdProfesional =
-                        model.IdProfesional,
-
-                    IdServicio =
-                        model.IdServicio,
-
-                    IdConsultorio =
-                        model.IdConsultorio,
-
-                    IdEstado =
-                        model.IdEstado,
-
-                    FechaHora =
-                        model.FechaHora,
-
-                    Estado =
-                        EstadoCitaHelper.ResolveEstadoNombre(
-                            await BuildEstadoNombreAsync(
-                                model.IdEstado,
-                                model.Estado,
-                                "programada",
-                                ct),
-                            "programada"),
-
-                    Notas =
-                        BuildNotasCita(model)
+                    IdPaciente = model.IdPaciente,
+                    IdProfesional = model.IdProfesional > 0 ? model.IdProfesional : null,
+                    IdServicio = model.IdServicio > 0 ? model.IdServicio : null,
+                    IdConsultorio = model.IdConsultorio > 0 ? model.IdConsultorio : null,
+                    FechaHora = model.FechaHora,
+                    Estado = EstadoCitaHelper.ResolveEstadoNombre(
+                                 await BuildEstadoNombreAsync(
+                                     model.IdEstado,
+                                     model.Estado,
+                                     "programada",
+                                     ct),
+                                 "programada"),
+                    Notas = BuildNotasCita(model),
+                    IdEstado = model.IdEstado > 0 ? model.IdEstado : null
                 };
 
-                _context.Citas.Add(cita);
+                cita = await _citaService.CrearAsync(request, ct);
+                operacion = "Creacion";
             }
 
-            // ------------------------------------------------------------
-            // GUARDAR EN BD
-            // ------------------------------------------------------------
-
-            int guardados = await _context.SaveChangesAsync(ct);
-
             _logger.LogInformation(
-                "GuardarCita ejecutado correctamente. Operacion={Operacion}, IdCita={IdCita}, FechaHora={FechaHora}, IdPaciente={IdPaciente}, IdProfesional={IdProfesional}, IdServicio={IdServicio}, IdConsultorio={IdConsultorio}, IdEstado={IdEstado}, Estado={Estado}, RegistrosAfectados={RegistrosAfectados}",
+                "GuardarCita ejecutado correctamente via Servicio. Operacion={Operacion}, IdCita={IdCita}, FechaHora={FechaHora}, IdPaciente={IdPaciente}, IdProfesional={IdProfesional}, IdServicio={IdServicio}, IdConsultorio={IdConsultorio}, IdEstado={IdEstado}, Estado={Estado}",
                 operacion,
                 cita.IdCita,
                 cita.FechaHora,
@@ -2115,17 +877,7 @@ public async Task<IActionResult> ApiActualizarEstadoCita(
                 cita.IdServicio,
                 cita.IdConsultorio,
                 cita.IdEstado,
-                cita.Estado,
-                guardados);
-
-            if (guardados <= 0)
-            {
-                TempData["ErrorValidacion"] =
-                    "No se pudieron guardar los cambios.";
-
-                return Redirect(returnUrlSafe);
-            }
-
+                cita.Estado);
 
             // ------------------------------------------------------------
             // AUDITORÍA
@@ -2181,7 +933,7 @@ public async Task<IActionResult> ApiActualizarEstadoCita(
             }
 
             _logger.LogInformation(
-                "{Operacion} de cita correcta: IdCita={IdCita}, Usuario={Usuario}",
+                "{Operacion} de cita correcta via Servicio: IdCita={IdCita}, Usuario={Usuario}",
                 operacion,
                 cita.IdCita,
                 User.Identity?.Name ?? "anonimo");
@@ -2190,6 +942,19 @@ public async Task<IActionResult> ApiActualizarEstadoCita(
                 operacion == "Creacion"
                     ? "La cita se ha agendado correctamente."
                     : "La cita se ha actualizado correctamente.";
+        }
+        catch (InvalidOperationException ioex)
+        {
+            _logger.LogWarning(
+                ioex,
+                "GuardarCita: Validación de servicio fallida. Operacion={Operacion}, Id={Id}",
+                operacion,
+                idCitaOperacion);
+
+            TempData["ErrorValidacion"] =
+                string.IsNullOrWhiteSpace(ioex.Message)
+                    ? "No se pudo guardar la cita por una restricción del sistema."
+                    : ioex.Message;
         }
         catch (OperationCanceledException ex)
         {
@@ -2300,20 +1065,20 @@ public async Task<IActionResult> ApiActualizarEstadoCita(
                 return Redirect(returnUrlSafe);
             }
 
-            var cita = await _context.Citas
-                .FirstOrDefaultAsync(
-                    c => c.IdCita == IdCita,
-                    ct);
+            // ------------------------------------------------------------
+            // PERSISTENCIA — LÓGICA DELEGADA EN SERVICIO
+            // CancelarAsync valida existencia + estado ya cancelado
+            // y actualiza soft delete en una sola operación.
+            // ------------------------------------------------------------
 
-            if (cita == null)
+            bool ok;
+            try
             {
-                TempData["ErrorValidacion"] =
-                    "La cita que intenta cancelar no existe.";
-
-                return Redirect(returnUrlSafe);
+                ok = await _citaService.CancelarAsync(IdCita, ct);
             }
-
-            if (EsEstadoCancelado(cita.Estado))
+            catch (InvalidOperationException ioex)
+                when (ioex.Message.Contains("cancelada",
+                    StringComparison.OrdinalIgnoreCase))
             {
                 TempData["ErrorValidacion"] =
                     "La cita ya se encuentra cancelada.";
@@ -2321,35 +1086,24 @@ public async Task<IActionResult> ApiActualizarEstadoCita(
                 return Redirect(returnUrlSafe);
             }
 
-            /*
-             * SOFT DELETE:
-             * No eliminamos físicamente el registro.
-             */
-            var estadoCancelada = await _context.EstadosCita
-                .FirstOrDefaultAsync(
-                    e => e.NombreEstado.ToLower() == "cancelada",
-                    ct);
+            if (!ok)
+            {
+                TempData["ErrorValidacion"] =
+                    "La cita que intenta cancelar no existe.";
 
-            if (estadoCancelada != null)
-            {
-                cita.IdEstado = estadoCancelada.IdEstado;
-                cita.Estado = estadoCancelada.NombreEstado;
-            }
-            else
-            {
-                cita.Estado = "Cancelada";
+                return Redirect(returnUrlSafe);
             }
 
-            _context.Citas.Update(cita);
-
-            await _context.SaveChangesAsync(ct);
+            var cita = await _citaService.ObtenerPorIdAsync(IdCita, ct)
+                       ?? throw new InvalidOperationException(
+                           "La cita fue cancelada pero no se pudo recuperar para auditoría.");
 
             await RegistrarAuditoriaAsync(
                 accion: "UPDATE",
                 tablaAfectada: "Cita",
                 idRegistro: cita.IdCita,
                 descripcion:
-                    $"Cita cancelada. IdPaciente={cita.IdPaciente}, " +
+                    $"Cita cancelada via MVC. IdPaciente={cita.IdPaciente}, " +
                     $"FechaHora={cita.FechaHora:yyyy-MM-dd HH:mm}",
                 datosNuevos:
                     $"{{\"Estado\":\"cancelada\"," +
@@ -2363,6 +1117,18 @@ public async Task<IActionResult> ApiActualizarEstadoCita(
 
             TempData["MensajeExito"] =
                 "La cita fue cancelada exitosamente.";
+        }
+        catch (InvalidOperationException ioex)
+        {
+            _logger.LogWarning(
+                ioex,
+                "EliminarCita: Validación de servicio fallida Id={Id}",
+                IdCita);
+
+            TempData["ErrorValidacion"] =
+                string.IsNullOrWhiteSpace(ioex.Message)
+                    ? "No se pudo cancelar la cita."
+                    : ioex.Message;
         }
         catch (OperationCanceledException ex)
         {
@@ -3983,7 +2749,7 @@ public async Task<IActionResult> ApiActualizarEstadoCita(
                                             HoraFin =
                                                 cita.FechaHora
                                                     .AddMinutes(
-                                                        DuracionCitaMinutos)
+                                                        60)
                                                     .ToString("HH:mm"),
 
                                             Paciente =

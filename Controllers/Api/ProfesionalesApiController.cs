@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Services;
 using System.Security.Claims;
@@ -263,5 +264,130 @@ public sealed class ProfesionalesApiController : ControllerBase
         }
 
         return Ok(new { success = true, message = result.Message });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/profesionales/{id}/horarios
+    // Lista los bloques de horario semanal del profesional (P-01 / U-06)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/horarios")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetHorarios(
+        int id,
+        [FromServices] SmileTrack_MVC.Data.AppDbContext context,
+        CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        bool existe = await context.Profesionales
+            .AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+
+        if (!existe)
+            return NotFound(new { success = false, message = "Profesional no encontrado." });
+
+        var horarios = await context.HorariosProfesional
+            .AsNoTracking()
+            .Where(h => h.IdProfesional == id && h.Activo)
+            .OrderBy(h => h.DiaSemana)
+            .ThenBy(h => h.HoraInicio)
+            .Select(h => new
+            {
+                h.IdHorario,
+                h.DiaSemana,
+                HoraInicio = h.HoraInicio.ToString("HH:mm"),
+                HoraFin    = h.HoraFin.ToString("HH:mm"),
+                h.Activo
+            })
+            .ToListAsync(ct);
+
+        return Ok(new { success = true, data = horarios });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/profesionales/{id}/ausencias
+    // Lista las ausencias registradas para el profesional (P-01 / U-06)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/ausencias")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAusencias(
+        int id,
+        [FromServices] SmileTrack_MVC.Data.AppDbContext context,
+        CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        bool existe = await context.Profesionales
+            .AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+
+        if (!existe)
+            return NotFound(new { success = false, message = "Profesional no encontrado." });
+
+        var ausencias = await context.AusenciasProfesional
+            .AsNoTracking()
+            .Where(a => a.IdProfesional == id)
+            .OrderByDescending(a => a.FechaInicio)
+            .Select(a => new
+            {
+                a.IdAusencia,
+                a.Tipo,
+                FechaInicio = a.FechaInicio.ToString("yyyy-MM-dd"),
+                FechaFin    = a.FechaFin.ToString("yyyy-MM-dd"),
+                a.Duracion,
+                a.Observaciones
+            })
+            .ToListAsync(ct);
+
+        return Ok(new { success = true, data = ausencias });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/profesionales/{id}/servicios
+    // Lista los servicios que puede ejecutar el profesional (P-01 / U-06)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/servicios")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetServicios(
+        int id,
+        [FromServices] SmileTrack_MVC.Data.AppDbContext context,
+        CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        bool existe = await context.Profesionales
+            .AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+
+        if (!existe)
+            return NotFound(new { success = false, message = "Profesional no encontrado." });
+
+        var servicios = await context.ProfesionalServicios
+            .AsNoTracking()
+            .Where(ps => ps.IdProfesional == id && ps.Activo)
+            .Include(ps => ps.Servicio)
+            .Select(ps => new
+            {
+                ps.IdProfesional,
+                ps.IdServicio,
+                NombreServicio       = ps.Servicio != null ? ps.Servicio.Nombre : string.Empty,
+                PrecioBase           = ps.Servicio != null ? ps.Servicio.Precio : 0m,
+                ps.PrecioPersonalizado,
+                PrecioEfectivo       = ps.PrecioPersonalizado ?? (ps.Servicio != null ? ps.Servicio.Precio : 0m),
+                ps.Activo
+            })
+            .OrderBy(ps => ps.NombreServicio)
+            .ToListAsync(ct);
+
+        return Ok(new { success = true, data = servicios });
     }
 }

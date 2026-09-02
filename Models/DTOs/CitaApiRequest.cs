@@ -28,7 +28,7 @@ public sealed class CitaApiRequest
     [StringLength(30, MinimumLength = 1, ErrorMessage = "El estado debe tener entre 1 y 30 caracteres.")]
     public string Estado { get; set; } = "programada";
 
-    [StringLength(2000, ErrorMessage = "Las notas no pueden superar 2000 caracteres.")]
+    [StringLength(4000, ErrorMessage = "Las notas no pueden superar 4000 caracteres.")]
     public string? Notas { get; set; }
 
     [Range(1, int.MaxValue, ErrorMessage = "El identificador de estado no es válido.")]

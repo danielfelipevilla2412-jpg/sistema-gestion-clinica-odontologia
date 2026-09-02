@@ -46,6 +46,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // PDF, consentimiento, etc.) se persiste como fila real consultable con SQL.
     public DbSet<DocumentoClinico> DocumentosClinicos => Set<DocumentoClinico>();
 
+    // ── Disponibilidad y servicios de Profesional (P-01 / U-06) ──────────────
+    // Estas cuatro tablas existían en el script SQL pero carecían de entidades,
+    // DbSets y lógica de negocio. Se agregan aquí para que EF Core pueda
+    // consultarlas y para exponer los endpoints de disponibilidad por profesional.
+    public DbSet<HorarioProfesional>  HorariosProfesional  => Set<HorarioProfesional>();
+    public DbSet<AusenciaProfesional> AusenciasProfesional => Set<AusenciaProfesional>();
+    public DbSet<BloqueoProfesional>  BloqueosProfesional  => Set<BloqueoProfesional>();
+    public DbSet<ProfesionalServicio> ProfesionalServicios => Set<ProfesionalServicio>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Usuario>(entity =>
@@ -232,6 +241,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(c => c.IdEstado)
                   .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(c => new { c.IdProfesional, c.FechaHora })
+                  .HasDatabaseName("IX_Cita_Profesional_Fecha")
+                  .IsClustered(false);
+
+            entity.HasIndex(c => new { c.IdPaciente, c.FechaHora })
+                  .HasDatabaseName("IX_Cita_Paciente_Fecha")
+                  .IsClustered(false);
+
+            entity.HasIndex(c => new { c.IdConsultorio, c.FechaHora })
+                  .HasDatabaseName("IX_Cita_Consultorio_Fecha")
+                  .IsClustered(false);
+
+            entity.HasIndex(c => new { c.Estado, c.FechaHora })
+                  .HasDatabaseName("IX_Cita_Estado_Fecha")
+                  .IsClustered(false);
         });
 
         modelBuilder.Entity<HistoriaClinica>(entity =>
@@ -543,6 +568,88 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(c => c.Valor).HasColumnName("valor");
             entity.Property(c => c.Descripcion).HasColumnName("descripcion");
             entity.Property(c => c.Modulo).HasColumnName("modulo");
+        });
+
+        // ── HorarioProfesional (P-01 / U-06) ─────────────────────────────────
+        modelBuilder.Entity<HorarioProfesional>(entity =>
+        {
+            entity.ToTable("Horario_Profesional");
+            entity.HasKey(h => h.IdHorario);
+            entity.Property(h => h.IdHorario).HasColumnName("id_horario");
+            entity.Property(h => h.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(h => h.DiaSemana).HasColumnName("dia_semana").HasMaxLength(12);
+            entity.Property(h => h.HoraInicio).HasColumnName("hora_inicio");
+            entity.Property(h => h.HoraFin).HasColumnName("hora_fin");
+            entity.Property(h => h.Activo).HasColumnName("activo");
+
+            entity.HasOne(h => h.Profesional)
+                  .WithMany()
+                  .HasForeignKey(h => h.IdProfesional)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── AusenciaProfesional (P-01 / U-06) ────────────────────────────────
+        modelBuilder.Entity<AusenciaProfesional>(entity =>
+        {
+            entity.ToTable("Ausencia_Profesional");
+            entity.HasKey(a => a.IdAusencia);
+            entity.Property(a => a.IdAusencia).HasColumnName("id_ausencia");
+            entity.Property(a => a.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(a => a.Tipo).HasColumnName("tipo").HasMaxLength(15);
+            entity.Property(a => a.FechaInicio).HasColumnName("fecha_inicio");
+            entity.Property(a => a.FechaFin).HasColumnName("fecha_fin");
+            entity.Property(a => a.Duracion).HasColumnName("duracion");
+            entity.Property(a => a.Observaciones).HasColumnName("observaciones");
+            entity.Property(a => a.AprobadoPor).HasColumnName("aprobado_por");
+
+            entity.HasOne(a => a.Profesional)
+                  .WithMany()
+                  .HasForeignKey(a => a.IdProfesional)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── BloqueoProfesional (P-01 / U-06) ─────────────────────────────────
+        modelBuilder.Entity<BloqueoProfesional>(entity =>
+        {
+            entity.ToTable("Bloqueo_Profesional");
+            entity.HasKey(b => b.IdBloqueo);
+            entity.Property(b => b.IdBloqueo).HasColumnName("id_bloqueo");
+            entity.Property(b => b.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(b => b.FechaInicio).HasColumnName("fecha_inicio");
+            entity.Property(b => b.FechaFin).HasColumnName("fecha_fin");
+            entity.Property(b => b.Motivo).HasColumnName("motivo").HasMaxLength(150);
+            entity.Property(b => b.AprobadoPor).HasColumnName("aprobado_por");
+
+            entity.HasOne(b => b.Profesional)
+                  .WithMany()
+                  .HasForeignKey(b => b.IdProfesional)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── ProfesionalServicio (P-01 / U-06) ────────────────────────────────
+        // La tabla tiene PK compuesta (id_profesional, id_servicio).
+        // Las columnas precio_personalizado y activo se agregan via ALTER TABLE
+        // en el script SQL de forma idempotente.
+        modelBuilder.Entity<ProfesionalServicio>(entity =>
+        {
+            entity.ToTable("Profesional_Servicio");
+            entity.HasKey(ps => new { ps.IdProfesional, ps.IdServicio });
+            entity.Property(ps => ps.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(ps => ps.IdServicio).HasColumnName("id_servicio");
+            entity.Property(ps => ps.PrecioPersonalizado)
+                  .HasColumnName("precio_personalizado")
+                  .HasPrecision(12, 2);
+            entity.Property(ps => ps.Activo).HasColumnName("activo");
+
+            entity.HasOne(ps => ps.Profesional)
+                  .WithMany()
+                  .HasForeignKey(ps => ps.IdProfesional)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(ps => ps.Servicio)
+                  .WithMany()
+                  .HasForeignKey(ps => ps.IdServicio)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
