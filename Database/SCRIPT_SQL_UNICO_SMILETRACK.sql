@@ -559,6 +559,57 @@ BEGIN
     );
 END
 GO
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Detalle_Factura') AND type = N'U')
+BEGIN
+   CREATE TABLE Detalle_Factura (
+      id_detalle INT IDENTITY(1,1) PRIMARY KEY,
+       id_factura INT NOT NULL,
+     id_servicio INT NULL,
+      descripcion VARCHAR(200) NOT NULL,
+       cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+        precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        subtotal_linea DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        CONSTRAINT FK_DetalleFactura_Factura FOREIGN KEY (id_factura) REFERENCES Factura(id_factura) ON DELETE CASCADE,
+        CONSTRAINT FK_DetalleFactura_Servicio FOREIGN KEY (id_servicio) REFERENCES Servicio(id_servicio)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'monto_pagado')
+BEGIN
+    ALTER TABLE dbo.Factura ADD monto_pagado DECIMAL(12,2) NOT NULL DEFAULT 0.00;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'fecha_pago')
+BEGIN
+    ALTER TABLE dbo.Factura ADD fecha_pago DATETIME NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Ticket_Soporte') AND type = N'U')
+BEGIN
+    CREATE TABLE Ticket_Soporte (
+        id_ticket INT IDENTITY(1,1) PRIMARY KEY,
+        referencia VARCHAR(20) NOT NULL UNIQUE,
+        id_usuario INT NOT NULL,
+        asunto VARCHAR(200) NOT NULL,
+        categoria VARCHAR(20) NOT NULL CHECK (categoria IN ('incidente','consulta','solicitud','otro')),
+        modulo_afectado VARCHAR(20) NOT NULL CHECK (modulo_afectado IN ('citas','pacientes','facturacion','reportes','sistema')),
+        severidad VARCHAR(10) NOT NULL DEFAULT 'media' CHECK (severidad IN ('baja','media','alta')),
+        descripcion VARCHAR(MAX) NOT NULL,
+        captura_pantalla VARCHAR(255) NULL,
+        estado VARCHAR(20) NOT NULL DEFAULT 'abierto' CHECK (estado IN ('abierto','en_proceso','resuelto','cerrado')),
+        fecha_creacion DATETIME NOT NULL DEFAULT GETDATE(),
+        fecha_respuesta DATETIME NULL,
+        respuesta VARCHAR(MAX) NULL,
+        atendido_por INT NULL,
+        CONSTRAINT FK_TicketSoporte_Usuario FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario),
+        CONSTRAINT FK_TicketSoporte_Atendido FOREIGN KEY (atendido_por) REFERENCES Usuario(id_usuario)
+    );
+END
+GO
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.PQR') AND type = N'U')
 BEGIN
@@ -804,5 +855,127 @@ WHERE t.name = 'Registro_Odontograma'
 ORDER BY c.column_id;
 GO
 
+-- ============================================================
+-- SCRIPT: Agregar tablas Nota_Clinica y Control_Postoperatorio  (yeray)
+-- Mismo criterio que Registro_Odontograma: reemplazan los campos JSON
+-- "notasClinicas" y "controlesPostoperatorios" de Historia_Clinica por
+-- tablas reales, consultables con SQL en vez de texto libre parseado en C#.
+-- ============================================================
+
+-- ── 1. Crear tabla Nota_Clinica ──────────────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.objects
+    WHERE object_id = OBJECT_ID(N'dbo.Nota_Clinica') AND type = N'U'
+)
+BEGIN
+    CREATE TABLE dbo.Nota_Clinica (
+        id_nota        INT IDENTITY(1,1) PRIMARY KEY,
+        id_historia    INT NOT NULL,
+        id_profesional INT NULL,
+        fecha          DATETIME NOT NULL DEFAULT GETDATE(),
+        diagnostico    VARCHAR(MAX) NULL,
+        procedimiento  VARCHAR(MAX) NULL,
+        proxima_cita   VARCHAR(50) NULL,
+        estado         VARCHAR(20) NOT NULL DEFAULT 'Realizado',
+        CONSTRAINT FK_Nota_Historia
+            FOREIGN KEY (id_historia) REFERENCES dbo.Historia_Clinica(id_historia)
+            ON DELETE CASCADE,
+        CONSTRAINT FK_Nota_Profesional
+            FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional)
+            ON DELETE SET NULL
+    );
+    PRINT 'Tabla Nota_Clinica creada correctamente.';
+END
+ELSE
+BEGIN
+    PRINT 'Tabla Nota_Clinica ya existe — sin cambios.';
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_NC_Historia' AND object_id = OBJECT_ID(N'dbo.Nota_Clinica')
+)
+    CREATE INDEX IX_NC_Historia
+        ON dbo.Nota_Clinica (id_historia);
+GO
+
+-- ── 2. Crear tabla Control_Postoperatorio ────────────────────
+IF NOT EXISTS (
+    SELECT 1 FROM sys.objects
+    WHERE object_id = OBJECT_ID(N'dbo.Control_Postoperatorio') AND type = N'U'
+)
+BEGIN
+    CREATE TABLE dbo.Control_Postoperatorio (
+        id_control         INT IDENTITY(1,1) PRIMARY KEY,
+        id_cita            INT NOT NULL UNIQUE,
+        status             VARCHAR(20) NOT NULL DEFAULT 'stable',
+        instrucciones_json VARCHAR(MAX) NULL,
+        observaciones      VARCHAR(MAX) NULL,
+        fecha_registro     DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_ControlPostop_Cita
+            FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita)
+            ON DELETE CASCADE
+    );
+    PRINT 'Tabla Control_Postoperatorio creada correctamente.';
+END
+ELSE
+BEGIN
+    PRINT 'Tabla Control_Postoperatorio ya existe — sin cambios.';
+END
+GO
+
+PRINT 'Script de Nota_Clinica y Control_Postoperatorio ejecutado correctamente.';
+GO
+
+-- ============================================================
+-- Yeray - Tabla Documento_Clinico (2025)
+--
+-- MOTIVO: la vista st-aux-08-documentos-clinicos devolvía un array vacío
+-- porque no había tabla de documentos. Esta tabla almacena los metadatos
+-- de cada archivo clínico subido (radiografías, PDFs, consentimientos, etc.).
+-- El archivo físico se guarda en wwwroot/uploads/documentos-clinicos/<idHistoria>/.
+--
+-- RELACIONES:
+--   - id_historia → Historia_Clinica (CASCADE delete)
+--   - subido_por  → Usuario          (SET NULL)
+--
+-- ÍNDICE IX_DC_Historia: agiliza el listado de documentos por historia clínica.
+-- ============================================================
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Documento_Clinico') AND type = N'U')
+BEGIN
+    CREATE TABLE Documento_Clinico (
+        id_documento    INT IDENTITY(1,1) PRIMARY KEY,
+        id_historia     INT NOT NULL,
+        subido_por      INT NULL,
+        tipo            VARCHAR(100) NOT NULL,
+        nombre_original VARCHAR(255) NOT NULL,
+        ruta_relativa   VARCHAR(500) NOT NULL,
+        content_type    VARCHAR(100) NOT NULL,
+        tamano_bytes    BIGINT NOT NULL DEFAULT 0,
+        fecha_subida    DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        observacion     VARCHAR(500) NULL,
+
+        CONSTRAINT FK_DocClinico_Historia
+            FOREIGN KEY (id_historia) REFERENCES Historia_Clinica(id_historia)
+            ON DELETE CASCADE,
+
+        CONSTRAINT FK_DocClinico_Usuario
+            FOREIGN KEY (subido_por) REFERENCES Usuario(id_usuario)
+            ON DELETE SET NULL
+    );
+
+    CREATE INDEX IX_DC_Historia ON Documento_Clinico(id_historia);
+
+    PRINT 'Tabla Documento_Clinico creada correctamente.';
+END
+ELSE
+BEGIN
+    PRINT 'Tabla Documento_Clinico ya existe — sin cambios.';
+END
+GO
+
 PRINT 'Script ejecutado correctamente.';
+
 GO

@@ -107,6 +107,11 @@ const createInvoiceRow = (serviceData) => {
   const row = document.createElement('tr');
   row.dataset.price = price;
   row.dataset.discount = discount;
+  // id_servicio real (tabla Servicio en SQL Server); vacío si es un ítem
+  // libre sin servicio de catálogo asociado (ej. la opción de ejemplo "consulta").
+  row.dataset.serviceId = /^\d+$/.test(String(serviceId)) ? serviceId : '';
+  row.dataset.title = title;
+  row.dataset.desc = desc;
   row.setAttribute('role', 'row');
 
   row.innerHTML = `
@@ -251,22 +256,60 @@ const initPrint = () => {
   }
 };
 
-// Registra pago y actualiza estado de factura a pagada
-const initPayment = () => {
+// Construye el payload de ítems (uno por fila de la tabla) para la API real.
+// El descuento se incorpora al precio unitario efectivo de la línea, porque
+// la tabla Detalle_Factura no modela descuentos por separado.
+  const buildInvoiceItemsPayload = () => {
+  const itemsBody = safeGetElement('invoiceItemsBody');
+  if (!itemsBody) return [];
+
+  return Array.from(itemsBody.querySelectorAll('tr')).map(row => {
+    const price = parseFloat(row.dataset.price) || 0;
+    const discount = parseFloat(row.dataset.discount) || 0;
+    const idServicio = row.dataset.serviceId ? parseInt(row.dataset.serviceId, 10) : null;
+    const descripcionBase = row.dataset.title || row.querySelector('.item-desc')?.textContent || 'Servicio';
+    const descripcion = discount > 0 ? `${descripcionBase} (desc. ${formatCurrency(discount)})` : descripcionBase;
+
+    return {
+      idServicio,
+      descripcion,
+      cantidad: 1,
+      precioUnitario: Math.max(price - discount, 0)
+    };
+  });
+};
+
+// Crea la factura en SQL Server (POST) y de inmediato registra el pago (PUT)
+// contra la API real de FacturacionPagosController — reemplaza la simulación
+// que antes solo marcaba una bandera window.isPaid sin persistir nada.
+const initPayment = () => { 
   const btnPay = safeGetElement('btnPay');
   if (!btnPay) return;
 
-  btnPay.addEventListener('click', () => {
+  
+    btnPay.addEventListener('click', async () => {
     if (window.isPaid) {
       showToast('Esta factura ya ha sido pagada', 'info');
       return;
     }
-
+    const pacienteSelect = safeGetElement('pacienteSelect');
     const totalEl = safeGetElement('invoiceTotal');
     const amountReceived = safeGetElement('amountReceived');
     
-    if (!totalEl || !amountReceived) return;
+    
+    if (!totalEl || !amountReceived || !pacienteSelect) return;
+    const idPaciente = parseInt(pacienteSelect.value, 10);
+    if (!idPaciente) {
+      showToast('Seleccione un paciente antes de registrar el pago.', 'error');
+      pacienteSelect.focus();
+      return;
+    }
 
+    const items = buildInvoiceItemsPayload();
+    if (items.length === 0) {
+      showToast('Añada al menos un servicio a la factura.', 'error');
+      return;
+    }
     const total = parseCurrency(totalEl.textContent);
     const received = parseCurrency(amountReceived.value);
 
@@ -275,8 +318,43 @@ const initPayment = () => {
       return;
     }
 
-    // Marca factura como pagada
+    
+    btnPay.disabled = true;
+    btnPay.setAttribute('aria-disabled', 'true');
+
+    try {
+      // 1) Crear la factura real en SQL Server.
+      const creado = await window.apiRequest('/facturacion-y-pagos/api/facturas', {
+        method: 'POST',
+        body: { idPaciente, notas: null, items }
+      });
+
+      if (!creado || creado.success !== true) {
+        showToast(creado?.message || 'No fue posible registrar la factura.', 'error');
+        btnPay.disabled = false;
+        btnPay.removeAttribute('aria-disabled');
+        return;
+      }
+
+      const idFactura = creado.data.id;
+
+      // 2) Registrar el pago recibido sobre esa factura.
+      const pago = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${idFactura}/pago`, {
+        method: 'PUT',
+        body: { montoPagado: total }
+      });
+
+      if (!pago || pago.success !== true) {
+        showToast(pago?.message || 'La factura se creó pero no fue posible registrar el pago.', 'error');
+        btnPay.disabled = false;
+        btnPay.removeAttribute('aria-disabled');
+        return;
+      }
     window.isPaid = true;
+
+    // Actualiza número de factura visible con el generado por el servidor.
+      const invoiceNumberEl = document.querySelector('.invoice-number');
+      if (invoiceNumberEl) invoiceNumberEl.textContent = creado.data.numero;
 
     // Actualiza badge de estado visual y ARIA
     const statusBadge = safeGetElement('statusBadge');
@@ -292,6 +370,7 @@ const initPayment = () => {
     const btnAddService = safeGetElement('btnAddService');
     const paymentMethod = safeGetElement('paymentMethod');
 
+    if (pacienteSelect) pacienteSelect.disabled = true;
     if (profesionalSelect) profesionalSelect.disabled = true;
     if (servicioSelect) servicioSelect.disabled = true;
     if (btnAddService) {
@@ -321,9 +400,15 @@ const initPayment = () => {
     // Calcula y muestra cambio si aplica
     const change = received - total;
     if (change > 0) {
-      showToast(`✓ Pago registrado. Cambio: ${formatCurrency(change)}`, 'success');
+      showToast(`✓ Factura ${creado.data.numero} registrada. Cambio: ${formatCurrency(change)}`, 'success');
     } else {
-      showToast('✓ Pago registrado exitosamente', 'success');
+       showToast(`✓ Factura ${creado.data.numero} registrada y pagada exitosamente`, 'success');
+      }
+    } catch (error) {
+      console.error('Error al registrar la factura/pago:', error);
+      showToast('Error de conexión al registrar la factura.', 'error');
+      btnPay.disabled = false;
+      btnPay.removeAttribute('aria-disabled');
     }
   });
 };
@@ -373,37 +458,12 @@ const initMobileMenu = () => {
   });
 };
 
-// Inicializa datos de ejemplo en tabla de items
-const initSampleData = () => {
-  const itemsBody = safeGetElement('invoiceItemsBody');
-  if (!itemsBody) return;
-
-  itemsBody.innerHTML = `
-    <tr data-price="30000" data-discount="0">
-      <td><span class="item-desc">Control de tratamiento</span><div class="item-sub">Pieza 23 — Seguimiento endodoncia</div></td>
-      <td class="text-center">1</td>
-      <td class="text-right">$30.000</td>
-      <td class="text-right">—</td>
-      <td class="text-right item-total">$30.000</td>
-      <td class="text-center no-print"><button class="btn-delete" title="Eliminar" aria-label="Eliminar Control de tratamiento">✕</button></td>
-    </tr>
-    <tr data-price="50000" data-discount="5000">
-      <td><span class="item-desc">Consulta General</span><div class="item-sub">Valoración y diagnóstico</div></td>
-      <td class="text-center">1</td>
-      <td class="text-right">$50.000</td>
-      <td class="text-right item-discount">$5.000</td>
-      <td class="text-right item-total">$45.000</td>
-      <td class="text-center no-print"><button class="btn-delete" title="Eliminar" aria-label="Eliminar Consulta General">✕</button></td>
-    </tr>
-  `;
-};
 
 // Función principal de inicialización
 const init = () => {
   window.isPaid = false;
 
   initMobileMenu();
-  initSampleData();
   recalculateInvoice();
   initDeleteHandlers();
   initPatientSelect();
@@ -422,5 +482,6 @@ const init = () => {
     // Remover listeners en implementación SPA real
   });
 };
+
 
 document.addEventListener('DOMContentLoaded', init);

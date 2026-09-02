@@ -91,13 +91,17 @@ const animateCounters = () => {
 //  VARIABLES GLOBALES
 // ═══════════════════════════════════════════════════════════════════
 
-let searchQuery = '';
+// Yeray (2025) - Se agrega serverSearch para controlar si la búsqueda
+// activa ya llega del servidor o del array local de la primera carga.
+let searchQuery   = '';
 let filterAlergias = '';
-let filterCita = '';
+let filterCita     = '';
 let filterHistorial = '';
-let currentPage = 1;
+let currentPage   = 1;
+let serverTotal   = 0;   // total de resultados según el servidor
+let serverPages   = 1;   // total de páginas según el servidor
 
-const itemsPerPage = 5;
+const itemsPerPage = 20; // alineado con el pageSize del endpoint /buscar
 
 // ═══════════════════════════════════════════════════════════════════
 //  FORMATO DE FECHAS
@@ -144,97 +148,49 @@ const fmtDate = (iso) => {
 //  DATOS
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025) - getPatients devuelve el array en memoria (carga inicial o
+// última página recibida del servidor). Se usa para los filtros locales
+// (alergias, cita, historial) que se aplican DESPUÉS de recibir del servidor.
 const getPatients = () => {
-
   return Array.isArray(window.RAZOR_PATIENTS)
     ? window.RAZOR_PATIENTS
     : [];
-
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  FILTROS
+//  FILTROS LOCALES (sobre la página recibida del servidor)
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025) - MIGRACIÓN: la búsqueda por texto ya no filtra aquí;
+// se delega al servidor vía /buscar. Los filtros locales de alergias,
+// cita e historial se siguen aplicando sobre el array en memoria porque
+// requieren datos de citas que ya vienen en la página.
 const getFilteredPatients = () => {
-
-  const query =
-    searchQuery
-      .trim()
-      .toLowerCase();
-
   const patients = getPatients();
 
   return patients.filter((patient) => {
 
-    // Búsqueda por texto
-    if (query) {
-
-      const haystack = [
-        patient.Name,
-        patient.Doc,
-        patient.Diagnosis,
-        patient.Allergies?.join(' ')
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-
-      if (!haystack.includes(query)) {
-        return false;
-      }
-    }
-
     // Filtro por alergias
-    if (
-      filterAlergias === 'con' &&
-      !(
-        Array.isArray(patient.Allergies) &&
-        patient.Allergies.length > 0
-      )
-    ) {
+    if (filterAlergias === 'con' &&
+        !(Array.isArray(patient.Allergies) && patient.Allergies.length > 0)) {
       return false;
     }
-
-    if (
-      filterAlergias === 'sin' &&
-      Array.isArray(patient.Allergies) &&
-      patient.Allergies.length > 0
-    ) {
+    if (filterAlergias === 'sin' &&
+        Array.isArray(patient.Allergies) && patient.Allergies.length > 0) {
       return false;
     }
 
     // Filtro por próxima cita
-    if (
-      filterCita === 'con' &&
-      !patient.NextVisit
-    ) {
-      return false;
-    }
-
-    if (
-      filterCita === 'sin' &&
-      patient.NextVisit
-    ) {
-      return false;
-    }
+    if (filterCita === 'con' && !patient.NextVisit) return false;
+    if (filterCita === 'sin' &&  patient.NextVisit) return false;
 
     // Filtro por historial
-    if (
-      filterHistorial === 'con' &&
-      !(
-        Array.isArray(patient.History) &&
-        patient.History.length > 0
-      )
-    ) {
+    if (filterHistorial === 'con' &&
+        !(Array.isArray(patient.History) && patient.History.length > 0)) {
       return false;
     }
-
-    if (
-      filterHistorial === 'sin' &&
-      Array.isArray(patient.History) &&
-      patient.History.length > 0
-    ) {
+    if (filterHistorial === 'sin' &&
+        Array.isArray(patient.History) && patient.History.length > 0) {
       return false;
     }
 
@@ -246,87 +202,75 @@ const getFilteredPatients = () => {
 //  PAGINACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
-const renderPaginationButtons = (total) => {
+// Yeray (2025) - renderPaginationButtons usa serverPages cuando hay búsqueda
+// activa (el servidor conoce el total real). Para la carga inicial usa el
+// total del array local filtrado.
+const renderPaginationButtons = (totalPages) => {
 
-  const paginationNav =
-    document.querySelector('.pagination');
+  const paginationNav = document.querySelector('.pagination');
+  const btnPrev = safeGetElement('btnPrev');
+  const btnNext = safeGetElement('btnNext');
 
-  const btnPrev =
-    safeGetElement('btnPrev');
+  if (!paginationNav) return;
 
-  const btnNext =
-    safeGetElement('btnNext');
+  const maxPage = Math.max(1, totalPages);
 
-  if (!paginationNav) {
-    return;
+  paginationNav.querySelectorAll('.page-num-btn').forEach(btn => btn.remove());
+
+  for (let i = 1; i <= maxPage; i++) {
+    const btn = document.createElement('button');
+    btn.className = `pagination-btn page-num-btn${i === currentPage ? ' active' : ''}`;
+    btn.setAttribute('aria-label', `Página ${i}`);
+    if (i === currentPage) btn.setAttribute('aria-current', 'page');
+    btn.textContent = String(i);
+    btn.addEventListener('click', () => {
+      currentPage = i;
+      renderPatients();
+    });
+    paginationNav.insertBefore(btn, btnNext);
   }
 
-  const maxPage =
-    Math.max(
-      1,
-      Math.ceil(total / itemsPerPage)
-    );
+  if (btnPrev) btnPrev.disabled = currentPage <= 1;
+  if (btnNext) btnNext.disabled = currentPage >= maxPage;
+};
 
-  const existingPages =
-    paginationNav.querySelectorAll(
-      '.page-num-btn'
-    );
+// ═══════════════════════════════════════════════════════════════════
+//  FETCH SERVER-SIDE
+// ═══════════════════════════════════════════════════════════════════
 
-  existingPages.forEach(btn => {
-    btn.remove();
+// Yeray (2025) - fetchPacientes: llama a /gestion-de-pacientes/buscar
+// y actualiza window.RAZOR_PATIENTS con la página recibida.
+// Solo se activa cuando hay texto de búsqueda (searchQuery != '').
+// Para la carga inicial y los filtros locales se sigue usando RAZOR_PATIENTS.
+let _fetchController = null;
+
+const fetchPacientes = async () => {
+
+  // Cancelar fetch previo si aún está en curso
+  if (_fetchController) _fetchController.abort();
+  _fetchController = new AbortController();
+
+  const params = new URLSearchParams({
+    page:     String(currentPage),
+    pageSize: String(itemsPerPage)
   });
+  if (searchQuery)  params.set('search', searchQuery);
 
-  for (
-    let i = 1;
-    i <= maxPage;
-    i++
-  ) {
-
-    const btn =
-      document.createElement('button');
-
-    btn.className =
-      `pagination-btn page-num-btn${i === currentPage ? ' active' : ''}`;
-
-    btn.setAttribute(
-      'aria-label',
-      `Página ${i}`
+  try {
+    const resp = await fetch(
+      `/gestion-de-pacientes/buscar?${params}`,
+      { credentials: 'same-origin', signal: _fetchController.signal }
     );
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = await resp.json();
 
-    if (i === currentPage) {
-      btn.setAttribute(
-        'aria-current',
-        'page'
-      );
-    }
+    window.RAZOR_PATIENTS = json.items ?? [];
+    serverTotal = json.total ?? 0;
+    serverPages = json.totalPages ?? 1;
 
-    btn.textContent =
-      String(i);
-
-    btn.addEventListener(
-      'click',
-      () => {
-
-        currentPage = i;
-
-        renderPatients();
-      }
-    );
-
-    paginationNav.insertBefore(
-      btn,
-      btnNext
-    );
-  }
-
-  if (btnPrev) {
-    btnPrev.disabled =
-      currentPage <= 1;
-  }
-
-  if (btnNext) {
-    btnNext.disabled =
-      currentPage >= maxPage;
+  } catch (err) {
+    if (err.name === 'AbortError') return; // fetch cancelado, ignorar
+    console.error('[SmileTrack][Pacientes] Error búsqueda server-side:', err);
   }
 };
 
@@ -334,46 +278,45 @@ const renderPaginationButtons = (total) => {
 //  RENDERIZADO DE PACIENTES
 // ═══════════════════════════════════════════════════════════════════
 
-const renderPatients = () => {
+// Yeray (2025) - renderPatients ahora es async.
+// - Si hay searchQuery: llama a fetchPacientes() primero (server-side),
+//   luego aplica los filtros locales sobre la página recibida.
+// - Si no hay searchQuery: usa el array local RAZOR_PATIENTS (carga inicial
+//   o última carga), aplica filtros locales y pagina en cliente.
+//   Esto mantiene la experiencia instantánea cuando no se busca.
+const renderPatients = async () => {
 
-  const container =
-    safeGetElement('patientsBody');
+  const container   = safeGetElement('patientsBody');
+  const empty       = safeGetElement('emptyState');
+  const pageShowing = safeGetElement('pageShowing');
+  const pageTotal   = safeGetElement('pageTotal');
+  const btnPrev     = safeGetElement('btnPrev');
+  const btnNext     = safeGetElement('btnNext');
 
-  const empty =
-    safeGetElement('emptyState');
+  let displayPatients;
+  let totalForPagination;
+  let totalPagesForPagination;
 
-  const pageShowing =
-    safeGetElement('pageShowing');
-
-  const pageTotal =
-    safeGetElement('pageTotal');
-
-  const btnPrev =
-    safeGetElement('btnPrev');
-
-  const btnNext =
-    safeGetElement('btnNext');
-
-  const filtered =
-    getFilteredPatients();
-
-  const total =
-    filtered.length;
-
-  const start =
-    (currentPage - 1) *
-    itemsPerPage;
-
-  const pagePatients =
-    filtered.slice(
-      start,
-      start + itemsPerPage
-    );
+  if (searchQuery.trim() !== '') {
+    // ── Búsqueda activa: el servidor pagina y filtra por texto ──────────
+    await fetchPacientes();
+    displayPatients          = getFilteredPatients(); // filtros locales sobre la página
+    totalForPagination       = serverTotal;
+    totalPagesForPagination  = serverPages;
+  } else {
+    // ── Sin búsqueda: filtros locales + paginación en cliente ───────────
+    const filtered           = getFilteredPatients();
+    const total              = filtered.length;
+    const start              = (currentPage - 1) * itemsPerPage;
+    displayPatients          = filtered.slice(start, start + itemsPerPage);
+    totalForPagination       = total;
+    totalPagesForPagination  = Math.max(1, Math.ceil(total / itemsPerPage));
+  }
 
   if (container) {
 
     container.innerHTML =
-      pagePatients
+      displayPatients
         .map((patient) => {
 
           const initials =
@@ -555,71 +498,37 @@ const renderPatients = () => {
   }
 
   if (empty) {
-
-    empty.style.display =
-      pagePatients.length === 0
-        ? 'block'
-        : 'none';
-
-    empty.setAttribute(
-      'aria-hidden',
-      pagePatients.length === 0
-        ? 'false'
-        : 'true'
-    );
+    empty.style.display      = displayPatients.length === 0 ? 'block' : 'none';
+    empty.setAttribute('aria-hidden', displayPatients.length === 0 ? 'false' : 'true');
   }
 
   if (pageShowing) {
-
-    pageShowing.textContent =
-      total === 0
-        ? '0'
-        : `${Math.min(
-          start + pagePatients.length,
-          total
-        )}`;
+    pageShowing.textContent = totalForPagination === 0 ? '0' : String(displayPatients.length);
   }
 
   if (pageTotal) {
-    pageTotal.textContent =
-      String(total);
+    pageTotal.textContent = String(totalForPagination);
   }
 
-  if (btnPrev) {
+  if (btnPrev) btnPrev.disabled = currentPage <= 1;
+  if (btnNext) btnNext.disabled = currentPage >= totalPagesForPagination;
 
-    btnPrev.disabled =
-      currentPage <= 1;
-  }
-
-  if (btnNext) {
-
-    btnNext.disabled =
-      start + pagePatients.length >= total;
-  }
-
-  renderPaginationButtons(total);
+  renderPaginationButtons(totalPagesForPagination);
 
   // Contador de resultados
-  const filterResults =
-    safeGetElement('filterResults');
-
-  const hasActiveFilters =
-    searchQuery ||
-    filterAlergias ||
-    filterCita ||
-    filterHistorial;
-
+  const filterResults   = safeGetElement('filterResults');
+  const hasActiveFilters = searchQuery || filterAlergias || filterCita || filterHistorial;
   if (filterResults) {
-
-    filterResults.textContent =
-      hasActiveFilters
-
-        ? `${total} resultado${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}`
-
-        : '';
+    filterResults.textContent = hasActiveFilters
+      ? `${totalForPagination} resultado${totalForPagination !== 1 ? 's' : ''} encontrado${totalForPagination !== 1 ? 's' : ''}`
+      : '';
   }
 
-  // Detalle
+  // Yeray (2025) - Detalle: navega a la vista de perfil completo
+  // ANTES: abría un modal con datos limitados del ViewModel del listado.
+  // AHORA: redirige a GET /gestion-de-pacientes/{id}, que carga todos los datos
+  //        del paciente incluyendo antecedentes, contacto de emergencia y
+  //        resumen de actividad.
   document
     .querySelectorAll('.btn-view')
     .forEach((btn) => {
@@ -627,13 +536,8 @@ const renderPatients = () => {
       btn.addEventListener(
         'click',
         (event) => {
-
-          openPatientModal(
-            Number(
-              event.currentTarget.dataset.id
-            ),
-            'detail'
-          );
+          const id = Number(event.currentTarget.dataset.id);
+          window.location.href = `/gestion-de-pacientes/${id}`;
         }
       );
     });
@@ -1632,28 +1536,19 @@ const initNavGroups = () => {
 //  BÚSQUEDA
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025) - initSearch: con debounce de 350ms llama al servidor
+// si hay texto; sin texto vuelve al array local (RAZOR_PATIENTS inicial).
 const initSearch = () => {
 
-  const searchInput =
-    safeGetElement(
-      'searchPatients'
-    );
+  const searchInput = safeGetElement('searchPatients');
 
   searchInput?.addEventListener(
     'input',
-    debounce(
-      (event) => {
-
-        searchQuery =
-          event.target.value
-            .toLowerCase();
-
-        currentPage = 1;
-
-        renderPatients();
-      },
-      250
-    )
+    debounce(async (event) => {
+      searchQuery = event.target.value.toLowerCase().trim();
+      currentPage = 1;
+      await renderPatients();
+    }, 350)
   );
 };
 
@@ -1661,58 +1556,20 @@ const initSearch = () => {
 //  PAGINACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025): initPagination es ahora async para coordinar con el servidor.
 const initPagination = () => {
 
-  const btnPrev =
-    safeGetElement(
-      'btnPrev'
-    );
+  const btnPrev = safeGetElement('btnPrev');
+  const btnNext = safeGetElement('btnNext');
 
-  const btnNext =
-    safeGetElement(
-      'btnNext'
-    );
+  btnPrev?.addEventListener('click', async () => {
+    if (currentPage > 1) { currentPage--; await renderPatients(); }
+  });
 
-  btnPrev?.addEventListener(
-    'click',
-    () => {
-
-      if (currentPage > 1) {
-
-        currentPage--;
-
-        renderPatients();
-      }
-    }
-  );
-
-  btnNext?.addEventListener(
-    'click',
-    () => {
-
-      const filtered =
-        getFilteredPatients();
-
-      const maxPage =
-        Math.max(
-          1,
-          Math.ceil(
-            filtered.length /
-            itemsPerPage
-          )
-        );
-
-      if (
-        currentPage <
-        maxPage
-      ) {
-
-        currentPage++;
-
-        renderPatients();
-      }
-    }
-  );
+  btnNext?.addEventListener('click', async () => {
+    currentPage++;
+    await renderPatients();
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1778,139 +1635,55 @@ const initModal = () => {
 //  FILTROS
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025): applyFilters es async para soportar renderPatients async.
 const initFilters = () => {
 
-  const applyFilters =
-    () => {
-
-      currentPage = 1;
-
-      renderPatients();
-
-      const hasActive =
-        filterAlergias ||
-        filterCita ||
-        filterHistorial;
-
-      const clearBtn =
-        safeGetElement(
-          'btnClearFilters'
-        );
-
-      if (clearBtn) {
-
-        clearBtn.classList.toggle(
-          'active',
-          !!hasActive
-        );
-      }
-    };
-
-  safeGetElement(
-    'filterAlergias'
-  )?.addEventListener(
-    'change',
-    (e) => {
-
-      filterAlergias =
-        e.target.value;
-
-      applyFilters();
+  const applyFilters = async () => {
+    currentPage = 1;
+    await renderPatients();
+    const clearBtn = safeGetElement('btnClearFilters');
+    if (clearBtn) {
+      clearBtn.classList.toggle('active', !!(filterAlergias || filterCita || filterHistorial));
     }
-  );
+  };
 
-  safeGetElement(
-    'filterCita'
-  )?.addEventListener(
-    'change',
-    (e) => {
+  safeGetElement('filterAlergias')?.addEventListener('change', (e) => {
+    filterAlergias = e.target.value; applyFilters();
+  });
+  safeGetElement('filterCita')?.addEventListener('change', (e) => {
+    filterCita = e.target.value; applyFilters();
+  });
+  safeGetElement('filterHistorial')?.addEventListener('change', (e) => {
+    filterHistorial = e.target.value; applyFilters();
+  });
 
-      filterCita =
-        e.target.value;
-
-      applyFilters();
-    }
-  );
-
-  safeGetElement(
-    'filterHistorial'
-  )?.addEventListener(
-    'change',
-    (e) => {
-
-      filterHistorial =
-        e.target.value;
-
-      applyFilters();
-    }
-  );
-
-  safeGetElement(
-    'btnClearFilters'
-  )?.addEventListener(
-    'click',
-    () => {
-
-      filterAlergias = '';
-      filterCita = '';
-      filterHistorial = '';
-
-      const sel1 =
-        safeGetElement(
-          'filterAlergias'
-        );
-
-      const sel2 =
-        safeGetElement(
-          'filterCita'
-        );
-
-      const sel3 =
-        safeGetElement(
-          'filterHistorial'
-        );
-
-      if (sel1) {
-        sel1.value = '';
-      }
-
-      if (sel2) {
-        sel2.value = '';
-      }
-
-      if (sel3) {
-        sel3.value = '';
-      }
-
-      applyFilters();
-    }
-  );
+  safeGetElement('btnClearFilters')?.addEventListener('click', () => {
+    filterAlergias = ''; filterCita = ''; filterHistorial = '';
+    const sel1 = safeGetElement('filterAlergias');
+    const sel2 = safeGetElement('filterCita');
+    const sel3 = safeGetElement('filterHistorial');
+    if (sel1) sel1.value = '';
+    if (sel2) sel2.value = '';
+    if (sel3) sel3.value = '';
+    applyFilters();
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
 //  INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
-const init = () => {
+// Yeray (2025) - init es async porque renderPatients es async.
+const init = async () => {
 
   initSidebar();
-
   initNavGroups();
-
   initSearch();
-
   initPagination();
-
   initModal();
-
   initFilters();
-
   animateCounters();
-
-  renderPatients();
+  await renderPatients();
 };
 
-document.addEventListener(
-  'DOMContentLoaded',
-  init
-);
+document.addEventListener('DOMContentLoaded', init);

@@ -49,62 +49,27 @@ const fmtDate = (iso) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  PERSISTENCIA CON LOCALSTORAGE
+//  FUENTE DE DATOS: SQL Server (renderizado por el servidor) + API REST
+//  para las acciones de escritura (pago/anulación). Ya no se usa
+//  localStorage como fuente de verdad de las facturas.
 // ═══════════════════════════════════════════════════════════════════
 
 const invoicesStorage = {
-  key: 'smiletrack_facturas_admin',
-  
-  load: () => {
-    const stored = localStorage.getItem(invoicesStorage.key);
-    if (stored) {
-      try { return JSON.parse(stored); }
-      catch (e) { console.warn('Error al cargar facturas, usando datos de ejemplo'); }
-    }
-    if (Array.isArray(window.RAZOR_INVOICES) && window.RAZOR_INVOICES.length > 0) {
-      return window.RAZOR_INVOICES;
-    }
-    // Datos de ejemplo con estados y fechas actualizadas
-    return [
-      { id: 1, number: 'FAC-2026-001', patient: 'Marco Antonio Solís', doc: '10293-A', date: '2026-05-12', total: 1200000, pending: 450000, status: 'parcial', avatar: 'MA', color: 'blue', history: [
-        { date: '2026-05-10', type: 'abono', amount: 400000, note: 'Abono parcial recibido' },
-        { date: '2026-05-11', type: 'recordatorio', note: 'Email automático enviado' }
-      ]},
-      { id: 2, number: 'FAC-2026-002', patient: 'Elena Rodríguez', doc: '10294-B', date: '2026-05-14', total: 850000, pending: 850000, status: 'pendiente', avatar: 'ER', color: 'green', history: [] },
-      { id: 3, number: 'FAC-2026-003', patient: 'Juan Sebastian', doc: '10295-C', date: '2026-05-15', total: 2100000, pending: 1050000, status: 'parcial', avatar: 'JS', color: 'purple', history: [
-        { date: '2026-05-13', type: 'abono', amount: 1050000, note: 'Primer pago recibido' }
-      ]},
-      { id: 4, number: 'FAC-2026-004', patient: 'Laura Pineda', doc: '10296-D', date: '2026-05-16', total: 560000, pending: 0, status: 'pagada', avatar: 'LP', color: 'orange', history: [
-        { date: '2026-05-16', type: 'pago', amount: 560000, note: 'Pago completo recibido' }
-      ]},
-      { id: 5, number: 'FAC-2026-005', patient: 'Carlos Vega', doc: '10297-E', date: '2026-05-17', total: 320000, pending: 320000, status: 'anulada', avatar: 'CV', color: 'red', history: [
-        { date: '2026-05-17', type: 'anulacion', note: 'Factura anulada por solicitud del paciente' }
-      ]}
-    ];
-  },
-  
-  save: (data) => {
-    try { localStorage.setItem(invoicesStorage.key, JSON.stringify(data)); return true; }
-    catch (e) { console.error('Error al guardar facturas:', e); return false; }
-  },
-  
-  addInvoice: (invoice) => {
-    const data = invoicesStorage.load();
-    invoice.id = data.length > 0 ? Math.max(...data.map(i => i.id)) + 1 : 1;
-    invoice.history = invoice.history || [];
-    data.unshift(invoice);
-    invoicesStorage.save(data);
-    return invoice;
-  },
+
+  // Los datos vienen siempre del servidor (FacturacionPagosController ->
+  // AppDbContext.Facturas), serializados en ViewData["FacturasJson"].
+  load: () => Array.isArray(window.RAZOR_INVOICES) ? window.RAZOR_INVOICES : [],
   
   getInvoice: (id) => invoicesStorage.load().find(i => i.id === id),
   
-  updateInvoice: (id, updates) => {
-    const data = invoicesStorage.load();
-    const idx = data.findIndex(i => i.id === id);
+
+   // Actualiza solo el estado en memoria para reflejar de inmediato el
+   // resultado de una llamada a la API; la próxima recarga de página
+   // siempre traerá el estado real desde SQL Server.
+  updateLocalCache: (id, updates) => {
+    const idx = invoices.findIndex(i => i.id === id);
     if (idx !== -1) {
-      data[idx] = { ...data[idx], ...updates };
-      invoicesStorage.save(data);
+      invoices[idx] = { ...invoices[idx], ...updates };
       return true;
     }
     return false;
@@ -282,6 +247,12 @@ const closeDrawer = () => {
     document.body.style.overflow = '';
   }
 };
+// Enviar recordatorio de pago (funcionalidad de notificación, no persiste
+// estado de negocio; el envío real de correo se apoya en el EmailService
+// del backend cuando esté disponible para este flujo).
+   const sendReminder = (id) => {
+   const invoice = invoicesStorage.getInvoice(id);
+   if (!invoice) return;
 
 const closePaymentSuccess = () => {
   const modal = safeGetElement('paymentSuccessOverlay');
@@ -348,59 +319,82 @@ const showPaymentSuccess = (amount, patient) => {
 const sendReminder = (id) => {
   const invoice = invoicesStorage.getInvoice(id);
   if (!invoice) return;
-  
-  // Simular envío de email
+
   showToast(`📧 Recordatorio enviado a ${invoice.patient}`, 'success');
   
-  // Agregar al historial
-  const data = invoicesStorage.load();
-  const idx = data.findIndex(i => i.id === id);
-  if (idx !== -1) {
-    data[idx].history = data[idx].history || [];
-    data[idx].history.unshift({
-      date: new Date().toISOString().split('T')[0],
-      type: 'recordatorio',
-      note: 'Recordatorio enviado por email'
-    });
-    invoicesStorage.save(data);
-    invoices = data;
-  }
 };
 
-// Registrar pago
-const registerPayment = (id) => {
+// Registrar pago — llama a la API real (PUT /facturacion-y-pagos/api/facturas/{id}/pago)
+// que persiste el pago en SQL Server (tabla Factura: monto_pagado, estado, fecha_pago).
+const registerPayment = async (id) => {
   const invoice = invoicesStorage.getInvoice(id);
-  if (!invoice) return;
+  if (!invoice) return; 
   
   if (invoice.pending <= 0) {
     showToast('⚠️ Esta factura ya está pagada', 'warning');
     return;
   }
   
-  // Simular registro de pago
+  
   const paymentAmount = invoice.pending;
-  invoicesStorage.updateInvoice(id, { pending: 0, status: 'pagada' });
   
-  // Agregar al historial
-  const data = invoicesStorage.load();
-  const idx = data.findIndex(i => i.id === id);
-  if (idx !== -1) {
-    data[idx].history = data[idx].history || [];
-    data[idx].history.unshift({
-      date: new Date().toISOString().split('T')[0],
-      type: 'pago',
-      amount: paymentAmount,
-      note: 'Pago completo registrado'
+  
+  
+      try {
+      const result = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${id}/pago`, {
+      method: 'PUT',
+      body: { montoPagado: paymentAmount }
     });
-    invoicesStorage.save(data);
-    invoices = data;
+    if (!result || result.success !== true) {
+      showToast(result?.message || 'No fue posible registrar el pago.', 'error');
+      return;
   }
-  
+
+  invoicesStorage.updateLocalCache(id, { pending: 0, status: result.data.estado });
   renderInvoices();
   updateStats();
-  openDrawer(id);
-  showPaymentSuccess(paymentAmount, invoice.patient);
+  closeDrawer();
+  showToast(`✅ Pago de ${fmtCurrency(paymentAmount)} registrado para ${invoice.patient}`);
+} catch (error) {
+    console.error('Error registrando pago:', error);
+    showToast('Error de conexión al registrar el pago.', 'error');
+  }
 };
+
+// Anular factura — llama a la API real (POST /facturacion-y-pagos/api/facturas/{id}/anular).
+  const cancelInvoice = async (id) => {
+  const invoice = invoicesStorage.getInvoice(id);
+  if (!invoice) return;
+
+  if (invoice.status === 'anulada') {
+    showToast('Esta factura ya está anulada.', 'warning');
+    return;
+  }
+
+  if (!window.confirm(`¿Anular la factura ${invoice.number} de ${invoice.patient}? Esta acción no se puede deshacer.`)) {
+    return;
+  }
+
+  try {
+    const result = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${id}/anular`, {
+      method: 'POST',
+      body: { motivo: 'Anulada desde el panel administrativo' }
+    });
+
+    if (!result || result.success !== true) {
+      showToast(result?.message || 'No fue posible anular la factura.', 'error');
+      return;
+    }
+
+    invoicesStorage.updateLocalCache(id, { status: 'anulada' });
+    renderInvoices();
+    updateStats();
+    closeDrawer();
+    showToast(`Factura ${invoice.number} anulada correctamente.`);
+  } catch (error) {
+    console.error('Error anulando factura:', error);
+    showToast('Error de conexión al anular la factura.', 'error');
+  }
 
 // ═══════════════════════════════════════════════════════════════════
 //  PAGINACIÓN Y CONTADORES
@@ -521,6 +515,7 @@ const initDrawer = () => {
   const drawerClose = safeGetElement('drawerClose');
   const btnViewDetails = safeGetElement('btnViewDetails');
   const btnRegister = safeGetElement('btnRegisterPayment');
+  const btnCancel = safeGetElement('btnCancelInvoice'); 
   const invoiceDetails = safeGetElement('invoiceDetailsOverlay');
   const invoiceDetailsClose = safeGetElement('invoiceDetailsClose');
   const invoiceDetailsConfirm = safeGetElement('invoiceDetailsConfirm');
@@ -542,6 +537,11 @@ const initDrawer = () => {
     const id = parseInt(drawer.dataset.invoiceId);
     if (id) registerPayment(id);
   });
+    btnCancel?.addEventListener('click', () => {
+    const id = parseInt(drawer.dataset.invoiceId);
+    if (id) cancelInvoice(id);
+  });
+  
 
   paymentSuccessClose?.addEventListener('click', closePaymentSuccess);
   paymentSuccessConfirm?.addEventListener('click', closePaymentSuccess);
@@ -579,6 +579,11 @@ const initNewInvoice = () => {
   const cancelBtn = safeGetElement('newInvoiceCancel');
   const dateInput = safeGetElement('invoiceDate');
 
+  // La creación real de facturas ocurre en el flujo de Recepción
+  // (POST /facturacion-y-pagos/api/facturas), que sí persiste en SQL Server.
+  btn?.addEventListener('click', () => {
+    window.location.href = '/facturacion-y-pagos/st-rec-04-generar-factura';
+  });
   const closeModal = () => {
     if (!overlay) return;
     overlay.classList.remove('open');
@@ -642,36 +647,6 @@ const initNewInvoice = () => {
   });
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  API CALLS
-// ═══════════════════════════════════════════════════════════════════
-
-async function fetchInvoices() {
-  try {
-    // const res = await fetch(`${API_BASE}/admin/invoices`);
-    // if (!res.ok) throw new Error('API error');
-    // return await res.json();
-    return invoicesStorage.load();
-  } catch (error) {
-    console.warn('Fallback a datos locales:', error);
-    return invoicesStorage.load();
-  }
-}
-
-async function addInvoiceAPI(invoice) {
-  try {
-    // const res = await fetch(`${API_BASE}/admin/invoices`, {
-    //   method: 'POST', headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(invoice),
-    // });
-    // if (!res.ok) throw new Error('Add failed');
-    // return await res.json();
-    return invoicesStorage.addInvoice(invoice);
-  } catch (error) {
-    console.warn('Error al agregar factura en API:', error);
-    return null;
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════
 //  INICIALIZACIÓN PRINCIPAL
@@ -685,11 +660,12 @@ const init = async () => {
   initNewInvoice();
   initDrawer();
   
-  invoices = await fetchInvoices();
+  
+  invoices = invoicesStorage.load();
   updateStats();
   renderInvoices();
   
   window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
 };
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', init)};}

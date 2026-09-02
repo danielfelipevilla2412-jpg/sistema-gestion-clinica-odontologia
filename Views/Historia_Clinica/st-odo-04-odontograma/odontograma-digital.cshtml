@@ -3,16 +3,24 @@
 @model OdontogramaViewModel
 @{
     Layout = null;
+
+    @* Yeray (2025) - Se agrega citaId al config JS.
+       Si el profesional llegó desde la agenda con ?citaId=N, ese valor llega aquí
+       en Model.CitaId. El JS lo lee en config.citaId y lo incluye en el payload de
+       /guardar, completando la trazabilidad diente ↔ cita en Registro_Odontograma.
+       Si no hay cita activa, citaId es null y el comportamiento es el mismo que antes. *@
     var configJson = JsonSerializer.Serialize(new
     {
-        pacienteId = Model.PacienteId,
-        historiaId = Model.HistoriaId,
-        pacienteNombre = Model.PacienteNombre,
-        codigoHC = Model.CodigoHC,
-        fechaNacimiento = Model.FechaNacimiento,
+        pacienteId        = Model.PacienteId,
+        historiaId        = Model.HistoriaId,
+        pacienteNombre    = Model.PacienteNombre,
+        codigoHC          = Model.CodigoHC,
+        fechaNacimiento   = Model.FechaNacimiento,
         profesionalNombre = Model.ProfesionalNombre,
         profesionalCorreo = Model.ProfesionalCorreo,
-        estadoPersistido = Model.ObservacionesGenerales
+        estadoPersistido  = Model.ObservacionesGenerales,
+        // Cita activa (null si el profesional no viene desde la agenda)
+        citaId            = Model.CitaId
     });
 }
 

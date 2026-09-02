@@ -226,7 +226,10 @@
     <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
 
+ <script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
  <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-rec-04-generar-factura/app.js")"></script>
+   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.nav-group-header').forEach(header => {

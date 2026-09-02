@@ -21,14 +21,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // Yeray - Agregado DbSet para tabla Registro_Odontograma
     // Permite trazabilidad real por diente en lugar de JSON en ObservacionesGenerales
     public DbSet<RegistroOdontograma> RegistrosOdontograma => Set<RegistroOdontograma>();
+
+    // Yeray - Agregados DbSet para Nota_Clinica y Control_Postoperatorio
+    // Reemplazan los JSON "notasClinicas" y "controlesPostoperatorios" que vivían
+    // dentro de Historia_Clinica.observaciones_generales por tablas reales,
+    // consultables con SQL (mismo criterio que ya se aplicó a Registro_Odontograma).
+    public DbSet<NotaClinica> NotasClinicas => Set<NotaClinica>();
+    public DbSet<ControlPostoperatorio> ControlesPostoperatorios => Set<ControlPostoperatorio>();
+
     public DbSet<Auditoria> Auditorias => Set<Auditoria>();
     public DbSet<AuditoriaRecuperacion> AuditoriasRecuperacion => Set<AuditoriaRecuperacion>();
     public DbSet<Factura> Facturas => Set<Factura>();
+    public DbSet<DetalleFactura> DetallesFactura => Set<DetalleFactura>();
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
+    public DbSet<TicketSoporte> TicketsSoporte => Set<TicketSoporte>();
     public DbSet<Inventario> Inventarios => Set<Inventario>();
     public DbSet<Equipo> Equipos => Set<Equipo>();
     public DbSet<ConfiguracionGeneral> ConfiguracionesGenerales => Set<ConfiguracionGeneral>();
+
+    // Yeray - DbSet para Documento_Clinico.
+    // Antes la vista st-aux-08-documentos-clinicos devolvía Array.Empty<object>() porque
+    // no existía ninguna tabla de documentos. Ahora cada archivo subido (radiografía,
+    // PDF, consentimiento, etc.) se persiste como fila real consultable con SQL.
+    public DbSet<DocumentoClinico> DocumentosClinicos => Set<DocumentoClinico>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -195,6 +211,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(c => c.IdPaciente)
                   .OnDelete(DeleteBehavior.NoAction);
+                  
 
             entity.HasOne(c => c.Profesional)
                   .WithMany()
@@ -269,6 +286,54 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .OnDelete(DeleteBehavior.SetNull);
         });
 
+        // Yeray - Configuración Fluent API para Nota_Clinica
+        // Reemplaza el arreglo JSON "notasClinicas" (mismo criterio que Registro_Odontograma)
+        modelBuilder.Entity<NotaClinica>(entity =>
+        {
+            entity.ToTable("Nota_Clinica");
+            entity.HasKey(n => n.IdNota);
+            entity.Property(n => n.IdNota).HasColumnName("id_nota");
+            entity.Property(n => n.IdHistoria).HasColumnName("id_historia");
+            entity.Property(n => n.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(n => n.Fecha).HasColumnName("fecha");
+            entity.Property(n => n.Diagnostico).HasColumnName("diagnostico");
+            entity.Property(n => n.Procedimiento).HasColumnName("procedimiento");
+            entity.Property(n => n.ProximaCita).HasColumnName("proxima_cita").HasMaxLength(50);
+            entity.Property(n => n.Estado).HasColumnName("estado").HasMaxLength(20);
+
+            entity.HasOne(n => n.HistoriaClinica)
+                  .WithMany()
+                  .HasForeignKey(n => n.IdHistoria)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.Profesional)
+                  .WithMany()
+                  .HasForeignKey(n => n.IdProfesional)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Yeray - Configuración Fluent API para Control_Postoperatorio
+        // Reemplaza el objeto JSON "controlesPostoperatorios" indexado por citaId como texto
+        modelBuilder.Entity<ControlPostoperatorio>(entity =>
+        {
+            entity.ToTable("Control_Postoperatorio");
+            entity.HasKey(c => c.IdControl);
+            entity.Property(c => c.IdControl).HasColumnName("id_control");
+            entity.Property(c => c.IdCita).HasColumnName("id_cita");
+            entity.Property(c => c.Status).HasColumnName("status").HasMaxLength(20);
+            entity.Property(c => c.InstruccionesJson).HasColumnName("instrucciones_json");
+            entity.Property(c => c.Observaciones).HasColumnName("observaciones");
+            entity.Property(c => c.FechaRegistro).HasColumnName("fecha_registro");
+
+            // Yeray - Una cita tiene, como máximo, un control postoperatorio (1 a 1)
+            entity.HasIndex(c => c.IdCita).IsUnique();
+
+            entity.HasOne(c => c.Cita)
+                  .WithMany()
+                  .HasForeignKey(c => c.IdCita)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Auditoria>(entity =>
         {
             entity.ToTable("Auditoria");
@@ -303,7 +368,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(f => f.IdPaciente).HasColumnName("id_paciente");
             entity.Property(f => f.Notas).HasColumnName("notas");
             entity.Property(f => f.GeneradaPor).HasColumnName("generada_por");
-
+            entity.Property(f => f.MontoPagado).HasColumnName("monto_pagado").HasPrecision(12, 2);
+            entity.Property(f => f.FechaPago).HasColumnName("fecha_pago");
             entity.HasOne(f => f.Paciente)
                   .WithMany()
                   .HasForeignKey(f => f.IdPaciente)
@@ -312,6 +378,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(f => f.GeneradaPorUsuario)
                   .WithMany()
                   .HasForeignKey(f => f.GeneradaPor)
+                  .OnDelete(DeleteBehavior.Restrict);
+                  entity.HasMany(f => f.Detalles)
+                 .WithOne(d => d.Factura)
+                  .HasForeignKey(d => d.IdFactura)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DetalleFactura>(entity =>
+        {
+            entity.ToTable("Detalle_Factura");
+            entity.HasKey(d => d.IdDetalle);
+            entity.Property(d => d.IdDetalle).HasColumnName("id_detalle");
+            entity.Property(d => d.IdFactura).HasColumnName("id_factura");
+            entity.Property(d => d.IdServicio).HasColumnName("id_servicio");
+            entity.Property(d => d.Descripcion).HasColumnName("descripcion");
+            entity.Property(d => d.Cantidad).HasColumnName("cantidad");
+            entity.Property(d => d.PrecioUnitario).HasColumnName("precio_unitario").HasPrecision(12, 2);
+            entity.Property(d => d.SubtotalLinea).HasColumnName("subtotal_linea").HasPrecision(12, 2);
+
+            entity.HasOne(d => d.Servicio)
+                  .WithMany()
+                  .HasForeignKey(d => d.IdServicio)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -348,6 +436,35 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(p => p.AtendidaPor)
                   .OnDelete(DeleteBehavior.NoAction);
         });
+        modelBuilder.Entity<TicketSoporte>(entity =>
+        {
+            entity.ToTable("Ticket_Soporte");
+            entity.HasKey(t => t.IdTicket);
+            entity.Property(t => t.IdTicket).HasColumnName("id_ticket");
+            entity.Property(t => t.Referencia).HasColumnName("referencia").HasMaxLength(20);
+            entity.Property(t => t.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(t => t.Asunto).HasColumnName("asunto");
+            entity.Property(t => t.Categoria).HasColumnName("categoria");
+            entity.Property(t => t.ModuloAfectado).HasColumnName("modulo_afectado");
+            entity.Property(t => t.Severidad).HasColumnName("severidad");
+            entity.Property(t => t.Descripcion).HasColumnName("descripcion");
+            entity.Property(t => t.CapturaPantalla).HasColumnName("captura_pantalla");
+            entity.Property(t => t.Estado).HasColumnName("estado");
+            entity.Property(t => t.FechaCreacion).HasColumnName("fecha_creacion");
+            entity.Property(t => t.FechaRespuesta).HasColumnName("fecha_respuesta");
+            entity.Property(t => t.Respuesta).HasColumnName("respuesta");
+            entity.Property(t => t.AtendidoPor).HasColumnName("atendido_por");
+
+            entity.HasOne(t => t.Usuario)
+                  .WithMany()
+                  .HasForeignKey(t => t.IdUsuario)
+                  .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(t => t.AtendidoPorUsuario)
+                  .WithMany()
+                  .HasForeignKey(t => t.AtendidoPor)
+                  .OnDelete(DeleteBehavior.NoAction);
+        });
 
         modelBuilder.Entity<Inventario>(entity =>
         {
@@ -377,6 +494,44 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.UltimoMantenimiento).HasColumnName("ultimo_mantenimiento");
             entity.Property(e => e.ProximoMantenimiento).HasColumnName("proximo_mantenimiento");
             entity.Property(e => e.Ubicacion).HasColumnName("ubicacion");
+        });
+
+        // Yeray - Configuración Fluent API para Documento_Clinico.
+        // Tabla nueva que resuelve la vista st-aux-08 que antes devolvía lista vacía.
+        // Relaciones: HC → CASCADE delete (un documento sin HC no tiene sentido);
+        //             Usuario (SubidoPor) → SET NULL (el documento queda aunque el
+        //             usuario sea eliminado).
+        // Índice IX_DC_Historia agiliza el GET de documentos por historia clínica.
+        modelBuilder.Entity<DocumentoClinico>(entity =>
+        {
+            entity.ToTable("Documento_Clinico");
+            entity.HasKey(d => d.IdDocumento);
+            entity.Property(d => d.IdDocumento).HasColumnName("id_documento");
+            entity.Property(d => d.IdHistoria).HasColumnName("id_historia");
+            entity.Property(d => d.SubidoPor).HasColumnName("subido_por");
+            entity.Property(d => d.Tipo).HasColumnName("tipo").HasMaxLength(100);
+            entity.Property(d => d.NombreOriginal).HasColumnName("nombre_original").HasMaxLength(255);
+            entity.Property(d => d.RutaRelativa).HasColumnName("ruta_relativa").HasMaxLength(500);
+            entity.Property(d => d.ContentType).HasColumnName("content_type").HasMaxLength(100);
+            entity.Property(d => d.TamanoBytes).HasColumnName("tamano_bytes");
+            entity.Property(d => d.FechaSubida).HasColumnName("fecha_subida");
+            entity.Property(d => d.Observacion).HasColumnName("observacion").HasMaxLength(500);
+
+            // Índice para listar documentos de una HC sin full-scan
+            entity.HasIndex(d => d.IdHistoria).HasDatabaseName("IX_DC_Historia");
+
+            // Historia clínica → CASCADE: sin HC el documento no tiene sentido
+            entity.HasOne(d => d.HistoriaClinica)
+                  .WithMany()
+                  .HasForeignKey(d => d.IdHistoria)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // Usuario que subió → SET NULL: el documento sigue existiendo aunque el
+            // usuario sea eliminado
+            entity.HasOne(d => d.SubidoPorUsuario)
+                  .WithMany()
+                  .HasForeignKey(d => d.SubidoPor)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<ConfiguracionGeneral>(entity =>

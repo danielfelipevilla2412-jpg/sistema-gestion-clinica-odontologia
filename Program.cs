@@ -449,6 +449,14 @@ builder.Services.AddScoped<
     SmileTrack_MVC.Services.IUsuarioAdminService,
     SmileTrack_MVC.Services.UsuarioAdminService>();
 
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IUsuariosApiService,
+    SmileTrack_MVC.Services.UsuariosApiService>();
+
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IReportesApiService,
+    SmileTrack_MVC.Services.ReportesApiService>();
+
 builder.Services.Configure<
     SmileTrack_MVC.Services.Email.EmailServiceOptions>(
         builder.Configuration.GetSection("Smtp"));
@@ -460,6 +468,14 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.IProfesionalService,
     SmileTrack_MVC.Services.ProfesionalService>();
+
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IPacienteService,
+    SmileTrack_MVC.Services.PacienteService>();
+
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IHistoriaClinicaService,
+    SmileTrack_MVC.Services.HistoriaClinicaService>();
 
 // -----------------------------------------------------------------------------
 // URL DE ESCUCHA

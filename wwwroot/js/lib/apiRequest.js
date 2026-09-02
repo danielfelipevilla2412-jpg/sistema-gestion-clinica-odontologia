@@ -4,7 +4,7 @@ function getAntiforgeryToken() {
   return match ? decodeURIComponent(match[2]) : null;
 }
 
-export async function apiRequest(path, options = {}) {
+  +async function apiRequest(path, options = {}) {
   const url = (window.APP_CONFIG && window.APP_CONFIG.ApiBase ? window.APP_CONFIG.ApiBase : '') + path;
   const opts = { method: options.method || 'GET', headers: options.headers || {}, body: options.body, credentials: options.credentials || 'same-origin' };
 
@@ -53,4 +53,14 @@ export async function apiRequest(path, options = {}) {
     console.error('[apiRequest] Error:', err);
     throw err;
   }
+}
+
+// Disponible como función global para los scripts clásicos (no-módulo) del proyecto.
+if (typeof window !== 'undefined') {
+  window.apiRequest = apiRequest;
+}
+
+// Disponible también como export ES module para código que se cargue con type="module".
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { apiRequest };
 }
