@@ -185,7 +185,6 @@ El sistema utiliza enrutamiento basado en atributos en los controladores. A cont
 | Método | Ruta | Rol Requerido | Descripción |
 | :--- | :--- | :--- | :--- |
 | **GET** | `/facturacion-y-pagos/st-adm-12-facturacion` | Administrador | Matriz de facturas y control de recaudos. |
-| **GET** | `/facturacion-y-pagos/st-adm-13-reportes-financieros`| Administrador | Reporte de ingresos, facturado vs cobrado. |
 | **GET** | `/facturacion-y-pagos/st-rec-04-generar-factura` | Recepcionista | Generador de factura rápida de tratamientos. |
 
 ### Módulo: Servicios y Recursos (`ServiciosRecursosController`)
