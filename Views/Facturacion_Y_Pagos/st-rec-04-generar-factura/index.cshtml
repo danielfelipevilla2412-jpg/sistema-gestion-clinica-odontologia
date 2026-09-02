@@ -1,6 +1,6 @@
-﻿﻿﻿﻿@{ Layout = null; }
+﻿@{ Layout = null; }
 
-?<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -12,7 +12,6 @@
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-rec-04-generar-factura/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 
 <body>
@@ -20,9 +19,22 @@
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+  <!-- ═════ SIDEBAR UNIFICADO (Activo: Facturas) ═════ -->
+  <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+  <div class="sidebar-logo">
+    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
+  </div>
+  @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+  <div class="sidebar-user">
+    <div class="user-avatar" aria-hidden="true">RE</div>
+    <div class="user-info">
+      <span class="user-role">Recepción</span>
+      <span class="user-email">recepcion@smiletrack.co</span>
+    </div>
+  </div>
+</aside>
 
-  <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
+  <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
     <span aria-hidden="true"></span>
     <span aria-hidden="true"></span>
@@ -30,15 +42,15 @@
   </button>
   <div class="overlay" id="overlay" aria-hidden="true"></div>
 
-  <!-- ----- MAIN ----- -->
+  <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
 
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb">Recepción ? Facturas ? Generar</div>
+        <div class="breadcrumb">Recepción → Facturas → Generar</div>
         <h1 class="page-title">Generar Factura</h1>
-        <p class="page-subtitle">Cita del 20 Mar 2026 — Pedro García — Dr. Carlos Méndez</p>
+        <p class="page-subtitle">Cita del 20 Mar 2026 · Pedro García · Dr. Carlos Méndez</p>
       </div>
       <!-- Badge de estado con role status para anuncio dinámico -->
       <span class="status-badge status-pendiente" id="statusBadge" role="status" aria-live="polite">
@@ -117,7 +129,8 @@
               <option value="consulta" data-price="50000" data-desc="Valoración y diagnóstico">Consulta General - $50.000</option>
             }
           </select>
-          <button class="btn-add" id="btnAddService" aria-label="Añadir servicio seleccionado a la factura"><span class="material-symbols-outlined" aria-hidden="true">add</span> Añadir</button>
+          <button class="btn-add" id="btnAddService" aria-label="Añadir servicio seleccionado a la factura">➕
+            Añadir</button>
         </div>
       </div>
     </div>
@@ -178,8 +191,8 @@
         </div>
       </div>
       <div class="payment-actions">
-        <button class="btn-secondary" id="btnPrint" aria-label="Imprimir factura actual"><span class="material-symbols-outlined" aria-hidden="true">print</span> Imprimir factura</button>
-        <button class="btn-success" id="btnPay" aria-label="Registrar pago de la factura"><span class="material-symbols-outlined" aria-hidden="true">payment</span> Registrar pago — $0</button>
+        <button class="btn-secondary" id="btnPrint" aria-label="Imprimir factura actual">🖨️ Imprimir factura</button>
+        <button class="btn-success" id="btnPay" aria-label="Registrar pago de la factura">✓ Registrar pago — $0</button>
       </div>
     </section>
 
@@ -205,20 +218,49 @@
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+      <span style="font-size:1rem;">🦷</span>
+      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
+    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
     <script src="@Url.Content("~/js/footer.js")"></script>
     <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
 
+ <script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
  <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-rec-04-generar-factura/app.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.nav-group-header').forEach(header => {
+      const items = header.nextElementSibling;
+      const arrow = header.querySelector('.nav-arrow');
+
+      if (!items || !arrow) return;
+
+      const setExpanded = (isExpanded) => {
+        items.style.maxHeight = isExpanded ? `${items.scrollHeight}px` : '0px';
+        arrow.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+        header.setAttribute('aria-expanded', String(isExpanded));
+      };
+
+      setExpanded(false);
+
+      const toggle = () => {
+        const isExpanded = header.getAttribute('aria-expanded') === 'true';
+        setExpanded(!isExpanded);
+      };
+
+      header.addEventListener('click', toggle);
+      header.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggle();
+        }
+      });
+    });
+  });
+</script>
 </body>
 
 </html>
-
-

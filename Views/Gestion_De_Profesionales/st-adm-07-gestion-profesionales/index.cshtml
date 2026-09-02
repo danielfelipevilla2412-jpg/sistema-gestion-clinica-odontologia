@@ -28,8 +28,6 @@ NOTAS DE MANTENIMIENTO:
   var especialidades = ViewData["Especialidades"] as List<SmileTrack_MVC.Models.Entities.Especialidad> ?? new();
   var profesionales  = ViewData["Profesionales"]  as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
   var pageResult     = ViewData["ProfesionalesPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Profesional>;
-  var editingProfesional = ViewData["EditingProfesional"] as SmileTrack_MVC.Models.Entities.Profesional;
-
   // Stats globales: vienen del Controller como COUNT() sobre toda la BD (no de la página actual).
   // WHY: si hay 80 profesionales y se muestran 10 por página, los stats deben decir 80, no 10.
   var statTotal      = (int)(ViewData["StatTotal"]      ?? 0);
@@ -163,9 +161,13 @@ NOTAS DE MANTENIMIENTO:
         </div>
         <!-- Resetear page=1 al filtrar: evita quedarse en una página que ya no existe tras filtrar -->
         <input type="hidden" name="page" value="1" />
-        <button class="btn-primary" type="submit">Aplicar filtros</button>
+        <button class="btn-primary" type="submit" aria-label="Aplicar los filtros de búsqueda seleccionados">
+          🔍 Buscar
+        </button>
         <!-- Limpiar: enlace simple al GET sin params — más limpio que resetear el form con JS -->
-        <a class="btn-secondary" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales")">Limpiar</a>
+        <a class="btn-secondary" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales")" aria-label="Limpiar todos los filtros y ver todos los profesionales">
+          ✕ Limpiar filtros
+        </a>
       </form>
     </section>
 
@@ -249,10 +251,17 @@ NOTAS DE MANTENIMIENTO:
                     title="Ver detalles del profesional @Html.Encode(profNombreCompleto)">
               👁️ <span class="btn-text">Ver</span>
             </button>
-            <!-- Editar: GET con editId para que el Controller cargue el profesional en ViewData -->
-            <a class="btn-icon edit action-btn" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { editId = profesional.IdProfesional })" aria-label="Editar el profesional @profesional.Nombres @profesional.Apellidos" title="Editar profesional @Html.Encode(profNombreCompleto)" role="button">
+            <!-- Editar: llama directamente a editProfessional() en app.js via API.
+                 WHY: el enlace anterior (?editId=N) recargaba la página completa y el modal
+                 no se abría porque EditingProfesional ya no se usa en la vista.
+                 Ahora el flujo es: clic → editProfessional(id) → GET /api/profesionales/{id}
+                 → modal se abre con los datos sin recarga. -->
+            <button class="btn-icon edit action-btn" type="button"
+                    onclick="editProfessional(@profesional.IdProfesional)"
+                    aria-label="Editar el profesional @profesional.Nombres @profesional.Apellidos"
+                    title="Editar profesional @Html.Encode(profNombreCompleto)">
               ✏️ <span class="btn-text">Editar</span>
-            </a>
+            </button>
             <!-- Eliminar: abrir modal de confirmación -->
             <button class="btn-icon toggle action-btn btn-delete" type="button" 
                     data-id="@profesional.IdProfesional" 
@@ -315,33 +324,31 @@ NOTAS DE MANTENIMIENTO:
       <h2 class="modal-title" id="modalFormTitle">Nuevo Profesional</h2>
       <!-- novalidate: desactiva validación HTML nativa para controlar el flujo desde JS -->
       <!-- WHY: la validación nativa del browser no muestra mensajes custom ni toast -->
-      <form id="formProfessional" method="post" action="/gestion-de-profesionales/guardar-profesional" novalidate>
+      <form id="formProfessional" novalidate>
         @Html.AntiForgeryToken()
-        <!-- ReturnUrl: para que el redirect post-guardado vuelva a esta misma URL con sus filtros -->
-        <input type="hidden" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
-        <input type="hidden" name="IdProfesional" id="formIdProfesional" value="@(editingProfesional?.IdProfesional ?? 0)" />
+        <input type="hidden" name="IdProfesional" id="formIdProfesional" value="0" />
         <div class="form-group">
           <label class="form-label" for="formNombres">Nombres *</label>
-          <input type="text" id="formNombres" name="Nombres" class="form-input" required aria-required="true" aria-describedby="error-formNombres" placeholder="Ej. Carlos" value="@(editingProfesional?.Nombres)">
+          <input type="text" id="formNombres" name="Nombres" class="form-input" required aria-required="true" aria-describedby="error-formNombres" placeholder="Ej. Carlos" value="">
           <span class="error-message" id="error-formNombres" role="alert">Por favor ingresa los nombres.</span>
         </div>
         <div class="form-group">
           <label class="form-label" for="formApellidos">Apellidos *</label>
-          <input type="text" id="formApellidos" name="Apellidos" class="form-input" required aria-required="true" aria-describedby="error-formApellidos" placeholder="Ej. Méndez Ruiz" value="@(editingProfesional?.Apellidos)">
+          <input type="text" id="formApellidos" name="Apellidos" class="form-input" required aria-required="true" aria-describedby="error-formApellidos" placeholder="Ej. Méndez Ruiz" value="">
           <span class="error-message" id="error-formApellidos" role="alert">Por favor ingresa los apellidos.</span>
         </div>
         <div class="form-group">
           <label class="form-label" for="formRegistroMedico">Registro Médico *</label>
-          <input type="text" id="formRegistroMedico" name="RegistroMedico" class="form-input" required aria-required="true" aria-describedby="error-formRegistroMedico" placeholder="Ej. RM-2026-001" value="@(editingProfesional?.RegistroMedico)">
+          <input type="text" id="formRegistroMedico" name="RegistroMedico" class="form-input" required aria-required="true" aria-describedby="error-formRegistroMedico" placeholder="Ej. RM-2026-001" value="">
           <span class="error-message" id="error-formRegistroMedico" role="alert">Por favor ingresa el registro médico.</span>
         </div>
         <div class="form-group">
           <label class="form-label" for="formCategoria">Categoría</label>
-          <input type="text" id="formCategoria" name="Categoria" class="form-input" placeholder="Ej. Odontología General" value="@(editingProfesional?.Categoria)">
+          <input type="text" id="formCategoria" name="Categoria" class="form-input" placeholder="Ej. Odontología General" value="">
         </div>
         <div class="form-group">
           <label class="form-label" for="formTelefono">Teléfono</label>
-          <input type="tel" id="formTelefono" name="Telefono" class="form-input" placeholder="Ej. 300 123 4567" value="@(editingProfesional?.Telefono)">
+          <input type="tel" id="formTelefono" name="Telefono" class="form-input" placeholder="Ej. 300 123 4567" value="">
         </div>
         <div class="form-group">
           <label class="form-label" for="formEspecialidad">Especialidad</label>
@@ -349,30 +356,22 @@ NOTAS DE MANTENIMIENTO:
             <option value="">Sin especialidad</option>
             @foreach (var especialidad in especialidades)
             {
-              var espSelected = editingProfesional?.Especialidades.Any(pe => pe.IdEspecialidad == especialidad.IdEspecialidad) == true;
-              if (espSelected)
-              {
-                <option value="@especialidad.IdEspecialidad" selected>@especialidad.Nombre</option>
-              }
-              else
-              {
-                <option value="@especialidad.IdEspecialidad">@especialidad.Nombre</option>
-              }
+              <option value="@especialidad.IdEspecialidad">@especialidad.Nombre</option>
             }
           </select>
         </div>
         <div class="form-group">
           <label class="form-label" for="formCorreoAcceso">Correo de acceso *</label>
-          <input type="email" id="formCorreoAcceso" name="CorreoAcceso" class="form-input" required aria-required="true" placeholder="Ej. profesional@smiletrack.co" value="@(editingProfesional?.Usuario?.Correo ?? "")">
+          <input type="email" id="formCorreoAcceso" name="CorreoAcceso" class="form-input" required aria-required="true" placeholder="Ej. profesional@smiletrack.co" value="">
           <span class="error-message" id="error-formCorreoAcceso" role="alert">Ingresa un correo válido.</span>
         </div>
         <div class="form-group">
-          <label class="form-label" for="formContrasenaAcceso">@(editingProfesional != null ? "Nueva contraseña (opcional)" : "Contraseña inicial *")</label>
+          <label class="form-label" for="formContrasenaAcceso">Contraseña</label>
           <div style="position:relative;">
-            <input type="password" id="formContrasenaAcceso" name="ContrasenaAcceso" class="form-input" @(editingProfesional == null ? "required" : "") minlength="8" placeholder="Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo" style="padding-right:44px;">
+            <input type="password" id="formContrasenaAcceso" name="ContrasenaAcceso" class="form-input" minlength="8" placeholder="Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo" style="padding-right:44px;">
             <button type="button" id="toggleProfesionalPassword" aria-label="Mostrar contraseña" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;font-size:16px;">👁</button>
           </div>
-          <small id="formContrasenaHelp" style="display:block;margin-top:5px;color:var(--text-muted);">@(editingProfesional != null ? "Déjala vacía para conservar la contraseña actual." : "Debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo.")</small>
+          <small id="formContrasenaHelp" style="display:block;margin-top:5px;color:var(--text-muted);">Debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo.</small>
         </div>
         <div class="form-group" id="professionalPasswordRules">
           <div style="font-size:12px;line-height:1.6;">
@@ -386,36 +385,16 @@ NOTAS DE MANTENIMIENTO:
         </div>
         <div class="form-group" id="statusGroup">
           <label class="form-label" for="formStatus">Estado</label>
-          @if (editingProfesional != null)
-          {
-            <select id="formStatus" name="Estado" class="form-input" required>
-              @if (editingProfesional.Estado == "activo")
-              {
-                <option value="activo" selected>Activo</option>
-              }
-              else
-              {
-                <option value="activo">Activo</option>
-              }
-              @if (editingProfesional.Estado == "inactivo")
-              {
-                <option value="inactivo" selected>Inactivo</option>
-              }
-              else
-              {
-                <option value="inactivo">Inactivo</option>
-              }
-            </select>
-          }
-          else
-          {
-            <input type="hidden" name="Estado" value="activo" />
-            <input type="text" class="form-input" value="Activo" readonly aria-readonly="true" />
-          }
+          <select id="formStatus" name="Estado" class="form-input" required>
+            <option value="activo">Activo</option>
+            <option value="vacaciones">Vacaciones</option>
+            <option value="inactivo">Inactivo</option>
+          </select>
+          <input type="hidden" name="EstadoFallback" id="formEstado" value="activo" />
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" id="modalFormCancel">Cancelar</button>
-          <button type="submit" class="btn-primary">@(editingProfesional != null ? "Guardar Cambios" : "Guardar Profesional")</button>
+          <button type="submit" class="btn-primary">Guardar Profesional</button>
         </div>
       </form>
     </div>
@@ -459,17 +438,29 @@ NOTAS DE MANTENIMIENTO:
     aria-hidden="true" inert>
     <div class="modal">
       <button class="modal-close" id="modalConfirmDeleteClose" aria-label="Cerrar ventana">×</button>
-      <h2 class="modal-title" id="modalConfirmDeleteTitle">Confirmar eliminación</h2>
-      <p id="modalConfirmDeleteMessage" style="margin-bottom: 20px;">¿Estás seguro de eliminar a este profesional? Esta acción no se puede deshacer.</p>
-      <form id="formDeleteProfessional" method="post" action="/gestion-de-profesionales/eliminar-profesional">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="IdProfesional" id="deleteProfesionalId" value="" />
-        <input type="hidden" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" id="modalConfirmDeleteCancel" aria-label="Cancelar eliminación del profesional">Cancelar</button>
-          <button type="submit" class="btn-primary" style="background-color: var(--red); border-color: var(--red);" aria-label="Confirmar eliminación del profesional seleccionado">Eliminar</button>
-        </div>
-      </form>
+      <h2 class="modal-title" id="modalConfirmDeleteTitle">Desactivar profesional</h2>
+      <p id="modalConfirmDeleteMessage" style="margin-bottom: 8px;">¿Estás seguro de desactivar a este profesional?</p>
+      <p style="margin-bottom: 20px; font-size: 0.875rem; color: var(--text-muted);">
+        ⚠️ El profesional pasará a estado <strong>inactivo</strong> y no podrá recibir nuevas citas. Esta operación es reversible: puedes reactivarlo editando su perfil. No es posible desactivar profesionales con citas activas pendientes.
+      </p>
+      <!--
+        El endpoint MVC /eliminar-profesional fue eliminado en la Fase 2E.
+        La desactivación va por DELETE /api/profesionales/{id} interceptado
+        por el listener de #modalConfirmDeleteConfirm en app.js.
+        deleteProfesionalId almacena el id del profesional seleccionado.
+      -->
+      <input type="hidden" id="deleteProfesionalId" value="" />
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="modalConfirmDeleteCancel"
+                aria-label="Cancelar eliminación del profesional">
+          Cancelar — no desactivar
+        </button>
+        <button type="button" id="modalConfirmDeleteConfirm" class="btn-primary"
+                style="background-color: var(--red); border-color: var(--red);"
+                aria-label="Confirmar desactivación del profesional seleccionado">
+          Confirmar desactivación
+        </button>
+      </div>
     </div>
   </div>
 
@@ -564,87 +555,11 @@ NOTAS DE MANTENIMIENTO:
   <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/app.js")"></script>
 
 <script>
-   // Accordion y hamburger manejados por ~/js/shared/sidebar.js
-   const isEditing = '@(editingProfesional != null ? "true" : "false")' === 'true';
-    if (isEditing) {
-      const modal = document.getElementById('modalForm');
-      if (modal) {
-        modal.classList.add('open');
-        // CORRECCIÓN: setAttribute en lugar de removeAttribute para compatibilidad ARIA
-        modal.setAttribute('aria-hidden', 'false');
-        modal.removeAttribute('inert');
-        document.body.style.overflow = 'hidden';
-        // Focus en primer campo del formulario (WCAG 2.4.3)
-        setTimeout(() => {
-          modal.querySelector('input:not([type="hidden"])')?.focus();
-        }, 100);
-      }
-    };
-
-    // ═══ MODAL VER DETALLE: poblar desde data-attributes del botón 👁️ Ver ═══
-    (function () {
-      const SPEC_COLORS = {
-        'Odontología General': 'general', 'Ortodoncia': 'ortodoncia', 'Endodoncia': 'endodoncia',
-        'Odontopediatría': 'pediatria', 'Cirugía Oral': 'cirugia', 'Periodoncia': 'periodoncia',
-        'Implantología': 'implante', 'Rehabilitación Oral': 'rehab'
-      };
-      const getAvatarColor = (specName) => {
-        const key = SPEC_COLORS[specName] || 'general';
-        const map = { general: '#60a5fa', ortodoncia: '#a78bfa', endodoncia: '#fb7185',
-                      pediatria: '#4ade80', cirugia: '#f97316', periodoncia: '#facc15',
-                      implante: '#34d399', rehab: '#c084fc' };
-        return map[key] || map.general;
-      };
-      const getStatusBadgeClass = (status) => {
-        const map = { 'Activo': 'activo', 'Vacaciones': 'vacaciones', 'Inactivo': 'inactivo' };
-        return map[status] || 'inactivo';
-      };
-
-      const modalDetail = document.getElementById('modalDetail');
-      document.querySelectorAll('button.btn-view[data-id][data-name]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const avatar = document.getElementById('detailAvatar');
-          const name = document.getElementById('detailName');
-          const specialty = document.getElementById('detailSpecialty');
-          const registry = document.getElementById('detailRegistry');
-          const phone = document.getElementById('detailPhone');
-          const statusEl = document.getElementById('detailStatus');
-
-          if (avatar) {
-            avatar.textContent = btn.dataset.initials || '--';
-            avatar.style.background = getAvatarColor(btn.dataset.specialty || '');
-          }
-          if (name) name.textContent = btn.dataset.name || '--';
-          if (specialty) specialty.textContent = btn.dataset.specialty || '--';
-          if (registry) registry.textContent = btn.dataset.registry || '--';
-          if (phone) phone.textContent = btn.dataset.phone || '--';
-          if (statusEl) {
-            statusEl.textContent = btn.dataset.status || '--';
-            statusEl.className = `badge-status badge-${getStatusBadgeClass(btn.dataset.status || '')}`;
-          }
-
-          if (modalDetail) {
-            modalDetail.classList.add('open');
-            modalDetail.setAttribute('aria-hidden', 'false');
-            modalDetail.removeAttribute('inert');
-            document.body.style.overflow = 'hidden';
-            const closeBtn = document.getElementById('modalDetailClose');
-            if (closeBtn) closeBtn.focus();
-          }
-        });
-      });
-
-      if (modalDetail) {
-        modalDetail.addEventListener('click', (e) => {
-          if (e.target === modalDetail) {
-            modalDetail.classList.remove('open');
-            modalDetail.setAttribute('aria-hidden', 'true');
-            modalDetail.setAttribute('inert', '');
-            if (!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
-          }
-        });
-      }
-    })();
+   // La apertura del modal de edición SSR fue migrada a la Fase 2E:
+   // editProfessional(id) en app.js carga los datos desde GET /api/profesionales/{id}
+   // y abre el modal sin necesidad de recargar la página.
+   // El bloque isEditing anterior fue eliminado porque editingProfesional ya no existe
+   // en el contexto Razor (el flujo MVC de edición fue reemplazado por el flujo API).
 </script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }

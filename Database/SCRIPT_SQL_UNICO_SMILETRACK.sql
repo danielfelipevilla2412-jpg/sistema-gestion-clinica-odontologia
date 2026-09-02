@@ -208,7 +208,7 @@ BEGIN
         descripcion VARCHAR(255) NULL,
         categoria VARCHAR(100) NULL,
         telefono VARCHAR(20) NULL,
-        estado VARCHAR(15) NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactivo')),
+        estado VARCHAR(15) NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','vacaciones','inactivo')),
         fecha_ingreso DATE NULL,
         CONSTRAINT FK_Profesional_Usuario FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario) ON DELETE SET NULL
     );
@@ -238,6 +238,53 @@ IF COL_LENGTH(N'dbo.Profesional', N'estado') IS NULL
 GO
 IF COL_LENGTH(N'dbo.Profesional', N'fecha_ingreso') IS NULL
     ALTER TABLE Profesional ADD fecha_ingreso DATE NULL;
+GO
+
+-- ── Corrección: agregar 'vacaciones' al CHECK constraint de Profesional.estado ─────
+-- El CHECK original solo permitía 'activo' e 'inactivo', pero el sistema admite
+-- 'vacaciones' como tercer estado válido (ProfesionalService.CambiarEstadoAsync).
+-- Se elimina el constraint anterior y se recrea con los 3 valores.
+IF EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.Profesional')
+      AND definition LIKE '%activo%'
+      AND definition NOT LIKE '%vacaciones%'
+)
+BEGIN
+    DECLARE @ck_name NVARCHAR(256);
+    SELECT @ck_name = name
+    FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.Profesional')
+      AND definition LIKE '%activo%';
+
+    IF @ck_name IS NOT NULL
+        EXEC('ALTER TABLE Profesional DROP CONSTRAINT [' + @ck_name + ']');
+
+    ALTER TABLE Profesional
+        ADD CONSTRAINT CK_Profesional_Estado
+        CHECK (estado IN ('activo', 'vacaciones', 'inactivo'));
+END
+ELSE IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.Profesional')
+)
+BEGIN
+    ALTER TABLE Profesional
+        ADD CONSTRAINT CK_Profesional_Estado
+        CHECK (estado IN ('activo', 'vacaciones', 'inactivo'));
+END
+GO
+
+-- ── Índice único sobre registro_medico ──────────────────────────────────────────
+-- Previene duplicados a nivel de BD (la capa C# ya verifica unicidad, pero sin
+-- este índice dos peticiones concurrentes podrían insertar el mismo registro médico).
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'UQ_Profesional_RegistroMedico'
+      AND object_id = OBJECT_ID(N'dbo.Profesional')
+)
+    CREATE UNIQUE INDEX UQ_Profesional_RegistroMedico
+        ON dbo.Profesional (registro_medico);
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Profesional_Especialidad') AND type = N'U')
@@ -512,6 +559,57 @@ BEGIN
     );
 END
 GO
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Detalle_Factura') AND type = N'U')
+BEGIN
+   CREATE TABLE Detalle_Factura (
+      id_detalle INT IDENTITY(1,1) PRIMARY KEY,
+       id_factura INT NOT NULL,
+     id_servicio INT NULL,
+      descripcion VARCHAR(200) NOT NULL,
+       cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+        precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        subtotal_linea DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        CONSTRAINT FK_DetalleFactura_Factura FOREIGN KEY (id_factura) REFERENCES Factura(id_factura) ON DELETE CASCADE,
+        CONSTRAINT FK_DetalleFactura_Servicio FOREIGN KEY (id_servicio) REFERENCES Servicio(id_servicio)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'monto_pagado')
+BEGIN
+    ALTER TABLE dbo.Factura ADD monto_pagado DECIMAL(12,2) NOT NULL DEFAULT 0.00;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'fecha_pago')
+BEGIN
+    ALTER TABLE dbo.Factura ADD fecha_pago DATETIME NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Ticket_Soporte') AND type = N'U')
+BEGIN
+    CREATE TABLE Ticket_Soporte (
+        id_ticket INT IDENTITY(1,1) PRIMARY KEY,
+        referencia VARCHAR(20) NOT NULL UNIQUE,
+        id_usuario INT NOT NULL,
+        asunto VARCHAR(200) NOT NULL,
+        categoria VARCHAR(20) NOT NULL CHECK (categoria IN ('incidente','consulta','solicitud','otro')),
+        modulo_afectado VARCHAR(20) NOT NULL CHECK (modulo_afectado IN ('citas','pacientes','facturacion','reportes','sistema')),
+        severidad VARCHAR(10) NOT NULL DEFAULT 'media' CHECK (severidad IN ('baja','media','alta')),
+        descripcion VARCHAR(MAX) NOT NULL,
+        captura_pantalla VARCHAR(255) NULL,
+        estado VARCHAR(20) NOT NULL DEFAULT 'abierto' CHECK (estado IN ('abierto','en_proceso','resuelto','cerrado')),
+        fecha_creacion DATETIME NOT NULL DEFAULT GETDATE(),
+        fecha_respuesta DATETIME NULL,
+        respuesta VARCHAR(MAX) NULL,
+        atendido_por INT NULL,
+        CONSTRAINT FK_TicketSoporte_Usuario FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario),
+        CONSTRAINT FK_TicketSoporte_Atendido FOREIGN KEY (atendido_por) REFERENCES Usuario(id_usuario)
+    );
+END
+GO
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.PQR') AND type = N'U')
 BEGIN

@@ -461,7 +461,7 @@ const handleTableAction = async (e) => {
   const { action, id } = btn.dataset;
 
   if (action === 'view')   return openViewModal(id);
-  if (action === 'edit')   return openEditModal(id);
+  if (action === 'edit')   return openEditModal(id, btn.dataset);
   if (action === 'sync')   return openSyncModal(id);
   if (action === 'cancel') {
     // Abrir modal de confirmación personalizado en lugar de window.confirm() nativo

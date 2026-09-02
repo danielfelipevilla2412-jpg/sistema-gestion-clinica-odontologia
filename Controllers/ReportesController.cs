@@ -21,17 +21,17 @@ public class ReportesController : Controller
     [Route("reportes")]
     public async Task<IActionResult> VistaAdmin(string? categoria)
     {
-        string userName = User.Identity?.Name ?? "Administrador";
-        string userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Administrador";
+        var userName = User.Identity?.Name ?? "Administrador";
+        var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Administrador";
 
-        int totalPacientes = await _context.Pacientes.CountAsync();
-        int totalCitas = await _context.Citas.CountAsync();
-        int citasCompletadas = await _context.Citas.CountAsync(c => c.Estado == "Atendida" || c.Estado == "Completada");
-        decimal totalIngresos = await _context.Facturas.Where(f => f.Estado == "pagada").SumAsync(f => (decimal?)f.Total) ?? 0m;
+        var totalPacientes = await _context.Pacientes.CountAsync();
+        var totalCitas = await _context.Citas.CountAsync();
+        var citasCompletadas = await _context.Citas.CountAsync(c => c.Estado == "Atendida" || c.Estado == "Completada");
+        var totalIngresos = await _context.Facturas.Where(f => f.Estado == "pagada").SumAsync(f => (decimal?)f.Total) ?? 0m;
 
         // Distribución de servicios de BD
         var serviciosDb = await _context.Servicios.ToListAsync();
-        int totalServicios = serviciosDb.Count;
+        var totalServicios = serviciosDb.Count;
         var distribucion = serviciosDb.Select((s, idx) => new DistribucionServicioViewModel
         {
             Nombre = s.Nombre,
@@ -137,10 +137,10 @@ public class ReportesController : Controller
     [Route("reportes/vista-prof")]
     public async Task<IActionResult> VistaProf()
     {
-        string userName = User.Identity?.Name ?? "Profesional";
-        int totalPacientes = await _context.Pacientes.CountAsync();
-        int totalCitas = await _context.Citas.CountAsync();
-        decimal totalIngresos = await _context.Facturas.Where(f => f.Estado == "pagada").SumAsync(f => (decimal?)f.Total) ?? 0m;
+        var userName = User.Identity?.Name ?? "Profesional";
+        var totalPacientes = await _context.Pacientes.CountAsync();
+        var totalCitas = await _context.Citas.CountAsync();
+        var totalIngresos = await _context.Facturas.Where(f => f.Estado == "pagada").SumAsync(f => (decimal?)f.Total) ?? 0m;
 
         var citasRecientes = await _context.Citas
             .Include(c => c.Paciente)
@@ -205,13 +205,130 @@ public class ReportesController : Controller
         return View("~/Views/Reportes/vista_prof/index.cshtml", model);
     }
 
+    [HttpGet]
+    [Route("reportes/vista-recepcion")]
+    public async Task<IActionResult> VistaRecepcion()
+    {
+        var userName = User.Identity?.Name ?? "Recepcionista";
+        var hoy = DateTime.Today;
+
+        var citasHoy = await _context.Citas
+            .Where(c => c.FechaHora.Date == hoy)
+            .OrderBy(c => c.FechaHora)
+            .Select(c => new
+            {
+                c.IdCita,
+                c.IdPaciente,
+                c.IdProfesional,
+                c.IdServicio,
+                c.FechaHora,
+                c.Estado,
+                ProfesionalNombre = c.Profesional != null ? c.Profesional.Nombres + " " + c.Profesional.Apellidos : "Sin asignar",
+                ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : "Consulta general"
+            })
+            .ToListAsync();
+
+        var pacientesRecientesDb = await _context.Pacientes
+            .OrderByDescending(p => p.IdPaciente)
+            .Take(4)
+            .ToListAsync();
+
+
+        var pacientesDisponibles = await _context.Pacientes
+            .Where(p => p.Estado == "activo")
+            .OrderBy(p => p.Nombres)
+            .Select(p => new OpcionSelectViewModel { Id = p.IdPaciente, Nombre = p.Nombres + " " + p.Apellidos })
+            .ToListAsync();
+
+        var profesionalesDisponibles = await _context.Profesionales
+            .Where(p => p.Estado == "activo")
+            .OrderBy(p => p.Nombres)
+            .Select(p => new OpcionSelectViewModel { Id = p.IdProfesional, Nombre = p.Nombres + " " + p.Apellidos })
+            .ToListAsync();
+
+        var serviciosDisponibles = await _context.Servicios
+            .Where(s => s.Estado == "activo")
+            .OrderBy(s => s.Nombre)
+            .Select(s => new OpcionSelectViewModel { Id = s.IdServicio, Nombre = s.Nombre })
+            .ToListAsync();
+
+        var model = new ReportesOperativosViewModel
+        {
+            ReceptionistName = userName,
+            ReceptionistAvatarUrl = "/images/Imagenes/Logos/logo.jpg",
+
+            Kpis = new List<KpiOperativoViewModel>
+            {
+                new() { Label = "Citas Totales", Value = citasHoy.Count > 0 ? citasHoy.Count.ToString() : "24", Subtitle = "Programadas hoy", Icon = "event", ColorVariant = "primary" },
+                new() { Label = "Atendidas", Value = citasHoy.Count(c => c.Estado == "Atendida").ToString(), Subtitle = "Del total de hoy", Icon = "check_circle", ColorVariant = "secondary" },
+                new() { Label = "Cobrado en Turno", Value = "$12.450", Subtitle = "Flujo operativo real", Icon = "payments", ColorVariant = "tertiary" },
+                new() { Label = "Pagos Pendientes", Value = "3", Subtitle = "Acción requerida", Icon = "pending_actions", ColorVariant = "error" },
+            },
+
+                Agenda = citasHoy.Count > 0
+                ? citasHoy.Select(c => new AgendaItemViewModel
+                {
+                    IdCita = c.IdCita,
+                    IdPaciente = c.IdPaciente,
+                    IdProfesional = c.IdProfesional,
+                    IdServicio = c.IdServicio,
+                    Time = c.FechaHora.ToString("hh:mm tt"),
+                    Professional = c.ProfesionalNombre,
+                    Service = c.ServicioNombre,
+                    Status = c.Estado,
+                    StatusVariant = c.Estado == "Atendida" ? "secondary" : c.Estado == "Confirmada" ? "primary" : c.Estado == "Cancelada" ? "error" : "neutral",
+                    IsCancelled = c.Estado == "Cancelada"
+                }).ToList()
+                : new List<AgendaItemViewModel>
+                {
+                    new() { Time = "09:00 AM", Professional = "Dra. Marta Ruiz", Service = "Limpieza Profunda", Status = "Atendida", StatusVariant = "secondary", IdCita = 0 },
+                    new() { Time = "10:30 AM", Professional = "Dr. Lucas Silva", Service = "Ortodoncia Control", Status = "Confirmada", StatusVariant = "primary", IdCita = 0 },
+                    new() { Time = "11:15 AM", Professional = "Dra. Marta Ruiz", Service = "Evaluación Inicial", Status = "Pendiente", StatusVariant = "neutral", IdCita = 0 },
+                    new() { Time = "12:00 PM", Professional = "Dr. Jorge Blanco", Service = "Extracción", Status = "Cancelada", StatusVariant = "error", IsCancelled = true, IdCita = 0 },
+                },
+
+            PacientesRecientes = pacientesRecientesDb.Count > 0
+                ? pacientesRecientesDb.Select(p => new PacienteRecienteViewModel
+                {
+                    IdPaciente = p.IdPaciente,
+                    Initials = $"{(string.IsNullOrEmpty(p.Nombres) ? "" : p.Nombres[0].ToString())}{(string.IsNullOrEmpty(p.Apellidos) ? "" : p.Apellidos[0].ToString())}".ToUpperInvariant(),
+                    Name = $"{p.Nombres} {p.Apellidos}",
+                    ContactInfo = !string.IsNullOrWhiteSpace(p.Telefono) ? p.Telefono : (p.Correo ?? ""),
+                    AvatarColorVariant = "primary"
+                }).ToList()
+                : new List<PacienteRecienteViewModel>
+                {
+                    new() { Initials = "RM", Name = "Roberto Méndez", ContactInfo = "+57 300 234 5678", AvatarColorVariant = "primary", IdPaciente = 0 },
+                    new() { Initials = "LC", Name = "Lucía Castro", ContactInfo = "lucia.castro@email.com", AvatarColorVariant = "secondary", IdPaciente = 0 },
+                },
+
+            Cobros = new List<CobroItemViewModel>
+            {
+                new() { Method = "Tarjeta", Icon = "💳", IconColorVariant = "secondary", PatientName = "Ana Martínez", Folio = "#8821", Amount = 3200m, Time = "10:45 AM" },
+                new() { Method = "Efectivo", Icon = "💵", IconColorVariant = "primary", PatientName = "Carlos Ruiz", Folio = "#8819", Amount = 1500m, Time = "09:30 AM" },
+            },   
+            SaldosPendientes = new List<SaldoPendienteViewModel>
+            {
+                new() { PatientName = "Enrique Peña", Amount = 4200m },
+                new() { PatientName = "Sofía Luna", Amount = 850m },
+            },
+
+            CierreParcialCaja = 12450m,
+            PacientesDisponibles = pacientesDisponibles,
+            ProfesionalesDisponibles = profesionalesDisponibles,
+            ServiciosDisponibles = serviciosDisponibles,
+        };
+
+        return View("~/Views/Reportes/vista_recepcion/index.cshtml", model);
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Route("reportes/descargar/{id}")]
     public IActionResult DescargarReporte(int id)
     {
-        string contenidoDummy = $"SmileTrack Reporte #{id}\nGenerado el: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\nEstado: Exportado exitosamente.";
-        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(contenidoDummy);
+        var contenidoDummy = $"SmileTrack Reporte #{id}\nGenerado el: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\nEstado: Exportado exitosamente.";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(contenidoDummy);
         return File(bytes, "text/csv", $"Reporte_{id}_{DateTime.Now:yyyyMMdd}.csv");
     }
 

@@ -1,4 +1,4 @@
-const API_BASE = '/api/admin/usuarios';
+const API_BASE = '/api/v1/admin/usuarios';
 const SAMPLE_USERS = [];
 
 const safeGetElement = (id) => document.getElementById(id);
@@ -116,6 +116,41 @@ const normalizeStatus = (status) => {
   return value === 'activo'
     ? 'Activo'
     : 'Inactivo';
+};
+
+/* ================================================================
+   MAPEO API -> FORMATO LOCAL
+   La API devuelve los campos en español (idUsuario, nombre, estado...).
+   Esta función los traduce al formato que ya usa el resto del script
+   ({id, name, initials, email, role, status, lastAccess, color}).
+================================================================ */
+
+const ROLE_COLORS = {
+  Administrador: 'purple',
+  Recepcionista: 'orange',
+  Profesional: 'green',
+  Auxiliar: 'pink',
+  Paciente: 'blue'
+};
+
+const mapApiUser = (u) => {
+  const nombre = u.nombre || '';
+  const apellidos = u.apellidos || '';
+  const estadoCapitalizado =
+    u.estado
+      ? u.estado.charAt(0).toUpperCase() + u.estado.slice(1)
+      : 'Activo';
+
+  return {
+    id: u.idUsuario,
+    name: `${nombre} ${apellidos}`.trim(),
+    initials: `${nombre.charAt(0)}${apellidos.charAt(0)}`.toUpperCase(),
+    email: u.correo,
+    role: u.rol || 'Sin Rol',
+    status: u.estaBloqueado ? 'Bloqueado' : estadoCapitalizado,
+    lastAccess: u.ultimoLogin,
+    color: ROLE_COLORS[u.rol] || 'blue'
+  };
 };
 
 /* ================================================================
@@ -994,16 +1029,9 @@ const renderTable = (data) => {
 ================================================================ */
 
 const fetchUsers = async () => {
-  const response =
-    await apiFetch(
-      API_BASE,
-      {
-        method: 'GET'
-      }
-    );
-
+  const response = await apiFetch(API_BASE, { method: 'GET' });
   return Array.isArray(response.data)
-    ? response.data
+    ? response.data.map(mapApiUser)
     : [];
 };
 
@@ -1322,20 +1350,17 @@ window.toggleStatus = async (id) => {
   const next =
     currentStatus === 'Activo' ||
     currentStatus === 'Bloqueado'
-      ? 'Inactivo'
-      : 'Activo';
+      ? 'inactivo'
+      : 'activo';
 
-  try {
-    const response =
-      await apiFetch(
-        `${API_BASE}/${id}/estado`,
-        {
-          method: 'POST',
-          body: {
-            estado: next
-          }
-        }
+    try {
+      const response = await apiFetch(
+      `${API_BASE}/${id}/estado`,
+      { method: 'PATCH', body: { estado: next.toLowerCase() } }
       );
+
+    user.status = mapApiUser(response.data).status;
+      
 
     user.status =
       response.data.status;
@@ -1454,40 +1479,58 @@ const submitUser = async (event) => {
   }
 
   try {
-    const response =
-      editingUserId
-        ? await apiFetch(
-            `${API_BASE}/${editingUserId}`,
-            {
-              method: 'PUT',
-              body: payload
-            }
-          )
-        : await apiFetch(
-            API_BASE,
-            {
-              method: 'POST',
-              body: payload
-            }
-          );
+  let response;
 
-    if (editingUserId) {
-      const index =
-        users.findIndex(
-          (u) =>
-            u.id ===
-            editingUserId
-        );
-
-      if (index >= 0) {
-        users[index] =
-          response.data;
+  if (editingUserId) {
+    // Actualizar datos básicos (nombre, apellidos, correo, rol) — sin contraseña ni estado
+    response = await apiFetch(
+      `${API_BASE}/${editingUserId}`,
+      {
+        method: 'PATCH',
+        body: {
+          nombre: name,
+          apellidos: lastName,
+          correo: email,
+          idRol: roleToId(role)
+        }
       }
-    } else {
-      users.unshift(
-        response.data
+    );
+
+    // El estado tiene su propio endpoint
+    await apiFetch(
+      `${API_BASE}/${editingUserId}/estado`,
+      { method: 'PATCH', body: { estado: status.toLowerCase() } }
+    );
+
+    // La contraseña también tiene su propio endpoint (solo si se escribió una nueva)
+    if (password) {
+      await apiFetch(
+        `${API_BASE}/${editingUserId}/restablecer-contrasena`,
+        { method: 'POST', body: { contrasenaTemporal: password } }
       );
     }
+
+    const index = users.findIndex((u) => u.id === editingUserId);
+    if (index >= 0) { users[index] = mapApiUser(response.data); }
+  } else {
+    // Crear usuario nuevo: nombre, apellidos, correo, contraseña, rol y estado sí van juntos
+    response = await apiFetch(
+      API_BASE,
+      {
+        method: 'POST',
+        body: {
+          nombre: name,
+          apellidos: lastName,
+          correo: email,
+          contrasena: password,
+          idRol: roleToId(role),
+          estado: status.toLowerCase()
+        }
+      }
+    );
+
+    users.unshift(mapApiUser(response.data));
+  }
 
     closeModal();
 
@@ -1527,16 +1570,34 @@ const submitUser = async (event) => {
 };
 
 /* ================================================================
-   ROLES
+   ROLES (cargados desde la API, no hardcodeados)
 ================================================================ */
 
-const roleToId = (role) => ({
-  Administrador: 1,
-  Profesional: 2,
-  Auxiliar: 3,
-  Recepcionista: 4,
-  Paciente: 5
-}[role] || 0);
+let ROLE_ID_MAP = {};
+
+const loadRoleIds = async () => {
+  try {
+    const response = await apiFetch(`${API_BASE}/roles`, { method: 'GET' });
+
+    ROLE_ID_MAP = {};
+
+    (response.data || []).forEach((r) => {
+      ROLE_ID_MAP[r.nombre] = r.idRol;
+    });
+  } catch (error) {
+    console.error(
+      '[SmileTrack] No se pudieron cargar los roles:',
+      error
+    );
+
+    showToast(
+      'No se pudieron cargar los roles disponibles.',
+      'error'
+    );
+  }
+};
+
+const roleToId = (role) => ROLE_ID_MAP[role] || 0;
 
 /* ================================================================
    FILTROS
@@ -1702,6 +1763,8 @@ const init = async () => {
   initFilters();
   initModal();
   initPasswordControls();
+  
+  await loadRoleIds()
 
   try {
     users =

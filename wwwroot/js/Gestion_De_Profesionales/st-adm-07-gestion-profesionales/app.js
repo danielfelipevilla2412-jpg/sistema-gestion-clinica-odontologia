@@ -5,23 +5,28 @@ Autor: Johan Santamaria
 Fecha: 29/07/2026
 
 DESCRIPCIÓN:
-Gestiona la interactividad del módulo de administración de profesionales: apertura/cierre de modales de CRUD, animación de contadores de métricas, búsqueda en la tabla y validación de formularios en cliente antes de enviar al servidor.
+Gestiona la interactividad del módulo de administración de profesionales. 
+Este archivo consolida la lógica híbrida actual del módulo:
+
+ARQUITECTURA (Fase 2 completada):
+- Carga inicial (SSR): El Controller Razor entrega la vista inicial con los datos de BD 
+  para garantizar una primera carga rápida y SEO-friendly.
+- CRUD vía API REST: Las operaciones de Crear, Editar (GET/PUT), Cambiar estado (PATCH)
+  y Desactivar (DELETE lógico) son asíncronas y consumen `/api/profesionales`.
+- Renderizado Dinámico: Tras buscar, filtrar o realizar operaciones CRUD, la tabla 
+  es actualizada en el cliente mediante JS sin recargar la página entera.
 
 FUNCIONALIDADES PRINCIPALES:
-- Modales de creación y edición de profesionales con llenado dinámico de campos desde Razor
-- Animación de conteo progresivo en los contadores del panel de métricas (total, activos, especialidades)
-- Búsqueda en tiempo real sobre la tabla de profesionales filtrado por nombre, especialidad y estado
-- Validación de formularios en cliente (campos requeridos, formato de email y teléfono)
+- Modales de creación, edición y visualización de detalles, poblados vía API.
+- Filtros asíncronos y búsqueda con `debounce`.
+- Animación progresiva en los contadores de métricas del panel superior.
+- Validación de formularios en cliente antes de enviar la petición API.
 
 DEPENDENCIAS TÉCNICAS:
-- Controller: GestionProfesionalesController (ViewBag: Especialidades, Usuarios, Profesionales)
+- Controller (SSR initial state): GestionProfesionalesController
+- API Controller: ProfesionalesApiController
 - CSS: ~/css/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/styles.css
-- JS: ~/js/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/app.js
 - Partial / Otros: index.cshtml
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- La renderización principal es server-side (Razor). Este JS solo maneja modales, sidebar móvil y animaciones de UI.
 ============================================ */
 
 // Base URL para futuras migraciones a API REST (actualmente no se usa en producción)
@@ -112,33 +117,31 @@ const SPEC_COLORS = {
   'Rehabilitación Oral': 'rehab',
 };
 
-// Variables de estado solo para el modo fallback client-side
-let professionals = [];
-let searchQuery = '';
-let selectedSpecialty = '';
-let selectedStatus = '';
+// ═══════════════════════════════════════════════════════════════════
+//  ESTADO DEL MÓDULO
+// ═══════════════════════════════════════════════════════════════════
+
+/** Página actual en la paginación de la tabla (usada por loadProfessionals y goToPage). */
 let currentPage = 1;
-const itemsPerPage = 5;
-let editingId = null;
+
+/** Tamaño de página — debe coincidir con el pageSize enviado a la API. */
+const itemsPerPage = 10;
 
 /**
- * Detecta si la tabla ya viene renderizada desde el servidor (SSR).
- * WHY: Permite que el mismo archivo JS funcione en modo Razor/SSR (producción)
- *      y en modo client-side puro (fallback/demo), sin duplicar código.
+ * ID del profesional que está siendo editado actualmente.
+ * null = ninguno (modo creación). Se limpia al cerrar el modal.
  */
-const shouldUseServerRenderedTable = () => {
-  const tbody = safeGetElement('professionalsTbody');
-  // Si el tbody tiene filas renderizadas por Razor, usamos SSR y saltamos el JS de tabla
-  return !!(tbody && tbody.children.length > 0);
-};
+let editingId = null;
 
 // ═══════════════════════════════════════════════════════════════════
-//  FUNCIONES DE RENDERIZADO
+//  FUNCIONES DE RENDERIZADO Y UTILIDADES DE UI
 // ═══════════════════════════════════════════════════════════════════
 
 /**
  * Anima contador numérico de 0 al valor objetivo.
- * WHY: Mejora visual al cargar estadísticas — indica que el número es dinámico (efecto "wow").
+ * WHY: Mejora visual al cargar estadísticas — indica que el número es dinámico.
+ * @param {HTMLElement} el
+ * @param {number} target
  */
 const animateCounter = (el, target) => {
   if (!el) return;
@@ -153,18 +156,22 @@ const animateCounter = (el, target) => {
 
 /**
  * Obtiene clase CSS para badge de especialidad.
- * TODO: Mover a constante centralizada para evitar duplicación con el CSS.
+ * @param {string} specialty
+ * @returns {string}
  */
-const getSpecBadgeClass = (specialty) => {
-  return SPEC_COLORS[specialty] || 'general';
-};
+const getSpecBadgeClass = (specialty) => SPEC_COLORS[specialty] || 'general';
 
 /**
  * Obtiene clase CSS para badge de estado.
- * WHY: Centraliza el mapeo para no hardcodear strings en múltiples lugares del template.
+ * @param {string} status
+ * @returns {string}
  */
 const getStatusBadgeClass = (status) => {
-  const map = { 'Activo': 'activo', 'Vacaciones': 'vacaciones', 'Inactivo': 'inactivo' };
+  const map = {
+    'activo': 'activo', 'Activo': 'activo',
+    'vacaciones': 'vacaciones', 'Vacaciones': 'vacaciones',
+    'inactivo': 'inactivo', 'Inactivo': 'inactivo',
+  };
   return map[status] || 'inactivo';
 };
 
@@ -172,84 +179,24 @@ const getStatusBadgeClass = (status) => {
  * Obtiene color de avatar por especialidad.
  * WHY: Colores deterministas (siempre el mismo por especialidad) mejoran
  *      el reconocimiento visual rápido al escanear la tabla.
+ * @param {string} specialty
+ * @returns {string}
  */
 const getAvatarColor = (specialty) => {
   const colors = {
-    'general': 'var(--spec-general)',
+    'general':    'var(--spec-general)',
     'ortodoncia': 'var(--spec-ortodoncia)',
     'endodoncia': 'var(--spec-endodoncia)',
-    'pediatria': 'var(--spec-pediatria)',
-    'cirugia': 'var(--spec-cirugia)',
-    'periodoncia': 'var(--spec-periodoncia)',
-    'implante': 'var(--spec-implante)',
-    'rehab': 'var(--spec-rehab)',
+    'pediatria':  'var(--spec-pediatria)',
+    'cirugia':    'var(--spec-cirugia)',
+    'periodoncia':'var(--spec-periodoncia)',
+    'implante':   'var(--spec-implante)',
+    'rehab':      'var(--spec-rehab)',
   };
   return colors[getSpecBadgeClass(specialty)] || 'var(--spec-general)';
 };
 
-/**
- * Renderiza tabla de profesionales (solo para modo fallback client-side).
- * NOTE: Esta función NO se ejecuta si hay SSR — ver shouldUseServerRenderedTable().
- *       En producción la tabla viene de Razor; esta función es backup por si el servidor falla.
- */
-const renderTable = () => {
-  const tbody = safeGetElement('professionalsTbody');
-  if (!tbody || shouldUseServerRenderedTable()) return;
-  
-  // Filtrar datos
-  const filtered = professionals.filter(p =>
-    (!searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.specialty.toLowerCase().includes(searchQuery.toLowerCase()) || p.registry.toLowerCase().includes(searchQuery.toLowerCase())) &&
-    (!selectedSpecialty || p.specialty === selectedSpecialty) &&
-    (!selectedStatus || p.status === selectedStatus)
-  );
-  
-  // Paginar
-  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
-  if (currentPage > totalPages) currentPage = totalPages;
-  
-  const startIdx = (currentPage - 1) * itemsPerPage;
-  const paginated = filtered.slice(startIdx, startIdx + itemsPerPage);
-  
-  tbody.innerHTML = '';
-  
-  if (!paginated.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No se encontraron profesionales con los filtros aplicados.</td></tr>`;
-    updatePagination(0, 0);
-    return;
-  }
-  
-  paginated.forEach(p => {
-    const tr = document.createElement('tr');
-    tr.setAttribute('role', 'row');
-    
-    const specClass = getSpecBadgeClass(p.specialty);
-    const statusClass = getStatusBadgeClass(p.status);
-    const avatarColor = getAvatarColor(p.specialty);
-    
-    tr.innerHTML = `
-      <td class="td-profesional">
-        <div class="p-avatar" style="background:${avatarColor}" aria-hidden="true">${p.initials}</div>
-        <span class="p-name">${p.name}</span>
-      </td>
-      <td><span class="badge-spec ${specClass}">${p.specialty}</span></td>
-      <td>${p.registry}</td>
-      <td>${p.phone}</td>
-      <td><span class="badge-status ${statusClass}" role="status" aria-label="Estado: ${p.status}">${p.status}</span></td>
-      <td>
-        <div class="actions-cell">
-          <button class="btn-icon view" title="Ver detalles" aria-label="Ver detalles de ${p.name}" onclick="viewProfessional(${p.id})">👁️</button>
-          <button class="btn-icon edit" title="Editar profesional" aria-label="Editar ${p.name}" onclick="editProfessional(${p.id})">✏️</button>
-          <button class="btn-icon toggle" title="Cambiar estado" aria-label="Cambiar estado de ${p.name}" onclick="toggleStatus(${p.id})">⚡</button>
-        </div>
-      </td>
-    `;
-    
-    tbody.appendChild(tr);
-  });
-  
-  // Actualizar paginación
-  updatePagination(filtered.length, paginated.length);
-};
+
 
 function renderTableFromApi(result) {
     const tbody = safeGetElement('professionalsTbody');
@@ -274,199 +221,166 @@ function renderTableFromApi(result) {
         const tr = document.createElement('tr');
         tr.setAttribute('role', 'row');
 
-        const name = `${escapeHtml(p.nombres)} ${escapeHtml(p.apellidos)}`;
-        
-        // Asumiendo que la especialidad principal es la primera para mostrar en la tabla (como hacía el MVC)
-        const especialidad = p.especialidades && p.especialidades.length > 0 
-            ? escapeHtml(p.especialidades[0].nombre) 
-            : 'General';
+        const name = `${escapeHtml(p.nombres)} ${escapeHtml(p.apellidos)}`.trim();
+
+        // Especialidad principal: primera de la lista
+        const especialidad = p.especialidades && p.especialidades.length > 0
+            ? escapeHtml(p.especialidades[0].nombre)
+            : '';
 
         const specClass = getSpecBadgeClass(especialidad);
         const statusClass = getStatusBadgeClass(p.estado);
         const avatarColor = getAvatarColor(especialidad);
-        
-        // Obtener iniciales: primera letra de nombres y primera de apellidos
+
         const initialN = p.nombres ? p.nombres.charAt(0).toUpperCase() : '';
         const initialA = p.apellidos ? p.apellidos.charAt(0).toUpperCase() : '';
         const initials = `${initialN}${initialA}`;
+
+        const telefono = escapeHtml(p.telefono);
+        const estadoText = escapeHtml(p.estado);
+        const registroMedico = escapeHtml(p.registroMedico);
 
         tr.innerHTML = `
           <td class="td-profesional">
             <div class="p-avatar" style="background:${avatarColor}" aria-hidden="true">${initials}</div>
             <span class="p-name">${name}</span>
           </td>
-          <td><span class="badge-spec ${specClass}">${especialidad}</span></td>
-          <td>${escapeHtml(p.registroMedico)}</td>
-          <td>${escapeHtml(p.telefono)}</td>
-          <td><span class="badge-status ${statusClass}" role="status" aria-label="Estado: ${escapeHtml(p.estado)}">${escapeHtml(p.estado)}</span></td>
+          <td><span class="badge-spec ${specClass}">${especialidad || '—'}</span></td>
+          <td>${registroMedico}</td>
+          <td>${telefono || '—'}</td>
+          <td><span class="badge-status ${statusClass}" role="status" aria-label="Estado: ${estadoText}">${estadoText}</span></td>
           <td>
             <div class="actions-cell">
-              <button class="btn-icon view" title="Ver detalles" aria-label="Ver detalles de ${name}" onclick="viewProfessional(${p.idProfesional})">👁️</button>
-              <button class="btn-icon edit" title="Editar profesional" aria-label="Editar ${name}" onclick="editProfessional(${p.idProfesional})">✏️</button>
-              <button class="btn-icon toggle" title="Cambiar estado" aria-label="Cambiar estado de ${name}" onclick="toggleStatus(${p.idProfesional})">⚡</button>
+              <button class="btn-icon action-btn btn-view"
+                      type="button"
+                      data-id="${p.idProfesional}"
+                      data-name="${name}"
+                      data-initials="${initials}"
+                      data-specialty="${especialidad}"
+                      data-registry="${registroMedico}"
+                      data-phone="${telefono}"
+                      data-status="${estadoText}"
+                      aria-label="Ver detalles del profesional ${name}"
+                      title="Ver detalles del profesional ${name}">
+                👁️ <span class="btn-text">Ver</span>
+              </button>
+              <button class="btn-icon edit action-btn"
+                      type="button"
+                      aria-label="Editar el profesional ${name}"
+                      title="Editar profesional ${name}"
+                      onclick="editProfessional(${p.idProfesional})">
+                ✏️ <span class="btn-text">Editar</span>
+              </button>
+              <button class="btn-icon toggle action-btn btn-delete"
+                      type="button"
+                      data-id="${p.idProfesional}"
+                      data-name="${name}"
+                      aria-label="Desactivar el profesional ${name}"
+                      title="Desactivar profesional ${name}">
+                ❌ <span class="btn-text">Eliminar</span>
+              </button>
             </div>
           </td>
         `;
+
+        // Enlazar el botón Ver al modal de detalle
+        const viewBtn = tr.querySelector('.btn-view');
+        viewBtn?.addEventListener('click', () => {
+            const avatar = safeGetElement('detailAvatar');
+            const nameEl = safeGetElement('detailName');
+            const specialtyEl = safeGetElement('detailSpecialty');
+            const registryEl = safeGetElement('detailRegistry');
+            const phoneEl = safeGetElement('detailPhone');
+            const statusEl = safeGetElement('detailStatus');
+
+            if (avatar) { avatar.textContent = viewBtn.dataset.initials || '--'; avatar.style.background = avatarColor; }
+            if (nameEl) nameEl.textContent = viewBtn.dataset.name || '--';
+            if (specialtyEl) specialtyEl.textContent = viewBtn.dataset.specialty || '--';
+            if (registryEl) registryEl.textContent = viewBtn.dataset.registry || '--';
+            if (phoneEl) phoneEl.textContent = viewBtn.dataset.phone || '--';
+            if (statusEl) {
+                statusEl.textContent = viewBtn.dataset.status || '--';
+                statusEl.className = `badge-status ${statusClass}`;
+            }
+
+            const modal = safeGetElement('modalDetail');
+            if (modal) {
+                modal.classList.add('open');
+                modal.setAttribute('aria-hidden', 'false');
+                modal.removeAttribute('inert');
+                document.body.style.overflow = 'hidden';
+                safeGetElement('modalDetailClose')?.focus();
+            }
+        });
+
+        // Enlazar el botón Eliminar al modal de confirmación
+        const deleteBtn = tr.querySelector('.btn-delete');
+        deleteBtn?.addEventListener('click', () => {
+            openConfirmDeleteModal(p.idProfesional, name);
+        });
 
         tbody.appendChild(tr);
     }
 }
 
-/**
- * Actualiza contadores de estadísticas (solo modo fallback client-side).
- * WHY: Solo se ejecuta si no hay SSR para evitar duplicar lógica que ya hizo el servidor.
- */
-const updateStats = () => {
-  if (shouldUseServerRenderedTable()) return;
-  const total = professionals.length;
-  const actives = professionals.filter(p => p.status === 'Activo').length;
-  const vacations = professionals.filter(p => p.status === 'Vacaciones').length;
-  const inactives = professionals.filter(p => p.status === 'Inactivo').length;
-  
-  animateCounter(safeGetElement('metricTotal'), total);
-  animateCounter(safeGetElement('metricActives'), actives);
-  animateCounter(safeGetElement('metricVacations'), vacations);
-  animateCounter(safeGetElement('metricInactives'), inactives);
-};
+
 
 /**
- * Actualiza botones de paginación (solo modo fallback client-side).
- * WHY: Solo se ejecuta si no hay SSR; en producción la paginación viene renderizada de Razor.
+ * Edita profesional: carga los datos desde la API y llena el modal.
+ * - Carga todos los campos editables, incluyendo Categoria (H-02).
+ * - Guarda el estado original en data-originalEstado para que saveProfessional
+ *   solo dispare el PATCH cuando el estado realmente cambia (H-05).
  */
-const updatePagination = (total, count) => {
-  if (shouldUseServerRenderedTable()) return;
-  const info = safeGetElement('paginationInfo');
-  const buttons = safeGetElement('paginationButtons');
-  if (!info || !buttons) return;
-  
-  const totalPages = Math.ceil(total / itemsPerPage) || 1;
-  const start = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
-  const end = Math.min(currentPage * itemsPerPage, total);
-  
-  info.textContent = `Mostrando ${start}-${end} de ${total} profesionales`;
-  
-  buttons.innerHTML = '';
-  
-  // Botón anterior
-  const btnPrev = document.createElement('button');
-  btnPrev.textContent = '«';
-  btnPrev.setAttribute('aria-label', 'Página anterior');
-  btnPrev.disabled = currentPage === 1;
-  btnPrev.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderTable(); } });
-  buttons.appendChild(btnPrev);
-  
-  // Botones numéricos
-  for (let i = 1; i <= totalPages; i++) {
-    const btn = document.createElement('button');
-    btn.textContent = i;
-    btn.setAttribute('aria-label', `Ir a página ${i}`);
-    btn.setAttribute('aria-current', i === currentPage ? 'page' : 'false');
-    if (i === currentPage) btn.classList.add('active');
-    btn.addEventListener('click', () => { currentPage = i; renderTable(); });
-    buttons.appendChild(btn);
-  }
-  
-  // Botón siguiente
-  const btnNext = document.createElement('button');
-  btnNext.textContent = '»';
-  btnNext.setAttribute('aria-label', 'Página siguiente');
-  btnNext.disabled = currentPage === totalPages;
-  btnNext.addEventListener('click', () => { if (currentPage < totalPages) { currentPage++; renderTable(); } });
-  buttons.appendChild(btnNext);
-};
+window.editProfessional = async (id) => {
+  try {
+    const result = await apiRequest(`${API_BASE}/${id}`);
+    const p = result.data;
+    if (!p) return;
 
-// ═══════════════════════════════════════════════════════════════════
-//  ACCIONES DE PROFESIONAL
-// ═══════════════════════════════════════════════════════════════════
+    editingId = id;
 
-// Ver detalles de profesional
-window.viewProfessional = (id) => {
-  const p = professionals.find(prof => prof.id === id);
-  if (!p) return;
-  
-  // Actualizar modal detalle
-  const avatar = safeGetElement('detailAvatar');
-  const name = safeGetElement('detailName');
-  const specialty = safeGetElement('detailSpecialty');
-  const registry = safeGetElement('detailRegistry');
-  const phone = safeGetElement('detailPhone');
-  const status = safeGetElement('detailStatus');
-  
-  if (avatar) {
-    avatar.textContent = p.initials;
-    avatar.style.background = getAvatarColor(p.specialty);
-  }
-  if (name) name.textContent = p.name;
-  if (specialty) specialty.textContent = p.specialty;
-  if (registry) registry.textContent = p.registry;
-  if (phone) phone.textContent = p.phone;
-  if (status) {
-    status.textContent = p.status;
-    status.className = `badge-status ${getStatusBadgeClass(p.status)}`;
-  }
-  
-  // Abrir modal
-  const modal = safeGetElement('modalDetail');
-  if (modal) {
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    modal.removeAttribute('inert');
-    const closeBtn = safeGetElement('modalDetailClose');
-    if (closeBtn) closeBtn.focus();
-    document.body.style.overflow = 'hidden';
-  }
-};
+    // Llenar campos del formulario con los datos de la API
+    const set = (fieldId, value) => { const el = safeGetElement(fieldId); if (el) el.value = value ?? ''; };
 
-/**
- * Edita profesional en modo SSR: navega vía GET con editId.
- * WHY: En SSR el array professionals[] siempre está vacío (la tabla la renderizó Razor).
- *      Buscar en el array y llenar el modal a mano NUNCA funcionaría.
- *      La edición correcta es un GET al Controller que carga el profesional desde BD
- *      y lo pasa en ViewData["EditingProfesional"] para pre-rellenar el modal en el servidor.
- */
-window.editProfessional = (id) => {
-  if (shouldUseServerRenderedTable()) {
-    // SSR: navegar al mismo URL con editId → el Controller pre-rellena el modal desde BD
-    window.location.href = `${window.location.pathname}?editId=${id}`;
-    return;
-  }
-  // Fallback client-side (no activo en producción)
-  const p = professionals.find(prof => prof.id === id);
-  if (!p) return;
-  editingId = id;
-  const formNombres = safeGetElement('formNombres');
-  const formStatus  = safeGetElement('formStatus');
-  const modalTitle  = safeGetElement('modalFormTitle');
-  if (formNombres)  formNombres.value = p.name;
-  if (formStatus)   formStatus.value  = p.status;
-  if (modalTitle)   modalTitle.textContent = 'Editar Profesional';
-  openFormModal();
-};
+    set('formIdProfesional', p.idProfesional);
+    set('formNombres', p.nombres);
+    set('formApellidos', p.apellidos);
+    set('formRegistroMedico', p.registroMedico);
+    set('formCategoria', p.categoria);   // H-02: cargar Categoria al abrir el modal
+    set('formTelefono', p.telefono);
+    set('formCorreoAcceso', p.correoAcceso);
 
-/**
- * Alterna estado de profesional vía redirect al endpoint de baja lógica.
- * WHY: Cambiar el estado solo en el array de memoria NO persiste a la BD.
- *      En SSR se redirige al servidor para que haga el cambio real.
- *      El endpoint EliminarProfesional ahora hace baja lógica (Estado = "inactivo"),
- *      pero para ciclar estados necesitaríamos un endpoint dedicado.
- *      Por ahora, se notifica al usuario que debe usar el formulario de edición.
- */
-window.toggleStatus = (id) => {
-  if (shouldUseServerRenderedTable()) {
-    // En SSR no hay forma de cambiar el estado sin un POST al servidor;
-    // redirigir a edición del profesional para que el admin cambie el estado.
-    window.location.href = `${window.location.pathname}?editId=${id}`;
-    return;
+    // Sincronizar el select de Estado.
+    // H-05: también almacenamos el estado original para comparar al guardar y
+    //       no ejecutar un PATCH innecesario cuando no cambió.
+    const estadoNorm = (p.estado || 'activo').toLowerCase();
+    const statusSelect = safeGetElement('formStatus');
+    if (statusSelect) {
+      statusSelect.value = estadoNorm;
+      statusSelect.dataset.originalEstado = estadoNorm;  // H-05: referencia original
+    }
+    set('formEstado', estadoNorm);
+
+    // Contraseña: vacía siempre en edición (se conserva si no se cambia)
+    set('formContrasenaAcceso', '');
+    updateProfessionalPasswordRules();
+
+    // Especialidad: asignar por idEspecialidad numérico
+    const formSelect = document.querySelector('select[name="IdEspecialidad"]') || safeGetElement('formIdEspecialidad');
+    if (formSelect && p.especialidades && p.especialidades.length > 0) {
+      formSelect.value = p.especialidades[0].idEspecialidad;
+    } else if (formSelect) {
+      formSelect.value = '';
+    }
+
+    const modalTitle = safeGetElement('modalFormTitle');
+    if (modalTitle) modalTitle.textContent = 'Editar Profesional';
+
+    // Pasar isEditing=true para que openFormModal no resetee el formulario
+    openFormModal(true);
+  } catch (err) {
+    window.ToastService?.error(`❌ No se pudo cargar el profesional: ${err.message}`);
   }
-  // Fallback client-side
-  const p = professionals.find(prof => prof.id === id);
-  if (!p) return;
-  const states = ['Activo', 'Inactivo'];
-  const currentIndex = states.indexOf(p.status);
-  p.status = states[(currentIndex + 1) % states.length];
-  window.ToastService.success(`✅ ${p.name}: estado cambiado a "${p.status}"`);
-  updateStats();
-  renderTable();
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -477,18 +391,24 @@ window.toggleStatus = (id) => {
  * Abre modal de formulario y registra quién lo abrió.
  * WHY: WCAG 2.4.3 — al cerrar un modal el foco debe regresar al elemento
  *      que lo disparó. Sin esto el foco queda al principio del documento.
+ *
+ * @param {boolean} [isEditing=false] - true cuando se llama desde editProfessional;
+ *   en ese caso NO se resetea el formulario porque los datos ya fueron llenados.
  */
-const openFormModal = () => {
+const openFormModal = (isEditing = false) => {
   // Registrar el botón que abre el modal para devolverle el foco al cerrar
   lastModalOpener = document.activeElement;
 
-  editingId = null;
+  // Solo limpiar el formulario al crear un profesional nuevo.
+  // Al editar, editProfessional() ya llenó los campos — no los borramos.
+  if (!isEditing) {
+    editingId = null;
+    const form = safeGetElement('formProfessional');
+    if (form) form.reset();
 
-  const form = safeGetElement('formProfessional');
-  if (form) form.reset();
-
-  const modalTitle = safeGetElement('modalFormTitle');
-  if (modalTitle) modalTitle.textContent = 'Nuevo Profesional';
+    const modalTitle = safeGetElement('modalFormTitle');
+    if (modalTitle) modalTitle.textContent = 'Nuevo Profesional';
+  }
 
   const modal = safeGetElement('modalForm');
   if (modal) {
@@ -652,21 +572,99 @@ const initProfessionalPassword = () => {
 };
 
 
-const saveProfessional = (e) => {
+/**
+ * Intercepta el submit del formulario y lo envía a la API (POST o PUT).
+ * H-02: el payload incluye ahora el campo 'categoria'.
+ * H-05: el PATCH de estado solo se ejecuta cuando el estado cambió respecto
+ *        al valor original cargado al abrir el modal (data-originalEstado).
+ */
+const saveProfessional = async (e) => {
+  e.preventDefault();
+
   const form = e.currentTarget;
   const valid = validateProfessionalForm(form);
   if (!valid) {
-    e.preventDefault();
-    window.ToastService.warning('⚠️ Completa los campos obligatorios marcados en rojo.');
+    window.ToastService?.warning('⚠️ Completa los campos obligatorios marcados en rojo.');
     const firstInvalid = form.querySelector('[aria-invalid="true"]');
     if (firstInvalid) firstInvalid.focus();
     return;
   }
 
   const submitBtn = form.querySelector('[type="submit"]');
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ Guardando...';
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ Guardando...'; }
+
+  // Construir el payload que espera ProfesionalApiRequest.
+  // NOTA: 'estado' NO se incluye aquí porque ProfesionalApiRequest no lo expone;
+  //       el cambio de estado se maneja por separado vía PATCH /{id}/estado.
+  const getData = (id) => safeGetElement(id)?.value?.trim() ?? '';
+  const idProfesional = Number(getData('formIdProfesional'));
+  const isEditing = idProfesional > 0;
+
+  // IdEspecialidad viene del select con name="IdEspecialidad"
+  const especialidadEl = form.querySelector('select[name="IdEspecialidad"]') || safeGetElement('formIdEspecialidad');
+  const idEspecialidad = especialidadEl ? Number(especialidadEl.value) || null : null;
+
+  const payload = {
+    nombres:        getData('formNombres'),
+    apellidos:      getData('formApellidos'),
+    registroMedico: getData('formRegistroMedico'),
+    categoria:      getData('formCategoria') || null,  // H-02: conservar Categoria en BD
+    telefono:       getData('formTelefono')  || null,
+    correoAcceso:   getData('formCorreoAcceso'),
+    idEspecialidad: idEspecialidad,
+  };
+
+  // Solo incluir contraseña si el campo tiene valor (en edición es opcional)
+  const passwordVal = getData('formContrasenaAcceso');
+  if (passwordVal) payload.contrasenaAcceso = passwordVal;
+
+  // H-05: capturar estado actual y original para decidir si hace falta el PATCH.
+  // originalEstado se guarda en data-originalEstado por editProfessional() al abrir el modal.
+  const statusSelect = safeGetElement('formStatus');
+  const nuevoEstado = isEditing
+    ? (statusSelect?.value || safeGetElement('formEstado')?.value || '').trim().toLowerCase()
+    : null;
+  const originalEstado = isEditing
+    ? (statusSelect?.dataset.originalEstado || '').toLowerCase()
+    : null;
+
+  try {
+    let result;
+    if (isEditing) {
+      result = await apiRequest(`${API_BASE}/${idProfesional}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+
+      // H-05: PATCH solo cuando el estado cambió realmente.
+      // Si originalEstado === nuevoEstado no hay escritura ni auditoría innecesaria.
+      if (nuevoEstado && nuevoEstado !== originalEstado) {
+        try {
+          await apiRequest(`${API_BASE}/${idProfesional}/estado`, {
+            method: 'PATCH',
+            body: JSON.stringify({ estado: nuevoEstado })
+          });
+        } catch (estadoErr) {
+          // El PATCH falla independientemente del PUT ya completado;
+          // avisamos al usuario pero no revertimos los datos guardados.
+          window.ToastService?.warning(`⚠️ Datos guardados pero no se pudo actualizar el estado: ${estadoErr.message}`);
+        }
+      }
+    } else {
+      result = await apiRequest(API_BASE, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    }
+
+    window.ToastService?.success(`✅ ${result.message || 'Profesional guardado correctamente.'}`);
+    closeFormModal();
+    currentPage = 1;
+    await loadProfessionals();
+  } catch (err) {
+    window.ToastService?.error(`❌ ${err.message}`);
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '💾 Guardar'; }
   }
 };
 
@@ -928,7 +926,7 @@ const openConfirmDeleteModal = (id, name) => {
   const deleteIdInput = safeGetElement('deleteProfesionalId');
   
   if (message) {
-    message.textContent = `¿Estás seguro de eliminar a ${name}? Esta acción no se puede deshacer.`;
+    message.textContent = `¿Estás seguro de desactivar a ${name}? El profesional quedará inactivo y no podrá recibir nuevas citas.`;
   }
   if (deleteIdInput) {
     deleteIdInput.value = id;
@@ -996,18 +994,77 @@ const initModals = () => {
     if (e.target === e.currentTarget) closeConfirmDeleteModal();
   });
   
-  // Submit del formulario
+  // Submit del formulario (POST / PUT via API)
   form?.addEventListener('submit', saveProfessional);
-  
-  // Delete buttons
-  document.querySelectorAll('.btn-icon.toggle[data-id]').forEach(btn => {
-    btn.addEventListener('click', () => {
+
+  // Delegación de eventos para botones de la tabla SSR y renderTableFromApi.
+  // WHY: los botones de la tabla SSR existen al cargar la página; los de renderTableFromApi
+  //      se crean dinámicamente. La delegación en tbody captura ambos casos sin re-enlazar.
+  const tbody = safeGetElement('professionalsTbody');
+  tbody?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-delete[data-id]');
+    if (btn) {
       const id = btn.getAttribute('data-id');
-      const name = btn.getAttribute('data-name');
-      if (id) {
-        openConfirmDeleteModal(id, name);
+      const name = btn.getAttribute('data-name') || 'este profesional';
+      if (id) openConfirmDeleteModal(id, name);
+    }
+  });
+
+  // Delegación para botones Ver de la tabla SSR
+  tbody?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-view[data-id]');
+    if (btn) {
+      const avatar = safeGetElement('detailAvatar');
+      const nameEl = safeGetElement('detailName');
+      const specialtyEl = safeGetElement('detailSpecialty');
+      const registryEl = safeGetElement('detailRegistry');
+      const phoneEl = safeGetElement('detailPhone');
+      const statusEl = safeGetElement('detailStatus');
+
+      if (avatar) avatar.textContent = btn.dataset.initials || '--';
+      if (nameEl) nameEl.textContent = btn.dataset.name || '--';
+      if (specialtyEl) specialtyEl.textContent = btn.dataset.specialty || '--';
+      if (registryEl) registryEl.textContent = btn.dataset.registry || '--';
+      if (phoneEl) phoneEl.textContent = btn.dataset.phone || '--';
+      if (statusEl) {
+        statusEl.textContent = btn.dataset.status || '--';
+        statusEl.className = `badge-status badge-${(btn.dataset.status || '').toLowerCase()}`;
       }
-    });
+
+      const modal = safeGetElement('modalDetail');
+      if (modal) {
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+        modal.removeAttribute('inert');
+        document.body.style.overflow = 'hidden';
+        safeGetElement('modalDetailClose')?.focus();
+      }
+    }
+  });
+
+  // Botón de confirmación del DELETE lógico
+  // Fase 2D — 2D.2: DELETE /api/profesionales/{id} en lugar de form.submit() al MVC.
+  const btnConfirmDelete = safeGetElement('modalConfirmDeleteConfirm');
+  btnConfirmDelete?.addEventListener('click', async () => {
+    const deleteIdInput = safeGetElement('deleteProfesionalId');
+    const id = Number(deleteIdInput?.value);
+    if (!id) return;
+
+    const confirmBtn = btnConfirmDelete;
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '⏳ Desactivando...';
+
+    try {
+      const result = await apiRequest(`${API_BASE}/${id}`, { method: 'DELETE' });
+      window.ToastService?.success(`✅ ${result.message || 'Profesional desactivado correctamente.'}`);
+      closeConfirmDeleteModal();
+      await loadProfessionals();
+    } catch (err) {
+      window.ToastService?.error(`❌ ${err.message}`);
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '🗑️ Confirmar desactivación';
+    }
   });
   
   // Soporte para teclado en modales
@@ -1073,16 +1130,22 @@ const init = async () => {
   initModals();
   bindProfessionalFieldValidation();
   initProfessionalPassword();
-  
-  // Fase 2B: Inicializamos filtros y especialidades desde la API
+
+  // Inicializar filtros via API e interceptar el formulario de búsqueda
   initFiltersAPI();
+
+  // Cargar especialidades desde la API para poblar los selects del formulario
   await loadSpecialties();
 
   // Animar contadores del Stats Grid con los valores que Razor ya escribió en data-target.
+  // WHY: la tabla viene renderizada por el servidor (SSR); los contadores ya tienen valores
+  //      reales en data-target — solo necesitamos activar la animación visual.
   initServerStats();
 
-  // Fase 2A: Cargar datos desde la API
-  await loadProfessionals();
+  // NO se llama a loadProfessionals() aquí: la tabla SSR que Razor generó es
+  // la fuente de verdad inicial. loadProfessionals() se invoca únicamente cuando
+  // el usuario usa los filtros de búsqueda o después de operaciones CRUD.
+  // WHY: evita doble renderizado (parpadeo SSR→API) y mejora el tiempo de carga.
 
   // Limpieza al unload para evitar memory leaks en implementaciones SPA
   window.addEventListener('beforeunload', () => {

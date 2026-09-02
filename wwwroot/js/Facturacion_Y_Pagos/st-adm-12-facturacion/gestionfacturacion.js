@@ -49,62 +49,27 @@ const fmtDate = (iso) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  PERSISTENCIA CON LOCALSTORAGE
+//  FUENTE DE DATOS: SQL Server (renderizado por el servidor) + API REST
+//  para las acciones de escritura (pago/anulación). Ya no se usa
+//  localStorage como fuente de verdad de las facturas.
 // ═══════════════════════════════════════════════════════════════════
 
 const invoicesStorage = {
-  key: 'smiletrack_facturas_admin',
-  
-  load: () => {
-    if (Array.isArray(window.RAZOR_INVOICES) && window.RAZOR_INVOICES.length > 0) {
-      return window.RAZOR_INVOICES;
-    }
-    const stored = localStorage.getItem(invoicesStorage.key);
-    if (stored) {
-      try { return JSON.parse(stored); }
-      catch (e) { console.warn('Error al cargar facturas, usando datos de ejemplo'); }
-    }
-    // Datos de ejemplo con estados y fechas actualizadas
-    return [
-      { id: 1, number: 'FAC-2026-001', patient: 'Marco Antonio Solís', doc: '10293-A', date: '2026-05-12', total: 1200000, pending: 450000, status: 'parcial', avatar: 'MA', color: 'blue', history: [
-        { date: '2026-05-10', type: 'abono', amount: 400000, note: 'Abono parcial recibido' },
-        { date: '2026-05-11', type: 'recordatorio', note: 'Email automático enviado' }
-      ]},
-      { id: 2, number: 'FAC-2026-002', patient: 'Elena Rodríguez', doc: '10294-B', date: '2026-05-14', total: 850000, pending: 850000, status: 'pendiente', avatar: 'ER', color: 'green', history: [] },
-      { id: 3, number: 'FAC-2026-003', patient: 'Juan Sebastian', doc: '10295-C', date: '2026-05-15', total: 2100000, pending: 1050000, status: 'parcial', avatar: 'JS', color: 'purple', history: [
-        { date: '2026-05-13', type: 'abono', amount: 1050000, note: 'Primer pago recibido' }
-      ]},
-      { id: 4, number: 'FAC-2026-004', patient: 'Laura Pineda', doc: '10296-D', date: '2026-05-16', total: 560000, pending: 0, status: 'pagada', avatar: 'LP', color: 'orange', history: [
-        { date: '2026-05-16', type: 'pago', amount: 560000, note: 'Pago completo recibido' }
-      ]},
-      { id: 5, number: 'FAC-2026-005', patient: 'Carlos Vega', doc: '10297-E', date: '2026-05-17', total: 320000, pending: 320000, status: 'anulada', avatar: 'CV', color: 'red', history: [
-        { date: '2026-05-17', type: 'anulacion', note: 'Factura anulada por solicitud del paciente' }
-      ]}
-    ];
-  },
-  
-  save: (data) => {
-    try { localStorage.setItem(invoicesStorage.key, JSON.stringify(data)); return true; }
-    catch (e) { console.error('Error al guardar facturas:', e); return false; }
-  },
-  
-  addInvoice: (invoice) => {
-    const data = invoicesStorage.load();
-    invoice.id = data.length > 0 ? Math.max(...data.map(i => i.id)) + 1 : 1;
-    invoice.history = invoice.history || [];
-    data.unshift(invoice);
-    invoicesStorage.save(data);
-    return invoice;
-  },
+
+  // Los datos vienen siempre del servidor (FacturacionPagosController ->
+  // AppDbContext.Facturas), serializados en ViewData["FacturasJson"].
+  load: () => Array.isArray(window.RAZOR_INVOICES) ? window.RAZOR_INVOICES : [],
   
   getInvoice: (id) => invoicesStorage.load().find(i => i.id === id),
   
-  updateInvoice: (id, updates) => {
-    const data = invoicesStorage.load();
-    const idx = data.findIndex(i => i.id === id);
+
+   // Actualiza solo el estado en memoria para reflejar de inmediato el
+   // resultado de una llamada a la API; la próxima recarga de página
+   // siempre traerá el estado real desde SQL Server.
+  updateLocalCache: (id, updates) => {
+    const idx = invoices.findIndex(i => i.id === id);
     if (idx !== -1) {
-      data[idx] = { ...data[idx], ...updates };
-      invoicesStorage.save(data);
+      invoices[idx] = { ...invoices[idx], ...updates };
       return true;
     }
     return false;
@@ -123,8 +88,8 @@ let currentPage = 1;
 const itemsPerPage = 10;
 
 const avatarColors = {
-  blue: 'bg-blue-100 text-blue-600', green: 'bg-green-100 text-green-600',
-  purple: 'bg-purple-100 text-purple-600', orange: 'bg-orange-100 text-orange-600', red: 'bg-red-100 text-red-600'
+  blue: 'avatar-blue', green: 'avatar-green',
+  purple: 'avatar-purple', orange: 'avatar-orange', red: 'avatar-red'
 };
 
 const statusLabels = {
@@ -177,6 +142,13 @@ const renderInvoices = () => {
   
   body.innerHTML = pageData.map(i => {
     const status = statusLabels[i.status] || statusLabels.pendiente;
+    const patientInitials = String(i.patient || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(namePart => namePart.charAt(0).toUpperCase())
+      .join('') || 'P';
     const pendingDisplay = i.pending > 0 ? fmtCurrency(i.pending) : '—';
     const pendingClass = i.pending > 0 ? 'text-[var(--red)]' : 'text-[var(--green)]';
     
@@ -185,7 +157,7 @@ const renderInvoices = () => {
         <div class="table-col col-numero" role="cell" data-label="N° Factura"><strong class="text-[var(--primary)]">${i.number}</strong></div>
         <div class="table-col col-paciente" role="cell" data-label="Paciente">
           <div class="patient-info">
-            <div class="patient-avatar ${avatarColors[i.color] || avatarColors.blue}" aria-hidden="true">${i.avatar}</div>
+            <div class="patient-avatar ${avatarColors[i.color] || avatarColors.blue}" aria-hidden="true">${patientInitials}</div>
             <div>
               <span class="patient-name">${i.patient}</span>
               <span class="patient-id">ID: ${i.doc}</span>
@@ -200,8 +172,7 @@ const renderInvoices = () => {
         </div>
         <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
           <div class="actions-cell">
-            <button class="action-btn btn-view" aria-label="Ver detalle de factura ${i.number}" data-id="${i.id}" title="Ver">👁️</button>
-            <button class="action-btn btn-email" aria-label="Enviar recordatorio de factura ${i.number}" data-id="${i.id}" title="Enviar email">📧</button>
+            <button class="action-btn btn-view" aria-label="Ver detalle de factura ${i.number}" data-id="${i.id}" title="Ver">👁️ <span class="btn-text">Ver</span></button>
           </div>
         </div>
       </div>
@@ -213,11 +184,6 @@ const renderInvoices = () => {
     btn.addEventListener('click', (e) => openDrawer(parseInt(e.currentTarget.dataset.id)));
     btn.addEventListener('keydown', (e) => { if (['Enter',' '].includes(e.key)) { e.preventDefault(); openDrawer(parseInt(e.currentTarget.dataset.id)); }});
   });
-  body.querySelectorAll('.btn-email').forEach(btn => {
-    btn.addEventListener('click', (e) => sendReminder(parseInt(e.currentTarget.dataset.id)));
-    btn.addEventListener('keydown', (e) => { if (['Enter',' '].includes(e.key)) { e.preventDefault(); sendReminder(parseInt(e.currentTarget.dataset.id)); }});
-  });
-  
   // Click en fila abre drawer
   body.querySelectorAll('.table-row').forEach(row => {
     row.addEventListener('click', (e) => {
@@ -244,7 +210,6 @@ const openDrawer = (id) => {
   const subtotalEl = safeGetElement('drawerSubtotal');
   const taxEl = safeGetElement('drawerTax');
   const totalEl = safeGetElement('drawerTotal');
-  const historyList = safeGetElement('drawerHistory');
   
   if (!drawer || !statusLabel) return;
   
@@ -261,21 +226,8 @@ const openDrawer = (id) => {
   if (taxEl) taxEl.textContent = fmtCurrency(tax);
   if (totalEl) totalEl.textContent = fmtCurrency(invoice.total);
   
-  // Renderizar historial
-  if (historyList) {
-    if (invoice.history?.length) {
-      historyList.innerHTML = invoice.history.map(h => `
-        <li class="history-item" role="listitem">
-          <span class="history-title">${h.note}</span>
-          <span class="history-date"><time datetime="${h.date}">${fmtDate(h.date)}</time>${h.amount ? ` · ${fmtCurrency(h.amount)}` : ''}</span>
-        </li>
-      `).join('');
-    } else {
-      historyList.innerHTML = '<li class="history-item" style="border:none;padding:0"><span class="text-muted">Sin historial registrado</span></li>';
-    }
-  }
-  
   // Mostrar drawer
+  drawer.dataset.invoiceId = String(id);
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden', 'false');
   drawer.removeAttribute('inert');
@@ -295,64 +247,154 @@ const closeDrawer = () => {
     document.body.style.overflow = '';
   }
 };
+// Enviar recordatorio de pago (funcionalidad de notificación, no persiste
+// estado de negocio; el envío real de correo se apoya en el EmailService
+// del backend cuando esté disponible para este flujo).
+   const sendReminder = (id) => {
+   const invoice = invoicesStorage.getInvoice(id);
+   if (!invoice) return;
+
+const closePaymentSuccess = () => {
+  const modal = safeGetElement('paymentSuccessOverlay');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  }
+};
+
+const closeInvoiceDetails = () => {
+  const modal = safeGetElement('invoiceDetailsOverlay');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  }
+};
+
+const showInvoiceDetails = (id) => {
+  const invoice = invoicesStorage.getInvoice(id);
+  const modal = safeGetElement('invoiceDetailsOverlay');
+  if (!invoice || !modal) return;
+
+  const details = {
+    invoiceDetailsNumber: invoice.number,
+    invoiceDetailsPatient: invoice.patient,
+    invoiceDetailsDocument: invoice.doc,
+    invoiceDetailsDate: fmtDate(invoice.date),
+    invoiceDetailsService: invoice.service || 'No especificado',
+    invoiceDetailsStatus: (statusLabels[invoice.status] || statusLabels.pendiente).label,
+    invoiceDetailsTotal: fmtCurrency(invoice.total),
+    invoiceDetailsPending: invoice.pending > 0 ? fmtCurrency(invoice.pending) : 'Pagada'
+  };
+  Object.entries(details).forEach(([elementId, value]) => {
+    const element = safeGetElement(elementId);
+    if (element) element.textContent = value;
+  });
+
+  closeDrawer();
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+  document.body.style.overflow = 'hidden';
+  safeGetElement('invoiceDetailsConfirm')?.focus();
+};
+
+const showPaymentSuccess = (amount, patient) => {
+  const modal = safeGetElement('paymentSuccessOverlay');
+  const message = safeGetElement('paymentSuccessMessage');
+  if (!modal) return;
+
+  if (message) message.textContent = `El pago de ${fmtCurrency(amount)} de ${patient} se registró correctamente.`;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+  document.body.style.overflow = 'hidden';
+  safeGetElement('paymentSuccessConfirm')?.focus();
+};
 
 // Enviar recordatorio de pago
 const sendReminder = (id) => {
   const invoice = invoicesStorage.getInvoice(id);
   if (!invoice) return;
-  
-  // Simular envío de email
+
   showToast(`📧 Recordatorio enviado a ${invoice.patient}`, 'success');
   
-  // Agregar al historial
-  const data = invoicesStorage.load();
-  const idx = data.findIndex(i => i.id === id);
-  if (idx !== -1) {
-    data[idx].history = data[idx].history || [];
-    data[idx].history.unshift({
-      date: new Date().toISOString().split('T')[0],
-      type: 'recordatorio',
-      note: 'Recordatorio enviado por email'
-    });
-    invoicesStorage.save(data);
-    invoices = data;
-  }
 };
 
-// Registrar pago
-const registerPayment = (id) => {
+// Registrar pago — llama a la API real (PUT /facturacion-y-pagos/api/facturas/{id}/pago)
+// que persiste el pago en SQL Server (tabla Factura: monto_pagado, estado, fecha_pago).
+const registerPayment = async (id) => {
   const invoice = invoicesStorage.getInvoice(id);
-  if (!invoice) return;
+  if (!invoice) return; 
   
   if (invoice.pending <= 0) {
     showToast('⚠️ Esta factura ya está pagada', 'warning');
     return;
   }
   
-  // Simular registro de pago
+  
   const paymentAmount = invoice.pending;
-  invoicesStorage.updateInvoice(id, { pending: 0, status: 'pagada' });
   
-  // Agregar al historial
-  const data = invoicesStorage.load();
-  const idx = data.findIndex(i => i.id === id);
-  if (idx !== -1) {
-    data[idx].history = data[idx].history || [];
-    data[idx].history.unshift({
-      date: new Date().toISOString().split('T')[0],
-      type: 'pago',
-      amount: paymentAmount,
-      note: 'Pago completo registrado'
+  
+  
+      try {
+      const result = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${id}/pago`, {
+      method: 'PUT',
+      body: { montoPagado: paymentAmount }
     });
-    invoicesStorage.save(data);
-    invoices = data;
+    if (!result || result.success !== true) {
+      showToast(result?.message || 'No fue posible registrar el pago.', 'error');
+      return;
   }
-  
+
+  invoicesStorage.updateLocalCache(id, { pending: 0, status: result.data.estado });
   renderInvoices();
   updateStats();
   closeDrawer();
   showToast(`✅ Pago de ${fmtCurrency(paymentAmount)} registrado para ${invoice.patient}`);
+} catch (error) {
+    console.error('Error registrando pago:', error);
+    showToast('Error de conexión al registrar el pago.', 'error');
+  }
 };
+
+// Anular factura — llama a la API real (POST /facturacion-y-pagos/api/facturas/{id}/anular).
+  const cancelInvoice = async (id) => {
+  const invoice = invoicesStorage.getInvoice(id);
+  if (!invoice) return;
+
+  if (invoice.status === 'anulada') {
+    showToast('Esta factura ya está anulada.', 'warning');
+    return;
+  }
+
+  if (!window.confirm(`¿Anular la factura ${invoice.number} de ${invoice.patient}? Esta acción no se puede deshacer.`)) {
+    return;
+  }
+
+  try {
+    const result = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${id}/anular`, {
+      method: 'POST',
+      body: { motivo: 'Anulada desde el panel administrativo' }
+    });
+
+    if (!result || result.success !== true) {
+      showToast(result?.message || 'No fue posible anular la factura.', 'error');
+      return;
+    }
+
+    invoicesStorage.updateLocalCache(id, { status: 'anulada' });
+    renderInvoices();
+    updateStats();
+    closeDrawer();
+    showToast(`Factura ${invoice.number} anulada correctamente.`);
+  } catch (error) {
+    console.error('Error anulando factura:', error);
+    showToast('Error de conexión al anular la factura.', 'error');
+  }
 
 // ═══════════════════════════════════════════════════════════════════
 //  PAGINACIÓN Y CONTADORES
@@ -471,22 +513,45 @@ const initPagination = () => {
 const initDrawer = () => {
   const drawer = safeGetElement('drawerOverlay');
   const drawerClose = safeGetElement('drawerClose');
-  const btnRemind = safeGetElement('btnRemind');
+  const btnViewDetails = safeGetElement('btnViewDetails');
   const btnRegister = safeGetElement('btnRegisterPayment');
+  const btnCancel = safeGetElement('btnCancelInvoice'); 
+  const invoiceDetails = safeGetElement('invoiceDetailsOverlay');
+  const invoiceDetailsClose = safeGetElement('invoiceDetailsClose');
+  const invoiceDetailsConfirm = safeGetElement('invoiceDetailsConfirm');
+  const paymentSuccess = safeGetElement('paymentSuccessOverlay');
+  const paymentSuccessClose = safeGetElement('paymentSuccessClose');
+  const paymentSuccessConfirm = safeGetElement('paymentSuccessConfirm');
   
   // Cerrar drawer
   drawerClose?.addEventListener('click', closeDrawer);
   drawer?.addEventListener('click', (e) => { if (e.target === drawer) closeDrawer(); });
   
   // Botones del drawer
-  btnRemind?.addEventListener('click', () => {
+  btnViewDetails?.addEventListener('click', () => {
     const id = parseInt(drawer.dataset.invoiceId);
-    if (id) sendReminder(id);
+    if (id) showInvoiceDetails(id);
   });
   
   btnRegister?.addEventListener('click', () => {
     const id = parseInt(drawer.dataset.invoiceId);
     if (id) registerPayment(id);
+  });
+    btnCancel?.addEventListener('click', () => {
+    const id = parseInt(drawer.dataset.invoiceId);
+    if (id) cancelInvoice(id);
+  });
+  
+
+  paymentSuccessClose?.addEventListener('click', closePaymentSuccess);
+  paymentSuccessConfirm?.addEventListener('click', closePaymentSuccess);
+  paymentSuccess?.addEventListener('click', (e) => {
+    if (e.target === paymentSuccess) closePaymentSuccess();
+  });
+  invoiceDetailsClose?.addEventListener('click', closeInvoiceDetails);
+  invoiceDetailsConfirm?.addEventListener('click', closeInvoiceDetails);
+  invoiceDetails?.addEventListener('click', (e) => {
+    if (e.target === invoiceDetails) closeInvoiceDetails();
   });
   
   // Escape cierra drawer
@@ -495,44 +560,93 @@ const initDrawer = () => {
       e.preventDefault();
       closeDrawer();
     }
+    if (e.key === 'Escape' && paymentSuccess?.classList.contains('open')) {
+      e.preventDefault();
+      closePaymentSuccess();
+    }
+    if (e.key === 'Escape' && invoiceDetails?.classList.contains('open')) {
+      e.preventDefault();
+      closeInvoiceDetails();
+    }
   });
 };
 
 const initNewInvoice = () => {
   const btn = safeGetElement('btnNewInvoice');
-  btn?.addEventListener('click', () => showToast('📝 Funcionalidad de nueva factura en desarrollo', 'warning'));
+  const overlay = safeGetElement('newInvoiceOverlay');
+  const form = safeGetElement('newInvoiceForm');
+  const closeBtn = safeGetElement('newInvoiceClose');
+  const cancelBtn = safeGetElement('newInvoiceCancel');
+  const dateInput = safeGetElement('invoiceDate');
+
+  // La creación real de facturas ocurre en el flujo de Recepción
+  // (POST /facturacion-y-pagos/api/facturas), que sí persiste en SQL Server.
+  btn?.addEventListener('click', () => {
+    window.location.href = '/facturacion-y-pagos/st-rec-04-generar-factura';
+  });
+  const closeModal = () => {
+    if (!overlay) return;
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  };
+
+  const openModal = () => {
+    if (!overlay) return;
+    if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().split('T')[0];
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+    overlay.removeAttribute('inert');
+    document.body.style.overflow = 'hidden';
+    safeGetElement('invoicePatient')?.focus();
+  };
+
+  btn?.addEventListener('click', openModal);
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+  overlay?.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    const patient = String(formData.get('patient') || '').trim();
+    const doc = String(formData.get('document') || '').trim();
+    const date = String(formData.get('date') || '');
+    const service = String(formData.get('service') || '').trim();
+    const total = Number(formData.get('total'));
+    if (!patient || !doc || !date || !service || !Number.isFinite(total) || total <= 0) return;
+
+    const year = date.slice(0, 4);
+    const nextNumber = invoices.reduce((highest, invoice) => {
+      const match = String(invoice.number).match(/(\d+)$/);
+      return Math.max(highest, match ? Number(match[1]) : 0);
+    }, 0) + 1;
+    const initials = patient.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+    const newInvoice = {
+      number: `FAC-${year}-${String(nextNumber).padStart(3, '0')}`,
+      patient, doc, date, service, total, pending: total, status: 'pendiente',
+      avatar: initials || 'P', color: 'blue', history: []
+    };
+
+    const createdInvoice = invoicesStorage.addInvoice(newInvoice);
+    invoices = invoicesStorage.load();
+    currentPage = 1;
+    form.reset();
+    closeModal();
+    renderInvoices();
+    updateStats();
+    showToast(`Factura ${createdInvoice.number} generada correctamente`);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay?.classList.contains('open')) {
+      e.preventDefault();
+      closeModal();
+    }
+  });
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  API CALLS
-// ═══════════════════════════════════════════════════════════════════
-
-async function fetchInvoices() {
-  try {
-    // const res = await fetch(`${API_BASE}/admin/invoices`);
-    // if (!res.ok) throw new Error('API error');
-    // return await res.json();
-    return invoicesStorage.load();
-  } catch (error) {
-    console.warn('Fallback a datos locales:', error);
-    return invoicesStorage.load();
-  }
-}
-
-async function addInvoiceAPI(invoice) {
-  try {
-    // const res = await fetch(`${API_BASE}/admin/invoices`, {
-    //   method: 'POST', headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(invoice),
-    // });
-    // if (!res.ok) throw new Error('Add failed');
-    // return await res.json();
-    return invoicesStorage.addInvoice(invoice);
-  } catch (error) {
-    console.warn('Error al agregar factura en API:', error);
-    return null;
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════
 //  INICIALIZACIÓN PRINCIPAL
@@ -546,11 +660,12 @@ const init = async () => {
   initNewInvoice();
   initDrawer();
   
-  invoices = await fetchInvoices();
+  
+  invoices = invoicesStorage.load();
   updateStats();
   renderInvoices();
   
   window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
 };
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', init)};}
