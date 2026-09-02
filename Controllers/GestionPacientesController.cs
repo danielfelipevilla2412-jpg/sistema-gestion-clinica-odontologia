@@ -644,7 +644,29 @@ public class GestionPacientesController : Controller
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Yeray (2025) - Strec02RegistrarPaciente con ViewModel
+    // Yeray (2025) - Listado de pacientes para Recepcionista
+    //
+    // PROBLEMA: el sidebar de Recepcionista apuntaba a la ruta del admin
+    //   (/gestion-de-pacientes/st-adm-05-gestion-pacientes), por lo que la
+    //   recepcionista veía la vista de administrador con el sidebar de admin.
+    //
+    // SOLUCIÓN: ruta propia /gestion-de-pacientes/st-rec-pacientes que
+    //   reutiliza exactamente la misma lógica y vista del listado admin, pero
+    //   renderiza el _SidebarRecepcionista a través de ViewData. El sidebar
+    //   de Recepcionista ahora apunta a esta ruta en vez de la del admin.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    [Authorize(Roles = "Recepcionista")]
+    [Route("gestion-de-pacientes/st-rec-pacientes")]
+    public async Task<IActionResult> StrecGestionPacientes()
+    {
+        // Reutiliza la misma lógica de Stadm05GestionPacientes, cambiando
+        // únicamente el sidebar que se inyecta (via ViewData).
+        ViewData["SidebarPartial"] = "_SidebarRecepcionista";
+        return await Stadm05GestionPacientes();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     //
     // ANTES: devolvía View() sin ningún ViewModel. Todas las listas del formulario
     //        (profesionales, servicios, consultorios) estaban hardcodeadas en el

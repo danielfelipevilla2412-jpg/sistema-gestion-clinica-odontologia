@@ -417,25 +417,16 @@ const renderPatients = async () => {
                 class="table-col col-acciones"
                 data-label="Acciones"
               >
-
                 <div class="actions-cell">
 
                   <button
                     class="action-btn btn-view"
                     data-id="${patient.Id}"
-                    aria-label="Ver detalle de ${patient.Name}"
-                    title="Ver detalle del paciente"
+                    aria-label="Ver perfil de ${patient.Name}"
+                    title="Ver perfil completo"
                   >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      👁️
-                    </span>
-
-                    <span class="action-label">
-                      Detalle
-                    </span>
+                    <span class="action-icon" aria-hidden="true">👁️</span>
+                    <span class="action-label">Perfil</span>
                   </button>
 
                   <button
@@ -444,52 +435,18 @@ const renderPatients = async () => {
                     aria-label="Editar ${patient.Name}"
                     title="Editar paciente"
                   >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      ✏️
-                    </span>
-
-                    <span class="action-label">
-                      Editar
-                    </span>
-                  </button>
-
-                  <button
-                    class="action-btn btn-disable"
-                    data-id="${patient.Id}"
-                    aria-label="Desactivar ${patient.Name}"
-                    title="Desactivar paciente"
-                  >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      🗑️
-                    </span>
-
-                    <span class="action-label">
-                      Desactivar
-                    </span>
+                    <span class="action-icon" aria-hidden="true">✏️</span>
+                    <span class="action-label">Editar</span>
                   </button>
 
                   <button
                     class="action-btn btn-history"
                     data-id="${patient.Id}"
-                    aria-label="Ver historial clínico de ${patient.Name}"
-                    title="Historial clínico"
+                    aria-label="Historia clínica de ${patient.Name}"
+                    title="Historia clínica"
                   >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      📋
-                    </span>
-
-                    <span class="action-label">
-                      Historial
-                    </span>
+                    <span class="action-icon" aria-hidden="true">📋</span>
+                    <span class="action-label">Historial</span>
                   </button>
 
                 </div>
@@ -581,25 +538,6 @@ const renderPatients = async () => {
             ),
             'edit'
           );
-        }
-      );
-    });
-
-  // Desactivar
-  document
-    .querySelectorAll('.btn-disable')
-    .forEach((btn) => {
-
-      btn.addEventListener(
-        'click',
-        async (event) => {
-
-          const id =
-            Number(
-              event.currentTarget.dataset.id
-            );
-
-          await desactivarPaciente(id);
         }
       );
     });
@@ -718,6 +656,18 @@ const openPatientModal = (id, type) => {
           ${patient.Estado || 'N/A'}
         </p>
 
+        ${patient.Estado === 'activo' ? `
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+          <button
+            class="action-btn btn-disable"
+            data-id="${patient.Id}"
+            style="color:var(--red);border-color:var(--red);width:100%;justify-content:center;"
+            aria-label="Desactivar a ${patient.Name}"
+          >
+            🗑️ Desactivar paciente
+          </button>
+        </div>` : ''}
+
       </div>
     `;
 
@@ -831,15 +781,11 @@ const openPatientModal = (id, type) => {
     content.innerHTML = `
       <form id="editPatientForm">
 
+        <!-- SECCIÓN: INFORMACIÓN PERSONAL -->
+        <div class="form-section-title">Información Personal</div>
+
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editNombres"
-          >
-            Nombres
-          </label>
-
+          <label class="form-label" for="editNombres">Nombres</label>
           <input
             type="text"
             id="editNombres"
@@ -847,18 +793,10 @@ const openPatientModal = (id, type) => {
             value="${nombresActuales}"
             required
           />
-
         </div>
 
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editApellidos"
-          >
-            Apellidos
-          </label>
-
+          <label class="form-label" for="editApellidos">Apellidos</label>
           <input
             type="text"
             id="editApellidos"
@@ -866,149 +804,51 @@ const openPatientModal = (id, type) => {
             value="${apellidosActuales}"
             required
           />
-
         </div>
 
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editTelefono"
-          >
-            Teléfono
-          </label>
-
-          <input
-            type="text"
-            id="editTelefono"
-            class="form-input"
-            value="${patient.Telefono || ''}"
-          />
-
-        </div>
-
-        <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editCorreo"
-          >
-            Correo
-          </label>
-
-          <input
-            type="email"
-            id="editCorreo"
-            class="form-input"
-            value="${patient.Correo || ''}"
-          />
-
-        </div>
-
-        <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editCiudad"
-          >
-            Ciudad
-          </label>
-
-          <input
-            type="text"
-            id="editCiudad"
-            class="form-input"
-            value="${patient.Ciudad || ''}"
-          />
-
-        </div>
-
-        <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editGenero"
-          >
-            Género
-          </label>
-
-          <select
-            id="editGenero"
-            class="form-select"
-          >
-
-            <option
-              value="M"
-              ${patient.Genero === 'M' ? 'selected' : ''}
-            >
-              Masculino
-            </option>
-
-            <option
-              value="F"
-              ${patient.Genero === 'F' ? 'selected' : ''}
-            >
-              Femenino
-            </option>
-
-            <option
-              value="O"
-              ${patient.Genero === 'O' ? 'selected' : ''}
-            >
-              Otro
-            </option>
-
+          <label class="form-label" for="editGenero">Género</label>
+          <select id="editGenero" class="form-select">
+            <option value="M" ${patient.Genero === 'M' ? 'selected' : ''}>Masculino</option>
+            <option value="F" ${patient.Genero === 'F' ? 'selected' : ''}>Femenino</option>
+            <option value="O" ${patient.Genero === 'O' ? 'selected' : ''}>Otro</option>
           </select>
-
         </div>
 
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editAlergias"
-          >
-            Alergias
-          </label>
-
-          <input
-            type="text"
-            id="editAlergias"
-            class="form-input"
-            value="${patient.AlergiasTexto || ''}"
-          />
-
+          <label class="form-label" for="editCiudad">Ciudad</label>
+          <input type="text" id="editCiudad" class="form-input" value="${patient.Ciudad || ''}" />
         </div>
 
-        <!-- Yeray (2025) - campos nuevos: antes solo editables vía API REST -->
+        <!-- SECCIÓN: CONTACTO -->
+        <div class="form-section-title">Información de Contacto</div>
+
         <div class="form-group">
+          <label class="form-label" for="editTelefono">Teléfono</label>
+          <input type="tel" id="editTelefono" class="form-input" value="${patient.Telefono || ''}" />
+        </div>
 
-          <label
-            class="form-label"
-            for="editContactoEmergencia"
-          >
-            Contacto de emergencia
-          </label>
+        <div class="form-group">
+          <label class="form-label" for="editCorreo">Correo Electrónico</label>
+          <input type="email" id="editCorreo" class="form-input" value="${patient.Correo || ''}" />
+        </div>
 
+        <!-- SECCIÓN: EMERGENCIA -->
+        <div class="form-section-title">Contacto de Emergencia</div>
+
+        <div class="form-group">
+          <label class="form-label" for="editContactoEmergencia">Nombre del Contacto</label>
           <input
             type="text"
             id="editContactoEmergencia"
             class="form-input"
-            placeholder="Nombre del contacto"
+            placeholder="Nombre completo"
             value="${patient.ContactoEmergencia || ''}"
           />
-
         </div>
 
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editTelefonoEmergencia"
-          >
-            Teléfono de emergencia
-          </label>
-
+          <label class="form-label" for="editTelefonoEmergencia">Teléfono de Emergencia</label>
           <input
             type="tel"
             id="editTelefonoEmergencia"
@@ -1016,53 +856,35 @@ const openPatientModal = (id, type) => {
             placeholder="Ej. 300 123 4567"
             value="${patient.TelefonoEmergencia || ''}"
           />
-
         </div>
 
-        <div class="form-group" style="grid-column: 1 / -1;">
+        <!-- SECCIÓN: SALUD -->
+        <div class="form-section-title">Información de Salud</div>
 
-          <label
-            class="form-label"
-            for="editAntecedentesMedicos"
-          >
-            Antecedentes médicos
-          </label>
+        <div class="form-group">
+          <label class="form-label" for="editAlergias">Alergias Conocidas</label>
+          <input
+            type="text"
+            id="editAlergias"
+            class="form-input"
+            placeholder="Ej. Penicilina, Látex..."
+            value="${patient.AlergiasTexto || ''}"
+          />
+        </div>
 
+        <div class="form-group form-group--full">
+          <label class="form-label" for="editAntecedentesMedicos">Antecedentes Médicos</label>
           <textarea
             id="editAntecedentesMedicos"
             class="form-input"
-            rows="3"
-            placeholder="Enfermedades previas, cirugías, condiciones crónicas..."
-            style="resize:vertical;min-height:72px;"
+            placeholder="Enfermedades previas, cirugías, condiciones crónicas, tratamientos actuales..."
           >${patient.AntecedentesMedicos || ''}</textarea>
-
         </div>
 
-        <div
-          style="
-            display:flex;
-            gap:10px;
-            justify-content:flex-end;
-            margin-top:20px;
-          "
-        >
-
-          <button
-            type="button"
-            class="btn-secondary"
-            id="editCancelBtn"
-          >
-            Cancelar
-          </button>
-
-          <button
-            type="submit"
-            class="btn-primary"
-            id="editSaveBtn"
-          >
-            Guardar cambios
-          </button>
-
+        <!-- BOTONES DE ACCIÓN -->
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="editCancelBtn">Cancelar</button>
+          <button type="submit" class="btn-primary" id="editSaveBtn">Guardar cambios</button>
         </div>
 
       </form>
@@ -1330,6 +1152,19 @@ const openPatientModal = (id, type) => {
   modal.removeAttribute(
     'inert'
   );
+
+  // Agregar listener para el botón de desactivar en el modal
+  const btnDisableInModal = content.querySelector('.btn-disable');
+  if (btnDisableInModal) {
+    btnDisableInModal.addEventListener(
+      'click',
+      async (event) => {
+        event.preventDefault();
+        await desactivarPaciente(patient.Id);
+        closePatientModal();
+      }
+    );
+  }
 
   document.body.style.overflow =
     'hidden';

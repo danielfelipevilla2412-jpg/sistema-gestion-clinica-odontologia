@@ -18,7 +18,14 @@
 
 <body>
 
-    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+  @Html.AntiForgeryToken()
+  @* Yeray (2025) - Fallo 2: la vista no tenía el campo oculto con el pacienteId,
+     por lo que el JS lanzaba /data sin parámetro y el servidor devolvía lista
+     vacía. ViewData["PacienteId"] ya lo inyecta el controlador — solo faltaba
+     exponerlo en el HTML para que documentos-cli.js lo pueda leer. *@
+  <input type="hidden" id="pacienteIdInput" value="@(ViewData["PacienteId"]?.ToString() ?? "")" />
+
+  @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
 
   <!-- ═════ HAMBURGER (móvil) ═════ -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú">

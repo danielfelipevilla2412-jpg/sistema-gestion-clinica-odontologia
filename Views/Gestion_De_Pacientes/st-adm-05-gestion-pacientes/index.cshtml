@@ -32,7 +32,11 @@
   @Html.AntiForgeryToken()
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+  @* Yeray (2025) - Sidebar dinámico: la vista del listado se comparte entre
+     el rol Administrador (/_SidebarAdmin) y la Recepcionista (/_SidebarRecepcionista).
+     El controlador inyecta el partial correcto en ViewData["SidebarPartial"].
+     Si no se inyecta nada, se usa _SidebarAdmin como comportamiento por defecto. *@
+  @{ await Html.RenderPartialAsync((string)(ViewData["SidebarPartial"] ?? "_SidebarAdmin")); }
 
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
     <span aria-hidden="true"></span>

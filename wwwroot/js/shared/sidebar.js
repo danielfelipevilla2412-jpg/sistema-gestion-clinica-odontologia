@@ -215,6 +215,43 @@
         }
       });
     });
+
+    // ── Yeray (2025) - Fallo 5: sidebar sin contexto de paciente ─────────
+    //
+    // PROBLEMA: los links de Historia Clínica y Odontograma del sidebar
+    // del profesional navegaban sin ?pacienteId=, así que el controlador
+    // cargaba siempre el primer paciente disponible en BD en vez del que
+    // el profesional acababa de seleccionar en "Mis Pacientes".
+    //
+    // SOLUCIÓN: cuando el profesional selecciona un paciente (btn-detalle,
+    // btn-historial o clic en fila de pacientes.js), se guarda el id en
+    // sessionStorage bajo la clave 'st_paciente_id'. Aquí interceptamos
+    // los clicks en los dos links afectados y añadimos ?pacienteId=X solo
+    // si el valor existe en sessionStorage. Si no hay contexto guardado,
+    // la navegación ocurre sin parámetro (comportamiento anterior intacto).
+    //
+    // Solo se interceptan los dos links que realmente necesitan el contexto;
+    // todos los demás links del sidebar funcionan exactamente igual que antes.
+    var CONTEXT_LINKS = [
+      '/historia-clinica/st-odo-03-historial',
+      '/historia-clinica/st-odo-04-odontograma'
+    ];
+
+    var contextLinks = sidebar.querySelectorAll('a.nav-item');
+    contextLinks.forEach(function (link) {
+      var href = (link.getAttribute('href') || '').split('?')[0]; // ignorar params existentes
+      if (!CONTEXT_LINKS.includes(href)) return;  // solo los dos links afectados
+
+      link.addEventListener('click', function (e) {
+        var pacienteId = sessionStorage.getItem('st_paciente_id');
+        if (pacienteId) {
+          e.preventDefault();
+          window.location.href = href + '?pacienteId=' + encodeURIComponent(pacienteId);
+        }
+        // Sin contexto: deja que el navegador siga con el href original
+      });
+    });
+    // ─────────────────────────────────────────────────────────────────────
   }
 
   // ════════════════════════════════════════════════════════════════════
