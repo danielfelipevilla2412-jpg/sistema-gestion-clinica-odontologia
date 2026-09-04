@@ -182,7 +182,11 @@ const openScheduleModal = (index) => {
   
   if (modalDayIcon) modalDayIcon.textContent = dayData.day;
   if (modalDayName) modalDayName.textContent = dayData.dayFull;
-  if (modalDayActive) modalDayActive.checked = dayData.active;
+  if (modalDayActive) {
+    modalDayActive.checked = dayData.active;
+    // Sincronizar aria-checked con el estado actual (accesibilidad role="switch")
+    modalDayActive.setAttribute('aria-checked', String(dayData.active));
+  }
   if (modalStartTime) modalStartTime.value = dayData.start || '08:00';
   if (modalEndTime) modalEndTime.value = dayData.end || '12:00';
   
@@ -622,6 +626,8 @@ const initScheduleModal = () => {
   // Toggle active state
   if (modalDayActive) {
     modalDayActive.addEventListener('change', () => {
+      // Sincronizar aria-checked con el estado actual (accesibilidad role="switch")
+      modalDayActive.setAttribute('aria-checked', String(modalDayActive.checked));
       updateModalUI(modalDayActive.checked);
       updatePreview();
     });

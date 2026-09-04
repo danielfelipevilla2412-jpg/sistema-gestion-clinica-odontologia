@@ -10,7 +10,6 @@ using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
 using System.Globalization;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace SmileTrack_MVC.Controllers;
 
@@ -32,17 +31,6 @@ public partial class GestionProfesionalesController(
         string digitsOnly = new string(telefono.Where(char.IsDigit).ToArray());
         return digitsOnly.Length is >= 7 and <= 15;
     }
-
-    private static bool EsRegistroMedicoValido(string? registro)
-    {
-        if (string.IsNullOrWhiteSpace(registro)) return false;
-        registro = registro.Trim();
-        if (registro.Length < 3 || registro.Length > 30) return false;
-        return RegistroMedicoRegex().IsMatch(registro);
-    }
-
-    [GeneratedRegex(@"^[A-Za-z0-9\-\. ]+$")]
-    private static partial Regex RegistroMedicoRegex();
 
     [HttpGet]
     [Authorize(Roles = "Administrador")]
@@ -428,50 +416,14 @@ public partial class GestionProfesionalesController(
         try
         {
             var pagination = query ?? new PaginationQuery();
-            int page = pagination.Page < 1 ? 1 : pagination.Page;
-            int pageSize = pagination.PageSize < 1 ? 10 : pagination.PageSize;
+            var resultado = await _profesionalService.ObtenerVistaMVCAsync(pagination, ct);
 
-            ViewData["StatTotal"] = await _context.Profesionales.CountAsync(ct);
-            ViewData["StatActivos"] = await _context.Profesionales.CountAsync(p => p.Estado == "activo", ct);
-            ViewData["StatVacaciones"] = await _context.Profesionales.CountAsync(p => p.Estado == "vacaciones", ct);
-            ViewData["StatInactivos"] = await _context.Profesionales.CountAsync(p => p.Estado == "inactivo", ct);
-
-            var profesionalesQuery = _context.Profesionales
-                .Include(p => p.Usuario)
-                .Include(p => p.Especialidades)
-                .ThenInclude(pe => pe.Especialidad)
-                .AsNoTracking()
-                .AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(pagination.Search))
-            {
-                string searchTerm = pagination.Search.Trim();
-                profesionalesQuery = profesionalesQuery.Where(p =>
-                    (p.Usuario != null && ((p.Usuario.Nombre != null && p.Usuario.Nombre.Contains(searchTerm)) || (p.Usuario.Apellidos != null && p.Usuario.Apellidos.Contains(searchTerm)))) ||
-                    (p.Nombres != null && p.Nombres.Contains(searchTerm)) ||
-                    (p.Apellidos != null && p.Apellidos.Contains(searchTerm)) ||
-                    (p.RegistroMedico != null && p.RegistroMedico.Contains(searchTerm)) ||
-                    (p.Especialidades.Any(pe => pe.Especialidad != null && pe.Especialidad.Nombre.Contains(searchTerm))));
-            }
-
-            if (!string.IsNullOrWhiteSpace(pagination.Profesional))
-            {
-                string especialidad = pagination.Profesional.Trim();
-                profesionalesQuery = profesionalesQuery.Where(p => p.Especialidades.Any(pe => pe.Especialidad != null && pe.Especialidad.Nombre == especialidad));
-            }
-
-            if (!string.IsNullOrWhiteSpace(pagination.Estado))
-            {
-                string estado = pagination.Estado.Trim();
-                profesionalesQuery = profesionalesQuery.Where(p => p.Estado == estado);
-            }
-
-            profesionalesQuery = profesionalesQuery.OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres);
-
-            var paged = await profesionalesQuery.ToPagedResultAsync(page, pageSize, ct);
-
-            ViewData["Profesionales"] = paged.Items.ToList();
-            ViewData["ProfesionalesPage"] = paged;
+            ViewData["StatTotal"] = resultado.Stats.StatTotal;
+            ViewData["StatActivos"] = resultado.Stats.StatActivos;
+            ViewData["StatVacaciones"] = resultado.Stats.StatVacaciones;
+            ViewData["StatInactivos"] = resultado.Stats.StatInactivos;
+            ViewData["Profesionales"] = resultado.Items;
+            ViewData["ProfesionalesPage"] = resultado.Paginacion;
             ViewData["PaginationQuery"] = pagination;
             ViewData["SearchFilter"] = pagination.Search ?? string.Empty;
             ViewData["EspecialidadFilter"] = pagination.Profesional ?? string.Empty;

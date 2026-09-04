@@ -1,0 +1,253 @@
+/* ============================================================
+   SmileTrack — Tokens de diseño globales (variables.css)
+   ============================================================
+   Autor: Johan Santamaria
+   Fecha: 2026-09-02
+
+   PROPÓSITO:
+   Fuente única de verdad para todos los tokens de diseño del
+   sistema. Importar este archivo en cada hoja de estilos de
+   módulo para eliminar la duplicación de variables :root.
+
+   USO:
+     <link rel="stylesheet" href="~/css/shared/variables.css" />
+   Debe cargarse ANTES que cualquier CSS de módulo.
+
+   MANTENIMIENTO:
+   Cambiar un valor aquí lo propaga automáticamente a todas
+   las vistas que incluyan este archivo. No repetir estos
+   tokens en los archivos de módulo.
+   ============================================================ */
+
+:root {
+  /* ── Dimensiones y layout ───────────────────────────────── */
+  --sidebar-w:    220px;
+  --radius:       12px;
+  --radius-sm:    8px;
+  --radius-full:  9999px;
+
+  /* ── Colores base ───────────────────────────────────────── */
+  --bg:           #f4f6fb;
+  --white:        #ffffff;
+  --text:         #1e293b;
+  --text-muted:   #64748b;
+  --border:       #e2e8f0;
+
+  /* ── Paleta principal ───────────────────────────────────── */
+  --primary:       #1a56cc;
+  --primary-light: #eef2ff;
+  --primary-dark:  #0f3da0;
+
+  /* ── Paleta semántica ───────────────────────────────────── */
+  --success:  #22c55e;   /* atendida, activo           */
+  --warning:  #f59e0b;   /* vacaciones, programada     */
+  --info:     #9333ea;   /* métricas / canciones       */
+  --danger:   #ef4444;   /* cancelada, inactivo, error */
+
+  /* Aliases de compatibilidad — apuntan a los tokens semánticos */
+  --green:  var(--success);
+  --orange: var(--warning);
+  --purple: var(--info);
+  --red:    var(--danger);
+
+  /* ── Sombras ────────────────────────────────────────────── */
+  --shadow:    0 1px 4px  rgba(0, 0, 0, 0.07);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.10);
+
+  /* ── Tipografía ─────────────────────────────────────────── */
+  --font:         'DM Sans', sans-serif;
+  --font-display: 'Syne', sans-serif;
+
+  /* ── Transiciones ───────────────────────────────────────── */
+  --tr: 0.18s ease;
+
+  /* ── Accesibilidad / Focus ──────────────────────────────── */
+  --input-focus-ring: rgba(26, 86, 204, 0.15);
+
+  /* ── Estados de cita — sistema canónico ────────────────── */
+  /* Programada / Agendada */
+  --cita-programada-bg:   #dbeafe;
+  --cita-programada-text: #1d4ed8;
+  --cita-programada-border: #3b82f6;
+
+  /* Confirmada */
+  --cita-confirmada-bg:   #dbeafe;
+  --cita-confirmada-text: #1d4ed8;
+  --cita-confirmada-border: #3b82f6;
+
+  /* En proceso / En consulta */
+  --cita-enproceso-bg:   #ede9fe;
+  --cita-enproceso-text: #6d28d9;
+  --cita-enproceso-border: #8b5cf6;
+
+  /* Atendida / Finalizada  →  SIEMPRE VERDE */
+  --cita-atendida-bg:   #dcfce7;
+  --cita-atendida-text: #166534;
+  --cita-atendida-border: #22c55e;
+
+  /* Cancelada */
+  --cita-cancelada-bg:   #fee2e2;
+  --cita-cancelada-text: #991b1b;
+  --cita-cancelada-border: #ef4444;
+
+  /* No asistida */
+  --cita-noasistida-bg:   #fff7ed;
+  --cita-noasistida-text: #92400e;
+  --cita-noasistida-border: #f97316;
+
+  /* Disponible (slot vacío) */
+  --cita-disponible-bg:   #f8fafc;
+  --cita-disponible-text: #64748b;
+  --cita-disponible-border: #94a3b8;
+
+  /* ── Estados de profesional ─────────────────────────────── */
+  --prof-activo-bg:      #dcfce7;
+  --prof-activo-text:    #166534;
+  --prof-vacaciones-bg:  #fef9c3;
+  --prof-vacaciones-text: #92400e;
+  --prof-inactivo-bg:    #f1f5f9;
+  --prof-inactivo-text:  #475569;
+
+  /* ── KPI stat-card — colores del borde izquierdo ─────────── */
+  --stat-blue:   #3b82f6;
+  --stat-green:  var(--success);
+  --stat-orange: var(--warning);
+  --stat-red:    var(--danger);
+  --stat-purple: var(--info);
+
+  /* ── Banner / gradiente de cabecera ──────────────────────── */
+  --banner-bg: linear-gradient(135deg, #1a3a6b, #2563eb);
+}
+
+/* ── Breadcrumbs ─────────────────────────────────────────────── */
+.breadcrumb {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.bc-sep {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  user-select: none;
+}
+.bc-active {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ── Botones base compartidos ────────────────────────────────── */
+/* Estas clases se definen aquí para que las vistas que incluyan
+   variables.css tengan los estilos base sin requerirlos del módulo. */
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.83rem;
+  cursor: pointer;
+  transition: background var(--tr);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-danger:hover   { background: #dc2626; }
+.btn-danger:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+.btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── visually-hidden compartido ──────────────────────────────── */
+/* Definido aquí para eliminar los bloques <style> inline en vistas. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Footer canónico ─────────────────────────────────────────── */
+.site-footer {
+  text-align: center;
+  padding: 20px 16px 16px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+.site-footer p { margin: 0; }
+.footer-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 15px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  min-height: 100vh;
+}
+
+a  { text-decoration: none; color: inherit; }
+button { font-family: inherit; cursor: pointer; }
+img { max-width: 100%; height: auto; display: block; }
+
+/* ── Accesibilidad global ───────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--primary);
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 1000;
+  transition: top var(--tr);
+  text-decoration: none;
+}
+.skip-link:focus { top: 0; outline: 2px solid #fff; outline-offset: 2px; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

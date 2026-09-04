@@ -43,12 +43,6 @@ namespace SmileTrack_MVC.Models.ViewModels
                     "La hora de fin debe ser posterior a la hora de inicio.",
                     [nameof(HoraFin)]);
             }
-            if ((HoraFin - HoraInicio).TotalMinutes != 60)
-            {
-                yield return new ValidationResult(
-                    "La cita debe tener una duración de 60 minutos.",
-                    [nameof(HoraFin)]);
-            }
         }
     }
 }

@@ -37,6 +37,7 @@ namespace SmileTrack_MVC.Models.ViewModels
         public string HoraInicio { get; set; } = string.Empty;
         public string HoraFin { get; set; } = string.Empty;
         public string Paciente { get; set; } = string.Empty;
+        public string NombreProfesional { get; set; } = string.Empty;
         public string Servicio { get; set; } = string.Empty;
         public string Consultorio { get; set; } = string.Empty;
         public string Estado { get; set; } = string.Empty;

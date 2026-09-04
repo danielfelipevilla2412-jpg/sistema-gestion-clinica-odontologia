@@ -260,6 +260,8 @@ function renderTableFromApi(result) {
                       data-registry="${registroMedico}"
                       data-phone="${telefono}"
                       data-status="${estadoText}"
+                      data-avatar-color="${avatarColor}"
+                      data-status-class="${statusClass}"
                       aria-label="Ver detalles del profesional ${name}"
                       title="Ver detalles del profesional ${name}">
                 👁️ <span class="btn-text">Ver</span>
@@ -293,14 +295,19 @@ function renderTableFromApi(result) {
             const phoneEl = safeGetElement('detailPhone');
             const statusEl = safeGetElement('detailStatus');
 
-            if (avatar) { avatar.textContent = viewBtn.dataset.initials || '--'; avatar.style.background = avatarColor; }
+            // Leer color y clase del propio dataset del botón — evita el bug
+            // de closure donde avatarColor pertenecía a la última iteración del loop.
+            const btnAvatarColor = viewBtn.dataset.avatarColor || avatarColor;
+            const btnStatusClass = viewBtn.dataset.statusClass || statusClass;
+
+            if (avatar) { avatar.textContent = viewBtn.dataset.initials || '--'; avatar.style.background = btnAvatarColor; }
             if (nameEl) nameEl.textContent = viewBtn.dataset.name || '--';
             if (specialtyEl) specialtyEl.textContent = viewBtn.dataset.specialty || '--';
             if (registryEl) registryEl.textContent = viewBtn.dataset.registry || '--';
             if (phoneEl) phoneEl.textContent = viewBtn.dataset.phone || '--';
             if (statusEl) {
                 statusEl.textContent = viewBtn.dataset.status || '--';
-                statusEl.className = `badge-status ${statusClass}`;
+                statusEl.className = `badge-status ${btnStatusClass}`;
             }
 
             const modal = safeGetElement('modalDetail');
@@ -322,6 +329,13 @@ function renderTableFromApi(result) {
         tbody.appendChild(tr);
     }
 }
+
+const setProfessionalsLoading = (loading) => {
+  const table = safeGetElement('professionalsTable');
+  if (table) table.setAttribute('aria-busy', String(loading));
+  const buttons = safeGetElement('paginationButtons');
+  if (buttons) buttons.querySelectorAll('button').forEach(button => { button.disabled = loading; });
+};
 
 
 
@@ -811,10 +825,12 @@ async function fetchProfessionals(params = {}) {
 }
 
 async function loadProfessionals() {
+  try {
     const search = document.querySelector('#searchInput')?.value?.trim() || '';
     const especialidad = document.querySelector('#filterSpecialty')?.value || '';
     const estado = document.querySelector('#filterStatus')?.value || '';
 
+    setProfessionalsLoading(true);
     const result = await fetchProfessionals({
         page: currentPage,
         pageSize: itemsPerPage,
@@ -825,6 +841,15 @@ async function loadProfessionals() {
 
     renderTableFromApi(result);
     renderPaginationFromApi(result);
+  } catch (error) {
+    const tbody = safeGetElement('professionalsTbody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No fue posible cargar los profesionales. Intenta nuevamente.</td></tr>`;
+    }
+    window.ToastService?.error?.(`No fue posible cargar los profesionales: ${error.message}`);
+  } finally {
+    setProfessionalsLoading(false);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1021,7 +1046,15 @@ const initModals = () => {
       const phoneEl = safeGetElement('detailPhone');
       const statusEl = safeGetElement('detailStatus');
 
-      if (avatar) avatar.textContent = btn.dataset.initials || '--';
+            if (avatar) {
+              avatar.textContent = btn.dataset.initials || '--';
+              // Restaurar el color del avatar desde data-avatar-color si fue generado por la API.
+              // Para filas SSR el dataset puede no tener el atributo; en ese caso usar
+              // el estilo inline que ya trae el avatar del HTML renderizado por Razor.
+              if (btn.dataset.avatarColor) {
+                avatar.style.background = btn.dataset.avatarColor;
+              }
+            }
       if (nameEl) nameEl.textContent = btn.dataset.name || '--';
       if (specialtyEl) specialtyEl.textContent = btn.dataset.specialty || '--';
       if (registryEl) registryEl.textContent = btn.dataset.registry || '--';

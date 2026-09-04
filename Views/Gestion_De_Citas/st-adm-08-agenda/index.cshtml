@@ -219,7 +219,7 @@
                                     data-patient-name="@Html.Encode(cita.Paciente)"
                                     data-service-name="@Html.Encode(cita.Servicio)"
                                     data-office-name="@Html.Encode(cita.Consultorio)"
-                                    data-professional-name="@Html.Encode(cita.Paciente)">
+                                    data-professional-name="@Html.Encode(cita.NombreProfesional)">
                                     <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
                                     <span class="appt-patient">@cita.Paciente</span>
                                     <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
@@ -465,8 +465,8 @@
     <!-- Footer dinámico -->
     <footer id="dynamic-footer" class="site-footer" role="contentinfo">
         <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-            <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+            <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
         </div>
         <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
         <script src="@Url.Content("~/js/footer.js")"></script>

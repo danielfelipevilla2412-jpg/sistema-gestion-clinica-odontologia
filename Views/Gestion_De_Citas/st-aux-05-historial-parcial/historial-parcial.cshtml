@@ -203,8 +203,8 @@ NOTAS DE MANTENIMIENTO:
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
     <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
     <script src="@Url.Content("~/js/footer.js")"></script>
@@ -212,14 +212,29 @@ NOTAS DE MANTENIMIENTO:
   </footer>
   <script>
     window.smiletrackHistorialParcialData = @Html.Raw(historialParcialDataJson);
-  </script>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js")"></script>
+  </script>  <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js")"></script>
 
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
     <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
     <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
+
+  <!-- Mobile bottom nav — Auxiliar -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">bar_chart</span></span>
+      <span>Panel</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+      <span>Agenda</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-05-historial-parcial" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">description</span></span>
+      <span>Historial</span>
+    </a>
+  </nav>
 </body>
 
 </html>

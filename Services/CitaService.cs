@@ -289,6 +289,9 @@ public class CitaService : ICitaService
         int? idPaciente = null,
         int? idProfesional = null,
         int? idUsuario = null,
+        string? search = null,
+        string? estado = null,
+        DateTime? fecha = null,
         CancellationToken ct = default)
     {
         IQueryable<Cita> query = _context.Citas
@@ -332,6 +335,41 @@ public class CitaService : ICitaService
             query = query.Where(c => c.IdProfesional == resolvedIdProfesional);
         }
 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            string searchTerm = search.Trim();
+            query = query.Where(c =>
+                (c.Paciente != null &&
+                 (c.Paciente.Nombres.Contains(searchTerm) || c.Paciente.Apellidos.Contains(searchTerm))) ||
+                (c.Profesional != null &&
+                 (c.Profesional.Nombres.Contains(searchTerm) || c.Profesional.Apellidos.Contains(searchTerm))) ||
+                (c.Servicio != null && c.Servicio.Nombre.Contains(searchTerm)) ||
+                (c.Notas != null && c.Notas.Contains(searchTerm)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(estado))
+        {
+            string estadoNormalizado = NormalizarEstado(estado);
+            string[] estadosPermitidos = estadoNormalizado switch
+            {
+                "programada" => ["programada", "Programada", "agendada", "Agendada"],
+                "confirmada" => ["confirmada", "Confirmada"],
+                "atendida" => ["atendida", "Atendida", "completada", "Completada", "realizada", "Realizada"],
+                "cancelada" => ["cancelada", "Cancelada", "cancelado", "Cancelado"],
+                "no_asistida" => ["no_asistida", "No asistida", "no asistió", "No asistió", "no-show"],
+                _ => [estado.Trim()]
+            };
+            query = query.Where(c =>
+                estadosPermitidos.Contains(c.Estado) ||
+                (c.EstadoCita != null && estadosPermitidos.Contains(c.EstadoCita.NombreEstado)));
+        }
+
+        if (fecha.HasValue)
+        {
+            DateTime inicio = fecha.Value.Date;
+            query = query.Where(c => c.FechaHora >= inicio && c.FechaHora < inicio.AddDays(1));
+        }
+
         int totalRecords = await query.CountAsync(ct);
 
         var items = await query
@@ -366,6 +404,13 @@ public class CitaService : ICitaService
         if (request.IdPaciente <= 0)
             throw new InvalidOperationException("El paciente seleccionado no es válido.");
 
+        if (!await _context.Pacientes.AnyAsync(
+                p => p.IdPaciente == request.IdPaciente && p.Estado == "activo",
+                ct))
+        {
+            throw new InvalidOperationException("El paciente seleccionado no es válido.");
+        }
+
         if (request.IdProfesional is <= 0 ||
             !await _context.Profesionales.AnyAsync(p => p.IdProfesional == request.IdProfesional && p.Estado == "activo", ct))
         {
@@ -393,6 +438,15 @@ public class CitaService : ICitaService
         var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, ct);
         if (!horarioValido)
             throw new InvalidOperationException(mensajeHorario!);
+
+        var disponibilidad = await ValidarDisponibilidadProfesionalAsync(
+            request.IdProfesional!.Value,
+            request.IdServicio!.Value,
+            request.FechaHora,
+            await ObtenerDuracionCitaMinutosAsync(ct),
+            ct);
+        if (!disponibilidad.EsValida)
+            throw new InvalidOperationException(disponibilidad.Mensaje!);
 
         // ── Verificación de conflicto integral (C-01) ─────────────────────
         int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
@@ -447,6 +501,13 @@ public class CitaService : ICitaService
         if (id != request.IdCita || request.IdPaciente <= 0)
             throw new InvalidOperationException("Datos de cita inválidos.");
 
+        if (!await _context.Pacientes.AnyAsync(
+                p => p.IdPaciente == request.IdPaciente && p.Estado == "activo",
+                ct))
+        {
+            throw new InvalidOperationException("El paciente seleccionado no es válido.");
+        }
+
         var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == id, ct);
         if (cita is null)
             return null;
@@ -478,6 +539,15 @@ public class CitaService : ICitaService
         var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, ct);
         if (!horarioValido)
             throw new InvalidOperationException(mensajeHorario!);
+
+        var disponibilidad = await ValidarDisponibilidadProfesionalAsync(
+            request.IdProfesional!.Value,
+            request.IdServicio!.Value,
+            request.FechaHora,
+            await ObtenerDuracionCitaMinutosAsync(ct),
+            ct);
+        if (!disponibilidad.EsValida)
+            throw new InvalidOperationException(disponibilidad.Mensaje!);
 
         // ── Verificación de conflicto integral (C-01) ─────────────────────
         int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
@@ -606,6 +676,81 @@ public class CitaService : ICitaService
     // =========================================================================
     // HELPERS PRIVADOS ESTÁTICOS
     // =========================================================================
+
+    private async Task<(bool EsValida, string? Mensaje)> ValidarDisponibilidadProfesionalAsync(
+        int idProfesional,
+        int idServicio,
+        DateTime fechaHora,
+        int duracionMinutos,
+        CancellationToken ct)
+    {
+        bool tieneAsignaciones = await _context.ProfesionalServicios
+            .AsNoTracking()
+            .AnyAsync(ps => ps.IdProfesional == idProfesional, ct);
+
+        if (tieneAsignaciones && !await _context.ProfesionalServicios.AsNoTracking().AnyAsync(
+                ps => ps.IdProfesional == idProfesional && ps.IdServicio == idServicio && ps.Activo,
+                ct))
+        {
+            return (false, "El servicio seleccionado no está asignado al profesional.");
+        }
+
+        DateOnly fecha = DateOnly.FromDateTime(fechaHora);
+        bool ausente = await _context.AusenciasProfesional.AsNoTracking().AnyAsync(
+            ausencia => ausencia.IdProfesional == idProfesional &&
+                        ausencia.FechaInicio <= fecha &&
+                        ausencia.FechaFin >= fecha,
+            ct);
+        if (ausente)
+            return (false, "El profesional no está disponible en la fecha seleccionada por una ausencia registrada.");
+
+        DateTime fin = fechaHora.AddMinutes(duracionMinutos);
+        bool bloqueado = await _context.BloqueosProfesional.AsNoTracking().AnyAsync(
+            bloqueo => bloqueo.IdProfesional == idProfesional &&
+                       bloqueo.FechaInicio < fin &&
+                       bloqueo.FechaFin > fechaHora,
+            ct);
+        if (bloqueado)
+            return (false, "El profesional no está disponible en el horario seleccionado por un bloqueo registrado.");
+
+        var horarios = await _context.HorariosProfesional
+            .AsNoTracking()
+            .Where(h => h.IdProfesional == idProfesional && h.Activo)
+            .ToListAsync(ct);
+
+        if (horarios.Count == 0)
+            return (true, null);
+
+        string dia = NombreDia(fechaHora.DayOfWeek);
+        TimeOnly inicio = TimeOnly.FromDateTime(fechaHora);
+        TimeOnly finCita = TimeOnly.FromDateTime(fin);
+        bool dentroDeHorario = horarios.Any(h =>
+            NormalizarTexto(h.DiaSemana) == NormalizarTexto(dia) &&
+            h.HoraInicio <= inicio &&
+            h.HoraFin >= finCita);
+
+        return dentroDeHorario
+            ? (true, null)
+            : (false, "La cita está fuera del horario de atención del profesional.");
+    }
+
+    private static string NombreDia(DayOfWeek dayOfWeek) => dayOfWeek switch
+    {
+        DayOfWeek.Monday => "Lunes",
+        DayOfWeek.Tuesday => "Martes",
+        DayOfWeek.Wednesday => "Miercoles",
+        DayOfWeek.Thursday => "Jueves",
+        DayOfWeek.Friday => "Viernes",
+        DayOfWeek.Saturday => "Sabado",
+        _ => "Domingo"
+    };
+
+    private static string NormalizarTexto(string valor)
+    {
+        return string.Concat(valor.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(caracter => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter) != System.Globalization.UnicodeCategory.NonSpacingMark))
+            .ToLowerInvariant();
+    }
 
     private static string NormalizarEstado(string? estado)
     {

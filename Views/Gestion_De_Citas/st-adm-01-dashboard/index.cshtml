@@ -171,5 +171,32 @@ DEPENDENCIAS TÉCNICAS:
     <script src="@Url.Content("~/js/Gestion_De_Citas/st-adm-01-dashboard/app.js")"></script>
     <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
     @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+
+    <!-- Mobile bottom nav — Administrador -->
+    <nav class="mobile-nav" aria-label="Navegación móvil">
+      <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item active" aria-current="page">
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">bar_chart</span></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+        <span>Agenda</span>
+      </a>
+      <a href="/gestion-de-citas/st-adm-09-citas" class="mobile-nav-item">
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
+        <span>Citas</span>
+      </a>
+    </nav>
+
+    <!-- Footer canónico -->
+    <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+        <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+        <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
+      </div>
+      <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
+      <script src="@Url.Content("~/js/footer.js")"></script>
+      <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+    </footer>
 </body>
 </html>

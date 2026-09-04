@@ -31,6 +31,7 @@
  */
 
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -50,12 +51,14 @@ public class GestionCitasController(
     AppDbContext context,
     ILogger<GestionCitasController> logger,
     IEmailService emailService,
-    ICitaService citaService) : Controller
+    ICitaService citaService,
+    IAntiforgery antiforgery) : Controller
 {
     private readonly AppDbContext _context = context;
     private readonly ILogger<GestionCitasController> _logger = logger;
     private readonly IEmailService _emailService = emailService;
     private readonly ICitaService _citaService = citaService;
+    private readonly IAntiforgery _antiforgery = antiforgery;
 
     /*
      * REGLA DE NEGOCIO:
@@ -106,6 +109,8 @@ public class GestionCitasController(
     {
         try
         {
+            _antiforgery.GetAndStoreTokens(HttpContext);
+
             await CargarDatosCitas(
                 editId,
                 "/gestion-de-citas/st-adm-01-dashboard",
@@ -184,6 +189,8 @@ public class GestionCitasController(
     {
         try
         {
+            _antiforgery.GetAndStoreTokens(HttpContext);
+
             await CargarDatosCitas(
                 editId,
                 "/gestion-de-citas/st-adm-08-agenda",
@@ -2629,6 +2636,8 @@ public sealed class CambiarEstadoCitaDto
         try
         {
             var hoy = DateTime.Today;
+            int duracionCitaMinutos =
+                await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
 
             var inicioSemana =
                 weekStart?.Date ??
@@ -2749,13 +2758,20 @@ public sealed class CambiarEstadoCitaDto
                                             HoraFin =
                                                 cita.FechaHora
                                                     .AddMinutes(
-                                                        60)
+                                                        duracionCitaMinutos)
                                                     .ToString("HH:mm"),
 
                                             Paciente =
                                                 $"{cita.Paciente?.Nombres} " +
                                                 $"{cita.Paciente?.Apellidos}"
                                                 .Trim(),
+
+                                            NombreProfesional =
+                                                cita.Profesional?.Nombres != null
+                                                    ? ($"{cita.Profesional.Nombres} {cita.Profesional.Apellidos}").Trim()
+                                                    : (cita.Profesional?.Usuario != null
+                                                        ? ($"{cita.Profesional.Usuario.Nombre} {cita.Profesional.Usuario.Apellidos}").Trim()
+                                                        : string.Empty),
 
                                             Servicio =
                                                 cita.Servicio?.Nombre ??

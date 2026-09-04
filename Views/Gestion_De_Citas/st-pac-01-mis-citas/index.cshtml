@@ -39,6 +39,7 @@ NOTAS DE MANTENIMIENTO:
     rel="stylesheet" />
   <!-- Hoja de estilos principal de la página -->
   <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css")" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 
@@ -208,10 +209,26 @@ NOTAS DE MANTENIMIENTO:
   <!-- Script principal con toda la lógica de la página de citas -->
   <script src="@Url.Content("~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js")"></script>
 
+  <!-- Mobile bottom nav — Paciente -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-pac-01-mis-citas" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
+      <span>Mis citas</span>
+    </a>
+    <a href="/gestion-de-citas/st-pac-03-notificaciones" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">notifications</span></span>
+      <span>Avisos</span>
+    </a>
+    <a href="/perfiles/st-pac-04-perfil-paciente" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
+      <span>Perfil</span>
+    </a>
+  </nav>
+
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
     <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
     <script src="@Url.Content("~/js/footer.js")"></script>

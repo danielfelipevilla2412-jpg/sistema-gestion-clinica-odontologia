@@ -1,4 +1,4 @@
-@* ============================================
+﻿@* ============================================
 SmileTrack — Perfil Profesional (st-odo-09-perfil-profesional)
 ============================================
 Autor: Johan Santamaria
@@ -71,7 +71,7 @@ NOTAS DE MANTENIMIENTO:
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación">
           <span>Odontólogo</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
           <span class="bc-active">Perfil Profesional</span>
         </nav>
         <h1 class="page-title">Mi Perfil Profesional</h1>
@@ -246,7 +246,16 @@ NOTAS DE MANTENIMIENTO:
         <!-- Toggle Activo/Inactivo -->
         <div class="modal-toggle-section">
           <label class="modal-toggle">
-            <input type="checkbox" id="modalDayActive" aria-describedby="toggleText">
+            <!--
+              ACCESIBILIDAD: El checkbox mantiene position:absolute + opacity:0
+              para que sea alcanzable por teclado y lectores de pantalla.
+              role="switch" + aria-checked son actualizados por perfil.js.
+            -->
+            <input type="checkbox"
+                   id="modalDayActive"
+                   role="switch"
+                   aria-checked="false"
+                   aria-describedby="toggleText">
             <span class="toggle-slider" aria-hidden="true"></span>
             <span class="toggle-text" id="toggleText">Día laboral</span>
           </label>
@@ -318,12 +327,28 @@ NOTAS DE MANTENIMIENTO:
   </style>
   <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js")"></script>
 
+  <!-- Mobile bottom nav — Odontólogo -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">bar_chart</span></span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+      <span>Mi agenda</span>
+    </a>
+    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
+      <span>Perfil</span>
+    </a>
+  </nav>
+
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
     <script src="@Url.Content("~/js/footer.js")"></script>
 
   </footer>

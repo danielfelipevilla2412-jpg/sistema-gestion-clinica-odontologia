@@ -68,8 +68,8 @@
     --status-confirmada-bg: #dcfce7;
     --status-confirmada-text: #166534;
 
-    --status-atendida-bg: #fef9c3;
-    --status-atendida-text: #92400e;
+    --status-atendida-bg: #dcfce7;
+    --status-atendida-text: #166534;
 
     --status-cancelada-bg: #fee2e2;
     --status-cancelada-text: #991b1b;
@@ -778,7 +778,7 @@ img {
 }
 
 .table-row:hover {
-    background: #f8fbff;
+    background: #f8fafc;
     box-shadow: var(--shadow);
     transform: translateY(-1px);
 }

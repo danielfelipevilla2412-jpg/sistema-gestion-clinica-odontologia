@@ -35,6 +35,9 @@ NOTAS DE MANTENIMIENTO:
 const API_BASE = '/api';
 const API_PAGE_SIZE = 200;
 const STORAGE_KEY = 'smiletrack_rec_appointments';
+let configuredDurationMinutes = 60;
+let currentApiPage = 1;
+let totalApiRecords = 0;
 
 const getAuthHeaders = () => {
   const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
@@ -95,8 +98,7 @@ const debounce = (fn, delay) => {
 
 
 const shouldUseServerRenderedList = () => {
-  const tbody = safeGetElement('appointmentsTable');
-  return !!(tbody && tbody.children.length > 0 && tbody.querySelector('tr'));
+  return false;
 };
 
 const animateCounter = (el, target) => {
@@ -143,33 +145,45 @@ const fmtFechaISO = (fhIso) => {
 // ═══════════════════════════════════════════════════════════════════
 
 const mapServerToClient = (srv) => {
-  const srvEstado = (srv.Estado || 'programada').toLowerCase();
+  const get = (name) => srv[name] ?? srv[name.charAt(0).toLowerCase() + name.slice(1)];
+  const estadoRaw = get('Estado') || 'programada';
+  const fechaHora = get('FechaHora');
+  const pacienteRaw = srv.Paciente || srv.paciente;
+  const profesionalRaw = srv.Profesional || srv.profesional;
+  const servicioRaw = srv.Servicio || srv.servicio;
+  const consultorioRaw = srv.Consultorio || srv.consultorio;
+  const srvEstado = String(estadoRaw).toLowerCase();
   const info = STATUS_MAP_SERVER[srvEstado] || STATUS_MAP_SERVER['programada'];
-  const doctor = srv.Profesional?.NombreCompleto || '—';
-  const patient = srv.Paciente?.NombreCompleto || '—';
-  const service = srv.Servicio?.Nombre || '—';
-  const dateISO = fmtFechaISO(srv.FechaHora);
+  const doctor = profesionalRaw?.NombreCompleto || profesionalRaw?.nombreCompleto || '—';
+  const patient = pacienteRaw?.NombreCompleto || pacienteRaw?.nombreCompleto || '—';
+  const service = servicioRaw?.Nombre || servicioRaw?.nombre || '—';
+  const dateISO = fmtFechaISO(fechaHora);
   const hoy = new Date().toISOString().split('T')[0];
   const manana = (() => { const t = new Date(); t.setDate(t.getDate()+1); return t.toISOString().split('T')[0]; })();
 
   return {
-    id: srv.IdCita,
-    date: fmtFechaCorta(srv.FechaHora),
+    id: get('IdCita'),
+    patientId: get('IdPaciente'),
+    professionalId: get('IdProfesional'),
+    serviceId: get('IdServicio'),
+    officeId: get('IdConsultorio'),
+    date: fmtFechaCorta(fechaHora),
     dateISO,
-    time: fmtHora12(srv.FechaHora),
-    timeISO: fmtHora24(srv.FechaHora),
+    time: fmtHora12(fechaHora),
+    timeISO: fmtHora24(fechaHora),
     patient,
     doctor,
     service,
-    office: 'C1', // En un proyecto real vendría del campo Consultorio en la tabla Citas
+    office: consultorioRaw?.Nombre || consultorioRaw?.nombre || '—',
     status: info.label,
     statusClass: info.cls,
     highlight: dateISO === hoy && info.label === 'En consulta',
     noShow: info.label === 'No asistió',
-    notes: srv.Notas || '',
+    notes: get('Notas') || '',
     // Helper para filtros predefinidos ('today' / 'tomorrow')
     _dateMatchPreset: { today: dateISO === hoy, tomorrow: dateISO === manana },
-    _raw: srv
+    _raw: srv,
+    _durationMinutes: get('DuracionMinutos') || null
   };
 };
 
@@ -355,7 +369,6 @@ const createAppointmentRow = (appt) => {
 };
 
 const renderAppointments = (data) => {
-  if (shouldUseServerRenderedList()) return;
   const tbody = safeGetElement('appointmentsTable');
   if (!tbody) return;
 
@@ -368,7 +381,9 @@ const renderAppointments = (data) => {
   data.forEach(a => frag.appendChild(createAppointmentRow(a)));
   tbody.innerHTML = '';
   tbody.appendChild(frag);
-  updatePaginationInfo(1, Math.min(5, data.length), data.length);
+  const start = data.length ? ((currentApiPage - 1) * API_PAGE_SIZE) + 1 : 0;
+  const end = Math.min(start + data.length - 1, totalApiRecords);
+  updatePaginationInfo(start, end, totalApiRecords);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -386,10 +401,9 @@ const filterAppointments = () => {
     const matchQ = !q || a.patient.toLowerCase().includes(q)
       || a.doctor.toLowerCase().includes(q)
       || a.service.toLowerCase().includes(q);
-    const matchProf = !prof || a.doctor === prof;
-    const matchDate = !datePreset || (datePreset === 'today' && a._dateMatchPreset?.today)
-                                  || (datePreset === 'tomorrow' && a._dateMatchPreset?.tomorrow);
-    const matchSt = !st || a.status === st;
+    const matchProf = !prof || String(a.professionalId) === String(prof);
+    const matchDate = !datePreset || a.dateISO === datePreset;
+    const matchSt = !st || String(a._raw?.Estado || '').toLowerCase() === st.toLowerCase();
     return matchQ && matchProf && matchDate && matchSt;
   });
 
@@ -446,9 +460,9 @@ const buildServerBody = (appt, overrides = {}) => {
   const estadoUI = overrides.status || appt.status;
   return {
     IdCita: appt.id,
-    IdPaciente: raw.IdPaciente || 0,
-    IdProfesional: raw.IdProfesional || null,
-    IdServicio: raw.IdServicio || 0,
+    IdPaciente: raw.IdPaciente ?? raw.idPaciente ?? appt.patientId ?? 0,
+    IdProfesional: raw.IdProfesional ?? raw.idProfesional ?? appt.professionalId ?? null,
+    IdServicio: raw.IdServicio ?? raw.idServicio ?? appt.serviceId ?? 0,
     FechaHora: fh,
     Estado: STATUS_MAP_CLIENTE[estadoUI] || (estadoUI || 'programada').toLowerCase(),
     Notas: overrides.notes !== undefined ? overrides.notes : (appt.notes || '')
@@ -527,9 +541,9 @@ const openEditModal = (id) => {
 };
 
 const submitEditAppointment = (e) => {
+  e.preventDefault();
   const form = e.currentTarget;
   if (!validateForm(form)) {
-    e.preventDefault();
     window.ToastService.error('Por favor completa los campos requeridos.');
     return;
   }
@@ -538,6 +552,7 @@ const submitEditAppointment = (e) => {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Guardando...';
   }
+  guardarCitaPorApi(form, true, submitBtn);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -654,9 +669,9 @@ const initNewAppointmentButtons = () => {
 };
 
 const submitNewAppointment = (e) => {
+  e.preventDefault();
   const form = e.currentTarget;
   if (!validateForm(form)) {
-    e.preventDefault();
     window.ToastService.error('Por favor completa los campos requeridos.');
     return;
   }
@@ -665,22 +680,84 @@ const submitNewAppointment = (e) => {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Guardando...';
   }
+  guardarCitaPorApi(form, false, submitBtn);
+};
+
+const horaFinDesdeConfiguracion = (horaInicio) => {
+  const [hora, minuto] = horaInicio.split(':').map(Number);
+  const total = (hora * 60) + minuto + configuredDurationMinutes;
+  return `${String(Math.floor((total % 1440) / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+const guardarCitaPorApi = async (form, actualizar, submitBtn) => {
+  const getValue = (selector) => form.querySelector(selector)?.value || '';
+  const estado = form.querySelector('[name="IdEstado"] option:checked')?.textContent?.trim()
+    || form.querySelector('[name="Estado"]')?.value
+    || 'Programada';
+  const fecha = getValue('[name="Fecha"]');
+  const horaInicio = getValue('[name="HoraInicio"]');
+  const token = getValue('input[name="__RequestVerificationToken"]');
+  const body = {
+    IdCita: actualizar ? Number(getValue('[name="IdCita"]')) : null,
+    IdPaciente: Number(getValue('[name="IdPaciente"]')),
+    IdProfesional: Number(getValue('[name="IdProfesional"]')),
+    IdServicio: Number(getValue('[name="IdServicio"]')),
+    IdConsultorio: Number(getValue('[name="IdConsultorio"]')),
+    Fecha: fecha,
+    HoraInicio: horaInicio,
+    HoraFin: horaFinDesdeConfiguracion(horaInicio),
+    Estado: estado,
+    Notas: getValue('[name="MotivoConsulta"]') || getValue('[name="Notas"]')
+  };
+
+  try {
+    const response = await fetch('/api/citas/agenda', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': token },
+      body: JSON.stringify(body)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false)
+      throw new Error(payload.message || 'No fue posible guardar la cita.');
+    window.ToastService?.success?.(actualizar ? 'Cita actualizada correctamente.' : 'Cita creada correctamente.');
+    window.setTimeout(() => window.location.reload(), 300);
+  } catch (error) {
+    window.ToastService?.error?.(error.message || 'No fue posible guardar la cita.');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = actualizar ? 'Actualizar cita' : 'Guardar cita';
+    }
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════
 //  FETCH INICIAL
 // ═══════════════════════════════════════════════════════════════════
 
-async function fetchAppointments() {
+async function fetchAppointments(page = 1) {
   try {
-    const res = await fetch('/api/citas?page=1&pageSize=100', {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(API_PAGE_SIZE) });
+    const search = safeGetElement('searchPatient')?.value.trim();
+    const professional = safeGetElement('filterProfessional')?.value;
+    const date = safeGetElement('filterDate')?.value;
+    const status = safeGetElement('filterStatus')?.value;
+    if (search) params.set('search', search);
+    if (professional) params.set('profesional', professional);
+    if (date) params.set('fecha', date);
+    if (status) params.set('estado', status);
+
+    const res = await fetch(`/api/citas?${params.toString()}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
     const payload = await res.json();
+    configuredDurationMinutes = Number(payload.duracionMinutos) > 0 ? Number(payload.duracionMinutos) : 60;
     if (payload && payload.success && Array.isArray(payload.data)) {
       const citas = payload.data.map(mapServerToClient);
+      currentApiPage = Number(payload.page) || page;
+      totalApiRecords = Number(payload.total) || citas.length;
       appointmentStorage.replaceAll(citas);
       return citas;
     }
@@ -688,6 +765,21 @@ async function fetchAppointments() {
   } catch (err) {
     console.warn('[SmileTrack] No se pudo cargar citas desde /api/citas:', err);
     return appointmentStorage.getAll();
+  }
+}
+
+async function fetchConfiguredDuration() {
+  try {
+    const res = await fetch('/api/citas?page=1&pageSize=1', {
+      method: 'GET',
+      headers: { Accept: 'application/json' }
+    });
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (Number(payload.duracionMinutos) > 0)
+      configuredDurationMinutes = Number(payload.duracionMinutos);
+  } catch (err) {
+    console.warn('[SmileTrack] No se pudo cargar la duración configurada:', err);
   }
 }
 
@@ -732,10 +824,30 @@ const init = async () => {
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewToggle(btn); }
         });
       });
-      safeGetElement('searchPatient')?.addEventListener('input', debounce(filterAppointments, 180));
+      const refreshFromApi = async () => {
+        const citas = await fetchAppointments(1);
+        renderAppointments(citas);
+        updateMetrics();
+      };
+      safeGetElement('searchPatient')?.addEventListener('input', debounce(refreshFromApi, 250));
       ['filterProfessional','filterDate','filterStatus'].forEach(id =>
-        safeGetElement(id)?.addEventListener('change', filterAppointments)
+        safeGetElement(id)?.addEventListener('change', refreshFromApi)
       );
+      document.querySelector('.filter-bar')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        refreshFromApi();
+      });
+      document.querySelectorAll('.pagination-number, #prevPage, #nextPage').forEach(control => {
+        control.addEventListener('click', async (event) => {
+          event.preventDefault();
+          const target = new URL(control.href, window.location.origin).searchParams.get('page');
+          const requestedPage = Number(target);
+          if (!Number.isInteger(requestedPage) || requestedPage < 1) return;
+          const citas = await fetchAppointments(requestedPage);
+          renderAppointments(citas);
+          updateMetrics();
+        });
+      });
       const tbody = safeGetElement('appointmentsTable');
       if (tbody) {
         tbody.addEventListener('click', handleTableAction);
@@ -746,6 +858,7 @@ const init = async () => {
         });
       }
     } else {
+      await fetchConfiguredDuration();
       // Modo SSR: animar los KPI renderizados por Razor con data-target
       initServerMetrics();
     }

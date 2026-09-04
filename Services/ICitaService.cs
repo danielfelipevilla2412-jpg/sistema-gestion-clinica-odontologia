@@ -16,6 +16,9 @@ public interface ICitaService
         int? idPaciente = null,
         int? idProfesional = null,
         int? idUsuario = null,
+        string? search = null,
+        string? estado = null,
+        DateTime? fecha = null,
         CancellationToken ct = default);
 
     Task<Cita?> ObtenerPorIdAsync(

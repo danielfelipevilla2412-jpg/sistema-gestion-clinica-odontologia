@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Services;
 using System.Security.Claims;
@@ -14,7 +15,7 @@ namespace SmileTrack_MVC.Controllers.Api;
 [ApiController]
 [Route("api/profesionales")]
 [Authorize(Roles = "Administrador")]
-[AutoValidateAntiforgeryToken]
+[CookieAwareValidateAntiforgeryToken]
 [Produces("application/json")]
 public sealed class ProfesionalesApiController : ControllerBase
 {

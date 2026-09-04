@@ -1,4 +1,4 @@
-@* ============================================
+﻿@* ============================================
 SmileTrack — Gestión de Profesionales (st-adm-07-gestion-profesionales)
 ============================================
 Autor: Johan Santamaria
@@ -82,7 +82,7 @@ NOTAS DE MANTENIMIENTO:
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación">
           <span>Administración</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
           <span class="bc-active">Gestión de Profesionales</span>
         </nav>
         <h1 class="page-title">Gestión de Profesionales</h1>
@@ -236,6 +236,10 @@ NOTAS DE MANTENIMIENTO:
           @{
             var profNombreCompleto = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
             var profIniciales = string.Concat(profNombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
+            var avatarColorIdx = profesional.IdProfesional % 5;
+            var avatarColorPalette = new[] { "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6" };
+            var profAvatarColor = avatarColorPalette[avatarColorIdx];
+            var profStatusClass = $"badge-{((profesional.Estado ?? string.Empty).ToLowerInvariant())}";
           }
           <div class="actions-cell">
             <!-- Ver detalles: abrir modal con data desde atributos -->
@@ -247,9 +251,11 @@ NOTAS DE MANTENIMIENTO:
                     data-registry="@Html.Encode(profesional.RegistroMedico)"
                     data-phone="@Html.Encode(profesional.Telefono)"
                     data-status="@Html.Encode(profesional.Estado)"
+                    data-avatar-color="@profAvatarColor"
+                    data-status-class="@profStatusClass"
                     aria-label="@Html.Encode($"Ver detalles del profesional {profesional.Nombres} {profesional.Apellidos}")"
                     title="Ver detalles del profesional @Html.Encode(profNombreCompleto)">
-              👁️ <span class="btn-text">Ver</span>
+              <span aria-hidden="true">👁️</span> <span class="btn-text">Ver</span>
             </button>
             <!-- Editar: llama directamente a editProfessional() en app.js via API.
                  WHY: el enlace anterior (?editId=N) recargaba la página completa y el modal
@@ -260,7 +266,7 @@ NOTAS DE MANTENIMIENTO:
                     onclick="editProfessional(@profesional.IdProfesional)"
                     aria-label="Editar el profesional @profesional.Nombres @profesional.Apellidos"
                     title="Editar profesional @Html.Encode(profNombreCompleto)">
-              ✏️ <span class="btn-text">Editar</span>
+              <span aria-hidden="true">✏️</span> <span class="btn-text">Editar</span>
             </button>
             <!-- Eliminar: abrir modal de confirmación -->
             <button class="btn-icon toggle action-btn btn-delete" type="button" 
@@ -268,7 +274,7 @@ NOTAS DE MANTENIMIENTO:
                     data-name="@profesional.Nombres @profesional.Apellidos"
                     aria-label="Eliminar el profesional @profesional.Nombres @profesional.Apellidos"
                     title="Eliminar profesional @Html.Encode(profNombreCompleto)">
-              ❌ <span class="btn-text">Eliminar</span>
+              <span aria-hidden="true">❌</span> <span class="btn-text">Eliminar</span>
             </button>
           </div>
         </td>
@@ -467,15 +473,15 @@ NOTAS DE MANTENIMIENTO:
   <!-- Mobile bottom nav -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">query_stats</span></span>
       <span>Dashboard</span>
     </a>
     <a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">🩺</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">stethoscope</span></span>
       <span>Profesionales</span>
     </a>
     <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
       <span>Agenda</span>
     </a>
   </nav>
@@ -545,10 +551,10 @@ NOTAS DE MANTENIMIENTO:
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>© @DateTime.Now.Year Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
   </footer>
   <!-- Scripts finales (fuera del footer para HTML válido) -->
   <script src="@Url.Content("~/js/footer.js")"></script>

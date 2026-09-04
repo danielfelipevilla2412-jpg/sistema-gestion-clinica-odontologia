@@ -208,14 +208,30 @@ img { max-width: 100%; height: auto; display: block; }
     padding: 9px 18px; border-radius: var(--radius-sm);
     font-weight: 600; font-size: .83rem;
     cursor: pointer; transition: background var(--tr), border-color var(--tr);
+    display: inline-flex; align-items: center; gap: 6px;
 }
 .btn-secondary:hover { background: var(--primary-light); border-color: var(--primary); }
 .btn-secondary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.btn-secondary:disabled { opacity: .6; cursor: not-allowed; background: var(--white); border-color: var(--border); color: var(--text-muted); }
+
+.btn-success {
+    background: var(--success); color: #fff;
+    border: none;
+    padding: 9px 18px; border-radius: var(--radius-sm);
+    font-weight: 600; font-size: .83rem;
+    cursor: pointer; transition: background var(--tr), transform var(--tr), box-shadow var(--tr);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    text-decoration: none; white-space: nowrap; line-height: 1.2;
+}
+.btn-success:hover:not(:disabled) { background: #16a34a; transform: translateY(-1px); }
+.btn-success:focus-visible { outline: 2px solid #fff; outline-offset: -2px; box-shadow: 0 0 0 3px rgba(34, 197, 94, .25); }
+.btn-success:disabled,
+.btn-success[disabled] { opacity: .6; cursor: not-allowed; background: var(--border); color: var(--text-muted); transform: none; }
 
 /* ═══ STATS GRID (IDÉNTICO A st-adm-07) ═══ */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 14px; margin-bottom: 20px;
 }
 .stat-card {
@@ -331,7 +347,7 @@ img { max-width: 100%; height: auto; display: block; }
 }
 .badge-activo, .badge-confirmada { background: var(--status-activo-bg); color: var(--status-activo-text); }
 .badge-vacaciones { background: var(--status-vacaciones-bg); color: var(--status-vacaciones-text); }
-.badge-inactivo, .badge-cancelada { background: #fef2f2; color: #991b1b; }
+.badge-inactivo, .badge-cancelada { background: var(--status-inactivo-bg); color: var(--status-inactivo-text); }
 .badge-no { background: #f1f5f9; color: #475569; }
 
 /* ═══ PAGINACIÓN (IDÉNTICA A st-adm-07) ═══ */
