@@ -247,13 +247,6 @@ const closeDrawer = () => {
     document.body.style.overflow = '';
   }
 };
-// Enviar recordatorio de pago (funcionalidad de notificación, no persiste
-// estado de negocio; el envío real de correo se apoya en el EmailService
-// del backend cuando esté disponible para este flujo).
-   const sendReminder = (id) => {
-   const invoice = invoicesStorage.getInvoice(id);
-   if (!invoice) return;
-
 const closePaymentSuccess = () => {
   const modal = safeGetElement('paymentSuccessOverlay');
   if (modal) {
@@ -324,7 +317,7 @@ const sendReminder = (id) => {
   
 };
 
-// Registrar pago — llama a la API real (PUT /api/facturas/{id}/pagos)
+// Registrar pago — llama a la API real (POST /api/facturas/{id}/pagos)
 // que persiste el pago en SQL Server (tabla Factura: monto_pagado, estado, fecha_pago).
 const registerPayment = async (id) => {
   const invoice = invoicesStorage.getInvoice(id);
@@ -342,7 +335,7 @@ const registerPayment = async (id) => {
   
       try {
       const result = await window.apiRequest(`/api/facturas/${id}/pagos`, {
-      method: 'PUT',
+      method: 'POST',
       body: { montoPagado: paymentAmount }
     });
     if (!result || result.success !== true) {
@@ -354,7 +347,7 @@ const registerPayment = async (id) => {
   renderInvoices();
   updateStats();
   closeDrawer();
-  showToast(`✅ Pago de ${fmtCurrency(paymentAmount)} registrado para ${invoice.patient}`);
+  showPaymentSuccess(paymentAmount, invoice.patient);
 } catch (error) {
     console.error('Error registrando pago:', error);
     showToast('Error de conexión al registrar el pago.', 'error');
@@ -395,6 +388,7 @@ const registerPayment = async (id) => {
     console.error('Error anulando factura:', error);
     showToast('Error de conexión al anular la factura.', 'error');
   }
+};
 
 // ═══════════════════════════════════════════════════════════════════
 //  PAGINACIÓN Y CONTADORES
@@ -626,4 +620,4 @@ const init = async () => {
   window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
 };
 
-document.addEventListener('DOMContentLoaded', init)};}
+document.addEventListener('DOMContentLoaded', init);

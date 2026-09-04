@@ -290,10 +290,9 @@
                 </div>
                 <h4 class="font-headline-md text-headline-md text-[#002a58] mb-2">Adjuntar Captura</h4>
                 <p class="font-label-sm text-label-sm text-[#424750] mb-4 px-4">Evidencias visuales ayudan a resolver el ticket un 40% más rápido.</p>
-                <input asp-for="Screenshot" id="screenshot-input" accept="image/*" class="hidden" />
                 <button id="upload-screenshot-btn" class="w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-[#c3c6d2] bg-[#f8fbff] text-[#424750] hover:border-[#0060a8] hover:text-[#0060a8] transition-all font-label-bold text-label-bold active:bg-[#eaf3ff] cursor-pointer" type="button">
                   <span class="material-symbols-outlined">attachment</span>
-                  Adjuntar Captura de Pantalla
+                  Adjuntar archivo
                 </button>
                 <div id="upload-preview" class="hidden mt-4 w-full rounded-lg border border-[#c3c6d2] bg-[#f8fbff] p-3 text-left">
                   <p class="text-[10px] uppercase tracking-[0.2em] text-[#0060a8] font-semibold mb-2">Archivo adjunto</p>
@@ -327,6 +326,29 @@
             </div>
           </div>
         </form>
+
+        <div id="attachment-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[#002a58]/50 p-4" role="dialog" aria-modal="true" aria-labelledby="attachment-modal-title">
+          <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl" role="document">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="attachment-modal-title" class="font-headline-md text-headline-md text-[#002a58]">Adjuntar evidencia</h2>
+                <p class="mt-1 text-sm text-[#424750]">Selecciona el archivo que deseas adjuntar al ticket.</p>
+              </div>
+              <button id="attachment-modal-close" type="button" class="rounded-lg p-1 text-[#424750] hover:bg-[#eaf3ff]" aria-label="Cerrar ventana">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div class="mt-6">
+              <label id="choose-file-btn" class="relative flex min-h-32 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-[#c3c6d2] p-4 text-center text-[#002a58] hover:border-[#0060a8] hover:bg-[#f8fbff]">
+                <input asp-for="Screenshot" id="screenshot-input" form="support-form" accept="image/*,.pdf,.doc,.docx,.txt" class="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
+                <span class="material-symbols-outlined text-3xl text-[#0060a8]">upload_file</span>
+                <span class="font-label-bold text-label-bold">Elegir un archivo</span>
+                <span class="text-xs text-[#424750]">Imagen, PDF, Word o texto</span>
+              </label>
+            </div>
+            <p id="attachment-modal-error" class="mt-4 hidden text-sm text-[#ba1a1a]" role="alert"></p>
+          </div>
+        </div>
 
         <div class="mt-margin-page">
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">

@@ -187,6 +187,21 @@ img { max-width: 100%; height: auto; display: block; }
 .payment-section { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; margin-top: 20px; }
 .payment-section-title { font-size: .72rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 16px; }
 .payment-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.payment-section > .toast-container {
+  position: static;
+  display: flex;
+  align-items: flex-end;
+  margin-top: 16px;
+  pointer-events: none;
+}
+.payment-section > .toast-container .toast {
+  transform: translateY(-8px);
+  opacity: 0;
+}
+.payment-section > .toast-container .toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
 
 /* Responsive idéntico a st-rec-01 */
 @media (max-width: 1050px) { .form-row { grid-template-columns: 1fr; } }

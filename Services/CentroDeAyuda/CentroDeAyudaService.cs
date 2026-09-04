@@ -209,13 +209,19 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
             return null;
 
         const long maxBytes = 5 * 1024 * 1024;
-        var allowed = new[] { "image/jpeg", "image/png", "image/webp", "image/gif" };
+        var allowed = new[]
+        {
+            "image/jpeg", "image/png", "image/webp", "image/gif",
+            "application/pdf", "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "text/plain"
+        };
 
         if (file.Length > maxBytes)
             throw new InvalidOperationException("La captura de pantalla no puede superar 5 MB.");
 
         if (!allowed.Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException("La captura debe ser una imagen JPG, PNG, WEBP o GIF.");
+            throw new InvalidOperationException("El archivo debe ser una imagen, PDF, documento de Word o archivo de texto.");
 
         var folder = Path.Combine(_environment.WebRootPath ?? "wwwroot", "uploads", "centro-ayuda");
         Directory.CreateDirectory(folder);
