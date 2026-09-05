@@ -1,13 +1,8 @@
 /**
  * SMILETRACK — CATÁLOGO DE SERVICIOS (script.js)
- * API-ready + Accesibilidad + Persistencia fallback
- * Filtros funcionales + Drawer accesible + Fechas actualizadas
+ * Conectado a SQL Server vía API REST (ServiciosRecursosController)
+ * Accesibilidad + Filtros funcionales + Drawer accesible
  */
-
-// ═══════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN API
-// ═══════════════════════════════════════════════════════════════════
-const API_BASE = '/api';
 
 // ═══════════════════════════════════════════════════════════════════
 //  UTILIDADES GLOBALES
@@ -37,63 +32,29 @@ const showToast = (message, type = 'success') => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  PERSISTENCIA CON LOCALSTORAGE
+//  FUENTE DE DATOS: SQL Server (renderizado por el servidor) + API REST
+//  para las acciones de escritura (crear/editar/activar/desactivar/eliminar).
+//  Ya no se usa localStorage como fuente de verdad de los servicios.
 // ═══════════════════════════════════════════════════════════════════
 
 const servicesStorage = {
-  key: 'smiletrack_servicios_admin',
-  
-  load: () => {
-    if (Array.isArray(window.RAZOR_SERVICIOS) && window.RAZOR_SERVICIOS.length > 0) {
-      return window.RAZOR_SERVICIOS;
-    }
-    const stored = localStorage.getItem(servicesStorage.key);
-    if (stored) {
-      try { return JSON.parse(stored); }
-      catch (e) { console.warn('Error al cargar servicios, usando datos de ejemplo'); }
-    }
-    // Datos de ejemplo con categorías y estados
-    return [
-      { id: 1, name: 'Limpieza Dental Profunda', description: 'Procedimiento clínico de remoción de placa bacteriana mediante ultrasonido y curetaje manual.', category: 'prevencion', duration: 45, cost: 85.00, active: true, icon: '🪥' },
-      { id: 2, name: 'Blanqueamiento LED', description: 'Tratamiento estético con luz LED para aclarar el tono dental hasta 8 tonos.', category: 'estetica', duration: 60, cost: 250.00, active: true, icon: '✨' },
-      { id: 3, name: 'Extracción Muela Juicio', description: 'Procedimiento quirúrgico para extracción de terceros molares impactados.', category: 'cirugia', duration: 90, cost: 180.00, active: false, icon: '🦷' },
-      { id: 4, name: 'Ajuste de Brackets', description: 'Control periódico de ortodoncia para ajuste de arcos y bandas.', category: 'ortodoncia', duration: 30, cost: 60.00, active: true, icon: '⛓️' },
-      { id: 5, name: 'Endodoncia Unirradicular', description: 'Tratamiento de conductos en piezas con una raíz.', category: 'endodoncia', duration: 75, cost: 220.00, active: true, icon: '🔧' },
-      { id: 6, name: 'Profilaxis Básica', description: 'Limpieza preventiva con pulido y fluorización.', category: 'prevencion', duration: 30, cost: 45.00, active: true, icon: '🪥' },
-      { id: 7, name: 'Carillas de Porcelana', description: 'Restauraciones estéticas mínimamente invasivas.', category: 'estetica', duration: 120, cost: 450.00, active: true, icon: '✨' },
-      { id: 8, name: 'Cirugía de Encía', description: 'Procedimiento periodontal para corregir recesión gingival.', category: 'cirugia', duration: 60, cost: 150.00, active: false, icon: '🦷' },
-      { id: 9, name: 'Contención Retenedora', description: 'Fabricación e instalación de retenedores fijos o removibles.', category: 'ortodoncia', duration: 45, cost: 120.00, active: true, icon: '⛓️' },
-      { id: 10, name: 'Endodoncia Multirradicular', description: 'Tratamiento de conductos en piezas con múltiples raíces.', category: 'endodoncia', duration: 90, cost: 320.00, active: true, icon: '🔧' },
-      { id: 11, name: 'Selladores de Fosetas', description: 'Aplicación preventiva de resinas en superficies oclusales.', category: 'prevencion', duration: 20, cost: 30.00, active: true, icon: '🪥' },
-      { id: 12, name: 'Diseño de Sonrisa Digital', description: 'Planificación estética digital con simulación 3D.', category: 'estetica', duration: 45, cost: 180.00, active: true, icon: '✨' }
-    ];
-  },
-  
-  save: (data) => {
-    try { localStorage.setItem(servicesStorage.key, JSON.stringify(data)); return true; }
-    catch (e) { console.error('Error al guardar servicios:', e); return false; }
-  },
-  
-  addService: (service) => {
-    const data = servicesStorage.load();
-    service.id = data.length > 0 ? Math.max(...data.map(s => s.id)) + 1 : 1;
-    data.unshift(service);
-    servicesStorage.save(data);
-    return service;
-  },
-  
-  updateService: (id, updates) => {
-    const data = servicesStorage.load();
-    const idx = data.findIndex(s => s.id === id);
+  // Los datos vienen siempre del servidor (ServiciosRecursosController ->
+  // AppDbContext.Servicios), serializados en ViewData["ServiciosJson"].
+  load: () => Array.isArray(window.RAZOR_SERVICIOS) ? window.RAZOR_SERVICIOS : [],
+
+  getService: (id) => servicesStorage.load().find(s => s.id === id),
+
+  // Actualiza solo el estado en memoria para reflejar de inmediato el
+  // resultado de una llamada a la API; la próxima recarga de página
+  // siempre traerá el estado real desde SQL Server.
+  updateLocalCache: (id, updates) => {
+    const idx = services.findIndex(s => s.id === id);
     if (idx !== -1) {
-      data[idx] = { ...data[idx], ...updates };
-      servicesStorage.save(data);
+      services[idx] = { ...services[idx], ...updates };
       return true;
     }
     return false;
-  },
-  
-  getService: (id) => servicesStorage.load().find(s => s.id === id)
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -113,7 +74,8 @@ const categoryLabels = {
   estetica: { label: 'Estética', class: 'estetica' },
   cirugia: { label: 'Cirugía', class: 'cirugia' },
   ortodoncia: { label: 'Ortodoncia', class: 'ortodoncia' },
-  endodoncia: { label: 'Endodoncia', class: 'endodoncia' }
+  endodoncia: { label: 'Endodoncia', class: 'endodoncia' },
+  general: { label: 'General', class: 'general' }
 };
 
 const statusLabels = {
@@ -135,13 +97,13 @@ const getFilteredServices = () => {
   return services.filter(s => {
     // Filtro por búsqueda
     if (searchQuery && !s.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    
+
     // Filtro por categoría
     if (filterCategory && s.category !== filterCategory) return false;
-    
+
     // Filtro por estado
     if (filterStatus && String(s.active) !== filterStatus) return false;
-    
+
     return true;
   });
 };
@@ -153,22 +115,22 @@ const getFilteredServices = () => {
 const renderServices = () => {
   const body = safeGetElement('servicesBody');
   if (!body) return;
-  
+
   const filtered = getFilteredServices();
-  
+
   if (!filtered.length) {
     body.innerHTML = '<div class="empty-state" role="status">No se encontraron servicios con los criterios de búsqueda.</div>';
     return;
   }
-  
+
   // Paginación
   const start = (currentPage - 1) * itemsPerPage;
   const pageData = filtered.slice(start, start + itemsPerPage);
-  
+
   body.innerHTML = pageData.map(s => {
-    const category = categoryLabels[s.category] || categoryLabels.prevencion;
+    const category = categoryLabels[s.category] || categoryLabels.general;
     const status = statusLabels[String(s.active)];
-    
+
     return `
       <div class="table-row" role="row" tabindex="0" aria-label="Servicio ${s.name}">
         <div class="table-col col-nombre" role="cell" data-label="Nombre del Servicio">
@@ -199,7 +161,7 @@ const renderServices = () => {
       </div>
     `;
   }).join('');
-  
+
   // Event listeners para acciones
   body.querySelectorAll('.btn-edit').forEach(btn => {
     btn.addEventListener('click', (e) => openDrawer(parseInt(e.currentTarget.dataset.id)));
@@ -209,7 +171,7 @@ const renderServices = () => {
     btn.addEventListener('click', (e) => toggleServiceStatus(parseInt(e.currentTarget.dataset.id)));
     btn.addEventListener('keydown', (e) => { if (['Enter',' '].includes(e.key)) { e.preventDefault(); toggleServiceStatus(parseInt(e.currentTarget.dataset.id)); }});
   });
-  
+
   updatePagination(filtered.length);
 };
 
@@ -222,23 +184,23 @@ const openDrawer = (id = null) => {
   const form = safeGetElement('serviceForm');
   const title = safeGetElement('drawerTitle');
   const toggle = safeGetElement('serviceActiveToggle');
-  
+
   if (!drawer || !form || !title) return;
-  
+
   editingServiceId = id;
-  
+
   if (id) {
     // Modo edición
     const service = servicesStorage.getService(id);
     if (!service) return;
-    
+
     title.textContent = 'Editar Servicio';
     safeGetElement('serviceName').value = service.name;
     safeGetElement('serviceDescription').value = service.description || '';
     safeGetElement('serviceCategory').value = service.category;
     safeGetElement('serviceCost').value = service.cost;
     safeGetElement('serviceDuration').value = service.duration;
-    
+
     // Toggle switch
     toggle.setAttribute('aria-checked', service.active);
     toggle.classList.toggle('active', service.active);
@@ -249,13 +211,13 @@ const openDrawer = (id = null) => {
     toggle.setAttribute('aria-checked', 'true');
     toggle.classList.add('active');
   }
-  
+
   // Mostrar drawer
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden', 'false');
   drawer.removeAttribute('inert');
   document.body.style.overflow = 'hidden';
-  
+
   // Enfocar primer input
   const firstInput = form.querySelector('input, textarea, select');
   if (firstInput) firstInput.focus();
@@ -288,56 +250,99 @@ const initToggleSwitch = () => {
   });
 };
 
-// Guardar servicio (nuevo o editar)
-const saveService = (e) => {
+// Guardar servicio (nuevo o editar) — persiste en SQL Server vía API real.
+const saveService = async (e) => {
   e.preventDefault();
-  
+
   const service = {
-    name: safeGetElement('serviceName')?.value,
-    description: safeGetElement('serviceDescription')?.value,
+    name: safeGetElement('serviceName')?.value?.trim(),
+    description: safeGetElement('serviceDescription')?.value?.trim(),
     category: safeGetElement('serviceCategory')?.value,
     cost: parseFloat(safeGetElement('serviceCost')?.value) || 0,
     duration: parseInt(safeGetElement('serviceDuration')?.value) || 0,
-    active: safeGetElement('serviceActiveToggle')?.getAttribute('aria-checked') === 'true',
-    icon: '🦷' // Icono por defecto
+    active: safeGetElement('serviceActiveToggle')?.getAttribute('aria-checked') === 'true'
   };
-  
+
   if (!service.name || !service.category) {
     showToast('⚠️ Nombre y categoría son obligatorios', 'warning');
     return;
   }
-  
-  if (editingServiceId) {
-    // Actualizar existente
-    if (servicesStorage.updateService(editingServiceId, service)) {
-      services = servicesStorage.load();
+
+  const payload = {
+    nombre: service.name,
+    descripcion: service.description,
+    precio: service.cost,
+    category: service.category,
+    duration: service.duration
+  };
+
+  try {
+    if (editingServiceId) {
+      // Actualizar existente
+      const result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${editingServiceId}`, {
+        method: 'PUT',
+        body: payload
+      });
+
+      if (!result || result.success !== true) {
+        showToast(result?.message || 'No fue posible actualizar el servicio.', 'error');
+        return;
+      }
+
+      servicesStorage.updateLocalCache(editingServiceId, service);
       renderServices();
       updateStats();
       closeDrawer();
       showToast(`✅ Servicio "${service.name}" actualizado`);
+    } else {
+      // Crear nuevo
+      const result = await window.apiRequest('/servicios-y-recursos/api/servicios', {
+        method: 'POST',
+        body: payload
+      });
+
+      if (!result || result.success !== true) {
+        showToast(result?.message || 'No fue posible crear el servicio.', 'error');
+        return;
+      }
+
+      services.unshift({ ...service, id: result.data.id, icon: '🦷' });
+      renderServices();
+      updateStats();
+      closeDrawer();
+      showToast(`✅ Servicio "${service.name}" creado`);
     }
-  } else {
-    // Crear nuevo
-    const newService = servicesStorage.addService(service);
-    services = servicesStorage.load();
-    renderServices();
-    updateStats();
-    closeDrawer();
-    showToast(`✅ Servicio "${newService.name}" creado`);
+  } catch (error) {
+    console.error('Error guardando servicio:', error);
+    showToast('Error de conexión al guardar el servicio.', 'error');
   }
 };
 
-// Alternar estado de servicio (activo/inactivo)
-const toggleServiceStatus = (id) => {
+// Alternar estado de servicio (activo/inactivo) — persiste en SQL Server.
+const toggleServiceStatus = async (id) => {
   const service = servicesStorage.getService(id);
   if (!service) return;
-  
-  const newStatus = !service.active;
-  if (servicesStorage.updateService(id, { active: newStatus })) {
-    services = servicesStorage.load();
+
+  const nuevoEstado = service.active ? 'inactivo' : 'activo';
+
+  try {
+    const result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${id}/estado`, {
+      method: 'PUT',
+      body: { estado: nuevoEstado }
+    });
+
+    if (!result || result.success !== true) {
+      showToast(result?.message || 'No fue posible cambiar el estado del servicio.', 'error');
+      return;
+    }
+
+    servicesStorage.updateLocalCache(id, { active: nuevoEstado === 'activo' });
     renderServices();
     updateStats();
-    showToast(`🔄 Servicio "${service.name}" ${newStatus ? 'activado' : 'desactivado'}`);
+    showToast(`🔄 Servicio "${service.name}" ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'}`);
+  } catch (error) {
+    console.error('Error cambiando estado del servicio:', error);
+    showToast('Error de conexión al cambiar el estado.', 'error');
   }
 };
 
@@ -348,12 +353,12 @@ const toggleServiceStatus = (id) => {
 const updatePagination = (totalItems) => {
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const showing = Math.min(itemsPerPage, totalItems - (currentPage - 1) * itemsPerPage);
-  
+
   const pageShowing = safeGetElement('pageShowing');
   const pageTotal = safeGetElement('pageTotal');
   const btnPrev = safeGetElement('btnPrev');
   const btnNext = safeGetElement('btnNext');
-  
+
   if (pageShowing) pageShowing.textContent = showing;
   if (pageTotal) pageTotal.textContent = totalItems;
   if (btnPrev) btnPrev.disabled = currentPage === 1;
@@ -375,7 +380,7 @@ const updateStats = () => {
   const total = services.length;
   const active = services.filter(s => s.active).length;
   const inactive = total - active;
-  
+
   animateCounter(safeGetElement('statTotal'), total);
   animateCounter(safeGetElement('statActive'), active);
   animateCounter(safeGetElement('statInactive'), inactive);
@@ -390,7 +395,7 @@ const initSidebar = () => {
   const sidebar = safeGetElement('sidebar');
   const overlay = safeGetElement('overlay');
   if (!hamburger || !sidebar || !overlay) return;
-  
+
   const toggleMenu = (show) => {
     sidebar.classList.toggle('open', show);
     overlay.classList.toggle('open', show);
@@ -399,7 +404,7 @@ const initSidebar = () => {
     if (show) { const firstLink = sidebar.querySelector('.nav-item'); if (firstLink) firstLink.focus(); }
     else { hamburger.focus(); }
   };
-  
+
   hamburger.addEventListener('click', () => toggleMenu(true));
   overlay.addEventListener('click', () => toggleMenu(false));
   sidebar.querySelectorAll('.nav-item').forEach(item => {
@@ -420,13 +425,13 @@ const initSearch = () => {
 const initFilters = () => {
   const filterCategoryEl = safeGetElement('filterCategory');
   const filterStatusEl = safeGetElement('filterStatus');
-  
+
   filterCategoryEl?.addEventListener('change', (e) => {
     filterCategory = e.target.value;
     currentPage = 1;
     renderServices();
   });
-  
+
   filterStatusEl?.addEventListener('change', (e) => {
     filterStatus = e.target.value;
     currentPage = 1;
@@ -437,11 +442,11 @@ const initFilters = () => {
 const initPagination = () => {
   const btnPrev = safeGetElement('btnPrev');
   const btnNext = safeGetElement('btnNext');
-  
+
   btnPrev?.addEventListener('click', () => {
     if (currentPage > 1) { currentPage--; renderServices(); }
   });
-  
+
   btnNext?.addEventListener('click', () => {
     const filtered = getFilteredServices();
     const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -454,15 +459,15 @@ const initDrawer = () => {
   const drawerClose = safeGetElement('drawerClose');
   const drawerCancel = safeGetElement('drawerCancel');
   const serviceForm = safeGetElement('serviceForm');
-  
+
   // Cerrar drawer
   drawerClose?.addEventListener('click', closeDrawer);
   drawerCancel?.addEventListener('click', closeDrawer);
   drawer?.addEventListener('click', (e) => { if (e.target === drawer) closeDrawer(); });
-  
+
   // Submit del formulario
   serviceForm?.addEventListener('submit', saveService);
-  
+
   // Escape cierra drawer
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && drawer?.classList.contains('open')) {
@@ -470,7 +475,7 @@ const initDrawer = () => {
       closeDrawer();
     }
   });
-  
+
   // Toggle switch
   initToggleSwitch();
 };
@@ -479,37 +484,6 @@ const initNewService = () => {
   const btn = safeGetElement('btnNewService');
   btn?.addEventListener('click', () => openDrawer(null));
 };
-
-// ═══════════════════════════════════════════════════════════════════
-//  API CALLS
-// ═══════════════════════════════════════════════════════════════════
-
-async function fetchServices() {
-  try {
-    // const res = await fetch(`${API_BASE}/admin/services`);
-    // if (!res.ok) throw new Error('API error');
-    // return await res.json();
-    return servicesStorage.load();
-  } catch (error) {
-    console.warn('Fallback a datos locales:', error);
-    return servicesStorage.load();
-  }
-}
-
-async function addServiceAPI(service) {
-  try {
-    // const res = await fetch(`${API_BASE}/admin/services`, {
-    //   method: 'POST', headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(service),
-    // });
-    // if (!res.ok) throw new Error('Add failed');
-    // return await res.json();
-    return servicesStorage.addService(service);
-  } catch (error) {
-    console.warn('Error al agregar servicio en API:', error);
-    return null;
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════
 //  INICIALIZACIÓN PRINCIPAL
@@ -522,11 +496,11 @@ const init = async () => {
   initPagination();
   initNewService();
   initDrawer();
-  
-  services = await fetchServices();
+
+  services = servicesStorage.load();
   updateStats();
   renderServices();
-  
+
   window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
 };
 

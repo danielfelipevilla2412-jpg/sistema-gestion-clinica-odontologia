@@ -169,6 +169,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(s => s.Descripcion).HasColumnName("descripcion");
             entity.Property(s => s.Precio).HasColumnName("precio").HasPrecision(12, 2);
             entity.Property(s => s.Estado).HasColumnName("estado");
+            entity.Property(s => s.Categoria).HasColumnName("categoria");
+            entity.Property(s => s.DuracionMinutos).HasColumnName("duracion_minutos");
         });
 
         modelBuilder.Entity<Consultorio>(entity =>
