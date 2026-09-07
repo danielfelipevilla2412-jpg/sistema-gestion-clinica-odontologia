@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿@* ============================================
+﻿﻿@* ============================================
    SmileTrack — Agenda General (st-adm-08-agenda)
    ============================================
    Autor: Johan Santamaria
@@ -28,10 +28,10 @@
      el formulario.
 ============================================ *@
 
+@model SmileTrack_MVC.Models.ViewModels.AgendaViewModel
+
 @{
     Layout = null;
-    var agendaDias = ViewData["AgendaDias"] as List<SmileTrack_MVC.Models.ViewModels.AgendaDiaViewModel> ?? new();
-    var semanaLabel = ViewData["SemanaLabel"] ?? string.Empty;
 }
 
 <!DOCTYPE html>
@@ -95,7 +95,7 @@
                     <button class="btn-week" id="btnPrev" aria-label="Semana anterior">
                         <span aria-hidden="true">—</span>
                     </button>
-                    <span class="week-label" id="weekLabel" aria-live="polite" data-week-start="@ViewData["WeekStart"]">@semanaLabel</span>
+                    <span class="week-label" id="weekLabel" aria-live="polite" data-week-start="@Model.WeekStart.ToString("yyyy-MM-dd")" data-duration-minutes="@Model.DuracionCitaMinutos">@Model.SemanaLabel</span>
                     <button class="btn-week" id="btnNext" aria-label="Próxima semana">
                         <span aria-hidden="true">—</span>
                     </button>
@@ -110,12 +110,9 @@
                     <label for="filterProfessional" class="filter-label">Profesional</label>
                     <select id="filterProfessional" class="status-select" aria-label="Filtrar por profesional">
                         <option value="">Todos los profesionales</option>
-                        @if (ViewBag.Profesionales != null)
+                        @foreach (var profesional in Model.Profesionales)
                         {
-                            foreach (var profesional in ViewBag.Profesionales)
-                            {
-                                <option value="@profesional.IdProfesional">@profesional.DisplayName</option>
-                            }
+                            <option value="@profesional.Id" selected="@(Model.ProfessionalId == profesional.Id ? "selected" : null)">@profesional.Text</option>
                         }
                     </select>
                 </div>
@@ -124,12 +121,9 @@
                     <label for="filterOffice" class="filter-label">Consultorio</label>
                     <select id="filterOffice" class="status-select" aria-label="Filtrar por consultorio">
                         <option value="">Todos los consultorios</option>
-                        @if (ViewBag.Consultorios != null)
+                        @foreach (var consultorio in Model.Consultorios)
                         {
-                            foreach (var consultorio in ViewBag.Consultorios)
-                            {
-                                <option value="@consultorio.IdConsultorio">@consultorio.Nombre</option>
-                            }
+                            <option value="@consultorio.Id" selected="@(Model.OfficeId == consultorio.Id ? "selected" : null)">@consultorio.Text</option>
                         }
                     </select>
                 </div>
@@ -138,13 +132,21 @@
             </div>
         </section>
 
+        <section class="clinic-hours-banner" aria-label="Horario de atención de la clínica">
+            <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+            <div>
+                <strong>Horario de la clínica</strong>
+                <span>@Model.HorarioApertura - @Model.HorarioCierre · @Model.DiasAtencionTexto · @Model.DuracionCitaMinutos min por cita</span>
+            </div>
+        </section>
+
         <!-- Botón de impresión de agenda (C-07: reemplazado emoji por Material Symbol) -->
-        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px;" class="no-print">
+                <div class="agenda-print-actions no-print">
           <button type="button" class="btn-secondary"
             onclick="window.print()"
             aria-label="Imprimir agenda semanal"
-            style="display:flex;align-items:center;gap:6px;font-size:.85rem;">
-            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">print</span>
+                        >
+                        <span class="material-symbols-outlined" aria-hidden="true">print</span>
             Imprimir Agenda
           </button>
         </div>
@@ -155,7 +157,7 @@
 
             <!-- Cabecera de días -->
             <div class="calendar-header" role="row">
-                @foreach (var dia in agendaDias)
+                @foreach (var dia in Model.Dias)
                 {
                     var headerClasses = "calendar-day-header";
                     if (dia.EsHoy) headerClasses += " current";
@@ -174,7 +176,7 @@
 
             <!-- Cuerpo del calendario con citas -->
             <div class="calendar-body" role="grid" aria-label="Citas por día">
-                @foreach (var dia in agendaDias)
+                @foreach (var dia in Model.Dias)
                 {
                     var diaClasses = "calendar-day";
                     if (dia.EsHoy) diaClasses += " current";
@@ -234,7 +236,8 @@
                                 <div 
                                     class="appointment available" 
                                     tabindex="0" 
-                                    role="button" 
+                                    role="button"
+                                    data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
                                     aria-label="@ariaLabelEmpty">
                                     <time datetime="@dateTimeEmpty" class="appt-time"></time>
                                     <span class="appt-patient">Sin citas</span>
@@ -349,8 +352,9 @@
                                 type="time" 
                                 id="newApptEndTime" 
                                 name="HoraFin" 
-                                required 
-                                aria-required="true" />
+                                readonly
+                                aria-describedby="appointmentDurationHint" />
+                            <span id="appointmentDurationHint" class="form-hint">Calculada según la duración configurada.</span>
                         </div>
 
                         <!-- Paciente (ancho completo) -->
@@ -363,12 +367,9 @@
                                 aria-required="true" 
                                 data-placeholder="Buscar paciente...">
                                 <option value="">Seleccione paciente...</option>
-                                @if (ViewBag.Pacientes != null)
+                                @foreach (var paciente in Model.Pacientes)
                                 {
-                                    foreach (var paciente in ViewBag.Pacientes)
-                                    {
-                                        <option value="@paciente.IdPaciente">@paciente.DisplayName</option>
-                                    }
+                                    <option value="@paciente.Id">@paciente.Text</option>
                                 }
                             </select>
                         </div>
@@ -378,12 +379,9 @@
                             <label for="newApptProfessional">Profesional</label>
                             <select id="newApptProfessional" name="IdProfesional" required aria-required="true">
                                 <option value="">Seleccione profesional</option>
-                                @if (ViewBag.Profesionales != null)
+                                @foreach (var profesional in Model.Profesionales)
                                 {
-                                    foreach (var profesional in ViewBag.Profesionales)
-                                    {
-                                        <option value="@profesional.IdProfesional">@profesional.DisplayName</option>
-                                    }
+                                    <option value="@profesional.Id">@profesional.Text</option>
                                 }
                             </select>
                         </div>
@@ -393,12 +391,9 @@
                             <label for="newApptOffice">Consultorio</label>
                             <select id="newApptOffice" name="IdConsultorio" required aria-required="true">
                                 <option value="">Seleccione consultorio</option>
-                                @if (ViewBag.Consultorios != null)
+                                @foreach (var consultorio in Model.Consultorios)
                                 {
-                                    foreach (var consultorio in ViewBag.Consultorios)
-                                    {
-                                        <option value="@consultorio.IdConsultorio">@consultorio.Nombre</option>
-                                    }
+                                    <option value="@consultorio.Id">@consultorio.Text</option>
                                 }
                             </select>
                         </div>
@@ -408,12 +403,9 @@
                             <label for="newApptService">Servicio (Motivo de Consulta)</label>
                             <select id="newApptService" name="IdServicio" required aria-required="true">
                                 <option value="">Seleccione servicio</option>
-                                @if (ViewBag.Servicios != null)
+                                @foreach (var servicio in Model.Servicios)
                                 {
-                                    foreach (var servicio in ViewBag.Servicios)
-                                    {
-                                        <option value="@servicio.IdServicio">@servicio.Nombre</option>
-                                    }
+                                    <option value="@servicio.Id">@servicio.Text</option>
                                 }
                             </select>
                         </div>
@@ -449,7 +441,7 @@
             <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
             <span>Dashboard</span>
         </a>
-        <a href="#" class="mobile-nav-item active" aria-current="page">
+        <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item active" aria-current="page">
             <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
             <span>Agenda</span>
         </a>
@@ -464,8 +456,8 @@
 
     <!-- Footer dinámico -->
     <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-        <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+        <div class="agenda-footer-content">
+            <span class="material-symbols-outlined" aria-hidden="true">copyright</span>
             <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
         </div>
         <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>

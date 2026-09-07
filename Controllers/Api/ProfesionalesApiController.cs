@@ -39,7 +39,7 @@ public sealed class HorarioSemanalDto
 /// </summary>
 [ApiController]
 [Route("api/profesionales")]
-[Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+[Authorize(Roles = "Administrador,Recepcionista,Profesional", Policy = "ApiOrCookie")]
 [Produces("application/json")]
 public sealed class ProfesionalesApiController : ControllerBase
 {
@@ -315,10 +315,19 @@ public sealed class ProfesionalesApiController : ControllerBase
         if (id <= 0)
             return BadRequest(new { success = false, message = "Identificador inválido." });
 
-        var result = await _service.ObtenerHorariosAsync(id, ct);
+        bool esAdministrador =
+            User.IsInRole("Administrador") || User.IsInRole("Recepcionista");
+        var result = await _service.ObtenerHorariosAsync(
+            id,
+            GetCurrentUserId(),
+            esAdministrador,
+            ct);
+
         return result.Success
             ? Ok(new { success = true, data = result.Data })
-            : NotFound(new { success = false, message = result.Message });
+            : result.ErrorStatusCode == 403
+                ? Forbid()
+                : NotFound(new { success = false, message = result.Message });
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -11,23 +11,23 @@
 @* Script para inicializar automáticamente Toasts si vienen mensajes desde TempData *@
 @if (TempData["SuccessMessage"] != null || TempData["ErrorMessage"] != null || TempData["InfoMessage"] != null)
 {
-    var successMsg = TempData["SuccessMessage"]?.ToString()?.Replace("'", "\\'");
-    var errorMsg = TempData["ErrorMessage"]?.ToString()?.Replace("'", "\\'");
-    var infoMsg = TempData["InfoMessage"]?.ToString()?.Replace("'", "\\'");
+    var successMsg = System.Text.Json.JsonSerializer.Serialize(TempData["SuccessMessage"]?.ToString());
+    var errorMsg = System.Text.Json.JsonSerializer.Serialize(TempData["ErrorMessage"]?.ToString());
+    var infoMsg = System.Text.Json.JsonSerializer.Serialize(TempData["InfoMessage"]?.ToString());
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             @if (!string.IsNullOrEmpty(successMsg))
             {
-                <text>window.ToastService.success('Éxito', '@Html.Raw(successMsg)');</text>
+                <text>window.ToastService.success('Éxito', @Html.Raw(successMsg));</text>
             }
             @if (!string.IsNullOrEmpty(errorMsg))
             {
-                <text>window.ToastService.error('Error', '@Html.Raw(errorMsg)');</text>
+                <text>window.ToastService.error('Error', @Html.Raw(errorMsg));</text>
             }
             @if (!string.IsNullOrEmpty(infoMsg))
             {
-                <text>window.ToastService.info('Información', '@Html.Raw(infoMsg)');</text>
+                <text>window.ToastService.info('Información', @Html.Raw(infoMsg));</text>
             }
         });
     </script>

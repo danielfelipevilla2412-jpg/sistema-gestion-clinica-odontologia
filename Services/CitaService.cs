@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
@@ -449,6 +450,25 @@ public class CitaService : ICitaService
             .FirstOrDefaultAsync(c => c.IdCita == id, ct);
     }
 
+    private async Task<T> ExecuteWithSerializableTransactionAsync<T>(
+        Func<Task<T>> operation,
+        CancellationToken ct)
+    {
+        if (!_context.Database.IsRelational())
+            return await operation();
+
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database
+                .BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+
+            var result = await operation();
+            await transaction.CommitAsync(ct);
+            return result;
+        });
+    }
+
     // =========================================================================
     // CREAR CITA (C-01, C-04)
     // =========================================================================
@@ -506,43 +526,44 @@ public class CitaService : ICitaService
         if (!disponibilidad.EsValida)
             throw new InvalidOperationException(disponibilidad.Mensaje!);
 
-        // ── Verificación de conflicto integral (C-01) ─────────────────────
-        var conflicto = await VerificarConflictoCompletoAsync(
-            idProfesional: request.IdProfesional,
-            idPaciente: request.IdPaciente,
-            idConsultorio: request.IdConsultorio,
-            fechaHora: request.FechaHora,
-            duracionMinutos: duracion,
-            idCitaExcluir: null,
-            ct: ct);
-
-        if (conflicto.HayConflicto)
-            throw new InvalidOperationException(conflicto.Mensaje);
-
-        string estadoSolicitud = string.IsNullOrWhiteSpace(request.Estado) ? "programada" : request.Estado.Trim();
-        var estadoEntidad = await _context.EstadosCita
-            .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == estadoSolicitud.ToLower() ||
-                (estadoSolicitud.ToLower() == "agendada" && e.NombreEstado.ToLower() == "programada"),
+        return await ExecuteWithSerializableTransactionAsync(async () =>
+        {
+            var conflicto = await VerificarConflictoCompletoAsync(
+                request.IdProfesional!.Value,
+                request.IdPaciente,
+                request.IdConsultorio,
+                request.FechaHora,
+                duracion,
+                null,
                 ct);
 
-        if (estadoEntidad is null)
-            throw new InvalidOperationException("El estado de la cita no es válido.");
+            if (conflicto.HayConflicto)
+                throw new InvalidOperationException(conflicto.Mensaje);
 
-        var cita = new Cita
-        {
-            IdPaciente = request.IdPaciente,
-            IdProfesional = request.IdProfesional,
-            IdServicio = request.IdServicio,
-            IdConsultorio = request.IdConsultorio,
-            FechaHora = request.FechaHora,
-            IdEstado = estadoEntidad.IdEstado,
-            Estado = estadoEntidad.NombreEstado,
-            Notas = request.Notas?.Trim()
-        };
+            string estadoSolicitud = string.IsNullOrWhiteSpace(request.Estado) ? "programada" : request.Estado.Trim();
+            var estadoEntidad = await _context.EstadosCita.FirstOrDefaultAsync(e =>
+                e.NombreEstado.ToLower() == estadoSolicitud.ToLower() ||
+                (estadoSolicitud.ToLower() == "agendada" && e.NombreEstado.ToLower() == "programada"), ct);
 
-        _context.Citas.Add(cita);
-        await _context.SaveChangesAsync(ct);
-        return cita;
+            if (estadoEntidad is null)
+                throw new InvalidOperationException("El estado de la cita no es válido.");
+
+            var cita = new Cita
+            {
+                IdPaciente = request.IdPaciente,
+                IdProfesional = request.IdProfesional,
+                IdServicio = request.IdServicio,
+                IdConsultorio = request.IdConsultorio,
+                FechaHora = request.FechaHora,
+                IdEstado = estadoEntidad.IdEstado,
+                Estado = estadoEntidad.NombreEstado,
+                Notas = request.Notas?.Trim()
+            };
+
+            _context.Citas.Add(cita);
+            await _context.SaveChangesAsync(ct);
+            return cita;
+        }, ct);
     }
 
     // =========================================================================
@@ -632,39 +653,36 @@ public class CitaService : ICitaService
         if (!disponibilidad.EsValida)
             throw new InvalidOperationException(disponibilidad.Mensaje!);
 
-        // ── Verificación de conflicto integral (C-01) ─────────────────────
-        var conflicto = await VerificarConflictoCompletoAsync(
-            idProfesional: request.IdProfesional,
-            idPaciente: request.IdPaciente,
-            idConsultorio: request.IdConsultorio,
-            fechaHora: request.FechaHora,
-            duracionMinutos: duracion,
-            idCitaExcluir: id,
-            ct: ct);
-
-        if (conflicto.HayConflicto)
-            throw new InvalidOperationException(conflicto.Mensaje);
-
-        cita.IdPaciente = request.IdPaciente;
-        cita.IdProfesional = request.IdProfesional;
-        cita.IdServicio = request.IdServicio;
-        cita.IdConsultorio = request.IdConsultorio;
-        cita.FechaHora = request.FechaHora;
-
-        if (request.IdEstado is > 0)
+        return await ExecuteWithSerializableTransactionAsync(async () =>
         {
-            cita.IdEstado = estadoSolicitado!.IdEstado;
-            cita.Estado = estadoSolicitado.NombreEstado;
-        }
-        else if (!string.IsNullOrWhiteSpace(request.Estado))
-        {
-            cita.IdEstado = estadoSolicitado!.IdEstado;
-            cita.Estado = estadoSolicitado.NombreEstado;
-        }
+            var conflicto = await VerificarConflictoCompletoAsync(
+                request.IdProfesional!.Value,
+                request.IdPaciente,
+                request.IdConsultorio,
+                request.FechaHora,
+                duracion,
+                id,
+                ct);
 
-        cita.Notas = request.Notas?.Trim();
-        await _context.SaveChangesAsync(ct);
-        return cita;
+            if (conflicto.HayConflicto)
+                throw new InvalidOperationException(conflicto.Mensaje);
+
+            cita.IdPaciente = request.IdPaciente;
+            cita.IdProfesional = request.IdProfesional;
+            cita.IdServicio = request.IdServicio;
+            cita.IdConsultorio = request.IdConsultorio;
+            cita.FechaHora = request.FechaHora;
+
+            if (estadoSolicitado is not null)
+            {
+                cita.IdEstado = estadoSolicitado.IdEstado;
+                cita.Estado = estadoSolicitado.NombreEstado;
+            }
+
+            cita.Notas = request.Notas?.Trim();
+            await _context.SaveChangesAsync(ct);
+            return cita;
+        }, ct);
     }
 
     // =========================================================================

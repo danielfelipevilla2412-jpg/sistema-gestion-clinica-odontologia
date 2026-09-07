@@ -172,7 +172,7 @@ const calcularDuracion = (horaInicio, horaFin) => {
 
   return minutos;
 };
-const mapServerToClient = (srv) => {
+const mapServerToClient = (srv, duracionConfigurada) => {
   if (!srv) return null;
 
   const fechaValor =
@@ -219,6 +219,17 @@ const mapServerToClient = (srv) => {
     srv.HoraFin ??
     srv.horaFin ??
     null;
+
+  const duracionRespuesta = Number(
+    srv.DuracionMinutos ??
+    srv.duracionMinutos ??
+    duracionConfigurada
+  );
+
+  const duracion =
+    Number.isFinite(duracionRespuesta) && duracionRespuesta > 0
+      ? duracionRespuesta
+      : calcularDuracion(horaInicio, horaFin);
 
   return {
     id: srv.IdCita ?? srv.idCita,
@@ -267,6 +278,8 @@ const mapServerToClient = (srv) => {
 
     horaInicio,
     horaFin,
+
+    duracion,
 
     paciente,
     servicio,
@@ -876,7 +889,9 @@ async function fetchAppointments() {
     if (!res.ok) throw new Error(`status ${res.status}`);
     const payload = await res.json();
     if (payload && payload.success && Array.isArray(payload.data)) {
-      appointments = payload.data.map(mapServerToClient);
+      appointments = payload.data.map((item) =>
+        mapServerToClient(item, payload.duracionMinutos)
+      );
       saveLocal(appointments);
     } else {
       throw new Error('payload inválido');

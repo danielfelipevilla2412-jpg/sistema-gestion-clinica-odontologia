@@ -1,265 +1,201 @@
 ﻿/**
  * ============================================
- * SmileTrack — Dashboard Admin (app.js)
+ * SmileTrack — Dashboard de Citas (app.js)
  * ============================================
  * Autor: Johan Santamaria
- * 
+ *
  * PROPÓSITO:
- * Maneja interacciones del dashboard: animaciones, 
- * exportación de reportes, navegación responsive y notificaciones.
- * 
- * DECISIONES TÉCNICAS:
- * - Cola de toasts: evita solapamiento de notificaciones rápidas
- * - trackedRAF: cleanup de animaciones para prevenir memory leaks
- * - Debounce con maxWait: balance entre responsividad y performance
- * - Fallbacks progresivos: funcionalidad básica si JS falla parcialmente
- * 
- * NOTAS DE MANTENIMIENTO:
- * - Comentarios explican el "por qué" de las decisiones, no el "qué" del código
- * - API_BASE se lee de window.APP_CONFIG para facilitar testing y despliegues multi-entorno
- * ============================================
- */
+ * Maneja animaciones de contadores, barra de ocupación,
+ * exportación PDF y navegación responsive del sidebar.
+ *
+ * DECISIONES DE DISEÑO:
+ * - IIFE para no contaminar el scope global.
+ * - prefers-reduced-motion respetado en todas las animaciones.
+ * - performance.now() en lugar de setInterval para animaciones
+ *   de contadores: evita drift y se cancela solo cuando llega al 100%.
+ * - ToastService ya inyectado por _Toasts.cshtml — no se reinventa aquí.
+ * - No se importan API_BASE, debounce ni trackedRAF: no se necesitan
+ *   en una página de solo-lectura sin llamadas API del cliente.
+ ============================================ */
+(() => {
+    'use strict';
 
-// ════════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN GLOBAL
-// ════════════════════════════════════════════════════════════════════
-// WHY: Leer de window.APP_CONFIG permite cambiar la base de API sin recompilar JS
-const API_BASE = (window.APP_CONFIG && window.APP_CONFIG.ApiBase) ? window.APP_CONFIG.ApiBase : '/api';
-const activeAnimations = new Set();
+    // ── Selectores ──────────────────────────────────────────────
+    const SEL = {
+        hamburger:       '#hamburger',
+        sidebar:         '#sidebar',
+        overlay:         '#overlay',
+        exportBtn:       '#btnExport',
+        exportBtnText:   '#btnExport .btn-export-text',
+        occupancyBar:    '#dashboardOccupancyBar',
+        counters:        '.stat-number[data-target]'
+    };
 
-// ════════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
-// ════════════════════════════════════════════════════════════════════
+    const q = sel => document.querySelector(sel);
 
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  // WHY: console.warn en lugar de throw permite que la UI continúe funcionando parcialmente
-  if (!el) console.warn(`[SmileTrack][UI] Elemento no encontrado: #${id}`);
-  return el;
-};
+    // ── Utilidad: respeta prefers-reduced-motion ─────────────────
+    const prefersReducedMotion = () =>
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const debounce = (fn, delay, maxWait = null) => {
-  let timeoutId;
-  let lastInvokeTime = 0;
-  return (...args) => {
-    const now = Date.now();
-    clearTimeout(timeoutId);
-    // WHY: maxWait previene que el usuario espere indefinidamente si sigue escribiendo
-    if (maxWait && lastInvokeTime && (now - lastInvokeTime >= maxWait)) {
-      lastInvokeTime = now;
-      fn.apply(this, args);
-    } else {
-      if (!lastInvokeTime) lastInvokeTime = now;
-      timeoutId = setTimeout(() => {
-        lastInvokeTime = 0;
-        fn.apply(this, args);
-      }, delay);
-    }
-  };
-};
+    // ── Formato de moneda (es-CO) ────────────────────────────────
+    const fmtCOP = amount =>
+        new Intl.NumberFormat('es-CO', {
+            style:                 'currency',
+            currency:              'COP',
+            maximumFractionDigits: 0
+        }).format(amount);
 
+    // ─────────────────────────────────────────────────────────────
+    //  ANIMACIÓN DE CONTADORES
+    // ─────────────────────────────────────────────────────────────
+    const animateCounters = () => {
+        document.querySelectorAll(SEL.counters).forEach(el => {
+            const raw    = el.dataset.target ?? '0';
+            const target = el.classList.contains('currency')
+                ? parseFloat(raw)   // preservar decimales para ingresos
+                : parseInt(raw, 10);
 
-const trackedRAF = (callback) => {
-  let id;
-  const wrapper = (timestamp) => {
-    callback(timestamp);
-    activeAnimations.delete(id);
-  };
-  id = requestAnimationFrame(wrapper);
-  activeAnimations.add(id);
-  return id;
-};
+            if (!Number.isFinite(target) || target <= 0) return;
 
-// ════════════════════════════════════════════════════════════════════
-//  FUNCIONES DE ANIMACIÓN
-// ════════════════════════════════════════════════════════════════════
+            // Sin animación si el usuario prefiere movimiento reducido.
+            if (prefersReducedMotion()) {
+                el.textContent = el.classList.contains('currency')
+                    ? fmtCOP(target)
+                    : String(target);
+                return;
+            }
 
-const animateCounter = (el, targetStr) => {
-  if (!el) return;
-  const target = parseInt(targetStr, 10);
-  // WHY: Validar target previene animaciones infinitas o valores NaN en UI
-  if (isNaN(target) || target <= 0) return;
+            const DURATION = 700; // ms
+            const start    = performance.now();
 
-  let cur = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const t = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = el.id === 'statIncome'
-      ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(cur)
-      : cur;
-    if (cur >= target) clearInterval(t);
-  }, 30);
-};
+            const tick = now => {
+                const progress = Math.min((now - start) / DURATION, 1);
+                const current  = target * progress;
 
-const initNativeAnimations = () => {
-  document.querySelectorAll('.stat-number[data-target]').forEach(el => {
-    animateCounter(el, el.dataset.target);
-  });
+                el.textContent = el.classList.contains('currency')
+                    ? fmtCOP(current)
+                    : String(Math.round(current));
 
-  // WHY: trackedRAF permite cleanup de animaciones en beforeunload para prevenir memory leaks
-  trackedRAF(() => {
-    document.querySelectorAll('[data-width]').forEach(bar => {
-      bar.style.width = bar.dataset.width + '%';
+                if (progress < 1) requestAnimationFrame(tick);
+            };
+
+            requestAnimationFrame(tick);
+        });
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    //  BARRA DE OCUPACIÓN
+    // ─────────────────────────────────────────────────────────────
+    const initProgressBar = () => {
+        const bar = q(SEL.occupancyBar);
+        if (!bar) return;
+
+        const raw   = Number(bar.dataset.width);
+        const width = Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
+
+        if (prefersReducedMotion()) {
+            bar.style.width = `${width}%`;
+            return;
+        }
+
+        // Un frame de retraso para que la transición CSS se active.
+        requestAnimationFrame(() => {
+            bar.style.width = `${width}%`;
+        });
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    //  SIDEBAR RESPONSIVE
+    // ─────────────────────────────────────────────────────────────
+    const initSidebar = () => {
+        const hamburger = q(SEL.hamburger);
+        const sidebar   = q(SEL.sidebar);
+        const overlay   = q(SEL.overlay);
+
+        if (!hamburger || !sidebar || !overlay) return;
+
+        const setOpen = open => {
+            sidebar.classList.toggle('open', open);
+            overlay.classList.toggle('open', open);
+            hamburger.setAttribute('aria-expanded', String(open));
+            overlay.setAttribute('aria-hidden', String(!open));
+            if (open) {
+                // Mover foco al primer ítem del menú (WCAG 2.4.3).
+                sidebar.querySelector('.nav-item')?.focus();
+            } else {
+                hamburger.focus();
+            }
+        };
+
+        hamburger.addEventListener('click', () => setOpen(true));
+        overlay.addEventListener('click',   () => setOpen(false));
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+                e.preventDefault();
+                setOpen(false);
+            }
+        });
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    //  EXPORTAR PDF
+    // ─────────────────────────────────────────────────────────────
+    const initExport = () => {
+        const btn     = q(SEL.exportBtn);
+        const btnText = q(SEL.exportBtnText);
+        if (!btn) return;
+
+        btn.addEventListener('click', async () => {
+            if (btn.disabled) return;
+
+            btn.disabled = true;
+            if (btnText) btnText.textContent = 'Generando…';
+
+            try {
+                const res = await fetch(
+                    '/gestion-de-citas/st-adm-01-dashboard/exportar-pdf',
+                    { method: 'GET', credentials: 'same-origin', headers: { Accept: 'application/pdf' } }
+                );
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                const blob = await res.blob();
+                const url  = URL.createObjectURL(blob);
+                const link = Object.assign(document.createElement('a'), {
+                    href:     url,
+                    download: `reporte-dashboard-${new Date().toISOString().slice(0, 10)}.pdf`
+                });
+
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                window.ToastService?.success(
+                    'Reporte generado',
+                    'El PDF se descargó correctamente.'
+                );
+            } catch (err) {
+                console.error('[SmileTrack][Dashboard] Error exportando PDF:', err);
+                window.ToastService?.error(
+                    'Error al exportar',
+                    'No fue posible generar el reporte. Intente de nuevo.'
+                );
+            } finally {
+                btn.disabled = false;
+                if (btnText) btnText.textContent = 'Exportar PDF';
+            }
+        });
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    //  INICIALIZACIÓN
+    // ─────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        initSidebar();
+        initExport();
+        animateCounters();
+        initProgressBar();
     });
-  });
-};
-
-// ════════════════════════════════════════════════════════════════════
-//  EXPORTAR REPORTE PDF
-// ════════════════════════════════════════════════════════════════════
-
-async function exportReport() {
-  // TRY/CATCH EN FUNCIÓN ASÍNCRONA:
-  // - Permite manejar errores de red o generación de blob sin romper la UI
-  // - El catch re-lanza el error para que el caller (initExport) muestre toast de error
-  try {
-    const response = await fetch('/gestion-de-citas/st-adm-01-dashboard/exportar-pdf', {
-      method: 'GET',
-      credentials: 'same-origin',
-      headers: { Accept: 'application/pdf' }
-    });
-    if (!response.ok) throw new Error(`Error HTTP ${response.status}`);
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `reporte-dashboard-${new Date().toISOString().slice(0, 10)}.pdf`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-    
-    return true;
-  } catch (error) {
-    // WHY: Loggear el error ayuda a debugging, pero no mostrar detalles sensibles al usuario
-    console.error('[SmileTrack][API] Error exportando reporte:', error);
-    throw error; // Re-lanzar para que el caller maneje la UI de error
-  }
-}
-
-// ════════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN DE COMPONENTES
-// ════════════════════════════════════════════════════════════════════
-
-const cleanupHandlers = [];
-
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-
-  if (!hamburger || !sidebar || !overlay) return;
-
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
-
-    if (show) {
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      hamburger.focus();
-    }
-  };
-
-  const handleHamburgerClick = () => toggleMenu(true);
-  const handleOverlayClick = () => toggleMenu(false);
-  const handleKeyDown = (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  };
-
-  hamburger.addEventListener('click', handleHamburgerClick);
-  overlay.addEventListener('click', handleOverlayClick);
-  document.addEventListener('keydown', handleKeyDown);
-
-  // WHY: cleanupHandlers permite remover event listeners en beforeunload para prevenir memory leaks
-  cleanupHandlers.push(() => {
-    hamburger.removeEventListener('click', handleHamburgerClick);
-    overlay.removeEventListener('click', handleOverlayClick);
-    document.removeEventListener('keydown', handleKeyDown);
-  });
-
-  const navItems = sidebar.querySelectorAll('.nav-item');
-  const handleNavClick = () => {
-    // WHY: Cerrar menú en móvil al navegar mejora UX en pantallas pequeñas
-    if (window.innerWidth <= 680) toggleMenu(false);
-  };
-  navItems.forEach(item => item.addEventListener('click', handleNavClick));
-  cleanupHandlers.push(() => {
-    navItems.forEach(item => item.removeEventListener('click', handleNavClick));
-  });
-};
-
-const initExport = () => {
-  const btn = safeGetElement('btnExport');
-  const progressBar = safeGetElement('topProgressBar');
-
-  if (!btn || !progressBar) return;
-
-  const handleExport = async () => {
-    if (btn.disabled) return;
-
-    btn.disabled = true;
-    btn.innerHTML = '⏳ Generando...';
-
-    progressBar.style.transition = 'width 1s cubic-bezier(.4,0,.2,1)';
-    progressBar.style.width = '100%';
-
-    // TRY/CATCH EN EVENT HANDLER ASÍNCRONO:
-    // - Permite manejar errores de exportReport sin romper la UI
-    // - finally restaura el estado del botón incluso si hay error
-    try {
-      await exportReport();
-      window.ToastService.error('✅ Reporte PDF generado exitosamente');
-    } catch (error) {
-      // WHY: Mostrar toast de error da feedback inmediato al usuario sin bloquear la interfaz
-      window.ToastService.success('❌ Error al generar reporte');
-    } finally {
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.innerHTML = '📄 Exportar PDF';
-        const originalWidth = progressBar.closest('.progress-row').getAttribute('aria-valuenow');
-        progressBar.style.width = (originalWidth || '75') + '%';
-      }, 500);
-    }
-  };
-
-  btn.addEventListener('click', handleExport);
-  cleanupHandlers.push(() => btn.removeEventListener('click', handleExport));
-};
-
-// ════════════════════════════════════════════════════════════════════
-//  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
-// ════════════════════════════════════════════════════════════════════
-
-const init = async () => {
-  // TRY/CATCH EN FUNCIÓN PRINCIPAL:
-  // - Captura errores críticos durante la inicialización que podrían romper toda la página
-  // - Loggear el error ayuda a debugging sin exponer detalles al usuario final
-  try {
-    initSidebar();
-    initExport();
-    initNativeAnimations();
-
-    setTimeout(() => {
-      window.ToastService.success('✅ Panel administrativo cargado');
-    }, 500);
-  } catch (error) {
-    // WHY: console.error con contexto ayuda a identificar la causa raíz en logs de producción
-    console.error('[SmileTrack][Init] Falla crítica durante la inicialización:', error);
-    // Opcional: mostrar toast de error genérico al usuario
-    // window.ToastService.error('⚠️ Error cargando el panel. Recargue la página.');
-  }
-
-  // WHY: beforeunload cleanup previene memory leaks en SPA o navegación frecuente
-  window.addEventListener('beforeunload', () => {
-    activeAnimations.forEach(id => cancelAnimationFrame(id));
-    activeAnimations.clear();
-    cleanupHandlers.forEach(fn => fn());
-  });
-};
-
-document.addEventListener('DOMContentLoaded', init);
+})();

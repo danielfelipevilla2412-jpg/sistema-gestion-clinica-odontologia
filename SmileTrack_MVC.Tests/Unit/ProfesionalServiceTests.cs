@@ -1,8 +1,10 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Services;
@@ -12,6 +14,80 @@ namespace SmileTrack_MVC.Tests.Unit;
 
 public sealed class ProfesionalServiceTests
 {
+    [Fact]
+    public async Task ActualizarHorariosAsync_NormalizaDiasConAcentoParaLaBaseDeDatos()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "activo",
+            RegistroMedico = "RM-ACCENT",
+            IdUsuario = 42
+        };
+        db.Profesionales.Add(profesional);
+        await db.SaveChangesAsync();
+
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        var result = await service.ActualizarHorariosAsync(
+            profesional.IdProfesional,
+            new[]
+            {
+                new HorarioSemanalApiRequest
+                {
+                    DiaSemana = "Miércoles",
+                    Active = true,
+                    Start = "08:00",
+                    End = "12:00"
+                },
+                new HorarioSemanalApiRequest
+                {
+                    DiaSemana = "Sábado",
+                    Active = true,
+                    Start = "09:00",
+                    End = "13:00"
+                }
+            },
+            usuarioActualId: 42,
+            esAdministrador: false);
+
+        Assert.True(result.Success);
+        Assert.Equal(
+            new[] { "Miercoles", "Sabado" },
+            await db.HorariosProfesional
+                .OrderBy(h => h.DiaSemana)
+                .Select(h => h.DiaSemana)
+                .ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task ObtenerHorariosAsync_RechazaHorarioDeOtroProfesional()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "activo",
+            RegistroMedico = "RM-OWNER",
+            IdUsuario = 42
+        };
+        db.Profesionales.Add(profesional);
+        await db.SaveChangesAsync();
+
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        var result = await service.ObtenerHorariosAsync(
+            profesional.IdProfesional,
+            usuarioActualId: 99,
+            esAdministrador: false);
+
+        Assert.False(result.Success);
+        Assert.Equal(403, result.ErrorStatusCode);
+    }
+
     [Fact]
     public async Task ObtenerVistaMVCAsync_AplicaFiltroYPaginacion()
     {

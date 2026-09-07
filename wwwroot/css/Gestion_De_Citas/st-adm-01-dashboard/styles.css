@@ -516,3 +516,66 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+/* ═══ DASHBOARD — CLASES NUEVAS (refactorización st-adm-01) ═══ */
+
+/* Separador visual entre el primer y segundo stats-grid */
+.dashboard-section-title {
+  margin: 4px 0 12px;
+}
+
+/* Estado vacío en la tabla de top profesionales */
+.empty-state {
+  text-align:  center;
+  padding:     24px;
+  color:       var(--text-muted);
+  font-size:   .88rem;
+}
+
+/* Texto descriptivo en la card "Notas del sistema" */
+.system-note {
+  font-size:   .92rem;
+  color:       var(--text-muted);
+  line-height: 1.55;
+}
+
+/* Contenedor flex del footer canónico */
+.footer-content {
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  gap:             8px;
+}
+
+/* Números en negrita en la columna de total citas de la tabla */
+.td-strong {
+  font-weight: 700;
+  color:       var(--text);
+}
+
+/* Banner de error cuando el servicio no pudo cargar datos */
+.dashboard-error-banner {
+  display:       flex;
+  align-items:   center;
+  gap:           8px;
+  background:    #fff7ed;
+  border:        1px solid #fed7aa;
+  border-left:   4px solid var(--orange);
+  border-radius: var(--radius-sm);
+  padding:       12px 16px;
+  margin-bottom: 16px;
+  font-size:     .88rem;
+  color:         #92400e;
+}
+
+/* Badge de especialidad en la tabla top-profesionales */
+.badge-spec {
+  display:       inline-flex;
+  align-items:   center;
+  padding:       3px 10px;
+  border-radius: var(--radius-full);
+  font-size:     .72rem;
+  font-weight:   600;
+  background:    var(--primary-light);
+  color:         var(--primary);
+}

@@ -1,4 +1,4 @@
-﻿@* ============================================
+@* ============================================
    SmileTrack — Gestión Integral de Citas (st-adm-09-citas)
    ============================================
    Autor: Johan Santamaria
@@ -300,13 +300,11 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
 
                                 <!-- Estado (cambio rápido inline) -->
                                 <div class="table-col col-estado text-center" role="cell" data-label="Estado">
-                                    <form method="post" action="/gestion-de-citas/guardar-cita" class="form-estado-inline"
-                                          style="display:inline-block; margin:0;">
+                                    <form method="post" action="/gestion-de-citas/cambiar-estado" class="form-estado-inline"
+                                          style="display:inline-block; margin:0;"
+                                          onchange="this.submit();">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="IdCita" value="@cita.IdCita" />
-                                        <input type="hidden" name="IdPaciente" value="@cita.IdPaciente" />
-                                        <input type="hidden" name="FechaHora"
-                                               value="@cita.FechaHora.ToString("yyyy-MM-ddTHH:mm:ss")" />
                                         <input type="hidden" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
                                         <select name="Estado"
                                                 class="status-badge status-select-inline @((cita.Estado ?? string.Empty).ToLowerInvariant().Replace(" ", "-").Replace("_", "-"))"
@@ -315,7 +313,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                             @foreach (var estado in new[] { "Programada", "Confirmada", "Atendida", "Cancelada" })
                                             {
                                                 var isSelected = string.Equals(cita.Estado, estado, StringComparison.OrdinalIgnoreCase);
-                                                <option value="@estado.ToLower()" @(isSelected ? "selected" : "")>
+                                                <option value="@estado" @(isSelected ? "selected" : "")>
                                                     @estado
                                                 </option>
                                             }

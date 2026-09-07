@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -46,7 +47,6 @@ public class CitaServiceTests
             IdConsultorio = 1,
             Fecha = DateTime.Today.AddDays(1),
             HoraInicio = new TimeSpan(9, 0, 0),
-            HoraFin = new TimeSpan(9, 30, 0),
             Estado = "Programada"
         };
         var resultados = new List<ValidationResult>();
@@ -58,6 +58,33 @@ public class CitaServiceTests
             validateAllProperties: true);
 
         Assert.True(valido);
+    }
+
+    [Fact]
+    public void CitaAgendaDto_RechazaHoraFinAnteriorAlInicio()
+    {
+        var dto = new CitaAgendaDto
+        {
+            IdPaciente = 1,
+            IdProfesional = 1,
+            IdServicio = 1,
+            IdConsultorio = 1,
+            Fecha = DateTime.Today.AddDays(1),
+            HoraInicio = new TimeSpan(10, 0, 0),
+            HoraFin = new TimeSpan(9, 30, 0),
+            Estado = "Programada"
+        };
+        var resultados = new List<ValidationResult>();
+
+        bool valido = Validator.TryValidateObject(
+            dto,
+            new ValidationContext(dto),
+            resultados,
+            validateAllProperties: true);
+
+        Assert.False(valido);
+        Assert.Contains(resultados, resultado =>
+            resultado.MemberNames.Contains(nameof(CitaAgendaDto.HoraFin)));
     }
 
     [Fact]

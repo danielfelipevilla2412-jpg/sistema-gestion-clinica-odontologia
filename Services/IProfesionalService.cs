@@ -59,6 +59,8 @@ public interface IProfesionalService
 
     Task<ProfesionalApiCollectionResult<HorarioProfesionalApiDto>> ObtenerHorariosAsync(
         int id,
+        int? usuarioActualId = null,
+        bool esAdministrador = true,
         CancellationToken ct = default);
 
     Task<ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>> ActualizarHorariosAsync(

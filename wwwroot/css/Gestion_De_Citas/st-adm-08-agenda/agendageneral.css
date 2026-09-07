@@ -829,6 +829,7 @@ img {
     align-items: center;
     justify-content: center;
     padding: 16px;
+    overflow-y: auto;
 }
 
 .modal-overlay.open {
@@ -844,6 +845,12 @@ img {
     box-shadow: var(--shadow-md);
     position: relative;
     animation: fadeIn 0.2s ease;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+}
+
+body.modal-open {
+    overflow: hidden;
 }
 
 .modal-close {
@@ -863,6 +870,13 @@ img {
 .modal-close:hover {
     background: var(--primary-light);
     color: var(--primary);
+}
+
+.modal-close:focus-visible,
+.modal-footer button:focus-visible,
+.fab:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 .modal-title {
@@ -930,6 +944,7 @@ img {
 
 .form-group textarea {
     resize: vertical;
+    min-height: 72px;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1002,6 +1017,32 @@ img {
 
 .mobile-nav-icon {
     font-size: 1.2rem;
+}
+
+.agenda-print-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.agenda-print-actions button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .85rem;
+}
+
+.agenda-print-actions .material-symbols-outlined,
+.agenda-footer-content .material-symbols-outlined {
+    font-size: 1rem;
+}
+
+.agenda-footer-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1095,6 +1136,23 @@ img {
         border: none;
         padding: 8px;
     }
+
+    .modal-overlay {
+        align-items: flex-start;
+        padding: 10px;
+    }
+
+    .modal {
+        max-height: calc(100vh - 20px);
+        padding: 20px 16px;
+    }
+
+    .modal-footer {
+        position: sticky;
+        bottom: -20px;
+        background: var(--white);
+        padding: 12px 0 0;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1153,4 +1211,37 @@ img {
     .fab {
         transition: none !important;
     }
+}
+
+.form-hint {
+    color: var(--text-muted);
+    font-size: .72rem;
+}
+
+.form-group input[readonly] {
+    background: #f8fafc;
+    color: var(--text-muted);
+}
+
+.clinic-hours-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #f8fafc;
+    color: var(--text-muted);
+    font-size: .8rem;
+}
+
+.clinic-hours-banner strong,
+.clinic-hours-banner span {
+    display: block;
+}
+
+.clinic-hours-banner strong {
+    color: var(--text);
+    margin-bottom: 2px;
 }

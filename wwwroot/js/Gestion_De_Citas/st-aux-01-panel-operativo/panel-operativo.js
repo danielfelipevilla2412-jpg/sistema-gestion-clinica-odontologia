@@ -162,13 +162,20 @@ const renderHeader = (resumen) => {
   const meta = safeGetElement('pageMeta');
   if (meta) meta.textContent = `Resumen del día · ${resumen.fechaHoy}`;
 
+  const summary = safeGetElement('pageSummary');
   const pc = resumen.proximaCita;
   const titulo = safeGetElement('apTitulo');
   const detalle = safeGetElement('apDetalle');
 
+  const resumenTexto = resumen.kpis
+    ? `${resumen.kpis.citasHoy ?? 0} citas · ${(resumen.kpis.pendientes ?? 0)} pendientes · ${(resumen.kpis.completadas ?? 0)} completadas`
+    : 'Sin información del día';
+
+  if (summary) summary.textContent = resumenTexto;
+
   if (!pc) {
     if (titulo) titulo.textContent = 'Sin próximas citas pendientes hoy';
-    if (detalle) detalle.textContent = '';
+    if (detalle) detalle.textContent = 'El flujo operativo está tranquilo por el momento.';
     return;
   }
 
@@ -227,6 +234,30 @@ const renderProgreso = (progreso) => {
 const renderCitas = (citas) => {
   const tbody = safeGetElement('citasBody');
   if (!tbody) return;
+
+  if (!citas.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 7;
+    cell.className = 'empty-state-cell';
+
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+
+    const icon = document.createElement('span');
+    icon.className = 'material-symbols-outlined';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = 'event_busy';
+
+    const label = document.createElement('span');
+    label.textContent = 'No hay citas programadas para hoy.';
+
+    empty.append(icon, label);
+    cell.appendChild(empty);
+    row.appendChild(cell);
+    tbody.replaceChildren(row);
+    return;
+  }
 
   tbody.replaceChildren(...citas.map(c => {
     const row = document.createElement('tr');
@@ -287,6 +318,33 @@ const renderCitas = (citas) => {
 const renderAlertas = (alertas) => {
   const list = safeGetElement('alertasList');
   if (!list) return;
+
+  if (!alertas.length) {
+    const empty = document.createElement('div');
+    empty.className = 'alerta-item empty-alerta';
+    empty.setAttribute('role', 'listitem');
+
+    const icon = document.createElement('div');
+    icon.className = 'alerta-icon info';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = 'ℹ️';
+
+    const content = document.createElement('div');
+    content.className = 'alerta-content';
+
+    const title = document.createElement('p');
+    title.className = 'alerta-title';
+    title.textContent = 'Sin alertas del día';
+
+    const desc = document.createElement('p');
+    desc.className = 'alerta-desc';
+    desc.textContent = 'El turno clínico está estable hasta el momento.';
+
+    content.append(title, desc);
+    empty.append(icon, content);
+    list.replaceChildren(empty);
+    return;
+  }
 
   list.replaceChildren(...alertas.map(a => {
     const item = document.createElement('div');

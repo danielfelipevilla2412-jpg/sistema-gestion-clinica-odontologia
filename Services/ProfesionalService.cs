@@ -746,13 +746,24 @@ public partial class ProfesionalService : IProfesionalService
 
     public async Task<ProfesionalApiCollectionResult<HorarioProfesionalApiDto>> ObtenerHorariosAsync(
         int id,
+        int? usuarioActualId = null,
+        bool esAdministrador = true,
         CancellationToken ct = default)
     {
-        bool existe = await _context.Profesionales.AsNoTracking()
-            .AnyAsync(p => p.IdProfesional == id, ct);
-        if (!existe)
+        var profesional = await _context.Profesionales.AsNoTracking()
+            .Where(p => p.IdProfesional == id)
+            .Select(p => new { p.IdProfesional, p.IdUsuario })
+            .FirstOrDefaultAsync(ct);
+        if (profesional is null)
             return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Fail(
                 "Profesional no encontrado.", 404);
+
+        if (!esAdministrador &&
+            (!usuarioActualId.HasValue || profesional.IdUsuario != usuarioActualId.Value))
+        {
+            return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Fail(
+                "No tienes permiso para consultar el horario de otro profesional.", 403);
+        }
 
         var horarios = await _context.HorariosProfesional
             .AsNoTracking()
@@ -797,8 +808,16 @@ public partial class ProfesionalService : IProfesionalService
 
         var diasValidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"
+            "Lunes", "Martes", "Miércoles", "Miercoles", "Jueves", "Viernes", "Sábado", "Sabado", "Domingo"
         };
+
+        static string NormalizarDiaSemana(string dia) =>
+            dia.Trim().ToLowerInvariant() switch
+            {
+                "miércoles" or "miercoles" => "Miercoles",
+                "sábado" or "sabado" => "Sabado",
+                _ => dia.Trim()
+            };
 
         var nuevosHorarios = horarios
             .Where(b => b.Active && !string.IsNullOrWhiteSpace(b.DiaSemana) && diasValidos.Contains(b.DiaSemana))
@@ -807,7 +826,7 @@ public partial class ProfesionalService : IProfesionalService
             .Select(x => new HorarioProfesional
             {
                 IdProfesional = id,
-                DiaSemana = x.Bloque.DiaSemana!,
+                DiaSemana = NormalizarDiaSemana(x.Bloque.DiaSemana!),
                 HoraInicio = x.Inicio!.Value,
                 HoraFin = x.Fin!.Value,
                 Activo = true
@@ -822,7 +841,7 @@ public partial class ProfesionalService : IProfesionalService
             await _context.HorariosProfesional.AddRangeAsync(nuevosHorarios, ct);
         await _context.SaveChangesAsync(ct);
 
-        var actualizado = await ObtenerHorariosAsync(id, ct);
+        var actualizado = await ObtenerHorariosAsync(id, usuarioActualId, esAdministrador, ct);
         return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Ok(
             "Horario actualizado correctamente.", actualizado.Data);
     }

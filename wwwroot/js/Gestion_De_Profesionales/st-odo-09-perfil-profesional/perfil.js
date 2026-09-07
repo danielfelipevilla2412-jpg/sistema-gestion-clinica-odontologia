@@ -28,6 +28,22 @@ NOTAS DE MANTENIMIENTO:
 // ═══════════════════════════════════════════════════════════════════
 const API_BASE = '/api';
 
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('La solicitud tardó demasiado. Inténtalo de nuevo.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
 // ═══════════════════════════════════════════════════════════════════
 //  UTILIDADES GLOBALES
 // ═══════════════════════════════════════════════════════════════════
@@ -57,6 +73,7 @@ const SAMPLE_PROFILE = { horario: [] };
 
 let profileData = { ...SAMPLE_PROFILE };
 let currentEditingDay = null;
+let lastFocusedScheduleElement = null;
 
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIONES DE RENDERIZADO
@@ -180,6 +197,7 @@ const openScheduleModal = (index) => {
   // Show modal
   const modal = safeGetElement('scheduleModal');
   if (modal) {
+    lastFocusedScheduleElement = document.activeElement;
     modal.classList.add('active');
     modal.setAttribute('aria-hidden', 'false');
     modal.removeAttribute('inert');
@@ -205,6 +223,10 @@ const closeScheduleModal = () => {
     document.body.style.overflow = '';
   }
   currentEditingDay = null;
+  if (lastFocusedScheduleElement instanceof HTMLElement) {
+    lastFocusedScheduleElement.focus();
+  }
+  lastFocusedScheduleElement = null;
 };
 
 // Actualiza UI del modal según estado activo
@@ -215,6 +237,10 @@ const updateModalUI = (isActive) => {
   if (timeSection) {
     timeSection.classList.toggle('disabled', !isActive);
   }
+  const startInput = safeGetElement('modalStartTime');
+  const endInput = safeGetElement('modalEndTime');
+  if (startInput) startInput.disabled = !isActive;
+  if (endInput) endInput.disabled = !isActive;
   if (toggleText) {
     toggleText.textContent = isActive ? 'Día laboral' : 'No disponible';
     toggleText.classList.toggle('active', isActive);
@@ -312,9 +338,21 @@ const saveSchedule = async () => {
   }
 
   try {
-    const response = await fetch(`${API_BASE}/profesionales/${profesionalId}/horarios`, {
+    const saveButton = safeGetElement('modalSave');
+    const originalSaveText = saveButton?.textContent;
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.setAttribute('aria-busy', 'true');
+      saveButton.textContent = 'Guardando...';
+    }
+
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const response = await fetchWithTimeout(`${API_BASE}/profesionales/${profesionalId}/horarios`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'X-CSRF-TOKEN': token } : {})
+      },
       credentials: 'include',
       body: JSON.stringify(horarioActualizado)
     });
@@ -334,6 +372,13 @@ const saveSchedule = async () => {
   } catch (err) {
     console.error('[SmileTrack] Error de red al guardar horario:', err);
     window.ToastService.error('❌ Error de conexión', 'No se pudo guardar el horario. Inténtalo de nuevo.');
+  } finally {
+    const saveButton = safeGetElement('modalSave');
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.removeAttribute('aria-busy');
+      saveButton.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar horario';
+    }
   }
 };
 
@@ -435,7 +480,7 @@ const changePassword = async (event) => {
   
   try {
     const token = event.target.querySelector('input[name="__RequestVerificationToken"]')?.value;
-    const response = await fetch('/acceso-y-seguridad/cambiar-contrasena/api', {
+    const response = await fetchWithTimeout('/acceso-y-seguridad/cambiar-contrasena/api', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {
@@ -480,8 +525,12 @@ const DIAS_SEMANA = [
 // Construye la estructura de 7 días a partir de la respuesta de la API
 const mapApiHorariosToProfileData = (apiData) => {
   return DIAS_SEMANA.map(({ day, dayFull }) => {
+    const normalizarDia = (value) => (value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
     const bloque = apiData.find(
-      (h) => (h.diaSemana || '').toLowerCase() === dayFull.toLowerCase()
+      (h) => normalizarDia(h.diaSemana) === normalizarDia(dayFull)
     );
     return bloque
       ? { day, dayFull, active: bloque.activo !== false, start: bloque.horaInicio || '', end: bloque.horaFin || '' }
@@ -505,7 +554,7 @@ async function fetchProfile() {
   }
 
   try {
-    const response = await fetch(`${API_BASE}/profesionales/${profesionalId}/horarios`, {
+    const response = await fetchWithTimeout(`${API_BASE}/profesionales/${profesionalId}/horarios`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include'
@@ -522,26 +571,6 @@ async function fetchProfile() {
   } catch (err) {
     console.warn('[SmileTrack] Error de red al cargar horarios:', err);
     return SAMPLE_PROFILE;
-  }
-}
-
-// Guarda datos del perfil en API
-async function saveProfile(data) {
-  try {
-    // En producción: POST real a API
-    // const res = await fetch(`${API_BASE}/profile`, {
-    //   method: 'PUT',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(data),
-    // });
-    // if (!res.ok) throw new Error('Save failed');
-    // return true;
-    
-    // Simulación
-    return true;
-  } catch (error) {
-    console.warn('Error guardando perfil:', error);
-    return false;
   }
 }
 
@@ -680,9 +709,25 @@ const initScheduleModal = () => {
   
   // Keyboard support
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+    if (!modal?.classList.contains('active')) return;
+    if (e.key === 'Escape') {
       e.preventDefault();
       closeScheduleModal();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const focusable = [...modal.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter(element => !element.disabled && element.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   });
 };

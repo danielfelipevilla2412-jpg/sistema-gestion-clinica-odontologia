@@ -187,7 +187,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             errorNumbersToAdd: null)));
 
 builder.Services.AddScoped<ICitaService, CitaService>();
+builder.Services.AddScoped<IAgendaService, AgendaService>();
 builder.Services.AddScoped<IPanelOperativoService, PanelOperativoService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.ICitasDashboardService,
+    SmileTrack_MVC.Services.CitasDashboardService>();
 
 // -----------------------------------------------------------------------------
 // JWT
