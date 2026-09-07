@@ -82,6 +82,12 @@ function renderRecentPqrs() {
 
 document.addEventListener('DOMContentLoaded', renderRecentPqrs);
 
+// Lee el token CSRF de la cookie XSRF-TOKEN (config: Program.cs -> AddAntiforgery)
+function getPqrAntiforgeryToken() {
+    const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
+    return match ? decodeURIComponent(match[2]) : null;
+}
+
 // Form Submission — envía la PQR real al backend (PqrController.CrearPqr)
 document.getElementById('pqrForm').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -94,16 +100,22 @@ document.getElementById('pqrForm').addEventListener('submit', async function (e)
     const asunto = document.getElementById('pqrAsunto')?.value?.trim() || 'Sin asunto';
     const descripcion = document.getElementById('pqrDescripcion')?.value?.trim() || '';
     const tipo = PQR_TYPE_MAP[selectedPqrType] || 'peticion';
+    const archivo = document.getElementById('fileInput')?.files?.[0] || null;
 
     const formData = new FormData();
     formData.append('tipo', tipo);
     formData.append('asunto', asunto);
     formData.append('descripcion', descripcion);
+    if (archivo) {
+        formData.append('evidencia', archivo);
+    }
 
     try {
+        const csrfToken = getPqrAntiforgeryToken();
         const response = await fetch('/gestion-de-pqr/crear', {
             method: 'POST',
             credentials: 'same-origin',
+            headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
             body: formData
         });
         const result = await response.json();
@@ -111,6 +123,7 @@ document.getElementById('pqrForm').addEventListener('submit', async function (e)
         if (response.ok && result.success) {
             alert(`¡Solicitud radicada exitosamente!\n\nNúmero de radicado: PQR-${String(result.id).padStart(4, '0')}`);
             this.reset();
+            resetFileUpload();
             document.querySelectorAll('.request-card').forEach(card => card.classList.remove('selected'));
             document.querySelector('.request-card.petition')?.classList.add('selected');
             selectedPqrType = 'petition';
