@@ -91,13 +91,20 @@ const animateCounters = () => {
 //  VARIABLES GLOBALES
 // ═══════════════════════════════════════════════════════════════════
 
-let searchQuery = '';
+// Yeray (2025) - estadoFiltro: controla el filtro de estado del paciente
+// (activo / inactivo / retirado / todos). Se envía al endpoint /buscar
+// como parámetro estado= y se aplica siempre en el servidor, no en cliente.
+// ANTES: el listado solo mostraba activos y no había selector en la UI.
+let searchQuery    = '';
+let estadoFiltro   = 'activo';   // default: solo activos (comportamiento anterior)
 let filterAlergias = '';
-let filterCita = '';
+let filterCita     = '';
 let filterHistorial = '';
-let currentPage = 1;
+let currentPage    = 1;
+let serverTotal    = 0;
+let serverPages    = 1;
 
-const itemsPerPage = 5;
+const itemsPerPage = 20;
 
 // ═══════════════════════════════════════════════════════════════════
 //  FORMATO DE FECHAS
@@ -144,97 +151,49 @@ const fmtDate = (iso) => {
 //  DATOS
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025) - getPatients devuelve el array en memoria (carga inicial o
+// última página recibida del servidor). Se usa para los filtros locales
+// (alergias, cita, historial) que se aplican DESPUÉS de recibir del servidor.
 const getPatients = () => {
-
   return Array.isArray(window.RAZOR_PATIENTS)
     ? window.RAZOR_PATIENTS
     : [];
-
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  FILTROS
+//  FILTROS LOCALES (sobre la página recibida del servidor)
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025) - MIGRACIÓN: la búsqueda por texto ya no filtra aquí;
+// se delega al servidor vía /buscar. Los filtros locales de alergias,
+// cita e historial se siguen aplicando sobre el array en memoria porque
+// requieren datos de citas que ya vienen en la página.
 const getFilteredPatients = () => {
-
-  const query =
-    searchQuery
-      .trim()
-      .toLowerCase();
-
   const patients = getPatients();
 
   return patients.filter((patient) => {
 
-    // Búsqueda por texto
-    if (query) {
-
-      const haystack = [
-        patient.Name,
-        patient.Doc,
-        patient.Diagnosis,
-        patient.Allergies?.join(' ')
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-
-      if (!haystack.includes(query)) {
-        return false;
-      }
-    }
-
     // Filtro por alergias
-    if (
-      filterAlergias === 'con' &&
-      !(
-        Array.isArray(patient.Allergies) &&
-        patient.Allergies.length > 0
-      )
-    ) {
+    if (filterAlergias === 'con' &&
+        !(Array.isArray(patient.Allergies) && patient.Allergies.length > 0)) {
       return false;
     }
-
-    if (
-      filterAlergias === 'sin' &&
-      Array.isArray(patient.Allergies) &&
-      patient.Allergies.length > 0
-    ) {
+    if (filterAlergias === 'sin' &&
+        Array.isArray(patient.Allergies) && patient.Allergies.length > 0) {
       return false;
     }
 
     // Filtro por próxima cita
-    if (
-      filterCita === 'con' &&
-      !patient.NextVisit
-    ) {
-      return false;
-    }
-
-    if (
-      filterCita === 'sin' &&
-      patient.NextVisit
-    ) {
-      return false;
-    }
+    if (filterCita === 'con' && !patient.NextVisit) return false;
+    if (filterCita === 'sin' &&  patient.NextVisit) return false;
 
     // Filtro por historial
-    if (
-      filterHistorial === 'con' &&
-      !(
-        Array.isArray(patient.History) &&
-        patient.History.length > 0
-      )
-    ) {
+    if (filterHistorial === 'con' &&
+        !(Array.isArray(patient.History) && patient.History.length > 0)) {
       return false;
     }
-
-    if (
-      filterHistorial === 'sin' &&
-      Array.isArray(patient.History) &&
-      patient.History.length > 0
-    ) {
+    if (filterHistorial === 'sin' &&
+        Array.isArray(patient.History) && patient.History.length > 0) {
       return false;
     }
 
@@ -246,87 +205,77 @@ const getFilteredPatients = () => {
 //  PAGINACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
-const renderPaginationButtons = (total) => {
+// Yeray (2025) - renderPaginationButtons usa serverPages cuando hay búsqueda
+// activa (el servidor conoce el total real). Para la carga inicial usa el
+// total del array local filtrado.
+const renderPaginationButtons = (totalPages) => {
 
-  const paginationNav =
-    document.querySelector('.pagination');
+  const paginationNav = document.querySelector('.pagination');
+  const btnPrev = safeGetElement('btnPrev');
+  const btnNext = safeGetElement('btnNext');
 
-  const btnPrev =
-    safeGetElement('btnPrev');
+  if (!paginationNav) return;
 
-  const btnNext =
-    safeGetElement('btnNext');
+  const maxPage = Math.max(1, totalPages);
 
-  if (!paginationNav) {
-    return;
+  paginationNav.querySelectorAll('.page-num-btn').forEach(btn => btn.remove());
+
+  for (let i = 1; i <= maxPage; i++) {
+    const btn = document.createElement('button');
+    btn.className = `pagination-btn page-num-btn${i === currentPage ? ' active' : ''}`;
+    btn.setAttribute('aria-label', `Página ${i}`);
+    if (i === currentPage) btn.setAttribute('aria-current', 'page');
+    btn.textContent = String(i);
+    btn.addEventListener('click', () => {
+      currentPage = i;
+      renderPatients();
+    });
+    paginationNav.insertBefore(btn, btnNext);
   }
 
-  const maxPage =
-    Math.max(
-      1,
-      Math.ceil(total / itemsPerPage)
-    );
+  if (btnPrev) btnPrev.disabled = currentPage <= 1;
+  if (btnNext) btnNext.disabled = currentPage >= maxPage;
+};
 
-  const existingPages =
-    paginationNav.querySelectorAll(
-      '.page-num-btn'
-    );
+// ═══════════════════════════════════════════════════════════════════
+//  FETCH SERVER-SIDE
+// ═══════════════════════════════════════════════════════════════════
 
-  existingPages.forEach(btn => {
-    btn.remove();
+// Yeray (2025) - fetchPacientes: llama a /gestion-de-pacientes/buscar
+// y actualiza window.RAZOR_PATIENTS con la página recibida.
+// Solo se activa cuando hay texto de búsqueda (searchQuery != '').
+// Para la carga inicial y los filtros locales se sigue usando RAZOR_PATIENTS.
+let _fetchController = null;
+
+const fetchPacientes = async () => {
+
+  // Cancelar fetch previo si aún está en curso
+  if (_fetchController) _fetchController.abort();
+  _fetchController = new AbortController();
+
+  // Yeray (2025) - se agrega estado= para soportar inactivos/retirados/todos
+  const params = new URLSearchParams({
+    page:     String(currentPage),
+    pageSize: String(itemsPerPage),
+    estado:   estadoFiltro        // siempre se envía; default 'activo'
   });
+  if (searchQuery) params.set('search', searchQuery);
 
-  for (
-    let i = 1;
-    i <= maxPage;
-    i++
-  ) {
-
-    const btn =
-      document.createElement('button');
-
-    btn.className =
-      `pagination-btn page-num-btn${i === currentPage ? ' active' : ''}`;
-
-    btn.setAttribute(
-      'aria-label',
-      `Página ${i}`
+  try {
+    const resp = await fetch(
+      `/gestion-de-pacientes/buscar?${params}`,
+      { credentials: 'same-origin', signal: _fetchController.signal }
     );
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = await resp.json();
 
-    if (i === currentPage) {
-      btn.setAttribute(
-        'aria-current',
-        'page'
-      );
-    }
+    window.RAZOR_PATIENTS = json.items ?? [];
+    serverTotal = json.total ?? 0;
+    serverPages = json.totalPages ?? 1;
 
-    btn.textContent =
-      String(i);
-
-    btn.addEventListener(
-      'click',
-      () => {
-
-        currentPage = i;
-
-        renderPatients();
-      }
-    );
-
-    paginationNav.insertBefore(
-      btn,
-      btnNext
-    );
-  }
-
-  if (btnPrev) {
-    btnPrev.disabled =
-      currentPage <= 1;
-  }
-
-  if (btnNext) {
-    btnNext.disabled =
-      currentPage >= maxPage;
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    console.error('[SmileTrack][Pacientes] Error búsqueda server-side:', err);
   }
 };
 
@@ -334,46 +283,45 @@ const renderPaginationButtons = (total) => {
 //  RENDERIZADO DE PACIENTES
 // ═══════════════════════════════════════════════════════════════════
 
-const renderPatients = () => {
+// Yeray (2025) - renderPatients ahora es async.
+// - Si hay searchQuery: llama a fetchPacientes() primero (server-side),
+//   luego aplica los filtros locales sobre la página recibida.
+// - Si no hay searchQuery: usa el array local RAZOR_PATIENTS (carga inicial
+//   o última carga), aplica filtros locales y pagina en cliente.
+//   Esto mantiene la experiencia instantánea cuando no se busca.
+const renderPatients = async () => {
 
-  const container =
-    safeGetElement('patientsBody');
+  const container   = safeGetElement('patientsBody');
+  const empty       = safeGetElement('emptyState');
+  const pageShowing = safeGetElement('pageShowing');
+  const pageTotal   = safeGetElement('pageTotal');
+  const btnPrev     = safeGetElement('btnPrev');
+  const btnNext     = safeGetElement('btnNext');
 
-  const empty =
-    safeGetElement('emptyState');
+  let displayPatients;
+  let totalForPagination;
+  let totalPagesForPagination;
 
-  const pageShowing =
-    safeGetElement('pageShowing');
-
-  const pageTotal =
-    safeGetElement('pageTotal');
-
-  const btnPrev =
-    safeGetElement('btnPrev');
-
-  const btnNext =
-    safeGetElement('btnNext');
-
-  const filtered =
-    getFilteredPatients();
-
-  const total =
-    filtered.length;
-
-  const start =
-    (currentPage - 1) *
-    itemsPerPage;
-
-  const pagePatients =
-    filtered.slice(
-      start,
-      start + itemsPerPage
-    );
+  if (searchQuery.trim() !== '' || estadoFiltro !== 'activo') {
+    // ── Búsqueda o estado distinto de activo: el servidor filtra ───────────
+    await fetchPacientes();
+    displayPatients          = getFilteredPatients();
+    totalForPagination       = serverTotal;
+    totalPagesForPagination  = serverPages;
+  } else {
+    // ── Sin búsqueda: filtros locales + paginación en cliente ───────────
+    const filtered           = getFilteredPatients();
+    const total              = filtered.length;
+    const start              = (currentPage - 1) * itemsPerPage;
+    displayPatients          = filtered.slice(start, start + itemsPerPage);
+    totalForPagination       = total;
+    totalPagesForPagination  = Math.max(1, Math.ceil(total / itemsPerPage));
+  }
 
   if (container) {
 
     container.innerHTML =
-      pagePatients
+      displayPatients
         .map((patient) => {
 
           const initials =
@@ -469,25 +417,16 @@ const renderPatients = () => {
                 class="table-col col-acciones"
                 data-label="Acciones"
               >
-
                 <div class="actions-cell">
 
                   <button
                     class="action-btn btn-view"
                     data-id="${patient.Id}"
-                    aria-label="Ver detalle de ${patient.Name}"
-                    title="Ver detalle del paciente"
+                    aria-label="Ver perfil de ${patient.Name}"
+                    title="Ver perfil completo"
                   >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      👁️
-                    </span>
-
-                    <span class="action-label">
-                      Detalle
-                    </span>
+                    <span class="action-icon" aria-hidden="true">👁️</span>
+                    <span class="action-label">Perfil</span>
                   </button>
 
                   <button
@@ -496,52 +435,18 @@ const renderPatients = () => {
                     aria-label="Editar ${patient.Name}"
                     title="Editar paciente"
                   >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      ✏️
-                    </span>
-
-                    <span class="action-label">
-                      Editar
-                    </span>
-                  </button>
-
-                  <button
-                    class="action-btn btn-disable"
-                    data-id="${patient.Id}"
-                    aria-label="Desactivar ${patient.Name}"
-                    title="Desactivar paciente"
-                  >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      🗑️
-                    </span>
-
-                    <span class="action-label">
-                      Desactivar
-                    </span>
+                    <span class="action-icon" aria-hidden="true">✏️</span>
+                    <span class="action-label">Editar</span>
                   </button>
 
                   <button
                     class="action-btn btn-history"
                     data-id="${patient.Id}"
-                    aria-label="Ver historial clínico de ${patient.Name}"
-                    title="Historial clínico"
+                    aria-label="Historia clínica de ${patient.Name}"
+                    title="Historia clínica"
                   >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      📋
-                    </span>
-
-                    <span class="action-label">
-                      Historial
-                    </span>
+                    <span class="action-icon" aria-hidden="true">📋</span>
+                    <span class="action-label">Historial</span>
                   </button>
 
                 </div>
@@ -555,71 +460,37 @@ const renderPatients = () => {
   }
 
   if (empty) {
-
-    empty.style.display =
-      pagePatients.length === 0
-        ? 'block'
-        : 'none';
-
-    empty.setAttribute(
-      'aria-hidden',
-      pagePatients.length === 0
-        ? 'false'
-        : 'true'
-    );
+    empty.style.display      = displayPatients.length === 0 ? 'block' : 'none';
+    empty.setAttribute('aria-hidden', displayPatients.length === 0 ? 'false' : 'true');
   }
 
   if (pageShowing) {
-
-    pageShowing.textContent =
-      total === 0
-        ? '0'
-        : `${Math.min(
-          start + pagePatients.length,
-          total
-        )}`;
+    pageShowing.textContent = totalForPagination === 0 ? '0' : String(displayPatients.length);
   }
 
   if (pageTotal) {
-    pageTotal.textContent =
-      String(total);
+    pageTotal.textContent = String(totalForPagination);
   }
 
-  if (btnPrev) {
+  if (btnPrev) btnPrev.disabled = currentPage <= 1;
+  if (btnNext) btnNext.disabled = currentPage >= totalPagesForPagination;
 
-    btnPrev.disabled =
-      currentPage <= 1;
-  }
-
-  if (btnNext) {
-
-    btnNext.disabled =
-      start + pagePatients.length >= total;
-  }
-
-  renderPaginationButtons(total);
+  renderPaginationButtons(totalPagesForPagination);
 
   // Contador de resultados
-  const filterResults =
-    safeGetElement('filterResults');
-
-  const hasActiveFilters =
-    searchQuery ||
-    filterAlergias ||
-    filterCita ||
-    filterHistorial;
-
+  const filterResults   = safeGetElement('filterResults');
+  const hasActiveFilters = searchQuery || filterAlergias || filterCita || filterHistorial;
   if (filterResults) {
-
-    filterResults.textContent =
-      hasActiveFilters
-
-        ? `${total} resultado${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}`
-
-        : '';
+    filterResults.textContent = hasActiveFilters
+      ? `${totalForPagination} resultado${totalForPagination !== 1 ? 's' : ''} encontrado${totalForPagination !== 1 ? 's' : ''}`
+      : '';
   }
 
-  // Detalle
+  // Yeray (2025) - Detalle: navega a la vista de perfil completo
+  // ANTES: abría un modal con datos limitados del ViewModel del listado.
+  // AHORA: redirige a GET /gestion-de-pacientes/{id}, que carga todos los datos
+  //        del paciente incluyendo antecedentes, contacto de emergencia y
+  //        resumen de actividad.
   document
     .querySelectorAll('.btn-view')
     .forEach((btn) => {
@@ -627,13 +498,8 @@ const renderPatients = () => {
       btn.addEventListener(
         'click',
         (event) => {
-
-          openPatientModal(
-            Number(
-              event.currentTarget.dataset.id
-            ),
-            'detail'
-          );
+          const id = Number(event.currentTarget.dataset.id);
+          window.location.href = `/gestion-de-pacientes/${id}`;
         }
       );
     });
@@ -672,25 +538,6 @@ const renderPatients = () => {
             ),
             'edit'
           );
-        }
-      );
-    });
-
-  // Desactivar
-  document
-    .querySelectorAll('.btn-disable')
-    .forEach((btn) => {
-
-      btn.addEventListener(
-        'click',
-        async (event) => {
-
-          const id =
-            Number(
-              event.currentTarget.dataset.id
-            );
-
-          await desactivarPaciente(id);
         }
       );
     });
@@ -809,6 +656,18 @@ const openPatientModal = (id, type) => {
           ${patient.Estado || 'N/A'}
         </p>
 
+        ${patient.Estado === 'activo' ? `
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+          <button
+            class="action-btn btn-disable"
+            data-id="${patient.Id}"
+            style="color:var(--red);border-color:var(--red);width:100%;justify-content:center;"
+            aria-label="Desactivar a ${patient.Name}"
+          >
+            🗑️ Desactivar paciente
+          </button>
+        </div>` : ''}
+
       </div>
     `;
 
@@ -922,15 +781,11 @@ const openPatientModal = (id, type) => {
     content.innerHTML = `
       <form id="editPatientForm">
 
+        <!-- SECCIÓN: INFORMACIÓN PERSONAL -->
+        <div class="form-section-title">Información Personal</div>
+
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editNombres"
-          >
-            Nombres
-          </label>
-
+          <label class="form-label" for="editNombres">Nombres</label>
           <input
             type="text"
             id="editNombres"
@@ -938,18 +793,10 @@ const openPatientModal = (id, type) => {
             value="${nombresActuales}"
             required
           />
-
         </div>
 
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editApellidos"
-          >
-            Apellidos
-          </label>
-
+          <label class="form-label" for="editApellidos">Apellidos</label>
           <input
             type="text"
             id="editApellidos"
@@ -957,145 +804,87 @@ const openPatientModal = (id, type) => {
             value="${apellidosActuales}"
             required
           />
-
         </div>
 
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editTelefono"
-          >
-            Teléfono
-          </label>
-
-          <input
-            type="text"
-            id="editTelefono"
-            class="form-input"
-            value="${patient.Telefono || ''}"
-          />
-
-        </div>
-
-        <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editCorreo"
-          >
-            Correo
-          </label>
-
-          <input
-            type="email"
-            id="editCorreo"
-            class="form-input"
-            value="${patient.Correo || ''}"
-          />
-
-        </div>
-
-        <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editCiudad"
-          >
-            Ciudad
-          </label>
-
-          <input
-            type="text"
-            id="editCiudad"
-            class="form-input"
-            value="${patient.Ciudad || ''}"
-          />
-
-        </div>
-
-        <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editGenero"
-          >
-            Género
-          </label>
-
-          <select
-            id="editGenero"
-            class="form-select"
-          >
-
-            <option
-              value="M"
-              ${patient.Genero === 'M' ? 'selected' : ''}
-            >
-              Masculino
-            </option>
-
-            <option
-              value="F"
-              ${patient.Genero === 'F' ? 'selected' : ''}
-            >
-              Femenino
-            </option>
-
-            <option
-              value="O"
-              ${patient.Genero === 'O' ? 'selected' : ''}
-            >
-              Otro
-            </option>
-
+          <label class="form-label" for="editGenero">Género</label>
+          <select id="editGenero" class="form-select">
+            <option value="M" ${patient.Genero === 'M' ? 'selected' : ''}>Masculino</option>
+            <option value="F" ${patient.Genero === 'F' ? 'selected' : ''}>Femenino</option>
+            <option value="O" ${patient.Genero === 'O' ? 'selected' : ''}>Otro</option>
           </select>
-
         </div>
 
         <div class="form-group">
+          <label class="form-label" for="editCiudad">Ciudad</label>
+          <input type="text" id="editCiudad" class="form-input" value="${patient.Ciudad || ''}" />
+        </div>
 
-          <label
-            class="form-label"
-            for="editAlergias"
-          >
-            Alergias
-          </label>
+        <!-- SECCIÓN: CONTACTO -->
+        <div class="form-section-title">Información de Contacto</div>
 
+        <div class="form-group">
+          <label class="form-label" for="editTelefono">Teléfono</label>
+          <input type="tel" id="editTelefono" class="form-input" value="${patient.Telefono || ''}" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="editCorreo">Correo Electrónico</label>
+          <input type="email" id="editCorreo" class="form-input" value="${patient.Correo || ''}" />
+        </div>
+
+        <!-- SECCIÓN: EMERGENCIA -->
+        <div class="form-section-title">Contacto de Emergencia</div>
+
+        <div class="form-group">
+          <label class="form-label" for="editContactoEmergencia">Nombre del Contacto</label>
+          <input
+            type="text"
+            id="editContactoEmergencia"
+            class="form-input"
+            placeholder="Nombre completo"
+            value="${patient.ContactoEmergencia || ''}"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="editTelefonoEmergencia">Teléfono de Emergencia</label>
+          <input
+            type="tel"
+            id="editTelefonoEmergencia"
+            class="form-input"
+            placeholder="Ej. 300 123 4567"
+            value="${patient.TelefonoEmergencia || ''}"
+          />
+        </div>
+
+        <!-- SECCIÓN: SALUD -->
+        <div class="form-section-title">Información de Salud</div>
+
+        <div class="form-group">
+          <label class="form-label" for="editAlergias">Alergias Conocidas</label>
           <input
             type="text"
             id="editAlergias"
             class="form-input"
+            placeholder="Ej. Penicilina, Látex..."
             value="${patient.AlergiasTexto || ''}"
           />
-
         </div>
 
-        <div
-          style="
-            display:flex;
-            gap:10px;
-            justify-content:flex-end;
-            margin-top:20px;
-          "
-        >
+        <div class="form-group form-group--full">
+          <label class="form-label" for="editAntecedentesMedicos">Antecedentes Médicos</label>
+          <textarea
+            id="editAntecedentesMedicos"
+            class="form-input"
+            placeholder="Enfermedades previas, cirugías, condiciones crónicas, tratamientos actuales..."
+          >${patient.AntecedentesMedicos || ''}</textarea>
+        </div>
 
-          <button
-            type="button"
-            class="btn-secondary"
-            id="editCancelBtn"
-          >
-            Cancelar
-          </button>
-
-          <button
-            type="submit"
-            class="btn-primary"
-            id="editSaveBtn"
-          >
-            Guardar cambios
-          </button>
-
+        <!-- BOTONES DE ACCIÓN -->
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="editCancelBtn">Cancelar</button>
+          <button type="submit" class="btn-primary" id="editSaveBtn">Guardar cambios</button>
         </div>
 
       </form>
@@ -1179,6 +968,22 @@ const openPatientModal = (id, type) => {
           safeGetElement('editGenero')
             ?.value || '';
 
+        // Yeray (2025) - campos nuevos enviados al endpoint actualizar
+        const contactoEmergencia =
+          safeGetElement('editContactoEmergencia')
+            ?.value
+            .trim() ?? '';
+
+        const telefonoEmergencia =
+          safeGetElement('editTelefonoEmergencia')
+            ?.value
+            .trim() ?? '';
+
+        const antecedentesMedicos =
+          safeGetElement('editAntecedentesMedicos')
+            ?.value
+            .trim() ?? '';
+
         data.append(
           'idPaciente',
           String(patient.Id)
@@ -1218,6 +1023,11 @@ const openPatientModal = (id, type) => {
           'genero',
           genero
         );
+
+        // Yeray (2025) - append de los 3 campos nuevos
+        data.append('contactoEmergencia',  contactoEmergencia);
+        data.append('telefonoEmergencia',  telefonoEmergencia);
+        data.append('antecedentesMedicos', antecedentesMedicos);
 
         data.append(
           'estado',
@@ -1287,6 +1097,11 @@ const openPatientModal = (id, type) => {
 
               : [];
 
+          // Yeray (2025) - sincronizar los 3 campos nuevos en memoria
+          patient.ContactoEmergencia  = contactoEmergencia  || null;
+          patient.TelefonoEmergencia  = telefonoEmergencia  || null;
+          patient.AntecedentesMedicos = antecedentesMedicos || null;
+
           showToast(
             'Paciente actualizado correctamente.',
             'success'
@@ -1337,6 +1152,19 @@ const openPatientModal = (id, type) => {
   modal.removeAttribute(
     'inert'
   );
+
+  // Agregar listener para el botón de desactivar en el modal
+  const btnDisableInModal = content.querySelector('.btn-disable');
+  if (btnDisableInModal) {
+    btnDisableInModal.addEventListener(
+      'click',
+      async (event) => {
+        event.preventDefault();
+        await desactivarPaciente(patient.Id);
+        closePatientModal();
+      }
+    );
+  }
 
   document.body.style.overflow =
     'hidden';
@@ -1632,28 +1460,19 @@ const initNavGroups = () => {
 //  BÚSQUEDA
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025) - initSearch: con debounce de 350ms llama al servidor
+// si hay texto; sin texto vuelve al array local (RAZOR_PATIENTS inicial).
 const initSearch = () => {
 
-  const searchInput =
-    safeGetElement(
-      'searchPatients'
-    );
+  const searchInput = safeGetElement('searchPatients');
 
   searchInput?.addEventListener(
     'input',
-    debounce(
-      (event) => {
-
-        searchQuery =
-          event.target.value
-            .toLowerCase();
-
-        currentPage = 1;
-
-        renderPatients();
-      },
-      250
-    )
+    debounce(async (event) => {
+      searchQuery = event.target.value.toLowerCase().trim();
+      currentPage = 1;
+      await renderPatients();
+    }, 350)
   );
 };
 
@@ -1661,58 +1480,20 @@ const initSearch = () => {
 //  PAGINACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025): initPagination es ahora async para coordinar con el servidor.
 const initPagination = () => {
 
-  const btnPrev =
-    safeGetElement(
-      'btnPrev'
-    );
+  const btnPrev = safeGetElement('btnPrev');
+  const btnNext = safeGetElement('btnNext');
 
-  const btnNext =
-    safeGetElement(
-      'btnNext'
-    );
+  btnPrev?.addEventListener('click', async () => {
+    if (currentPage > 1) { currentPage--; await renderPatients(); }
+  });
 
-  btnPrev?.addEventListener(
-    'click',
-    () => {
-
-      if (currentPage > 1) {
-
-        currentPage--;
-
-        renderPatients();
-      }
-    }
-  );
-
-  btnNext?.addEventListener(
-    'click',
-    () => {
-
-      const filtered =
-        getFilteredPatients();
-
-      const maxPage =
-        Math.max(
-          1,
-          Math.ceil(
-            filtered.length /
-            itemsPerPage
-          )
-        );
-
-      if (
-        currentPage <
-        maxPage
-      ) {
-
-        currentPage++;
-
-        renderPatients();
-      }
-    }
-  );
+  btnNext?.addEventListener('click', async () => {
+    currentPage++;
+    await renderPatients();
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1778,139 +1559,70 @@ const initModal = () => {
 //  FILTROS
 // ═══════════════════════════════════════════════════════════════════
 
+// Yeray (2025): applyFilters es async para soportar renderPatients async.
 const initFilters = () => {
 
-  const applyFilters =
-    () => {
-
-      currentPage = 1;
-
-      renderPatients();
-
-      const hasActive =
-        filterAlergias ||
-        filterCita ||
-        filterHistorial;
-
-      const clearBtn =
-        safeGetElement(
-          'btnClearFilters'
-        );
-
-      if (clearBtn) {
-
-        clearBtn.classList.toggle(
-          'active',
-          !!hasActive
-        );
-      }
-    };
-
-  safeGetElement(
-    'filterAlergias'
-  )?.addEventListener(
-    'change',
-    (e) => {
-
-      filterAlergias =
-        e.target.value;
-
-      applyFilters();
+  const applyFilters = async () => {
+    currentPage = 1;
+    await renderPatients();
+    const clearBtn = safeGetElement('btnClearFilters');
+    if (clearBtn) {
+      clearBtn.classList.toggle('active', !!(filterAlergias || filterCita || filterHistorial || estadoFiltro !== 'activo'));
     }
-  );
+  };
 
-  safeGetElement(
-    'filterCita'
-  )?.addEventListener(
-    'change',
-    (e) => {
+  // Yeray (2025) - selector de estado: conecta filterEstado a estadoFiltro
+  // y dispara fetchPacientes (server-side) porque el estado se filtra en BD.
+  safeGetElement('filterEstado')?.addEventListener('change', (e) => {
+    estadoFiltro = e.target.value;
+    applyFilters();
+  });
 
-      filterCita =
-        e.target.value;
+  safeGetElement('filterAlergias')?.addEventListener('change', (e) => {
+    filterAlergias = e.target.value; applyFilters();
+  });
+  safeGetElement('filterCita')?.addEventListener('change', (e) => {
+    filterCita = e.target.value; applyFilters();
+  });
+  safeGetElement('filterHistorial')?.addEventListener('change', (e) => {
+    filterHistorial = e.target.value; applyFilters();
+  });
 
-      applyFilters();
-    }
-  );
+  safeGetElement('btnClearFilters')?.addEventListener('click', () => {
+    estadoFiltro    = 'activo';   // vuelve al default
+    filterAlergias  = '';
+    filterCita      = '';
+    filterHistorial = '';
 
-  safeGetElement(
-    'filterHistorial'
-  )?.addEventListener(
-    'change',
-    (e) => {
+    const selEstado = safeGetElement('filterEstado');
+    const sel1      = safeGetElement('filterAlergias');
+    const sel2      = safeGetElement('filterCita');
+    const sel3      = safeGetElement('filterHistorial');
 
-      filterHistorial =
-        e.target.value;
+    if (selEstado) selEstado.value = 'activo';
+    if (sel1) sel1.value = '';
+    if (sel2) sel2.value = '';
+    if (sel3) sel3.value = '';
 
-      applyFilters();
-    }
-  );
-
-  safeGetElement(
-    'btnClearFilters'
-  )?.addEventListener(
-    'click',
-    () => {
-
-      filterAlergias = '';
-      filterCita = '';
-      filterHistorial = '';
-
-      const sel1 =
-        safeGetElement(
-          'filterAlergias'
-        );
-
-      const sel2 =
-        safeGetElement(
-          'filterCita'
-        );
-
-      const sel3 =
-        safeGetElement(
-          'filterHistorial'
-        );
-
-      if (sel1) {
-        sel1.value = '';
-      }
-
-      if (sel2) {
-        sel2.value = '';
-      }
-
-      if (sel3) {
-        sel3.value = '';
-      }
-
-      applyFilters();
-    }
-  );
+    applyFilters();
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
 //  INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
-const init = () => {
+// Yeray (2025) - init es async porque renderPatients es async.
+const init = async () => {
 
   initSidebar();
-
   initNavGroups();
-
   initSearch();
-
   initPagination();
-
   initModal();
-
   initFilters();
-
   animateCounters();
-
-  renderPatients();
+  await renderPatients();
 };
 
-document.addEventListener(
-  'DOMContentLoaded',
-  init
-);
+document.addEventListener('DOMContentLoaded', init);

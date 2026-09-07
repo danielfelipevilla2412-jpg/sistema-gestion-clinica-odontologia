@@ -1,264 +1,273 @@
 /**
- * SMILETRACK — PREPARACIÓN DE CONSULTA (app.js)
- * Lógica de checklist, persistencia y accesibilidad
+ * SMILETRACK — PREPARACIÓN DE CONSULTA
+ *
+ * Yeray (2025) - Refactorización completa.
+ *
+ * ANTES: todos los datos estaban hardcodeados. La clave de localStorage
+ *        era fija ("smiletrack_checklist_pedro_garcia_20260320") y la
+ *        confirmación solo imprimía en consola.
+ *
+ * AHORA:
+ *   - Lee la configuración de window.smiletrackPreparacionConfig (inyectada
+ *     por la vista Razor con datos reales de la BD).
+ *   - La clave de localStorage es dinámica por citaId: cada cita tiene su
+ *     propio estado de checklist independiente.
+ *   - El selector de citas recarga la página con ?citaId=N para cambiar
+ *     de cita sin perder el estado.
+ *   - La confirmación llama a POST /confirmar con el checklist y las
+ *     observaciones, registrando la preparación en la HC del paciente.
+ *   - Los badges de estado del consultorio (Limpieza, Esterilización,
+ *     Materiales) se actualizan automáticamente según los ítems marcados.
  */
 
-// Obtiene elemento del DOM con manejo seguro de null
+// ── Config inyectada por el servidor ────────────────────────────────────────
+const cfg = window.smiletrackPreparacionConfig || {};
+const CITA_ID      = cfg.citaId      ?? null;
+const SIN_CITAS    = cfg.sinCitasHoy ?? true;
+const CHECKLIST_KEY = `smiletrack_preparacion_cita_${CITA_ID ?? 'sin-cita'}`;
+const OBS_KEY       = `${CHECKLIST_KEY}_obs`;
+
+// ── Utilidades ───────────────────────────────────────────────────────────────
+
 const safeGetElement = (id) => {
   const el = document.getElementById(id);
   if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
   return el;
 };
 
-// Reduce llamadas a función en eventos frecuentes de input
 const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
+  let tid;
+  return (...args) => { clearTimeout(tid); tid = setTimeout(() => fn(...args), delay); };
 };
 
-// Muestra notificación temporal con auto-cierre y cleanup de timeout
 const showToast = (message, type = 'success') => {
   const toast = safeGetElement('toast');
   if (!toast) return;
-
   toast.textContent = message;
   toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
-
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
+  clearTimeout(toast._tid);
+  toast._tid = setTimeout(() => toast.classList.remove('show'), 3200);
 };
 
-// Gestiona persistencia del checklist con localStorage
+// ── Persistencia del checklist ───────────────────────────────────────────────
+
 const checklistStorage = {
-  key: 'smiletrack_checklist_pedro_garcia_20260320',
-  
-  // Carga estado del checklist desde localStorage o usa valores por defecto
   load: () => {
-    const stored = localStorage.getItem(checklistStorage.key);
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch (e) {
-        console.warn('Error al cargar checklist, usando valores por defecto');
-      }
-    }
-    // Estado inicial: primeros 3 ítems completados
-    return [true, true, true, false, false, false, false];
-  },
-  
-  // Guarda estado del checklist en localStorage
-  save: (states) => {
     try {
-      localStorage.setItem(checklistStorage.key, JSON.stringify(states));
-      return true;
-    } catch (e) {
-      console.error('Error al guardar checklist:', e);
-      return false;
-    }
+      const stored = localStorage.getItem(CHECKLIST_KEY);
+      return stored ? JSON.parse(stored) : new Array(7).fill(false);
+    } catch { return new Array(7).fill(false); }
   },
-  
-  // Calcula progreso basado en ítems completados
+  save: (states) => {
+    try { localStorage.setItem(CHECKLIST_KEY, JSON.stringify(states)); } catch {}
+  },
   getProgress: (states) => {
-    const completed = states.filter(s => s).length;
-    const total = states.length;
-    return {
-      completed,
-      total,
-      percentage: Math.round((completed / total) * 100)
-    };
+    const completed = states.filter(Boolean).length;
+    return { completed, total: states.length, percentage: Math.round((completed / states.length) * 100) };
   }
 };
 
-// Inicializa menú móvil con gestión de foco y atributos ARIA
-const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamburger = safeGetElement('hamburgerBtn');
-
-  if (!sidebar || !overlay || !hamburger) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sidebar.classList.add('open');
-      overlay.classList.add('open');
-      hamburger.setAttribute('aria-expanded', 'true');
-      overlay.setAttribute('aria-hidden', 'false');
-      
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      overlay.setAttribute('aria-hidden', 'true');
-      hamburger.focus();
-    }
+// ── Actualizar badges de estado del consultorio ──────────────────────────────
+// Los ítems 0=Limpieza, 1=Esterilización, 5=Materiales controlan los badges.
+const actualizarBadgesEstado = (states) => {
+  const setbadge = (id, txtId, listo) => {
+    const badge = document.getElementById(id);
+    const txt   = document.getElementById(txtId);
+    if (!badge || !txt) return;
+    badge.className = `status-badge ${listo ? 'listo' : ''}`;
+    const dot = badge.querySelector('.status-dot');
+    if (dot) dot.className = `status-dot ${listo ? 'green' : 'orange'}`;
+    txt.textContent = listo ? 'Listo' : 'Pendiente';
   };
 
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
+  setbadge('statusLimpieza',       'statusLimpiezaTxt',       states[0]);
+  setbadge('statusEsterilizacion', 'statusEsterilizacionTxt', states[1]);
+  setbadge('statusMateriales',     'statusMaterialesTxt',     states[5]);
 };
 
-// Inicializa checklist con persistencia y actualización de progreso
+// ── Inicializar checklist ─────────────────────────────────────────────────────
 const initChecklist = () => {
-  const checklist = safeGetElement('checklist');
-  const progressFill = safeGetElement('progressFill');
-  const progressText = safeGetElement('progressText');
-  
-  if (!checklist || !progressFill || !progressText) return;
-  
-  // Carga estado guardado
+  const checklist     = safeGetElement('checklist');
+  const progressFill  = safeGetElement('progressFill');
+  const progressText  = safeGetElement('progressText');
+  if (!checklist) return;
+
   const states = checklistStorage.load();
-  const items = checklist.querySelectorAll('.checklist-item');
-  
-  // Aplica estado inicial a cada ítem
-  items.forEach((item, index) => {
-    const checkbox = item.querySelector('input[type="checkbox"]');
-    if (checkbox && states[index] !== undefined) {
-      checkbox.checked = states[index];
-      item.classList.toggle('checked', states[index]);
-      checkbox.setAttribute('aria-checked', states[index]);
-    }
+  const items  = checklist.querySelectorAll('.checklist-item');
+
+  // Aplicar estado guardado
+  items.forEach((item, idx) => {
+    const cb = item.querySelector('input[type="checkbox"]');
+    if (!cb) return;
+    const checked = states[idx] ?? false;
+    cb.checked = checked;
+    item.classList.toggle('checked', checked);
+    cb.setAttribute('aria-checked', String(checked));
   });
-  
-  // Actualiza barra de progreso inicial
-  updateProgress();
-  
-  // Maneja cambio de estado en checkboxes
-  checklist.addEventListener('change', (e) => {
-    if (e.target.type === 'checkbox') {
-      const item = e.target.closest('.checklist-item');
-      const index = Array.from(items).indexOf(item);
-      
-      if (index !== -1) {
-        // Actualiza estado visual
-        const isChecked = e.target.checked;
-        item.classList.toggle('checked', isChecked);
-        e.target.setAttribute('aria-checked', isChecked);
-        
-        // Guarda en localStorage
-        states[index] = isChecked;
-        checklistStorage.save(states);
-        
-        // Actualiza progreso
-        updateProgress();
-        
-        // Feedback visual sutil
-        showToast(isChecked ? 'Ítem completado' : 'Ítem desmarcado', 'info');
-      }
-    }
-  });
-  
-  // Función para actualizar barra de progreso y texto
-  function updateProgress() {
-    const progress = checklistStorage.getProgress(states);
-    
+
+  actualizarBadgesEstado(states);
+
+  const updateProgress = () => {
+    const s       = Array.from(items).map(it => it.querySelector('input[type="checkbox"]')?.checked ?? false);
+    const prog    = checklistStorage.getProgress(s);
     if (progressFill) {
-      progressFill.style.width = `${progress.percentage}%`;
-      progressFill.closest('[role="progressbar"]')?.setAttribute('aria-valuenow', progress.percentage);
-      progressFill.closest('[role="progressbar"]')?.setAttribute('aria-valuetext', `${progress.percentage}% completado`);
+      progressFill.style.width = `${prog.percentage}%`;
+      progressFill.closest('[role="progressbar"]')?.setAttribute('aria-valuenow', String(prog.percentage));
     }
-    
     if (progressText) {
-      progressText.textContent = `${progress.completed} de ${progress.total} ítems completados`;
+      progressText.textContent = `${prog.completed} de ${prog.total} ítems completados`;
     }
-  }
+    checklistStorage.save(s);
+    actualizarBadgesEstado(s);
+  };
+
+  updateProgress();
+
+  checklist.addEventListener('change', (e) => {
+    if (e.target.type !== 'checkbox') return;
+    const item    = e.target.closest('.checklist-item');
+    const checked = e.target.checked;
+    item?.classList.toggle('checked', checked);
+    e.target.setAttribute('aria-checked', String(checked));
+    updateProgress();
+    showToast(checked ? 'Ítem completado ✓' : 'Ítem desmarcado', checked ? 'success' : 'info');
+  });
 };
 
-// Inicializa botón de confirmación con validación
+// ── Selector de citas del día ────────────────────────────────────────────────
+const initSelectorCita = () => {
+  const sel = safeGetElement('selectorCita');
+  if (!sel) return;
+
+  sel.addEventListener('change', (e) => {
+    const id = e.target.value;
+    if (id) window.location.href =
+      `/gestion-de-pacientes/st-aux-03-preparacion-consulta?citaId=${id}`;
+  });
+};
+
+// ── Observaciones con auto-guardado ─────────────────────────────────────────
+const initObservations = () => {
+  const ta = safeGetElement('observations');
+  if (!ta) return;
+  const saved = localStorage.getItem(OBS_KEY);
+  if (saved) ta.value = saved;
+  ta.addEventListener('input', debounce(() => {
+    localStorage.setItem(OBS_KEY, ta.value);
+  }, 500));
+};
+
+// ── Confirmación — llama al endpoint POST /confirmar ─────────────────────────
 const initConfirmButton = () => {
-  const btn = safeGetElement('btnConfirmPreparation');
+  const btn       = safeGetElement('btnConfirmPreparation');
   const checklist = safeGetElement('checklist');
-  
   if (!btn || !checklist) return;
-  
-  btn.addEventListener('click', () => {
-    const items = checklist.querySelectorAll('.checklist-item input[type="checkbox"]');
-    const allChecked = Array.from(items).every(cb => cb.checked);
-    
+
+  btn.addEventListener('click', async () => {
+    const items = checklist.querySelectorAll('.checklist-item');
+
+    // Recoger estado actual de cada ítem
+    const checklistItems = Array.from(items).map(item => ({
+      text:    item.querySelector('span:last-child')?.textContent?.trim() ?? '',
+      checked: item.querySelector('input[type="checkbox"]')?.checked ?? false
+    }));
+
+    const allChecked = checklistItems.every(i => i.checked);
     if (!allChecked) {
-      showToast('Completa todos los ítems del checklist antes de confirmar', 'warning');
-      
-      // Enfocar primer ítem no completado para accesibilidad
-      const firstUnchecked = Array.from(items).find(cb => !cb.checked);
-      if (firstUnchecked) {
-        firstUnchecked.closest('.checklist-item')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        firstUnchecked.focus();
-      }
+      showToast('Completa todos los ítems antes de confirmar', 'warning');
+      const firstUnchecked = Array.from(items).find(it => !it.querySelector('input[type="checkbox"]')?.checked);
+      firstUnchecked?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstUnchecked?.querySelector('input')?.focus();
       return;
     }
-    
-    // Recoge observaciones si existen
-    const observations = safeGetElement('observations')?.value.trim() || '';
-    
-    // En producción: enviar datos al backend
-    console.log('Preparación confirmada:', {
-      checklist: checklistStorage.load(),
-      observations,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Feedback de éxito
-    showToast('✓ Preparación confirmada. Consultorio listo para el paciente', 'success');
-    
-    // Deshabilita botón temporalmente para evitar doble click
-    btn.disabled = true;
-    btn.textContent = '✓ Confirmado';
-    
-    // En producción: redirigir o actualizar estado
-    setTimeout(() => {
-      btn.disabled = false;
+
+    if (SIN_CITAS || !CITA_ID) {
+      showToast('No hay una cita activa para confirmar', 'warning');
+      return;
+    }
+
+    const observaciones = safeGetElement('observations')?.value.trim() ?? '';
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+    btn.disabled    = true;
+    btn.textContent = '⏳ Guardando...';
+
+    try {
+      const resp = await fetch(
+        '/gestion-de-pacientes/st-aux-03-preparacion-consulta/confirmar',
+        {
+          method:  'POST',
+          headers: {
+            'Content-Type':             'application/json',
+            'X-CSRF-TOKEN':             token,
+            'RequestVerificationToken': token
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ citaId: CITA_ID, checklistItems, observaciones })
+        }
+      );
+
+      const data = await resp.json().catch(() => ({}));
+
+      if (!resp.ok || data.success === false) {
+        throw new Error(data.message || 'Error al guardar la preparación.');
+      }
+
+      // Limpiar localStorage de esta cita
+      localStorage.removeItem(CHECKLIST_KEY);
+      localStorage.removeItem(OBS_KEY);
+
+      btn.textContent = '✓ Confirmado';
+      btn.style.background = '#22c55e';
+      showToast('✅ Preparación confirmada y registrada en la historia clínica.', 'success');
+
+      // Restablecer botón después de 4 segundos
+      setTimeout(() => {
+        btn.disabled    = false;
+        btn.textContent = 'Confirmar preparación completa';
+        btn.style.background = '';
+      }, 4000);
+
+    } catch (err) {
+      console.error('[SmileTrack][Preparacion] Error al confirmar:', err);
+      showToast(err.message || 'No se pudo guardar la preparación.', 'error');
+      btn.disabled    = false;
       btn.textContent = 'Confirmar preparación completa';
-    }, 3000);
+    }
   });
 };
 
-// Inicializa textarea de observaciones con auto-guardado
-const initObservations = () => {
-  const textarea = safeGetElement('observations');
-  if (!textarea) return;
-  
-  // Carga observaciones guardadas si existen
-  const saved = localStorage.getItem(checklistStorage.key + '_observations');
-  if (saved) textarea.value = saved;
-  
-  // Auto-guarda mientras el usuario escribe (con debounce)
-  const debouncedSave = debounce(() => {
-    localStorage.setItem(checklistStorage.key + '_observations', textarea.value);
-  }, 500);
-  
-  textarea.addEventListener('input', debouncedSave);
+// ── Menú móvil ───────────────────────────────────────────────────────────────
+const initMobileMenu = () => {
+  const sidebar   = safeGetElement('sidebar');
+  const overlay   = safeGetElement('overlay');
+  const hamburger = safeGetElement('hamburgerBtn');
+  if (!sidebar || !overlay || !hamburger) return;
+
+  const toggle = (show) => {
+    sidebar.classList.toggle('open', show);
+    overlay.classList.toggle('open', show);
+    hamburger.setAttribute('aria-expanded', String(show));
+    overlay.setAttribute('aria-hidden', String(!show));
+    if (show) sidebar.querySelector('.nav-item')?.focus();
+    else hamburger.focus();
+  };
+
+  hamburger.addEventListener('click', () => toggle(true));
+  overlay.addEventListener('click',   () => toggle(false));
+  sidebar.querySelectorAll('.nav-item').forEach(lnk => {
+    lnk.addEventListener('click', () => { if (window.innerWidth <= 680) toggle(false); });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) { e.preventDefault(); toggle(false); }
+  });
 };
 
-// Función principal de inicialización
-const init = () => {
-  // Inicializar componentes de UI
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
   initMobileMenu();
   initChecklist();
-  initConfirmButton();
+  initSelectorCita();
   initObservations();
-  
-  // Limpieza de listeners al unload para evitar memory leaks
-  window.addEventListener('beforeunload', () => {
-    // Remover listeners en implementación SPA real
-  });
-};
-
-// Ejecutar al cargar DOM
-document.addEventListener('DOMContentLoaded', init);
+  initConfirmButton();
+});

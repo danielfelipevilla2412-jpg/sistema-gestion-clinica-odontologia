@@ -59,8 +59,11 @@
         Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
-        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes"
-           class="@linkClass("/gestion-de-pacientes/st-adm-05-gestion-pacientes")"
+        @* Yeray (2025) - antes apuntaba a la ruta del admin (/st-adm-05-gestion-pacientes),
+           lo que hacía que la recepcionista viera la vista de administrador con el sidebar
+           incorrecto. Ahora apunta a la ruta propia de recepcionista (/st-rec-pacientes). *@
+        <a href="/gestion-de-pacientes/st-rec-pacientes"
+           class="@linkClass("/gestion-de-pacientes/st-rec-pacientes")"
            data-icon="👥">Gestión de Pacientes</a>
         <a href="/gestion-de-pacientes/st-rec-02-registrar-paciente"
            class="@linkClass("/gestion-de-pacientes/st-rec-02-registrar-paciente")"
@@ -114,6 +117,17 @@
            data-icon="📝">Nueva Solicitud</a>
       </div>
     </div>
+    
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        Reportes <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/reportes/vista-recepcion"
+           class="@linkClass("/reportes/vista-recepcion")"
+           data-icon="📊">Reportes Operativos</a>
+      </div>
+    </div>
 
     <div class="nav-group">
       <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
@@ -146,3 +160,4 @@
   </div>
 
 </aside>
+

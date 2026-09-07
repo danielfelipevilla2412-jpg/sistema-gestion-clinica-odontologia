@@ -31,7 +31,53 @@ const showToast = (message, type = 'success') => {
   toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
 };
 
-// Estado en memoria del control postoperatorio, cargado desde el servidor
+// Yeray (2025) - Fallo 1: el auxiliar no podía elegir de cuál cita registrar
+// el control postoperatorio — siempre cargaba la más reciente por defecto.
+//
+// SOLUCIÓN: al iniciar, se llama a /data para obtener las citas completadas
+// del día y se puebla el <select id="selectorCitaPostop">. Al cambiar la
+// selección, se navega a ?citaId=X, recargando la página con los datos de
+// esa cita específica. La cita actual (ya inyectada en postopState.citaId)
+// queda preseleccionada en el select.
+async function initSelectorCita() {
+  const select = safeGetElement('selectorCitaPostop');
+  if (!select) return;
+
+  try {
+    const resp = await fetch('/historia-clinica/st-aux-07-control-postoperato/data',
+      { headers: { Accept: 'application/json' } });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const citas = await resp.json(); // array de { id, paciente, procedimiento, fecha }
+
+    if (!citas.length) {
+      select.innerHTML = '<option value="">Sin citas completadas hoy</option>';
+      return;
+    }
+
+    select.innerHTML = citas.map(c => {
+      const fecha = c.fecha
+        ? new Date(c.fecha).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+        : '';
+      const label = `${c.paciente} — ${c.procedimiento}${fecha ? ' · ' + fecha : ''}`;
+      const selected = c.id === postopState.citaId ? ' selected' : '';
+      return `<option value="${c.id}"${selected}>${label}</option>`;
+    }).join('');
+
+  } catch (e) {
+    console.error('No se pudieron cargar las citas del día:', e);
+    select.innerHTML = '<option value="">Error al cargar citas</option>';
+    return;
+  }
+
+  // Al cambiar la selección, navegar a la misma vista con el nuevo citaId
+  select.addEventListener('change', () => {
+    const id = select.value;
+    if (id) window.location.href =
+      `/historia-clinica/st-aux-07-control-postoperato?citaId=${id}`;
+  });
+}
+
+
 // (ver window.smiletrackPostopData, inyectado por control-post.cshtml). Se persiste
 // de verdad al hacer clic en "Guardar registro" (antes solo se guardaba en
 // localStorage y nunca llegaba a la base de datos).
@@ -306,6 +352,8 @@ const init = () => {
   initStatusButtons();
   initInstructions();
   initSaveButton();
+  // Yeray (2025) - Fallo 1: poblar selector de citas del día
+  initSelectorCita();
   
   // Limpieza de listeners al unload para evitar memory leaks
   window.addEventListener('beforeunload', () => {

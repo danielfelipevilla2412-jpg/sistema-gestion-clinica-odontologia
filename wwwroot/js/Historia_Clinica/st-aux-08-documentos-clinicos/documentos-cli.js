@@ -37,20 +37,24 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentDocTitle = '';
 
   // ── Cargar documentos reales del paciente ──
-  // NOTA: el esquema actual no tiene una tabla de "documentos clínicos" (adjuntos,
-  // radiografías, etc.), así que el endpoint devuelve un arreglo vacío real en vez
-  // de los 3 documentos inventados que antes estaban fijos en este HTML.
+  // Yeray (2025): antes devolvía siempre lista vacía porque no había tabla.
+  // Ahora consulta /data?pacienteId=N que lee Documento_Clinico en BD.
   async function cargarDocumentos() {
     const emptyState = document.getElementById('docsEmptyState');
+    // Leer pacienteId inyectado por el servidor en el ViewData
+    const pacienteId = document.getElementById('pacienteIdInput')?.value || '';
     try {
-      const resp = await fetch('/historia-clinica/st-aux-08-documentos-clinicos/data', { headers: { 'Accept': 'application/json' } });
+      const url = '/historia-clinica/st-aux-08-documentos-clinicos/data' +
+                  (pacienteId ? `?pacienteId=${encodeURIComponent(pacienteId)}` : '');
+      const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const documentos = await resp.json();
       if (!documentos.length) {
         if (emptyState) emptyState.style.display = 'block';
         return;
       }
-      documentos.forEach(d => addDocumentToList(d.tipo, d.fecha, d.nombreArchivo, d.subidoPor));
+      if (emptyState) emptyState.style.display = 'none';
+      documentos.forEach(d => addDocumentToList(d.tipo, d.fecha, d.nombreArchivo, d.subidoPor, d.id));
     } catch (e) {
       console.error('No se pudieron cargar los documentos clínicos:', e);
       if (emptyState) {
@@ -154,8 +158,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return '📎';
   }
 
-  // ── Upload de documento ──
-  uploadForm?.addEventListener('submit', (e) => {
+  // ── Upload de documento — ahora persiste en el servidor ──
+  // Yeray (2025): antes usaba un setTimeout() que solo agregaba el item localmente
+  // y avisaba "la subida a servidor aún no está implementada". Ahora usa
+  // multipart/form-data hacia /subir, que guarda el archivo en disco y los
+  // metadatos en Documento_Clinico.
+  uploadForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
     // Validar campos
@@ -181,27 +189,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (!valid) return;
 
-    // NOTA: no existe todavía un endpoint de subida de archivos ni una tabla de
-    // documentos clínicos en el esquema (ver comentario en Staux08DocumentosClinicosData
-    // del controlador). Este botón agrega el documento a la lista visible como
-    // confirmación local, pero AÚN NO se persiste en la base de datos.
-    uploadBtn.disabled = true;
+    // Construir FormData con el archivo y los metadatos
+    const pacienteId = document.getElementById('pacienteIdInput')?.value || '';
+    const token      = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+
+    const fd = new FormData();
+    fd.append('pacienteId', pacienteId);
+    fd.append('tipo',       docType);
+    fd.append('observacion', document.getElementById('docObs')?.value || '');
+    fd.append('archivo',    selectedFile, selectedFile.name);
+
+    uploadBtn.disabled    = true;
     uploadBtn.textContent = '⏳ Subiendo...';
-    
-    setTimeout(() => {
-      // Agregar a la lista (solo en memoria; no hay persistencia real todavía)
+
+    try {
+      const resp = await fetch('/historia-clinica/st-aux-08-documentos-clinicos/subir', {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+        body: fd
+      });
+
+      const data = await resp.json().catch(() => ({}));
+
+      if (!resp.ok || data.success === false) {
+        showToast(data.message || 'Error al subir el archivo', 'error');
+        return;
+      }
+
+      // Agregar a la lista con los datos reales devueltos por el servidor
       document.getElementById('docsEmptyState')?.style.setProperty('display', 'none');
-      addDocumentToList(docType, docDate, selectedFile.name);
+      addDocumentToList(data.tipo, data.fecha, data.nombreArchivo, null, data.id);
+
       // Reset form
       uploadForm.reset();
       removeFile();
-      uploadBtn.disabled = false;
+      showToast('✅ Documento guardado correctamente', 'success');
+
+    } catch (err) {
+      console.error('Error al subir documento:', err);
+      showToast('No se pudo conectar con el servidor', 'error');
+    } finally {
+      uploadBtn.disabled    = false;
       uploadBtn.textContent = 'Subir documento';
-      showToast('Documento agregado localmente (la subida a servidor aún no está implementada)', 'warning');
-    }, 600);
+    }
   });
 
-  function addDocumentToList(type, date, filename, subidoPor) {
+  function addDocumentToList(type, date, filename, subidoPor, docId) {
     // Formatear fecha
     const d = new Date(date + 'T00:00:00');
     const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -228,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Agregar evento de vista previa
     item.querySelector('.doc-eye').addEventListener('click', () => {
-      viewDocument(filename, type);
+      viewDocument(filename, type, docId);
     });
     
     // Insertar al inicio con animación
@@ -243,9 +276,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── Modal de vista previa ──
-  window.viewDocument = function(filename, title) {
+  window.viewDocument = function(filename, title, docId) {
     currentDocFilename = filename;
     currentDocTitle = title;
+    // Guardar el id para la descarga real
+    modalDownloadBtn.dataset.docId = docId || '';
     
     modalTitle.textContent = title;
     
@@ -291,12 +326,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === modalBackdrop) closeModal();
   });
 
-  // ── Descargar documento ──
-  // NOTA: no hay almacenamiento real de archivos todavía (ver comentario en
-  // Staux08DocumentosClinicosData del controlador), así que no hay un archivo real
-  // que descargar. Se deja el flujo visual pero informando la limitación real.
+  // ── Descargar documento — ahora usa el endpoint real de descarga ──
+  // Yeray (2025): antes mostraba un toast de "la descarga no está disponible".
+  // Ahora redirige al endpoint /descargar/{id} que sirve el archivo físico.
   modalDownloadBtn?.addEventListener('click', () => {
-    showToast('La descarga de archivos aún no está disponible (no hay almacenamiento configurado)', 'warning');
+    const docId = modalDownloadBtn.dataset.docId;
+    if (!docId) {
+      showToast('No se puede descargar este documento', 'warning');
+      return;
+    }
+    window.location.href = `/historia-clinica/documentos-clinicos/descargar/${docId}`;
   });
 
   // ── Keyboard: Escape cierra modal ──

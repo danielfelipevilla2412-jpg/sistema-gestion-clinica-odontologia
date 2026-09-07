@@ -7,12 +7,21 @@ using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Services;
 
 namespace SmileTrack_MVC.Controllers;
 
-public class HistoriaClinicaController(AppDbContext context) : Controller
+// Yeray - ACTUALIZACIÓN: la lógica que antes vivía como métodos privados
+// (GuardarOdontogramaInternoAsync, RegistrarNotaClinicaAsync,
+// RegistrarControlPostoperatorioAsync, CrearHistoriaClinicaAsync) se movió a
+// HistoriaClinicaService para que la comparta también la API REST nueva
+// (Controllers/Api/HistoriaClinicaApiController.cs), sin duplicar reglas de negocio.
+public class HistoriaClinicaController(
+    AppDbContext context,
+    IHistoriaClinicaService historiaService) : Controller
 {
     private readonly AppDbContext _context = context;
+    private readonly IHistoriaClinicaService _historiaService = historiaService;
 
     [HttpGet]
     [Authorize(Roles = "Administrador")]
@@ -73,39 +82,11 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
         if (request is null || request.CitaId is null)
             return Json(new { success = false, message = "No se recibió la cita del control postoperatorio." });
 
-        var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == request.CitaId);
-        if (cita is null)
-            return Json(new { success = false, message = "No se encontró la cita indicada." });
+        var (success, message) = await _historiaService.RegistrarControlPostoperatorioAsync(request);
 
-        var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == cita.IdPaciente && h.Activa)
-            ?? await CrearHistoriaClinicaAsync(cita.IdPaciente);
-
-        var actual = string.IsNullOrWhiteSpace(historia.ObservacionesGenerales)
-            ? new JsonObject()
-            : (JsonNode.Parse(historia.ObservacionesGenerales) as JsonObject) ?? new JsonObject();
-
-        var controles = actual["controlesPostoperatorios"] as JsonObject ?? new JsonObject();
-        var instructionsArray = new JsonArray();
-        foreach (var ins in request.Instructions ?? [])
-        {
-            instructionsArray.Add(new JsonObject
-            {
-                ["text"] = ins.Text ?? "",
-                ["checked"] = ins.Checked
-            });
-        }
-        controles[request.CitaId.Value.ToString()] = new JsonObject
-        {
-            ["status"] = request.Status ?? "stable",
-            ["instructions"] = instructionsArray,
-            ["observations"] = request.Observations ?? ""
-        };
-        actual["controlesPostoperatorios"] = controles;
-
-        historia.ObservacionesGenerales = actual.ToJsonString();
-        await _context.SaveChangesAsync();
-
-        return Json(new { success = true });
+        return success
+            ? Json(new { success = true })
+            : Json(new { success = false, message });
     }
 
     private static (string status, List<object> instructions, string observations) LeerControlPostoperatorio(string? observacionesGenerales, int citaId)
@@ -195,16 +176,205 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
         return View("~/Views/Historia_Clinica/st-aux-08-documentos-clinicos/documentos-cli.cshtml");
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Yeray - Endpoint de datos reales para Documentos Clínicos (2025)
+    //
+    // ANTES: devolvía Array.Empty<object>() porque no existía ninguna tabla.
+    // AHORA: consulta Documento_Clinico filtrada por idHistoria del paciente,
+    //        devuelve los metadatos que el JS de documentos-cli.js ya espera
+    //        (tipo, fecha, nombreArchivo, subidoPor).
+    // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
     [Authorize(Roles = "Auxiliar")]
     [Route("historia-clinica/st-aux-08-documentos-clinicos/data")]
-    public IActionResult Staux08DocumentosClinicosData([FromQuery] int? pacienteId)
+    public async Task<IActionResult> Staux08DocumentosClinicosData([FromQuery] int? pacienteId)
     {
-        // NOTA: el esquema actual no tiene una tabla de "documentos clínicos" (adjuntos,
-        // radiografías, PDFs, etc.). Antes esta vista mostraba documentos inventados en el JS.
-        // Ahora se devuelve un arreglo vacío real (sin datos porque no hay ninguno cargado aún),
-        // en vez de simular archivos que nunca existieron.
-        return Json(Array.Empty<object>());
+        // Sin paciente: devolver lista vacía (el JS ya maneja el empty state)
+        if (pacienteId is null)
+            return Json(Array.Empty<object>());
+
+        var historia = await _context.HistoriasClinicas
+            .AsNoTracking()
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
+
+        if (historia is null)
+            return Json(Array.Empty<object>());
+
+        var documentos = await _context.DocumentosClinicos
+            .AsNoTracking()
+            .Include(d => d.SubidoPorUsuario)
+            .Where(d => d.IdHistoria == historia.IdHistoria)
+            .OrderByDescending(d => d.FechaSubida)
+            .Select(d => new
+            {
+                id            = d.IdDocumento,
+                tipo          = d.Tipo,
+                fecha         = d.FechaSubida.ToString("yyyy-MM-dd"),
+                nombreArchivo = d.NombreOriginal,
+                subidoPor     = d.SubidoPorUsuario != null
+                                    ? $"{d.SubidoPorUsuario.Nombre} {d.SubidoPorUsuario.Apellidos}"
+                                    : "Sin registrar",
+                contentType   = d.ContentType,
+                tamanoBytes   = d.TamanoBytes,
+                observacion   = d.Observacion ?? ""
+            })
+            .ToListAsync();
+
+        return Json(documentos);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Yeray - Endpoint de subida de archivos clínicos (2025)
+    //
+    // ANTES: el JS mostraba un setTimeout() que simulaba la subida localmente
+    //        y avisaba "la subida a servidor aún no está implementada".
+    // AHORA: recibe el archivo via multipart/form-data, lo valida (tipo y tamaño),
+    //        lo guarda en wwwroot/uploads/documentos-clinicos/<idHistoria>/,
+    //        y persiste los metadatos en Documento_Clinico.
+    //
+    // SEGURIDAD:
+    //   - Solo acepta image/jpeg, image/png, application/pdf.
+    //   - Máximo 10 MB por archivo.
+    //   - El nombre físico en disco se genera con un GUID para evitar colisiones
+    //     y ataques de path traversal; el nombre original se guarda solo en BD.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Auxiliar")]
+    [Route("historia-clinica/st-aux-08-documentos-clinicos/subir")]
+    public async Task<IActionResult> SubirDocumentoClinco(
+        [FromForm] int pacienteId,
+        [FromForm] string tipo,
+        [FromForm] string? observacion,
+        IFormFile archivo,
+        [FromServices] IWebHostEnvironment env)
+    {
+        // ── Validaciones básicas ────────────────────────────────────────────
+        if (archivo is null || archivo.Length == 0)
+            return BadRequest(new { success = false, message = "No se recibió ningún archivo." });
+
+        const long maxBytes = 10 * 1024 * 1024; // 10 MB
+        if (archivo.Length > maxBytes)
+            return BadRequest(new { success = false, message = "El archivo supera el límite de 10 MB." });
+
+        string[] tiposPermitidos = ["image/jpeg", "image/png", "application/pdf"];
+        string contentType = archivo.ContentType.ToLowerInvariant();
+        if (!tiposPermitidos.Contains(contentType))
+            return BadRequest(new { success = false, message = "Tipo de archivo no permitido. Solo JPG, PNG y PDF." });
+
+        if (string.IsNullOrWhiteSpace(tipo))
+            return BadRequest(new { success = false, message = "El tipo de documento es obligatorio." });
+
+        // ── Obtener o crear historia clínica ────────────────────────────────
+        var historia = await _context.HistoriasClinicas
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
+
+        if (historia is null)
+        {
+            bool pacienteExiste = await _context.Pacientes.AnyAsync(p => p.IdPaciente == pacienteId);
+            if (!pacienteExiste)
+                return NotFound(new { success = false, message = "Paciente no encontrado." });
+
+            historia = await _historiaService.CrearHistoriaClinicaAsync(pacienteId);
+        }
+
+        // ── Guardar archivo en disco ─────────────────────────────────────────
+        // El nombre en disco usa un GUID + extensión real para evitar colisiones
+        // y bloquear path traversal.
+        string extension = Path.GetExtension(archivo.FileName).ToLowerInvariant();
+        if (!new[] { ".jpg", ".jpeg", ".png", ".pdf" }.Contains(extension))
+            extension = contentType == "application/pdf" ? ".pdf"
+                      : contentType == "image/png"       ? ".png"
+                      : ".jpg";
+
+        string nombreFisico  = $"{Guid.NewGuid()}{extension}";
+        string carpetaRelativa = Path.Combine("uploads", "documentos-clinicos", historia.IdHistoria.ToString());
+        string carpetaFisica   = Path.Combine(env.WebRootPath, carpetaRelativa);
+
+        Directory.CreateDirectory(carpetaFisica);
+
+        string rutaFisica    = Path.Combine(carpetaFisica, nombreFisico);
+        string rutaRelativa  = Path.Combine(carpetaRelativa, nombreFisico).Replace('\\', '/');
+
+        await using (var stream = new FileStream(rutaFisica, FileMode.Create, FileAccess.Write))
+        {
+            await archivo.CopyToAsync(stream);
+        }
+
+        // ── Obtener el usuario actual ────────────────────────────────────────
+        string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        int? idUsuario = int.TryParse(userIdStr, out int uid) ? uid : null;
+
+        // ── Persistir metadatos en BD ────────────────────────────────────────
+        var documento = new SmileTrack_MVC.Models.Entities.DocumentoClinico
+        {
+            IdHistoria    = historia.IdHistoria,
+            SubidoPor     = idUsuario,
+            Tipo          = tipo.Trim(),
+            NombreOriginal = Path.GetFileName(archivo.FileName),
+            RutaRelativa  = rutaRelativa,
+            ContentType   = contentType,
+            TamanoBytes   = archivo.Length,
+            FechaSubida   = DateTime.UtcNow,
+            Observacion   = string.IsNullOrWhiteSpace(observacion) ? null : observacion.Trim()
+        };
+
+        _context.DocumentosClinicos.Add(documento);
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            // Si falla la BD, limpiar el archivo ya guardado en disco
+            if (System.IO.File.Exists(rutaFisica))
+                System.IO.File.Delete(rutaFisica);
+
+            return StatusCode(500, new { success = false, message = "No fue posible guardar el documento.", detail = ex.Message });
+        }
+
+        return Ok(new
+        {
+            success       = true,
+            message       = "Documento subido correctamente.",
+            id            = documento.IdDocumento,
+            tipo          = documento.Tipo,
+            fecha         = documento.FechaSubida.ToString("yyyy-MM-dd"),
+            nombreArchivo = documento.NombreOriginal,
+            tamanoBytes   = documento.TamanoBytes
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Yeray - Endpoint de descarga de archivos clínicos (2025)
+    //
+    // Devuelve el archivo físico con Content-Disposition: attachment para forzar
+    // la descarga. Solo puede acceder un Auxiliar que esté autenticado.
+    // Se valida que el idDocumento exista en BD antes de buscar el archivo en disco.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    [Authorize(Roles = "Auxiliar,Profesional,Administrador")]
+    [Route("historia-clinica/documentos-clinicos/descargar/{id:int}")]
+    public async Task<IActionResult> DescargarDocumentoClinco(
+        int id,
+        [FromServices] IWebHostEnvironment env)
+    {
+        var documento = await _context.DocumentosClinicos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.IdDocumento == id);
+
+        if (documento is null)
+            return NotFound(new { success = false, message = "Documento no encontrado." });
+
+        string rutaFisica = Path.Combine(env.WebRootPath, documento.RutaRelativa.Replace('/', Path.DirectorySeparatorChar));
+
+        if (!System.IO.File.Exists(rutaFisica))
+            return NotFound(new { success = false, message = "El archivo no se encuentra en el servidor." });
+
+        byte[] bytes = await System.IO.File.ReadAllBytesAsync(rutaFisica);
+
+        return File(bytes, documento.ContentType, documento.NombreOriginal);
     }
 
     [HttpGet]
@@ -219,9 +389,17 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("historia-clinica/st-odo-04-odontograma")]
-    public async Task<IActionResult> Stodo04Odontograma([FromQuery] int? pacienteId, [FromQuery] int? historiaId)
+    public async Task<IActionResult> Stodo04Odontograma(
+        [FromQuery] int? pacienteId,
+        [FromQuery] int? historiaId,
+        // Yeray (2025): parámetro nuevo para enlazar el odontograma a una cita
+        // concreta. Si el profesional llega desde la agenda (?citaId=N), el
+        // guardado registra la cita en Registro_Odontograma.IdCita.
+        [FromQuery] int? citaId)
     {
         var vm = await BuildOdontogramaViewModelAsync(pacienteId, historiaId);
+        // Propagar la cita al ViewModel → la vista la inyecta en config JS
+        vm.CitaId = citaId;
         return View("~/Views/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.cshtml", vm);
     }
 
@@ -232,26 +410,89 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
     public async Task<IActionResult> GuardarOdontograma([FromBody] OdontogramaGuardarRequest request)
     {
         if (request is null)
-        {
             return Json(new { success = false, message = "No se recibieron datos del odontograma." });
-        }
 
         int? pacienteId = request.PacienteId ?? await ObtenerPacientePredeterminadoAsync();
         if (pacienteId is null)
             return Json(new { success = false, message = "No hay pacientes registrados en el sistema." });
-        var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa)
-        ?? await CrearHistoriaClinicaAsync(pacienteId.Value);
 
-        historia.ObservacionesGenerales = JsonSerializer.Serialize(new
+        // Obtener el profesional actual para trazabilidad
+        int? idProfesional = await ObtenerIdProfesionalActualAsync();
+
+        var (success, message, historiaId) = await _historiaService.GuardarOdontogramaInternoAsync(
+            pacienteId.Value, request, idProfesional);
+
+        if (!success)
+            return Json(new { success = false, message });
+
+        return Json(new
         {
-            registros = request.Registros,
-            mapeoFDI = request.MapeoFDI,
-            actualizadoEn = DateTime.UtcNow
+            success = true,
+            historiaId,
+            message
         });
+    }
 
-        await _context.SaveChangesAsync();
+    // Yeray - Nuevo endpoint para tooltip del odontograma
+    // Consulta Registro_Odontograma por numero FDI y devuelve historial real del diente
+    // con profesional que lo trató, fecha y citas relacionadas desde BD
+    /// <summary>
+    /// Devuelve el historial de registros de un diente específico (por número FDI)
+    /// para mostrar en el tooltip del odontograma con datos reales de BD.
+    /// </summary>
+    [HttpGet]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-04-odontograma/diente-info")]
+    public async Task<IActionResult> ObtenerInfoDiente(
+        [FromQuery] int pacienteId,
+        [FromQuery] string numerofdi)
+    {
+        // Obtener la historia clínica activa del paciente
+        var historia = await _context.HistoriasClinicas
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
 
-        return Json(new { success = true, historiaId = historia.IdHistoria, message = "Odontograma guardado correctamente." });
+        if (historia is null)
+            return Json(new { success = true, registros = Array.Empty<object>(), citas = Array.Empty<object>() });
+
+        // Historial de estados del diente desde Registro_Odontograma
+        var registrosDiente = await _context.RegistrosOdontograma
+            .Include(r => r.Profesional)
+            .Where(r => r.IdHistoria == historia.IdHistoria && r.NumeroFdi == numerofdi)
+            .OrderByDescending(r => r.FechaRegistro)
+            .Select(r => new
+            {
+                estado       = r.Estado,
+                observacion  = r.Observacion ?? "",
+                fecha        = r.FechaRegistro.ToString("dd MMM yyyy · HH:mm"),
+                profesional  = r.Profesional != null
+                    ? $"Dr(a). {r.Profesional.Nombres} {r.Profesional.Apellidos}"
+                    : "Sin asignar"
+            })
+            .ToListAsync();
+
+        // Citas completadas del paciente para contexto adicional
+        var citas = await _context.Citas
+            .Include(c => c.Profesional)
+            .Include(c => c.Servicio)
+            .Include(c => c.Consultorio)
+            .Where(c => c.IdPaciente == pacienteId
+                && (c.Estado == "Atendida" || c.Estado == "Completada" || c.Estado == "atendida"))
+            .OrderByDescending(c => c.FechaHora)
+            .Take(5)
+            .Select(c => new
+            {
+                fecha       = c.FechaHora.ToString("dd MMM yyyy · HH:mm"),
+                servicio    = c.Servicio != null ? c.Servicio.Nombre : "Servicio no especificado",
+                profesional = c.Profesional != null
+                    ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}"
+                    : "Sin asignar",
+                consultorio = c.Consultorio != null
+                    ? $"{c.Consultorio.Nombre}"
+                    : "Sin consultorio"
+            })
+            .ToListAsync();
+
+        return Json(new { success = true, registros = registrosDiente, citas });
     }
 
     [HttpPost]
@@ -263,9 +504,6 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
         if (request is null || request.PacienteId is null)
             return Json(new { success = false, message = "No se recibió el paciente para la nota clínica." });
 
-        var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId && h.Activa)
-            ?? await CrearHistoriaClinicaAsync(request.PacienteId.Value);
-
         string? idUsuarioStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         int? idUsuario = int.TryParse(idUsuarioStr, out int uid) ? uid : null;
         var profesional = idUsuario.HasValue
@@ -273,32 +511,27 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
             : null;
         string doctor = profesional is not null ? $"Dr(a). {profesional.Nombres} {profesional.Apellidos}" : "Profesional";
 
-        // El esquema no tiene una tabla dedicada a "notas clínicas" libres, así que se
-        // guardan dentro del mismo JSON de ObservacionesGenerales que ya usa el odontograma,
-        // preservando los registros/mapeoFDI existentes.
-        var actual = string.IsNullOrWhiteSpace(historia.ObservacionesGenerales)
-            ? new JsonObject()
-            : (JsonNode.Parse(historia.ObservacionesGenerales) as JsonObject) ?? new JsonObject();
+        var (success, message, nota) = await _historiaService.RegistrarNotaClinicaAsync(
+            request.PacienteId.Value, request, profesional?.IdProfesional, doctor);
 
-        var notas = actual["notasClinicas"] as JsonArray ?? new JsonArray();
-        var nuevaNota = new JsonObject
+        if (!success || nota is null)
+            return Json(new { success = false, message });
+
+        // Se mantiene la misma forma que ya consume el JS de st-odo-03-historial.
+        return Json(new
         {
-            ["titulo"] = request.Procedimiento ?? request.Diagnostico ?? "Nota clínica",
-            ["fecha"] = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-            ["doctor"] = doctor,
-            ["diagnostico"] = request.Diagnostico ?? "",
-            ["procedimiento"] = request.Procedimiento ?? "",
-            ["proximaCita"] = request.ProximaCita,
-            ["estado"] = "Realizado"
-        };
-        notas.Insert(0, nuevaNota);
-        actual["notasClinicas"] = notas;
-        actual["actualizadoEn"] = DateTime.UtcNow;
-
-        historia.ObservacionesGenerales = actual.ToJsonString();
-        await _context.SaveChangesAsync();
-
-        return Json(new { success = true, nota = nuevaNota });
+            success = true,
+            nota = new
+            {
+                titulo = nota.Procedimiento ?? nota.Diagnostico ?? "Nota clínica",
+                fecha = nota.Fecha.ToString("yyyy-MM-dd"),
+                doctor = nota.Doctor,
+                diagnostico = nota.Diagnostico ?? "",
+                procedimiento = nota.Procedimiento ?? "",
+                proximaCita = nota.ProximaCita,
+                estado = nota.Estado
+            }
+        });
     }
 
     [HttpGet]
@@ -325,12 +558,31 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
     [Route("historia-clinica/st-odo-07-seguimiento-tratamiento/data")]
     public async Task<IActionResult> Stodo07SeguimientoTratamientoData()
     {
-        // No existe una tabla de "tratamientos" con progreso/estado en el esquema actual.
-        // El progreso y el estado se calculan a partir de las citas reales de cada
-        // paciente agrupadas por servicio (no se inventa ningún porcentaje ni estado):
-        //   - progreso = % de citas de ese servicio con estado "completada"/"realizada"/"atendida"
-        //   - estado   = "completado" si progreso=100%, "pausado" si la cita más reciente
-        //                está cancelada, "en-curso" en cualquier otro caso
+        // Yeray (2025) - ACTUALIZACIÓN: se agrega cálculo de fecha estimada.
+        //
+        // ANTES: el campo "estimado" siempre devolvía null con el comentario
+        //        "se puede pasar en el futuro". La vista mostraba "—" en todos
+        //        los tratamientos en curso.
+        //
+        // AHORA: para tratamientos "en-curso" se proyecta la fecha estimada así:
+        //
+        //   1. Se toman las fechas de las sesiones COMPLETADAS y se mide el
+        //      intervalo promedio en días entre sesión y sesión.
+        //
+        //   2. Se cuentan las sesiones que faltan (totalSesiones - completadas).
+        //
+        //   3. Proyección:
+        //        última sesión completada + (sesiones pendientes × promedio días)
+        //
+        //   4. Si solo hay 1 sesión completada (no se puede promediar),
+        //      se usa 30 días como intervalo conservador por defecto.
+        //
+        //   5. Si no hay ninguna sesión completada aún (progreso 0),
+        //      se usa la fecha de inicio + (totalSesiones × 30 días).
+        //
+        //   Para tratamientos "completado" o "pausado" → estimado = null
+        //   (ya tienen "finalizado" o no tiene sentido proyectar un pausado).
+
         var estadosCompletados = new[] { "completada", "realizada", "atendida" };
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
 
@@ -349,32 +601,83 @@ public class HistoriaClinicaController(AppDbContext context) : Controller
             .GroupBy(c => new { c.IdPaciente, c.IdServicio })
             .Select(g =>
             {
-                var ordenadas = g.OrderBy(c => c.FechaHora).ToList();
-                var ultima = ordenadas[^1];
-                int total = ordenadas.Count;
-                int completadas = ordenadas.Count(c => estadosCompletados.Contains(c.Estado.ToLowerInvariant()));
-                int progreso = total == 0 ? 0 : (int)Math.Round(completadas * 100.0 / total);
+                var ordenadas  = g.OrderBy(c => c.FechaHora).ToList();
+                var ultima     = ordenadas[^1];
+                int total      = ordenadas.Count;
+
+                int completadas = ordenadas.Count(c =>
+                    estadosCompletados.Contains(c.Estado.ToLowerInvariant()));
+
+                int progreso = total == 0 ? 0
+                    : (int)Math.Round(completadas * 100.0 / total);
+
                 string estado = progreso >= 100 ? "completado"
-                    : ultima.Estado.Equals("cancelada", StringComparison.OrdinalIgnoreCase) ? "pausado"
-                    : "en-curso";
+                    : ultima.Estado.Equals("cancelada", StringComparison.OrdinalIgnoreCase)
+                        ? "pausado"
+                        : "en-curso";
+
+                // ── Fecha estimada ────────────────────────────────────────────
+                // Solo se calcula para tratamientos en curso; los demás devuelven null.
+                DateTime? estimado = null;
+
+                if (estado == "en-curso")
+                {
+                    int pendientes = total - completadas; // sesiones que faltan
+
+                    // Citas ya completadas ordenadas por fecha (para medir intervalos)
+                    var sesionesHechas = ordenadas
+                        .Where(c => estadosCompletados.Contains(c.Estado.ToLowerInvariant()))
+                        .OrderBy(c => c.FechaHora)
+                        .ToList();
+
+                    double promedioDias;
+
+                    if (sesionesHechas.Count >= 2)
+                    {
+                        // Calcular el promedio real de días entre sesiones consecutivas
+                        double totalDias = 0;
+                        for (int i = 1; i < sesionesHechas.Count; i++)
+                            totalDias += (sesionesHechas[i].FechaHora - sesionesHechas[i - 1].FechaHora).TotalDays;
+
+                        promedioDias = totalDias / (sesionesHechas.Count - 1);
+                    }
+                    else
+                    {
+                        // Sin suficiente historial: intervalo conservador de 30 días
+                        promedioDias = 30;
+                    }
+
+                    // Punto de anclaje: última sesión completada o inicio del tratamiento
+                    var ancla = sesionesHechas.Count > 0
+                        ? sesionesHechas[^1].FechaHora
+                        : ordenadas[0].FechaHora;
+
+                    // Proyectar: ancla + (sesiones pendientes × promedio)
+                    estimado = ancla.AddDays(pendientes * promedioDias);
+                }
+                // ─────────────────────────────────────────────────────────────
 
                 return new
                 {
-                    id = $"{g.Key.IdPaciente}-{g.Key.IdServicio}",
-                    nombre = ordenadas[0].Servicio?.Nombre ?? "Servicio",
-                    tipo = ordenadas[0].Servicio?.Nombre ?? "Servicio",
-                    pacienteId = g.Key.IdPaciente,
-                    paciente = ordenadas[0].Paciente != null ? ordenadas[0].Paciente!.NombresCompleto : "Paciente sin datos",
-                    cedula = ordenadas[0].Paciente?.Documento ?? "",
-                    odontologo = ultima.Profesional is not null ? $"Dr(a). {ultima.Profesional.Nombres} {ultima.Profesional.Apellidos}" : "Sin asignar",
+                    id            = $"{g.Key.IdPaciente}-{g.Key.IdServicio}",
+                    nombre        = ordenadas[0].Servicio?.Nombre ?? "Servicio",
+                    tipo          = ordenadas[0].Servicio?.Nombre ?? "Servicio",
+                    pacienteId    = g.Key.IdPaciente,
+                    paciente      = ordenadas[0].Paciente != null
+                                        ? ordenadas[0].Paciente!.NombresCompleto
+                                        : "Paciente sin datos",
+                    cedula        = ordenadas[0].Paciente?.Documento ?? "",
+                    odontologo    = ultima.Profesional is not null
+                                        ? $"Dr(a). {ultima.Profesional.Nombres} {ultima.Profesional.Apellidos}"
+                                        : "Sin asignar",
                     estado,
                     progreso,
-                    inicio = ordenadas[0].FechaHora,
-                    estimado = estado == "en-curso" ? (DateTime?)null : null,
-                    finalizado = estado == "completado" ? ultima.FechaHora : (DateTime?)null,
-                    sesiones = completadas,
+                    inicio        = ordenadas[0].FechaHora,
+                    estimado,                                           // ← antes siempre null
+                    finalizado    = estado == "completado" ? ultima.FechaHora : (DateTime?)null,
+                    sesiones      = completadas,
                     totalSesiones = total,
-                    nota = ultima.Notas ?? ""
+                    nota          = ultima.Notas ?? ""
                 };
             })
             .OrderByDescending(x => x.inicio)
@@ -413,9 +716,20 @@ public async Task<IActionResult> Stpac02Historial()
 
 /// <summary>
 /// Construye el ViewModel completo de historial clínico (odontograma + alertas +
-/// registro de consultas) para un paciente dado, usado tanto por la vista del
-/// profesional (st-odo-03-historial) como por la del propio paciente (st-pac-02-historial).
+/// registro de consultas + notas clínicas) para un paciente dado.
+/// Usado por la vista del profesional (st-odo-03-historial) y por la del
+/// propio paciente (st-pac-02-historial).
 /// </summary>
+/// <remarks>
+/// Yeray (2025) - MIGRACIÓN: vm.NotasClinicas ahora se pobla consultando
+/// directamente la tabla Nota_Clinica en lugar de parsear el JSON en
+/// Historia_Clinica.ObservacionesGenerales. Eso elimina la dependencia del
+/// "dual-write" para la vista de historial del profesional.
+///
+/// vm.Registros sigue derivándose de Cita (para el mini-odontograma de solo
+/// lectura y el historial de consultas por fecha). Las notas clínicas libres
+/// van separadas en vm.NotasClinicas.
+/// </remarks>
 private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAsync(int? pacienteId, int? historiaId)
 {
     var vm = new HistorialPacienteViewModel
@@ -456,6 +770,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
         ? $"Dr(a). {proxima.Profesional.Nombres} {proxima.Profesional.Apellidos}"
         : null;
 
+    // Registros de consultas pasadas (derivados de Cita, para el odontograma de solo lectura)
     vm.Registros = citas
         .Where(c => c.FechaHora <= ahora)
         .Select(c => new RegistroHistorialItem
@@ -467,6 +782,35 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
             Estado = c.Estado
         })
         .ToList();
+
+    // ── Yeray (2025) - Notas clínicas reales desde Nota_Clinica ─────────────
+    // ANTES: el JS parseaba parseNotasClinicasPersistidas() sobre el JSON de
+    //        ObservacionesGenerales. Si ese JSON estaba vacío o corrupto, las
+    //        notas no aparecían aunque existieran en la tabla.
+    // AHORA: se consultan directamente aquí y se inyectan en vm.NotasClinicas,
+    //        que la vista serializa en window.smiletrackHistoriaData.notasClinicas.
+    //        El JS ya no necesita parsear ningún JSON para obtenerlas.
+    if (vm.Odontograma.HistoriaId is not null)
+    {
+        vm.NotasClinicas = await _context.NotasClinicas
+            .AsNoTracking()
+            .Include(n => n.Profesional)
+            .Where(n => n.IdHistoria == vm.Odontograma.HistoriaId.Value)
+            .OrderByDescending(n => n.Fecha)
+            .Select(n => new NotaClinicaHistorialItem
+            {
+                Titulo       = n.Procedimiento ?? n.Diagnostico ?? "Nota clínica",
+                Fecha        = n.Fecha.ToString("yyyy-MM-dd"),
+                Doctor       = n.Profesional != null
+                                   ? $"Dr(a). {n.Profesional.Nombres} {n.Profesional.Apellidos}"
+                                   : "Profesional",
+                Diagnostico  = n.Diagnostico  ?? string.Empty,
+                Procedimiento = n.Procedimiento ?? string.Empty,
+                ProximaCita  = n.ProximaCita,
+                Estado       = n.Estado
+            })
+            .ToListAsync();
+    }
 
     return vm;
 }
@@ -503,7 +847,7 @@ private static string InferirTipoServicio(string? nombreServicio)
 
         var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdHistoria == historiaId)
             ?? await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == paciente.IdPaciente && h.Activa)
-            ?? await CrearHistoriaClinicaAsync(paciente.IdPaciente);
+            ?? await _historiaService.CrearHistoriaClinicaAsync(paciente.IdPaciente);
 
         string profesionalNombre = User.FindFirst(ClaimTypes.Name)?.Value ?? "Profesional";
         string profesionalCorreo = User.FindFirst(ClaimTypes.Email)?.Value ?? "";
@@ -519,27 +863,6 @@ private static string InferirTipoServicio(string? nombreServicio)
             ProfesionalCorreo = profesionalCorreo,
             ObservacionesGenerales = historia.ObservacionesGenerales
         };
-    }
-
-    private async Task<HistoriaClinica> CrearHistoriaClinicaAsync(int pacienteId)
-    {
-        var historiaExistente = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
-        if (historiaExistente is not null)
-        {
-            return historiaExistente;
-        }
-
-        var historia = new HistoriaClinica
-        {
-            IdPaciente = pacienteId,
-            FechaApertura = DateTime.UtcNow,
-            Activa = true,
-            ObservacionesGenerales = string.Empty
-        };
-
-        _context.HistoriasClinicas.Add(historia);
-        await _context.SaveChangesAsync();
-        return historia;
     }
 
     private async Task<int?> ObtenerPacientePredeterminadoAsync()

@@ -4,6 +4,14 @@
 @{
     Layout = null;
     var odonto = Model.Odontograma;
+
+    @* Yeray (2025) - MIGRACIÓN: se agrega notasClinicas al objeto inyectado en el JS.
+       ANTES: gestion-historial.js obtenía las notas parseando el JSON de estadoPersistido
+              (ObservacionesGenerales["notasClinicas"]) — si ese JSON fallaba, las notas
+              no aparecían aunque existieran en Nota_Clinica.
+       AHORA: el servidor lee Nota_Clinica directamente en BuildHistorialPacienteViewModelAsync
+              y los entrega aquí como Model.NotasClinicas. El JS los recibe en
+              server.notasClinicas y ya no necesita parsear ningún JSON. *@
     var historiaDataJson = JsonSerializer.Serialize(new
     {
         pacienteId = odonto.PacienteId,
@@ -16,6 +24,18 @@
         medicamentos = Array.Empty<string>(), // no existe un campo de medicamentos activos en el esquema actual
         antecedentesMedicos = Model.AntecedentesMedicos,
         estadoPersistido = odonto.ObservacionesGenerales,
+        // Notas clínicas reales desde Nota_Clinica (ya formateadas por el servidor)
+        notasClinicas = Model.NotasClinicas.Select(n => new
+        {
+            titulo       = n.Titulo,
+            fecha        = n.Fecha,
+            doctor       = n.Doctor,
+            diagnostico  = n.Diagnostico,
+            procedimiento = n.Procedimiento,
+            proximaCita  = n.ProximaCita,
+            estado       = n.Estado
+        }),
+        // Historial de citas pasadas (para el mini-odontograma de solo lectura)
         historial = Model.Registros.Select(r => new
         {
             titulo = r.Descripcion,
