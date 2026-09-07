@@ -32,7 +32,11 @@
   @Html.AntiForgeryToken()
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+  @* Yeray (2025) - Sidebar dinámico: la vista del listado se comparte entre
+     el rol Administrador (/_SidebarAdmin) y la Recepcionista (/_SidebarRecepcionista).
+     El controlador inyecta el partial correcto en ViewData["SidebarPartial"].
+     Si no se inyecta nada, se usa _SidebarAdmin como comportamiento por defecto. *@
+  @{ await Html.RenderPartialAsync((string)(ViewData["SidebarPartial"] ?? "_SidebarAdmin")); }
 
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
     <span aria-hidden="true"></span>
@@ -89,6 +93,20 @@
 
     <section class="filters-bar" aria-label="Filtros de búsqueda">
       <div class="filters-row">
+        <!-- Yeray (2025) - Selector de estado:
+             ANTES: el listado solo mostraba pacientes activos y no había forma de
+                    ver inactivos o retirados desde la UI (solo vía API REST).
+             AHORA: este select pasa el valor al parámetro estado= del endpoint
+                    /gestion-de-pacientes/buscar, que ya soportaba este filtro. -->
+        <div class="filter-group">
+          <label class="filter-label" for="filterEstado">Estado</label>
+          <select id="filterEstado" class="filter-select" aria-label="Filtrar por estado del paciente">
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+            <option value="retirado">Retirados</option>
+            <option value="todos">Todos</option>
+          </select>
+        </div>
         <div class="filter-group">
           <label class="filter-label" for="filterAlergias">Alergias</label>
           <select id="filterAlergias" class="filter-select" aria-label="Filtrar por alergias">

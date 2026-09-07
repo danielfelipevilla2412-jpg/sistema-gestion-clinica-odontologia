@@ -41,6 +41,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Equipo> Equipos => Set<Equipo>();
     public DbSet<ConfiguracionGeneral> ConfiguracionesGenerales => Set<ConfiguracionGeneral>();
 
+    // Yeray (2025) - DbSet para Alergia_Paciente.
+    // El campo Paciente.Alergias (texto libre) sigue existiendo para compatibilidad.
+    // Esta tabla nueva permite alergias estructuradas con severidad, tipo y reacción,
+    // habilitando búsquedas, alertas y reportes que el texto libre no permite.
+    public DbSet<AlergiaPaciente> AlergiasPaciente => Set<AlergiaPaciente>();
+
     // Yeray - DbSet para Documento_Clinico.
     // Antes la vista st-aux-08-documentos-clinicos devolvía Array.Empty<object>() porque
     // no existía ninguna tabla de documentos. Ahora cada archivo subido (radiografía,
@@ -569,6 +575,33 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(d => d.SubidoPor)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Yeray (2025) - Configuración Fluent API para Alergia_Paciente.
+        // Tabla nueva que convierte las alergias de texto libre en filas consultables.
+        // Coexiste con Paciente.Alergias (texto) sin eliminarlo.
+        // Índice IX_AP_Paciente: lista las alergias activas de un paciente sin full-scan.
+        modelBuilder.Entity<AlergiaPaciente>(entity =>
+        {
+            entity.ToTable("Alergia_Paciente");
+            entity.HasKey(a => a.IdAlergia);
+            entity.Property(a => a.IdAlergia).HasColumnName("id_alergia");
+            entity.Property(a => a.IdPaciente).HasColumnName("id_paciente");
+            entity.Property(a => a.Sustancia).HasColumnName("sustancia").HasMaxLength(150);
+            entity.Property(a => a.Tipo).HasColumnName("tipo").HasMaxLength(15);
+            entity.Property(a => a.Severidad).HasColumnName("severidad").HasMaxLength(10);
+            entity.Property(a => a.Reaccion).HasColumnName("reaccion").HasMaxLength(300);
+            entity.Property(a => a.FechaRegistro).HasColumnName("fecha_registro");
+            entity.Property(a => a.Activa).HasColumnName("activa");
+
+            // Índice para listar alergias de un paciente sin full-scan
+            entity.HasIndex(a => a.IdPaciente).HasDatabaseName("IX_AP_Paciente");
+
+            // Paciente → CASCADE: si se borra el paciente se borran sus alergias
+            entity.HasOne(a => a.Paciente)
+                  .WithMany()
+                  .HasForeignKey(a => a.IdPaciente)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ConfiguracionGeneral>(entity =>

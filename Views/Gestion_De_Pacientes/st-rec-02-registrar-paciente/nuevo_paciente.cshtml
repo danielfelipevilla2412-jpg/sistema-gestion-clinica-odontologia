@@ -1,3 +1,13 @@
+@* ─────────────────────────────────────────────────────────────────────────────
+   Yeray (2025) - Vista actualizada para usar RegistrarPacienteViewModel
+   ANTES: todas las listas (tipos doc, profesionales, servicios, consultorios)
+          estaban hardcodeadas con datos inventados.
+   AHORA: tipos doc, géneros, grupos sanguíneos y ciudades vienen de las listas
+          estáticas del ViewModel; profesionales, servicios y consultorios se
+          leen de la BD a través del controlador.
+   ─────────────────────────────────────────────────────────────────────────── *@
+@model SmileTrack_MVC.Models.ViewModels.RegistrarPacienteViewModel
+@using SmileTrack_MVC.Models.ViewModels
 @{
   Layout = null;
 }
@@ -87,7 +97,7 @@
             <div class="form-group">
               <label class="form-label" for="nombres">Nombres <span class="required" aria-hidden="true">*</span></label>
               <input type="text" id="nombres" name="nombres" class="form-input" placeholder="Ej. Juan Sebastián"
-                     required value="Juan Sebastián" autocomplete="given-name" />
+                     required autocomplete="given-name" />
               <span class="error-message" id="error-nombres" role="alert" aria-live="polite">Por favor ingresa los
                 nombres.</span>
               </div>
@@ -97,31 +107,32 @@
                 <label class="form-label" for="apellidos">Apellidos <span class="required"
                                                                             aria-hidden="true">*</span></label>
                   <input type="text" id="apellidos" name="apellidos" class="form-input" placeholder="Ej. Morales Rincón"
-                         required value="Morales Rincón" autocomplete="family-name" />
+                         required autocomplete="family-name" />
                   <span class="error-message" id="error-apellidos" role="alert" aria-live="polite">Por favor ingresa los
                     apellidos.</span>
                   </div>
 
-                  <!-- Tipo de documento -->
-                  <div class="form-group">
-                    <label class="form-label" for="tipoDoc">Tipo de documento <span class="required"
-                                                                                      aria-hidden="true">*</span></label>
-                      <select id="tipoDoc" name="tipoDoc" class="form-select" required autocomplete="off">
-                        <option value="">Seleccione...</option>
-                        <option value="CC" selected>CC — Cédula de ciudadanía</option>
-                        <option value="TI">TI — Tarjeta de identidad</option>
-                        <option value="CE">CE — Cédula de extranjería</option>
-                      </select>
-                      <span class="error-message" id="error-tipoDoc" role="alert" aria-live="polite">Por favor selecciona un
-                        tipo de documento.</span>
-                      </div>
+                      <!-- Tipo de documento — opciones desde RegistrarPacienteViewModel.TiposDocumento -->
+                      <div class="form-group">
+                        <label class="form-label" for="tipoDoc">Tipo de documento <span class="required"
+                                                                                          aria-hidden="true">*</span></label>
+                          <select id="tipoDoc" name="tipoDoc" class="form-select" required autocomplete="off">
+                            <option value="">Seleccione...</option>
+                            @foreach (var (valor, etiqueta) in RegistrarPacienteViewModel.TiposDocumento)
+                            {
+                                <option value="@valor" @(valor == "CC" ? "selected" : "")>@etiqueta</option>
+                            }
+                          </select>
+                          <span class="error-message" id="error-tipoDoc" role="alert" aria-live="polite">Por favor selecciona un
+                            tipo de documento.</span>
+                          </div>
 
                       <!-- Número de documento -->
                       <div class="form-group">
                         <label class="form-label" for="documento">Número de documento <span class="required"
                                                                                               aria-hidden="true">*</span></label>
                           <input type="text" id="documento" name="documento" class="form-input" placeholder="Ej. 1098765432"
-                                 required value="1098765432" autocomplete="off" inputmode="numeric" pattern="[0-9]+" />
+                                 required autocomplete="off" inputmode="numeric" pattern="[0-9]+" />
                           <span class="error-message" id="error-documento" role="alert" aria-live="polite">Por favor ingresa un
                             número válido (solo números).</span>
                           </div>
@@ -135,13 +146,14 @@
                                 una fecha válida.</span>
                               </div>
 
-                              <!-- Género -->
+                              <!-- Género — opciones desde RegistrarPacienteViewModel.Generos -->
                               <div class="form-group">
                                 <label class="form-label" for="genero">Género</label>
                                 <select id="genero" name="genero" class="form-select" autocomplete="off">
-                                  <option value="M" selected>Masculino</option>
-                                  <option value="F">Femenino</option>
-                                  <option value="O">Otro</option>
+                                  @foreach (var (valor, etiqueta) in RegistrarPacienteViewModel.Generos)
+                                  {
+                                      <option value="@valor" @(valor == "M" ? "selected" : "")>@etiqueta</option>
+                                  }
                                 </select>
                               </div>
 
@@ -150,7 +162,7 @@
                                 <label class="form-label" for="telefono">Teléfono <span class="required"
                                                                                           aria-hidden="true">*</span></label>
                                   <input type="tel" id="telefono" name="telefono" class="form-input" placeholder="Ej. 312 456 7890" required
-                                         value="312 456 7890" autocomplete="tel" inputmode="tel" />
+                                         autocomplete="tel" inputmode="tel" />
                                   <span class="error-message" id="error-telefono" role="alert" aria-live="polite">Por favor ingresa un
                                     teléfono válido (mínimo 7 dígitos).</span>
                                   </div>
@@ -160,33 +172,32 @@
                                     <label class="form-label" for="correo">Correo electrónico <span class="required"
                                                                                                       aria-hidden="true">*</span></label>
                                       <input type="email" id="correo" name="correo" class="form-input" placeholder="Ej. juan@correo.com"
-                                             required value="juan@correo.com" autocomplete="email" />
+                                             required autocomplete="email" />
                                       <span class="error-message" id="error-correo" role="alert" aria-live="polite">Por favor ingresa un correo
                                         válido.</span>
                                       </div>
 
-                                      <!-- Grupo sanguíneo -->
+                                      <!-- Grupo sanguíneo — desde RegistrarPacienteViewModel.GruposSanguineos -->
                                       <div class="form-group">
                                         <label class="form-label" for="grupoSanguineo">Grupo sanguíneo</label>
                                         <select id="grupoSanguineo" name="grupoSanguineo" class="form-select" autocomplete="off">
-                                          <option>O+</option>
-                                          <option>O-</option>
-                                          <option>A+</option>
-                                          <option>A-</option>
-                                          <option>B+</option>
-                                          <option>B-</option>
-                                          <option>AB+</option>
-                                          <option>AB-</option>
+                                          <option value="">Seleccione...</option>
+                                          @foreach (var gs in RegistrarPacienteViewModel.GruposSanguineos)
+                                          {
+                                              <option value="@gs">@gs</option>
+                                          }
                                         </select>
                                       </div>
 
-                                      <!-- Ciudad -->
+                                      <!-- Ciudad — desde RegistrarPacienteViewModel.Ciudades -->
                                       <div class="form-group">
                                         <label class="form-label" for="ciudad">Ciudad</label>
                                         <select id="ciudad" name="ciudad" class="form-select" autocomplete="address-level2">
-                                          <option>Bogotá D.C</option>
-                                          <option>Medellín</option>
-                                          <option>Cali</option>
+                                          <option value="">Seleccione...</option>
+                                          @foreach (var c in RegistrarPacienteViewModel.Ciudades)
+                                          {
+                                              <option value="@c">@c</option>
+                                          }
                                         </select>
                                       </div>
 
@@ -194,7 +205,7 @@
                                       <div class="form-group full-width">
                                         <label class="form-label" for="alergias">Alergias conocidas</label>
                                         <input type="text" id="alergias" name="alergias" class="form-input" placeholder="Ninguna conocida"
-                                               value="Ninguna conocida" autocomplete="off" />
+                                               autocomplete="off" />
                                       </div>
                                     </div>
                                   </section>
@@ -226,23 +237,27 @@
                                       <h2 class="form-card-title" id="cardTitle2">Agendar primera cita</h2>
 
                                       <div class="form-grid">
-                                        <!-- Profesional -->
+                                      <!-- Profesional — desde BD vía RegistrarPacienteViewModel.Profesionales -->
                                         <div class="form-group">
                                           <label class="form-label" for="profesional">Profesional</label>
                                           <select id="profesional" name="profesional" class="form-select" autocomplete="off">
-                                            <option>Dr. Carlos Méndez - Odontología General</option>
-                                            <option>Dra. Sandra Gómez - Ortodoncia</option>
-                                            <option>Dr. Jorge Silva - Endodoncia</option>
+                                            <option value="">Sin preferencia</option>
+                                            @foreach (var prof in Model.Profesionales)
+                                            {
+                                                <option value="@prof.Id">@prof.Etiqueta</option>
+                                            }
                                           </select>
                                         </div>
 
-                                        <!-- Servicio -->
+                                        <!-- Servicio — desde BD vía RegistrarPacienteViewModel.Servicios -->
                                         <div class="form-group">
                                           <label class="form-label" for="servicio">Servicio</label>
                                           <select id="servicio" name="servicio" class="form-select" autocomplete="off">
-                                            <option>Consulta General - $50.000</option>
-                                            <option>Valoración Inicial - Gratis</option>
-                                            <option>Limpieza Dental - $80.000</option>
+                                            <option value="">Seleccione...</option>
+                                            @foreach (var svc in Model.Servicios)
+                                            {
+                                                <option value="@svc.Id">@svc.Etiqueta</option>
+                                            }
                                           </select>
                                         </div>
 
@@ -267,13 +282,15 @@
                                             </select>
                                           </div>
 
-                                          <!-- Consultorio -->
+                                          <!-- Consultorio — desde BD vía RegistrarPacienteViewModel.Consultorios -->
                                           <div class="form-group">
                                             <label class="form-label" for="consultorio">Consultorio</label>
                                             <select id="consultorio" name="consultorio" class="form-select" autocomplete="off">
-                                              <option>Consultorio - Piso 1</option>
-                                              <option>Consultorio - Piso 2</option>
-                                              <option>Consultorio Principal - Piso 1</option>
+                                              <option value="">Sin preferencia</option>
+                                              @foreach (var cons in Model.Consultorios)
+                                              {
+                                                  <option value="@cons.Id">@cons.Etiqueta</option>
+                                              }
                                             </select>
                                           </div>
 

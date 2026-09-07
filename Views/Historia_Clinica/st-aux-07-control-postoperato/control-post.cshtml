@@ -49,6 +49,24 @@
         <h1 class="page-title">Control Postoperatorio</h1>
         <p class="page-subtitle" id="postopSubtitle">Cargando…</p>
       </div>
+      @* Yeray (2025) - Selector de cita postoperatoria.
+         ANTES: la vista siempre cargaba la cita completada más reciente por defecto;
+                el auxiliar no tenía forma de cambiar a otra cita sin modificar la URL.
+         AHORA: se muestra un <select> que lista todas las citas completadas
+                del día (GET /historia-clinica/st-aux-07-control-postoperato/data)
+                y al cambiar la selección navega a ?citaId=X, recargando los datos
+                del control postoperatorio correspondiente. *@
+      <div class="header-right" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label for="selectorCitaPostop" style="font-size:.85rem;color:var(--text-muted);white-space:nowrap;">
+          Cita:
+        </label>
+        <select id="selectorCitaPostop"
+                aria-label="Seleccionar cita postoperatoria"
+                style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;
+                       font-size:.85rem;cursor:pointer;max-width:280px;">
+          <option value="">Cargando citas…</option>
+        </select>
+      </div>
     </header>
 
     <!-- Layout de contenido -->

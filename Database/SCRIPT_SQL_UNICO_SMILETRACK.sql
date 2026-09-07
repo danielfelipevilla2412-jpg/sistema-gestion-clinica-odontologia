@@ -1079,6 +1079,7 @@ GO
 -- CÓDIGO Y CALIDAD — TABLA AUDITORIA, TRIGGERS, FUNCIONES Y PROCEDIMIENTOS
 -- ============================================================
 
+<<<<<<< HEAD
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Auditoria') AND type = N'U')
 BEGIN
     CREATE TABLE dbo.Auditoria (
@@ -1290,4 +1291,56 @@ PRINT 'Procedimiento almacenado sp_RegistrarCitaConValidacion creado correctamen
 GO
 
 PRINT 'Script ejecutado correctamente.';
+=======
+GO
+
+-- ============================================================
+-- Yeray (2025) - Tabla Alergia_Paciente
+--
+-- MOTIVO: convierte el campo de texto libre Paciente.Alergias en filas
+-- consultables con severidad, tipo y reacción. Coexiste con el campo
+-- de texto (no lo reemplaza) para no romper el código existente.
+--
+-- RELACIONES:
+--   id_paciente → Paciente (CASCADE delete)
+--
+-- CHECKS:
+--   tipo     : medicamento | alimento | ambiental | latex | otro
+--   severidad: leve | moderada | grave
+--
+-- ÍNDICE IX_AP_Paciente: lista alergias de un paciente sin full-scan.
+-- ============================================================
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects
+               WHERE object_id = OBJECT_ID(N'dbo.Alergia_Paciente') AND type = N'U')
+BEGIN
+    CREATE TABLE Alergia_Paciente (
+        id_alergia      INT IDENTITY(1,1) PRIMARY KEY,
+        id_paciente     INT NOT NULL,
+        sustancia       VARCHAR(150) NOT NULL,
+        tipo            VARCHAR(15)  NOT NULL DEFAULT 'otro'
+                        CHECK (tipo IN ('medicamento','alimento','ambiental','latex','otro')),
+        severidad       VARCHAR(10)  NOT NULL DEFAULT 'leve'
+                        CHECK (severidad IN ('leve','moderada','grave')),
+        reaccion        VARCHAR(300) NULL,
+        fecha_registro  DATETIME2   NOT NULL DEFAULT GETUTCDATE(),
+        activa          BIT         NOT NULL DEFAULT 1,
+
+        CONSTRAINT FK_AP_Paciente
+            FOREIGN KEY (id_paciente) REFERENCES Paciente(id_paciente)
+            ON DELETE CASCADE
+    );
+
+    CREATE INDEX IX_AP_Paciente ON Alergia_Paciente(id_paciente);
+
+    PRINT 'Tabla Alergia_Paciente creada correctamente.';
+END
+ELSE
+BEGIN
+    PRINT 'Tabla Alergia_Paciente ya existe — sin cambios.';
+END
+GO
+
+PRINT 'Script completo ejecutado correctamente.';
+>>>>>>> 0370ea7bd1bcb77ff995ddcfb2e98e1608ed5231
 GO
