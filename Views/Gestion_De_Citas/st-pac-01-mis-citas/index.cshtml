@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@* ============================================
+﻿@* ============================================
 SmileTrack — Mis Citas Paciente (st-pac-01-mis-citas)
 ============================================
 Autor: Johan Santamaria
@@ -48,7 +48,7 @@ NOTAS DE MANTENIMIENTO:
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
   <!-- SIDEBAR: barra de navegación lateral fija con logo, menú y datos del usuario -->
-  @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
+  @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarPaciente"); }
 
   <!-- HAMBURGER: botón que abre/cierra el menú lateral en dispositivos mÓviles -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -61,6 +61,7 @@ NOTAS DE MANTENIMIENTO:
 
   <!-- MAIN: área de contenido principal de la página -->
   <main class="main" id="main-content">
+    @Html.AntiForgeryToken()
     <!-- Cabecera de página con breadcrumb, título, subtítulo y botón para solicitar nueva cita -->
     <header class="page-header">
       <div class="header-left">
@@ -184,11 +185,7 @@ NOTAS DE MANTENIMIENTO:
         <div class="form-group">
           <label class="form-label" for="citaServicio">Tipo de servicio</label>
           <select class="form-input" id="citaServicio">
-            <option>Consulta general</option>
-            <option>Limpieza dental</option>
-            <option>Control de tratamiento</option>
-            <option>Ortodoncia</option>
-            <option>Urgencia</option>
+            <option value="">Cargando servicios...</option>
           </select>
         </div>
         <div class="form-group">

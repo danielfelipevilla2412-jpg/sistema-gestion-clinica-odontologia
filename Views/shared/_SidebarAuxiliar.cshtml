@@ -4,9 +4,20 @@
   Incluye: <aside> completo, logo, nav con grupos colapsables y bloque de usuario.
 *@
 @{
-    var currentPath = Context.Request.Path.Value ?? "/";
+    var rawPath = Context.Request.Path.Value ?? "/";
+    var currentPath = rawPath.TrimEnd('/');
+    if (string.IsNullOrEmpty(currentPath)) currentPath = "/";
+
     Func<string, string> linkClass = href =>
-        currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    {
+        var cleanHref = (href ?? "/").TrimEnd('/');
+        if (string.IsNullOrEmpty(cleanHref)) cleanHref = "/";
+
+        bool isMatch = currentPath.Equals(cleanHref, StringComparison.OrdinalIgnoreCase)
+            || (cleanHref.Contains("st-aux-01-panel-operativo") && currentPath.Contains("st-aux-01-panel-operativo"));
+
+        return isMatch ? "nav-item active" : "nav-item";
+    };
 
     var _auxName     = User.Identity?.Name ?? "Auxiliar";
     var _auxEmail    = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "auxiliar@smiletrack.co";
@@ -44,10 +55,20 @@
            data-icon="📊">Panel Auxiliar</a>
         <a href="/gestion-de-citas/st-aux-02-agenda-apoyo"
            class="@linkClass("/gestion-de-citas/st-aux-02-agenda-apoyo")"
-           data-icon="📅">Gestión de Citas</a>
+           data-icon="📅">Agenda de Apoyo</a>
         <a href="/gestion-de-citas/st-aux-10-citas-finalizadas"
            class="@linkClass("/gestion-de-citas/st-aux-10-citas-finalizadas")"
            data-icon="✅">Citas Finalizadas</a>
+        <div class="nav-subsection-label" aria-hidden="true">Durante la atención</div>
+        <a href="/gestion-de-citas/st-aux-06-asistencia-procedi"
+           class="@linkClass("/gestion-de-citas/st-aux-06-asistencia-procedi")"
+           data-icon="🦷">Asistencia en Procedimiento</a>
+        <a href="/gestion-de-citas/st-aux-09-estado-consultorio"
+           class="@linkClass("/gestion-de-citas/st-aux-09-estado-consultorio")"
+           data-icon="🏥">Estado del Consultorio</a>
+        <a href="/gestion-de-citas/st-aux-05-historial-parcial"
+           class="@linkClass("/gestion-de-citas/st-aux-05-historial-parcial")"
+           data-icon="📋">Historial del Paciente</a>
       </div>
     </div>
 
@@ -118,3 +139,18 @@
   </div>
 
 </aside>
+
+<style>
+  .nav-subsection-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted, #94a3b8);
+    padding: 10px 16px 2px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border, #e2e8f0);
+    pointer-events: none;
+    user-select: none;
+  }
+</style>

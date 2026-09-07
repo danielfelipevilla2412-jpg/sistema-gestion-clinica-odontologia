@@ -1871,9 +1871,12 @@ namespace SmileTrack_MVC.Services
         {
             try
             {
-                string jwtKey =
-                    _configuration["Jwt:Key"]
-                    ?? "TuClaveSecretaSuperSegura123!_CambiaEstoEnProduccion_SmileTrack2025";
+                string? jwtKey = _configuration["Jwt:Key"];
+                if (string.IsNullOrWhiteSpace(jwtKey))
+                {
+                    throw new InvalidOperationException(
+                        "No se encontró Jwt:Key. Configure una clave JWT mediante User Secrets o variables de entorno.");
+                }
 
                 string jwtIssuer =
                     _configuration["Jwt:Issuer"]
@@ -1893,12 +1896,8 @@ namespace SmileTrack_MVC.Services
 
                 if (jwtKey.Length < 32)
                 {
-                    _logger.LogWarning(
-                        "Jwt:Key tiene longitud insuficiente ({Longitud}).",
-                        jwtKey.Length);
-
-                    jwtKey =
-                        "TuClaveSecretaSuperSegura123!_CambiaEstoEnProduccion_SmileTrack2025";
+                    throw new InvalidOperationException(
+                        "Jwt:Key debe tener al menos 32 caracteres.");
                 }
 
                 var claims = new List<Claim>

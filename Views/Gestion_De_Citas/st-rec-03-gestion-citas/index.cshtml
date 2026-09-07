@@ -1,4 +1,4 @@
-﻿@* ============================================
+@* ============================================
 SmileTrack — Gestión de Citas Recepción (st-rec-03-gestion-citas)
 ============================================
 Autor: Johan Santamaria
@@ -63,7 +63,7 @@ NOTAS DE MANTENIMIENTO:
   <!-- Skip link para accesibilidad -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+    @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarRecepcionista"); }
 
   <!-- ═════ HAMBURGER (móvil) ═════ -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -266,6 +266,22 @@ NOTAS DE MANTENIMIENTO:
                        role="button">
                       ✏️ <span class="btn-text">Editar</span>
                     </a>
+                    <button type="button"
+                            class="btn-icon action-btn"
+                            data-action="sync"
+                            data-id="@cita.IdCita"
+                            aria-label="Sincronizar cita de @Html.Encode(citaPaciente)"
+                            title="Sincronizar cita de @Html.Encode(citaPaciente)">
+                      🔄 <span class="btn-text">Sincronizar</span>
+                    </button>
+                    <button type="button"
+                            class="btn-icon action-btn btn-delete"
+                            data-action="cancel"
+                            data-id="@cita.IdCita"
+                            aria-label="Cancelar cita de @Html.Encode(citaPaciente)"
+                            title="Cancelar cita de @Html.Encode(citaPaciente)">
+                      ✕ <span class="btn-text">Cancelar</span>
+                    </button>
                   </div>
                 </td>
               </tr>

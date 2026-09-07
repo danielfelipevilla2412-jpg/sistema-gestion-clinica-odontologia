@@ -1,8 +1,14 @@
 @{
-    var currentPath = Context.Request.Path.Value ?? "/";
+    var rawPath = Context.Request.Path.Value ?? "/";
+    var currentPath = rawPath.TrimEnd('/');
+    if (string.IsNullOrEmpty(currentPath)) currentPath = "/";
 
-    string linkState(string href) =>
-        currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    string linkState(string href)
+    {
+        var cleanHref = (href ?? "/").TrimEnd('/');
+        if (string.IsNullOrEmpty(cleanHref)) cleanHref = "/";
+        return currentPath.Equals(cleanHref, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    }
 
     var groups = new[]
     {
@@ -69,7 +75,7 @@
         @foreach (var group in groups)
         {
             <div class="nav-group">
-                <div class="nav-group-header" role="button" tabindex="0">
+                <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
                     @group.Title
                     <span class="nav-arrow" aria-hidden="true">▼</span>
                 </div>

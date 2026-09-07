@@ -193,16 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             if (btnText && btnLoading) { btnText.hidden = true; btnLoading.hidden = false; btn.disabled = true; }
-            // Simular envío
-            await new Promise(res => setTimeout(res, 1200));
-            // Mostrar éxito
-            if (pqrsForm) pqrsForm.hidden = true;
-            if (pqrsSuccess) {
-                pqrsSuccess.hidden = false;
-                pqrsTicket.textContent = `ST-${new Date().getFullYear()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
-                pqrsResponseEmail.textContent = document.getElementById('pqrsEmail')?.value || 'tu@email.com';
-            }
-            showToast('✅ PQRS registrada exitosamente', 'success');
+            showToast('La PQRS no está disponible desde esta página. Inicia sesión para registrarla.', 'warning');
         } catch(err) {
             console.error('PQRS error', err);
             showToast('❌ Error al enviar. Intenta de nuevo.', 'error');

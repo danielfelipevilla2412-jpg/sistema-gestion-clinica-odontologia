@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿@* ============================================
+﻿@* ============================================
 SmileTrack — Agenda de Apoyo Clínico (st-aux-02-agenda-apoyo)
 ============================================
 Autor: Johan Santamaria
@@ -48,7 +48,7 @@ NOTAS DE MANTENIMIENTO:
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-@{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+@{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarAuxiliar"); }
 
   <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -88,9 +88,28 @@ NOTAS DE MANTENIMIENTO:
           </button>
           <div class="dropdown-menu" id="dropdownMenu" role="menu" aria-label="Seleccionar profesional">
             <div class="dd-item active" role="menuitem" tabindex="0" data-value="todos">Todos los profesionales</div>
-            <div class="dd-item" role="menuitem" tabindex="0" data-value="mendez">Dr. Méndez</div>
-            <div class="dd-item" role="menuitem" tabindex="0" data-value="ramirez">Dra. Ramírez</div>
-            <div class="dd-item" role="menuitem" tabindex="0" data-value="gomez">Dra. Gómez</div>
+            @{
+                var agendaData = ViewData["AgendaApoyoData"];
+                var agendaJson = System.Text.Json.JsonSerializer.Serialize(agendaData ?? new { citas = Array.Empty<object>() });
+                using var agendaObj = System.Text.Json.JsonDocument.Parse(agendaJson);
+                var profesionalesUnicos = new HashSet<string>();
+                if (agendaObj.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object && agendaObj.RootElement.TryGetProperty("citas", out var citasEl) && citasEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var cita in citasEl.EnumerateArray())
+                    {
+                        if (cita.TryGetProperty("profesional", out var profEl))
+                        {
+                            var nombre = profEl.GetString() ?? "";
+                            if (!string.IsNullOrWhiteSpace(nombre))
+                                profesionalesUnicos.Add(nombre);
+                        }
+                    }
+                }
+            }
+            @foreach (var prof in profesionalesUnicos.OrderBy(p => p))
+            {
+                <div class="dd-item" role="menuitem" tabindex="0" data-value="@prof">@prof</div>
+            }
           </div>
         </div>
 
@@ -123,6 +142,22 @@ NOTAS DE MANTENIMIENTO:
               </tr>
             </thead>
             <tbody id="agendaBody" aria-live="polite">
+              <tr class="skeleton-row" aria-hidden="true">
+                <td><div class="skeleton-cell" style="width:50px"></div></td>
+                <td><div class="skeleton-cell" style="width:140px"></div></td>
+                <td><div class="skeleton-cell" style="width:120px"></div></td>
+                <td><div class="skeleton-cell" style="width:90px"></div></td>
+                <td><div class="skeleton-cell" style="width:80px"></div></td>
+                <td><div class="skeleton-cell" style="width:70px"></div></td>
+              </tr>
+              <tr class="skeleton-row" aria-hidden="true">
+                <td><div class="skeleton-cell" style="width:50px"></div></td>
+                <td><div class="skeleton-cell" style="width:160px"></div></td>
+                <td><div class="skeleton-cell" style="width:100px"></div></td>
+                <td><div class="skeleton-cell" style="width:90px"></div></td>
+                <td><div class="skeleton-cell" style="width:80px"></div></td>
+                <td><div class="skeleton-cell" style="width:70px"></div></td>
+              </tr>
               <!-- Las filas se generan dinámicamente por JavaScript -->
             </tbody>
           </table>
@@ -142,7 +177,7 @@ NOTAS DE MANTENIMIENTO:
       <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
       <span>Panel</span>
     </a>
-    <a href="#" class="mobile-nav-item active" aria-current="page">
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item active" aria-current="page">
       <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
       <span>Agenda</span>
     </a>

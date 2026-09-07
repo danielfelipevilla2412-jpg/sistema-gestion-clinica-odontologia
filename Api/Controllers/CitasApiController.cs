@@ -19,12 +19,9 @@ public sealed class CookieAwareValidateAntiforgeryTokenAttribute : Attribute, IA
 {
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
-        bool authenticatedBearer =
-            context.HttpContext.Request.Headers.Authorization.ToString()
-                .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
-            context.HttpContext.User.Identities.Any(identity =>
-                identity.IsAuthenticated &&
-                string.Equals(identity.AuthenticationType, JwtBearerDefaults.AuthenticationScheme, StringComparison.OrdinalIgnoreCase));
+        bool authenticatedBearer = context.HttpContext.User.Identities.Any(identity =>
+            identity.IsAuthenticated &&
+            string.Equals(identity.AuthenticationType, JwtBearerDefaults.AuthenticationScheme, StringComparison.OrdinalIgnoreCase));
 
         if (authenticatedBearer)
             return;
@@ -122,6 +119,7 @@ public sealed class CitasApiController : ControllerBase
             c.IdServicio,
             Servicio = c.Servicio == null ? null : new { c.Servicio.Nombre },
             c.IdConsultorio,
+            Consultorio = c.Consultorio == null ? null : new { c.Consultorio.Nombre, c.Consultorio.Ubicacion },
             c.IdEstado,
             EstadoCatalogo = c.EstadoCita?.NombreEstado,
             c.FechaHora,
@@ -171,20 +169,8 @@ public sealed class CitasApiController : ControllerBase
     }
 
     [HttpPost]
-    [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador,Recepcionista")]
-    [Route("api/citas")]
-    public Task<IActionResult> CrearCita([FromBody] CitaAgendaDto dto, CancellationToken ct = default) => CrearDesdeAgenda(dto, ct);
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador,Recepcionista")]
-    [Route("api/appointments")]
-    public Task<IActionResult> CrearCitaDesdeAppointments([FromBody] CitaAgendaDto dto, CancellationToken ct = default) => CrearDesdeAgenda(dto, ct);
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador,Recepcionista")]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [Route("api/citas/agenda")]
     public Task<IActionResult> CrearCitaDesdeAgenda([FromBody] CitaAgendaDto dto, CancellationToken ct = default) => CrearDesdeAgenda(dto, ct);
 
@@ -260,6 +246,137 @@ public sealed class CitasApiController : ControllerBase
             return EsConflicto(ex.Message) ? Conflict(new { success = false, message = ex.Message }) : BadRequest(new { success = false, message = ex.Message });
         }
     }
+
+    [HttpPost]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
+    [Route("api/citas/solicitar")]
+    public async Task<IActionResult> SolicitarCita([FromBody] CitaSolicitudPacienteDto dto, CancellationToken ct = default)
+    {
+        if (dto is null || !ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Datos de solicitud inválidos." });
+
+        if (!int.TryParse(User.FindFirstValue("IdPaciente"), out int idPaciente) || idPaciente <= 0)
+            return Forbid();
+
+        try
+        {
+            var cita = await _citaService.SolicitarCitaPacienteAsync(idPaciente, dto, ct);
+            await RegistrarAuditoriaAsync("INSERT", cita.IdCita, "Solicitud de cita creada por paciente.", ct);
+            return StatusCode(StatusCodes.Status201Created, new
+            {
+                success = true,
+                message = "Solicitud de cita enviada exitosamente. La clínica revisará y confirmará tu cita en breve.",
+                id = cita.IdCita,
+                estado = cita.Estado
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpGet]
+    [Authorize(Policy = "ApiOrCookie")]
+    [Route("api/citas/profesionales-disponibles")]
+    public async Task<IActionResult> ObtenerProfesionalesDisponibles(
+        [FromQuery] DateTime fecha,
+        [FromQuery] string horaInicio,
+        [FromQuery] int? duracionMinutos = null,
+        [FromQuery] int? idServicio = null,
+        CancellationToken ct = default)
+    {
+        if (!TimeSpan.TryParse(horaInicio, out TimeSpan tsHora))
+        {
+            return BadRequest(new { success = false, message = "Formato de hora inválido. Debe ser HH:mm." });
+        }
+
+        int duracion = duracionMinutos is > 0 ? duracionMinutos.Value : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+        var profesionales = await _citaService.ObtenerProfesionalesDisponiblesAsync(fecha, tsHora, duracion, idServicio, ct);
+
+        return Ok(new { success = true, data = profesionales });
+    }
+
+    [HttpPut]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [Route("api/citas/{id:int}/confirmar-asignacion")]
+    public async Task<IActionResult> ConfirmarYAsignar(int id, [FromBody] CitaConfirmacionAsignacionDto dto, CancellationToken ct = default)
+    {
+        if (dto is null || id != dto.IdCita || !ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Datos de confirmación inválidos." });
+
+        try
+        {
+            var cita = await _citaService.ConfirmarYAsignarCitaAsync(id, dto, ct);
+            if (cita is null)
+                return NotFound(new { success = false, message = "Cita no encontrada." });
+
+            await RegistrarAuditoriaAsync("UPDATE", cita.IdCita, "Cita confirmada y asignada por recepción.", ct);
+            return Ok(new
+            {
+                success = true,
+                message = "Cita confirmada y profesional asignado exitosamente.",
+                id = cita.IdCita,
+                estado = cita.Estado,
+                idProfesional = cita.IdProfesional,
+                idConsultorio = cita.IdConsultorio,
+                fechaHora = cita.FechaHora
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return EsConflicto(ex.Message) ? Conflict(new { success = false, message = ex.Message }) : BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [Route("api/citas/recordatorios/enviar")]
+    public async Task<IActionResult> EnviarRecordatorios([FromBody] EnviarRecordatoriosDto dto, CancellationToken ct = default)
+    {
+        if (dto is null || dto.IdsCitas == null || dto.IdsCitas.Count == 0)
+            return BadRequest(new { success = false, message = "Debe seleccionar al menos una cita para enviar recordatorios." });
+
+        var (enviados, fallidos) = await _citaService.EnviarRecordatoriosAsync(dto.IdsCitas, dto.MensajePersonalizado, ct);
+        return Ok(new
+        {
+            success = true,
+            enviados,
+            fallidos,
+            message = enviados > 0
+                ? $"Se enviaron {enviados} recordatorio(s) exitosamente por correo electrónico."
+                : "No fue posible enviar recordatorios (verifique que los pacientes tengan correo registrado)."
+        });
+    }
+
+    /// <summary>
+    /// Devuelve el catálogo de servicios odontológicos activos de la clínica.
+    /// Usado por el modal de solicitud de cita del paciente para cargar los tipos de servicio
+    /// disponibles desde la base de datos (en lugar de opciones hardcoded en el HTML).
+    /// </summary>
+    [HttpGet]
+    [Authorize(Policy = "ApiOrCookie")]
+    [Route("api/servicios")]
+    public async Task<IActionResult> ObtenerServicios(CancellationToken ct = default)
+    {
+        var servicios = await _context.Servicios
+            .Where(s => s.Estado == "activo" || string.IsNullOrEmpty(s.Estado))
+            .OrderBy(s => s.Nombre)
+            .Select(s => new
+            {
+                idServicio = s.IdServicio,
+                nombre = s.Nombre,
+                descripcion = s.Descripcion,
+                precio = s.Precio
+            })
+            .ToListAsync(ct);
+
+        return Ok(new { success = true, data = servicios });
+    }
+
 
     public sealed class CitaNotasDto { public int IdCita { get; set; } public string? Notas { get; set; } }
 

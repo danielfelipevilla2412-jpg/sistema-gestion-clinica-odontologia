@@ -1,4 +1,4 @@
-﻿﻿@* ============================================
+﻿@* ============================================
 SmileTrack — Citas Finalizadas (st-aux-10-citas-finalizadas)
 ============================================
 Autor: Johan Santamaria
@@ -41,7 +41,6 @@ NOTAS DE MANTENIMIENTO:
   <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.css")" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 
 <body>
@@ -49,7 +48,7 @@ NOTAS DE MANTENIMIENTO:
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-  @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+  @{ await Html.RenderPartialAsync(User.IsInRole("Recepcionista") ? "_SidebarRecepcionista" : (User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarAuxiliar")); }
 
   <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -118,20 +117,20 @@ NOTAS DE MANTENIMIENTO:
   <!-- Mobile bottom nav con aria-label para navegación móvil -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
       <span>Panel</span>
     </a>
     <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
       <span>Agenda</span>
     </a>
-    <a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">✅</span>
+    <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item active" aria-current="page">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">check_circle</span>
       <span>Finalizadas</span>
     </a>
-    <a href="/acceso-y-seguridad/login" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
-      <span>Login</span>
+    <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
+      <span>Perfil</span>
     </a>
   </nav>
 

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿@* ============================================
+﻿﻿﻿﻿﻿﻿@* ============================================
    SmileTrack — Agenda General (st-adm-08-agenda)
    ============================================
    Autor: Johan Santamaria
@@ -58,7 +58,7 @@
     <!-- Enlace de accesibilidad: saltar al contenido principal -->
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+    @{ await Html.RenderPartialAsync(User.IsInRole("Recepcionista") ? "_SidebarRecepcionista" : "_SidebarAdmin"); }
 
     <!-- Botón hamburguesa para dispositivos mÓviles -->
     <button 

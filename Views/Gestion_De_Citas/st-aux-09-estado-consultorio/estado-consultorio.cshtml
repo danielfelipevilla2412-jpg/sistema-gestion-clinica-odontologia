@@ -1,4 +1,4 @@
-﻿﻿@* ============================================
+﻿@* ============================================
 SmileTrack — Estado del Consultorio (st-aux-09-estado-consultorio)
 ============================================
 Autor: Johan Santamaria
@@ -24,6 +24,8 @@ NOTAS DE MANTENIMIENTO:
 - La barra de progreso usa role="progressbar" con aria-valuenow para anunciar el avance del checklist a lectores de pantalla.
 ============================================ *@
 @{ Layout = null; }
+@using System.Text.Json
+@{ var estadoConsultorioJson = JsonSerializer.Serialize(ViewData["EstadoConsultorioData"]); }
 
 <!DOCTYPE html>
 <html lang="es">
@@ -46,7 +48,7 @@ NOTAS DE MANTENIMIENTO:
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-  @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+  @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarAuxiliar"); }
 
   <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -68,7 +70,7 @@ NOTAS DE MANTENIMIENTO:
           <span class="bc-active">Estado del consultorio</span>
         </nav>
         <h1 class="page-title">Estado del Consultorio</h1>
-        <p class="page-subtitle">Consultorio 1 · Piso 1 · Última limpieza hace 2 horas</p>
+        <p class="page-subtitle" id="consultorioSubtitle" aria-live="polite">Cargando...</p>
       </div>
     </header>
 
@@ -227,7 +229,7 @@ NOTAS DE MANTENIMIENTO:
 
   <!-- Mobile bottom nav con aria-label para navegación móvil -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo">
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
       <span class="mobile-nav-icon" aria-hidden="true">📊</span>
       <span>Panel</span>
     </a>
@@ -235,7 +237,7 @@ NOTAS DE MANTENIMIENTO:
       <span class="mobile-nav-icon" aria-hidden="true">📅</span>
       <span>Agenda</span>
     </a>
-    <a href="#" class="mobile-nav-item active" aria-current="page">
+    <a href="/gestion-de-citas/st-aux-09-estado-consultorio" class="mobile-nav-item active" aria-current="page">
       <span class="mobile-nav-icon" aria-hidden="true">🚑</span>
       <span>Consultorio</span>
     </a>
@@ -243,9 +245,9 @@ NOTAS DE MANTENIMIENTO:
       <span class="mobile-nav-icon" aria-hidden="true">✅</span>
       <span>Finalizadas</span>
     </a>
-    <a href="/acceso-y-seguridad/login" class="mobile-nav-item">
+    <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
       <span class="mobile-nav-icon" aria-hidden="true">👤</span>
-      <span>Login</span>
+      <span>Perfil</span>
     </a>
   </nav>
 
@@ -292,6 +294,9 @@ NOTAS DE MANTENIMIENTO:
     <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
 
+  <script>
+    window.smiletrackEstadoConsultorioData = @Html.Raw(estadoConsultorioJson ?? "null");
+  </script>
   <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }

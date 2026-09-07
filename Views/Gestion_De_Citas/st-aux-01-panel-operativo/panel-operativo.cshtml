@@ -1,15 +1,15 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿@* ============================================
+﻿@* ============================================
 SmileTrack — Panel Operativo (st-aux-01-panel-operativo)
 ============================================
 Autor: Johan Santamaria
 Fecha: 29/07/2026
 
 DESCRIPCIÓN:
-Vista principal del panel operativo del auxiliar odontológico que muestra un resumen en tiempo real de las citas del día, alertas relevantes y detalles de pacientes.
+Vista principal del panel operativo del auxiliar odontológico que muestra el resumen cargado del día, alertas relevantes y detalles de pacientes.
 
 FUNCIONALIDADES PRINCIPALES:
-- Barra de alerta de próxima cita con temporizador integrado
-- Grilla de métricas clave (KPIs) en tiempo real
+- Barra de alerta de próxima cita
+- Grilla de métricas clave (KPIs) del día
 - Barra de progreso interactiva del volumen de citas atendidas
 - Listado tabular de citas del día con detalle de alergias y estados
 - Visualización modal de la información médica detallada del paciente
@@ -49,7 +49,7 @@ NOTAS DE MANTENIMIENTO:
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
+    @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarAuxiliar"); }
 
   <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -67,7 +67,7 @@ NOTAS DE MANTENIMIENTO:
       <div class="header-left">
         <div class="breadcrumb">Auxiliar › Panel operativo</div>
         <h1 class="page-title">Panel operativo</h1>
-        <p class="page-subtitle" id="pageMeta">Resumen en tiempo real</p>
+        <p class="page-subtitle" id="pageMeta">Resumen del día</p>
       </div>
       <button class="btn-primary" id="btnDescargar" aria-label="Descargar resumen del panel"><span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar
         resumen</button>
@@ -83,7 +83,7 @@ NOTAS DE MANTENIMIENTO:
     </div>
 
     <!-- KPIs con aria-label para sección de métricas -->
-    <div class="kpi-grid" id="kpiGrid" aria-label="Métricas clave del panel"></div>
+    <section class="kpi-grid" id="kpiGrid" aria-label="Métricas clave del panel"></section>
 
     <!-- Barra de progreso con aria-valuenow para accesibilidad -->
     <div class="progreso-wrap">
@@ -130,7 +130,7 @@ NOTAS DE MANTENIMIENTO:
     aria-hidden="true" inert>
     <div class="modal" id="modalPaciente">
       <div class="modal-header">
-        <div style="display:flex;align-items:center;gap:12px;">
+        <div class="modal-heading">
           <div class="modal-avatar" id="modalAvatar" aria-hidden="true"></div>
           <div>
             <h2 class="modal-name" id="modalTitle"></h2>
@@ -222,42 +222,10 @@ NOTAS DE MANTENIMIENTO:
     </div>
   </div>
 
-  <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
   <!-- Estilos para contenido solo accesible por screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+    <div class="footer-credit">
+      <span class="material-symbols-outlined footer-icon" aria-hidden="true">copyright</span>
       <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
     <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
@@ -277,7 +245,7 @@ NOTAS DE MANTENIMIENTO:
 
   <!-- Mobile bottom nav — Auxiliar -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-citas/st-aux-01-panel-operativo" class="mobile-nav-item active" aria-current="page">
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item active" aria-current="page">
       <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">bar_chart</span></span>
       <span>Panel</span>
     </a>

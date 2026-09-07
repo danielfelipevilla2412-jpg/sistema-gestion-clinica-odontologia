@@ -18,10 +18,12 @@
 
 <body>
 
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
     @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
 
   <!-- ═════ HAMBURGER (móvil) ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú">
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
     <span aria-hidden="true"></span>
     <span aria-hidden="true"></span>
     <span aria-hidden="true"></span>
@@ -29,7 +31,7 @@
   <div class="overlay" id="overlay"></div>
 
   <!-- ═════ MAIN ═════ -->
-  <main class="main">
+  <main class="main" id="main-content">
 
     <!-- Header -->
     <header class="page-header">
@@ -153,16 +155,23 @@
   </div>
 
   <!-- Mobile nav -->
-  <nav class="mobile-nav">
-    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item"><span
-        class="mobile-nav-icon">📊</span><span>Panel</span></a>
-    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item"><span
-        class="mobile-nav-icon">📅</span><span>Agenda</span></a>
-    <a href="/gestion-de-citas/st-aux-05-historial-parcial" class="mobile-nav-item"><span
-        class="mobile-nav-icon">📋</span><span>Historial</span></a>
-    <a href="#" class="mobile-nav-item active"><span class="mobile-nav-icon">📎</span><span>Documentos</span></a>
-    <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item"><span
-        class="mobile-nav-icon">👤</span><span>Perfil</span></a>
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
+      <span>Panel</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+      <span>Agenda</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">check_circle</span>
+      <span>Finalizadas</span>
+    </a>
+    <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
+      <span>Perfil</span>
+    </a>
   </nav>
 
   <!-- Toast -->
@@ -182,6 +191,12 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+
+  <style>
+    .skip-link { position:absolute;top:-40px;left:0;background:var(--primary);color:#fff;padding:8px 16px;z-index:1000;transition:top .15s; }
+    .skip-link:focus { top:0; }
+    .visually-hidden { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
+  </style>
 </body>
 
 </html>

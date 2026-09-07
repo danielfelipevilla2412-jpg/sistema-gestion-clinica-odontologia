@@ -53,24 +53,7 @@ const debounce = (fn, delay) => {
 // ═══════════════════════════════════════════════════════════════════
 //  DATOS DE EJEMPLO (Fallback si API falla)
 // ═══════════════════════════════════════════════════════════════════
-const SAMPLE_PROFILE = {
-  nombre: 'Dr. Carlos Méndez',
-  especialidades: ['Odontología General', 'Estética Dental'],
-  registro: 'RM-2026-001',
-  telefono: '300 123 4567',
-  email: 'dr.mendez@smiletrack.co',
-  fechaIngreso: '2022-03-15',
-  estado: 'activo',
-  horario: [
-    { day: 'Lun', dayFull: 'Lunes', active: true, start: '08:00', end: '12:00' },
-    { day: 'Mar', dayFull: 'Martes', active: true, start: '08:00', end: '12:00' },
-    { day: 'Mié', dayFull: 'Miércoles', active: true, start: '14:00', end: '18:00' },
-    { day: 'Jue', dayFull: 'Jueves', active: true, start: '08:00', end: '12:00' },
-    { day: 'Vie', dayFull: 'Viernes', active: true, start: '08:00', end: '12:00' },
-    { day: 'Sáb', dayFull: 'Sábado', active: false, start: '', end: '' },
-    { day: 'Dom', dayFull: 'Domingo', active: false, start: '', end: '' }
-  ]
-};
+const SAMPLE_PROFILE = { horario: [] };
 
 let profileData = { ...SAMPLE_PROFILE };
 let currentEditingDay = null;
@@ -266,7 +249,7 @@ const updatePreview = () => {
 };
 
 // Guarda cambios del horario
-const saveSchedule = () => {
+const saveSchedule = async () => {
   if (currentEditingDay === null) return;
   
   const dayData = profileData.horario[currentEditingDay];
@@ -306,21 +289,52 @@ const saveSchedule = () => {
       window.ToastService.warning('⚠️ Verifique los campos resaltados en rojo');
       return;
     }
-    
-    dayData.active = true;
-    dayData.start = start;
-    dayData.end = end;
-  } else {
-    dayData.active = false;
-    dayData.start = '';
-    dayData.end = '';
   }
-  
-  // Re-render schedule
-  renderSchedule();
-  closeScheduleModal();
-  
-  window.ToastService.success(`✅ Horario de ${dayData.dayFull} actualizado`);
+
+  // Construir el nuevo estado del día (no modificar profileData todavía)
+  const nuevosDatosDia = isActive
+    ? { ...dayData, active: true, start, end }
+    : { ...dayData, active: false, start: '', end: '' };
+
+  const horarioActualizado = profileData.horario.map((d, i) =>
+    i === currentEditingDay ? nuevosDatosDia : d
+  );
+
+  // Persistir via API
+  const profesionalId = getProfesionalId();
+  if (!profesionalId) {
+    // Sin ID de profesional: fallback local (no debería ocurrir en producción)
+    profileData.horario[currentEditingDay] = nuevosDatosDia;
+    renderSchedule();
+    closeScheduleModal();
+    window.ToastService.success(`✅ Horario de ${nuevosDatosDia.dayFull} actualizado`);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/profesionales/${profesionalId}/horarios`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(horarioActualizado)
+    });
+
+    if (!response.ok) {
+      const errorJson = await response.json().catch(() => ({}));
+      const msg = errorJson.message || `Error ${response.status}`;
+      window.ToastService.error('❌ Error al guardar el horario', msg);
+      return;
+    }
+
+    // Éxito: actualizar el estado local y re-renderizar
+    profileData.horario = horarioActualizado;
+    renderSchedule();
+    closeScheduleModal();
+    window.ToastService.success(`✅ Horario de ${nuevosDatosDia.dayFull} actualizado`);
+  } catch (err) {
+    console.error('[SmileTrack] Error de red al guardar horario:', err);
+    window.ToastService.error('❌ Error de conexión', 'No se pudo guardar el horario. Inténtalo de nuevo.');
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -420,72 +434,93 @@ const changePassword = async (event) => {
   }
   
   try {
-    // En producción: llamada real a API
-    // await fetch(`${API_BASE}/profile/password`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ currentPassword, newPassword }),
-    // });
-    
-    // Simulación
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Éxito
-    if (btn) {
-      btn.textContent = '✓ Contraseña actualizada';
-      btn.style.background = 'linear-gradient(135deg, #4caf50, #43a047)';
-    }
-    
-    // Reset form
-    const form = safeGetElement('passwordForm');
-    if (form) form.reset();
-    
-    const strengthIndicator = safeGetElement('passwordStrength');
-    if (strengthIndicator) strengthIndicator.className = 'password-strength';
-    
-    // Reset toggle buttons
-    document.querySelectorAll('.toggle-password').forEach(btn => {
-      btn.textContent = '👁';
-      btn.setAttribute('aria-pressed', 'false');
+    const token = event.target.querySelector('input[name="__RequestVerificationToken"]')?.value;
+    const response = await fetch('/acceso-y-seguridad/cambiar-contrasena/api', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(token ? { 'X-CSRF-TOKEN': token } : {})
+      },
+      body: JSON.stringify({
+        ContrasenaActual: currentPassword,
+        NuevaContrasena: newPassword,
+        ConfirmarContrasena: confirmPassword
+      })
     });
-    
-    window.ToastService.success('✅ Contraseña actualizada exitosamente');
-    
-    // Restaurar botón
-    setTimeout(() => {
-      if (btn) {
-        btn.textContent = 'Actualizar contraseña';
-        btn.disabled = false;
-        btn.style.background = '';
-      }
-    }, 2000);
-    
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) throw new Error(payload.message || 'No fue posible cambiar la contraseña.');
+    window.ToastService?.success(payload.message || 'Contraseña actualizada. Inicia sesión nuevamente.');
+    window.setTimeout(() => { window.location.href = '/acceso-y-seguridad/login'; }, 900);
   } catch (error) {
-    console.warn('Error actualizando contraseña:', error);
-    window.ToastService.error('❌ Error al actualizar contraseña');
+    window.ToastService?.error(error.message || 'No fue posible cambiar la contraseña.');
     if (btn) {
-      btn.textContent = 'Actualizar contraseña';
       btn.disabled = false;
+      btn.textContent = 'Actualizar contraseña';
     }
   }
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  API CALLS (Listas para conectar al backend C#)
+//  API CALLS
 // ═══════════════════════════════════════════════════════════════════
 
-// Obtiene datos del perfil desde API
+// Estructura base de la semana laboral (7 días en orden, con metadatos)
+const DIAS_SEMANA = [
+  { day: 'Lun', dayFull: 'Lunes'      },
+  { day: 'Mar', dayFull: 'Martes'     },
+  { day: 'Mié', dayFull: 'Miércoles'  },
+  { day: 'Jue', dayFull: 'Jueves'     },
+  { day: 'Vie', dayFull: 'Viernes'    },
+  { day: 'Sáb', dayFull: 'Sábado'     },
+  { day: 'Dom', dayFull: 'Domingo'    },
+];
+
+// Construye la estructura de 7 días a partir de la respuesta de la API
+const mapApiHorariosToProfileData = (apiData) => {
+  return DIAS_SEMANA.map(({ day, dayFull }) => {
+    const bloque = apiData.find(
+      (h) => (h.diaSemana || '').toLowerCase() === dayFull.toLowerCase()
+    );
+    return bloque
+      ? { day, dayFull, active: bloque.activo !== false, start: bloque.horaInicio || '', end: bloque.horaFin || '' }
+      : { day, dayFull, active: false, start: '', end: '' };
+  });
+};
+
+// Obtiene el ID del profesional desde el data-attribute del DOM
+const getProfesionalId = () => {
+  const grid = document.getElementById('scheduleGrid');
+  const id = parseInt(grid?.dataset?.profesionalId ?? '0', 10);
+  return id > 0 ? id : null;
+};
+
+// Obtiene datos del perfil desde API (GET /api/profesionales/{id}/horarios)
 async function fetchProfile() {
-  try {
-    // En producción: fetch real a API
-    // const res = await fetch(`${API_BASE}/profile`);
-    // if (!res.ok) throw new Error('API error');
-    // return await res.json();
-    
-    // Simulación con fallback
+  const profesionalId = getProfesionalId();
+  if (!profesionalId) {
+    console.warn('[SmileTrack] No se encontró el ID del profesional en el DOM. Usando datos de ejemplo.');
     return SAMPLE_PROFILE;
-  } catch (error) {
-    console.warn('Fallback a datos locales:', error);
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/profesionales/${profesionalId}/horarios`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      console.warn(`[SmileTrack] Error al cargar horarios: ${response.status}. Usando datos de ejemplo.`);
+      return SAMPLE_PROFILE;
+    }
+
+    const json = await response.json();
+    const horario = mapApiHorariosToProfileData(json.data ?? []);
+    return { horario };
+  } catch (err) {
+    console.warn('[SmileTrack] Error de red al cargar horarios:', err);
     return SAMPLE_PROFILE;
   }
 }

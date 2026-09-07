@@ -56,4 +56,23 @@ public interface IProfesionalService
         int? operadorId,
         string? ipOrigen,
         CancellationToken ct = default);
+
+    Task<ProfesionalApiCollectionResult<HorarioProfesionalApiDto>> ObtenerHorariosAsync(
+        int id,
+        CancellationToken ct = default);
+
+    Task<ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>> ActualizarHorariosAsync(
+        int id,
+        IReadOnlyCollection<HorarioSemanalApiRequest> horarios,
+        int? usuarioActualId,
+        bool esAdministrador,
+        CancellationToken ct = default);
+
+    Task<ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>> ObtenerAusenciasAsync(
+        int id,
+        CancellationToken ct = default);
+
+    Task<ProfesionalApiCollectionResult<ServicioProfesionalApiDto>> ObtenerServiciosAsync(
+        int id,
+        CancellationToken ct = default);
 }

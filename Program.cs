@@ -187,6 +187,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             errorNumbersToAdd: null)));
 
 builder.Services.AddScoped<ICitaService, CitaService>();
+builder.Services.AddScoped<IPanelOperativoService, PanelOperativoService>();
 
 // -----------------------------------------------------------------------------
 // JWT
@@ -198,7 +199,13 @@ var jwtSection =
 string jwtKey =
     jwtSection.GetValue<string>("Key")
     ?? throw new InvalidOperationException(
-        "No se encontró Jwt:Key. Configure la clave JWT en appsettings.Local.json.");
+        "No se encontró Jwt:Key. Configure la clave JWT mediante User Secrets o variables de entorno.");
+
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
+{
+    throw new InvalidOperationException(
+        "Jwt:Key debe estar configurada y tener al menos 32 caracteres.");
+}
 
 string jwtIssuer =
     jwtSection.GetValue<string>("Issuer")
@@ -792,11 +799,10 @@ app.UseRouting();
 
 
 
+app.UseRateLimiter();
 app.UseAuthentication();
 
 app.UseAuthorization();
-
-app.UseRateLimiter();
 
 // -----------------------------------------------------------------------------
 // ROUTING

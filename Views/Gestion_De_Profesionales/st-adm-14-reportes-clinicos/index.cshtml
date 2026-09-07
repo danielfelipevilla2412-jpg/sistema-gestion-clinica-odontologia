@@ -1,4 +1,4 @@
-﻿@* ============================================
+@* ============================================
 SmileTrack — Reportes Clínicos (st-adm-14-reportes-clinicos)
 ============================================
 Autor: Johan Santamaria
@@ -52,7 +52,7 @@ NOTAS DE MANTENIMIENTO:
     <!-- Enlace para saltar al contenido principal (accesibilidad) -->
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+    @{ await Html.RenderPartialAsync(User.IsInRole("Profesional") ? "_SidebarProfesional" : "_SidebarAdmin"); }
 
 
     <!-- ═══ HAMBURGER (móvil) ═══ -->
@@ -86,11 +86,11 @@ NOTAS DE MANTENIMIENTO:
                 <span class="stat-label">Pacientes Registrados</span>
             </div>
             <div class="stat-card" data-color="green">
-                <span class="stat-number" id="metricActives" data-target="@(ViewData["ConsultasMes"] ?? 0)" aria-live="polite">0</span>
+                <span class="stat-number" id="metricActivos" data-target="@(ViewData["ConsultasMes"] ?? 0)" aria-live="polite">0</span>
                 <span class="stat-label">Consultas Este Mes</span>
             </div>
             <div class="stat-card" data-color="purple">
-                <span class="stat-number" id="metricVacations" data-target="@(ViewData["SatisfaccionPromedio"] ?? 0)" aria-live="polite">0</span>
+                <span class="stat-number" id="metricSatisfaction" data-target="@(ViewData["SatisfaccionPromedio"] ?? 0)" aria-live="polite">0</span>
                 <span class="stat-label">Satisfacción Pacientes</span>
             </div>
         </section>
@@ -236,7 +236,7 @@ NOTAS DE MANTENIMIENTO:
 
     <!-- Mobile bottom nav -->
     <nav class="mobile-nav" aria-label="Navegación móvil">
-        <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
+        <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" class="mobile-nav-item">
             <span class="mobile-nav-icon" aria-hidden="true">📊</span>
             <span>Dashboard</span>
         </a>

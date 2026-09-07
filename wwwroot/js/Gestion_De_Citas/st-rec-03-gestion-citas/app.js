@@ -1,20 +1,17 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Gestión de Citas Recepción (st-rec-03-gestion-citas)
 ============================================
 Autor: Johan Santamaria
 Fecha: 29/07/2026 (actualizado 2026-07-31)
 
 DESCRIPCIÓN:
-Módulo principal de recepcionista. Carga la UI de citas con datos renderizados por SSR o fallback
-a LocalStorage cuando no hay un endpoint de listado disponible, y escribe cambios de alta/edición/cancelación
-mediante los controladores MVC existentes, no mediante API REST PUT/DELETE remotos directos.
+Módulo principal de recepcionista. La API REST es la fuente de verdad del listado y las operaciones.
 
 FUNCIONALIDADES PRINCIPALES:
-- Carga de citas renderizadas por servidor o fallback LocalStorage cuando la API de listado no está disponible
+- Carga de citas desde la API, sin persistencia local alternativa
 - Filtros combinados (búsqueda texto, profesional, fecha, estado)
 - CRUD UI: ver detalle y edición mediante formularios HTML a /gestion-de-citas/guardar-cita;
            cancelación mediante POST a /gestion-de-citas/eliminar-cita
-- Persistencia LocalStorage transparente como fallback offline
 
 DEPENDENCIAS TÉCNICAS:
 - Controller: GestionCitasController → GuardarCita/EliminarCita para escritura (listado no expuesto vía API genérica)
@@ -26,15 +23,14 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - Los formatos de estado servidor↔UI están centralizados en STATUS_MAP_SERVER / STATUS_MAP_CLIENTE.
   (Cambiar la etiqueta visible al usuario = solo tocar esos 2 objetos).
-- appointmentStorage usa fallback LocalStorage SIEMPRE. El fetch a la API sobrescribe el cache.
+- appointmentStorage mantiene únicamente la respuesta API actual en memoria.
 ============================================ */
 
 // ═══════════════════════════════════════════════════════════════════
 //  CONFIGURACIÓN API + AUTH
 // ═══════════════════════════════════════════════════════════════════
 const API_BASE = '/api';
-const API_PAGE_SIZE = 200;
-const STORAGE_KEY = 'smiletrack_rec_appointments';
+const API_PAGE_SIZE = 10;
 let configuredDurationMinutes = 60;
 let currentApiPage = 1;
 let totalApiRecords = 0;
@@ -77,9 +73,26 @@ function mostrarErrorUsuario(mensaje) {
     div.setAttribute('role', 'alert');
     document.body.appendChild(div);
   }
-  div.innerHTML = '<strong>[SmileTrack]</strong> ' + mensaje + ' <button onclick="document.getElementById(\'smiletrack-error-bar\').style.display=\'none\'" style="margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;">×</button>';
+  div.replaceChildren();
+  const strong = document.createElement('strong');
+  strong.textContent = '[SmileTrack]';
+  const message = document.createTextNode(` ${mensaje} `);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Cerrar mensaje');
+  close.style.cssText = 'margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;';
+  close.addEventListener('click', () => { div.style.display = 'none'; });
+  div.append(strong, message, close);
   div.style.display = 'block';
 }
+
+const showToast = (message, type = 'info') => {
+  const toast = window.ToastService;
+  if (toast?.show) toast.show(message, type);
+  else if (type === 'error') toast?.error?.(message);
+  else toast?.success?.(message);
+};
 
 // ═══════════════════════════════════════════════════════════════════
 //  UTILIDADES
@@ -95,6 +108,13 @@ const debounce = (fn, delay) => {
   let timeoutId;
   return (...args) => { clearTimeout(timeoutId); timeoutId = setTimeout(() => fn(...args), delay); };
 };
+
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
 
 
 const shouldUseServerRenderedList = () => {
@@ -188,61 +208,18 @@ const mapServerToClient = (srv) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  CACHÉ LOCAL (respaldo de la última respuesta real, solo si no hay SSR)
+//  ESTADO EFÍMERO DE LA RESPUESTA API ACTUAL
 // ═══════════════════════════════════════════════════════════════════
 
-// Estado vacío real: esta ruta de código solo se usa si la tabla no viene
-// renderizada por el servidor (ver shouldUseServerRenderedList) y la API
-// tampoco responde. Antes había 5 citas ficticias aquí.
-const FALLBACK_DATA = [];
-
-// Almacén en memoria (cargado de LocalStorage / API al init)
 let _appointments = [];
 
 const appointmentStorage = {
-  init: () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) { _appointments = JSON.parse(raw); return; }
-    } catch {}
-    _appointments = [...FALLBACK_DATA];
-    appointmentStorage._persist();
-  },
-  _persist: () => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_appointments)); }
-    catch (e) { console.error('[SmileTrack] Save LocalStorage:', e); }
-  },
+  init: () => { _appointments = []; },
   getAll: () => [..._appointments],
   findById: (id) => _appointments.find(a => a.id === parseInt(id, 10)) || null,
 
   replaceAll: (nuevos) => {
     _appointments = Array.isArray(nuevos) ? nuevos : [];
-    appointmentStorage._persist();
-  },
-  add: (appt) => {
-    const newId = _appointments.length
-      ? Math.max(..._appointments.map(a => a.id)) + 1
-      : 1;
-    const nuevo = { ...appt, id: newId };
-    _appointments.unshift(nuevo);
-    appointmentStorage._persist();
-    return nuevo;
-  },
-  update: (id, updates) => {
-    const i = _appointments.findIndex(a => a.id === parseInt(id, 10));
-    if (i === -1) return null;
-    _appointments[i] = { ..._appointments[i], ...updates };
-    appointmentStorage._persist();
-    return _appointments[i];
-  },
-  // "delete" = cancelar cita (coincide con soft-delete server)
-  delete: (id) => {
-    const i = _appointments.findIndex(a => a.id === parseInt(id, 10));
-    if (i !== -1) {
-      _appointments[i].status = 'Cancelada';
-      _appointments[i].statusClass = 'status-no-asistio';
-      appointmentStorage._persist();
-    }
   }
 };
 
@@ -324,42 +301,42 @@ const createAppointmentRow = (appt) => {
   const avatarColor = PALETTE[Math.abs(hash) % PALETTE.length];
 
   tr.innerHTML = `
-    <td class="col-fecha">${appt.date}</td>
-    <td class="col-hora"><span class="pill-hora" aria-label="Hora: ${appt.time}">${appt.time}</span></td>
+    <td class="col-fecha">${escapeHtml(appt.date)}</td>
+    <td class="col-hora"><span class="pill-hora" aria-label="Hora: ${escapeHtml(appt.time)}">${escapeHtml(appt.time)}</span></td>
     <td class="col-paciente">
       <div class="td-paciente">
-        <div class="pac-avatar pac-avatar--${avatarColor}" aria-hidden="true">${initials}</div>
-        <span class="pac-name">${appt.patient}</span>
+        <div class="pac-avatar pac-avatar--${avatarColor}" aria-hidden="true">${escapeHtml(initials)}</div>
+        <span class="pac-name">${escapeHtml(appt.patient)}</span>
       </div>
     </td>
-    <td class="col-profesional">${appt.doctor}</td>
-    <td class="col-servicio">${appt.service}</td>
-    <td class="col-consultorio">${appt.office}</td>
-    <td><span class="status-badge ${appt.statusClass}" role="status" aria-label="Estado: ${appt.status}">${appt.status}</span></td>
+    <td class="col-profesional">${escapeHtml(appt.doctor)}</td>
+    <td class="col-servicio">${escapeHtml(appt.service)}</td>
+    <td class="col-consultorio">${escapeHtml(appt.office)}</td>
+    <td><span class="status-badge ${appt.statusClass}" role="status" aria-label="Estado: ${escapeHtml(appt.status)}">${escapeHtml(appt.status)}</span></td>
     <td>
-      <div class="actions-cell" role="group" aria-label="Acciones para ${appt.patient}">
+      <div class="actions-cell" role="group" aria-label="Acciones para ${escapeHtml(appt.patient)}">
         <button class="btn-icon action-btn btn-view" type="button"
                 data-action="view" data-id="${appt.id}"
-                aria-label="Ver detalles de ${appt.patient}"
-                title="Ver detalles de ${appt.patient}">
+                aria-label="Ver detalles de ${escapeHtml(appt.patient)}"
+                title="Ver detalles de ${escapeHtml(appt.patient)}">
           👁️ <span class="btn-text">Ver</span>
         </button>
         <button class="btn-icon action-btn edit" type="button"
                 data-action="edit" data-id="${appt.id}"
-                aria-label="Editar cita de ${appt.patient}"
-                title="Editar cita de ${appt.patient}">
+                aria-label="Editar cita de ${escapeHtml(appt.patient)}"
+                title="Editar cita de ${escapeHtml(appt.patient)}">
           ✏️ <span class="btn-text">Editar</span>
         </button>
         <button class="btn-icon action-btn" type="button"
                 data-action="sync" data-id="${appt.id}"
-                aria-label="Sincronizar cita de ${appt.patient}"
-                title="Sincronizar cita de ${appt.patient}">
+                aria-label="Sincronizar cita de ${escapeHtml(appt.patient)}"
+                title="Sincronizar cita de ${escapeHtml(appt.patient)}">
           🔄 <span class="btn-text">Sincronizar</span>
         </button>
         <button class="btn-icon action-btn btn-delete" type="button"
                 data-action="cancel" data-id="${appt.id}"
-                aria-label="Cancelar cita de ${appt.patient}"
-                title="Cancelar cita de ${appt.patient}">
+                aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
+                title="Cancelar cita de ${escapeHtml(appt.patient)}">
           ✕ <span class="btn-text">Cancelar</span>
         </button>
       </div>
@@ -469,6 +446,127 @@ const buildServerBody = (appt, overrides = {}) => {
   };
 };
 
+// ═══════════════════════════════════════════════════════════════════
+//  MODAL CONFIRMACIÓN CANCELAR CITA (recepción)
+// ═══════════════════════════════════════════════════════════════════
+
+let _cancelTargetId = null;
+
+const getCancelHeaders = () => {
+  const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  // CSRF token desde cookie XSRF-TOKEN
+  const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
+  if (match) headers['X-CSRF-TOKEN'] = decodeURIComponent(match[2]);
+  try {
+    const jwt = sessionStorage.getItem('st_jwt');
+    if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+  } catch { /* modo privado */ }
+  return headers;
+};
+
+const openCancelModal = (id) => {
+  _cancelTargetId = parseInt(id, 10);
+  const appt = appointmentStorage.findById(id);
+  const patient = appt?.patient || `ID ${id}`;
+  // Reutilizar el modal de confirmación genérico _ConfirmModal.cshtml si existe
+  const modal = document.getElementById('confirmModal');
+  if (modal) {
+    const msgEl = modal.querySelector('#confirmModalMessage, .confirm-modal-message, p');
+    if (msgEl) msgEl.textContent = `¿Estás seguro de que deseas cancelar la cita de ${patient}? Esta acción no se puede deshacer.`;
+    const title = modal.querySelector('#confirmModalTitle, .confirm-modal-title, h2');
+    if (title) title.textContent = 'Cancelar cita';
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    modal.removeAttribute('inert');
+    document.body.style.overflow = 'hidden';
+    // Asociar botón de confirmación
+    const confirmBtn = modal.querySelector('#confirmModalConfirm, .confirm-modal-confirm, [data-action="confirm"]');
+    if (confirmBtn) {
+      const fresh = confirmBtn.cloneNode(true);
+      confirmBtn.replaceWith(fresh);
+      fresh.addEventListener('click', executeCancelCita);
+    }
+    const cancelBtn = modal.querySelector('#confirmModalCancel, .confirm-modal-cancel, [data-action="cancel"]');
+    if (cancelBtn) {
+      const fresh = cancelBtn.cloneNode(true);
+      cancelBtn.replaceWith(fresh);
+      fresh.addEventListener('click', closeCancelModal);
+    }
+  } else {
+    // Fallback: modal inline creado dinámicamente
+    _openInlineCancelModal(patient);
+  }
+};
+
+const closeCancelModal = () => {
+  const modal = document.getElementById('confirmModal') || document.getElementById('inlineCancelModal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  }
+  _cancelTargetId = null;
+};
+
+const _openInlineCancelModal = (patient) => {
+  let modal = document.getElementById('inlineCancelModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'inlineCancelModal';
+    modal.className = 'modal-overlay';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'inlineCancelTitle');
+    modal.innerHTML = `
+      <div class="modal modal--sm">
+        <h2 class="modal-title" id="inlineCancelTitle">Cancelar cita</h2>
+        <p class="modal-desc" id="inlineCancelMsg"></p>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="inlineCancelNo">Volver</button>
+          <button type="button" class="btn-danger" id="inlineCancelSi">Sí, cancelar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeCancelModal(); });
+    document.getElementById('inlineCancelNo')?.addEventListener('click', closeCancelModal);
+    document.getElementById('inlineCancelSi')?.addEventListener('click', executeCancelCita);
+  }
+  const msgEl = document.getElementById('inlineCancelMsg');
+  if (msgEl) msgEl.textContent = `¿Estás seguro de que deseas cancelar la cita de ${patient}? Esta acción no se puede deshacer.`;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+  document.body.style.overflow = 'hidden';
+};
+
+const executeCancelCita = async () => {
+  if (!_cancelTargetId) return;
+  const id = _cancelTargetId;
+  closeCancelModal();
+  try {
+    const res = await fetch(`/api/citas/${id}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: getCancelHeaders()
+    });
+    let payload;
+    try { payload = await res.json(); } catch { payload = { success: res.ok }; }
+    if (res.ok && payload.success !== false) {
+      showToast('Cita cancelada exitosamente.', 'success');
+      // Recargar la tabla para reflejar el cambio
+      const citas = await fetchAppointments(currentApiPage);
+      renderAppointments(citas);
+      updateMetrics();
+    } else {
+      showToast(payload.message || 'No fue posible cancelar la cita.', 'error');
+    }
+  } catch (err) {
+    console.warn('[SmileTrack] Error al cancelar cita:', err);
+    showToast('Error de conexión al cancelar la cita.', 'error');
+  }
+};
+
 const handleTableAction = async (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
@@ -477,13 +575,7 @@ const handleTableAction = async (e) => {
   if (action === 'view')   return openViewModal(id);
   if (action === 'edit')   return openEditModal(id, btn.dataset);
   if (action === 'sync')   return openSyncModal(id);
-  if (action === 'cancel') {
-    // Abrir modal de confirmación personalizado en lugar de window.confirm() nativo
-    if (typeof window.openConfirmDeleteCita === 'function') {
-      window.openConfirmDeleteCita(id, '');
-    }
-    return;
-  }
+  if (action === 'cancel') return openCancelModal(id);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -496,14 +588,14 @@ const openViewModal = (id) => {
   const content = safeGetElement('modalViewContent');
   if (content) {
     content.innerHTML = `
-      <div class="modal-row"><span class="modal-key">Paciente</span>     <span class="modal-val">${a.patient}</span></div>
-      <div class="modal-row"><span class="modal-key">Fecha</span>        <span class="modal-val"><time datetime="${a.dateISO}">${a.date}</time></span></div>
-      <div class="modal-row"><span class="modal-key">Hora</span>         <span class="modal-val">${a.time}</span></div>
-      <div class="modal-row"><span class="modal-key">Profesional</span>  <span class="modal-val">${a.doctor}</span></div>
-      <div class="modal-row"><span class="modal-key">Servicio</span>     <span class="modal-val">${a.service}</span></div>
-      <div class="modal-row"><span class="modal-key">Consultorio</span>  <span class="modal-val">${a.office}</span></div>
-      <div class="modal-row"><span class="modal-key">Estado</span>       <span class="modal-val"><span class="status-badge ${a.statusClass}">${a.status}</span></span></div>
-      ${a.notes ? `<div class="modal-row"><span class="modal-key">Notas</span><span class="modal-val">${a.notes}</span></div>` : ''}
+      <div class="modal-row"><span class="modal-key">Paciente</span>     <span class="modal-val">${escapeHtml(a.patient)}</span></div>
+      <div class="modal-row"><span class="modal-key">Fecha</span>        <span class="modal-val"><time datetime="${escapeHtml(a.dateISO)}">${escapeHtml(a.date)}</time></span></div>
+      <div class="modal-row"><span class="modal-key">Hora</span>         <span class="modal-val">${escapeHtml(a.time)}</span></div>
+      <div class="modal-row"><span class="modal-key">Profesional</span>  <span class="modal-val">${escapeHtml(a.doctor)}</span></div>
+      <div class="modal-row"><span class="modal-key">Servicio</span>     <span class="modal-val">${escapeHtml(a.service)}</span></div>
+      <div class="modal-row"><span class="modal-key">Consultorio</span>  <span class="modal-val">${escapeHtml(a.office)}</span></div>
+      <div class="modal-row"><span class="modal-key">Estado</span>       <span class="modal-val"><span class="status-badge ${a.statusClass}">${escapeHtml(a.status)}</span></span></div>
+      ${a.notes ? `<div class="modal-row"><span class="modal-key">Notas</span><span class="modal-val">${escapeHtml(a.notes)}</span></div>` : ''}
     `;
   }
   const editBtn = safeGetElement('modalViewEdit');
@@ -600,25 +692,7 @@ const initModalHandlers = () => {
 };
 
 const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamb = safeGetElement('hamburger');
-  if (!sidebar || !overlay || !hamb) return;
-  const toggle = (s) => {
-    sidebar.classList.toggle('open', s);
-    overlay.classList.toggle('open', s);
-    hamb.setAttribute('aria-expanded', String(s));
-    overlay.setAttribute('aria-hidden', String(!s));
-    if (s) sidebar.querySelector('.nav-item')?.focus(); else hamb.focus();
-  };
-  hamb.addEventListener('click', () => toggle(true));
-  overlay.addEventListener('click', () => toggle(false));
-  sidebar.querySelectorAll('.nav-item').forEach(l =>
-    l.addEventListener('click', () => { if (window.innerWidth <= 680) toggle(false); })
-  );
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) { e.preventDefault(); toggle(false); }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 const handleViewToggle = (btn) => {
@@ -651,6 +725,68 @@ const initPagination = () => {
   });
 };
 
+// ═══════════════════════════════════════════════════════════════════
+//  FILTRADO DINÁMICO PROFESIONALES DISPONIBLES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Consulta /api/citas/profesionales-disponibles con la fecha y hora indicadas
+ * y actualiza las opciones del SELECT #newDoctor en tiempo real.
+ * Si la API falla o devuelve lista vacía, restaura la lista completa desde el HTML original.
+ */
+let _originalDoctorOptions = null;
+
+const actualizarProfesionalesDisponibles = debounce(async () => {
+  const dateInp = safeGetElement('newDate');
+  const timeInp = safeGetElement('newTime');
+  const doctorSel = safeGetElement('newDoctor');
+  if (!dateInp || !timeInp || !doctorSel) return;
+
+  const fecha = dateInp.value;
+  const hora  = timeInp.value;
+  if (!fecha || !hora) return;
+
+  // Guardar opciones originales la primera vez
+  if (!_originalDoctorOptions) {
+    _originalDoctorOptions = doctorSel.innerHTML;
+  }
+
+  try {
+    const params = new URLSearchParams({ fecha, horaInicio: hora });
+    const res = await fetch(`/api/citas/profesionales-disponibles?${params}`, {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const payload = await res.json();
+    const lista = payload.data ?? [];
+
+    const prevVal = doctorSel.value;
+    doctorSel.innerHTML = `<option value="">Seleccionar profesional${lista.length === 0 ? ' (sin disponibilidad)' : ''}</option>`;
+    lista.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.idProfesional ?? p.IdProfesional ?? '';
+      opt.textContent = p.nombreCompleto ?? p.NombreCompleto ?? p.nombre ?? '';
+      doctorSel.appendChild(opt);
+    });
+    // Intentar mantener la selección previa si el profesional sigue disponible
+    if (prevVal) doctorSel.value = prevVal;
+
+    // Mostrar alerta de disponibilidad
+    const alert = safeGetElement('availabilityAlert');
+    if (alert) {
+      const txt = alert.querySelector('.availability-alert-text');
+      if (txt) txt.textContent = lista.length > 0
+        ? `${lista.length} profesional(es) disponible(s) para el horario seleccionado`
+        : 'Sin profesionales disponibles para el horario seleccionado';
+      alert.style.display = '';
+    }
+  } catch (err) {
+    console.warn('[SmileTrack] No se pudo consultar disponibilidad de profesionales:', err);
+    // Restaurar lista original en caso de error
+    if (_originalDoctorOptions) doctorSel.innerHTML = _originalDoctorOptions;
+  }
+}, 400);
+
 const initNewAppointmentButtons = () => {
   const open = () => {
     const form = safeGetElement('formNewAppointment');
@@ -662,10 +798,19 @@ const initNewAppointmentButtons = () => {
     }
     const dtInp = safeGetElement('newDate');
     if (dtInp) dtInp.min = new Date().toISOString().split('T')[0];
+    // Ocultar alerta de disponibilidad al abrir
+    const alert = safeGetElement('availabilityAlert');
+    if (alert) alert.style.display = 'none';
+    // Restaurar lista de profesionales completa
+    _originalDoctorOptions = null;
     modalManager.open('modalNewAppointment');
   };
   safeGetElement('btnNuevaCita')?.addEventListener('click', open);
   safeGetElement('fabNuevaCita')?.addEventListener('click', open);
+
+  // Filtrado dinámico: actualizar profesionales disponibles cuando cambian fecha u hora
+  safeGetElement('newDate')?.addEventListener('change', actualizarProfesionalesDisponibles);
+  safeGetElement('newTime')?.addEventListener('change', actualizarProfesionalesDisponibles);
 };
 
 const submitNewAppointment = (e) => {
@@ -764,7 +909,9 @@ async function fetchAppointments(page = 1) {
     throw new Error('payload inválido');
   } catch (err) {
     console.warn('[SmileTrack] No se pudo cargar citas desde /api/citas:', err);
-    return appointmentStorage.getAll();
+    appointmentStorage.replaceAll([]);
+    mostrarErrorUsuario('No fue posible consultar las citas. La lista está vacía hasta recuperar la conexión con la API.');
+    return [];
   }
 }
 
@@ -812,7 +959,7 @@ const init = async () => {
     });
 
     if (!useSSR) {
-      // Carga inicial de datos (API → LocalStorage fallback)
+      // Carga inicial desde la API; no se usa persistencia local como respaldo.
       await fetchAppointments();
       updateMetrics();
       renderAppointments(appointmentStorage.getAll());

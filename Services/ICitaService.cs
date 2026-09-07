@@ -9,6 +9,10 @@ namespace SmileTrack_MVC.Services;
 /// </summary>
 public interface ICitaService
 {
+    Task<CitasKpiDto> ObtenerKpisGestionAsync(
+        DateTime fechaReferencia,
+        CancellationToken ct = default);
+
     Task<(List<Cita> Items, int TotalRecords)> ObtenerAsync(
         int page,
         int pageSize,
@@ -46,6 +50,45 @@ public interface ICitaService
 
     Task<bool> CancelarAsync(
         int id,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Registra una nueva solicitud de cita enviada directamente por un paciente.
+    /// Queda en estado 'Solicitada' y no requiere profesional ni consultorio inmediato,
+    /// para que el recepcionista pueda revisarla, asignarle profesional disponible y confirmarla.
+    /// </summary>
+    Task<Cita> SolicitarCitaPacienteAsync(
+        int idPaciente,
+        CitaSolicitudPacienteDto dto,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Obtiene la lista de profesionales activos que tienen disponibilidad en la fecha y horario solicitados,
+    /// verificando que el horario esté dentro de su jornada laboral, no tengan ausencias ni bloqueos registrados,
+    /// y no tengan citas solapadas.
+    /// </summary>
+    Task<List<ProfesionalDisponibleDto>> ObtenerProfesionalesDisponiblesAsync(
+        DateTime fecha,
+        TimeSpan horaInicio,
+        int duracionMinutos = 60,
+        int? idServicio = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Permite al recepcionista o administrador asignar un profesional, consultorio y hora definitiva
+    /// a una cita solicitada o programada, pasando su estado a 'Confirmada' y notificando al paciente.
+    /// </summary>
+    Task<Cita?> ConfirmarYAsignarCitaAsync(
+        int idCita,
+        CitaConfirmacionAsignacionDto dto,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Envía recordatorios de cita por correo electrónico a los pacientes seleccionados.
+    /// </summary>
+    Task<(int Enviados, int Fallidos)> EnviarRecordatoriosAsync(
+        List<int> idsCitas,
+        string? mensajePersonalizado = null,
         CancellationToken ct = default);
 
     /// <summary>
@@ -102,5 +145,6 @@ public interface ICitaService
     /// </returns>
     Task<(bool EsValido, string? Mensaje)> ValidarHorarioClinicaAsync(
         DateTime fechaHora,
+        int duracionMinutos = 60,
         CancellationToken ct = default);
 }

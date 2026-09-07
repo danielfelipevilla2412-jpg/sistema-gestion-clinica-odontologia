@@ -1,4 +1,4 @@
-﻿@* ============================================
+@* ============================================
 SmileTrack — Dashboard del Odontólogo (st-odo-01-dashboard)
 ============================================
 Autor: Johan Santamaria
@@ -25,7 +25,7 @@ NOTAS DE MANTENIMIENTO:
 ============================================ *@
 @{ Layout = null; }
 
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -49,7 +49,7 @@ NOTAS DE MANTENIMIENTO:
   <!-- Enlace para saltar al contenido principal (accesibilidad) -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
+  @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarProfesional"); }
 
   <!-- ═════ HAMBURGER (móvil) ═════ -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -66,7 +66,7 @@ NOTAS DE MANTENIMIENTO:
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Administración</span>
+          <span>Profesional</span>
           <span class="bc-sep" aria-hidden="true">›</span>
           <span class="bc-active">Dashboard</span>
         </nav>
@@ -253,24 +253,6 @@ NOTAS DE MANTENIMIENTO:
     </div>
 
   </main>
-
-  <!-- Mobile bottom nav -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item active"
-      aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">🏠</span>
-      <span>Dashboard</span>
-    </a>
-    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
-      <span>Agenda</span>
-    </a>
-    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional"
-      class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
-      <span>Perfil</span>
-    </a>
-  </nav>
 
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>

@@ -1,6 +1,14 @@
 @{
-    var currentPath = Context.Request.Path.Value ?? "/";
-    Func<string, string> linkClass = href => currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    var rawPath = Context.Request.Path.Value ?? "/";
+    var currentPath = rawPath.TrimEnd('/');
+    if (string.IsNullOrEmpty(currentPath)) currentPath = "/";
+
+    Func<string, string> linkClass = href =>
+    {
+        var cleanHref = (href ?? "/").TrimEnd('/');
+        if (string.IsNullOrEmpty(cleanHref)) cleanHref = "/";
+        return currentPath.Equals(cleanHref, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    };
 }
 <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
   <div class="sidebar-logo">
@@ -9,19 +17,19 @@
 
  <nav class="sidebar-nav">
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Mi Dashboard <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">Mi Dashboard <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
         <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="@linkClass("/gestion-de-profesionales/st-odo-01-dashboard")" data-icon="📊">Mi Dashboard</a>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Mi Agenda <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">Mi Agenda <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
         <a href="/gestion-de-citas/st-odo-02-agenda" class="@linkClass("/gestion-de-citas/st-odo-02-agenda")" data-icon="📅">Mi Agenda</a>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
         <a href="/historia-clinica/st-odo-03-historial" class="@linkClass("/historia-clinica/st-odo-03-historial")" data-icon="📋">Historia Clínica</a>
         <a href="/historia-clinica/st-odo-04-odontograma" class="@linkClass("/historia-clinica/st-odo-04-odontograma")" data-icon="🦷">Odontograma</a>
@@ -30,37 +38,38 @@
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Servicios <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">Servicios <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
         <a href="/servicios-y-recursos/st-odo-05-servicios" class="@linkClass("/servicios-y-recursos/st-odo-05-servicios")" data-icon="💼">Servicios</a>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Reportes <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">Reportes <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
         <a href="/reportes/vista-prof" class="@linkClass("/reportes/vista-prof")" data-icon="📈">Reportes y Analítica</a>
+        <a href="/gestion-de-profesionales/st-adm-14-reportes-clinicos" class="@linkClass("/gestion-de-profesionales/st-adm-14-reportes-clinicos")" data-icon="📋">Reportes Clínicos</a>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Perfil <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">Perfil <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
         <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="@linkClass("/gestion-de-profesionales/st-odo-09-perfil-profesional")" data-icon="👤">Mi Perfil</a>
         <a href="/acceso-y-seguridad/cambiar-contrasena" class="@linkClass("/acceso-y-seguridad/cambiar-contrasena")" data-icon="🔐">Cambiar Contraseña</a>
       </div>
     </div>
-      <div class="nav-group">
-    <div class="nav-group-header" role="button" tabindex="0">Gestión de PQR <span class="nav-arrow" aria-hidden="true">▼</span></div>
-    <div class="nav-group-items">
-      <a href="/gestion-de-pqr/st-pac-04-nueva-pqr" class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")" data-icon="📝"> Nueva Solicitud </a>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">Gestión de PQR <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/gestion-de-pqr/st-pac-04-nueva-pqr" class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")" data-icon="📝">Nueva Solicitud</a>
+      </div>
     </div>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-header" role="button" tabindex="0">Gestión de Ayuda <span class="nav-arrow" aria-hidden="true">▼</span></div>
-    <div class="nav-group-items">
-      <a href="/centro-de-ayuda/guias-tutoriales" class="@linkClass("/centro-de-ayuda/guias-tutoriales")" data-icon="❓">Centro de Ayuda</a>
-      <a href="/gestion-de-pqr/st-pac-04-nueva-pqr" class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")" data-icon="📝">Nueva Solicitud</a>
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">Gestión de Ayuda <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-items">
+        <a href="/centro-de-ayuda/guias-tutoriales" class="@linkClass("/centro-de-ayuda/guias-tutoriales")" data-icon="❓">Centro de Ayuda</a>
+        <a href="/gestion-de-pqr/st-pac-04-nueva-pqr" class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")" data-icon="📝">Nueva Solicitud</a>
+      </div>
     </div>
-  </div>
     <div class="nav-separator" aria-hidden="true"></div>
     <a href="/acceso-y-seguridad/login" class="nav-item nav-item--logout" data-icon="🚪" aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
   </nav>

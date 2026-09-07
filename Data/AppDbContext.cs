@@ -16,6 +16,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Consultorio> Consultorios => Set<Consultorio>();
     public DbSet<EstadoCita> EstadosCita => Set<EstadoCita>();
     public DbSet<Cita> Citas => Set<Cita>();
+      public DbSet<NotificacionLeida> NotificacionesLeidas => Set<NotificacionLeida>();
     public DbSet<HistoriaClinica> HistoriasClinicas => Set<HistoriaClinica>();
 
     // Yeray - Agregado DbSet para tabla Registro_Odontograma
@@ -204,7 +205,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<Cita>(entity =>
         {
-            entity.ToTable("Cita");
+                  entity.ToTable("Cita", tableBuilder => tableBuilder.UseSqlOutputClause(false));
             entity.HasKey(c => c.IdCita);
             entity.Property(c => c.IdCita).HasColumnName("id_cita");
             entity.Property(c => c.IdPaciente).HasColumnName("id_paciente");
@@ -310,6 +311,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(r => r.IdCita)
                   .OnDelete(DeleteBehavior.SetNull);
         });
+
+            modelBuilder.Entity<NotificacionLeida>(entity =>
+            {
+                  entity.ToTable("Notificacion_Leida");
+                  entity.HasKey(n => n.IdNotificacionLeida);
+                  entity.Property(n => n.IdNotificacionLeida).HasColumnName("id_notificacion_leida");
+                  entity.Property(n => n.IdPaciente).HasColumnName("id_paciente");
+                  entity.Property(n => n.IdCita).HasColumnName("id_cita");
+                  entity.Property(n => n.FechaLectura).HasColumnName("fecha_lectura");
+                  entity.HasIndex(n => new { n.IdPaciente, n.IdCita }).IsUnique();
+            });
 
         // Yeray - Configuración Fluent API para Nota_Clinica
         // Reemplaza el arreglo JSON "notasClinicas" (mismo criterio que Registro_Odontograma)

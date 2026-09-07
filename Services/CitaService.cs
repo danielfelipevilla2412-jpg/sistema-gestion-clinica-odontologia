@@ -29,11 +29,54 @@ public class CitaService : ICitaService
 
     private readonly AppDbContext _context;
     private readonly ILogger<CitaService> _logger;
+    private readonly SmileTrack_MVC.Services.Email.IEmailService? _emailService;
 
-    public CitaService(AppDbContext context, ILogger<CitaService> logger)
+    public CitaService(
+        AppDbContext context,
+        ILogger<CitaService> logger,
+        SmileTrack_MVC.Services.Email.IEmailService? emailService = null)
     {
         _context = context;
         _logger = logger;
+        _emailService = emailService;
+    }
+
+    // =========================================================================
+    // KPI DE GESTIÓN
+    // =========================================================================
+
+    public async Task<CitasKpiDto> ObtenerKpisGestionAsync(
+        DateTime fechaReferencia,
+        CancellationToken ct = default)
+    {
+        var inicioMes = new DateTime(fechaReferencia.Year, fechaReferencia.Month, 1);
+        var finMes = inicioMes.AddMonths(1);
+        var inicioSemana = fechaReferencia.Date.AddDays(-(((int)fechaReferencia.DayOfWeek + 6) % 7));
+        var finSemana = inicioSemana.AddDays(7);
+        var inicioSemanaAnterior = inicioSemana.AddDays(-7);
+
+        var citas = await _context.Citas.AsNoTracking()
+            .Where(c => c.FechaHora >= inicioMes && c.FechaHora < finMes)
+            .Select(c => new { c.FechaHora, c.Estado })
+            .ToListAsync(ct);
+
+        int programadas = citas.Count(c => NormalizarEstado(c.Estado) is "programada" or "agendada" or "confirmada");
+        int canceladas = citas.Count(c => EsEstadoCancelado(c.Estado));
+        int atendidas = citas.Count(c => NormalizarEstado(c.Estado) == "atendida");
+        int actual = citas.Count(c => c.FechaHora >= inicioSemana && c.FechaHora < finSemana && NormalizarEstado(c.Estado) is "programada" or "agendada" or "confirmada");
+        int anterior = citas.Count(c => c.FechaHora >= inicioSemanaAnterior && c.FechaHora < inicioSemana && NormalizarEstado(c.Estado) is "programada" or "agendada" or "confirmada");
+        int total = citas.Count;
+
+        return new CitasKpiDto
+        {
+            Total = total,
+            Programadas = programadas,
+            Canceladas = canceladas,
+            Atendidas = atendidas,
+            DiferenciaSemana = actual - anterior,
+            TasaCancelacion = total > 0 ? (int)Math.Round(canceladas * 100.0 / total) : 0,
+            TasaAsistencia = total > 0 ? (int)Math.Round(atendidas * 100.0 / total) : 0
+        };
     }
 
     // =========================================================================
@@ -77,8 +120,12 @@ public class CitaService : ICitaService
     /// <inheritdoc/>
     public async Task<(bool EsValido, string? Mensaje)> ValidarHorarioClinicaAsync(
         DateTime fechaHora,
+        int duracionMinutos = DuracionFallbackMinutos,
         CancellationToken ct = default)
     {
+        if (duracionMinutos <= 0)
+            duracionMinutos = DuracionFallbackMinutos;
+
         // Leer las tres claves de configuración de una sola query
         var claves = new[] { "horario_apertura", "horario_cierre", "dias_atencion" };
 
@@ -95,10 +142,10 @@ public class CitaService : ICitaService
             _logger.LogWarning(
                 ex,
                 "No se pudo leer la configuración de horario clínico. " +
-                "Se omite la validación de horario.");
+                "No se puede validar el horario de la clínica.");
 
-            // Si no hay config, se permite la cita (fail-open).
-            return (true, null);
+            return (false,
+                "No fue posible validar el horario de la clínica. Intente nuevamente más tarde.");
         }
 
         // ── Días de atención ─────────────────────────────────────────────
@@ -155,6 +202,7 @@ public class CitaService : ICitaService
         }
 
         TimeOnly horasolicitada = TimeOnly.FromDateTime(fechaHora);
+        TimeOnly horaFinSolicitada = TimeOnly.FromDateTime(fechaHora.AddMinutes(duracionMinutos));
 
         if (horasolicitada < horaApertura)
         {
@@ -163,11 +211,11 @@ public class CitaService : ICitaService
                 "que es el horario de apertura de la clínica.");
         }
 
-        if (horasolicitada >= horaCierre)
+        if (horasolicitada >= horaCierre || horaFinSolicitada > horaCierre)
         {
             return (false,
-                $"La cita no puede agendarse a partir de las {horaCierre:HH:mm}, " +
-                "que es el horario de cierre de la clínica.");
+            $"La cita debe finalizar antes de las {horaCierre:HH:mm}, " +
+            "que es el horario de cierre de la clínica.");
         }
 
         return (true, null);
@@ -206,7 +254,10 @@ public class CitaService : ICitaService
                 .AnyAsync(c =>
                     c.IdCita != excluir &&
                     c.IdProfesional == idProfesional &&
-                    !EsEstadoCancelado(c.Estado) &&
+                    c.Estado != "Cancelada" &&
+                    c.Estado != "cancelada" &&
+                    c.Estado != "Cancelado" &&
+                    c.Estado != "cancelado" &&
                     c.FechaHora < fin &&
                     c.FechaHora.AddMinutes(duracionMinutos) > inicio,
                     ct);
@@ -223,7 +274,10 @@ public class CitaService : ICitaService
                 .AnyAsync(c =>
                     c.IdCita != excluir &&
                     c.IdPaciente == idPaciente &&
-                    !EsEstadoCancelado(c.Estado) &&
+                    c.Estado != "Cancelada" &&
+                    c.Estado != "cancelada" &&
+                    c.Estado != "Cancelado" &&
+                    c.Estado != "cancelado" &&
                     c.FechaHora < fin &&
                     c.FechaHora.AddMinutes(duracionMinutos) > inicio,
                     ct);
@@ -240,7 +294,10 @@ public class CitaService : ICitaService
                 .AnyAsync(c =>
                     c.IdCita != excluir &&
                     c.IdConsultorio == idConsultorio &&
-                    !EsEstadoCancelado(c.Estado) &&
+                    c.Estado != "Cancelada" &&
+                    c.Estado != "cancelada" &&
+                    c.Estado != "Cancelado" &&
+                    c.Estado != "cancelado" &&
                     c.FechaHora < fin &&
                     c.FechaHora.AddMinutes(duracionMinutos) > inicio,
                     ct);
@@ -435,7 +492,8 @@ public class CitaService : ICitaService
         }
 
         // ── Validación de horario de atención clínica (C-05) ─────────────
-        var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, ct);
+        int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
+        var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, duracion, ct);
         if (!horarioValido)
             throw new InvalidOperationException(mensajeHorario!);
 
@@ -443,14 +501,12 @@ public class CitaService : ICitaService
             request.IdProfesional!.Value,
             request.IdServicio!.Value,
             request.FechaHora,
-            await ObtenerDuracionCitaMinutosAsync(ct),
+            duracion,
             ct);
         if (!disponibilidad.EsValida)
             throw new InvalidOperationException(disponibilidad.Mensaje!);
 
         // ── Verificación de conflicto integral (C-01) ─────────────────────
-        int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
-
         var conflicto = await VerificarConflictoCompletoAsync(
             idProfesional: request.IdProfesional,
             idPaciente: request.IdPaciente,
@@ -512,6 +568,32 @@ public class CitaService : ICitaService
         if (cita is null)
             return null;
 
+        EstadoCita? estadoSolicitado = null;
+        if (request.IdEstado is > 0)
+        {
+            estadoSolicitado = await _context.EstadosCita.AsNoTracking()
+                .FirstOrDefaultAsync(e => e.IdEstado == request.IdEstado.Value, ct);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.Estado))
+        {
+            string estadoTexto = request.Estado.Trim();
+            bool esAgendada = string.Equals(estadoTexto, "agendada", StringComparison.OrdinalIgnoreCase);
+            estadoSolicitado = await _context.EstadosCita.AsNoTracking()
+                .FirstOrDefaultAsync(e => EF.Functions.Like(e.NombreEstado, estadoTexto) ||
+                    (esAgendada && EF.Functions.Like(e.NombreEstado, "programada")), ct);
+        }
+
+        if ((request.IdEstado is > 0 || !string.IsNullOrWhiteSpace(request.Estado)) && estadoSolicitado is null)
+            throw new InvalidOperationException("El estado de la cita no es válido.");
+
+        if (estadoSolicitado is not null)
+        {
+            string estadoActual = NormalizarEstado(cita.Estado);
+            string estadoNuevo = NormalizarEstado(estadoSolicitado.NombreEstado);
+            if (estadoActual != estadoNuevo && !EsTransicionEstadoPermitida(estadoActual, estadoNuevo))
+                throw new InvalidOperationException(ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
+        }
+
         if (request.IdProfesional is <= 0 ||
             !await _context.Profesionales.AnyAsync(p => p.IdProfesional == request.IdProfesional && p.Estado == "activo", ct))
         {
@@ -536,7 +618,8 @@ public class CitaService : ICitaService
         }
 
         // ── Validación de horario de atención clínica (C-05) ─────────────
-        var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, ct);
+        int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
+        var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, duracion, ct);
         if (!horarioValido)
             throw new InvalidOperationException(mensajeHorario!);
 
@@ -544,14 +627,12 @@ public class CitaService : ICitaService
             request.IdProfesional!.Value,
             request.IdServicio!.Value,
             request.FechaHora,
-            await ObtenerDuracionCitaMinutosAsync(ct),
+            duracion,
             ct);
         if (!disponibilidad.EsValida)
             throw new InvalidOperationException(disponibilidad.Mensaje!);
 
         // ── Verificación de conflicto integral (C-01) ─────────────────────
-        int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
-
         var conflicto = await VerificarConflictoCompletoAsync(
             idProfesional: request.IdProfesional,
             idPaciente: request.IdPaciente,
@@ -572,25 +653,13 @@ public class CitaService : ICitaService
 
         if (request.IdEstado is > 0)
         {
-            var estadoApi = await _context.EstadosCita.AsNoTracking().FirstOrDefaultAsync(e => e.IdEstado == request.IdEstado.Value, ct);
-            if (estadoApi is null)
-                throw new InvalidOperationException("El estado de la cita no es válido.");
-
-            cita.IdEstado = estadoApi.IdEstado;
-            cita.Estado = estadoApi.NombreEstado;
+            cita.IdEstado = estadoSolicitado!.IdEstado;
+            cita.Estado = estadoSolicitado.NombreEstado;
         }
         else if (!string.IsNullOrWhiteSpace(request.Estado))
         {
-            string estadoSolicitud = request.Estado.Trim();
-            var estadoApi = await _context.EstadosCita.AsNoTracking()
-                .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == estadoSolicitud.ToLower() ||
-                    (estadoSolicitud.ToLower() == "agendada" && e.NombreEstado.ToLower() == "programada"), ct);
-
-            if (estadoApi is null)
-                throw new InvalidOperationException("El estado de la cita no es válido.");
-
-            cita.IdEstado = estadoApi.IdEstado;
-            cita.Estado = estadoApi.NombreEstado;
+            cita.IdEstado = estadoSolicitado!.IdEstado;
+            cita.Estado = estadoSolicitado.NombreEstado;
         }
 
         cita.Notas = request.Notas?.Trim();
@@ -614,8 +683,11 @@ public class CitaService : ICitaService
         if (string.IsNullOrWhiteSpace(estadoNuevo) || !EsTransicionEstadoPermitida(estadoActual, estadoNuevo))
             throw new InvalidOperationException(ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
 
-        var estadoDestino = await _context.EstadosCita.AsNoTracking().FirstOrDefaultAsync(
-            e => NormalizarEstado(e.NombreEstado) == estadoNuevo, ct);
+        var estadosCatalogo = await _context.EstadosCita
+            .AsNoTracking()
+            .ToListAsync(ct);
+        var estadoDestino = estadosCatalogo.FirstOrDefault(e =>
+            NormalizarEstado(e.NombreEstado) == estadoNuevo);
 
         if (estadoDestino is null)
             throw new InvalidOperationException("El estado seleccionado no existe en el catálogo de estados de citas.");
@@ -674,6 +746,346 @@ public class CitaService : ICitaService
     }
 
     // =========================================================================
+    // SOLICITUD DE CITA POR PACIENTE
+    // =========================================================================
+
+    /// <inheritdoc/>
+    public async Task<Cita> SolicitarCitaPacienteAsync(
+        int idPaciente,
+        CitaSolicitudPacienteDto dto,
+        CancellationToken ct = default)
+    {
+        if (dto is null)
+            throw new ArgumentNullException(nameof(dto));
+
+        if (idPaciente <= 0)
+            throw new InvalidOperationException("Identificador de paciente inválido.");
+
+        var paciente = await _context.Pacientes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdPaciente == idPaciente && p.Estado == "activo", ct);
+
+        if (paciente is null)
+            throw new InvalidOperationException("El paciente no existe o no se encuentra activo.");
+
+        if (dto.Fecha.Date < DateTime.Today)
+            throw new InvalidOperationException("No se pueden solicitar citas en fechas pasadas.");
+
+        // Validar servicio solo si fue especificado por el paciente
+        Servicio? servicio = null;
+        if (dto.IdServicio is > 0)
+        {
+            servicio = await _context.Servicios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.IdServicio == dto.IdServicio && s.Estado == "activo", ct);
+
+            if (servicio is null)
+                throw new InvalidOperationException("El servicio seleccionado no es válido o no está activo.");
+        }
+
+        // Buscar estado 'Solicitada' (con fallback a 'Agendada' o 'Programada')
+        var estadoSolicitada = await _context.EstadosCita
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "solicitada", ct)
+            ?? await _context.EstadosCita
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "agendada" || e.NombreEstado.ToLower() == "programada", ct);
+
+        // La hora tentativa se fija por defecto al inicio de jornada para la fecha solicitada
+        var fechaHoraTentativa = dto.Fecha.Date.AddHours(8);
+
+        var cita = new Cita
+        {
+            IdPaciente = idPaciente,
+            IdServicio = dto.IdServicio,
+            FechaHora = fechaHoraTentativa,
+            IdProfesional = null,
+            IdConsultorio = null,
+            IdEstado = estadoSolicitada?.IdEstado,
+            Estado = estadoSolicitada?.NombreEstado ?? "Solicitada",
+            Notas = dto.Notas?.Trim()
+        };
+
+        _context.Citas.Add(cita);
+        await _context.SaveChangesAsync(ct);
+        return cita;
+    }
+
+    // =========================================================================
+    // DISPONIBILIDAD DE PROFESIONALES
+    // =========================================================================
+
+    /// <inheritdoc/>
+    public async Task<List<ProfesionalDisponibleDto>> ObtenerProfesionalesDisponiblesAsync(
+        DateTime fecha,
+        TimeSpan horaInicio,
+        int duracionMinutos = 60,
+        int? idServicio = null,
+        CancellationToken ct = default)
+    {
+        if (duracionMinutos <= 0)
+            duracionMinutos = await ObtenerDuracionCitaMinutosAsync(ct);
+
+        DateTime inicio = fecha.Date.Add(horaInicio);
+        DateTime fin = inicio.AddMinutes(duracionMinutos);
+
+        // Validar horario general de la clínica
+        var (esHorarioClinicaValido, _) = await ValidarHorarioClinicaAsync(inicio, duracionMinutos, ct);
+        if (!esHorarioClinicaValido)
+            return [];
+
+        // Obtener profesionales activos
+        var profesionales = await _context.Profesionales
+            .AsNoTracking()
+            .Include(p => p.Usuario)
+            .Include(p => p.Especialidades)
+                .ThenInclude(pe => pe.Especialidad)
+            .Where(p => p.Estado == "activo")
+            .ToListAsync(ct);
+
+        var resultado = new List<ProfesionalDisponibleDto>();
+
+        foreach (var prof in profesionales)
+        {
+            // 1. Validar reglas de disponibilidad individual (horario, ausencia, bloqueo, asignación servicio)
+            var (esValida, _) = await ValidarDisponibilidadProfesionalAsync(
+                prof.IdProfesional,
+                idServicio ?? 0,
+                inicio,
+                duracionMinutos,
+                ct);
+
+            if (!esValida)
+                continue;
+
+            // 2. Validar que no tenga cita solapada activa
+            bool tieneCitaSolapada = await _context.Citas
+                .AsNoTracking()
+                .AnyAsync(c =>
+                    c.IdProfesional == prof.IdProfesional &&
+                    c.Estado != "Cancelada" &&
+                    c.Estado != "cancelada" &&
+                    c.Estado != "Cancelado" &&
+                    c.Estado != "cancelado" &&
+                    c.FechaHora < fin &&
+                    c.FechaHora.AddMinutes(duracionMinutos) > inicio,
+                    ct);
+
+            if (tieneCitaSolapada)
+                continue;
+
+            string nombre = prof.Usuario is not null
+                ? $"{prof.Usuario.Nombre} {prof.Usuario.Apellidos}".Trim()
+                : $"{prof.Nombres} {prof.Apellidos}".Trim();
+
+            string especialidades = string.Join(", ", prof.Especialidades
+                .Where(e => e.Especialidad is not null)
+                .Select(e => e.Especialidad!.Nombre));
+
+            resultado.Add(new ProfesionalDisponibleDto
+            {
+                IdProfesional = prof.IdProfesional,
+                NombreCompleto = string.IsNullOrWhiteSpace(nombre) ? "Profesional" : nombre,
+                Especialidades = string.IsNullOrWhiteSpace(especialidades) ? "Odontología General" : especialidades,
+                FotoUrl = null
+            });
+        }
+
+        return resultado;
+    }
+
+    // =========================================================================
+    // CONFIRMAR Y ASIGNAR CITA (RECEPCIÓN)
+    // =========================================================================
+
+    /// <inheritdoc/>
+    public async Task<Cita?> ConfirmarYAsignarCitaAsync(
+        int idCita,
+        CitaConfirmacionAsignacionDto dto,
+        CancellationToken ct = default)
+    {
+        if (dto is null)
+            throw new ArgumentNullException(nameof(dto));
+
+        var cita = await _context.Citas
+            .Include(c => c.Paciente)
+            .Include(c => c.Servicio)
+            .FirstOrDefaultAsync(c => c.IdCita == idCita, ct);
+
+        if (cita is null)
+            return null;
+
+        if (!await _context.Profesionales.AnyAsync(p => p.IdProfesional == dto.IdProfesional && p.Estado == "activo", ct))
+            throw new InvalidOperationException("El profesional seleccionado no es válido o no está activo.");
+
+        if (!await _context.Consultorios.AnyAsync(c => c.IdConsultorio == dto.IdConsultorio && (c.Estado == "disponible" || c.Estado == "activo"), ct))
+            throw new InvalidOperationException("El consultorio seleccionado no está disponible.");
+
+        DateTime fechaHora = dto.Fecha.Date.Add(dto.HoraInicio);
+        if (fechaHora < DateTime.Now.AddMinutes(-5))
+            throw new InvalidOperationException("No se puede agendar una cita en fecha u hora pasada.");
+
+        int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
+
+        // Validar horario clínica
+        var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(fechaHora, duracion, ct);
+        if (!horarioValido)
+            throw new InvalidOperationException(mensajeHorario!);
+
+        // Validar disponibilidad del profesional
+        var disp = await ValidarDisponibilidadProfesionalAsync(dto.IdProfesional, cita.IdServicio ?? 0, fechaHora, duracion, ct);
+        if (!disp.EsValida)
+            throw new InvalidOperationException(disp.Mensaje!);
+
+        // Validar conflicto de recursos excluyendo la cita actual
+        var conflicto = await VerificarConflictoCompletoAsync(
+            idProfesional: dto.IdProfesional,
+            idPaciente: cita.IdPaciente,
+            idConsultorio: dto.IdConsultorio,
+            fechaHora: fechaHora,
+            duracionMinutos: duracion,
+            idCitaExcluir: idCita,
+            ct: ct);
+
+        if (conflicto.HayConflicto)
+            throw new InvalidOperationException(conflicto.Mensaje);
+
+        // Obtener estado 'Confirmada'
+        var estadoConfirmada = await _context.EstadosCita
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "confirmada", ct);
+
+        cita.IdProfesional = dto.IdProfesional;
+        cita.IdConsultorio = dto.IdConsultorio;
+        cita.FechaHora = fechaHora;
+        cita.IdEstado = estadoConfirmada?.IdEstado ?? cita.IdEstado;
+        cita.Estado = estadoConfirmada?.NombreEstado ?? "Confirmada";
+        if (!string.IsNullOrWhiteSpace(dto.Notas))
+            cita.Notas = dto.Notas.Trim();
+
+        await _context.SaveChangesAsync(ct);
+
+        // Notificar al paciente por correo si hay servicio de email configurado
+        if (_emailService is not null && cita.Paciente is not null && !string.IsNullOrWhiteSpace(cita.Paciente.Correo))
+        {
+            var profesional = await _context.Profesionales
+                .Include(p => p.Usuario)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.IdProfesional == dto.IdProfesional, ct);
+
+            string profNombre = profesional?.Usuario != null
+                ? $"{profesional.Usuario.Nombre} {profesional.Usuario.Apellidos}".Trim()
+                : $"{profesional?.Nombres} {profesional?.Apellidos}".Trim();
+
+            try
+            {
+                await _emailService.SendCitaNotificacionAsync(
+                    cita.Paciente.Correo,
+                    $"{cita.Paciente.Nombres} {cita.Paciente.Apellidos}".Trim(),
+                    cita.FechaHora,
+                    string.IsNullOrWhiteSpace(profNombre) ? "Profesional asignado" : profNombre,
+                    cita.Servicio?.Nombre ?? "Consulta Odontológica",
+                    "confirmada",
+                    ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No fue posible enviar correo de confirmación de cita {IdCita}", idCita);
+            }
+        }
+
+        return cita;
+    }
+
+    // =========================================================================
+    // ENVIAR RECORDATORIOS POR CORREO
+    // =========================================================================
+
+    /// <inheritdoc/>
+    public async Task<(int Enviados, int Fallidos)> EnviarRecordatoriosAsync(
+        List<int> idsCitas,
+        string? mensajePersonalizado = null,
+        CancellationToken ct = default)
+    {
+        if (idsCitas is null || idsCitas.Count == 0)
+            return (0, 0);
+
+        var citas = await _context.Citas
+            .Include(c => c.Paciente)
+            .Include(c => c.Profesional)
+                .ThenInclude(p => p!.Usuario)
+            .Include(c => c.Servicio)
+            .Where(c => idsCitas.Contains(c.IdCita) &&
+                        c.Estado != "Cancelada" &&
+                        c.Estado != "cancelada")
+            .ToListAsync(ct);
+
+        int enviados = 0;
+        int fallidos = 0;
+
+        foreach (var cita in citas)
+        {
+            if (cita.Paciente is null || string.IsNullOrWhiteSpace(cita.Paciente.Correo))
+            {
+                fallidos++;
+                continue;
+            }
+
+            string profNombre = cita.Profesional?.Usuario != null
+                ? $"{cita.Profesional.Usuario.Nombre} {cita.Profesional.Usuario.Apellidos}".Trim()
+                : $"{cita.Profesional?.Nombres} {cita.Profesional?.Apellidos}".Trim();
+
+            string pacienteNombre = $"{cita.Paciente.Nombres} {cita.Paciente.Apellidos}".Trim();
+
+            try
+            {
+                if (_emailService is not null)
+                {
+                    await _emailService.SendCitaNotificacionAsync(
+                        cita.Paciente.Correo,
+                        pacienteNombre,
+                        cita.FechaHora,
+                        string.IsNullOrWhiteSpace(profNombre) ? "Tu profesional" : profNombre,
+                        cita.Servicio?.Nombre ?? "Consulta Odontológica",
+                        "recordatorio",
+                        ct);
+                }
+
+                _context.Auditorias.Add(new Auditoria
+                {
+                    Accion = "EMAIL_RECORDATORIO",
+                    TablaAfectada = "Cita",
+                    IdRegistro = cita.IdCita,
+                    Descripcion = $"Recordatorio de cita enviado al correo {cita.Paciente.Correo}.",
+                    IpOrigen = "ServicioRecordatorios",
+                    Fecha = DateTime.Now
+                });
+
+                enviados++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error enviando recordatorio por correo para Cita {IdCita}", cita.IdCita);
+                fallidos++;
+            }
+        }
+
+        if (enviados > 0)
+        {
+            try
+            {
+                await _context.SaveChangesAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo registrar auditoría de recordatorios enviados.");
+            }
+        }
+
+        return (enviados, fallidos);
+    }
+
+    // =========================================================================
     // HELPERS PRIVADOS ESTÁTICOS
     // =========================================================================
 
@@ -684,15 +1096,18 @@ public class CitaService : ICitaService
         int duracionMinutos,
         CancellationToken ct)
     {
-        bool tieneAsignaciones = await _context.ProfesionalServicios
-            .AsNoTracking()
-            .AnyAsync(ps => ps.IdProfesional == idProfesional, ct);
-
-        if (tieneAsignaciones && !await _context.ProfesionalServicios.AsNoTracking().AnyAsync(
-                ps => ps.IdProfesional == idProfesional && ps.IdServicio == idServicio && ps.Activo,
-                ct))
+        if (idServicio > 0)
         {
-            return (false, "El servicio seleccionado no está asignado al profesional.");
+            bool tieneAsignaciones = await _context.ProfesionalServicios
+                .AsNoTracking()
+                .AnyAsync(ps => ps.IdProfesional == idProfesional, ct);
+
+            if (tieneAsignaciones && !await _context.ProfesionalServicios.AsNoTracking().AnyAsync(
+                    ps => ps.IdProfesional == idProfesional && ps.IdServicio == idServicio && ps.Activo,
+                    ct))
+            {
+                return (false, "El servicio seleccionado no está asignado al profesional.");
+            }
         }
 
         DateOnly fecha = DateOnly.FromDateTime(fechaHora);

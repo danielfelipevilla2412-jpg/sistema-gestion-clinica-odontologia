@@ -1,4 +1,4 @@
-﻿@* ============================================
+@* ============================================
 SmileTrack — Dashboard General Administrativo (st-adm-01-dashboard)
 ============================================
 Autor: Johan Santamaria
@@ -34,7 +34,7 @@ DEPENDENCIAS TÉCNICAS:
 <body>
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+    @{ await Html.RenderPartialAsync(User.IsInRole("Recepcionista") ? "_SidebarRecepcionista" : "_SidebarAdmin"); }
 
     <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
         <span aria-hidden="true"></span>
@@ -95,7 +95,8 @@ DEPENDENCIAS TÉCNICAS:
             <div class="stat-card" data-color="green">
                 <span class="stat-number">@(ViewData["CitasAtendidas"] ?? 0)</span>
                 <span class="stat-label">Atendidas</span>
-                <span class="stat-sub">@((ViewData["PctAtendidas"] ?? 0) + "% de la categoría más frecuente")</span>
+                @{ var diferenciaAtendidas = Convert.ToInt32(ViewData["StatKpiDifSemana"] ?? 0); }
+                <span class="stat-sub">@(diferenciaAtendidas >= 0 ? "↑" : "↓") @Math.Abs(diferenciaAtendidas)% de la categoría más frecuente</span>
             </div>
             <div class="stat-card" data-color="blue">
                 <span class="stat-number">@(ViewData["CitasConfirmadas"] ?? 0)</span>

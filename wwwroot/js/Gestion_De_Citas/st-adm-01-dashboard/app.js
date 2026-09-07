@@ -84,7 +84,9 @@ const animateCounter = (el, targetStr) => {
   const step = Math.max(1, Math.ceil(target / 30));
   const t = setInterval(() => {
     cur = Math.min(cur + step, target);
-    el.textContent = cur;
+    el.textContent = el.id === 'statIncome'
+      ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(cur)
+      : cur;
     if (cur >= target) clearInterval(t);
   }, 30);
 };
@@ -111,10 +113,13 @@ async function exportReport() {
   // - Permite manejar errores de red o generación de blob sin romper la UI
   // - El catch re-lanza el error para que el caller (initExport) muestre toast de error
   try {
-    // Simulación de delay de red: en producción reemplazar con fetch real a API
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const blob = new Blob(['Reporte de Dashboard SmileTrack'], { type: 'application/pdf' });
+    const response = await fetch('/gestion-de-citas/st-adm-01-dashboard/exportar-pdf', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/pdf' }
+    });
+    if (!response.ok) throw new Error(`Error HTTP ${response.status}`);
+    const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

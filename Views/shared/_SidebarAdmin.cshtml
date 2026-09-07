@@ -4,9 +4,16 @@
   Incluye: <aside> completo, logo, nav con grupos colapsables y bloque de usuario.
 *@
 @{
-    var currentPath = Context.Request.Path.Value ?? "/";
+    var rawPath = Context.Request.Path.Value ?? "/";
+    var currentPath = rawPath.TrimEnd('/');
+    if (string.IsNullOrEmpty(currentPath)) currentPath = "/";
+
     Func<string, string> linkClass = href =>
-        currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    {
+        var cleanHref = (href ?? "/").TrimEnd('/');
+        if (string.IsNullOrEmpty(cleanHref)) cleanHref = "/";
+        return currentPath.Equals(cleanHref, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    };
 
     var _aName     = User.Identity?.Name ?? "Administrador";
     var _aEmail    = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "admin@smiletrack.co";

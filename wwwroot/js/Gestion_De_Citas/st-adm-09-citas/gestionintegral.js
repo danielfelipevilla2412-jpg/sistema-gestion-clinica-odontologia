@@ -14,7 +14,7 @@
  * DECISIONES TÉCNICAS:
  * - Predomina SSR en la vista de citas del administrador
  * - Guardado / cancelación se realizan mediante formularios MVC existentes
- * - LocalStorage se usa solo como fallback de datos para el cliente
+ * - La lista depende de SSR/API; no se usa persistencia local de citas
  * - Debounce en búsqueda para evitar recargas innecesarias
  * - Notificaciones no bloqueantes (toasts) para mejor UX
  *
@@ -35,6 +35,14 @@
  * Se mantiene como '/api' según la configuración del proyecto.
  */
 const API_BASE = '/api';
+let configuredDurationMinutes = 60;
+
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 
 /**
  * Tamaño de página para paginación de API.
@@ -394,52 +402,30 @@ const mapEstadoClientToServer = (estado) => {
 };
 
 // ════════════════════════════════════════════════════════════════════
-//  PERSISTENCIA CON LOCALSTORAGE (FALLBACK OFFLINE)
+//  ESTADO EFÍMERO DE LA VISTA
 // ════════════════════════════════════════════════════════════════════
 
 /**
- * Módulo de almacenamiento local para citas.
- * Permite simular persistencia de datos en modo offline.
+ * Mantiene datos únicamente durante la sesión de la página.
  */
 const appointmentsStorage = {
-    key: 'smiletrack_citas_admin',
-
     /**
-     * Carga las citas desde LocalStorage (caché de la última respuesta real de la API).
-     * Esta ruta de código solo se activa cuando NO hay filas renderizadas por el servidor
-     * (ver shouldUseServerRenderedList) y fetchAppointments() no pudo contactar la API.
+    * Sin SSR/API no se muestran datos persistidos localmente.
      *
      * @returns {Array} Array de citas (vacío si no hay caché ni conexión)
      */
     load: () => {
-        const stored = localStorage.getItem(appointmentsStorage.key);
-
-        if (stored) {
-            try {
-                return JSON.parse(stored);
-            } catch (error) {
-                console.warn('Error al cargar citas locales');
-            }
-        }
-
-        // Sin caché ni conexión: estado vacío real (antes había 5 citas ficticias)
         return [];
     },
 
     /**
-     * Guarda las citas en LocalStorage.
+    * No persiste citas en el navegador.
      *
      * @param {Array} data - Array de citas a guardar
      * @returns {boolean} True si se guardó exitosamente
      */
     save: (data) => {
-        try {
-            localStorage.setItem(appointmentsStorage.key, JSON.stringify(data));
-            return true;
-        } catch (error) {
-            console.error('Error al guardar citas locales:', error);
-            return false;
-        }
+        return false;
     },
 
     /**
@@ -623,44 +609,44 @@ const renderAppointments = () => {
         const status = statusLabels[appointment.status] || statusLabels.programada;
 
         return `
-            <div class="table-row" role="row" tabindex="0" aria-label="Cita de ${appointment.patient} el ${fmtDate(appointment.date)}">
+            <div class="table-row" role="row" tabindex="0" aria-label="Cita de ${escapeHtml(appointment.patient)} el ${escapeHtml(fmtDate(appointment.date))}">
                 <div class="table-col col-fecha" role="cell" data-label="Fecha">
-                    <time datetime="${appointment.date}">${fmtDate(appointment.date)}</time>
+                    <time datetime="${escapeHtml(appointment.date)}">${escapeHtml(fmtDate(appointment.date))}</time>
                 </div>
                 <div class="table-col col-hora" role="cell" data-label="Hora">
-                    <time datetime="${appointment.date}T${appointment.time}:00">${fmtTime(appointment.time)}</time>
+                    <time datetime="${escapeHtml(appointment.date)}T${escapeHtml(appointment.time)}:00">${escapeHtml(fmtTime(appointment.time))}</time>
                 </div>
                 <div class="table-col col-paciente" role="cell" data-label="Paciente">
                     <div class="patient-info">
                         <div class="patient-avatar ${avatarColors[appointment.color] || avatarColors.blue}" aria-hidden="true">
-                            ${appointment.avatar}
+                            ${escapeHtml(appointment.avatar)}
                         </div>
                         <div>
-                            <span class="patient-name">${appointment.patient}</span>
-                            <span class="patient-id">ID: ${appointment.doc}</span>
+                            <span class="patient-name">${escapeHtml(appointment.patient)}</span>
+                            <span class="patient-id">ID: ${escapeHtml(appointment.doc)}</span>
                         </div>
                     </div>
                 </div>
                 <div class="table-col col-profesional" role="cell" data-label="Profesional">
-                    ${appointment.professionalName}
+                    ${escapeHtml(appointment.professionalName)}
                 </div>
                 <div class="table-col col-servicio" role="cell" data-label="Servicio">
-                    ${appointment.service}
+                    ${escapeHtml(appointment.service)}
                 </div>
                 <div class="table-col col-estado text-center" role="cell" data-label="Estado">
-                    <span class="status-badge ${status.class}" role="status" aria-label="Estado: ${status.label}">
-                        ${status.label}
+                    <span class="status-badge ${status.class}" role="status" aria-label="Estado: ${escapeHtml(status.label)}">
+                        ${escapeHtml(status.label)}
                     </span>
                 </div>
                 <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
                     <div class="actions-cell">
-                        <button class="action-btn btn-view" aria-label="Ver detalle de cita de ${appointment.patient}" data-id="${appointment.id}" title="Ver detalle">
+                        <button class="action-btn btn-view" aria-label="Ver detalle de cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Ver detalle">
                           👁️ <span class="btn-text">Ver</span>
                         </button>
-                        <button class="action-btn btn-edit" aria-label="Editar cita de ${appointment.patient}" data-id="${appointment.id}" title="Editar cita">
+                        <button class="action-btn btn-edit" aria-label="Editar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Editar cita">
                           ✏️ <span class="btn-text">Editar</span>
                         </button>
-                        <button class="action-btn btn-delete" aria-label="Cancelar cita de ${appointment.patient}" data-id="${appointment.id}" title="Cancelar cita">
+                        <button class="action-btn btn-delete" aria-label="Cancelar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Cancelar cita">
                           ❌ <span class="btn-text">Cancelar</span>
                         </button>
                     </div>
@@ -756,12 +742,12 @@ const openAppointmentModal = (id, mode) => {
         contentElement.innerHTML = `
             <p><strong>Fecha:</strong> <time datetime="${appointment.date}">${fmtDate(appointment.date)}</time></p>
             <p><strong>Hora:</strong> <time datetime="${appointment.date}T${appointment.time}:00">${fmtTime(appointment.time)}</time></p>
-            <p><strong>Documento / ID:</strong> ${appointment.doc}</p>
-            <p><strong>Profesional:</strong> ${appointment.professionalName}</p>
-            <p><strong>Servicio:</strong> ${appointment.service}</p>
+            <p><strong>Documento / ID:</strong> ${escapeHtml(appointment.doc)}</p>
+            <p><strong>Profesional:</strong> ${escapeHtml(appointment.professionalName)}</p>
+            <p><strong>Servicio:</strong> ${escapeHtml(appointment.service)}</p>
             <p><strong>Estado:</strong> 
                 <span class="status-badge ${statusLabels[appointment.status]?.class || 'programada'}">
-                    ${statusLabels[appointment.status]?.label || appointment.status}
+                    ${escapeHtml(statusLabels[appointment.status]?.label || appointment.status)}
                 </span>
             </p>
         `;
@@ -1175,14 +1161,13 @@ const initBanner = () => {
 
 /**
  * Petición principal de carga de citas.
- * Si la API responde usa esos datos; si falla cae al cache LocalStorage.
+    * Si no hay datos SSR/API devuelve una lista vacía explícita.
  *
  * @returns {Promise<Array>} Array de citas mapeadas
  */
 async function fetchAppointments() {
-    // No hay un endpoint GET /api/citas disponible en el backend actual para esta vista.
-    // Usamos los datos locales / cache como fallback estable.
-    console.warn('[SmileTrack] No existe GET /api/citas para esta vista. Usando datos locales/cache.');
+    // La tabla SSR es la fuente principal; sin ella no se muestran datos locales.
+    console.warn('[SmileTrack] st-adm-09 no dispone de datos API en este flujo; se muestra una lista vacía.');
     return appointmentsStorage.load();
 }
 
@@ -1257,6 +1242,76 @@ const initModal = () => {
 };
 
 /**
+ * CIT-03 Fix: Intercepta el cambio de estado del <select name="Estado"> en
+ * las filas de la tabla y muestra un modal de confirmación (ModalService.confirm)
+ * antes de enviar el formulario. Si el usuario cancela, restaura el valor previo.
+ */
+const initEstadoConfirmation = () => {
+    // Solo los selects de cambio rápido de estado (formularios POST inline),
+    // NO los selects de los filtros (que están en form[method="get"]).
+    const statusSelects = document.querySelectorAll(
+        '.form-estado-inline select[name="Estado"]'
+    );
+
+    statusSelects.forEach(select => {
+        // Guardar el valor actual cuando el usuario enfoca el select
+        select.addEventListener('focus', function () {
+            this.dataset.previousValue = this.value;
+        });
+
+        select.addEventListener('change', function (e) {
+            const sel = this;
+            // Leer el valor previo capturado en focus; si no existe, usar el valor actual
+            const previousValue = sel.dataset.previousValue ?? sel.value;
+            const newValue = sel.value;
+
+            // Si el valor no cambió realmente, no hacer nada
+            if (previousValue === newValue) return;
+
+            const capitalize = s =>
+                s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+
+            ModalService.confirm({
+                title: 'Cambiar estado de cita',
+                message: `¿Confirmas cambiar el estado de ` +
+                    `"<strong>${capitalize(previousValue)}</strong>" ` +
+                    `a "<strong>${capitalize(newValue)}</strong>"?`,
+                confirmText: 'Sí, cambiar',
+                cancelText: 'Cancelar',
+                isDanger: false,
+                onConfirm: async () => {
+                    const token = sel.form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+                    try {
+                        const response = await fetch(`/api/citas/${sel.form.querySelector('input[name="IdCita"]').value}/estado`, {
+                            method: 'PUT',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                ...(token ? { 'X-CSRF-TOKEN': token } : {})
+                            },
+                            body: JSON.stringify({ estado: newValue })
+                        });
+                        const payload = await response.json().catch(() => ({}));
+                        if (!response.ok || payload.success === false) throw new Error(payload.message || 'No se pudo actualizar el estado.');
+                        sel.value = newValue;
+                        sel.dataset.previousValue = newValue;
+                        window.ToastService?.success?.('Estado actualizado correctamente.');
+                    } catch (error) {
+                        window.ToastService?.error?.(error.message);
+                    }
+                }
+            });
+
+            // Restaurar inmediatamente el valor previo mientras el usuario decide.
+            // Si confirma, el form.submit() recargará la página con el nuevo estado.
+            // Si cancela, el select ya muestra el valor original.
+            sel.value = previousValue;
+        });
+    });
+};
+
+/**
  * Inicialización principal del módulo.
  */
 const init = async () => {
@@ -1298,7 +1353,7 @@ const init = async () => {
                     return;
                 }
 
-                const totalMinutos = (hora * 60) + minuto + 60;
+                const totalMinutos = (hora * 60) + minuto + configuredDurationMinutes;
                 const minutosDia = 24 * 60;
 
                 const resultado = totalMinutos % minutosDia;
@@ -1317,9 +1372,29 @@ const init = async () => {
             calcularHoraFin();
         };
 
+        const loadConfiguredDuration = async () => {
+            try {
+                const response = await fetch(`${API_BASE}/citas?page=1&pageSize=1`, {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                if (!response.ok) return;
+                const payload = await response.json();
+                if (Number(payload.duracionMinutos) > 0) {
+                    configuredDurationMinutes = Number(payload.duracionMinutos);
+                }
+            } catch (error) {
+                console.warn('[SmileTrack] No se pudo cargar la duración configurada:', error);
+            }
+        };
+
+        await loadConfiguredDuration();
         initHoraCita();
         initModal();
         initBanner();
+
+        // CIT-03 Fix: Interceptar cambio de estado con confirmación modal
+        initEstadoConfirmation();
 
         // Componentes que solo se utilizan cuando
         // la tabla no viene renderizada por Razor.

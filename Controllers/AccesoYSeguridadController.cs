@@ -451,6 +451,23 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         return RedirectToAction("Login");
     }
 
+    [HttpPost]
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    [Route("acceso-y-seguridad/cambiar-contrasena/api")]
+    public async Task<IActionResult> ChangePasswordApi(
+        [FromBody] ChangePasswordRequest request,
+        CancellationToken ct = default)
+    {
+        var response = await _authService.ChangePasswordAsync(request, ct);
+        if (!response.Success)
+            return BadRequest(new { success = false, message = response.Message });
+
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        Response.Cookies.Delete("SmileTrack-JWT");
+        return Ok(new { success = true, message = response.Message, requiresLogin = true });
+    }
+
     [HttpGet]
     [Route("acceso-y-seguridad/register")]
     public IActionResult Register() => View("~/Views/Acceso_Y_Seguridad/register/index.cshtml");

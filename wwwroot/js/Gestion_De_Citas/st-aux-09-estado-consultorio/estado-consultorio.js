@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Estado del Consultorio (st-aux-09-estado-consultorio)
 ============================================
 Autor: Johan Santamaria
@@ -43,8 +43,9 @@ const debounce = (fn, delay) => {
 // WHY: Las notificaciones no bloqueantes brindan retroalimentación sin interrumpir el flujo clínico del auxiliar
 
 // WHY: La clave incluye consultorio y fecha para evitar colisiones entre sesiones de distintos consultorios en el mismo dispositivo
+const consultorioData = window.smiletrackEstadoConsultorioData || {};
 const consultorioStorage = {
-  key: 'smiletrack_consultorio_1_20260320',
+  key: `smiletrack_consultorio_${consultorioData.consultorioId || 'sin_consultorio'}_${new Date().toISOString().slice(0, 10)}`,
   
   // WHY: Carga desde LocalStorage para continuar el estado entre refrescos de página sin perder el avance del checklist
   load: () => {
@@ -68,11 +69,7 @@ const consultorioStorage = {
       ],
       status: 'disponible',
       observations: '',
-      history: [
-        { time: '2026-03-20T11:00', user: 'Sara Jiménez', detail: 'Limpieza completada' },
-        { time: '2026-03-20T09:30', user: 'Sara Jiménez', detail: 'Preparación iniciada' },
-        { time: '2026-03-19T17:00', user: 'Carlos Pérez', detail: 'Fin de jornada' }
-      ]
+      history: []   // el historial real viene del servidor
     };
   },
   
@@ -143,47 +140,9 @@ const calculateProgress = () => {
   };
 };
 
-// Inicializa menú móvil con gestión de foco y atributos ARIA
+// Inicializa menú móvil (delegado al módulo centralizado)
 const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamburger = safeGetElement('hamburger');
-
-  if (!sidebar || !overlay || !hamburger) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sidebar.classList.add('open');
-      overlay.classList.add('open');
-      hamburger.setAttribute('aria-expanded', 'true');
-      overlay.setAttribute('aria-hidden', 'false');
-      
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      overlay.setAttribute('aria-hidden', 'true');
-      hamburger.focus();
-    }
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 // WHY: Renderiza el checklist desde LocalStorage para mantener el estado entre refrescos de página
@@ -199,21 +158,28 @@ const initChecklist = () => {
   const state = consultorioStorage.load();
   
   // WHY: Re-renderiza la lista completa desde el estado guardado en lugar de confiar en el HTML estático del servidor
-  checklist.innerHTML = '';
+  checklist.replaceChildren();
   state.checklist.forEach((item, index) => {
     const li = document.createElement('li');
     li.setAttribute('role', 'listitem');
+    const label = document.createElement('label');
+    label.className = 'check-item';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = Boolean(item.checked);
+    checkbox.setAttribute('aria-label', `${item.text}${item.checked ? ' - completado' : ''}`);
+    const checkmark = document.createElement('span');
+    checkmark.className = 'checkmark';
+    checkmark.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.className = 'text';
+    text.textContent = item.text;
+    label.append(checkbox, checkmark, text);
+    li.appendChild(label);
     
-    li.innerHTML = `
-      <label class="check-item">
-        <input type="checkbox" ${item.checked ? 'checked' : ''} aria-label="${item.text}${item.checked ? ' - completado' : ''}" />
-        <span class="checkmark" aria-hidden="true"></span>
-        <span class="text">${item.text}</span>
-      </label>
-    `;
-    
+    // FASE-0 E-LEX-01: Se elimina redeclaración `const checkbox` que ya existía en L206
+    // (SyntaxError en modo estricto). Se reutiliza la variable del mismo scope.
     // WHY: Actualiza el aria-label del checkbox al cambiar estado para que lectores de pantalla anuncien el nuevo estado
-    const checkbox = li.querySelector('input');
     checkbox.addEventListener('change', () => {
       consultorioStorage.updateChecklistItem(index, checkbox.checked);
       checkbox.setAttribute('aria-label', `${item.text}${checkbox.checked ? ' - completado' : ''}`);
@@ -269,13 +235,19 @@ const initAddItem = () => {
     const li = document.createElement('li');
     li.setAttribute('role', 'listitem');
     
-    li.innerHTML = `
-      <label class="check-item">
-        <input type="checkbox" aria-label="${text}" />
-        <span class="checkmark" aria-hidden="true"></span>
-        <span class="text">${text}</span>
-      </label>
-    `;
+    const label = document.createElement('label');
+    label.className = 'check-item';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.setAttribute('aria-label', text);
+    const checkmark = document.createElement('span');
+    checkmark.className = 'checkmark';
+    checkmark.setAttribute('aria-hidden', 'true');
+    const textElement = document.createElement('span');
+    textElement.className = 'text';
+    textElement.textContent = text;
+    label.append(checkbox, checkmark, textElement);
+    li.appendChild(label);
     
     // Maneja cambio del nuevo checkbox
     const checkbox = li.querySelector('input');
@@ -433,6 +405,20 @@ const initConfirmButtons = () => {
       
       // Agrega entrada al historial
       consultorioStorage.addToHistory('Auxiliar', 'Preparación del consultorio confirmada');
+
+      // Sincroniza con el servidor
+      const serverData2 = window.smiletrackEstadoConsultorioData;
+      if (serverData2?.consultorioId) {
+        fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            estado: consultorioStorage.load().status,
+            observaciones: document.getElementById('obsTextarea')?.value ?? ''
+          })
+        }).catch(err => console.warn('[SmileTrack] No se pudo sincronizar estado con el servidor:', err));
+      }
       
       // Feedback visual
       window.ToastService.success('✅ Preparación del consultorio confirmada');
@@ -456,6 +442,20 @@ const initConfirmButtons = () => {
       
       // Agrega entrada al historial
       consultorioStorage.addToHistory('Auxiliar', `Estado actualizado a: ${status}`);
+
+      // Sincroniza con el servidor
+      const serverData2 = window.smiletrackEstadoConsultorioData;
+      if (serverData2?.consultorioId) {
+        fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            estado: consultorioStorage.load().status,
+            observaciones: document.getElementById('obsTextarea')?.value ?? ''
+          })
+        }).catch(err => console.warn('[SmileTrack] No se pudo sincronizar estado con el servidor:', err));
+      }
       
       // Feedback visual
       window.ToastService.success(`✅ Estado actualizado: ${status}`);
@@ -478,7 +478,7 @@ const initConfirmButtons = () => {
 
 // WHY: El historial de estados se renderiza dinámicamente para reflejar las confirmaciones realizadas durante la sesión
 const initHistoryList = () => {
-  const list = safeGetElement('history-list');
+  const list = document.querySelector('.history-list');
   if (!list) return;
   
   const state = consultorioStorage.load();
@@ -491,12 +491,21 @@ const initHistoryList = () => {
   };
   
   // Renderiza historial
-  list.innerHTML = state.history.map(entry => `
-    <li role="listitem">
-      <p class="history-time"><time datetime="${entry.time}">${formatDate(entry.time)}</time></p>
-      <p class="history-detail">${entry.user} · ${entry.detail}</p>
-    </li>
-  `).join('');
+  list.replaceChildren(...state.history.map(entry => {
+    const item = document.createElement('li');
+    item.setAttribute('role', 'listitem');
+    const time = document.createElement('p');
+    time.className = 'history-time';
+    const timeElement = document.createElement('time');
+    timeElement.dateTime = entry.time;
+    timeElement.textContent = formatDate(entry.time);
+    time.appendChild(timeElement);
+    const detail = document.createElement('p');
+    detail.className = 'history-detail';
+    detail.textContent = `${entry.user} · ${entry.detail}`;
+    item.append(time, detail);
+    return item;
+  }));
 };
 
 // Función principal de inicialización
@@ -509,6 +518,34 @@ const init = () => {
     initObservations();
     initConfirmButtons();
     initHistoryList();
+
+    // Cargar datos del servidor si están disponibles
+    const serverData = window.smiletrackEstadoConsultorioData;
+    if (serverData) {
+        // Actualizar subtítulo del header
+        const subtitle = document.getElementById('consultorioSubtitle');
+        if (subtitle) {
+            const partes = [serverData.nombre];
+            if (serverData.ubicacion) partes.push(serverData.ubicacion);
+            subtitle.textContent = partes.join(' · ');
+        }
+
+        // Cargar historial del servidor en localStorage si el localStorage local está vacío
+        const stored = localStorage.getItem(consultorioStorage.key);
+        const localData = stored ? JSON.parse(stored) : null;
+        if (!localData || !localData.history || localData.history.length === 0) {
+            const state = consultorioStorage.load();
+            state.history = (serverData.historial || []).map(h => ({
+                time: h.time,
+                user: h.user,
+                detail: h.detail
+            }));
+            consultorioStorage.save(state);
+        }
+
+        // Re-renderizar historial con datos del servidor
+        initHistoryList();
+    }
     
     // Limpieza de listeners al unload para evitar memory leaks
     window.addEventListener('beforeunload', () => {

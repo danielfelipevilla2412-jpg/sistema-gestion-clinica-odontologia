@@ -899,6 +899,27 @@ select.status-select-inline {
     cursor: pointer;
     text-align: center;
     text-transform: capitalize;
+    min-width: 88px;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    text-align-last: center;
+}
+
+select.status-select-inline.programada {
+    background: var(--status-programada-bg);
+    color: var(--status-programada-text);
+}
+
+select.status-select-inline.confirmada,
+select.status-select-inline.atendida {
+    background: var(--status-confirmada-bg);
+    color: var(--status-confirmada-text);
+}
+
+select.status-select-inline.cancelada,
+select.status-select-inline.no-asistio {
+    background: var(--status-cancelada-bg);
+    color: var(--status-cancelada-text);
 }
 
 select.status-select-inline:focus {

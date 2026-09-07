@@ -43,6 +43,90 @@ public sealed class ProfesionalEstadoApiRequest
     public string Estado { get; set; } = string.Empty;
 }
 
+public sealed class HorarioSemanalApiRequest
+{
+    public string? Day { get; set; }
+    public string? DiaSemana { get; set; }
+    public string? DayFull { get; set; }
+    public bool Active { get; set; }
+    public string? Start { get; set; }
+    public string? End { get; set; }
+}
+
+public sealed class HorarioProfesionalApiDto
+{
+    public int IdHorario { get; set; }
+    public string DiaSemana { get; set; } = string.Empty;
+    public string HoraInicio { get; set; } = string.Empty;
+    public string HoraFin { get; set; } = string.Empty;
+    public bool Activo { get; set; }
+}
+
+public sealed class AusenciaProfesionalApiDto
+{
+    public int IdAusencia { get; set; }
+    public string? Tipo { get; set; }
+    public string FechaInicio { get; set; } = string.Empty;
+    public string FechaFin { get; set; } = string.Empty;
+    public int? Duracion { get; set; }
+    public string? Observaciones { get; set; }
+}
+
+public sealed class ServicioProfesionalApiDto
+{
+    public int IdProfesional { get; set; }
+    public int IdServicio { get; set; }
+    public string NombreServicio { get; set; } = string.Empty;
+    public decimal PrecioBase { get; set; }
+    public decimal? PrecioPersonalizado { get; set; }
+    public decimal PrecioEfectivo { get; set; }
+    public bool Activo { get; set; }
+}
+
+public sealed class ProfesionalApiCollectionResult<T>
+{
+    public bool Success { get; private set; }
+    public string Message { get; private set; } = string.Empty;
+    public List<T> Data { get; private set; } = new();
+    public int? ErrorStatusCode { get; private set; }
+
+    public static ProfesionalApiCollectionResult<T> Ok(List<T> data) => new()
+    {
+        Success = true,
+        Message = "OK",
+        Data = data
+    };
+
+    public static ProfesionalApiCollectionResult<T> Fail(string message, int statusCode) => new()
+    {
+        Success = false,
+        Message = message,
+        ErrorStatusCode = statusCode
+    };
+}
+
+public sealed class ProfesionalApiCollectionOperationResult<T>
+{
+    public bool Success { get; private set; }
+    public string Message { get; private set; } = string.Empty;
+    public List<T> Data { get; private set; } = new();
+    public int? ErrorStatusCode { get; private set; }
+
+    public static ProfesionalApiCollectionOperationResult<T> Ok(string message, List<T> data) => new()
+    {
+        Success = true,
+        Message = message,
+        Data = data
+    };
+
+    public static ProfesionalApiCollectionOperationResult<T> Fail(string message, int statusCode) => new()
+    {
+        Success = false,
+        Message = message,
+        ErrorStatusCode = statusCode
+    };
+}
+
 public sealed class ProfesionalEspecialidadApiDto
 {
     public int IdEspecialidad { get; set; }

@@ -100,7 +100,16 @@ function mostrarErrorUsuario(mensaje) {
     div.setAttribute('role', 'alert');
     document.body.appendChild(div);
   }
-  div.innerHTML = '<strong>[SmileTrack]</strong> ' + mensaje + ' <button onclick="document.getElementById(\'smiletrack-error-bar\').style.display=\'none\'" style="margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;">×</button>';
+  div.replaceChildren();
+  const strong = document.createElement('strong');
+  strong.textContent = '[SmileTrack]';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Cerrar mensaje de error');
+  close.style.cssText = 'margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;';
+  close.addEventListener('click', () => { div.style.display = 'none'; });
+  div.append(strong, document.createTextNode(` ${mensaje} `), close);
   div.style.display = 'block';
 }
 
@@ -584,29 +593,30 @@ const renderTable = (data) => {
           const previousStatus =
             item.estado;
 
-          const confirmado =
-            window.confirm(
-              `¿Cambiar esta cita de "${previousStatus}" a "${newStatus}"?`
-            );
+          ModalService.confirm({
+            title: 'Cambiar estado de cita',
+            message: `¿Cambiar esta cita de "${previousStatus}" a "${newStatus}"?`,
+            confirmText: 'Sí, cambiar',
+            cancelText: 'No',
+            isDanger: true,
+            onConfirm: async () => {
+              statusSelect.disabled = true;
 
-          if (!confirmado) {
-            event.target.value = '';
-            return;
-          }
+              const resultado =
+                await changeAppointmentStatus(
+                  item,
+                  newStatus
+                );
 
-          statusSelect.disabled = true;
+              if (!resultado) {
+                statusSelect.disabled = false;
+              }
 
-          const resultado =
-            await changeAppointmentStatus(
-              item,
-              newStatus
-            );
+              statusSelect.value = '';
+            }
+          });
 
-          if (!resultado) {
-            statusSelect.disabled = false;
-          }
-
-          statusSelect.value = '';
+          event.target.value = '';
         }
       );
     }
@@ -624,12 +634,12 @@ window.openModal = (id) => {
   const content = safeGetElement('modalContent');
   if (content) {
     content.innerHTML = `
-      <div class="modal-row"><span class="modal-key">Fecha</span><span class="modal-val"><time datetime="${item.fechaISO}T00:00:00">${item.fecha}</time></span></div>
-      <div class="modal-row"><span class="modal-key">Hora</span><span class="modal-val"><time datetime="${dtiso}">${item.hora}</time></span></div>
-      <div class="modal-row"><span class="modal-key">Paciente</span><span class="modal-val">${item.paciente}</span></div>
-      <div class="modal-row"><span class="modal-key">Servicio</span><span class="modal-val">${item.servicio}</span></div>
-      <div class="modal-row"><span class="modal-key">Duración</span><span class="modal-val">${item.duracion}</span></div>
-      <div class="modal-row"><span class="modal-key">Estado</span><span class="modal-val"><span class="badge ${badgeClass(item.estado)}" role="status">${item.estado}</span></span></div>
+      <div class="modal-row"><span class="modal-key">Fecha</span><span class="modal-val"><time datetime="${escapeHtml(item.fechaISO)}T00:00:00">${escapeHtml(item.fecha)}</time></span></div>
+      <div class="modal-row"><span class="modal-key">Hora</span><span class="modal-val"><time datetime="${escapeHtml(dtiso)}">${escapeHtml(item.hora)}</time></span></div>
+      <div class="modal-row"><span class="modal-key">Paciente</span><span class="modal-val">${escapeHtml(item.paciente)}</span></div>
+      <div class="modal-row"><span class="modal-key">Servicio</span><span class="modal-val">${escapeHtml(item.servicio)}</span></div>
+      <div class="modal-row"><span class="modal-key">Duración</span><span class="modal-val">${escapeHtml(item.duracion || '60 min')}</span></div>
+      <div class="modal-row"><span class="modal-key">Estado</span><span class="modal-val"><span class="badge ${escapeHtml(badgeClass(item.estado))}" role="status">${escapeHtml(item.estado)}</span></span></div>
       <div class="modal-row"><span class="modal-key">Notas</span><span class="modal-val">${escapeHtml(item.notas || 'Sin notas')}</span></div>
     `;
   }

@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Citas Finalizadas (st-aux-10-citas-finalizadas)
 ============================================
 Autor: Johan Santamaria
@@ -65,47 +65,9 @@ const formatDateForExport = () => {
   return `${now.getDate()} de ${months[now.getMonth()]} ${now.getFullYear()}`;
 };
 
-// Inicializa menú móvil con gestión de foco y atributos ARIA
+// Inicializa menú móvil (delegado al módulo centralizado)
 const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamburger = safeGetElement('hamburger');
-
-  if (!sidebar || !overlay || !hamburger) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sidebar.classList.add('open');
-      overlay.classList.add('open');
-      hamburger.setAttribute('aria-expanded', 'true');
-      overlay.setAttribute('aria-hidden', 'false');
-      
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      overlay.setAttribute('aria-hidden', 'true');
-      hamburger.focus();
-    }
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 // WHY: Renderiza la tabla dinámicamente para poder asignar clases y aria-labels de estado sin lógica duplicada en Razor
@@ -114,26 +76,44 @@ const renderAppointments = (data) => {
   if (!tbody) return;
 
   if (data.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">No hay citas finalizadas registradas.</td></tr>`;
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.style.cssText = 'text-align:center;padding:24px;color:var(--text-muted);';
+    cell.textContent = 'No hay citas finalizadas registradas.';
+    row.appendChild(cell);
+    tbody.replaceChildren(row);
     return;
   }
 
   // WHY: Mapea el estado de la cita a una clase CSS semántica para que el color refleje el resultado clínico del turno
-  tbody.innerHTML = data.map(apt => {
+  tbody.replaceChildren(...data.map(apt => {
     const statusClass = apt.estado === 'Atendida' ? 'atendida' : 
                        apt.estado === 'Cancelada' ? 'cancelada' : 'no-asistio';
-    const statusLabel = `Estado: ${apt.estado}`;
-    
-    return `
-      <tr role="row">
-        <td class="td-hora">${apt.hora}</td>
-        <td class="td-paciente">${apt.paciente}</td>
-        <td class="td-profesional">${apt.profesional}</td>
-        <td class="td-servicio">${apt.servicio}</td>
-        <td><span class="status-badge ${statusClass}" role="status" aria-label="${statusLabel}">${apt.estado}</span></td>
-      </tr>
-    `;
-  }).join('');
+    const row = document.createElement('tr');
+    row.setAttribute('role', 'row');
+    const cell = (className, value) => {
+      const element = document.createElement('td');
+      element.className = className;
+      element.textContent = value || '';
+      return element;
+    };
+    const statusCell = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = `status-badge ${statusClass}`;
+    badge.setAttribute('role', 'status');
+    badge.setAttribute('aria-label', `Estado: ${apt.estado}`);
+    badge.textContent = apt.estado || 'Sin estado';
+    statusCell.appendChild(badge);
+    row.append(cell('td-hora', apt.hora), cell('td-paciente', apt.paciente),
+      cell('td-profesional', apt.profesional), cell('td-servicio', apt.servicio), statusCell);
+    return row;
+  }));
+};
+
+const csvValue = (value) => {
+  const text = String(value ?? '');
+  return `"${text.replaceAll('"', '""')}"`;
 };
 
 // WHY: La animación de conteo progresivo hace que el auxiliar note el cambio sin leer texto, facilitando el scan rápido
@@ -195,7 +175,7 @@ const initExportButton = () => {
         '',
         'DETALLE DE CITAS',
         'Hora,Paciente,Profesional,Servicio,Estado',
-        ...citas.map(c => `${c.hora},"${c.paciente}","${c.profesional}","${c.servicio}",${c.estado}`)
+        ...citas.map(c => [c.hora, c.paciente, c.profesional, c.servicio, c.estado].map(csvValue).join(','))
       ].join('\n');
       
       // Crea blob y descarga

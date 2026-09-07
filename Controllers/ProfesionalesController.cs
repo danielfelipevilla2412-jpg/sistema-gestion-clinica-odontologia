@@ -77,7 +77,7 @@ public partial class GestionProfesionalesController(
     }
 
     [HttpGet]
-    [Authorize(Roles = "Profesional")]
+    [Authorize(Roles = "Profesional,Administrador")]
     [Route("gestion-de-profesionales/st-odo-01-dashboard")]
     public async Task<IActionResult> Stodo01Dashboard(CancellationToken ct = default)
     {
@@ -195,7 +195,7 @@ public partial class GestionProfesionalesController(
     }
 
     [HttpGet]
-    [Authorize(Roles = "Profesional")]
+    [Authorize(Roles = "Profesional,Administrador")]
     [Route("gestion-de-profesionales/st-odo-09-perfil-profesional")]
     public async Task<IActionResult> Stodo09PerfilProfesional(CancellationToken ct = default)
     {

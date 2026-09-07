@@ -628,9 +628,13 @@ const saveProfessional = async (e) => {
     idEspecialidad: idEspecialidad,
   };
 
-  // Solo incluir contraseña si el campo tiene valor (en edición es opcional)
+  // FASE-0 E-SEC-01: La contraseña SOLO se envía en CREACIÓN (POST).
+  // En edición (PUT) NUNCA se envía por este endpoint; si requiere cambio, debe
+  // ser a través de un flujo separado (recuperación / cambio de contraseña seguro).
+  // TODO Seguridad: A mediano plazo generar la contraseña temporal en BACKEND
+  // y notificar por email, evitando que viaje en la solicitud desde cliente.
   const passwordVal = getData('formContrasenaAcceso');
-  if (passwordVal) payload.contrasenaAcceso = passwordVal;
+  if (!isEditing && passwordVal) payload.contrasenaAcceso = passwordVal;
 
   // H-05: capturar estado actual y original para decidir si hace falta el PATCH.
   // originalEstado se guarda en data-originalEstado por editProfessional() al abrir el modal.
@@ -689,7 +693,8 @@ const bindProfessionalFieldValidation = () => {
   form.querySelectorAll('input, select').forEach((field) => {
     field.addEventListener('input', () => {
       if (field.id === 'formTelefono' && field.value.trim()) {
-        const validPhone = /^[0-9+\s()-]{7,15}$/.test(field.value.trim());
+        const validPhone = (field.value.match(/\d/g) || []).length >= 7
+          && (field.value.match(/\d/g) || []).length <= 15;
         if (window.ValidationUtils) {
           if (!validPhone) window.ValidationUtils.showError(field, null, 'Ingresa un teléfono válido.');
           else window.ValidationUtils.clearError(field);

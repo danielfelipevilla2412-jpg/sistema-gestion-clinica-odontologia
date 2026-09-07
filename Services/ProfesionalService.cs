@@ -592,6 +592,9 @@ public partial class ProfesionalService : IProfesionalService
                             .AnyAsync(c =>
                                 c.IdProfesional == id &&
                                 c.Estado != "Cancelada" &&
+                                c.Estado != "cancelada" &&
+                                c.Estado != "Cancelado" &&
+                                c.Estado != "cancelado" &&
                                 c.FechaHora >= DateTime.Today, ct);
 
                         if (tieneCitasActivas)
@@ -674,6 +677,9 @@ public partial class ProfesionalService : IProfesionalService
                         .AnyAsync(c =>
                             c.IdProfesional == id &&
                             c.Estado != "Cancelada" &&
+                            c.Estado != "cancelada" &&
+                            c.Estado != "Cancelado" &&
+                            c.Estado != "cancelado" &&
                             c.FechaHora >= DateTime.Today, ct);
 
                     if (tieneCitasActivas && profesional.Estado != "inactivo")
@@ -737,6 +743,147 @@ public partial class ProfesionalService : IProfesionalService
     }
 
     // ── Helpers privados ──────────────────────────────────────────────────────
+
+    public async Task<ProfesionalApiCollectionResult<HorarioProfesionalApiDto>> ObtenerHorariosAsync(
+        int id,
+        CancellationToken ct = default)
+    {
+        bool existe = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+        if (!existe)
+            return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Fail(
+                "Profesional no encontrado.", 404);
+
+        var horarios = await _context.HorariosProfesional
+            .AsNoTracking()
+            .Where(h => h.IdProfesional == id && h.Activo)
+            .OrderBy(h => h.DiaSemana)
+            .ThenBy(h => h.HoraInicio)
+            .Select(h => new HorarioProfesionalApiDto
+            {
+                IdHorario = h.IdHorario,
+                DiaSemana = h.DiaSemana,
+                HoraInicio = h.HoraInicio.ToString("HH:mm"),
+                HoraFin = h.HoraFin.ToString("HH:mm"),
+                Activo = h.Activo
+            })
+            .ToListAsync(ct);
+
+        return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Ok(horarios);
+    }
+
+    public async Task<ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>> ActualizarHorariosAsync(
+        int id,
+        IReadOnlyCollection<HorarioSemanalApiRequest> horarios,
+        int? usuarioActualId,
+        bool esAdministrador,
+        CancellationToken ct = default)
+    {
+        bool existe = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+        if (!existe)
+            return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
+                "Profesional no encontrado.", 404);
+
+        if (!esAdministrador)
+        {
+            bool esPropietario = usuarioActualId.HasValue && await _context.Profesionales
+                .AsNoTracking()
+                .AnyAsync(p => p.IdProfesional == id && p.IdUsuario == usuarioActualId.Value, ct);
+            if (!esPropietario)
+                return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
+                    "No tienes permiso para modificar el horario de otro profesional.", 403);
+        }
+
+        var diasValidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"
+        };
+
+        var nuevosHorarios = horarios
+            .Where(b => b.Active && !string.IsNullOrWhiteSpace(b.DiaSemana) && diasValidos.Contains(b.DiaSemana))
+            .Select(b => new { Bloque = b, Inicio = TimeOnly.TryParse(b.Start, out var inicio) ? inicio : (TimeOnly?)null, Fin = TimeOnly.TryParse(b.End, out var fin) ? fin : (TimeOnly?)null })
+            .Where(x => x.Inicio.HasValue && x.Fin.HasValue && x.Fin > x.Inicio)
+            .Select(x => new HorarioProfesional
+            {
+                IdProfesional = id,
+                DiaSemana = x.Bloque.DiaSemana!,
+                HoraInicio = x.Inicio!.Value,
+                HoraFin = x.Fin!.Value,
+                Activo = true
+            })
+            .ToList();
+
+        var existentes = await _context.HorariosProfesional
+            .Where(h => h.IdProfesional == id)
+            .ToListAsync(ct);
+        _context.HorariosProfesional.RemoveRange(existentes);
+        if (nuevosHorarios.Count > 0)
+            await _context.HorariosProfesional.AddRangeAsync(nuevosHorarios, ct);
+        await _context.SaveChangesAsync(ct);
+
+        var actualizado = await ObtenerHorariosAsync(id, ct);
+        return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Ok(
+            "Horario actualizado correctamente.", actualizado.Data);
+    }
+
+    public async Task<ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>> ObtenerAusenciasAsync(
+        int id,
+        CancellationToken ct = default)
+    {
+        bool existe = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+        if (!existe)
+            return ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>.Fail(
+                "Profesional no encontrado.", 404);
+
+        var ausencias = await _context.AusenciasProfesional
+            .AsNoTracking()
+            .Where(a => a.IdProfesional == id)
+            .OrderByDescending(a => a.FechaInicio)
+            .Select(a => new AusenciaProfesionalApiDto
+            {
+                IdAusencia = a.IdAusencia,
+                Tipo = a.Tipo,
+                FechaInicio = a.FechaInicio.ToString("yyyy-MM-dd"),
+                FechaFin = a.FechaFin.ToString("yyyy-MM-dd"),
+                Duracion = a.Duracion,
+                Observaciones = a.Observaciones
+            })
+            .ToListAsync(ct);
+
+        return ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>.Ok(ausencias);
+    }
+
+    public async Task<ProfesionalApiCollectionResult<ServicioProfesionalApiDto>> ObtenerServiciosAsync(
+        int id,
+        CancellationToken ct = default)
+    {
+        bool existe = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+        if (!existe)
+            return ProfesionalApiCollectionResult<ServicioProfesionalApiDto>.Fail(
+                "Profesional no encontrado.", 404);
+
+        var servicios = await _context.ProfesionalServicios
+            .AsNoTracking()
+            .Where(ps => ps.IdProfesional == id && ps.Activo)
+            .Include(ps => ps.Servicio)
+            .Select(ps => new ServicioProfesionalApiDto
+            {
+                IdProfesional = ps.IdProfesional,
+                IdServicio = ps.IdServicio,
+                NombreServicio = ps.Servicio != null ? ps.Servicio.Nombre : string.Empty,
+                PrecioBase = ps.Servicio != null ? ps.Servicio.Precio : 0m,
+                PrecioPersonalizado = ps.PrecioPersonalizado,
+                PrecioEfectivo = ps.PrecioPersonalizado ?? (ps.Servicio != null ? ps.Servicio.Precio : 0m),
+                Activo = ps.Activo
+            })
+            .OrderBy(ps => ps.NombreServicio)
+            .ToListAsync(ct);
+
+        return ProfesionalApiCollectionResult<ServicioProfesionalApiDto>.Ok(servicios);
+    }
 
     private static ProfesionalApiDto MapToDto(Profesional p) => new()
     {

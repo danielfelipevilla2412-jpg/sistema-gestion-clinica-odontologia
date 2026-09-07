@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Historial Clínico Parcial (st-aux-05-historial-parcial)
 ============================================
 Autor: Johan Santamaria
@@ -90,48 +90,7 @@ const hpCtrl = new HistoriaParcialController();
 //  SIDEBAR MÓVIL CON GESTIÓN DE FOCO Y ARIA
 // ═══════════════════════════════════════════════════════════════════
 const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamburger = safeGetElement('hamburger');
-
-  if (!sidebar || !overlay || !hamburger) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sidebar.classList.add('open');
-      overlay.classList.add('open');
-      hamburger.setAttribute('aria-expanded', 'true');
-      overlay.setAttribute('aria-hidden', 'false');
-      
-      // Enfocar primer enlace de navegación para accesibilidad
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      overlay.setAttribute('aria-hidden', 'true');
-      hamburger.focus();
-    }
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  // Cerrar menú al navegar en móvil
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  // Cerrar menú con tecla Escape
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -171,20 +130,35 @@ const renderTabla = (filas) => {
 
   // Muestra mensaje si no hay datos
   if (!filas.length) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:26px;color:var(--text-muted);font-size:.85rem;">Sin consultas registradas.</td></tr>`;
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 4;
+    cell.style.cssText = 'text-align:center;padding:26px;color:var(--text-muted);font-size:.85rem;';
+    cell.textContent = 'Sin consultas registradas.';
+    row.appendChild(cell);
+    tbody.replaceChildren(row);
     if (footer) footer.style.display = 'none';
     return;
   }
 
   // WHY: Reemplaza las celdas de carga (skeleton cells) por las de datos reales una vez completada la llamada asíncrona
-  tbody.innerHTML = filas.map(f => `
-    <tr>
-      <td class="td-fecha" data-label="Fecha">${f.fecha}</td>
-      <td class="td-profesional" data-label="Profesional">${f.profesional}</td>
-      <td data-label="Diagnóstico">${f.diagnostico}</td>
-      <td data-label="Procedimiento">${f.procedimiento}</td>
-    </tr>
-  `).join('');
+  const crearCelda = (className, label, value) => {
+    const cell = document.createElement('td');
+    cell.className = className;
+    cell.dataset.label = label;
+    cell.textContent = value || 'Sin información';
+    return cell;
+  };
+  tbody.replaceChildren(...filas.map(f => {
+    const row = document.createElement('tr');
+    row.append(
+      crearCelda('td-fecha', 'Fecha', f.fecha),
+      crearCelda('td-profesional', 'Profesional', f.profesional),
+      crearCelda('', 'Diagnóstico', f.diagnostico),
+      crearCelda('', 'Procedimiento', f.procedimiento)
+    );
+    return row;
+  }));
 };
 
 // ═══════════════════════════════════════════════════════════════════

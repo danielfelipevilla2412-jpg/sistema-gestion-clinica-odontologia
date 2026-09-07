@@ -16,6 +16,7 @@ obj/
 # Environment / secrets
 .env
 .env.*
+appsettings.Local.json
 
 # OS
 .DS_Store

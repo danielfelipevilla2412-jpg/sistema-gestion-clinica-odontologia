@@ -1,4 +1,4 @@
-﻿﻿@* ============================================
+﻿@* ============================================
    SmileTrack — Gestión Integral de Citas (st-adm-09-citas)
    ============================================
    Autor: Johan Santamaria
@@ -70,7 +70,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
     @{
-        await Html.RenderPartialAsync("_SidebarAdmin");
+        await Html.RenderPartialAsync(User.IsInRole("Recepcionista") ? "_SidebarRecepcionista" : "_SidebarAdmin");
     }
 
     <!-- Botón hamburguesa para dispositivos móviles -->
@@ -252,15 +252,15 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 ?? "General";
 
                             <div class="table-row" role="row">
-                                <div class="table-col col-fecha" role="cell">
+                                <div class="table-col col-fecha" role="cell" data-label="Fecha">
                                     @cita.Fecha.ToString("dd/MM/yyyy")
                                 </div>
-                                <div class="table-col col-hora" role="cell">
+                                <div class="table-col col-hora" role="cell" data-label="Hora">
                                     @(cita.HoraInicio?.ToString("hh\\:mm") ?? "—")
                                 </div>
 
                                 <!-- Paciente -->
-                                <div class="table-col col-paciente" role="cell">
+                                <div class="table-col col-paciente" role="cell" data-label="Paciente">
                                     <div class="patient-info">
                                         <div class="patient-avatar" style="background:@pacienteColor;">
                                             @pacienteIniciales
@@ -272,7 +272,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 </div>
 
                                 <!-- Profesional -->
-                                <div class="table-col col-profesional" role="cell">
+                                <div class="table-col col-profesional" role="cell" data-label="Profesional">
                                     <div class="patient-info">
                                         <div class="patient-avatar"
                                              style="background:@profesionalColor; opacity:@profesionalOpacity;">
@@ -294,12 +294,12 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 </div>
 
                                 <!-- Servicio -->
-                                <div class="table-col col-servicio" role="cell">
+                                <div class="table-col col-servicio" role="cell" data-label="Servicio">
                                     @cita.MotivoConsulta
                                 </div>
 
                                 <!-- Estado (cambio rápido inline) -->
-                                <div class="table-col col-estado text-center" role="cell">
+                                <div class="table-col col-estado text-center" role="cell" data-label="Estado">
                                     <form method="post" action="/gestion-de-citas/guardar-cita" class="form-estado-inline"
                                           style="display:inline-block; margin:0;">
                                         @Html.AntiForgeryToken()
@@ -309,8 +309,8 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                value="@cita.FechaHora.ToString("yyyy-MM-ddTHH:mm:ss")" />
                                         <input type="hidden" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
                                         <select name="Estado"
-                                                class="status-badge status-select-inline @((cita.Estado ?? string.Empty).ToLowerInvariant())"
-                                                onchange="this.form.submit()" aria-label="Cambiar estado de la cita"
+                                                class="status-badge status-select-inline @((cita.Estado ?? string.Empty).ToLowerInvariant().Replace(" ", "-").Replace("_", "-"))"
+                                                aria-label="Cambiar estado de la cita"
                                                 title="Cambiar estado de la cita">
                                             @foreach (var estado in new[] { "Programada", "Confirmada", "Atendida", "Cancelada" })
                                             {
@@ -324,7 +324,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 </div>
 
                                 <!-- Acciones -->
-                                <div class="table-col col-acciones text-right" role="cell">
+                                <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
                                     @{
                                         var cFecha = cita.Fecha.ToString("dd/MM/yyyy");
                                         var cHora = cita.HoraInicio?.ToString("hh\\:mm") ?? "—";
@@ -432,27 +432,6 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                     </footer>
                 </section>
 
-                <!-- Banner informativo con estadísticas -->
-                <section class="info-banner" role="complementary" aria-label="Resumen de disponibilidad">
-                    <div class="banner-content">
-                        <h3 class="banner-title">Resumen de Citas del Mes</h3>
-                        <p class="banner-text">
-                            @{
-                                var totalCitas = citas.Count;
-                                var atendidas = citas.Count(c => string.Equals(c.EstadoCita?.NombreEstado, "Atendida",
-                            StringComparison.OrdinalIgnoreCase));
-                                var canceladas = citas.Count(c => string.Equals(c.EstadoCita?.NombreEstado, "Cancelada",
-                            StringComparison.OrdinalIgnoreCase));
-                                var programadas = citas.Count(c => string.Equals(c.EstadoCita?.NombreEstado, "Agendada",
-                            StringComparison.OrdinalIgnoreCase));
-                            }
-                            Total en vista: <strong>@totalCitas</strong> citas —
-                            <span style="color:#22c55e">✅ @atendidas atendidas</span> —
-                            <span style="color:#f59e0b">📅 @programadas programadas</span> —
-                            <span style="color:#ef4444">❌ @canceladas canceladas</span>
-                        </p>
-                    </div>
-                </section>
             </main>
 
             <!-- Modal: Detalle de Cita -->
@@ -826,8 +805,36 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 const modalAppContent = document.getElementById('modalAppointmentContent');
                                 const modalAppTitle = document.getElementById('modalAppointmentTitle');
                                 const modalAppEditBtn = document.getElementById('modalAppointmentEdit');
+                                const modalAppCloseBtn = document.getElementById('modalAppointmentClose');
+                                const modalAppCancelBtn = document.getElementById('modalAppointmentCancel');
+                                let modalAppPreviousFocus = null;
+
+                                const closeAppointmentDetails = () => {
+                                if (!modalAppEl) return;
+                                modalAppEl.classList.remove('open');
+                                modalAppEl.setAttribute('aria-hidden', 'true');
+                                modalAppEl.setAttribute('inert', '');
+                                document.body.style.overflow = '';
+                                if (modalAppPreviousFocus && document.contains(modalAppPreviousFocus)) {
+                                modalAppPreviousFocus.focus();
+                                }
+                                modalAppPreviousFocus = null;
+                                };
+
+                                modalAppCloseBtn?.addEventListener('click', closeAppointmentDetails);
+                                modalAppCancelBtn?.addEventListener('click', closeAppointmentDetails);
+                                modalAppEl?.addEventListener('click', (event) => {
+                                if (event.target === modalAppEl) closeAppointmentDetails();
+                                });
+                                document.addEventListener('keydown', (event) => {
+                                if (event.key === 'Escape' && modalAppEl?.classList.contains('open')) {
+                                event.preventDefault();
+                                closeAppointmentDetails();
+                                }
+                                });
                                 document.querySelectorAll('.btn-view').forEach(btn => {
                                 btn.addEventListener('click', () => {
+                                modalAppPreviousFocus = btn;
                                 const citaId = btn.dataset.id;
                                 const html = `
                                 <div style="display:grid; gap:12px; font-size:0.95rem;">
@@ -874,6 +881,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 modalAppEl.setAttribute('aria-hidden', 'false');
                                 modalAppEl.removeAttribute('inert');
                                 document.body.style.overflow = 'hidden';
+                                modalAppCloseBtn?.focus();
                                 }
                                 });
                                 });

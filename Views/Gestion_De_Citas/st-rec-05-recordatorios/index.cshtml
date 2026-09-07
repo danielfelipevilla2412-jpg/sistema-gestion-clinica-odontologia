@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@* ============================================
+﻿@* ============================================
 SmileTrack — Recordatorios (st-rec-05-recordatorios)
 ============================================
 Autor: Johan Santamaria
@@ -50,7 +50,7 @@ NOTAS DE MANTENIMIENTO:
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+    @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarRecepcionista"); }
 
   <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -62,6 +62,7 @@ NOTAS DE MANTENIMIENTO:
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
+    @Html.AntiForgeryToken()
 
     <!-- Page header -->
     <header class="page-header">
@@ -76,11 +77,11 @@ NOTAS DE MANTENIMIENTO:
     <!-- Stats con aria-label para sección de estadÍdsticas -->
     <section class="stats-container" aria-label="Resumen de recordatorios">
       <div class="stat-card success-card">
-        <span class="stat-value" id="statsSentCount" aria-live="polite">12</span>
+        <span class="stat-value" id="statsSentCount" aria-live="polite">0</span>
         <span class="stat-label">Enviados hoy</span>
       </div>
       <div class="stat-card warning-card">
-        <span class="stat-value" id="statsPendingCount" aria-live="polite">5</span>
+        <span class="stat-value" id="statsPendingCount" aria-live="polite">@pendientes.Count()</span>
         <span class="stat-label">Pendientes de envío</span>
       </div>
     </section>
@@ -116,11 +117,11 @@ NOTAS DE MANTENIMIENTO:
                 string diaTexto = p.esManana ? "Mañana" : "Pasado mañana";
                 string horaTexto = ((DateTime)p.fechaHora).ToString("h:mm tt");
                 string isoTexto = ((DateTime)p.fechaHora).ToString("yyyy-MM-ddTHH:mm");
-                string canalIcono = p.canal == "email" ? "email" : "sms";
-                string canalTexto = p.canal == "email" ? "Correo" : "SMS";
+                string canalIcono = p.canal == "email" ? "email" : "mail_off";
+                string canalTexto = p.canal == "email" ? "Correo electrónico" : "Correo electrónico no disponible";
                 string filaClase = p.confirmada ? "patient-row dimmed" : "patient-row selected";
 
-                <div class="@filaClase" data-id="@p.id" role="listitem">
+                <div class="@filaClase" data-id="@p.id" data-es-manana="@(((bool)p.esManana).ToString().ToLowerInvariant())" role="listitem">
                   <input type="checkbox" class="custom-checkbox" checked="@(!((bool)p.confirmada))"
                     aria-label="Seleccionar recordatorio para @p.paciente" />
                   <div class="avatar-circle @avatarClass" aria-hidden="true">@p.iniciales</div>
@@ -155,7 +156,6 @@ NOTAS DE MANTENIMIENTO:
                  inventados aquí: María López, Carlos Ruiz, Jorge Díaz). -->
             <p style="padding:12px;color:var(--text-secondary,#64748b);">Aún no se ha registrado el envío de recordatorios.</p>
           </div>
-          </div>
         </section>
 
       </div>
@@ -179,7 +179,7 @@ NOTAS DE MANTENIMIENTO:
           </div>
           <!-- Alerta amarilla: facturas vencidas -->
           <div class="alert-item-card yellow-alert" role="listitem" style="@(facturasVencidas > 0 ? "" : "display:none;")">
-            <div class="alert-icon-box material-symbols-outlined" aria-hidden="true">invoice</div>
+            <div class="alert-icon-box material-symbols-outlined" aria-hidden="true">receipt_long</div>
             <div class="alert-content-box">
               <h4>@facturasVencidas factura@(facturasVencidas == 1 ? "" : "s") vencida@(facturasVencidas == 1 ? "" : "s")</h4>
               <p>Pacientes con pagos pendientes por más de 15 días.</p>

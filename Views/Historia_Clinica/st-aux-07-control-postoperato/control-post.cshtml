@@ -22,7 +22,6 @@
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
   <!-- ═════ SIDEBAR UNIFICADO (Activo: Control post-operatorio) ═════ -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
     @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
 
@@ -134,23 +133,19 @@
   <!-- Mobile bottom nav con aria-label para navegación móvil -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
       <span>Panel</span>
     </a>
-    <a href="#" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
       <span>Agenda</span>
     </a>
-    <a href="/gestion-de-citas/st-aux-05-historial-parcial" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
-      <span>Historial</span>
-    </a>
-    <a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">🏥</span>
-      <span>Postop.</span>
+    <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">check_circle</span>
+      <span>Finalizadas</span>
     </a>
     <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
       <span>Perfil</span>
     </a>
   </nav>

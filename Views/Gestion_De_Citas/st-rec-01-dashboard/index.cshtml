@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@* ============================================
+﻿﻿﻿@* ============================================
 SmileTrack — Dashboard Recepción (st-rec-01-dashboard)
 ============================================
 Autor: Johan Santamaria
@@ -46,7 +46,7 @@ NOTAS DE MANTENIMIENTO:
   <!-- [MEJORA]: Skip link para accesibilidad keyboard-first (consistente con mÓdulos anteriores) -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+    @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarRecepcionista"); }
 
   <!-- ----- HAMBURGER (mÓvil) ----- -->
   <!-- [MEJORA]: aria-expanded y aria-controls para accesibilidad de menú mÓvil -->

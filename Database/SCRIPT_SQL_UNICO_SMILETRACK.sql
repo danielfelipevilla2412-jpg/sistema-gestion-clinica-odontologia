@@ -473,6 +473,7 @@ GO
 
 DECLARE @vals TABLE (nombre VARCHAR(50), descripcion VARCHAR(150));
 INSERT INTO @vals (nombre, descripcion) VALUES
+('Solicitada', 'Cita solicitada por el paciente pendiente de confirmacion y asignacion'),
 ('Agendada', 'Cita programada y pendiente'),
 ('Confirmada', 'Cita confirmada por paciente o clinica'),
 ('En consulta', 'Paciente en consulta'),
@@ -586,6 +587,29 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cita_Estado_Fecha' AND
     CREATE NONCLUSTERED INDEX IX_Cita_Estado_Fecha
         ON dbo.Cita (estado, fecha_hora)
         INCLUDE (id_paciente, id_profesional, id_consultorio);
+GO
+
+-- Filtros por rango de fecha usados por agendas, dashboards y recordatorios.
+-- Los índices por profesional/estado ya cubren sus respectivas columnas como
+-- primera clave; este índice agrega la búsqueda por fecha como predicado inicial.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cita_FechaHora' AND object_id = OBJECT_ID('dbo.Cita'))
+    CREATE NONCLUSTERED INDEX IX_Cita_FechaHora
+        ON dbo.Cita (fecha_hora)
+        INCLUDE (id_paciente, id_profesional, id_consultorio, estado, id_servicio);
+GO
+
+IF OBJECT_ID(N'dbo.Notificacion_Leida', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Notificacion_Leida (
+        id_notificacion_leida INT IDENTITY(1,1) PRIMARY KEY,
+        id_paciente INT NOT NULL,
+        id_cita INT NOT NULL,
+        fecha_lectura DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT UQ_NotificacionLeida_Paciente_Cita UNIQUE (id_paciente, id_cita),
+        CONSTRAINT FK_NotificacionLeida_Paciente FOREIGN KEY (id_paciente) REFERENCES dbo.Paciente(id_paciente) ON DELETE CASCADE,
+        CONSTRAINT FK_NotificacionLeida_Cita FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita) ON DELETE CASCADE
+    );
+END
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Factura') AND type = N'U')
@@ -1051,6 +1075,219 @@ BEGIN
 END
 GO
 
-PRINT 'Script ejecutado correctamente.';
+-- ============================================================
+-- CÓDIGO Y CALIDAD — TABLA AUDITORIA, TRIGGERS, FUNCIONES Y PROCEDIMIENTOS
+-- ============================================================
 
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Auditoria') AND type = N'U')
+BEGIN
+    CREATE TABLE dbo.Auditoria (
+        id_auditoria     INT IDENTITY(1,1) PRIMARY KEY,
+        id_usuario       INT NULL,
+        tabla_afectada   VARCHAR(100) NOT NULL,
+        id_registro      INT NULL,
+        accion           VARCHAR(30) NOT NULL,
+        ip_origen        VARCHAR(45) NULL,
+        datos_anteriores NVARCHAR(MAX) NULL,
+        datos_nuevos     NVARCHAR(MAX) NULL,
+        descripcion      NVARCHAR(500) NULL,
+        fecha            DATETIME NOT NULL DEFAULT GETDATE(),
+
+        CONSTRAINT FK_Auditoria_Usuario
+            FOREIGN KEY (id_usuario) REFERENCES dbo.Usuario(id_usuario)
+            ON DELETE SET NULL
+    );
+    CREATE INDEX IX_Auditoria_Tabla_Registro ON dbo.Auditoria(tabla_afectada, id_registro);
+    PRINT 'Tabla Auditoria creada correctamente.';
+END
+GO
+
+-- 1. TRIGGER: Auditoría automática en cambios de estado o asignación de cita
+IF OBJECT_ID('dbo.TR_Cita_Auditoria_Estado', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.TR_Cita_Auditoria_Estado;
+GO
+
+CREATE TRIGGER dbo.TR_Cita_Auditoria_Estado
+ON dbo.Cita
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF UPDATE(estado) OR UPDATE(id_estado) OR UPDATE(id_profesional) OR UPDATE(fecha_hora)
+    BEGIN
+        INSERT INTO dbo.Auditoria (
+            id_usuario,
+            tabla_afectada,
+            id_registro,
+            accion,
+            ip_origen,
+            datos_anteriores,
+            datos_nuevos,
+            descripcion,
+            fecha
+        )
+        SELECT
+            i.creado_por,
+            'Cita',
+            i.id_cita,
+            'UPDATE',
+            'TRIGGER_DB',
+            'Estado: ' + ISNULL(d.estado, 'NULL') + ', Prof: ' + ISNULL(CAST(d.id_profesional AS VARCHAR(20)), 'NULL'),
+            'Estado: ' + ISNULL(i.estado, 'NULL') + ', Prof: ' + ISNULL(CAST(i.id_profesional AS VARCHAR(20)), 'NULL'),
+            'Actualización de estado o asignación de profesional en cita ID ' + CAST(i.id_cita AS VARCHAR(20)),
+            GETDATE()
+        FROM inserted i
+        INNER JOIN deleted d ON i.id_cita = d.id_cita
+        WHERE ISNULL(i.estado, '') <> ISNULL(d.estado, '')
+           OR ISNULL(i.id_estado, 0) <> ISNULL(d.id_estado, 0)
+           OR ISNULL(i.id_profesional, 0) <> ISNULL(d.id_profesional, 0)
+           OR i.fecha_hora <> d.fecha_hora;
+    END
+END
+GO
+PRINT 'Trigger TR_Cita_Auditoria_Estado creado correctamente.';
+GO
+
+-- 2. FUNCIÓN: Verificación de disponibilidad de profesional
+IF OBJECT_ID('dbo.fn_VerificarDisponibilidadProfesional', 'FN') IS NOT NULL
+    DROP FUNCTION dbo.fn_VerificarDisponibilidadProfesional;
+GO
+
+CREATE FUNCTION dbo.fn_VerificarDisponibilidadProfesional
+(
+    @IdProfesional INT,
+    @FechaHoraInicio DATETIME,
+    @DuracionMinutos INT = 60,
+    @IdCitaExcluir INT = NULL
+)
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @FechaHoraFin DATETIME = DATEADD(MINUTE, @DuracionMinutos, @FechaHoraInicio);
+    DECLARE @Fecha DATE = CAST(@FechaHoraInicio AS DATE);
+
+    -- Verificar que el profesional esté activo
+    IF EXISTS (SELECT 1 FROM dbo.Profesional WHERE id_profesional = @IdProfesional AND estado <> 'activo')
+        RETURN 0;
+
+    -- Verificar ausencias registradas
+    IF EXISTS (
+        SELECT 1 FROM dbo.Ausencia_Profesional
+        WHERE id_profesional = @IdProfesional
+          AND fecha_inicio <= @Fecha
+          AND fecha_fin >= @Fecha
+    )
+        RETURN 0;
+
+    -- Verificar bloqueos de agenda
+    IF EXISTS (
+        SELECT 1 FROM dbo.Bloqueo_Profesional
+        WHERE id_profesional = @IdProfesional
+          AND fecha_inicio < @FechaHoraFin
+          AND fecha_fin > @FechaHoraInicio
+    )
+        RETURN 0;
+
+    -- Verificar citas solapadas existentes (no canceladas)
+    IF EXISTS (
+        SELECT 1 FROM dbo.Cita
+        WHERE id_profesional = @IdProfesional
+          AND (@IdCitaExcluir IS NULL OR id_cita <> @IdCitaExcluir)
+          AND LOWER(ISNULL(estado, '')) NOT IN ('cancelada', 'cancelado')
+          AND fecha_hora < @FechaHoraFin
+          AND DATEADD(MINUTE, @DuracionMinutos, fecha_hora) > @FechaHoraInicio
+    )
+        RETURN 0;
+
+    RETURN 1;
+END
+GO
+PRINT 'Función fn_VerificarDisponibilidadProfesional creada correctamente.';
+GO
+
+-- 3. PROCEDIMIENTO ALMACENADO: Registro transaccional de cita con validación previa
+IF OBJECT_ID('dbo.sp_RegistrarCitaConValidacion', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.sp_RegistrarCitaConValidacion;
+GO
+
+CREATE PROCEDURE dbo.sp_RegistrarCitaConValidacion
+(
+    @IdPaciente INT,
+    @IdProfesional INT = NULL,
+    @IdServicio INT = NULL,
+    @IdConsultorio INT = NULL,
+    @FechaHora DATETIME,
+    @DuracionMinutos INT = 60,
+    @Estado VARCHAR(30) = 'Programada',
+    @Notas VARCHAR(MAX) = NULL,
+    @CreadoPor INT = NULL,
+    @IdCitaCreada INT OUTPUT,
+    @MensajeError VARCHAR(250) OUTPUT
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    SET @IdCitaCreada = 0;
+    SET @MensajeError = '';
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.Paciente WHERE id_paciente = @IdPaciente AND estado = 'activo')
+    BEGIN
+        SET @MensajeError = 'El paciente especificado no existe o no se encuentra activo.';
+        RETURN -1;
+    END
+
+    IF @IdProfesional IS NOT NULL AND @IdProfesional > 0
+    BEGIN
+        IF dbo.fn_VerificarDisponibilidadProfesional(@IdProfesional, @FechaHora, @DuracionMinutos, NULL) = 0
+        BEGIN
+            SET @MensajeError = 'El profesional seleccionado no tiene disponibilidad en la fecha y horario solicitados.';
+            RETURN -2;
+        END
+    END
+
+    DECLARE @IdEstado INT = NULL;
+    SELECT TOP 1 @IdEstado = id_estado FROM dbo.Estado_Cita WHERE LOWER(nombre_estado) = LOWER(@Estado);
+
+    BEGIN TRY
+        INSERT INTO dbo.Cita (
+            id_paciente,
+            id_profesional,
+            id_servicio,
+            id_consultorio,
+            fecha_hora,
+            estado,
+            id_estado,
+            notas,
+            fecha_creacion,
+            creado_por
+        )
+        VALUES (
+            @IdPaciente,
+            @IdProfesional,
+            @IdServicio,
+            @IdConsultorio,
+            @FechaHora,
+            @Estado,
+            @IdEstado,
+            @Notas,
+            GETDATE(),
+            @CreadoPor
+        );
+
+        SET @IdCitaCreada = SCOPE_IDENTITY();
+        SET @MensajeError = 'Cita registrada exitosamente.';
+        RETURN 0;
+    END TRY
+    BEGIN CATCH
+        SET @MensajeError = ERROR_MESSAGE();
+        RETURN -99;
+    END CATCH
+END
+GO
+PRINT 'Procedimiento almacenado sp_RegistrarCitaConValidacion creado correctamente.';
+GO
+
+PRINT 'Script ejecutado correctamente.';
 GO

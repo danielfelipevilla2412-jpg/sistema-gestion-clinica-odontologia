@@ -276,9 +276,11 @@ const initExport = () => {
 
         try {
             await exportReport();
-            window.ToastService.error('✅ Reporte PDF generado exitosamente');
+            // FASE-0 E-RNT-01: corregido — éxito debe usar success (antes estaba invertido con error)
+            window.ToastService.success('✅ Reporte PDF generado exitosamente');
         } catch (error) {
-            window.ToastService.success('❌ Error al generar reporte');
+            // FASE-0 E-RNT-01: corregido — fallo debe usar error (antes estaba invertido con success)
+            window.ToastService.error('❌ Error al generar reporte');
         } finally {
             // Restaurar estado del botón después de un breve delay
             setTimeout(() => {
@@ -379,33 +381,41 @@ const initWeekNavigation = () => {
         }
     };
 
-    btnPrev.addEventListener('click', () => {
+    // FASE-0 E-MEM-01: Los handlers se declaran con nombre para que removeEventListener
+    // reciba LA MISMA referencia de función. Antes se usaban arrow functions nuevas
+    // en removeEventListener que nunca hacían match → memory leak real.
+    const handlePrevWeek = () => {
         const monday = currentWeekStart();
         monday.setDate(monday.getDate() - 7);
         loadWeek(toIso(monday));
-    });
+    };
 
-    btnNext.addEventListener('click', () => {
+    const handleNextWeek = () => {
         const monday = currentWeekStart();
         monday.setDate(monday.getDate() + 7);
         loadWeek(toIso(monday));
-    });
+    };
 
-    btnToday.addEventListener('click', () => {
+    const handleToday = () => {
         const monday = getMonday(new Date());
         loadWeek(toIso(monday));
-    });
+    };
 
-    window.addEventListener('popstate', (e) => {
+    const handlePopstate = (e) => {
         const stateWeek = (e.state && e.state.weekStart) || (new URLSearchParams(window.location.search)).get('weekStart');
         if (stateWeek) loadWeek(stateWeek, false);
-    });
+    };
+
+    btnPrev.addEventListener('click', handlePrevWeek);
+    btnNext.addEventListener('click', handleNextWeek);
+    btnToday.addEventListener('click', handleToday);
+    window.addEventListener('popstate', handlePopstate);
 
     cleanupHandlers.push(() => {
-        btnPrev.removeEventListener('click', () => {});
-        btnNext.removeEventListener('click', () => {});
-        btnToday.removeEventListener('click', () => {});
-        window.removeEventListener('popstate', () => {});
+        btnPrev.removeEventListener('click', handlePrevWeek);
+        btnNext.removeEventListener('click', handleNextWeek);
+        btnToday.removeEventListener('click', handleToday);
+        window.removeEventListener('popstate', handlePopstate);
     });
 };
 

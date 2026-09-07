@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Mis Citas Paciente (st-pac-01-mis-citas)
 ============================================
 Autor: Johan Santamaria
@@ -33,9 +33,10 @@ NOTAS DE MANTENIMIENTO:
 // ═══════════════════════════════════════════════════════════════════
 const API_BASE = '/api';
 const API_PAGE_SIZE = 200;
-const STORAGE_KEY = 'smiletrack_pac_mis_citas';
 
 const getCsrfToken = () => {
+  const requestToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  if (requestToken) return requestToken;
   const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
   return match ? decodeURIComponent(match[2]) : null;
 };
@@ -79,7 +80,16 @@ function mostrarErrorUsuario(mensaje) {
     div.setAttribute('role', 'alert');
     document.body.appendChild(div);
   }
-  div.innerHTML = '<strong>[SmileTrack]</strong> ' + mensaje + ' <button onclick="document.getElementById(\'smiletrack-error-bar\').style.display=\'none\'" style="margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;">×</button>';
+  div.replaceChildren();
+  const strong = document.createElement('strong');
+  strong.textContent = '[SmileTrack]';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Cerrar mensaje de error');
+  close.style.cssText = 'margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;';
+  close.addEventListener('click', () => { div.style.display = 'none'; });
+  div.append(strong, document.createTextNode(` ${mensaje} `), close);
   div.style.display = 'block';
 }
 
@@ -97,6 +107,14 @@ const debounce = (fn, delay) => {
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), delay); };
 };
+
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  "'": '&#39;',
+  '"': '&quot;'
+}[character]));
 
 const notify = (type, title, message) => {
   if (window.ToastService && typeof window.ToastService[type] === 'function') {
@@ -126,7 +144,7 @@ const fmtHora = (fh) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  MAPEO SERVER → CLIENTE + FALLBACK LOCAL
+//  MAPEO SERVER → CLIENTE
 // ═══════════════════════════════════════════════════════════════════
 
 const mapServerToClient = (srv) => {
@@ -177,27 +195,8 @@ const mapServerToClient = (srv) => {
 // incorrectas en abrirModalCancelar() (hrs < 24 y hrs < 2 ambas falsas cuando son NaN).
 // Añadimos fechaHoraISO con timestamps futuros realistas para que las validaciones
 // de cancelación funcionen correctamente con los datos de demostración.
-const FALLBACK = [
-  { id:1, fecha:'Vie 20 Mar', fechaISO:'2026-03-20', fechaHoraISO:'2026-03-20T10:00:00.000Z', hora:'10:00 AM', doctor:'Dr. Carlos Méndez',  servicio:'Control general',   estado:'Agendada',   active:true  },
-  { id:2, fecha:'Vie 27 Mar', fechaISO:'2026-03-27', fechaHoraISO:'2026-03-27T15:30:00.000Z', hora:'03:30 PM', doctor:'Dra. Laura Gómez',   servicio:'Ortodoncia',        estado:'Agendada',   active:true  },
-  { id:3, fecha:'Mar 10 Mar', fechaISO:'2026-03-10', fechaHoraISO:'2026-03-10T09:00:00.000Z', hora:'09:00 AM', doctor:'Dr. Carlos Méndez',  servicio:'Limpieza dental',   estado:'Completada', active:false },
-  { id:4, fecha:'Lun 03 Feb', fechaISO:'2026-02-03', fechaHoraISO:'2026-02-03T11:30:00.000Z', hora:'11:30 AM', doctor:'Dra. Laura Gómez',   servicio:'Resina dental',     estado:'Completada', active:false },
-  { id:5, fecha:'Mié 10 Ene', fechaISO:'2026-01-10', fechaHoraISO:'2026-01-10T10:00:00.000Z', hora:'10:00 AM', doctor:'Dr. Carlos Méndez',  servicio:'Ortodoncia',        estado:'Cancelada',  active:false }
-];
-
-let citas = [...FALLBACK];
+let citas = [];
 let cancelId = null;
-
-const loadLocal = () => {
-  try {
-    const r = localStorage.getItem(STORAGE_KEY);
-    if (r) return JSON.parse(r);
-  } catch {}
-  return [...FALLBACK];
-};
-const saveLocal = () => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(citas)); } catch {}
-};
 
 // ═══════════════════════════════════════════════════════════════════
 //  HELPERS ESTADO / FILTROS / RENDER
@@ -285,7 +284,12 @@ const renderTable = () => {
   if (lbl) lbl.textContent = `${data.length} resultado${data.length !== 1 ? 's' : ''}`;
 
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><span class="empty-icon" aria-hidden="true">📭</span><p>No hay citas que coincidan con los filtros.</p></div></td></tr>`;
+    const emptyRow = document.createElement('tr');
+    const emptyCell = document.createElement('td');
+    emptyCell.colSpan = 6;
+    emptyCell.innerHTML = '<div class="empty-state"><span class="empty-icon" aria-hidden="true">📭</span><p>No hay citas que coincidan con los filtros.</p></div>';
+    emptyRow.appendChild(emptyCell);
+    tbody.replaceChildren(emptyRow);
     return;
   }
 
@@ -295,11 +299,11 @@ const renderTable = () => {
     if (item.estado === 'Cancelada') tr.classList.add('row-cancelada');
     const canCancel = item.estado === 'Agendada' || item.estado === 'Confirmada';
     tr.innerHTML = `
-      <td class="td-fecha">${item.fecha}</td>
-      <td><span class="pill-hora">${item.hora}</span></td>
-      <td class="td-doctor">${item.doctor}</td>
-      <td>${item.servicio}</td>
-      <td><span class="badge ${badgeClass(item.estado)}">${item.estado}</span></td>
+      <td class="td-fecha">${escapeHtml(item.fecha)}</td>
+      <td><span class="pill-hora">${escapeHtml(item.hora)}</span></td>
+      <td class="td-doctor">${escapeHtml(item.doctor)}</td>
+      <td>${escapeHtml(item.servicio)}</td>
+      <td><span class="badge ${escapeHtml(badgeClass(item.estado))}">${escapeHtml(item.estado)}</span></td>
       <td>
         <div class="actions-cell">
           <button class="btn-icon action-btn btn-view" type="button" id="btn-ver-${item.id}"
@@ -326,12 +330,12 @@ const openModal = (id) => {
   const mc = safeGetElement('modalContent');
   if (mc) {
     mc.innerHTML = `
-      <div class="modal-row"><span class="modal-key">Fecha</span>   <span class="modal-val">${item.fecha}</span></div>
-      <div class="modal-row"><span class="modal-key">Hora</span>    <span class="modal-val">${item.hora}</span></div>
-      <div class="modal-row"><span class="modal-key">Profesional</span>  <span class="modal-val">${item.doctor}</span></div>
-      <div class="modal-row"><span class="modal-key">Servicio</span><span class="modal-val">${item.servicio}</span></div>
+      <div class="modal-row"><span class="modal-key">Fecha</span>   <span class="modal-val">${escapeHtml(item.fecha)}</span></div>
+      <div class="modal-row"><span class="modal-key">Hora</span>    <span class="modal-val">${escapeHtml(item.hora)}</span></div>
+      <div class="modal-row"><span class="modal-key">Profesional</span>  <span class="modal-val">${escapeHtml(item.doctor)}</span></div>
+      <div class="modal-row"><span class="modal-key">Servicio</span><span class="modal-val">${escapeHtml(item.servicio)}</span></div>
       <div class="modal-row"><span class="modal-key">Estado</span>
-        <span class="modal-val"><span class="badge ${badgeClass(item.estado)}">${item.estado}</span></span>
+        <span class="modal-val"><span class="badge ${escapeHtml(badgeClass(item.estado))}">${escapeHtml(item.estado)}</span></span>
       </div>`;
   }
   const mo = safeGetElement('modalOverlay');
@@ -425,7 +429,7 @@ const confirmarCancelacion = async () => {
   const item = citas.find(c => c.id === cancelId);
   if (!item) return;
 
-  // Optimistic update local
+  // Mantener el estado local solo mientras se confirma la operación remota.
   const beforeEstado = item.estado;
   item.estado = 'Cancelada';
   item.active = false;
@@ -445,15 +449,12 @@ const confirmarCancelacion = async () => {
     msg = payload.message;
   } catch (err) {
     console.warn('[SmileTrack] Cancel cita offline paciente:', err);
-    success = true;
-    msg = 'Cancelación guardada localmente';
+    success = false;
+    msg = 'No fue posible conectar con la API para cancelar la cita.';
   }
 
   if (success) {
-    saveLocal();
     cerrarModalCancelar();
-    if (msg && msg.toLowerCase().includes('local'))
-      notify('warning', 'Atención', 'Cancelación guardada localmente');
   } else {
     item.estado = beforeEstado;
     item.active = beforeEstado === 'Agendada' || beforeEstado === 'Confirmada';
@@ -465,21 +466,48 @@ const confirmarCancelacion = async () => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  MODAL SOLICITUD NUEVA CITA (UI placebo; endpoint en desarrollarse)
+//  MODAL SOLICITUD NUEVA CITA — conectado a POST /api/citas/solicitar
 // ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Carga los servicios disponibles desde la API y los inyecta en #citaServicio.
+ * Si la API falla, deja el selector vacío para no enviar IDs inventados.
+ */
+const cargarServiciosEnModal = async () => {
+  const select = safeGetElement('citaServicio');
+  if (!select) return;
+  try {
+    const res = await fetch('/api/servicios', {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const payload = await res.json();
+    const servicios = payload.data ?? payload ?? [];
+    if (!Array.isArray(servicios) || servicios.length === 0) throw new Error('catálogo vacío');
+    // Reemplazar opciones con las de la BD
+    select.innerHTML = '<option value="">Selecciona un servicio</option>';
+    servicios.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.idServicio ?? s.IdServicio ?? '';
+      opt.textContent = s.nombre ?? s.Nombre ?? '';
+      select.appendChild(opt);
+    });
+  } catch (err) {
+    console.warn('[SmileTrack] No se pudieron cargar servicios desde API:', err);
+    select.innerHTML = '<option value="">No hay servicios disponibles</option>';
+  }
+};
 
 const initNuevaCitaModal = () => {
   const btn = safeGetElement('btnNuevaCita');
   const modal = safeGetElement('modalNuevaCita');
   if (!modal || !btn) return;
 
-  btn.addEventListener('click', () => {
-    modal.dataset.opener = 'btnNuevaCita';
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    modal.removeAttribute('inert');
-    modal.querySelector('.form-input')?.focus();
-  });
+  // Bloquear fechas pasadas: min = hoy
+  const fechaInput = safeGetElement('citaFecha');
+  if (fechaInput) {
+    fechaInput.min = new Date().toISOString().split('T')[0];
+  }
 
   const cerrar = () => {
     modal.classList.remove('open');
@@ -489,26 +517,100 @@ const initNuevaCitaModal = () => {
     if (o) safeGetElement(o)?.focus();
   };
 
+  btn.addEventListener('click', () => {
+    modal.dataset.opener = 'btnNuevaCita';
+    // Actualizar min en caso de que cambie el día
+    if (fechaInput) fechaInput.min = new Date().toISOString().split('T')[0];
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    modal.removeAttribute('inert');
+    fechaInput?.focus();
+    // Cargar servicios desde BD en cada apertura (por si cambia la lista)
+    cargarServiciosEnModal();
+  });
+
   safeGetElement('closeNuevaCita')?.addEventListener('click', cerrar);
   safeGetElement('cancelarNuevaCita')?.addEventListener('click', cerrar);
   modal.addEventListener('click', e => { if (e.target === modal) cerrar(); });
 
-  safeGetElement('confirmarNuevaCita')?.addEventListener('click', () => {
+  // Validación adicional en blur para fecha
+  fechaInput?.addEventListener('change', () => {
+    const hoy = new Date().toISOString().split('T')[0];
+    if (fechaInput.value < hoy) {
+      fechaInput.value = hoy;
+      notify('warning', 'Fecha inválida', 'No puedes seleccionar fechas pasadas. Se ha ajustado al día de hoy.');
+    }
+  });
+
+  safeGetElement('confirmarNuevaCita')?.addEventListener('click', async () => {
     const fecha = safeGetElement('citaFecha');
+    const servicio = safeGetElement('citaServicio');
+    const nota = safeGetElement('citaNota');
+    const btnConfirmar = safeGetElement('confirmarNuevaCita');
+
+    // Validar que la fecha esté seleccionada
     if (!fecha?.value) {
-      if (fecha) {
-        fecha.focus();
-        fecha.style.borderColor = 'var(--orange)';
-        setTimeout(() => fecha.style.borderColor = '', 2000);
-      }
+      fecha?.focus();
+      if (fecha) { fecha.style.borderColor = 'var(--orange)'; setTimeout(() => fecha.style.borderColor = '', 2000); }
+      notify('warning', 'Falta la fecha', 'Por favor selecciona una fecha para la cita.');
       return;
     }
-    cerrar();
-    notify('success', 'Éxito', 'Solicitud de cita enviada exitosamente');
-    if (fecha) fecha.value = '';
-    safeGetElement('citaServicio') && (safeGetElement('citaServicio').selectedIndex = 0);
-    const nta = safeGetElement('citaNota');
-    if (nta) nta.value = '';
+    // Validar que la fecha no sea pasada
+    const hoy = new Date().toISOString().split('T')[0];
+    if (fecha.value < hoy) {
+      fecha.value = hoy;
+      notify('warning', 'Fecha inválida', 'No puedes solicitar citas en fechas pasadas.');
+      return;
+    }
+
+    // Preparar body — los nombres deben coincidir exactamente con CitaSolicitudPacienteDto del backend
+    const body = {
+      Fecha: fecha.value,
+      IdServicio: servicio?.value ? Number(servicio.value) : 0,
+      Notas: nota?.value?.trim() || null
+    };
+
+    // Deshabilitar botón y mostrar spinner
+    if (btnConfirmar) { btnConfirmar.disabled = true; btnConfirmar.textContent = 'Enviando…'; }
+
+    try {
+      const csrfToken = getCsrfToken();
+      const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+      if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+      try {
+        const jwt = sessionStorage.getItem('st_jwt');
+        if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+      } catch { /* modo privado */ }
+
+      const res = await fetch('/api/citas/solicitar', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers,
+        body: JSON.stringify(body)
+      });
+
+      let payload;
+      try { payload = await res.json(); } catch { payload = { success: res.ok }; }
+
+      if (res.ok && payload.success !== false) {
+        cerrar();
+        notify('success', '¡Solicitud enviada!',
+          'Tu solicitud de cita fue recibida. El equipo de recepción la revisará y te confirmará los detalles en breve.');
+        // Recargar la tabla para que aparezca la nueva cita en estado "Solicitada"
+        await fetchAppointments();
+        animateCounters();
+        updateStats();
+        renderTable();
+      } else {
+        const msg = payload.message || 'No fue posible enviar tu solicitud. Inténtalo de nuevo.';
+        notify('error', 'Error al solicitar', msg);
+      }
+    } catch (err) {
+      console.warn('[SmileTrack] Error al solicitar cita:', err);
+      notify('error', 'Sin conexión', 'No fue posible conectar con el servidor. Verifica tu conexión y vuelve a intentarlo.');
+    } finally {
+      if (btnConfirmar) { btnConfirmar.disabled = false; btnConfirmar.textContent = 'Solicitar'; }
+    }
   });
 };
 
@@ -544,13 +646,13 @@ async function fetchAppointments() {
     const payload = await res.json();
     if (payload && payload.success && Array.isArray(payload.data)) {
       citas = payload.data.map(mapServerToClient);
-      saveLocal();
       return;
     }
     throw new Error('payload inválido');
   } catch (err) {
-    console.warn('[SmileTrack] Mis citas paciente: fallback LocalStorage:', err);
-    citas = loadLocal();
+    console.warn('[SmileTrack] Mis citas paciente: no se pudo cargar la API:', err);
+    citas = [];
+    mostrarErrorUsuario('No fue posible consultar tus citas. La lista está vacía hasta recuperar la conexión con la API.');
   }
 }
 
@@ -560,13 +662,8 @@ async function fetchAppointments() {
 
 const init = async () => {
   try {
-    // 1. Cargar datos — si localStorage está vacío la primera vez, usar FALLBACK explícito
-    // BUG FIX: loadLocal() retornaba el FALLBACK pero solo si localStorage tenía una
-    // entrada previa; en la primera carga (localStorage vacío) retornaba FALLBACK también,
-    // pero si alguna versión anterior guardó un array vacío [] en el storage, lo devolvía
-    // vacío. Ahora normalizamos: si el resultado de loadLocal() está vacío, usamos FALLBACK.
-    const stored = loadLocal();
-    citas = (Array.isArray(stored) && stored.length > 0) ? stored : [...FALLBACK];
+    // La API es la única fuente de verdad; no se usan datos locales como respaldo.
+    citas = [];
     animateCounters();
     updateStats();
     renderTable();

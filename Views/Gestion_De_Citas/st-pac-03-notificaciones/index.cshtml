@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@* ============================================
+﻿﻿﻿@* ============================================
 SmileTrack — Notificaciones Paciente (st-pac-03-notificaciones)
 ============================================
 Autor: Johan Santamaria
@@ -47,7 +47,7 @@ NOTAS DE MANTENIMIENTO:
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
   <!-- ----- SIDEBAR UNIFICADO (Activo: Notificaciones) ----- -->
-  @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
+  @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarPaciente"); }
 
   <!-- ----- HAMBURGER (mÓvil) ----- -->
   <!-- [MEJORA]: aria-expanded y aria-controls para accesibilidad de menú mÓvil -->
