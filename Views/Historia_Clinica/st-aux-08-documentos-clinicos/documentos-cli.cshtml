@@ -1,6 +1,6 @@
 @{ Layout = null; }
 
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -18,11 +18,8 @@
 
 <body>
 
-<<<<<<< HEAD
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
-=======
   @Html.AntiForgeryToken()
   @* Yeray (2025) - Fallo 2: la vista no tenía el campo oculto con el pacienteId,
      por lo que el JS lanzaba /data sin parámetro y el servidor devolvía lista
@@ -31,7 +28,6 @@
   <input type="hidden" id="pacienteIdInput" value="@(ViewData["PacienteId"]?.ToString() ?? "")" />
 
   @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
->>>>>>> 0370ea7bd1bcb77ff995ddcfb2e98e1608ed5231
 
   <!-- ═════ HAMBURGER (móvil) ═════ -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">

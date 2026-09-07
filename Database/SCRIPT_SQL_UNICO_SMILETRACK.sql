@@ -1092,7 +1092,6 @@ GO
 -- CÓDIGO Y CALIDAD — TABLA AUDITORIA, TRIGGERS, FUNCIONES Y PROCEDIMIENTOS
 -- ============================================================
 
-<<<<<<< HEAD
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Auditoria') AND type = N'U')
 BEGIN
     CREATE TABLE dbo.Auditoria (
@@ -1304,7 +1303,6 @@ PRINT 'Procedimiento almacenado sp_RegistrarCitaConValidacion creado correctamen
 GO
 
 PRINT 'Script ejecutado correctamente.';
-=======
 GO
 
 -- ============================================================
@@ -1355,5 +1353,4 @@ END
 GO
 
 PRINT 'Script completo ejecutado correctamente.';
->>>>>>> 0370ea7bd1bcb77ff995ddcfb2e98e1608ed5231
 GO
