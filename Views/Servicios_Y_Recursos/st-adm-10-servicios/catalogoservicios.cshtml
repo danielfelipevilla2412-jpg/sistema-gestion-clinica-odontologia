@@ -257,6 +257,7 @@
 <script>
   window.RAZOR_SERVICIOS = @Html.Raw(ViewData["ServiciosJson"] ?? "[]");
 </script>
+<script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
 <script src="@Url.Content("~/js/Servicios_Y_Recursos/st-adm-10-servicios/catalogoservicios.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }

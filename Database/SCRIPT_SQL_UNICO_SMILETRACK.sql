@@ -681,6 +681,19 @@ END
 GO
 
 
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Servicio') AND name = 'categoria')
+BEGIN
+    ALTER TABLE dbo.Servicio ADD categoria VARCHAR(50) NOT NULL DEFAULT 'general';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Servicio') AND name = 'duracion_minutos')
+BEGIN
+    ALTER TABLE dbo.Servicio ADD duracion_minutos INT NOT NULL DEFAULT 30;
+END
+GO
+
+
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.PQR') AND type = N'U')
 BEGIN
     CREATE TABLE PQR (
