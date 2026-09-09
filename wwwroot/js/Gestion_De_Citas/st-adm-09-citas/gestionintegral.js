@@ -125,7 +125,10 @@ const debounce = (callback, delay) => {
  * inline script de la vista se registre en DOMContentLoaded (evita problema
  * de orden de carga: JS carga primero, luego inline script lo sobrescribe).
  */
-window.openModalCita = () => {
+let modalCitaTriggerEl = null;
+
+window.openModalCita = (triggerEl) => {
+    modalCitaTriggerEl = triggerEl || document.activeElement;
     const modal = document.getElementById('modalCita');
     if (!modal) return;
 
@@ -142,9 +145,6 @@ window.openModalCita = () => {
     });
 };
 
-/**
- * Cierra el modal de Crear/Editar Cita y restaura el scroll del body.
- */
 window.closeModalCita = () => {
     const modal = document.getElementById('modalCita');
     if (!modal) return;
@@ -153,6 +153,10 @@ window.closeModalCita = () => {
     modal.setAttribute('aria-hidden', 'true');
     modal.setAttribute('inert', '');
     document.body.style.overflow = '';
+    if (modalCitaTriggerEl && typeof modalCitaTriggerEl.focus === 'function' && document.contains(modalCitaTriggerEl)) {
+        modalCitaTriggerEl.focus();
+    }
+    modalCitaTriggerEl = null;
 };
 
 // setFieldError removed in favor of ValidationUtils
@@ -365,7 +369,8 @@ const mapServerToClient = (serverData) => {
         time: `${hours}:${minutes}`,
         patient: patientFullName,
         doc: documentId,
-        professional: slugFromName(serverData.Profesional?.NombreCompleto),
+        professional: (serverData.Profesional?.NombreCompleto || '')
+            .toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         professionalName: serverData.Profesional?.NombreCompleto || 'Sin asignar',
         service: serverData.Servicio?.Nombre || 'Sin servicio',
         status: mapEstadoServerToClient(serverData.Estado),
@@ -471,14 +476,15 @@ let currentPage = 1;
 const itemsPerPage = 5;
 
 /**
- * Mapeo de colores para avatares de pacientes.
+ * Mapeo de colores de avatar. I-03: se usan clases CSS del proyecto, no Tailwind.
+ * El CSS de la vista define .patient-avatar con background inline — se asigna via style.
  */
-const avatarColors = {
-    blue: 'bg-blue-100 text-blue-600',
-    green: 'bg-green-100 text-green-600',
-    purple: 'bg-purple-100 text-purple-600',
-    red: 'bg-red-100 text-red-600',
-    slate: 'bg-slate-100 text-slate-600'
+const avatarColorMap = {
+    blue:   '#2563eb',
+    green:  '#059669',
+    purple: '#7c3aed',
+    red:    '#dc2626',
+    slate:  '#64748b'
 };
 
 /**
@@ -618,7 +624,7 @@ const renderAppointments = () => {
                 </div>
                 <div class="table-col col-paciente" role="cell" data-label="Paciente">
                     <div class="patient-info">
-                        <div class="patient-avatar ${avatarColors[appointment.color] || avatarColors.blue}" aria-hidden="true">
+                        <div class="patient-avatar" style="background:${avatarColorMap[appointment.color] || avatarColorMap.blue}; color:#fff;" aria-hidden="true">
                             ${escapeHtml(appointment.avatar)}
                         </div>
                         <div>
@@ -868,7 +874,10 @@ const saveAppointmentEdit = (id) => {
  * @param {number} id - ID de la cita a cancelar
  * @param {string} [patientName] - Nombre del paciente para el mensaje de confirmación
  */
-window.openConfirmDeleteCita = (id, patientName) => {
+let deleteCitaTriggerEl = null;
+
+window.openConfirmDeleteCita = (id, patientName, triggerEl) => {
+    deleteCitaTriggerEl = triggerEl || document.activeElement;
     const modal = document.getElementById('modalConfirmDeleteCita');
     const msgEl = document.getElementById('modalConfirmDeleteCitaMessage');
     const idInput = document.getElementById('deleteCitaId');
@@ -888,16 +897,12 @@ window.openConfirmDeleteCita = (id, patientName) => {
     modal.removeAttribute('inert');
     document.body.style.overflow = 'hidden';
 
-    // Focus en botón cancelar para prevenir confirmación accidental
     setTimeout(() => {
         const cancelBtn = document.getElementById('modalConfirmDeleteCitaCancel');
         if (cancelBtn) cancelBtn.focus();
     }, 50);
 };
 
-/**
- * Cierra el modal de confirmación de eliminación de cita.
- */
 window.closeConfirmDeleteCita = () => {
     const modal = document.getElementById('modalConfirmDeleteCita');
     if (!modal) return;
@@ -905,6 +910,10 @@ window.closeConfirmDeleteCita = () => {
     modal.setAttribute('aria-hidden', 'true');
     modal.setAttribute('inert', '');
     document.body.style.overflow = '';
+    if (deleteCitaTriggerEl && typeof deleteCitaTriggerEl.focus === 'function' && document.contains(deleteCitaTriggerEl)) {
+        deleteCitaTriggerEl.focus();
+    }
+    deleteCitaTriggerEl = null;
 };
 
 /**
@@ -933,13 +942,11 @@ const updatePagination = (totalItems) => {
 
     const pageShowingElement = safeGetElement('pageShowing');
     const pageTotalElement = safeGetElement('pageTotal');
-    const previousButton = safeGetElement('btnPrev');
-    const nextButton = safeGetElement('btnNext');
+    // I-02: btnPrev y btnNext no existen en el DOM SSR (paginación server-side).
+    // La paginación cliente solo aplica en modo no-SSR; en ese modo el DOM no tiene esos IDs.
 
     if (pageShowingElement) pageShowingElement.textContent = showing;
     if (pageTotalElement) pageTotalElement.textContent = totalItems;
-    if (previousButton) previousButton.disabled = currentPage === 1;
-    if (nextButton) nextButton.disabled = currentPage >= totalPages;
 };
 
 /**
@@ -948,8 +955,14 @@ const updatePagination = (totalItems) => {
  * @param {HTMLElement} element - Elemento DOM a animar
  * @param {number} target - Valor objetivo
  */
+const counterIntervals = new WeakMap();
+
 const animateCounter = (element, target) => {
     if (!element) return;
+
+    if (counterIntervals.has(element)) {
+        clearInterval(counterIntervals.get(element));
+    }
 
     let currentValue = 0;
     const step = Math.max(1, Math.ceil(target / 30));
@@ -960,8 +973,11 @@ const animateCounter = (element, target) => {
 
         if (currentValue >= target) {
             clearInterval(animationTimer);
+            counterIntervals.delete(element);
         }
     }, 30);
+
+    counterIntervals.set(element, animationTimer);
 };
 
 /**
@@ -1107,27 +1123,12 @@ const initFilters = () => {
  * Inicializa la paginación de la tabla.
  */
 const initPagination = () => {
+    // I-02: btnPrev/btnNext no existen en el DOM SSR. La paginación server-side usa
+    // <a> con Url.Action generados por Razor. Esta función solo aplica en modo cliente
+    // (shouldUseServerRenderedList = false), que actualmente devuelve true siempre.
     if (shouldUseServerRenderedList()) return;
-
-    const previousButton = safeGetElement('btnPrev');
-    const nextButton = safeGetElement('btnNext');
-
-    previousButton?.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderAppointments();
-        }
-    });
-
-    nextButton?.addEventListener('click', () => {
-        const filteredAppointments = getFilteredAppointments();
-        const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
-
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderAppointments();
-        }
-    });
+    // Sin IDs de botones de paginación en modo cliente; la función queda sin efecto
+    // hasta que se implemente una tabla 100% cliente con esos IDs.
 };
 
 /**
@@ -1144,16 +1145,8 @@ const initNewAppointment = () => {
     });
 };
 
-/**
- * Inicializa el botón de optimización del banner.
- */
-const initBanner = () => {
-    const optimizeButton = safeGetElement('btnOptimize');
-
-    optimizeButton?.addEventListener('click', () => {
-        window.ToastService.success('⚙️ Optimizando agenda... (simulado)');
-    });
-};
+// initBanner eliminado: buscaba #btnOptimize que no existe en el DOM.
+// El banner .info-banner fue retirado de la vista en la refactorización de arquitectura.
 
 // ════════════════════════════════════════════════════════════════════
 //  LLAMADAS A LA API
@@ -1279,27 +1272,13 @@ const initEstadoConfirmation = () => {
                 confirmText: 'Sí, cambiar',
                 cancelText: 'Cancelar',
                 isDanger: false,
-                onConfirm: async () => {
-                    const token = sel.form.querySelector('input[name="__RequestVerificationToken"]')?.value;
-                    try {
-                        const response = await fetch(`/api/citas/${sel.form.querySelector('input[name="IdCita"]').value}/estado`, {
-                            method: 'PUT',
-                            credentials: 'same-origin',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                ...(token ? { 'X-CSRF-TOKEN': token } : {})
-                            },
-                            body: JSON.stringify({ estado: newValue })
-                        });
-                        const payload = await response.json().catch(() => ({}));
-                        if (!response.ok || payload.success === false) throw new Error(payload.message || 'No se pudo actualizar el estado.');
-                        sel.value = newValue;
-                        sel.dataset.previousValue = newValue;
-                        window.ToastService?.success?.('Estado actualizado correctamente.');
-                    } catch (error) {
-                        window.ToastService?.error?.(error.message);
-                    }
+                onConfirm: () => {
+                    // B-01: PUT /api/citas/{id}/estado solo autoriza rol Profesional.
+                    // El admin usa POST /gestion-de-citas/cambiar-estado (MVC con AntiForgery),
+                    // que sí autoriza Administrador y Recepcionista.
+                    // Al hacer submit del form padre, la página recargará con el nuevo estado.
+                    sel.value = newValue;
+                    sel.form.submit();
                 }
             });
 
@@ -1391,7 +1370,7 @@ const init = async () => {
         await loadConfiguredDuration();
         initHoraCita();
         initModal();
-        initBanner();
+        // initBanner() eliminado — I-01
 
         // CIT-03 Fix: Interceptar cambio de estado con confirmación modal
         initEstadoConfirmation();

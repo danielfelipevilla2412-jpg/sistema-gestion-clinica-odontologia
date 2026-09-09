@@ -26,13 +26,18 @@ NOTAS DE MANTENIMIENTO:
 
 // WHY: safeGetElement previene excepciones fatales en la inicialización si un elemento no existe en el DOM
 const safeGetElement = (id) => {
+  if (window.CommonUtils?.safeGetElement) {
+    return window.CommonUtils.safeGetElement(id);
+  }
   const el = document.getElementById(id);
   if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
   return el;
 };
 
-// WHY: Debounce evita saturar LocalStorage con escrituras redundantes ante cambios veloces del usuario
 const debounce = (fn, delay) => {
+  if (window.CommonUtils?.debounce) {
+    return window.CommonUtils.debounce(fn, delay);
+  }
   let timeoutId;
   return (...args) => {
     clearTimeout(timeoutId);
@@ -249,8 +254,7 @@ const initAddItem = () => {
     label.append(checkbox, checkmark, textElement);
     li.appendChild(label);
     
-    // Maneja cambio del nuevo checkbox
-    const checkbox = li.querySelector('input');
+    // Maneja cambio del nuevo checkbox (reutiliza la variable checkbox del scope superior)
     checkbox.addEventListener('change', () => {
       const newIndex = consultorioStorage.load().checklist.length - 1;
       consultorioStorage.updateChecklistItem(newIndex, checkbox.checked);
@@ -355,15 +359,17 @@ const initStatusSelector = () => {
   
   // Expone selectStatus globalmente para compatibilidad con onclick del HTML original
   window.selectStatus = (element) => {
-    // Remueve selected de todas las opciones
+    // Remueve selected de todas las opciones y ajusta tabindex roving
     options.forEach(opt => {
       opt.classList.remove('selected');
       opt.setAttribute('aria-checked', 'false');
+      opt.setAttribute('tabindex', '-1');
     });
     
     // Activa la opción clickeada
     element.classList.add('selected');
     element.setAttribute('aria-checked', 'true');
+    element.setAttribute('tabindex', '0');
     
     // Guarda en localStorage
     const value = element.dataset.value;
@@ -388,86 +394,119 @@ const initObservations = () => {
   textarea.addEventListener('input', debouncedSave);
 };
 
-// WHY: Los botones de confirmación validan el estado completo antes de registrar en el historial
+// Helper para obtener headers incluyendo AntiForgery token
+const getRequestHeaders = () => {
+  const headers = { 'Content-Type': 'application/json' };
+  const tokenEl = document.querySelector('input[name="__RequestVerificationToken"]');
+  if (tokenEl) {
+    headers['RequestVerificationToken'] = tokenEl.value;
+    headers['X-CSRF-TOKEN'] = tokenEl.value;
+  }
+  return headers;
+};
+
+// WHY: Los botones de confirmación realizan peticiones asíncronas con feedback de carga y validación de respuesta
 const initConfirmButtons = () => {
   const btnPreparation = safeGetElement('btnConfirmPreparation');
   const btnStatus = safeGetElement('btnConfirmStatus');
   
   // Confirmar preparación completa
   if (btnPreparation) {
-    btnPreparation.addEventListener('click', () => {
+    btnPreparation.addEventListener('click', async () => {
       const progress = calculateProgress();
       
       if (progress.checked < progress.total) {
         window.ToastService.warning(`Completa ${progress.total - progress.checked} ítem(s) pendiente(s)`);
         return;
       }
-      
-      // Agrega entrada al historial
-      consultorioStorage.addToHistory('Auxiliar', 'Preparación del consultorio confirmada');
 
-      // Sincroniza con el servidor
-      const serverData2 = window.smiletrackEstadoConsultorioData;
-      if (serverData2?.consultorioId) {
-        fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            estado: consultorioStorage.load().status,
-            observaciones: document.getElementById('obsTextarea')?.value ?? ''
-          })
-        }).catch(err => console.warn('[SmileTrack] No se pudo sincronizar estado con el servidor:', err));
-      }
-      
-      // Feedback visual
-      window.ToastService.success('✅ Preparación del consultorio confirmada');
-      
-      // Deshabilita botón temporalmente
       btnPreparation.disabled = true;
-      btnPreparation.textContent = '✓ Confirmado';
-      
-      setTimeout(() => {
+      btnPreparation.textContent = 'Enviando...';
+
+      try {
+        const serverData2 = window.smiletrackEstadoConsultorioData;
+        if (serverData2?.consultorioId) {
+          const res = await fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              estado: consultorioStorage.load().status,
+              observaciones: document.getElementById('obsTextarea')?.value ?? ''
+            })
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || 'Error al comunicarse con el servidor.');
+          }
+        }
+
+        // Agrega entrada al historial y actualiza UI
+        consultorioStorage.addToHistory('Auxiliar', 'Preparación del consultorio confirmada');
+        initHistoryList();
+
+        window.ToastService.success('Preparación del consultorio confirmada');
+        btnPreparation.textContent = '✓ Confirmado';
+        
+        setTimeout(() => {
+          btnPreparation.disabled = false;
+          btnPreparation.textContent = 'Confirmar preparación completa';
+        }, 3000);
+      } catch (err) {
+        console.error('[SmileTrack] Error en confirmación de preparación:', err);
+        window.ToastService.error('Error al guardar', err?.message || 'No se pudo registrar la preparación.');
         btnPreparation.disabled = false;
         btnPreparation.textContent = 'Confirmar preparación completa';
-      }, 3000);
+      }
     });
   }
   
   // Confirmar estado actual
   if (btnStatus) {
-    btnStatus.addEventListener('click', () => {
+    btnStatus.addEventListener('click', async () => {
       const selectedOption = document.querySelector('.status-option.selected');
       const status = selectedOption?.querySelector('strong')?.textContent || 'Desconocido';
-      
-      // Agrega entrada al historial
-      consultorioStorage.addToHistory('Auxiliar', `Estado actualizado a: ${status}`);
 
-      // Sincroniza con el servidor
-      const serverData2 = window.smiletrackEstadoConsultorioData;
-      if (serverData2?.consultorioId) {
-        fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            estado: consultorioStorage.load().status,
-            observaciones: document.getElementById('obsTextarea')?.value ?? ''
-          })
-        }).catch(err => console.warn('[SmileTrack] No se pudo sincronizar estado con el servidor:', err));
-      }
-      
-      // Feedback visual
-      window.ToastService.success(`✅ Estado actualizado: ${status}`);
-      
-      // Deshabilita botón temporalmente
       btnStatus.disabled = true;
-      btnStatus.textContent = '✓ Confirmado';
-      
-      setTimeout(() => {
+      btnStatus.textContent = 'Enviando...';
+
+      try {
+        const serverData2 = window.smiletrackEstadoConsultorioData;
+        if (serverData2?.consultorioId) {
+          const res = await fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              estado: consultorioStorage.load().status,
+              observaciones: document.getElementById('obsTextarea')?.value ?? ''
+            })
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || 'Error al comunicarse con el servidor.');
+          }
+        }
+
+        // Agrega entrada al historial y actualiza UI
+        consultorioStorage.addToHistory('Auxiliar', `Estado actualizado a: ${status}`);
+        initHistoryList();
+
+        window.ToastService.success(`Estado actualizado: ${status}`);
+        btnStatus.textContent = '✓ Confirmado';
+        
+        setTimeout(() => {
+          btnStatus.disabled = false;
+          btnStatus.textContent = 'Confirmar estado';
+        }, 3000);
+      } catch (err) {
+        console.error('[SmileTrack] Error en confirmación de estado:', err);
+        window.ToastService.error('Error al actualizar', err?.message || 'No se pudo actualizar el estado.');
         btnStatus.disabled = false;
         btnStatus.textContent = 'Confirmar estado';
-      }, 3000);
+      }
     });
   }
   

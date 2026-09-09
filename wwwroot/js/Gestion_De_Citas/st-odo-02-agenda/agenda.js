@@ -77,12 +77,14 @@ const ESTADO_MAP_CLIENTE = {
 // ═══════════════════════════════════════════════════════════════════
 
 const safeGetElement = (id) => {
+  if (window.CommonUtils?.getEl) return window.CommonUtils.getEl(id);
   const el = document.getElementById(id);
   if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
   return el;
 };
 
 const debounce = (fn, delay) => {
+  if (window.CommonUtils?.debounce) return window.CommonUtils.debounce(fn, delay);
   let timeoutId;
   return (...args) => {
     clearTimeout(timeoutId);
@@ -116,8 +118,9 @@ function mostrarErrorUsuario(mensaje) {
 // ═══════════════════════════════════════════════════════════════════
 //  MAPEOS DE DATOS: Server → Cliente
 // ═══════════════════════════════════════════════════════════════════
-const escapeHtml = (value) =>
-  String(value ?? '').replace(
+const escapeHtml = (value) => {
+  if (window.CommonUtils?.escapeHtml) return window.CommonUtils.escapeHtml(value);
+  return String(value ?? '').replace(
     /[&<>'"]/g,
     (c) => ({
       '&': '&amp;',
@@ -127,6 +130,7 @@ const escapeHtml = (value) =>
       '"': '&quot;'
     }[c])
   );
+};
 
 const fmtFechaCorta = (fh) => {
   try {
@@ -335,7 +339,7 @@ const badgeClass = (estado) => {
 };
 const editIcon = (id, estado) => {
   const isRed = ['Cancelada', 'No asistió'].includes(estado);
-  return `<button class="btn-icon edit-icon${isRed ? ' red' : ''}" title="Editar notas" aria-label="Editar notas de cita" onclick="editAppointment(${id})">✏️</button>`;
+  return `<button class="btn-icon edit-icon${isRed ? ' red' : ''}" title="Editar notas" aria-label="Editar notas de cita" onclick="editAppointment(${id})"><span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">edit</span></button>`;
 };
 const formatTimeISO = (horaAMPM) => {
   const parts = horaAMPM.split(' ');
@@ -537,7 +541,7 @@ const renderTable = (data) => {
             aria-label="Ver detalle de cita de ${escapeHtml(item.paciente)}"
             onclick="openModal(${item.id})"
           >
-            👁️
+            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">visibility</span>
           </button>
 
           ${editIcon(
@@ -808,12 +812,16 @@ window.editAppointment = (id) => {
 
 const animateCounter = (el, target) => {
   if (!el) return;
+  if (el._counterInterval) clearInterval(el._counterInterval);
   let cur = 0;
   const step = Math.max(1, Math.ceil(target / 30));
-  const t = setInterval(() => {
+  el._counterInterval = setInterval(() => {
     cur = Math.min(cur + step, target);
     el.textContent = cur;
-    if (cur >= target) clearInterval(t);
+    if (cur >= target) {
+      clearInterval(el._counterInterval);
+      el._counterInterval = null;
+    }
   }, 30);
 };
 

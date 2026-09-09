@@ -45,14 +45,31 @@ const getAuthHeaders = () => {
 };
 
 // Mapeos de estado (estándar en TODOS módulos citas)
+const normalizeEstadoKey = (value) => {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[áàäâ]/g, 'a')
+    .replace(/[éèëê]/g, 'e')
+    .replace(/[íìïî]/g, 'i')
+    .replace(/[óòöô]/g, 'o')
+    .replace(/[úùüû]/g, 'u')
+    .replace(/[_\-\s]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+};
+
 const STATUS_MAP_SERVER = {
-  programada:  { label: 'Agendada',    cls: 'status-agendada'  },
-  confirmada:  { label: 'Confirmada',  cls: 'status-agendada'  },
-  en_proceso:  { label: 'En consulta', cls: 'status-consulta'  },
-  finalizada:  { label: 'Atendida',    cls: 'status-atendida'  },
-  atendida:    { label: 'Atendida',    cls: 'status-atendida'  },
-  cancelada:   { label: 'Cancelada',   cls: 'status-no-asistio'},
-  no_asistida: { label: 'No asistió',  cls: 'status-no-asistio'}
+  programada:  { label: 'Agendada',    cls: 'status-agendada' },
+  agendada:    { label: 'Agendada',    cls: 'status-agendada' },
+  confirmada:  { label: 'Confirmada',  cls: 'status-agendada' },
+  en_proceso:  { label: 'En consulta', cls: 'status-consulta' },
+  'en_proceso_': { label: 'En consulta', cls: 'status-consulta' },
+  'en_proceso_1': { label: 'En consulta', cls: 'status-consulta' },
+  finalizada:  { label: 'Atendida',    cls: 'status-atendida' },
+  atendida:    { label: 'Atendida',    cls: 'status-atendida' },
+  cancelada:   { label: 'Cancelada',   cls: 'status-no-asistio' },
+  no_asistida: { label: 'No asistió',  cls: 'status-no-asistio' },
+  'no_asistio': { label: 'No asistió', cls: 'status-no-asistio' }
 };
 const STATUS_MAP_CLIENTE = {
   'Agendada':    'programada',
@@ -60,7 +77,8 @@ const STATUS_MAP_CLIENTE = {
   'En consulta': 'en_proceso',
   'Atendida':    'finalizada',
   'Cancelada':   'cancelada',
-  'No asistió':  'no_asistida'
+  'No asistió':  'no_asistida',
+  'No asistio':  'no_asistida'
 };
 const STATUS_OPTIONS = Object.keys(STATUS_MAP_CLIENTE);
 
@@ -172,8 +190,8 @@ const mapServerToClient = (srv) => {
   const profesionalRaw = srv.Profesional || srv.profesional;
   const servicioRaw = srv.Servicio || srv.servicio;
   const consultorioRaw = srv.Consultorio || srv.consultorio;
-  const srvEstado = String(estadoRaw).toLowerCase();
-  const info = STATUS_MAP_SERVER[srvEstado] || STATUS_MAP_SERVER['programada'];
+  const srvEstado = normalizeEstadoKey(estadoRaw);
+  const info = STATUS_MAP_SERVER[srvEstado] || STATUS_MAP_SERVER.programada;
   const doctor = profesionalRaw?.NombreCompleto || profesionalRaw?.nombreCompleto || '—';
   const patient = pacienteRaw?.NombreCompleto || pacienteRaw?.nombreCompleto || '—';
   const service = servicioRaw?.Nombre || servicioRaw?.nombre || '—';
@@ -327,12 +345,6 @@ const createAppointmentRow = (appt) => {
                 title="Editar cita de ${escapeHtml(appt.patient)}">
           ✏️ <span class="btn-text">Editar</span>
         </button>
-        <button class="btn-icon action-btn" type="button"
-                data-action="sync" data-id="${appt.id}"
-                aria-label="Sincronizar cita de ${escapeHtml(appt.patient)}"
-                title="Sincronizar cita de ${escapeHtml(appt.patient)}">
-          🔄 <span class="btn-text">Sincronizar</span>
-        </button>
         <button class="btn-icon action-btn btn-delete" type="button"
                 data-action="cancel" data-id="${appt.id}"
                 aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
@@ -435,13 +447,15 @@ const buildServerBody = (appt, overrides = {}) => {
     ? `${overrides.dateISO || appt.dateISO}T${overrides.timeISO || appt.timeISO}:00`
     : raw.FechaHora || new Date().toISOString();
   const estadoUI = overrides.status || appt.status;
+  const estadoServidor = STATUS_MAP_CLIENTE[estadoUI] ||
+    (normalizeEstadoKey(estadoUI) === 'en_consulta' ? 'en_proceso' : normalizeEstadoKey(estadoUI) || 'programada');
   return {
     IdCita: appt.id,
     IdPaciente: raw.IdPaciente ?? raw.idPaciente ?? appt.patientId ?? 0,
     IdProfesional: raw.IdProfesional ?? raw.idProfesional ?? appt.professionalId ?? null,
     IdServicio: raw.IdServicio ?? raw.idServicio ?? appt.serviceId ?? 0,
     FechaHora: fh,
-    Estado: STATUS_MAP_CLIENTE[estadoUI] || (estadoUI || 'programada').toLowerCase(),
+    Estado: estadoServidor,
     Notas: overrides.notes !== undefined ? overrides.notes : (appt.notes || '')
   };
 };
@@ -545,7 +559,7 @@ const executeCancelCita = async () => {
   const id = _cancelTargetId;
   closeCancelModal();
   try {
-    const res = await fetch(`/api/citas/${id}`, {
+    const res = await fetch(`${API_BASE}/citas/${id}`, {
       method: 'DELETE',
       credentials: 'same-origin',
       headers: getCancelHeaders()
@@ -570,11 +584,12 @@ const executeCancelCita = async () => {
 const handleTableAction = async (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
   const { action, id } = btn.dataset;
 
   if (action === 'view')   return openViewModal(id);
   if (action === 'edit')   return openEditModal(id, btn.dataset);
-  if (action === 'sync')   return openSyncModal(id);
   if (action === 'cancel') return openCancelModal(id);
 };
 
@@ -647,24 +662,6 @@ const submitEditAppointment = (e) => {
   guardarCitaPorApi(form, true, submitBtn);
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  MODAL SINCRONIZAR (Google/Outlook/Apple) — UI placebo
-// ═══════════════════════════════════════════════════════════════════
-
-const openSyncModal = (id) => {
-  ['syncGoogle','syncOutlook','syncApple'].forEach(bid => {
-    const b = safeGetElement(bid);
-    if (!b) return;
-    const fresh = b.cloneNode(true);
-    b.replaceWith(fresh);
-    fresh.addEventListener('click', () => {
-      const platform = fresh.dataset.platform || 'calendario';
-      showToast(`Sincronizando con ${platform}…`, 'info');
-      setTimeout(() => { window.ToastService.success(`Cita sincronizada con ${platform}`); modalManager.close('modalSyncCalendar'); }, 1500);
-    });
-  });
-  modalManager.open('modalSyncCalendar');
-};
 
 // ═══════════════════════════════════════════════════════════════════
 //  HANDLERS MODALES + MÓVIL + FORM NUEVA CITA
@@ -673,9 +670,9 @@ const openSyncModal = (id) => {
 const initModalHandlers = () => {
   const map = {
     modalNewClose: 'modalNewAppointment', modalViewClose: 'modalViewAppointment',
-    modalEditClose: 'modalEditAppointment', modalSyncClose: 'modalSyncCalendar',
+    modalEditClose: 'modalEditAppointment',
     modalNewCancel: 'modalNewAppointment', modalViewCancel: 'modalViewAppointment',
-    modalEditCancel: 'modalEditAppointment', modalSyncCancel: 'modalSyncCalendar'
+    modalEditCancel: 'modalEditAppointment'
   };
   Object.entries(map).forEach(([btnId, mid]) => {
     safeGetElement(btnId)?.addEventListener('click', () => modalManager.close(mid));
@@ -753,7 +750,7 @@ const actualizarProfesionalesDisponibles = debounce(async () => {
 
   try {
     const params = new URLSearchParams({ fecha, horaInicio: hora });
-    const res = await fetch(`/api/citas/profesionales-disponibles?${params}`, {
+    const res = await fetch(`${API_BASE}/citas/profesionales-disponibles?${params}`, {
       headers: { 'Accept': 'application/json' }
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
@@ -782,6 +779,7 @@ const actualizarProfesionalesDisponibles = debounce(async () => {
     }
   } catch (err) {
     console.warn('[SmileTrack] No se pudo consultar disponibilidad de profesionales:', err);
+    window.ToastService?.error?.('No se pudo verificar la disponibilidad de profesionales. Intenta de nuevo.');
     // Restaurar lista original en caso de error
     if (_originalDoctorOptions) doctorSel.innerHTML = _originalDoctorOptions;
   }
@@ -856,7 +854,7 @@ const guardarCitaPorApi = async (form, actualizar, submitBtn) => {
   };
 
   try {
-    const response = await fetch('/api/citas/agenda', {
+    const response = await fetch(`${API_BASE}/citas/agenda`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': token },
@@ -892,9 +890,10 @@ async function fetchAppointments(page = 1) {
     if (date) params.set('fecha', date);
     if (status) params.set('estado', status);
 
-    const res = await fetch(`/api/citas?${params.toString()}`, {
+    const res = await fetch(`${API_BASE}/citas?${params.toString()}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+      credentials: 'same-origin',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'Accept': 'application/json' }
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
     const payload = await res.json();
@@ -917,9 +916,10 @@ async function fetchAppointments(page = 1) {
 
 async function fetchConfiguredDuration() {
   try {
-    const res = await fetch('/api/citas?page=1&pageSize=1', {
+    const res = await fetch(`${API_BASE}/citas?page=1&pageSize=1`, {
       method: 'GET',
-      headers: { Accept: 'application/json' }
+      credentials: 'same-origin',
+      headers: { ...getAuthHeaders(), Accept: 'application/json' }
     });
     if (!res.ok) return;
     const payload = await res.json();

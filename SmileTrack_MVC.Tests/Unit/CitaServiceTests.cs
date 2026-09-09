@@ -88,6 +88,32 @@ public class CitaServiceTests
     }
 
     [Fact]
+    public async Task CrearAsync_AceptaAliasProgramadaCuandoElCatalogoUsaAgendada()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        DateTime fecha = DateTime.Today.AddDays(2).AddHours(9);
+
+        db.EstadosCita.RemoveRange(db.EstadosCita);
+        db.EstadosCita.Add(new EstadoCita { NombreEstado = "Agendada" });
+        db.EstadosCita.Add(new EstadoCita { NombreEstado = "Confirmada" });
+        await db.SaveChangesAsync();
+
+        var cita = await CrearServicio(db).CrearAsync(new CitaApiRequest
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = fecha,
+            Estado = "Programada"
+        });
+
+        Assert.NotNull(cita);
+        Assert.Equal("Agendada", cita.Estado);
+    }
+
+    [Fact]
     public async Task CrearAsync_AceptaCitaDentroDelHorarioProfesional()
     {
         await using var db = CrearDb();

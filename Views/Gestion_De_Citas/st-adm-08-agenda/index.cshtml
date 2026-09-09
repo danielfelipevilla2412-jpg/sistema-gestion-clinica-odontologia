@@ -1,4 +1,4 @@
-﻿﻿@* ============================================
+﻿@* ============================================
    SmileTrack — Agenda General (st-adm-08-agenda)
    ============================================
    Autor: Johan Santamaria
@@ -93,11 +93,11 @@
             <div class="controls-left">
                 <div class="week-nav" role="navigation" aria-label="Navegación semanal">
                     <button class="btn-week" id="btnPrev" aria-label="Semana anterior">
-                        <span aria-hidden="true">—</span>
+                        <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
                     </button>
                     <span class="week-label" id="weekLabel" aria-live="polite" data-week-start="@Model.WeekStart.ToString("yyyy-MM-dd")" data-duration-minutes="@Model.DuracionCitaMinutos">@Model.SemanaLabel</span>
                     <button class="btn-week" id="btnNext" aria-label="Próxima semana">
-                        <span aria-hidden="true">—</span>
+                        <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
                     </button>
                 </div>
                 <button class="btn-primary" id="btnToday" aria-label="Ir a la semana actual">
@@ -154,7 +154,7 @@
         <!-- Calendario semanal -->
         <section class="calendar-section" aria-labelledby="calendarTitle">
             <h2 class="visually-hidden" id="calendarTitle">Calendario semanal de citas</h2>
-
+            <div class="calendar-scroll-wrapper">
             <!-- Cabecera de días -->
             <div class="calendar-header" role="row">
                 @foreach (var dia in Model.Dias)
@@ -247,12 +247,17 @@
                     </div>
                 }
             </div>
+            </div>
         </section>
 
         <!-- Leyenda de estados de cita -->
         <section class="legend-section" aria-labelledby="legendTitle">
             <h2 class="section-title" id="legendTitle">Estados de cita</h2>
             <div class="legend-grid">
+                <div class="legend-item">
+                    <span class="legend-dot reserved" aria-hidden="true"></span>
+                    <span>Programada</span>
+                </div>
                 <div class="legend-item">
                     <span class="legend-dot confirmed" aria-hidden="true"></span>
                     <span>Confirmada</span>
@@ -283,13 +288,16 @@
         aria-hidden="true" 
         inert>
         <div class="modal">
-            <button class="modal-close" id="modalApptClose" aria-label="Cerrar ventana">—</button>
+            <button class="modal-close" id="modalApptClose" aria-label="Cerrar ventana">
+                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </button>
             <h2 class="modal-title" id="modalApptTitle">Detalle de Cita</h2>
-            <div class="modal-content" id="modalApptContent">
+            <div class="modal-content" id="modalApptContent" aria-live="polite">
                 <!-- Contenido inyectado dinámicamente por JavaScript -->
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn-secondary" id="modalApptCancel">Cerrar</button>
+                <button type="button" class="btn-secondary btn-danger" id="modalApptCancelar">Cancelar Cita</button>
                 <button type="button" class="btn-primary" id="modalApptEdit">Editar</button>
             </div>
         </div>
@@ -305,7 +313,9 @@
         aria-hidden="true" 
         inert>
         <div class="modal modal-lg">
-            <button class="modal-close" id="modalNewApptClose" aria-label="Cerrar ventana">—</button>
+            <button class="modal-close" id="modalNewApptClose" aria-label="Cerrar ventana">
+                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </button>
             <h2 class="modal-title" id="modalNewApptTitle">Agendar Nueva Cita</h2>
             
             <div class="modal-content">
@@ -331,6 +341,7 @@
                             <select id="newApptStatus" name="Estado" required aria-required="true">
                                 <option value="Agendada" selected>Agendada</option>
                                 <option value="Confirmada">Confirmada</option>
+                                <option value="Cancelada">Cancelada</option>
                             </select>
                         </div>
 
@@ -432,7 +443,7 @@
 
     <!-- Botón flotante para crear nueva cita -->
     <button class="fab" id="btnNewAppointment" aria-label="Crear nueva cita">
-        <span aria-hidden="true">+</span>
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
     </button>
 
     <!-- Navegación inferior para mÓviles -->
@@ -451,9 +462,6 @@
         </a>
     </nav>
 
-    <!-- Contenedor de notificaciones toast -->
-    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
     <!-- Footer dinámico -->
     <footer id="dynamic-footer" class="site-footer" role="contentinfo">
         <div class="agenda-footer-content">
@@ -467,13 +475,15 @@
 
     <!-- Script de inicialización de navegación colapsable del sidebar -->
 
-    <!-- Script principal de la agenda -->
-    <script src="@Url.Content("~/js/Gestion_De_Citas/st-adm-08-agenda/agendageneral.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <!-- Scripts compartidos (orden: common → validation → appointment → agenda) -->
+    <script src="@Url.Content("~/js/shared/common.js")"></script>
     <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
     <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
+    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+    @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <!-- Script principal de la agenda -->
+    <script src="@Url.Content("~/js/Gestion_De_Citas/st-adm-08-agenda/agendageneral.js")"></script>
 </body>
 </html>
 

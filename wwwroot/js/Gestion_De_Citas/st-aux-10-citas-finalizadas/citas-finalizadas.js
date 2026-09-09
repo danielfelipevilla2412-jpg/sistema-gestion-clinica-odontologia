@@ -26,6 +26,9 @@ NOTAS DE MANTENIMIENTO:
 
 // WHY: safeGetElement previene excepciones fatales en la inicialización si un elemento no existe en el DOM
 const safeGetElement = (id) => {
+  if (window.CommonUtils?.safeGetElement) {
+    return window.CommonUtils.safeGetElement(id);
+  }
   const el = document.getElementById(id);
   if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
   return el;
@@ -33,6 +36,9 @@ const safeGetElement = (id) => {
 
 // WHY: Debounce protege contra eventos de input repetitivos que podrían generar exportaciones o escrituras redundantes
 const debounce = (fn, delay) => {
+  if (window.CommonUtils?.debounce) {
+    return window.CommonUtils.debounce(fn, delay);
+  }
   let timeoutId;
   return (...args) => {
     clearTimeout(timeoutId);
@@ -117,6 +123,8 @@ const csvValue = (value) => {
 };
 
 // WHY: La animación de conteo progresivo hace que el auxiliar note el cambio sin leer texto, facilitando el scan rápido
+const summaryIntervals = new WeakMap();
+
 const updateSummary = () => {
   const citas = finalizedStorage.load();
   const counts = finalizedStorage.getCounts(citas);
@@ -127,21 +135,27 @@ const updateSummary = () => {
     noAsistio: safeGetElement('countNoAsistio')
   };
   
-  // Actualiza contadores con transición numérica suave
   Object.entries(els).forEach(([key, el]) => {
     if (el) {
-      const target = counts[key];
+      if (summaryIntervals.has(el)) {
+        clearInterval(summaryIntervals.get(el));
+      }
+      const target = counts[key] ?? 0;
       const current = parseInt(el.textContent) || 0;
       
       if (current !== target) {
-        // Animación simple de conteo
-        let step = 0;
+        let step = current;
         const increment = target > current ? 1 : -1;
         const interval = setInterval(() => {
           step += increment;
           el.textContent = step;
-          if (step === target) clearInterval(interval);
-        }, 50);
+          if ((increment > 0 && step >= target) || (increment < 0 && step <= target)) {
+            el.textContent = target;
+            clearInterval(interval);
+            summaryIntervals.delete(el);
+          }
+        }, 30);
+        summaryIntervals.set(el, interval);
       }
     }
   });
@@ -154,7 +168,7 @@ const initExportButton = () => {
   
   btn.addEventListener('click', async () => {
     const original = btn.innerHTML;
-    btn.innerHTML = '⏳ Generando...';
+    btn.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">hourglass_top</span><span class="btn-text">Generando...</span>';
     btn.disabled = true;
     
     try {
@@ -188,15 +202,16 @@ const initExportButton = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      // WHY: URL.revokeObjectURL libera la memoria del Blob inmediatamente después de la descarga para evitar memory leaks
       URL.revokeObjectURL(url);
       
       // Feedback visual
-      btn.innerHTML = '✓ Descargado';
+      btn.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">check_circle</span><span class="btn-text">Descargado</span>';
       btn.style.background = '#dcfce7';
       btn.style.borderColor = '#22c55e';
       btn.style.color = '#166534';
-      window.ToastService.success('Resumen descargado exitosamente');
+      if (window.ToastService) {
+        window.ToastService.success('Resumen descargado exitosamente');
+      }
       
       // Restaura botón
       setTimeout(() => {

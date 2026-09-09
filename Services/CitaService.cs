@@ -541,9 +541,7 @@ public class CitaService : ICitaService
                 throw new InvalidOperationException(conflicto.Mensaje);
 
             string estadoSolicitud = string.IsNullOrWhiteSpace(request.Estado) ? "programada" : request.Estado.Trim();
-            var estadoEntidad = await _context.EstadosCita.FirstOrDefaultAsync(e =>
-                e.NombreEstado.ToLower() == estadoSolicitud.ToLower() ||
-                (estadoSolicitud.ToLower() == "agendada" && e.NombreEstado.ToLower() == "programada"), ct);
+            var estadoEntidad = await ResolverEstadoCatalogoAsync(estadoSolicitud, ct);
 
             if (estadoEntidad is null)
                 throw new InvalidOperationException("El estado de la cita no es válido.");
@@ -598,10 +596,7 @@ public class CitaService : ICitaService
         else if (!string.IsNullOrWhiteSpace(request.Estado))
         {
             string estadoTexto = request.Estado.Trim();
-            bool esAgendada = string.Equals(estadoTexto, "agendada", StringComparison.OrdinalIgnoreCase);
-            estadoSolicitado = await _context.EstadosCita.AsNoTracking()
-                .FirstOrDefaultAsync(e => EF.Functions.Like(e.NombreEstado, estadoTexto) ||
-                    (esAgendada && EF.Functions.Like(e.NombreEstado, "programada")), ct);
+            estadoSolicitado = await ResolverEstadoCatalogoAsync(estadoTexto, ct);
         }
 
         if ((request.IdEstado is > 0 || !string.IsNullOrWhiteSpace(request.Estado)) && estadoSolicitado is null)
@@ -1185,20 +1180,38 @@ public class CitaService : ICitaService
             .ToLowerInvariant();
     }
 
+    private async Task<EstadoCita?> ResolverEstadoCatalogoAsync(string? estadoTexto, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(estadoTexto))
+            return null;
+
+        var estadoNormalizado = NormalizarEstado(estadoTexto);
+        if (string.IsNullOrWhiteSpace(estadoNormalizado))
+            return null;
+
+        var estadosCatalogo = await _context.EstadosCita
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        return estadosCatalogo.FirstOrDefault(e =>
+            NormalizarEstado(e.NombreEstado) == estadoNormalizado);
+    }
+
     private static string NormalizarEstado(string? estado)
     {
-        var normalizado = (estado ?? string.Empty).Trim().ToLowerInvariant();
+        var normalizado = NormalizarTexto(estado ?? string.Empty)
+            .Replace("-", "_")
+            .Replace(" ", "_");
+
         return normalizado switch
         {
-            "agendada" => "programada",
-            "programado" => "programada",
-            "confirmado" => "confirmada",
-            "cancelado" => "cancelada",
-            "no asistio" => "no_asistida",
-            "no asistió" => "no_asistida",
-            "no-show" => "no_asistida",
-            "completada" => "atendida",
-            "realizada" => "atendida",
+            "agendada" or "programada" or "programado" => "programada",
+            "confirmada" or "confirmado" => "confirmada",
+            "en_consulta" or "en_proceso" => "en_proceso",
+            "atendida" or "finalizada" or "completada" or "realizada" => "atendida",
+            "cancelada" or "cancelado" => "cancelada",
+            "no_asistida" or "no_asistio" => "no_asistida",
+            "no_show" => "no_asistida",
             _ => normalizado
         };
     }

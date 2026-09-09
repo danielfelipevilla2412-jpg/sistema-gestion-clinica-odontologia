@@ -21,7 +21,16 @@ DEPENDENCIAS TÉCNICAS:
 
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- La alerta médica utiliza atributos role="alert" y aria-live="assertive" para notificaciones urgentes e inmediatas en tecnologías de asistencia.
+- AUDITORÍA (ver docs/mejoras/st-aux-05-historial-parcial.md): el contenedor #alertaMedica es la
+  ÚNICA región aria-live de este componente. Antes había aria-live="polite" duplicado en cada
+  span interno (#alergia, #medicamentos, #grupoSang), lo que según la spec de ARIA (comportamiento
+  indefinido para live regions anidadas) hacía que los lectores de pantalla anunciaran los cambios
+  como "polite" en vez de "assertive" — contradiciendo el propio propósito de la alerta médica.
+  No agregues aria-live a los spans internos: la actualización de su texto ya es capturada por la
+  región del contenedor. El role/aria-live del contenedor ahora es dinámico vía JS
+  (ver renderAlerta en historial-parcial.js): arranca en "status"/"polite" y solo escala a
+  "alert"/"assertive" cuando el paciente tiene alergias registradas, para no anunciar una alerta
+  médica urgente a pacientes sin antecedentes.
 ============================================ *@
 @{ Layout = null; }
 @using System.Text.Json
@@ -77,26 +86,26 @@ NOTAS DE MANTENIMIENTO:
     <!-- Contenido principal -->
     <div class="content">
 
-      <!-- Alerta médica con role alert para anuncio inmediato -->
-      <div class="alerta-medica" id="alertaMedica" role="alert" aria-live="assertive">
+      <!-- Alerta médica: role/aria-live arrancan neutros y el JS los escala a "alert"/"assertive"
+           solo si el paciente tiene alergias registradas (ver renderAlerta en el JS). Los spans
+           internos NO llevan aria-live propio: anidar live regions es un anti-patrón ARIA que
+           hacía que el navegador anunciara los cambios como "polite" en vez de "assertive". -->
+      <div class="alerta-medica" id="alertaMedica" role="status" aria-live="polite">
         <div class="alerta-medica-title">
           <span class="material-symbols-outlined" aria-hidden="true">warning</span>
           <span>ALERTA MÉDICA — LEER ANTES DE PROCEDER</span>
         </div>
         <div class="alerta-medica-row">
           <span class="material-symbols-outlined allergy-icon" aria-hidden="true">warning</span>
-          <span><strong>Alergia:</strong> <span class="alerta-medica-value red" id="alergia"
-              aria-live="polite">—</span></span>
+          <span><strong>Alergia:</strong> <span class="alerta-medica-value red" id="alergia">—</span></span>
         </div>
         <div class="alerta-medica-row">
           <span class="material-symbols-outlined alerta-medica-icon" aria-hidden="true">medication</span>
-          <span><strong>Medicamentos:</strong> <span class="alerta-medica-value" id="medicamentos"
-              aria-live="polite">—</span></span>
+          <span><strong>Medicamentos:</strong> <span class="alerta-medica-value" id="medicamentos">—</span></span>
         </div>
         <div class="alerta-medica-row">
           <span class="material-symbols-outlined alerta-medica-icon" aria-hidden="true">bloodtype</span>
-          <span><strong>Grupo sanguíneo:</strong> <span class="alerta-medica-value" id="grupoSang"
-              aria-live="polite">—</span></span>
+          <span><strong>Grupo sanguíneo:</strong> <span class="alerta-medica-value" id="grupoSang">—</span></span>
         </div>
       </div>
 
@@ -212,7 +221,9 @@ NOTAS DE MANTENIMIENTO:
   </footer>
   <script>
     window.smiletrackHistorialParcialData = @Html.Raw(historialParcialDataJson);
-  </script>  <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js")"></script>
+  </script>
+  <script src="@Url.Content("~/js/shared/common.js")"></script>
+  <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js")"></script>
 
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
@@ -238,4 +249,3 @@ NOTAS DE MANTENIMIENTO:
 </body>
 
 </html>
-

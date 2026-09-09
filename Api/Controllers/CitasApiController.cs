@@ -177,7 +177,37 @@ public sealed class CitasApiController : ControllerBase
     private async Task<IActionResult> CrearDesdeAgenda(CitaAgendaDto dto, CancellationToken ct)
     {
         if (dto is null || !ModelState.IsValid)
-            return BadRequest(new { success = false, message = "Datos inválidos para agendar la cita." });
+        {
+            var errores = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .Where(e => !string.IsNullOrWhiteSpace(e))
+                .ToList();
+
+            var erroresPorCampo = ModelState
+                .Where(kvp => kvp.Value != null && kvp.Value.Errors.Any())
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value!.Errors
+                        .Select(e => e.ErrorMessage)
+                        .Where(m => !string.IsNullOrWhiteSpace(m))
+                        .ToList() as IReadOnlyList<string>
+                );
+
+            _logger.LogWarning(
+                "[Agenda API] CrearDesdeAgenda: ModelState inválido. Errores={Errores}",
+                string.Join(" | ", errores));
+
+            return BadRequest(new
+            {
+                success = false,
+                message = errores.Count == 1
+                    ? errores[0]
+                    : "Datos inválidos para agendar la cita. Revise los campos resaltados.",
+                errors = errores,
+                errorsByField = erroresPorCampo
+            });
+        }
 
         var request = new CitaApiRequest
         {
@@ -434,6 +464,14 @@ public sealed class CitasApiController : ControllerBase
         if (cita is null) return NotFound(new { success = false, message = "Cita no encontrada." });
         if (User.IsInRole("Profesional")) return Forbid();
         if (User.IsInRole("Paciente") && !EsPacientePropietario(cita)) return Forbid();
+        if (User.IsInRole("Paciente") && (cita.FechaHora - DateTime.Now).TotalHours < 2)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = "No es posible cancelar citas con menos de 2 horas de anticipación."
+            });
+        }
         if (!User.IsInRole("Paciente") && !User.IsInRole("Administrador") && !User.IsInRole("Recepcionista")) return Forbid();
         try
         {

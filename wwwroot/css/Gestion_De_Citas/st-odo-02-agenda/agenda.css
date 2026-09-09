@@ -30,7 +30,7 @@ NOTAS DE MANTENIMIENTO:
   --primary: #1a56cc;
   --primary-light: #eef2ff;
   --green: #22c55e;
-  --orange: #f59e0b;
+  --orange: #b45309;
   --purple: #9333ea;
   --text: #1e293b;
   --text-muted: #64748b;
@@ -261,6 +261,7 @@ img { max-width: 100%; height: auto; display: block; }
   transition: background var(--tr), border-color var(--tr);
 }
 .btn-week:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+.btn-week:active { transform: scale(0.97); }
 .btn-week:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .week-title {
   flex: 1; text-align: center;
@@ -334,6 +335,7 @@ img { max-width: 100%; height: auto; display: block; }
   display: flex; align-items: center; justify-content: center;
 }
 .btn-icon:hover { background: var(--primary-light); }
+.btn-icon:active { transform: scale(0.92); }
 .btn-icon:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .btn-icon.edit-icon { color: var(--orange); font-size: 17px; }
 .btn-icon.edit-icon.red { color: var(--danger); }

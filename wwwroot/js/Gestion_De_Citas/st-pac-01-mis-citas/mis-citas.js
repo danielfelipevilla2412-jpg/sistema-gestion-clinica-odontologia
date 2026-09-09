@@ -98,23 +98,28 @@ function mostrarErrorUsuario(mensaje) {
 // ═══════════════════════════════════════════════════════════════════
 
 const safeGetElement = (id) => {
+  if (window.CommonUtils?.getEl) return window.CommonUtils.getEl(id);
   const el = document.getElementById(id);
   if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
   return el;
 };
 
 const debounce = (fn, delay) => {
+  if (window.CommonUtils?.debounce) return window.CommonUtils.debounce(fn, delay);
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), delay); };
 };
 
-const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  "'": '&#39;',
-  '"': '&quot;'
-}[character]));
+const escapeHtml = (value) => {
+  if (window.CommonUtils?.escapeHtml) return window.CommonUtils.escapeHtml(value);
+  return String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;'
+  }[character]));
+};
 
 const notify = (type, title, message) => {
   if (window.ToastService && typeof window.ToastService[type] === 'function') {
@@ -287,7 +292,7 @@ const renderTable = () => {
     const emptyRow = document.createElement('tr');
     const emptyCell = document.createElement('td');
     emptyCell.colSpan = 6;
-    emptyCell.innerHTML = '<div class="empty-state"><span class="empty-icon" aria-hidden="true">📭</span><p>No hay citas que coincidan con los filtros.</p></div>';
+    emptyCell.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined" aria-hidden="true" style="font-size:2rem;color:var(--text-muted);display:block;margin-bottom:8px;">inbox</span><p>No hay citas que coincidan con los filtros.</p></div>';
     emptyRow.appendChild(emptyCell);
     tbody.replaceChildren(emptyRow);
     return;
@@ -308,11 +313,11 @@ const renderTable = () => {
         <div class="actions-cell">
           <button class="btn-icon action-btn btn-view" type="button" id="btn-ver-${item.id}"
                   title="Ver detalle" data-action="ver" data-id="${item.id}" aria-label="Ver detalle de cita">
-            👁️ <span class="btn-text">Ver</span>
+            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">visibility</span> <span class="btn-text">Ver</span>
           </button>
           ${canCancel ? `<button class="btn-icon action-btn btn-delete danger" type="button" id="btn-cancelar-${item.id}"
                   title="Cancelar cita" data-action="cancelar" data-id="${item.id}" aria-label="Cancelar cita">
-            ✕ <span class="btn-text">Cancelar</span>
+            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">cancel</span> <span class="btn-text">Cancelar</span>
           </button>` : ''}
         </div>
       </td>`;

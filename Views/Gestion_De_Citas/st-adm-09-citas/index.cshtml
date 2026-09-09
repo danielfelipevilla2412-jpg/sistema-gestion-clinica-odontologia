@@ -94,7 +94,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                 <h1 class="page-title">Gestión Integral de Citas</h1>
                 <p class="page-subtitle">Supervisión y control</p>
             </div>
-            <button class="btn-primary" id="btnNewCita" aria-label="Programar nueva cita" onclick="openModalCita()">
+            <button class="btn-primary" id="btnNewCita" aria-label="Programar nueva cita" onclick="openModalCita(this)">
                 + Nueva Cita
             </button>
         </header>
@@ -301,8 +301,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 <!-- Estado (cambio rápido inline) -->
                                 <div class="table-col col-estado text-center" role="cell" data-label="Estado">
                                     <form method="post" action="/gestion-de-citas/cambiar-estado" class="form-estado-inline"
-                                          style="display:inline-block; margin:0;"
-                                          onchange="this.submit();">
+                                          style="display:inline-block; margin:0;">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="IdCita" value="@cita.IdCita" />
                                         <input type="hidden" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
@@ -341,19 +340,22 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                 data-paciente="@Html.Encode(cPaciente)" data-profesional="@Html.Encode(cProfesional)"
                                                 data-servicio="@Html.Encode(cServicio)" data-consultorio="@Html.Encode(cConsultorio)"
                                                 data-estado="@Html.Encode(cEstado)" data-notas="@Html.Encode(cNotas)">
-                                            👁️ <span class="btn-text">Ver</span>
+                                            <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
+                                            <span class="btn-text">Ver</span>
                                         </button>
                                         <a class="action-btn btn-icon edit"
                                            href="@Url.Action("Stadm09Citas", "GestionCitas", new { editId = cita.IdCita })"
                                            aria-label="Editar la cita de @cPaciente"
                                            title="Editar la cita de @Html.Encode(cPaciente)">
-                                            ✏️ <span class="btn-text">Editar</span>
+                                            <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
+                                            <span class="btn-text">Editar</span>
                                         </a>
                                         <button type="button" class="action-btn btn-icon btn-delete toggle"
                                                 aria-label="Eliminar la cita de @cPaciente"
                                                 title="Eliminar la cita de @Html.Encode(cPaciente)"
-                                                onclick="openConfirmDeleteCita(@cita.IdCita, '@cPaciente.Replace("'", "\\'")' )">
-                                            ❌ <span class="btn-text">Eliminar</span>
+                                                onclick="openConfirmDeleteCita(@cita.IdCita, '@cPaciente.Replace("'", "\\'")', this)">
+                                            <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span>
+                                            <span class="btn-text">Eliminar</span>
                                         </button>
                                     </div>
                                 </div>
@@ -471,11 +473,15 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
             {
                 <script>
                         document.addEventListener('DOMContentLoaded', () => {
-                            const toast = document.getElementById('toast');
-                            if (toast) {
-                                toast.textContent = '✅ @TempData["MensajeExito"]';
-                                toast.className = 'toast show';
-                                setTimeout(() => toast.classList.remove('show'), 4000);
+                            if (window.ToastService) {
+                                window.ToastService.success('Éxito', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(TempData["MensajeExito"]?.ToString()))');
+                            } else {
+                                const toast = document.getElementById('toast');
+                                if (toast) {
+                                    toast.textContent = '✅ @TempData["MensajeExito"]';
+                                    toast.className = 'toast show';
+                                    setTimeout(() => toast.classList.remove('show'), 4000);
+                                }
                             }
                         });
                 </script>
@@ -485,11 +491,15 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
             {
                 <script>
                         document.addEventListener('DOMContentLoaded', () => {
-                            const toast = document.getElementById('toast');
-                            if (toast) {
-                                toast.textContent = '⚠️ @TempData["ErrorValidacion"]';
-                                toast.className = 'toast warning show';
-                                setTimeout(() => toast.classList.remove('show'), 5000);
+                            if (window.ToastService) {
+                                window.ToastService.error('Atención', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(TempData["ErrorValidacion"]?.ToString()))');
+                            } else {
+                                const toast = document.getElementById('toast');
+                                if (toast) {
+                                    toast.textContent = '⚠️ @TempData["ErrorValidacion"]';
+                                    toast.className = 'toast warning show';
+                                    setTimeout(() => toast.classList.remove('show'), 5000);
+                                }
                             }
                         });
                 </script>
@@ -761,35 +771,51 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 });
                                 }
 
-                                // ═══ TABS DE FILTRADO RÁPIDO ═══
+                                // ═══ TABS DE FILTRADO RÁPIDO Y PERSISTENCIA DE URL ═══
                                 const tabButtons = document.querySelectorAll('.tab-btn');
                                 const tableRows = document.querySelectorAll('#citasBody .table-row');
 
+                                const applyTabFilter = (tab) => {
+                                    tabButtons.forEach(btn => {
+                                        const isMatch = btn.dataset.tab === tab;
+                                        btn.classList.toggle('active', isMatch);
+                                        btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+                                    });
+
+                                    tableRows.forEach(row => {
+                                        const statusBadge = row.querySelector('.status-badge');
+                                        const estado = statusBadge ? statusBadge.textContent.trim().toLowerCase() : '';
+
+                                        if (tab === 'all') {
+                                            row.style.display = '';
+                                        } else if (tab === 'cancelled') {
+                                            row.style.display = estado === 'cancelada' ? '' : 'none';
+                                        } else if (tab === 'no-show') {
+                                            row.style.display = (estado === 'no_asistio' || estado === 'no asistio' || estado === 'inasistencia') ? '' : 'none';
+                                        }
+                                    });
+                                };
+
+                                // Inicializar tab desde querystring URL o por defecto 'all'
+                                const urlParams = new URLSearchParams(window.location.search);
+                                const initialTab = urlParams.get('tab') || 'all';
+                                applyTabFilter(initialTab);
+
                                 tabButtons.forEach(button => {
-                                button.addEventListener('click', () => {
-                                // Actualizar estado visual de tabs
-                                tabButtons.forEach(btn => {
-                                btn.classList.remove('active');
-                                btn.setAttribute('aria-selected', 'false');
-                                });
-                                button.classList.add('active');
-                                button.setAttribute('aria-selected', 'true');
+                                    button.addEventListener('click', () => {
+                                        const currentTab = button.dataset.tab;
+                                        applyTabFilter(currentTab);
 
-                                // Filtrar filas según el tab seleccionado
-                                const currentTab = button.dataset.tab;
-                                tableRows.forEach(row => {
-                                const statusBadge = row.querySelector('.status-badge');
-                                const estado = statusBadge ? statusBadge.textContent.trim().toLowerCase() : '';
-
-                                if (currentTab === 'all') {
-                                row.style.display = '';
-                                } else if (currentTab === 'cancelled') {
-                                row.style.display = estado === 'cancelada' ? '' : 'none';
-                                } else if (currentTab === 'no-show') {
-                                row.style.display = (estado === 'no_asistio' || estado === 'no asistio' || estado === 'inasistencia') ? '' : 'none';
-                                }
-                                });
-                                });
+                                        // Sincronizar querystring con history.replaceState
+                                        const params = new URLSearchParams(window.location.search);
+                                        if (currentTab === 'all') {
+                                            params.delete('tab');
+                                        } else {
+                                            params.set('tab', currentTab);
+                                        }
+                                        const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+                                        window.history.replaceState(null, '', newUrl);
+                                    });
                                 });
 
                                 // ═══ AUTO-ABRIR MODAL SI ESTAMOS EDITANDO ═══
@@ -831,51 +857,60 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 }
                                 });
                                 document.querySelectorAll('.btn-view').forEach(btn => {
-                                btn.addEventListener('click', () => {
-                                modalAppPreviousFocus = btn;
-                                const citaId = btn.dataset.id;
-                                const html = `
-                                <div style="display:grid; gap:12px; font-size:0.95rem;">
-                                <div style="display:flex; justify-content:space-between; gap:12px;">
-                                <strong style="color:var(--text-muted); min-width:120px;">Fecha:</strong>
-                                <span>${btn.dataset.fecha ?? '—'}</span>
-                                </div>
-                                <div style="display:flex; justify-content:space-between; gap:12px;">
-                                <strong style="color:var(--text-muted); min-width:120px;">Hora:</strong>
-                                <span>${btn.dataset.hora ?? '—'}</span>
-                                </div>
-                                <div style="display:flex; justify-content:space-between; gap:12px;">
-                                <strong style="color:var(--text-muted); min-width:120px;">Paciente:</strong>
-                                <span>${btn.dataset.paciente ?? '—'}</span>
-                                </div>
-                                <div style="display:flex; justify-content:space-between; gap:12px;">
-                                <strong style="color:var(--text-muted); min-width:120px;">Profesional:</strong>
-                                <span>${btn.dataset.profesional ?? '—'}</span>
-                                </div>
-                                <div style="display:flex; justify-content:space-between; gap:12px;">
-                                <strong style="color:var(--text-muted); min-width:120px;">Servicio:</strong>
-                                <span>${btn.dataset.servicio ?? '—'}</span>
-                                </div>
-                                <div style="display:flex; justify-content:space-between; gap:12px;">
-                                <strong style="color:var(--text-muted); min-width:120px;">Consultorio:</strong>
-                                <span>${btn.dataset.consultorio ?? '—'}</span>
-                                </div>
-                                <div style="display:flex; justify-content:space-between; gap:12px;">
-                                <strong style="color:var(--text-muted); min-width:120px;">Estado:</strong>
-                                <span class="status-badge status-select-inline ${(btn.dataset.estado ?? '').toLowerCase().replace(' ', '-')}">${btn.dataset.estado ?? '—'}</span>
-                                </div>
-                                ${(btn.dataset.notas && btn.dataset.notas.length > 0) ? `
-                                <div style="margin-top:8px; padding:12px; background:var(--bg-soft); border-radius:8px;">
-                                <strong style="color:var(--text-muted); display:block; margin-bottom:4px;">Notas previas:</strong>
-                                <span>${btn.dataset.notas}</span>
-                                </div>` : ''}
-                                </div>`;
-                                if (modalAppContent) modalAppContent.innerHTML = html;
-                                if (modalAppTitle) modalAppTitle.textContent = `Detalle: ${btn.dataset.paciente ?? 'Cita'}`;
-                                if (modalAppEditBtn) modalAppEditBtn.style.display = 'inline-flex';
-                                if (modalAppEl) {
-                                modalAppEl.setAttribute('data-selected-id', citaId);
-                                modalAppEl.classList.add('open');
+                                    btn.addEventListener('click', () => {
+                                        modalAppPreviousFocus = btn;
+                                        const citaId = btn.dataset.id;
+                                        const esc = (val) => window.CommonUtils?.escapeHtml ? window.CommonUtils.escapeHtml(val) : String(val ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+                                        
+                                        const html = `
+                                        <div style="display:grid; gap:12px; font-size:0.95rem;">
+                                            <div style="display:flex; justify-content:space-between; gap:12px;">
+                                                <strong style="color:var(--text-muted); min-width:120px;">Fecha:</strong>
+                                                <span>${esc(btn.dataset.fecha ?? '—')}</span>
+                                            </div>
+                                            <div style="display:flex; justify-content:space-between; gap:12px;">
+                                                <strong style="color:var(--text-muted); min-width:120px;">Hora:</strong>
+                                                <span>${esc(btn.dataset.hora ?? '—')}</span>
+                                            </div>
+                                            <div style="display:flex; justify-content:space-between; gap:12px;">
+                                                <strong style="color:var(--text-muted); min-width:120px;">Paciente:</strong>
+                                                <span>${esc(btn.dataset.paciente ?? '—')}</span>
+                                            </div>
+                                            <div style="display:flex; justify-content:space-between; gap:12px;">
+                                                <strong style="color:var(--text-muted); min-width:120px;">Profesional:</strong>
+                                                <span>${esc(btn.dataset.profesional ?? '—')}</span>
+                                            </div>
+                                            <div style="display:flex; justify-content:space-between; gap:12px;">
+                                                <strong style="color:var(--text-muted); min-width:120px;">Servicio:</strong>
+                                                <span>${esc(btn.dataset.servicio ?? '—')}</span>
+                                            </div>
+                                            <div style="display:flex; justify-content:space-between; gap:12px;">
+                                                <strong style="color:var(--text-muted); min-width:120px;">Consultorio:</strong>
+                                                <span>${esc(btn.dataset.consultorio ?? '—')}</span>
+                                            </div>
+                                            <div style="display:flex; justify-content:space-between; gap:12px;">
+                                                <strong style="color:var(--text-muted); min-width:120px;">Estado:</strong>
+                                                <span class="status-badge status-select-inline ${esc((btn.dataset.estado ?? '').toLowerCase().replace(' ', '-'))}">${esc(btn.dataset.estado ?? '—')}</span>
+                                            </div>
+                                            ${(btn.dataset.notas && btn.dataset.notas.length > 0) ? `
+                                            <div style="margin-top:8px; padding:12px; background:var(--bg-soft); border-radius:8px;">
+                                                <strong style="color:var(--text-muted); display:block; margin-bottom:4px;">Notas previas:</strong>
+                                                <span>${esc(btn.dataset.notas)}</span>
+                                            </div>` : ''}
+                                        </div>`;
+                                        if (modalAppContent) modalAppContent.innerHTML = html;
+                                        if (modalAppTitle) modalAppTitle.textContent = `Detalle: ${btn.dataset.paciente ?? 'Cita'}`;
+                                        if (modalAppEditBtn) modalAppEditBtn.style.display = 'inline-flex';
+                                        if (modalAppEl) {
+                                            modalAppEl.setAttribute('data-selected-id', citaId);
+                                            modalAppEl.classList.add('open');
+                                            modalAppEl.setAttribute('aria-hidden', 'false');
+                                            modalAppEl.removeAttribute('inert');
+                                            document.body.style.overflow = 'hidden';
+                                            modalAppCloseBtn?.focus();
+                                        }
+                                    });
+                                });
                                 modalAppEl.setAttribute('aria-hidden', 'false');
                                 modalAppEl.removeAttribute('inert');
                                 document.body.style.overflow = 'hidden';

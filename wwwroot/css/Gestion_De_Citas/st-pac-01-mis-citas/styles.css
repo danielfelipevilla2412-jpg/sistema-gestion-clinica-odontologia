@@ -30,7 +30,7 @@ NOTAS DE MANTENIMIENTO:
   --primary: #1a56cc;
   --primary-light: #eef2ff;
   --green: #22c55e;
-  --orange: #f59e0b;
+  --orange: #b45309;
   --purple: #9333ea;
   --blue-pill: #2563eb;
   --text: #1e293b;
@@ -206,12 +206,15 @@ td.td-doctor { font-weight: 600; font-size: .82rem; }
 .empty-state p { font-size: .85rem; }
 
 /* ═══ BOTONES ═══ */
-.btn-primary { background: var(--primary); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
+.btn-primary { background: var(--primary); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr), transform var(--tr); }
 .btn-primary:hover { background: #1547a8; }
-.btn-secondary { background: var(--white); color: var(--text); border: 1.5px solid var(--border); padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr), border-color var(--tr); }
+.btn-primary:active { transform: scale(0.97); }
+.btn-secondary { background: var(--white); color: var(--text); border: 1.5px solid var(--border); padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr), border-color var(--tr), transform var(--tr); }
 .btn-secondary:hover { background: var(--primary-light); border-color: var(--primary); }
-.btn-danger { background: var(--danger); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
+.btn-secondary:active { transform: scale(0.97); }
+.btn-danger { background: var(--danger); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr), transform var(--tr); }
 .btn-danger:hover { background: #dc2626; }
+.btn-danger:active { transform: scale(0.97); }
 
 /* ═══ MODAL ═══ */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 400; align-items: center; justify-content: center; padding: 16px; }
