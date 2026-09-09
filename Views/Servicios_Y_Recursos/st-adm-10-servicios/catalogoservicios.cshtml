@@ -78,13 +78,14 @@
           <input type="search" id="searchServices" class="search-input" placeholder="Buscar por nombre..."
             aria-label="Buscar servicio">
         </div>
-        <select id="filterCategory" class="filter-select" aria-label="Filtrar por categor—a">
-          <option value="">Todas las Categor—as</option>
+        <select id="filterCategory" class="filter-select" aria-label="Filtrar por categoría">
+          <option value="">Todas las Categorías</option>
           <option value="prevencion">Prevención</option>
           <option value="estetica">Estética</option>
           <option value="cirugia">Cirugía</option>
           <option value="ortodoncia">Ortodoncia</option>
           <option value="endodoncia">Endodoncia</option>
+          <option value="general">General</option>
         </select>
         <select id="filterStatus" class="filter-select" aria-label="Filtrar por estado">
           <option value="">Estado: Todos</option>
@@ -104,7 +105,7 @@
       <!-- Cabecera de tabla accesible -->
       <div class="table-header" role="row">
         <div class="table-col col-nombre" role="columnheader">Nombre del Servicio</div>
-        <div class="table-col col-categoria" role="columnheader">Categor—a</div>
+        <div class="table-col col-categoria" role="columnheader">Categoría</div>
         <div class="table-col col-duracion" role="columnheader">Duración</div>
         <div class="table-col col-costo" role="columnheader">Costo</div>
         <div class="table-col col-estado text-center" role="columnheader">Estado</div>
@@ -149,13 +150,14 @@
           <textarea id="serviceDescription" class="form-textarea" rows="4"></textarea>
         </div>
         <div class="form-group">
-          <label for="serviceCategory" class="form-label">Categor—a</label>
+          <label for="serviceCategory" class="form-label">Categoría</label>
           <select id="serviceCategory" class="form-select" required>
             <option value="prevencion">Prevención</option>
             <option value="estetica">Estética</option>
             <option value="cirugia">Cirugía</option>
             <option value="ortodoncia">Ortodoncia</option>
             <option value="endodoncia">Endodoncia</option>
+            <option value="general">General</option>
           </select>
         </div>
         <div class="form-row">
