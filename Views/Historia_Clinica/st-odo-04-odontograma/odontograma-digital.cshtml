@@ -263,8 +263,19 @@
     <!-- TOAST -->
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
+       <!-- Yeray - FLECHA GUÍA hacia el tooltip: SVG a pantalla completa, no bloquea clicks -->
+    <svg id="tooltip-arrow-svg" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:9998; display:none;">
+        <defs>
+            <marker id="tooltip-arrow-head" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L7,3 z" fill="#00d4ff" />
+            </marker>
+        </defs>
+        <line id="tooltip-arrow-line" x1="0" y1="0" x2="0" y2="0" stroke="#00d4ff" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#tooltip-arrow-head)" />
+    </svg>
+
     <!-- TOOLTIP FLOTANTE -->
     <div id="holo-tooltip"></div>
+    
     <script src="@Url.Content("~/js/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.js")"></script>
 
     <footer id="dynamic-footer" class="site-footer" role="contentinfo">
