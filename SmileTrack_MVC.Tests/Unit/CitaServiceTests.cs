@@ -97,6 +97,23 @@ public class CitaServiceTests
         db.EstadosCita.RemoveRange(db.EstadosCita);
         db.EstadosCita.Add(new EstadoCita { NombreEstado = "Agendada" });
         db.EstadosCita.Add(new EstadoCita { NombreEstado = "Confirmada" });
+        db.HorariosProfesional.Add(new HorarioProfesional
+        {
+            IdProfesional = datos.Profesional.IdProfesional,
+            DiaSemana = fecha.DayOfWeek switch
+            {
+                DayOfWeek.Monday => "Lunes",
+                DayOfWeek.Tuesday => "Martes",
+                DayOfWeek.Wednesday => "Miercoles",
+                DayOfWeek.Thursday => "Jueves",
+                DayOfWeek.Friday => "Viernes",
+                DayOfWeek.Saturday => "Sabado",
+                _ => "Domingo"
+            },
+            HoraInicio = new TimeOnly(8, 0),
+            HoraFin = new TimeOnly(12, 0),
+            Activo = true
+        });
         await db.SaveChangesAsync();
 
         var cita = await CrearServicio(db).CrearAsync(new CitaApiRequest
@@ -486,6 +503,54 @@ public class CitaServiceTests
         Assert.True(
             string.Equals(citaActualizada?.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase),
             $"Se esperaba 'Cancelada', se obtuvo: '{citaActualizada?.Estado}'");
+    }
+
+    [Fact]
+    public async Task CancelarAsync_RechazaPacienteConMenosDeDosHoras()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            FechaHora = DateTime.Now.AddHours(1),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var accion = () => CrearServicio(db).CancelarAsync(
+            cita.IdCita,
+            TimeSpan.FromHours(2));
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(accion);
+
+        Assert.Contains("2 horas", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+        var citaSinCambios = await db.Citas.FindAsync(cita.IdCita);
+        Assert.Equal("Programada", citaSinCambios?.Estado);
+    }
+
+    [Fact]
+    public async Task CancelarAsync_PermitePacienteConDosHorasDeAnticipacion()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            FechaHora = DateTime.Now.AddHours(3),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var resultado = await CrearServicio(db).CancelarAsync(
+            cita.IdCita,
+            TimeSpan.FromHours(2));
+
+        Assert.True(resultado);
+        var citaCancelada = await db.Citas.FindAsync(cita.IdCita);
+        Assert.Equal("Cancelada", citaCancelada?.Estado);
     }
 
     [Fact]

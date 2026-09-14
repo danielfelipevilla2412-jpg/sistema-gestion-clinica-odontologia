@@ -16,6 +16,7 @@
 </head>
 
 <body>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
     @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
@@ -32,13 +33,13 @@
         <!-- Top Bar -->
         <div class="top-bar">
             <div class="page-header">
-                <h1>Peticiones, Quejas y Reclamos</h1>
-                <p>Módulo PQR - SmileTrack</p>
+                <h1 data-i18n="pqr.title">Peticiones, Quejas y Reclamos</h1>
+                <p data-i18n="pqr.response_time">Módulo PQR - SmileTrack</p>
             </div>
             <div class="action-buttons">
                 <button class="btn btn-primary active" onclick="showManagement()">
                     <i class="fas fa-list"></i>
-                    Gestión de PQR
+                    <span data-i18n="pqr.management">Gestión de PQR</span>
                 </button>
             </div>
         </div>
@@ -51,7 +52,7 @@
                 </div>
                 <div class="stat-info">
                     <h3>6</h3>
-                    <p>Total PQR</p>
+                    <p data-i18n="pqr.total">Total PQR</p>
                 </div>
             </div>
             <div class="stat-card">
@@ -60,7 +61,7 @@
                 </div>
                 <div class="stat-info">
                     <h3>1</h3>
-                    <p>Sin responder</p>
+                    <p data-i18n="status.pending">Sin responder</p>
                 </div>
             </div>
             <div class="stat-card">
@@ -69,7 +70,7 @@
                 </div>
                 <div class="stat-info">
                     <h3>1</h3>
-                    <p>En gestión</p>
+                    <p data-i18n="status.in_progress">En gestión</p>
                 </div>
             </div>
             <div class="stat-card">
@@ -78,7 +79,7 @@
                 </div>
                 <div class="stat-info">
                     <h3>2</h3>
-                    <p>Vencidas</p>
+                    <p data-i18n="status.blocked">Vencidas</p>
                 </div>
             </div>
         </div>
@@ -87,22 +88,22 @@
         <div class="filters-bar">
             <div class="search-box">
                 <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Buscar por paciente, ID o asunto..."
+                <input type="text" id="searchInput" placeholder="Buscar por paciente, ID o asunto..." data-i18n-ph="table.search"
                     onkeyup="filterTable()">
             </div>
-            <select class="filter-select" id="filterTipo" onchange="filterTable()">
-                <option value="todos">Todos los tipos</option>
-                <option value="peticion">Petición</option>
-                <option value="queja">Queja</option>
-                <option value="reclamo">Reclamo</option>
+            <select class="filter-select" id="filterTipo" onchange="filterTable()" data-i18n-aria-label="pqr.type">
+                <option value="todos" data-i18n="table.filter">Todos los tipos</option>
+                <option value="peticion" data-i18n="pqr.type_petition">Petición</option>
+                <option value="queja" data-i18n="pqr.type_complaint">Queja</option>
+                <option value="reclamo" data-i18n="pqr.type_claim">Reclamo</option>
             </select>
-            <select class="filter-select" id="filterEstado" onchange="filterTable()">
-                <option value="todos">Todos los estados</option>
-                <option value="recibido">Recibido</option>
-                <option value="proceso">En proceso</option>
-                <option value="pendiente">Pend. info</option>
-                <option value="resuelto">Resuelto</option>
-                <option value="cerrado">Cerrado</option>
+            <select class="filter-select" id="filterEstado" onchange="filterTable()" data-i18n-aria-label="pqr.status">
+                <option value="todos" data-i18n="table.filter">Todos los estados</option>
+                <option value="recibido" data-i18n="status.pending">Recibido</option>
+                <option value="proceso" data-i18n="status.in_progress">En proceso</option>
+                <option value="pendiente" data-i18n="status.pending">Pend. info</option>
+                <option value="resuelto" data-i18n="status.resolved">Resuelto</option>
+                <option value="cerrado" data-i18n="status.closed">Cerrado</option>
             </select>
         </div>
 
@@ -114,14 +115,14 @@
                     <table id="pqrsTable">
                         <thead>
                             <tr>
-                                <th>Radicado</th>
-                                <th>Paciente</th>
-                                <th>Tipo</th>
-                                <th>Asunto</th>
-                                <th>Estado</th>
-                                <th>Prioridad</th>
-                                <th>Tiempo</th>
-                                <th>Acciones</th>
+                                <th data-i18n="pqr.subject">Radicado</th>
+                                <th data-i18n="citas.patient">Paciente</th>
+                                <th data-i18n="pqr.type">Tipo</th>
+                                <th data-i18n="pqr.subject">Asunto</th>
+                                <th data-i18n="pqr.status">Estado</th>
+                                <th data-i18n="status.pending">Prioridad</th>
+                                <th data-i18n="citas.date">Tiempo</th>
+                                <th data-i18n="table.actions">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -363,6 +364,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 
 </html>

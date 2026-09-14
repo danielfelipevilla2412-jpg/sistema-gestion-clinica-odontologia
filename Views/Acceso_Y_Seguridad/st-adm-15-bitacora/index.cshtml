@@ -20,9 +20,10 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="nav.skip_link">Saltar al contenido principal</a>
 
     @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
 
@@ -41,32 +42,32 @@
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Administración</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
+          <span data-i18n="nav.group_acceso">Administración</span>
           <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Bitácora del Sistema</span>
+          <span class="bc-active" data-i18n="nav.bitacora">Bitácora del Sistema</span>
         </nav>
-        <h1 class="page-title">Bitácora del Sistema</h1>
-        <p class="page-subtitle">Auditoría y registro de operaciones</p>
+        <h1 class="page-title" data-i18n="nav.bitacora">Bitácora del Sistema</h1>
+        <p class="page-subtitle" data-i18n="audit.subtitle">Auditoría y registro de operaciones</p>
       </div>
       <div class="header-actions">
-        <label class="toggle-live" aria-label="Actualizar en tiempo real">
+        <label class="toggle-live" aria-label="Actualizar en tiempo real" data-i18n-aria-label="common.loading">
           <input type="checkbox" id="toggleLive" checked>
           <span class="toggle-slider" aria-hidden="true"></span>
-          <span class="toggle-label">🔄 Live</span>
+          <span class="toggle-label" data-i18n="common.loading">🔄 Live</span>
         </label>
-        <button class="btn-primary" id="btnExport" aria-label="Exportar bitácora">
+        <button class="btn-primary" id="btnExport" aria-label="Exportar bitácora" data-i18n-aria-label="table.export" data-i18n="table.export">
           📥 Exportar
         </button>
       </div>
     </header>
 
     <!-- KPI Cards -->
-    <section class="stats-grid" aria-label="Indicadores de bitácora">
+    <section class="stats-grid" aria-label="Indicadores de bitácora" data-i18n-aria-label="table.filter">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="kpiTotal" data-target="3842" aria-live="polite">0</span>
-        <span class="stat-label">Total Eventos</span>
-        <span class="stat-sub">Hoy</span>
+        <span class="stat-label" data-i18n="table.total_records">Total Eventos</span>
+        <span class="stat-sub" data-i18n="common.today">Hoy</span>
       </div>
       <div class="stat-card" data-color="red">
         <span class="stat-number" id="kpiCritical" data-target="7" aria-live="polite">0</span>
@@ -168,18 +169,18 @@
           <thead>
             <tr role="row">
               <th scope="col" role="columnheader" class="checkbox-col">
-                <input type="checkbox" id="selectAll" aria-label="Seleccionar todos los eventos">
+                <input type="checkbox" id="selectAll" aria-label="Seleccionar todos los eventos" data-i18n-aria-label="table.select_all">
               </th>
               <th scope="col" role="columnheader">
-                <button class="sort-btn" aria-label="Ordenar por fecha" aria-sort="descending">
-                  TIMESTAMP <span aria-hidden="true">↕</span>
+                <button class="sort-btn" aria-label="Ordenar por fecha" data-i18n-aria-label="citas.date" aria-sort="descending">
+                  <span data-i18n="citas.date">TIMESTAMP</span> <span aria-hidden="true">↕</span>
                 </button>
               </th>
-              <th scope="col" role="columnheader">NIVEL</th>
-              <th scope="col" role="columnheader">MÓDULO</th>
-              <th scope="col" role="columnheader">DESCRIPCIÓN</th>
-              <th scope="col" role="columnheader">USUARIO</th>
-              <th scope="col" role="columnheader" class="text-right">ACCIÓN</th>
+              <th scope="col" role="columnheader" data-i18n="audit.level">NIVEL</th>
+              <th scope="col" role="columnheader" data-i18n="nav.gestion_roles">MÓDULO</th>
+              <th scope="col" role="columnheader" data-i18n="pqr.description">DESCRIPCIÓN</th>
+              <th scope="col" role="columnheader" data-i18n="common.name">USUARIO</th>
+              <th scope="col" role="columnheader" class="text-right" data-i18n="table.actions">ACCIÓN</th>
             </tr>
           </thead>
           <tbody id="logsTbody" aria-live="polite" role="rowgroup">
@@ -451,6 +452,8 @@
 </script>
 <script src="@Url.Content("~/js/Acceso_Y_Seguridad/st-adm-15-bitacora/bitacora.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>

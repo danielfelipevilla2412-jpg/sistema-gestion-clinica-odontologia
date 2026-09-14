@@ -950,7 +950,7 @@ public sealed class CambiarEstadoCitaDto
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador,Recepcionista")]
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional")]
     [Route("gestion-de-citas/cambiar-estado")]
     public async Task<IActionResult> CambiarEstadoCita(
         [FromForm] int IdCita,
@@ -1126,7 +1126,7 @@ public sealed class CambiarEstadoCitaDto
             bool ok;
             try
             {
-                ok = await _citaService.CancelarAsync(IdCita, ct);
+                ok = await _citaService.CancelarAsync(IdCita, ct: ct);
             }
             catch (InvalidOperationException ioex)
                 when (ioex.Message.Contains("cancelada",
@@ -1906,31 +1906,45 @@ public sealed class CambiarEstadoCitaDto
     [Authorize(Roles = "Profesional,Administrador")]
     [Route("gestion-de-citas/st-odo-02-agenda")]
     public async Task<IActionResult> Stodo02Agenda(
-        [FromQuery] int? editId,
+        [FromQuery] DateTime? weekStart,
+        [FromQuery] int? officeId,
         CancellationToken ct = default)
     {
         try
         {
-            await CargarDatosCitas(
-                editId,
-                "/gestion-de-citas/st-odo-02-agenda",
-                null,
+            _antiforgery.GetAndStoreTokens(HttpContext);
+
+            int? professionalId = null;
+            if (User.IsInRole("Profesional"))
+            {
+                var usuarioIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (int.TryParse(usuarioIdClaim, out int idUsuario))
+                {
+                    var prof = await _context.Profesionales.AsNoTracking()
+                        .FirstOrDefaultAsync(p => p.IdUsuario == idUsuario, ct);
+                    if (prof != null) professionalId = prof.IdProfesional;
+                }
+            }
+
+            var model = await _agendaService.ObtenerAgendaAsync(
+                weekStart,
+                professionalId,
+                officeId,
                 ct);
 
             return View(
-                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml");
+                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml",
+                model);
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Error Stodo02Agenda");
-
-            TempData["ErrorValidacion"] =
-                MensajeErrorFallback;
+                "Error en Stodo02Agenda");
 
             return View(
-                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml");
+                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml",
+                new SmileTrack_MVC.Models.ViewModels.AgendaViewModel());
         }
     }
 

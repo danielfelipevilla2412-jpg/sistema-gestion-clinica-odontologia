@@ -22,46 +22,18 @@ NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 ============================================ *@
 @{
-  Layout = null;
-  var loggedProfesional = ViewData["LoggedProfesional"] as SmileTrack_MVC.Models.Entities.Profesional;
-  var especialidades = loggedProfesional?.Especialidades?.Select(pe => pe.Especialidad?.Nombre).Where(n => n != null).ToList() ?? new List<string?>();
-  var initials = loggedProfesional != null 
-      ? string.Concat($"{loggedProfesional.Nombres} {loggedProfesional.Apellidos}".Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant()
-      : "--";
+    Layout = "_Layout";
+    ViewData["Title"] = "Mi Perfil";
+    var loggedProfesional = ViewData["LoggedProfesional"] as SmileTrack_MVC.Models.Entities.Profesional;
+    var especialidades = loggedProfesional?.Especialidades?.Select(pe => pe.Especialidad?.Nombre).Where(n => n != null).ToList() ?? new List<string?>();
+    var initials = loggedProfesional != null && !string.IsNullOrEmpty(loggedProfesional.Nombres)
+        ? $"{loggedProfesional.Nombres[0]}{(string.IsNullOrEmpty(loggedProfesional.Apellidos) ? "" : loggedProfesional.Apellidos[0])}"
+        : "DR";
 }
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmileTrack — Perfil Profesional</title>
-  <meta name="description" content="Gestiona tu información profesional y configuración en SmileTrack." />
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Profesionales/st-odo-09-perfil-profesional/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-  @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarProfesional"); }
-
-  <!-- ═════ HAMBURGER (móvil) ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Profesionales/st-odo-09-perfil-profesional/styles.css" asp-append-version="true" />
+}
 
   <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
@@ -69,13 +41,13 @@ NOTAS DE MANTENIMIENTO:
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Odontólogo</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_profesional">Odontólogo</span>
           <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active">Perfil Profesional</span>
+          <span class="bc-active" data-i18n="profile.title">Perfil Profesional</span>
         </nav>
-        <h1 class="page-title">Mi Perfil Profesional</h1>
-        <p class="page-subtitle">Información personal y configuración del profesional</p>
+        <h1 class="page-title" data-i18n="profile.title">Mi Perfil Profesional</h1>
+        <p class="page-subtitle" data-i18n="profile.professional_subtitle">Informaci&#243;n personal y configuraci&#243;n del profesional</p>
       </div>
     </header>
 
@@ -107,7 +79,7 @@ NOTAS DE MANTENIMIENTO:
       <!-- Left Column: Personal Info -->
       <div class="content-left">
         <div class="card info-card">
-          <h3 class="card-title">📝 Información personal</h3>
+          <h3 class="card-title"><span data-i18n="common.personal_data">📝 Información personal</span></h3>
 
           <div class="info-grid">
             <div class="info-item">
@@ -294,7 +266,6 @@ NOTAS DE MANTENIMIENTO:
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js")"></script>
 
   <!-- Mobile bottom nav — Odontólogo -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
@@ -318,16 +289,9 @@ NOTAS DE MANTENIMIENTO:
       <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
     <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
 
   </footer>
-
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-</body>
-
-</html>
-
+@section Scripts {
+    <script src="~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+}

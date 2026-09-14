@@ -260,7 +260,7 @@ public class CitaService : ICitaService
                     c.Estado != "Cancelado" &&
                     c.Estado != "cancelado" &&
                     c.FechaHora < fin &&
-                    c.FechaHora.AddMinutes(duracionMinutos) > inicio,
+                    c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : duracionMinutos) > inicio,
                     ct);
 
             if (conflictoProfesional)
@@ -280,7 +280,7 @@ public class CitaService : ICitaService
                     c.Estado != "Cancelado" &&
                     c.Estado != "cancelado" &&
                     c.FechaHora < fin &&
-                    c.FechaHora.AddMinutes(duracionMinutos) > inicio,
+                    c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : duracionMinutos) > inicio,
                     ct);
 
             if (conflictoPaciente)
@@ -300,7 +300,7 @@ public class CitaService : ICitaService
                     c.Estado != "Cancelado" &&
                     c.Estado != "cancelado" &&
                     c.FechaHora < fin &&
-                    c.FechaHora.AddMinutes(duracionMinutos) > inicio,
+                    c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : duracionMinutos) > inicio,
                     ct);
 
             if (conflictoConsultorio)
@@ -512,7 +512,7 @@ public class CitaService : ICitaService
         }
 
         // ── Validación de horario de atención clínica (C-05) ─────────────
-        int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
+        int duracion = await ObtenerDuracionServicioAsync(request.IdServicio!.Value, ct);
         var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, duracion, ct);
         if (!horarioValido)
             throw new InvalidOperationException(mensajeHorario!);
@@ -555,7 +555,10 @@ public class CitaService : ICitaService
                 FechaHora = request.FechaHora,
                 IdEstado = estadoEntidad.IdEstado,
                 Estado = estadoEntidad.NombreEstado,
-                Notas = request.Notas?.Trim()
+                Notas = request.Notas?.Trim(),
+                MotivoConsulta = request.Notas?.Trim(),
+                DuracionMinutos = duracion,
+                FechaCreacion = DateTime.UtcNow
             };
 
             _context.Citas.Add(cita);
@@ -634,7 +637,7 @@ public class CitaService : ICitaService
         }
 
         // ── Validación de horario de atención clínica (C-05) ─────────────
-        int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
+        int duracion = await ObtenerDuracionServicioAsync(request.IdServicio!.Value, ct);
         var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, duracion, ct);
         if (!horarioValido)
             throw new InvalidOperationException(mensajeHorario!);
@@ -667,6 +670,7 @@ public class CitaService : ICitaService
             cita.IdServicio = request.IdServicio;
             cita.IdConsultorio = request.IdConsultorio;
             cita.FechaHora = request.FechaHora;
+            cita.DuracionMinutos = duracion;
 
             if (estadoSolicitado is not null)
             {
@@ -675,6 +679,7 @@ public class CitaService : ICitaService
             }
 
             cita.Notas = request.Notas?.Trim();
+            cita.MotivoConsulta = request.Notas?.Trim();
             await _context.SaveChangesAsync(ct);
             return cita;
         }, ct);
@@ -734,7 +739,10 @@ public class CitaService : ICitaService
     // CANCELAR (C-06)
     // =========================================================================
 
-    public async Task<bool> CancelarAsync(int id, CancellationToken ct = default)
+    public async Task<bool> CancelarAsync(
+        int id,
+        TimeSpan? anticipacionMinima = null,
+        CancellationToken ct = default)
     {
         var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == id, ct);
         if (cita is null)
@@ -742,6 +750,10 @@ public class CitaService : ICitaService
 
         if (EsEstadoCancelado(cita.Estado))
             throw new InvalidOperationException("La cita ya está cancelada.");
+
+        if (anticipacionMinima.HasValue && cita.FechaHora - DateTime.Now < anticipacionMinima.Value)
+            throw new InvalidOperationException(
+                $"No es posible cancelar citas con menos de {anticipacionMinima.Value.TotalHours:0} horas de anticipación.");
 
         var estadoCancelada = await _context.EstadosCita.FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "cancelada", ct);
         if (estadoCancelada is not null)
@@ -781,8 +793,11 @@ public class CitaService : ICitaService
         if (paciente is null)
             throw new InvalidOperationException("El paciente no existe o no se encuentra activo.");
 
-        if (dto.Fecha.Date < DateTime.Today)
-            throw new InvalidOperationException("No se pueden solicitar citas en fechas pasadas.");
+        // La solicitud no incluye una hora: se persiste como petición pendiente
+        // y se asigna una hora tentativa. Aceptar hoy después de esa hora creaba
+        // citas visibles en el pasado.
+        if (dto.Fecha.Date <= DateTime.Today)
+            throw new InvalidOperationException("No se pueden solicitar citas para hoy ni fechas pasadas; seleccione una fecha posterior para que la clínica pueda confirmar el horario.");
 
         // Validar servicio solo si fue especificado por el paciente
         Servicio? servicio = null;
@@ -1147,7 +1162,7 @@ public class CitaService : ICitaService
             .ToListAsync(ct);
 
         if (horarios.Count == 0)
-            return (true, null);
+            return (false, "El profesional no tiene un horario de atención configurado.");
 
         string dia = NombreDia(fechaHora.DayOfWeek);
         TimeOnly inicio = TimeOnly.FromDateTime(fechaHora);
@@ -1160,6 +1175,19 @@ public class CitaService : ICitaService
         return dentroDeHorario
             ? (true, null)
             : (false, "La cita está fuera del horario de atención del profesional.");
+    }
+
+    private async Task<int> ObtenerDuracionServicioAsync(int idServicio, CancellationToken ct)
+    {
+        int duracionServicio = await _context.Servicios
+            .AsNoTracking()
+            .Where(s => s.IdServicio == idServicio)
+            .Select(s => s.DuracionMinutos)
+            .FirstOrDefaultAsync(ct);
+
+        return duracionServicio > 0
+            ? duracionServicio
+            : await ObtenerDuracionCitaMinutosAsync(ct);
     }
 
     private static string NombreDia(DayOfWeek dayOfWeek) => dayOfWeek switch

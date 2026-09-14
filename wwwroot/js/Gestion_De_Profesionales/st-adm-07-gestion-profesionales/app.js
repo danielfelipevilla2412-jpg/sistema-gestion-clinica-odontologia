@@ -33,75 +33,24 @@ DEPENDENCIAS TÉCNICAS:
 const API_BASE = '/api/profesionales';
 
 // ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
+//  UTILIDADES GLOBALES - CENTRALIZADAS EN utils.js
 // ═══════════════════════════════════════════════════════════════════
-
-/**
- * Obtiene un elemento DOM de forma segura.
- * Previene errores cuando el elemento no existe en la página.
- *
- * @param {string} id - ID del elemento
- * @returns {HTMLElement|null}
- */
-const safeGetElement = (id) => {
-  const element = document.getElementById(id);
-  if (!element) {
-    console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  }
-  return element;
-};
-window.safeGetElement = safeGetElement;
-
-/**
- * Realiza una petición fetch centralizada a la API con manejo de CSRF.
- */
-async function apiRequest(url, options = {}) {
-    const headers = new Headers(options.headers || {});
-    headers.set('Accept', 'application/json');
-
-    if (options.body && !headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
-    }
-
-    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-    if (token) {
-        headers.set('X-CSRF-TOKEN', token);
-    }
-
-    const response = await fetch(url, {
-        ...options,
-        headers,
-        credentials: 'same-origin'
-    });
-
-    let data = null;
-    try {
-        data = await response.json();
-    } catch { }
-
-    if (!response.ok) {
-        const message = data?.message || `Error HTTP ${response.status}.`;
-        throw new Error(message);
-    }
-
-    return data;
-}
-/**
- * Ejecuta una función después de que el usuario deja de escribir.
- * Evita envíos repetidos de formulario o recargas en cada tecla.
- *
- * @param {Function} callback
- * @param {number} delay
- * @returns {Function}
- */
-const debounce = (callback, delay = 250) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => callback.apply(this, args), delay);
-  };
-};
-window.debounce = debounce;
+// 
+// NOTA: Las funciones siguientes están centralizadas en wwwroot/js/shared/utils.js
+// Importadas bajo el namespace window.SmileTrack.utils
+//
+// Aliases globales disponibles para retrocompatibilidad:
+// - safeGetElement()
+// - debounce()
+// - escapeHtml()
+// - apiRequest()
+// - animateCounter()
+// - showToast()
+// - openModal() / closeModal()
+// - validateForm()
+//
+// Uso recomendado: window.SmileTrack.utils.safeGetElement(id)
+// ═══════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════
 //  MAPEO DE COLORES (solo UI, no afecta lógica de negocio)
 // ═══════════════════════════════════════════════════════════════════
@@ -210,22 +159,18 @@ function renderTableFromApi(result) {
         return;
     }
 
-    const escapeHtml = (unsafe) => (unsafe || '').toString()
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    // Usar escapeHtml centralizado desde utils.js
+    const escapeHtmlLocal = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml || ((s) => s);
 
     for (const p of items) {
         const tr = document.createElement('tr');
         tr.setAttribute('role', 'row');
 
-        const name = `${escapeHtml(p.nombres)} ${escapeHtml(p.apellidos)}`.trim();
+        const name = `${escapeHtmlLocal(p.nombres)} ${escapeHtmlLocal(p.apellidos)}`.trim();
 
         // Especialidad principal: primera de la lista
         const especialidad = p.especialidades && p.especialidades.length > 0
-            ? escapeHtml(p.especialidades[0].nombre)
+            ? escapeHtmlLocal(p.especialidades[0].nombre)
             : '';
 
         const specClass = getSpecBadgeClass(especialidad);
@@ -236,9 +181,9 @@ function renderTableFromApi(result) {
         const initialA = p.apellidos ? p.apellidos.charAt(0).toUpperCase() : '';
         const initials = `${initialN}${initialA}`;
 
-        const telefono = escapeHtml(p.telefono);
-        const estadoText = escapeHtml(p.estado);
-        const registroMedico = escapeHtml(p.registroMedico);
+        const telefono = escapeHtmlLocal(p.telefono);
+        const estadoText = escapeHtmlLocal(p.estado);
+        const registroMedico = escapeHtmlLocal(p.registroMedico);
 
         tr.innerHTML = `
           <td class="td-profesional">
@@ -626,6 +571,7 @@ const saveProfessional = async (e) => {
     telefono:       getData('formTelefono')  || null,
     correoAcceso:   getData('formCorreoAcceso'),
     idEspecialidad: idEspecialidad,
+    estado:         isEditing ? (safeGetElement('formStatus')?.value || safeGetElement('formEstado')?.value || '').trim().toLowerCase() || null : null,
   };
 
   // FASE-0 E-SEC-01: La contraseña SOLO se envía en CREACIÓN (POST).
@@ -636,16 +582,6 @@ const saveProfessional = async (e) => {
   const passwordVal = getData('formContrasenaAcceso');
   if (!isEditing && passwordVal) payload.contrasenaAcceso = passwordVal;
 
-  // H-05: capturar estado actual y original para decidir si hace falta el PATCH.
-  // originalEstado se guarda en data-originalEstado por editProfessional() al abrir el modal.
-  const statusSelect = safeGetElement('formStatus');
-  const nuevoEstado = isEditing
-    ? (statusSelect?.value || safeGetElement('formEstado')?.value || '').trim().toLowerCase()
-    : null;
-  const originalEstado = isEditing
-    ? (statusSelect?.dataset.originalEstado || '').toLowerCase()
-    : null;
-
   try {
     let result;
     if (isEditing) {
@@ -654,25 +590,15 @@ const saveProfessional = async (e) => {
         body: JSON.stringify(payload)
       });
 
-      // H-05: PATCH solo cuando el estado cambió realmente.
-      // Si originalEstado === nuevoEstado no hay escritura ni auditoría innecesaria.
-      if (nuevoEstado && nuevoEstado !== originalEstado) {
-        try {
-          await apiRequest(`${API_BASE}/${idProfesional}/estado`, {
-            method: 'PATCH',
-            body: JSON.stringify({ estado: nuevoEstado })
-          });
-        } catch (estadoErr) {
-          // El PATCH falla independientemente del PUT ya completado;
-          // avisamos al usuario pero no revertimos los datos guardados.
-          window.ToastService?.warning(`⚠️ Datos guardados pero no se pudo actualizar el estado: ${estadoErr.message}`);
-        }
-      }
     } else {
       result = await apiRequest(API_BASE, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
+    }
+
+    if (!result || result.success === false) {
+      throw new Error(result?.message || 'No fue posible guardar el profesional.');
     }
 
     window.ToastService?.success(`✅ ${result.message || 'Profesional guardado correctamente.'}`);
@@ -991,7 +917,7 @@ const closeConfirmDeleteModal = () => {
 };
 
 const initModals = () => {
-  const btnNew = safeGetElement('btnNewProfessional');
+  const btnNew = safeGetElement('profesionales-btn-nuevo') || safeGetElement('btnNewProfessional');
   const modalFormClose = safeGetElement('modalFormClose');
   const modalFormCancel = safeGetElement('modalFormCancel');
   const modalDetailClose = safeGetElement('modalDetailClose');
@@ -1141,10 +1067,10 @@ const initModals = () => {
  */
 const initServerStats = () => {
   const statEls = [
-    safeGetElement('metricTotal'),
-    safeGetElement('metricActives'),
-    safeGetElement('metricVacations'),
-    safeGetElement('metricInactives'),
+    safeGetElement('profesionales-stat-total') || safeGetElement('metricTotal'),
+    safeGetElement('profesionales-stat-activos') || safeGetElement('metricActives'),
+    safeGetElement('profesionales-stat-vacaciones') || safeGetElement('metricVacations'),
+    safeGetElement('profesionales-stat-inactivos') || safeGetElement('metricInactives'),
   ];
 
   statEls.forEach(el => {

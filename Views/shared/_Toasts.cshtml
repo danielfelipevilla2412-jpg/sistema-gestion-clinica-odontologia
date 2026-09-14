@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="@Url.Content("~/css/shared/toasts.css")" />
-<script src="@Url.Content("~/js/shared/toasts.js")"></script>
+<script src="@Url.Content("~/js/shared/toasts.js")" defer></script>
 
 @* Script para inicializar automáticamente Toasts si vienen mensajes desde TempData *@
 @if (TempData["SuccessMessage"] != null || TempData["ErrorMessage"] != null || TempData["InfoMessage"] != null)

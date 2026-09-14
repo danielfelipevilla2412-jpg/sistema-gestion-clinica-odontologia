@@ -5,11 +5,45 @@
     "version": "0.2.0",
     "configurations": [
         {
+            // Debuggea el backend .NET (breakpoints en Controllers/, Services/, etc.)
+            // Requiere la extensión "C#" (ms-dotnettools.csharp) de VS Code instalada.
+            "name": ".NET Core Launch (SmileTrack)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/bin/Debug/net9.0/SmileTrack_MVC.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            // Abre el navegador automáticamente en el puerto real del proyecto
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            }
+        },
+        {
+            // Debuggea SOLO el JavaScript del navegador (breakpoints en wwwroot/js/...).
+            // Necesita que el backend ya esté corriendo (usa la config de arriba primero,
+            // o el compound de abajo para lanzar ambos juntos).
             "type": "chrome",
             "request": "launch",
             "name": "Iniciar Chrome para localhost",
-            "url": "http://localhost:8080",
-            "webRoot": "${workspaceFolder}"
+            "url": "http://localhost:5000",
+            "webRoot": "${workspaceFolder}/wwwroot"
+        }
+    ],
+    "compounds": [
+        {
+            // Lanza el backend .NET y luego Chrome apuntando al mismo puerto —
+            // así podés poner breakpoints en C# y en JS al mismo tiempo.
+            "name": "Backend + Chrome (SmileTrack)",
+            "configurations": [
+                ".NET Core Launch (SmileTrack)",
+                "Iniciar Chrome para localhost"
+            ]
         }
     ]
 }

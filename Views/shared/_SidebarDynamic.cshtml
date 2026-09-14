@@ -1,0 +1,32 @@
+@*
+  SmileTrack — Sidebar Dinámico (_SidebarDynamic.cshtml)
+  ═══════════════════════════════════════════════════════
+  Partial centralizado que despacha al sidebar correspondiente
+  según el rol del usuario autenticado.
+
+  Roles soportados (en orden de prioridad):
+    Recepcionista  → _SidebarRecepcionista
+    Auxiliar       → _SidebarAuxiliar
+    Profesional    → _SidebarProfesional
+    Paciente       → _SidebarPaciente
+    (fallback)     → _SidebarAdmin
+
+  USO en vistas/layouts:
+    @await Html.PartialAsync("_SidebarDynamic")
+
+  NOTAS:
+  - Reemplaza los ternarios User.IsInRole(...) inline que existían
+    en cada una de las 19 vistas del módulo Citas y Profesionales.
+  - El fallback es _SidebarAdmin: cubre al rol Administrador y a
+    cualquier usuario sin rol asignado (sesiones de depuración).
+  - No modificar la lógica de los sidebars individuales aquí;
+    este archivo solo actúa como dispatcher.
+*@
+@{
+    string sidebarPartial = User.IsInRole("Recepcionista") ? "_SidebarRecepcionista"
+                          : User.IsInRole("Auxiliar")      ? "_SidebarAuxiliar"
+                          : User.IsInRole("Profesional")   ? "_SidebarProfesional"
+                          : User.IsInRole("Paciente")      ? "_SidebarPaciente"
+                          : "_SidebarAdmin";
+}
+@{ await Html.RenderPartialAsync(sidebarPartial); }

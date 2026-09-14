@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Xunit;
@@ -9,7 +10,11 @@ public sealed class Lote2RegresionesTests
 {
     private static string RepoFile(params string[] parts)
     {
-        var directory = AppContext.BaseDirectory;
+        var sourceDirectory = Path.GetDirectoryName(
+            new StackTrace(true).GetFrames()?
+                .Select(frame => frame.GetFileName())
+                .FirstOrDefault(file => !string.IsNullOrWhiteSpace(file)));
+        var directory = sourceDirectory ?? Directory.GetCurrentDirectory();
         while (directory is not null && !File.Exists(Path.Combine(directory, "SmileTrack_MVC.csproj")))
         {
             directory = Directory.GetParent(directory)?.FullName;

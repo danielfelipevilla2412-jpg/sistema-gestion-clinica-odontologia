@@ -83,10 +83,25 @@ const renderAppointments = (data) => {
 
   if (data.length === 0) {
     const row = document.createElement('tr');
+    row.className = 'empty-state-row';
+    row.setAttribute('role', 'row');
+    row.setAttribute('aria-label', 'Estado vacío');
     const cell = document.createElement('td');
     cell.colSpan = 5;
-    cell.style.cssText = 'text-align:center;padding:24px;color:var(--text-muted);';
-    cell.textContent = 'No hay citas finalizadas registradas.';
+    cell.className = 'empty-state-cell';
+    const content = document.createElement('div');
+    content.className = 'empty-state-content';
+    content.setAttribute('role', 'status');
+    content.setAttribute('aria-live', 'polite');
+    const icon = document.createElement('div');
+    icon.className = 'empty-state-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '📅';
+    const message = document.createElement('p');
+    message.className = 'empty-state-message';
+    message.textContent = 'No hay citas finalizadas registradas.';
+    content.append(icon, message);
+    cell.appendChild(content);
     row.appendChild(cell);
     tbody.replaceChildren(row);
     return;

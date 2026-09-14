@@ -394,6 +394,13 @@ public partial class ProfesionalService : IProfesionalService
         string apellidos = request.Apellidos.Trim();
         string registro = request.RegistroMedico.Trim();
         string correo = request.CorreoAcceso.Trim();
+        string? estadoSolicitado = string.IsNullOrWhiteSpace(request.Estado)
+            ? null
+            : request.Estado.Trim().ToLowerInvariant();
+
+        if (estadoSolicitado is not null && !EstadosPermitidos.Contains(estadoSolicitado))
+            return ProfesionalApiOperationResult.Fail(
+                "El estado debe ser activo, vacaciones o inactivo.", 422);
 
         try
         {
@@ -460,6 +467,19 @@ public partial class ProfesionalService : IProfesionalService
                     profesional.Telefono = request.Telefono?.Trim();
                     profesional.Descripcion = request.Descripcion?.Trim();
                     profesional.FechaIngreso ??= DateTime.Today;
+
+                    if (estadoSolicitado == "inactivo" && profesional.Estado != "inactivo")
+                    {
+                        bool tieneCitasActivas = await _context.Citas.AnyAsync(c =>
+                            c.IdProfesional == id &&
+                            !new[] { "cancelada", "cancelado" }.Contains(c.Estado.ToLower()) &&
+                            c.FechaHora >= DateTime.Today, ct);
+                        if (tieneCitasActivas)
+                            throw new InvalidOperationException("No se puede inactivar: este profesional tiene citas agendadas pendientes.");
+                    }
+
+                    if (estadoSolicitado is not null)
+                        profesional.Estado = estadoSolicitado;
 
                     // Sincronizar estado de la cuenta
                     usuario.Estado = profesional.Estado == "inactivo" ? "inactivo" : "activo";
@@ -790,6 +810,9 @@ public partial class ProfesionalService : IProfesionalService
         bool esAdministrador,
         CancellationToken ct = default)
     {
+        if (horarios.Count == 0)
+            return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
+                "Debe enviar al menos un día de la semana para actualizar el horario.", 422);
         bool existe = await _context.Profesionales.AsNoTracking()
             .AnyAsync(p => p.IdProfesional == id, ct);
         if (!existe)
@@ -819,8 +842,18 @@ public partial class ProfesionalService : IProfesionalService
                 _ => dia.Trim()
             };
 
-        var nuevosHorarios = horarios
-            .Where(b => b.Active && !string.IsNullOrWhiteSpace(b.DiaSemana) && diasValidos.Contains(b.DiaSemana))
+        var bloquesActivos = horarios.Where(b => b.Active).ToList();
+        bool hayBloqueInvalido = bloquesActivos.Any(b =>
+            string.IsNullOrWhiteSpace(b.DiaSemana) ||
+            !diasValidos.Contains(b.DiaSemana) ||
+            !TimeOnly.TryParse(b.Start, out var inicio) ||
+            !TimeOnly.TryParse(b.End, out var fin) ||
+            fin <= inicio);
+        if (hayBloqueInvalido)
+            return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
+                "Cada día activo debe tener un día válido y una hora de inicio y fin válidas.", 422);
+
+        var nuevosHorarios = bloquesActivos
             .Select(b => new { Bloque = b, Inicio = TimeOnly.TryParse(b.Start, out var inicio) ? inicio : (TimeOnly?)null, Fin = TimeOnly.TryParse(b.End, out var fin) ? fin : (TimeOnly?)null })
             .Where(x => x.Inicio.HasValue && x.Fin.HasValue && x.Fin > x.Inicio)
             .Select(x => new HorarioProfesional

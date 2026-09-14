@@ -1,9 +1,26 @@
-/* ═══════════════════════════════════════
-   SMILETRACK — LOGIN STYLES (CSS PURO)
-   ✅ CORREGIDO: Sin barra roja de validación
-   ═══════════════════════════════════════ */
+/* ============================================
+   SmileTrack — Estilos de Inicio de Sesión (login.css)
+   ============================================
+   Autor: Johan Santamaria / SmileTrack Team
+   Fecha: 29/07/2026 (Actualizado 2026-09-12)
 
-/* ── Variables ── */
+   DESCRIPCIÓN Y POR QUÉ DE DISEÑO VISUAL:
+   Estilos específicos en CSS Puro para la pantalla de Login. Implementa una interfaz de tarjeta oscura
+   superpuesta sobre fondo clínico (`--card-bg: rgba(26,49,80,0.95)`), garantizando alto contraste
+   y elegancia visual sin depender de librerías externas pesadas.
+
+   ESTRUCTURA DE COMPONENTES:
+   - Contenedor Centrado (`.login-card`) con bordes suavizados y sombras de profundidad.
+   - Selector de Roles (`.role-btn`): Botones interactivos con estados `:hover`, `:active` y `.selected`.
+   - Campos de Entrada (`.form-input`): Estilizados con fondo semitransparente y foco accesible (`--primary-light`).
+   - Modal de Error (`#authErrorModal`): Ventana emergente flotante para notificación de credenciales inválidas.
+
+   DEPENDENCIAS:
+   - Vista: Views/Acceso_Y_Seguridad/login/index.cshtml
+============================================ */
+
+/* ── Variables Institucionales ──
+   POR QUÉ: Centraliza la paleta de colores azul médico y estados de error para mantener coherencia en la pantalla de login. */
 :root {
   --primary: #00355f;
   --primary-light: #a0c9ff;
@@ -29,7 +46,7 @@
   --transition: 0.2s ease;
 }
 
-/* ── Reset & Base ── */
+/* ── Reset & Base Layout ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; }
 body {
@@ -44,7 +61,7 @@ body {
   line-height: 1.5;
 }
 
-/* ── Material Symbols ── */
+/* ── Material Symbols Outlined Icon Styling ── */
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined';
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -52,7 +69,8 @@ body {
   vertical-align: middle;
 }
 
-/* ── Background ── */
+/* ── Fondo Institucional e Imagen de Clínica Dental ──
+   POR QUÉ: Aplica un filtro de gradiente semitransparente con desenfoque (backdrop-filter) para proyectar elegancia. */
 .login-bg {
   position: fixed;
   inset: 0;
@@ -70,7 +88,7 @@ body {
   backdrop-filter: blur(8px);
 }
 
-/* ── Back Link ── */
+/* ── Enlace de Retorno ("Volver al Inicio") ── */
 .back-link {
   position: fixed;
   top: 1.5rem;
@@ -92,7 +110,8 @@ body {
 .back-arrow { transition: transform var(--transition); font-size: 1rem; }
 .back-link:focus-visible { outline: 2px solid var(--white-50); outline-offset: 2px; }
 
-/* ── Main Container ── */
+/* ── Contenedor Tarjeta Principal de Login ──
+   POR QUÉ: La tarjeta usa animación fadeInUp para dar sensación de fluidez y respuesta al usuario al cargar la vista. */
 .login-main {
   position: relative;
   z-index: 10;

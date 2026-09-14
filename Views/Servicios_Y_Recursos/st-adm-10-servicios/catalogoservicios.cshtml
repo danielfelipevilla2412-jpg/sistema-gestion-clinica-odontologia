@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@{ Layout = null; }
+﻿﻿@{ Layout = null; }
 
 <!DOCTYPE html>
 <html lang="es">
@@ -18,9 +18,10 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!-- ----- SIDEBAR UNIFICADO (Activo: Servicios) ----- -->
   
@@ -41,31 +42,31 @@
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Administración</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_bc_administracion">Administración</span>
           <span class="bc-sep material-symbols-outlined" aria-hidden="true">chevron_right</span>
-          <span class="bc-active">Catálogo de Servicios</span>
+          <span class="bc-active" data-i18n="servicios.title">Catálogo de Servicios</span>
         </nav>
-        <h1 class="page-title">Catálogo de Servicios</h1>
-        <p class="page-subtitle">Configuración de precios</p>
+        <h1 class="page-title" data-i18n="servicios.title">Catálogo de Servicios</h1>
+        <p class="page-subtitle" data-i18n="servicios.price">Configuración de precios</p>
       </div>
     </header>
 
     <!-- KPI Cards con aria-live para contadores -->
-    <section class="stats-grid" aria-label="Resumen de servicios">
+    <section class="stats-grid" aria-label="Resumen de servicios" data-i18n-aria-label="servicios.title">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="statTotal" data-target="12" aria-live="polite">0</span>
-        <span class="stat-label">Total Servicios</span>
+        <span class="stat-label" data-i18n="servicios.total">Total Servicios</span>
         <span class="stat-sub">Global</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="statActive" data-target="10" aria-live="polite">0</span>
-        <span class="stat-label">Servicios Activos</span>
+        <span class="stat-label" data-i18n="servicios.active">Servicios Activos</span>
         <span class="stat-sub">+8% vs mes anterior</span>
       </div>
       <div class="stat-card" data-color="red">
         <span class="stat-number" id="statInactive" data-target="2" aria-live="polite">0</span>
-        <span class="stat-label">Inactivos / Pausados</span>
+        <span class="stat-label" data-i18n="status.inactive">Inactivos / Pausados</span>
         <span class="stat-sub">Sin cambios</span>
       </div>
     </section>
@@ -76,23 +77,23 @@
         <div class="search-wrap">
           <span class="search-icon material-symbols-outlined" aria-hidden="true">search</span>
           <input type="search" id="searchServices" class="search-input" placeholder="Buscar por nombre..."
-            aria-label="Buscar servicio">
+            aria-label="Buscar servicio" data-i18n-ph="table.search" data-i18n-aria-label="servicios.name">
         </div>
-        <select id="filterCategory" class="filter-select" aria-label="Filtrar por categor—a">
-          <option value="">Todas las Categor—as</option>
+        <select id="filterCategory" class="filter-select" aria-label="Filtrar por categoría" data-i18n-aria-label="servicios.category">
+          <option value="" data-i18n="table.filter">Todas las Categorías</option>
           <option value="prevencion">Prevención</option>
           <option value="estetica">Estética</option>
           <option value="cirugia">Cirugía</option>
           <option value="ortodoncia">Ortodoncia</option>
           <option value="endodoncia">Endodoncia</option>
         </select>
-        <select id="filterStatus" class="filter-select" aria-label="Filtrar por estado">
-          <option value="">Estado: Todos</option>
-          <option value="activo">Activo</option>
-          <option value="inactivo">Inactivo</option>
+        <select id="filterStatus" class="filter-select" aria-label="Filtrar por estado" data-i18n-aria-label="facturacion.status">
+          <option value="" data-i18n="table.filter">Estado: Todos</option>
+          <option value="activo" data-i18n="servicios.active">Activo</option>
+          <option value="inactivo" data-i18n="status.inactive">Inactivo</option>
         </select>
-        <button class="btn-primary" id="btnNewService" aria-label="Crear nuevo servicio">
-          <span class="material-symbols-outlined" aria-hidden="true">add</span> Nuevo servicio
+        <button class="btn-primary" id="btnNewService" aria-label="Crear nuevo servicio" data-i18n-aria-label="servicios.new">
+          <span class="material-symbols-outlined" aria-hidden="true">add</span> <span data-i18n="servicios.new">Nuevo servicio</span>
         </button>
       </div>
     </section>
@@ -103,12 +104,12 @@
 
       <!-- Cabecera de tabla accesible -->
       <div class="table-header" role="row">
-        <div class="table-col col-nombre" role="columnheader">Nombre del Servicio</div>
-        <div class="table-col col-categoria" role="columnheader">Categor—a</div>
-        <div class="table-col col-duracion" role="columnheader">Duración</div>
-        <div class="table-col col-costo" role="columnheader">Costo</div>
-        <div class="table-col col-estado text-center" role="columnheader">Estado</div>
-        <div class="table-col col-acciones text-right" role="columnheader">Acciones</div>
+        <div class="table-col col-nombre" role="columnheader" data-i18n="servicios.name">Nombre del Servicio</div>
+        <div class="table-col col-categoria" role="columnheader" data-i18n="servicios.category">Categoría</div>
+        <div class="table-col col-duracion" role="columnheader" data-i18n="servicios.duration">Duración</div>
+        <div class="table-col col-costo" role="columnheader" data-i18n="servicios.price">Costo</div>
+        <div class="table-col col-estado text-center" role="columnheader" data-i18n="facturacion.status">Estado</div>
+        <div class="table-col col-acciones text-right" role="columnheader" data-i18n="table.actions">Acciones</div>
       </div>
 
       <!-- Cuerpo de tabla con aria-live -->
@@ -136,7 +137,7 @@
     aria-hidden="true" inert>
     <div class="drawer-panel" id="drawerPanel">
       <header class="drawer-header">
-        <h3 class="drawer-title" id="drawerTitle">Editar Servicio</h3>
+        <h3 class="drawer-title" id="drawerTitle" data-i18n="servicios.edit">Editar Servicio</h3>
         <button class="drawer-close" id="drawerClose" aria-label="Cerrar panel">—</button>
       </header>
       <form id="serviceForm" class="drawer-form" role="form">
@@ -179,8 +180,8 @@
           </button>
         </div>
         <footer class="drawer-footer">
-          <button type="button" class="btn-secondary" id="drawerCancel">Cancelar</button>
-          <button type="submit" class="btn-primary">Guardar Cambios</button>
+          <button type="button" class="btn-secondary" id="drawerCancel" data-i18n="common.cancel">Cancelar</button>
+          <button type="submit" class="btn-primary" data-i18n="config.save">Guardar Cambios</button>
         </footer>
       </form>
     </div>
@@ -259,6 +260,8 @@
 </script>
 <script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
 <script src="@Url.Content("~/js/Servicios_Y_Recursos/st-adm-10-servicios/catalogoservicios.js")"></script>
+<script src="@Url.Content("~/js/i18n-core.js")"></script>
+<script src="@Url.Content("~/js/i18n.config.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }

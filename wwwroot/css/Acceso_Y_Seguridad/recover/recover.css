@@ -1,7 +1,21 @@
-/* ════════════════════════════════════════════════════════
-   SMILETRACK — RECUPERAR CONTRASEÑA
-   recover.css
-   ════════════════════════════════════════════════════════ */
+/* ============================================
+   SmileTrack — Estilos de Recuperación de Contraseña (recover.css)
+   ============================================
+   Autor: Johan Santamaria / SmileTrack Team
+   Fecha: 29/07/2026 (Actualizado 2026-09-12)
+
+   DESCRIPCIÓN Y POR QUÉ DE DISEÑO VISUAL:
+   Proporciona las animaciones de transición entre pasos (`@keyframes floatIn`, `@keyframes pulse`),
+   estilos para el contador regresivo OTP y reglas de elevación visual para la interfaz de recuperación.
+
+   ESTRUCTURA DE COMPONENTES:
+   - Configuración base de iconos Google Material Symbols.
+   - Animaciones suavizadas para el cambio progresivo de pasos en la tarjeta de recuperación.
+   - Estilos para cajas de entrada numéricas OTP y estados de error.
+
+   DEPENDENCIAS:
+   - Vista: Views/Acceso_Y_Seguridad/recover/index.cshtml
+============================================ */
 
 *, *::before, *::after { box-sizing: border-box; }
 

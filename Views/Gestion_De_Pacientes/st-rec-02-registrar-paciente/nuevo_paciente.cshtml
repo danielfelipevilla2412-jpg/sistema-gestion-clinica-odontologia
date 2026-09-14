@@ -33,7 +33,7 @@
 <body>
 
   <!-- [MEJORA]: Skip link para accesibilidad keyboard-first (consistente con módulos anteriores) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   @{
     await Html.RenderPartialAsync("_SidebarRecepcionista");
@@ -50,23 +50,24 @@
   <div class="overlay" id="overlay" aria-hidden="true"></div>
 
   <!-- ═════ MAIN ═════ -->
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
   <main class="main" id="main-content">
 
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb">Recepción → Pacientes → Registrar</div>
-        <h1 class="page-title">Registrar Nuevo Paciente</h1>
-        <p class="page-subtitle">El sistema creará automáticamente su historia clínica</p>
+        <div class="breadcrumb"><span data-i18n="common_role_recepcionista">Recepción</span> → <span data-i18n="nav.item_gestion_pacientes">Pacientes</span> → Registrar</div>
+        <h1 class="page-title" data-i18n="pacientes.new">Registrar Nuevo Paciente</h1>
+        <p class="page-subtitle" data-i18n="pacientes.new_subtitle">El sistema creará automáticamente su historia clínica</p>
       </div>
     </header>
 
     <!-- Stepper multipaso -->
     <!-- [MEJORA]: role="tablist" ya presente, agregamos aria-orientation para claridad -->
-    <div class="stepper" role="tablist" aria-label="Progreso de registro" aria-orientation="horizontal">
+    <div class="stepper" role="tablist" aria-label="Progreso de registro" data-i18n-aria-label="table.filter" aria-orientation="horizontal">
       <button class="step-btn" id="stepBtn1" role="tab" aria-selected="true" aria-controls="stepContent1" tabindex="0">
         <span class="step-num active" id="stepNum1" aria-hidden="true">1</span>
-        <span class="step-label active" id="stepLabel1">Datos personales</span>
+        <span class="step-label active" id="stepLabel1" data-i18n="common.personal_data">Datos personales</span>
       </button>
       <div class="step-connector" id="stepConnector" aria-hidden="true"></div>
       <button class="step-btn" id="stepBtn2" role="tab" aria-selected="false" aria-controls="stepContent2"
@@ -97,6 +98,7 @@
             <div class="form-group">
               <label class="form-label" for="nombres">Nombres <span class="required" aria-hidden="true">*</span></label>
               <input type="text" id="nombres" name="nombres" class="form-input" placeholder="Ej. Juan Sebastián"
+                     data-i18n-ph="pacientes.form_nombres_ph"
                      required autocomplete="given-name" />
               <span class="error-message" id="error-nombres" role="alert" aria-live="polite">Por favor ingresa los
                 nombres.</span>
@@ -107,6 +109,7 @@
                 <label class="form-label" for="apellidos">Apellidos <span class="required"
                                                                             aria-hidden="true">*</span></label>
                   <input type="text" id="apellidos" name="apellidos" class="form-input" placeholder="Ej. Morales Rincón"
+                         data-i18n-ph="pacientes.form_apellidos_ph"
                          required autocomplete="family-name" />
                   <span class="error-message" id="error-apellidos" role="alert" aria-live="polite">Por favor ingresa los
                     apellidos.</span>
@@ -132,6 +135,7 @@
                         <label class="form-label" for="documento">Número de documento <span class="required"
                                                                                               aria-hidden="true">*</span></label>
                           <input type="text" id="documento" name="documento" class="form-input" placeholder="Ej. 1098765432"
+                                 data-i18n-ph="pacientes.form_doc_ph"
                                  required autocomplete="off" inputmode="numeric" pattern="[0-9]+" />
                           <span class="error-message" id="error-documento" role="alert" aria-live="polite">Por favor ingresa un
                             número válido (solo números).</span>
@@ -161,8 +165,9 @@
                               <div class="form-group">
                                 <label class="form-label" for="telefono">Teléfono <span class="required"
                                                                                           aria-hidden="true">*</span></label>
-                                  <input type="tel" id="telefono" name="telefono" class="form-input" placeholder="Ej. 312 456 7890" required
-                                         autocomplete="tel" inputmode="tel" />
+                                  <input type="tel" id="telefono" name="telefono" class="form-input" placeholder="Ej. 312 456 7890"
+                                         data-i18n-ph="pacientes.form_tel_ph"
+                                         required autocomplete="tel" inputmode="tel" />
                                   <span class="error-message" id="error-telefono" role="alert" aria-live="polite">Por favor ingresa un
                                     teléfono válido (mínimo 7 dígitos).</span>
                                   </div>
@@ -172,6 +177,7 @@
                                     <label class="form-label" for="correo">Correo electrónico <span class="required"
                                                                                                       aria-hidden="true">*</span></label>
                                       <input type="email" id="correo" name="correo" class="form-input" placeholder="Ej. juan@correo.com"
+                                             data-i18n-ph="pacientes.form_correo_ph"
                                              required autocomplete="email" />
                                       <span class="error-message" id="error-correo" role="alert" aria-live="polite">Por favor ingresa un correo
                                         válido.</span>
@@ -205,6 +211,7 @@
                                       <div class="form-group full-width">
                                         <label class="form-label" for="alergias">Alergias conocidas</label>
                                         <input type="text" id="alergias" name="alergias" class="form-input" placeholder="Ninguna conocida"
+                                               data-i18n-ph="pacientes.form_alergias_ph"
                                                autocomplete="off" />
                                       </div>
                                     </div>
@@ -358,6 +365,8 @@
                                 @{
                                   await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml");
                                 }
+                                <script src="@Url.Content("~/js/i18n-core.js")"></script>
+                                <script src="@Url.Content("~/js/i18n.config.js")"></script>
                               </body>
 
                             </html>

@@ -16,7 +16,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Consultorio> Consultorios => Set<Consultorio>();
     public DbSet<EstadoCita> EstadosCita => Set<EstadoCita>();
     public DbSet<Cita> Citas => Set<Cita>();
-      public DbSet<NotificacionLeida> NotificacionesLeidas => Set<NotificacionLeida>();
+            public DbSet<NotificacionLeida> NotificacionesLeidas => Set<NotificacionLeida>();
+            public DbSet<CitaHistorialEstado> CitasHistorialEstado => Set<CitaHistorialEstado>();
+            public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
+            public DbSet<RecordatorioCita> RecordatoriosCita => Set<RecordatorioCita>();
+            public DbSet<ConsultorioHistorial> ConsultoriosHistorial => Set<ConsultorioHistorial>();
     public DbSet<HistoriaClinica> HistoriasClinicas => Set<HistoriaClinica>();
 
     // Yeray - Agregado DbSet para tabla Registro_Odontograma
@@ -224,6 +228,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(c => c.FechaHora).HasColumnName("fecha_hora");
             entity.Property(c => c.Estado).HasColumnName("estado");
             entity.Property(c => c.Notas).HasColumnName("notas");
+            entity.Property(c => c.MotivoConsulta).HasColumnName("motivo_consulta");
+            entity.Property(c => c.NotasPrevias).HasColumnName("notas_previas");
+            entity.Property(c => c.TipoCita).HasColumnName("tipo_cita");
+            entity.Property(c => c.FechaCreacion).HasColumnName("fecha_creacion");
+            entity.Property(c => c.CreadoPor).HasColumnName("creado_por");
+            entity.Property(c => c.ArchivoAdjunto).HasColumnName("archivo_adjunto");
+            entity.Property(c => c.DuracionMinutos).HasColumnName("duracion_minutos");
 
             entity.HasOne(c => c.Paciente)
                   .WithMany()
@@ -251,6 +262,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(c => c.IdEstado)
                   .OnDelete(DeleteBehavior.SetNull);
 
+            entity.HasOne<Usuario>()
+                  .WithMany()
+                  .HasForeignKey(c => c.CreadoPor)
+                  .OnDelete(DeleteBehavior.SetNull);
+
             entity.HasIndex(c => new { c.IdProfesional, c.FechaHora })
                   .HasDatabaseName("IX_Cita_Profesional_Fecha")
                   .IsClustered(false);
@@ -267,6 +283,74 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasDatabaseName("IX_Cita_Estado_Fecha")
                   .IsClustered(false);
         });
+
+            modelBuilder.Entity<CitaHistorialEstado>(entity =>
+            {
+                  entity.ToTable("Cita_Historial_Estado");
+                  entity.HasKey(h => h.IdHistorial);
+                  entity.Property(h => h.IdHistorial).HasColumnName("id_historial");
+                  entity.Property(h => h.IdCita).HasColumnName("id_cita");
+                  entity.Property(h => h.IdEstado).HasColumnName("id_estado");
+                  entity.Property(h => h.EstadoTexto).HasColumnName("estado_texto");
+                  entity.Property(h => h.IdUsuario).HasColumnName("id_usuario");
+                  entity.Property(h => h.Motivo).HasColumnName("motivo");
+                  entity.Property(h => h.FechaCambio).HasColumnName("fecha_cambio");
+                  entity.HasOne(h => h.Cita).WithMany().HasForeignKey(h => h.IdCita).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(h => h.Estado).WithMany().HasForeignKey(h => h.IdEstado).OnDelete(DeleteBehavior.SetNull);
+                  entity.HasOne(h => h.Usuario).WithMany().HasForeignKey(h => h.IdUsuario).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<Notificacion>(entity =>
+            {
+                  entity.ToTable("Notificacion");
+                  entity.HasKey(n => n.IdNotificacion);
+                  entity.Property(n => n.IdNotificacion).HasColumnName("id_notificacion");
+                  entity.Property(n => n.IdPaciente).HasColumnName("id_paciente");
+                  entity.Property(n => n.IdCita).HasColumnName("id_cita");
+                  entity.Property(n => n.Tipo).HasColumnName("tipo");
+                  entity.Property(n => n.Titulo).HasColumnName("titulo");
+                  entity.Property(n => n.Contenido).HasColumnName("contenido");
+                  entity.Property(n => n.Canal).HasColumnName("canal");
+                  entity.Property(n => n.Estado).HasColumnName("estado");
+                  entity.Property(n => n.FechaProgramada).HasColumnName("fecha_programada");
+                  entity.Property(n => n.FechaEnvio).HasColumnName("fecha_envio");
+                  entity.Property(n => n.FechaLectura).HasColumnName("fecha_lectura");
+                  entity.Property(n => n.Intentos).HasColumnName("intentos");
+                  entity.Property(n => n.UltimoError).HasColumnName("ultimo_error");
+                  entity.Property(n => n.CreadaEn).HasColumnName("creada_en");
+                  entity.HasOne(n => n.Paciente).WithMany().HasForeignKey(n => n.IdPaciente).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(n => n.Cita).WithMany().HasForeignKey(n => n.IdCita).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<RecordatorioCita>(entity =>
+            {
+                  entity.ToTable("Recordatorio_Cita");
+                  entity.HasKey(r => r.IdRecordatorio);
+                  entity.Property(r => r.IdRecordatorio).HasColumnName("id_recordatorio");
+                  entity.Property(r => r.IdCita).HasColumnName("id_cita");
+                  entity.Property(r => r.Canal).HasColumnName("canal");
+                  entity.Property(r => r.Estado).HasColumnName("estado");
+                  entity.Property(r => r.ProgramadoPara).HasColumnName("programado_para");
+                  entity.Property(r => r.EnviadoEn).HasColumnName("enviado_en");
+                  entity.Property(r => r.Intentos).HasColumnName("intentos");
+                  entity.Property(r => r.UltimoError).HasColumnName("ultimo_error");
+                  entity.Property(r => r.CreadoEn).HasColumnName("creado_en");
+                  entity.HasOne(r => r.Cita).WithMany().HasForeignKey(r => r.IdCita).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ConsultorioHistorial>(entity =>
+            {
+                  entity.ToTable("Consultorio_Historial");
+                  entity.HasKey(h => h.IdHistorial);
+                  entity.Property(h => h.IdHistorial).HasColumnName("id_historial");
+                  entity.Property(h => h.IdConsultorio).HasColumnName("id_consultorio");
+                  entity.Property(h => h.Estado).HasColumnName("estado");
+                  entity.Property(h => h.IdUsuario).HasColumnName("id_usuario");
+                  entity.Property(h => h.Motivo).HasColumnName("motivo");
+                  entity.Property(h => h.FechaCambio).HasColumnName("fecha_cambio");
+                  entity.HasOne(h => h.Consultorio).WithMany().HasForeignKey(h => h.IdConsultorio).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(h => h.Usuario).WithMany().HasForeignKey(h => h.IdUsuario).OnDelete(DeleteBehavior.SetNull);
+            });
 
         modelBuilder.Entity<HistoriaClinica>(entity =>
         {

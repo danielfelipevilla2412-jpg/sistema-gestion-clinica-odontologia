@@ -798,7 +798,14 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        context.Context.Response.Headers.CacheControl =
+            "public,max-age=604800";
+    }
+});
 app.UseRouting();
 
 

@@ -71,6 +71,7 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpGet]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(
         [FromQuery] int page = 1,
@@ -117,6 +118,7 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpGet("{id:int}")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(int id, CancellationToken ct = default)
@@ -339,6 +341,7 @@ public sealed class ProfesionalesApiController : ControllerBase
 
     [HttpPut("{id:int}/horarios")]
     [Authorize(Roles = "Administrador,Profesional", Policy = "ApiOrCookie")]
+    [CookieAwareValidateAntiforgeryToken]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -384,6 +387,7 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpGet("{id:int}/ausencias")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAusencias(
@@ -405,6 +409,7 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpGet("{id:int}/servicios")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetServicios(

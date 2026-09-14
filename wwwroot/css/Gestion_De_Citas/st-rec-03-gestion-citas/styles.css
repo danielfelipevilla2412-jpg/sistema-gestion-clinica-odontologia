@@ -34,7 +34,6 @@ NOTAS DE MANTENIMIENTO:
   --purple: #9333ea;
   --danger: #ef4444;
   --text: #1e293b;
-  --text-muted: #64748b;
   --border: #e2e8f0;
   --shadow: 0 1px 4px rgba(0,0,0,.07);
   --shadow-md: 0 4px 16px rgba(0,0,0,.1);
@@ -221,7 +220,7 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 600; font-size: .83rem;
   cursor: pointer; transition: background var(--tr);
 }
-.btn-primary:hover { background: #1547a8; }
+.btn-primary:hover { background: var(--primary-dark); }
 .btn-secondary {
   background: var(--white); color: var(--text);
   border: 1.5px solid var(--border);
@@ -237,15 +236,7 @@ button { font-family: inherit; cursor: pointer; }
   cursor: pointer; transition: background var(--tr);
 }
 .btn-danger:hover { background: #b91c1c; }
-.btn-icon {
-  background: none; border: none; cursor: pointer;
-  font-size: 16px; padding: 5px 7px; border-radius: 6px;
-  transition: background var(--tr), color var(--tr);
-  color: var(--text-muted);
-  display: flex; align-items: center; justify-content: center;
-}
-.btn-icon:hover { background: var(--primary-light); color: var(--primary); }
-.btn-icon.danger:hover { background: #fee2e2; color: var(--danger); }
+/* .btn-icon styles unified below in the action-btn section */
 
 /* ═══ COMPONENTES ESPECÍFICOS DE GESTIÓN DE CITAS ═══ */
 
@@ -447,13 +438,7 @@ button { font-family: inherit; cursor: pointer; }
 .status-agendada { background: var(--status-agendada); color: #9a3412; }
 .status-no-asistio { background: var(--status-no-asistio); color: #991b1b; }
 
-/* Acciones en tabla */
-.actions-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
+/* Acciones en tabla — estilos completos definidos al final del archivo en el bloque canónico */
 
 /* Paginación */
 .pagination {
@@ -688,7 +673,7 @@ button { font-family: inherit; cursor: pointer; }
   transition: background var(--tr), transform var(--tr);
 }
 .fab:hover {
-  background: #1547a8;
+  background: var(--primary-dark);
   transform: scale(1.05);
 }
 
@@ -731,27 +716,23 @@ button { font-family: inherit; cursor: pointer; }
   .table-base td:nth-child(5) { display: none; }
   .pagination { flex-direction: column; align-items: center; }
 }
-/* ═══ ACCIONES DE TABLA: btn-icon, btn-text (estándar SmileTrack) ═══ */
-.actions-cell { display: flex; align-items: center; gap: 6px; justify-content: center; }
+/* ═══ ACCIONES DE TABLA: btn-icon, btn-text (patrón canónico SmileTrack) ═══ */
+.actions-cell { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
 .btn-icon {
   background: var(--white); border: 1.5px solid var(--border);
   border-radius: var(--radius-sm); padding: 5px 10px;
-  cursor: pointer; font-size: 14px;
-  /* gap para separar emoji de span.btn-text */
+  cursor: pointer; font-size: 14px; color: var(--text-muted);
   display: inline-flex; align-items: center; gap: 5px;
-  transition: background var(--tr), border-color var(--tr), transform var(--tr);
+  transition: background var(--tr), border-color var(--tr), color var(--tr), transform var(--tr);
   line-height: 1; box-shadow: 0 4px 10px rgba(15, 32, 87, 0.05);
-  text-decoration: none; color: var(--text-muted);
+  text-decoration: none;
 }
 .btn-icon:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
 .btn-icon:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.btn-icon.view, .btn-icon.btn-view { color: var(--primary); }
-.btn-icon.edit { color: #d97706; }
-.btn-icon.btn-delete { color: var(--danger); border-color: #fecaca; }
-.btn-icon.btn-delete:hover { background: #fee2e2; color: #991b1b; }
+.btn-icon.btn-delete:hover { background: #fee2e2; border-color: #fecaca; color: var(--danger); }
 .btn-icon .btn-text { font-size: 0.76rem; font-weight: 600; }
 
-/* Reglas base para botones con texto (compatibilidad action-btn legacy) */
+/* Reglas base para botones con texto */
 .action-btn { display: inline-flex; align-items: center; gap: 5px; }
 .action-btn .btn-text { display: inline; font-size: 0.78rem; font-weight: 600; }
 

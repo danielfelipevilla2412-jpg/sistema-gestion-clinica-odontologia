@@ -1,4 +1,4 @@
-/* ============================================
+﻿/* ============================================
 SmileTrack — Dashboard Recepción (st-rec-01-dashboard)
 ============================================
 Autor: Johan Santamaria
@@ -34,7 +34,6 @@ NOTAS DE MANTENIMIENTO:
   --orange: #f59e0b;
   --purple: #9333ea;
   --text: #1e293b;
-  --text-muted: #64748b;
   --border: #e2e8f0;
   --shadow: 0 1px 4px rgba(0,0,0,.07);
   --shadow-md: 0 4px 16px rgba(0,0,0,.1);
@@ -142,7 +141,7 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* ═══ BOTONES & BADGES (IDÉNTICO A st-pac-01) ═══ */
 .btn-primary { background: var(--primary); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
-.btn-primary:hover { background: #1547a8; }
+.btn-primary:hover { background: var(--primary-dark); }
 .btn-secondary { background: var(--white); color: var(--text); border: 1.5px solid var(--border); padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr), border-color var(--tr); }
 .btn-secondary:hover { background: var(--primary-light); border-color: var(--primary); }
 .btn-danger { background: var(--danger); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
@@ -200,7 +199,7 @@ img { max-width: 100%; height: auto; display: block; }
 .btn-action.btn-green { background: var(--green); color: #fff; }
 .btn-action.btn-green:hover { background: #16a34a; }
 .btn-action.btn-blue { background: var(--primary); color: #fff; }
-.btn-action.btn-blue:hover { background: #1547a8; }
+.btn-action.btn-blue:hover { background: var(--primary-dark); }
 /* [MEJORA]: Focus visible para botones de acción */
 .btn-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 

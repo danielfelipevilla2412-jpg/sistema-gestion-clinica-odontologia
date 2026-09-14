@@ -8,6 +8,17 @@
 USE [SmileTrackDB];
 GO
 
+-- Opciones requeridas por SQL Server para índices filtrados e índices
+-- dependientes de expresiones, independientemente del cliente SQL utilizado.
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET QUOTED_IDENTIFIER ON;
+SET NUMERIC_ROUNDABORT OFF;
+GO
+
 SET NOCOUNT ON;
 GO
 
@@ -140,9 +151,28 @@ BEGIN
         accion VARCHAR(30) NOT NULL,
         ip_origen VARCHAR(45) NULL,
         fecha DATETIME NOT NULL CONSTRAINT DF_AuditoriaRecuperacion_Fecha DEFAULT (GETDATE()),
-        CONSTRAINT CK_AuditoriaRecuperacion_Accion CHECK (accion IN ('solicitud','codigo_verificado','codigo_fallido','password_restablecida','bloqueo_por_intentos','rate_limit_excedido')),
+        CONSTRAINT CK_AuditoriaRecuperacion_Accion CHECK (accion IN ('solicitud','codigo_verificado','codigo_fallido','password_restablecida','bloqueo_por_intentos','rate_limit_excedido','envio_fallido')),
         CONSTRAINT FK_AuditoriaRecuperacion_Usuario FOREIGN KEY (id_usuario) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
     );
+END
+GO
+
+-- Corrección: 'envio_fallido' faltaba en el CHECK original y AuthService.cs lo usa
+-- cuando el envío del correo de recuperación falla. Si la tabla ya existía con la
+-- restricción vieja, la actualizamos aquí (idempotente: solo actúa si falta el valor).
+IF EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE name = 'CK_AuditoriaRecuperacion_Accion'
+      AND definition NOT LIKE '%envio_fallido%'
+)
+BEGIN
+    ALTER TABLE dbo.AuditoriaRecuperacion DROP CONSTRAINT CK_AuditoriaRecuperacion_Accion;
+
+    ALTER TABLE dbo.AuditoriaRecuperacion
+        ADD CONSTRAINT CK_AuditoriaRecuperacion_Accion
+        CHECK (accion IN ('solicitud','codigo_verificado','codigo_fallido','password_restablecida','bloqueo_por_intentos','rate_limit_excedido','envio_fallido'));
+
+    PRINT 'CK_AuditoriaRecuperacion_Accion actualizado: se agregó ''envio_fallido''.';
 END
 GO
 
@@ -521,6 +551,9 @@ IF COL_LENGTH(N'dbo.Cita', N'creado_por') IS NULL
     ALTER TABLE dbo.Cita ADD creado_por INT NULL;
 IF COL_LENGTH(N'dbo.Cita', N'archivo_adjunto') IS NULL
     ALTER TABLE dbo.Cita ADD archivo_adjunto VARCHAR(255) NULL;
+IF COL_LENGTH(N'dbo.Cita', N'duracion_minutos') IS NULL
+    ALTER TABLE dbo.Cita ADD duracion_minutos INT NOT NULL
+        CONSTRAINT DF_Cita_DuracionMinutos DEFAULT 60;
 GO
 
 UPDATE dbo.Cita
@@ -1115,51 +1148,13 @@ BEGIN
 END
 GO
 
--- 1. TRIGGER: Auditoría automática en cambios de estado o asignación de cita
+-- 1. Auditoría de Cita
+-- La aplicación registra la auditoría con el usuario autenticado y su IP. No se
+-- duplica aquí, porque un trigger no conoce al usuario real que hizo el cambio.
 IF OBJECT_ID('dbo.TR_Cita_Auditoria_Estado', 'TR') IS NOT NULL
     DROP TRIGGER dbo.TR_Cita_Auditoria_Estado;
 GO
-
-CREATE TRIGGER dbo.TR_Cita_Auditoria_Estado
-ON dbo.Cita
-AFTER UPDATE
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    IF UPDATE(estado) OR UPDATE(id_estado) OR UPDATE(id_profesional) OR UPDATE(fecha_hora)
-    BEGIN
-        INSERT INTO dbo.Auditoria (
-            id_usuario,
-            tabla_afectada,
-            id_registro,
-            accion,
-            ip_origen,
-            datos_anteriores,
-            datos_nuevos,
-            descripcion,
-            fecha
-        )
-        SELECT
-            i.creado_por,
-            'Cita',
-            i.id_cita,
-            'UPDATE',
-            'TRIGGER_DB',
-            'Estado: ' + ISNULL(d.estado, 'NULL') + ', Prof: ' + ISNULL(CAST(d.id_profesional AS VARCHAR(20)), 'NULL'),
-            'Estado: ' + ISNULL(i.estado, 'NULL') + ', Prof: ' + ISNULL(CAST(i.id_profesional AS VARCHAR(20)), 'NULL'),
-            'Actualización de estado o asignación de profesional en cita ID ' + CAST(i.id_cita AS VARCHAR(20)),
-            GETDATE()
-        FROM inserted i
-        INNER JOIN deleted d ON i.id_cita = d.id_cita
-        WHERE ISNULL(i.estado, '') <> ISNULL(d.estado, '')
-           OR ISNULL(i.id_estado, 0) <> ISNULL(d.id_estado, 0)
-           OR ISNULL(i.id_profesional, 0) <> ISNULL(d.id_profesional, 0)
-           OR i.fecha_hora <> d.fecha_hora;
-    END
-END
-GO
-PRINT 'Trigger TR_Cita_Auditoria_Estado creado correctamente.';
+PRINT 'TR_Cita_Auditoria_Estado eliminado: la auditoría se registra en la aplicación.';
 GO
 
 -- 2. FUNCIÓN: Verificación de disponibilidad de profesional
@@ -1182,6 +1177,20 @@ BEGIN
 
     -- Verificar que el profesional esté activo
     IF EXISTS (SELECT 1 FROM dbo.Profesional WHERE id_profesional = @IdProfesional AND estado <> 'activo')
+        RETURN 0;
+
+    -- Si el profesional tiene horarios configurados, la cita debe caber en uno.
+    DECLARE @DiaSemana VARCHAR(12) = CASE ((DATEDIFF(DAY, '19000101', @Fecha) % 7 + 7) % 7)
+        WHEN 0 THEN 'Lunes' WHEN 1 THEN 'Martes' WHEN 2 THEN 'Miercoles'
+        WHEN 3 THEN 'Jueves' WHEN 4 THEN 'Viernes' WHEN 5 THEN 'Sabado' ELSE 'Domingo' END;
+    IF EXISTS (SELECT 1 FROM dbo.Horario_Profesional WHERE id_profesional = @IdProfesional)
+       AND NOT EXISTS (
+           SELECT 1 FROM dbo.Horario_Profesional
+           WHERE id_profesional = @IdProfesional AND activo = 1
+             AND dia_semana = @DiaSemana
+             AND hora_inicio <= CAST(@FechaHoraInicio AS TIME)
+             AND hora_fin >= CAST(@FechaHoraFin AS TIME)
+       )
         RETURN 0;
 
     -- Verificar ausencias registradas
@@ -1209,7 +1218,7 @@ BEGIN
           AND (@IdCitaExcluir IS NULL OR id_cita <> @IdCitaExcluir)
           AND LOWER(ISNULL(estado, '')) NOT IN ('cancelada', 'cancelado')
           AND fecha_hora < @FechaHoraFin
-          AND DATEADD(MINUTE, @DuracionMinutos, fecha_hora) > @FechaHoraInicio
+          AND DATEADD(MINUTE, ISNULL(duracion_minutos, @DuracionMinutos), fecha_hora) > @FechaHoraInicio
     )
         RETURN 0;
 
@@ -1232,7 +1241,7 @@ CREATE PROCEDURE dbo.sp_RegistrarCitaConValidacion
     @IdConsultorio INT = NULL,
     @FechaHora DATETIME,
     @DuracionMinutos INT = 60,
-    @Estado VARCHAR(30) = 'Programada',
+    @Estado VARCHAR(30) = 'Agendada',
     @Notas VARCHAR(MAX) = NULL,
     @CreadoPor INT = NULL,
     @IdCitaCreada INT OUTPUT,
@@ -1245,9 +1254,20 @@ BEGIN
     SET @IdCitaCreada = 0;
     SET @MensajeError = '';
 
+    SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+    BEGIN TRANSACTION;
+
+    IF @IdServicio IS NOT NULL
+    BEGIN
+        SELECT @DuracionMinutos = duracion_minutos
+        FROM dbo.Servicio
+        WHERE id_servicio = @IdServicio AND duracion_minutos > 0;
+    END
+
     IF NOT EXISTS (SELECT 1 FROM dbo.Paciente WHERE id_paciente = @IdPaciente AND estado = 'activo')
     BEGIN
         SET @MensajeError = 'El paciente especificado no existe o no se encuentra activo.';
+        ROLLBACK TRANSACTION;
         RETURN -1;
     END
 
@@ -1256,8 +1276,22 @@ BEGIN
         IF dbo.fn_VerificarDisponibilidadProfesional(@IdProfesional, @FechaHora, @DuracionMinutos, NULL) = 0
         BEGIN
             SET @MensajeError = 'El profesional seleccionado no tiene disponibilidad en la fecha y horario solicitados.';
+            ROLLBACK TRANSACTION;
             RETURN -2;
         END
+    END
+
+    IF @IdConsultorio IS NOT NULL AND EXISTS (
+        SELECT 1 FROM dbo.Cita
+        WHERE id_consultorio = @IdConsultorio
+          AND estado NOT IN ('Cancelada', 'Cancelado', 'cancelada', 'cancelado')
+          AND fecha_hora < DATEADD(MINUTE, @DuracionMinutos, @FechaHora)
+          AND DATEADD(MINUTE, ISNULL(duracion_minutos, @DuracionMinutos), fecha_hora) > @FechaHora
+    )
+    BEGIN
+        SET @MensajeError = 'El consultorio seleccionado ya está ocupado en ese horario.';
+        ROLLBACK TRANSACTION;
+        RETURN -3;
     END
 
     DECLARE @IdEstado INT = NULL;
@@ -1270,6 +1304,7 @@ BEGIN
             id_servicio,
             id_consultorio,
             fecha_hora,
+            duracion_minutos,
             estado,
             id_estado,
             notas,
@@ -1282,6 +1317,7 @@ BEGIN
             @IdServicio,
             @IdConsultorio,
             @FechaHora,
+            @DuracionMinutos,
             @Estado,
             @IdEstado,
             @Notas,
@@ -1291,9 +1327,11 @@ BEGIN
 
         SET @IdCitaCreada = SCOPE_IDENTITY();
         SET @MensajeError = 'Cita registrada exitosamente.';
+        COMMIT TRANSACTION;
         RETURN 0;
     END TRY
     BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
         SET @MensajeError = ERROR_MESSAGE();
         RETURN -99;
     END CATCH
@@ -1353,4 +1391,262 @@ END
 GO
 
 PRINT 'Script completo ejecutado correctamente.';
+GO
+
+-- ============================================================
+-- 8) AMPLIACION OPERATIVA DE CITAS Y PROFESIONALES
+-- Estructuras idempotentes para agenda, trazabilidad y avisos.
+-- ============================================================
+
+-- La duración queda congelada en la cita para que un cambio posterior del
+-- servicio no altere retrospectivamente las citas ya creadas.
+IF COL_LENGTH(N'dbo.Cita', N'duracion_minutos') IS NULL
+    ALTER TABLE dbo.Cita ADD duracion_minutos INT NOT NULL
+        CONSTRAINT DF_Cita_DuracionMinutos DEFAULT 60;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Cita_DuracionMinutos')
+    ALTER TABLE dbo.Cita ADD CONSTRAINT CK_Cita_DuracionMinutos CHECK (duracion_minutos > 0 AND duracion_minutos <= 1440);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Cita_CreadoPor')
+    ALTER TABLE dbo.Cita ADD CONSTRAINT FK_Cita_CreadoPor
+        FOREIGN KEY (creado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL;
+GO
+
+-- Un usuario solo puede representar a un profesional.
+;WITH ProfesionalesDuplicados AS
+(
+    SELECT id_profesional,
+           ROW_NUMBER() OVER (PARTITION BY id_usuario ORDER BY id_profesional) AS orden
+    FROM dbo.Profesional
+    WHERE id_usuario IS NOT NULL
+)
+UPDATE p
+   SET id_usuario = NULL
+FROM dbo.Profesional p
+INNER JOIN ProfesionalesDuplicados d ON d.id_profesional = p.id_profesional
+WHERE d.orden > 1;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_Profesional_Usuario')
+    CREATE UNIQUE INDEX UQ_Profesional_Usuario
+        ON dbo.Profesional(id_usuario) WHERE id_usuario IS NOT NULL;
+GO
+
+;WITH EspecialidadesDuplicadas AS
+(
+    SELECT id_especialidad,
+           ROW_NUMBER() OVER (PARTITION BY nombre ORDER BY id_especialidad) AS orden
+    FROM dbo.Especialidad
+)
+DELETE e
+FROM dbo.Especialidad e
+INNER JOIN EspecialidadesDuplicadas d ON d.id_especialidad = e.id_especialidad
+WHERE d.orden > 1
+  AND NOT EXISTS (SELECT 1 FROM dbo.Profesional_Especialidad pe WHERE pe.id_especialidad = e.id_especialidad);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_Especialidad_Nombre')
+    CREATE UNIQUE INDEX UQ_Especialidad_Nombre ON dbo.Especialidad(nombre);
+GO
+
+-- Solo una especialidad principal por profesional.
+;WITH EspecialidadPrincipalDuplicada AS
+(
+    SELECT id_profesional, id_especialidad,
+           ROW_NUMBER() OVER (PARTITION BY id_profesional ORDER BY id_especialidad) AS orden
+    FROM dbo.Profesional_Especialidad
+    WHERE principal = 1
+)
+UPDATE pe
+   SET principal = 0
+FROM dbo.Profesional_Especialidad pe
+INNER JOIN EspecialidadPrincipalDuplicada d
+    ON d.id_profesional = pe.id_profesional
+   AND d.id_especialidad = pe.id_especialidad
+WHERE d.orden > 1;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_Profesional_Especialidad_Principal')
+    CREATE UNIQUE INDEX UQ_Profesional_Especialidad_Principal
+        ON dbo.Profesional_Especialidad(id_profesional) WHERE principal = 1;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_HorarioProfesional_Rango')
+    ALTER TABLE dbo.Horario_Profesional ADD CONSTRAINT CK_HorarioProfesional_Rango
+        CHECK (hora_fin > hora_inicio);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_AusenciaProfesional_Rango')
+    ALTER TABLE dbo.Ausencia_Profesional ADD CONSTRAINT CK_AusenciaProfesional_Rango
+        CHECK (fecha_fin >= fecha_inicio);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_BloqueoProfesional_Rango')
+    ALTER TABLE dbo.Bloqueo_Profesional ADD CONSTRAINT CK_BloqueoProfesional_Rango
+        CHECK (fecha_fin > fecha_inicio);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_AusenciaProfesional_AprobadoPor')
+    ALTER TABLE dbo.Ausencia_Profesional ADD CONSTRAINT FK_AusenciaProfesional_AprobadoPor
+        FOREIGN KEY (aprobado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BloqueoProfesional_AprobadoPor')
+    ALTER TABLE dbo.Bloqueo_Profesional ADD CONSTRAINT FK_BloqueoProfesional_AprobadoPor
+        FOREIGN KEY (aprobado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL;
+GO
+
+-- La interfaz usa no-disponible; se conserva mantenimiento como estado válido.
+DECLARE @ck_consultorio NVARCHAR(256);
+SELECT @ck_consultorio = name
+FROM sys.check_constraints
+WHERE parent_object_id = OBJECT_ID(N'dbo.Consultorio')
+  AND definition LIKE '%estado%';
+IF @ck_consultorio IS NOT NULL
+    EXEC(N'ALTER TABLE dbo.Consultorio DROP CONSTRAINT [' + @ck_consultorio + N']');
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Consultorio_Estado')
+    ALTER TABLE dbo.Consultorio ADD CONSTRAINT CK_Consultorio_Estado
+        CHECK (estado IN ('disponible','ocupado','mantenimiento','no-disponible'));
+GO
+
+-- Historial funcional de cambios de estado, asistencia y reasignaciones.
+IF OBJECT_ID(N'dbo.Cita_Historial_Estado', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Cita_Historial_Estado (
+        id_historial INT IDENTITY(1,1) PRIMARY KEY,
+        id_cita INT NOT NULL,
+        id_estado INT NULL,
+        estado_texto VARCHAR(50) NOT NULL,
+        id_usuario INT NULL,
+        motivo VARCHAR(500) NULL,
+        fecha_cambio DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_CitaHistorial_Cita FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita) ON DELETE CASCADE,
+        CONSTRAINT FK_CitaHistorial_Estado FOREIGN KEY (id_estado) REFERENCES dbo.Estado_Cita(id_estado) ON DELETE SET NULL,
+        CONSTRAINT FK_CitaHistorial_Usuario FOREIGN KEY (id_usuario) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
+    );
+    CREATE INDEX IX_CitaHistorial_Cita_Fecha ON dbo.Cita_Historial_Estado(id_cita, fecha_cambio DESC);
+END
+GO
+
+IF OBJECT_ID(N'dbo.TR_Cita_Historial_Estado', N'TR') IS NOT NULL
+    DROP TRIGGER dbo.TR_Cita_Historial_Estado;
+GO
+CREATE TRIGGER dbo.TR_Cita_Historial_Estado ON dbo.Cita
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO dbo.Cita_Historial_Estado (id_cita, id_estado, estado_texto, id_usuario, motivo)
+    SELECT i.id_cita, i.id_estado, i.estado, NULL,
+           CASE WHEN d.id_cita IS NULL THEN 'Creación de la cita' ELSE 'Cambio registrado en la cita' END
+    FROM inserted i
+    LEFT JOIN deleted d ON d.id_cita = i.id_cita
+    WHERE d.id_cita IS NULL
+       OR ISNULL(i.estado, '') <> ISNULL(d.estado, '')
+       OR ISNULL(i.id_estado, 0) <> ISNULL(d.id_estado, 0);
+END
+GO
+
+-- Mantiene compatibles las integraciones antiguas que todavía envían estado
+-- textual, sin permitir que difiera del catálogo Estado_Cita.
+IF OBJECT_ID(N'dbo.TR_Cita_SincronizarEstado', N'TR') IS NOT NULL
+    DROP TRIGGER dbo.TR_Cita_SincronizarEstado;
+GO
+CREATE TRIGGER dbo.TR_Cita_SincronizarEstado ON dbo.Cita
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF TRIGGER_NESTLEVEL() > 1 RETURN;
+
+    -- No permitir que escrituras directas dejen estado textual e id_estado
+    -- divergentes o valores que no existan en el catálogo.
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        LEFT JOIN dbo.Estado_Cita por_id ON por_id.id_estado = i.id_estado
+        LEFT JOIN dbo.Estado_Cita por_nombre ON LOWER(por_nombre.nombre_estado) = LOWER(i.estado)
+        WHERE (i.id_estado IS NULL AND por_nombre.id_estado IS NULL)
+           OR (i.id_estado IS NOT NULL AND por_id.id_estado IS NULL)
+           OR (i.id_estado IS NOT NULL AND por_nombre.id_estado IS NOT NULL AND por_id.id_estado <> por_nombre.id_estado)
+    )
+        THROW 50001, 'El estado de la cita debe existir en Estado_Cita y coincidir con id_estado.', 1;
+
+    UPDATE c
+       SET estado = ec.nombre_estado
+    FROM dbo.Cita c
+    INNER JOIN inserted i ON i.id_cita = c.id_cita
+    INNER JOIN dbo.Estado_Cita ec ON ec.id_estado = i.id_estado
+    WHERE i.id_estado IS NOT NULL AND ISNULL(c.estado, '') <> ec.nombre_estado;
+
+    UPDATE c
+       SET id_estado = ec.id_estado
+    FROM dbo.Cita c
+    INNER JOIN inserted i ON i.id_cita = c.id_cita
+    INNER JOIN dbo.Estado_Cita ec ON LOWER(ec.nombre_estado) = LOWER(i.estado)
+    WHERE i.id_estado IS NULL OR i.id_estado <> ec.id_estado;
+END
+GO
+
+-- Notificaciones internas y trazabilidad de recordatorios externos.
+IF OBJECT_ID(N'dbo.Notificacion', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Notificacion (
+        id_notificacion INT IDENTITY(1,1) PRIMARY KEY,
+        id_paciente INT NULL,
+        id_cita INT NULL,
+        tipo VARCHAR(30) NOT NULL CHECK (tipo IN ('recordatorio','confirmacion','cancelacion','mensaje','alerta')),
+        titulo VARCHAR(200) NOT NULL,
+        contenido VARCHAR(MAX) NOT NULL,
+        canal VARCHAR(20) NOT NULL DEFAULT 'interno' CHECK (canal IN ('interno','email','sms','whatsapp')),
+        estado VARCHAR(20) NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','enviada','leida','fallida','cancelada')),
+        fecha_programada DATETIME2 NULL,
+        fecha_envio DATETIME2 NULL,
+        fecha_lectura DATETIME2 NULL,
+        intentos INT NOT NULL DEFAULT 0,
+        ultimo_error VARCHAR(500) NULL,
+        creada_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_Notificacion_Paciente FOREIGN KEY (id_paciente) REFERENCES dbo.Paciente(id_paciente) ON DELETE CASCADE,
+        CONSTRAINT FK_Notificacion_Cita FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita) ON DELETE SET NULL
+    );
+    CREATE INDEX IX_Notificacion_Paciente_Estado ON dbo.Notificacion(id_paciente, estado, creada_en DESC);
+    CREATE INDEX IX_Notificacion_Programada ON dbo.Notificacion(estado, fecha_programada);
+END
+GO
+
+IF OBJECT_ID(N'dbo.Recordatorio_Cita', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Recordatorio_Cita (
+        id_recordatorio INT IDENTITY(1,1) PRIMARY KEY,
+        id_cita INT NOT NULL,
+        canal VARCHAR(20) NOT NULL CHECK (canal IN ('email','sms','whatsapp','interno')),
+        estado VARCHAR(20) NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','enviado','fallido','cancelado')),
+        programado_para DATETIME2 NOT NULL,
+        enviado_en DATETIME2 NULL,
+        intentos INT NOT NULL DEFAULT 0,
+        ultimo_error VARCHAR(500) NULL,
+        creado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_Recordatorio_Cita FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita) ON DELETE CASCADE
+    );
+    CREATE INDEX IX_Recordatorio_Estado_Fecha ON dbo.Recordatorio_Cita(estado, programado_para);
+END
+GO
+
+-- Historial del estado físico del consultorio.
+IF OBJECT_ID(N'dbo.Consultorio_Historial', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Consultorio_Historial (
+        id_historial INT IDENTITY(1,1) PRIMARY KEY,
+        id_consultorio INT NOT NULL,
+        estado VARCHAR(20) NOT NULL,
+        id_usuario INT NULL,
+        motivo VARCHAR(500) NULL,
+        fecha_cambio DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_ConsultorioHistorial_Consultorio FOREIGN KEY (id_consultorio) REFERENCES dbo.Consultorio(id_consultorio) ON DELETE CASCADE,
+        CONSTRAINT FK_ConsultorioHistorial_Usuario FOREIGN KEY (id_usuario) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
+    );
+    CREATE INDEX IX_ConsultorioHistorial_Consultorio_Fecha ON dbo.Consultorio_Historial(id_consultorio, fecha_cambio DESC);
+END
+GO
+
+PRINT 'Ampliación operativa de citas y profesionales aplicada correctamente.';
 GO

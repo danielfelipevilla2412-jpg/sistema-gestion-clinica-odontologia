@@ -1,253 +1,205 @@
-﻿@* ============================================
-SmileTrack — Dashboard General Administrativo (st-adm-01-dashboard)
+@* ============================================
+SmileTrack — Dashboard General Administrativo (st-aux-01-panel-operativo)
 ============================================
 Autor: Johan Santamaria
 Fecha: 29/07/2026 · Rediseño visual
-
-DESCRIPCIÓN:
-Vista principal del dashboard administrativo para el módulo de citas.
-Incluye KPIs, distribución de estados de cita (gráfico real), top
-profesionales y acceso rápido al panel de gestión.
-
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController → Stadm01Dashboard
-- CSS: ~/css/Gestion_De_Citas/st-adm-01-dashboard/styles.css
-- JS: ~/js/Gestion_De_Citas/st-adm-01-dashboard/app.js
-- Partial / Otros: _SidebarAdmin.cshtml
+DEPENDENCIAS: panel-operativo.css / panel-operativo.js
 ============================================ *@
-@{ Layout = null; }
+@{ Layout = "_Layout"; ViewData["Title"] = "Dashboard General"; }
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Dashboard administrativo de SmileTrack para gestión de citas, métricas y seguimiento." />
-    <title>SmileTrack — Dashboard General</title>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css" asp-append-version="true" />
+}
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-adm-01-dashboard/styles.css")" />
-    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-<body>
-    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+<main class="main" id="main-content">
+    <header class="page-header">
+        <div class="header-left">
+            <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+                <span data-i18n="common_bc_administracion">Administración</span>
+                <span class="bc-sep" aria-hidden="true">›</span>
+                <span class="bc-active" data-i18n="nav.dashboard_general">Dashboard General</span>
+            </nav>
+            <h1 class="page-title" data-i18n="nav.dashboard_general">Dashboard General</h1>
+            <p class="page-subtitle" data-i18n="dashboard.subtitle_metrics">Resumen operativo y métricas clave del centro odontológico</p>
+        </div>
+        <button class="btn-primary" id="btnExport" aria-label="Exportar reporte en PDF" data-i18n-aria-label="table.export">
+            <span class="material-symbols-outlined btn-icon-symbol" id="btnExportIcon" aria-hidden="true">download</span>
+            <span id="btnExportLabel">Exportar PDF</span>
+        </button>
+    </header>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+    <!-- KPIs principales: la primera tarjeta lleva más peso visual (jerarquía) -->
+    <section class="stats-grid" aria-label="Métricas principales" data-i18n-aria-label="facturacion.title">
+        <div class="stat-card stat-card--primary" data-color="blue">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">group</span>
+            <span class="stat-number" id="statTotal" data-target="@(ViewData["TotalPacientes"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-label" data-i18n="patients.active">Pacientes activos</span>
+            <span class="stat-sub">Total registrados</span>
+        </div>
+        <div class="stat-card" data-color="green">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
+            <span class="stat-number" id="statScheduled" data-target="@(ViewData["CitasHoy"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
+            <span class="stat-sub">Programadas</span>
+        </div>
+        <div class="stat-card" data-color="orange">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">stethoscope</span>
+            <span class="stat-number" id="statAttended" data-target="@(ViewData["ProfesionalesActivos"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-label" data-i18n="professionals.active">Profesionales activos</span>
+            <span class="stat-sub">En servicio</span>
+        </div>
+        <div class="stat-card" data-color="purple">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
+            <span class="stat-number" id="statIncome" data-target="@(ViewData["IngresosDelMes"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-label">Ingresos del mes</span>
+            <span class="stat-sub">Solo citas atendidas</span>
+        </div>
+    </section>
 
-    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-        <span aria-hidden="true"></span>
-        <span aria-hidden="true"></span>
-        <span aria-hidden="true"></span>
-    </button>
-    <div class="overlay" id="overlay" aria-hidden="true"></div>
+    <section class="progress-row" role="region" aria-label="Ocupación de agenda mensual" data-i18n-aria-label="citas.dashboard_title">
+        <div>
+            <h2 class="section-title">Ocupación de agenda</h2>
+            <p class="page-subtitle" data-i18n="dashboard.subtitle_occupancy">Porcentaje estimado de citas utilizadas este mes</p>
+        </div>
+        <div class="progress-bar-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@(ViewData["PctOcupacion"] ?? 0)" aria-label="Ocupación de agenda mensual">
+            <div class="progress-bar" id="dashboardOccupancyBar" data-width="@(ViewData["PctOcupacion"] ?? 0)"></div>
+        </div>
+        <span class="progress-label">@(ViewData["PctOcupacion"] ?? 0)% de uso estimado</span>
+    </section>
 
-    <main class="main" id="main-content">
-        <header class="page-header">
-            <div class="header-left">
-                <nav class="breadcrumb" aria-label="Ruta de navegación">
-                    <span>Administración</span>
-                    <span class="bc-sep" aria-hidden="true">›</span>
-                    <span class="bc-active">Dashboard General</span>
-                </nav>
-                <h1 class="page-title">Dashboard General</h1>
-                <p class="page-subtitle">Resumen operativo y métricas clave del centro odontológico</p>
-            </div>
-            <button class="btn-primary" id="btnExport" aria-label="Exportar reporte en PDF">
-                <span class="material-symbols-outlined btn-icon-symbol" id="btnExportIcon" aria-hidden="true">download</span>
-                <span id="btnExportLabel">Exportar PDF</span>
-            </button>
-        </header>
-
-        <!-- KPIs principales: la primera tarjeta lleva más peso visual (jerarquía) -->
-        <section class="stats-grid" aria-label="Métricas principales">
-            <div class="stat-card stat-card--primary" data-color="blue">
-                <span class="material-symbols-outlined stat-icon" aria-hidden="true">group</span>
-                <span class="stat-number" id="statTotal" data-target="@(ViewData["TotalPacientes"] ?? 0)" aria-live="polite">0</span>
-                <span class="stat-label">Pacientes activos</span>
-                <span class="stat-sub">Total registrados</span>
-            </div>
-            <div class="stat-card" data-color="green">
-                <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
-                <span class="stat-number" id="statScheduled" data-target="@(ViewData["CitasHoy"] ?? 0)" aria-live="polite">0</span>
-                <span class="stat-label">Citas hoy</span>
-                <span class="stat-sub">Programadas</span>
-            </div>
-            <div class="stat-card" data-color="orange">
-                <span class="material-symbols-outlined stat-icon" aria-hidden="true">stethoscope</span>
-                <span class="stat-number" id="statAttended" data-target="@(ViewData["ProfesionalesActivos"] ?? 0)" aria-live="polite">0</span>
-                <span class="stat-label">Profesionales activos</span>
-                <span class="stat-sub">En servicio</span>
-            </div>
-            <div class="stat-card" data-color="purple">
-                <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
-                <span class="stat-number" id="statIncome" data-target="@(ViewData["IngresosDelMes"] ?? 0)" aria-live="polite">0</span>
-                <span class="stat-label">Ingresos del mes</span>
-                <span class="stat-sub">Solo citas atendidas</span>
-            </div>
-        </section>
-
-        <section class="progress-row" role="region" aria-label="Ocupación de agenda mensual">
-            <div>
-                <h2 class="section-title">Ocupación de agenda</h2>
-                <p class="page-subtitle">Porcentaje estimado de citas utilizadas este mes</p>
-            </div>
-            <div class="progress-bar-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@(ViewData["PctOcupacion"] ?? 0)" aria-label="Ocupación de agenda mensual">
-                <div class="progress-bar" id="dashboardOccupancyBar" data-width="@(ViewData["PctOcupacion"] ?? 0)"></div>
-            </div>
-            <span class="progress-label">@(ViewData["PctOcupacion"] ?? 0)% de uso estimado</span>
-        </section>
-
-        <section class="content-grid" aria-label="Contenido principal del dashboard">
-            <div class="content-left">
-
-                <!-- Antes: 4 tarjetas planas repitiendo el mismo layout de arriba.
-                     Ahora: gráfico de barras real — mismo patrón visual que ya usa
-                     st-odo-01-dashboard (.status-chart / .status-row / .status-bar-fill),
-                     alimentado con los porcentajes que el backend YA calculaba
-                     (PctAtendidas/PctConfirmadas/PctProgramadas/PctCanceladas) pero
-                     que la vista nunca llegó a usar. -->
-                <section class="card" aria-labelledby="statusTitle">
-                    <h2 class="card-title" id="statusTitle">Distribución de estados de cita — este mes</h2>
-                    <div class="status-chart" id="statusChart" role="img" aria-label="Distribución de citas por estado este mes">
-                        <div class="status-row">
-                            <span class="status-label">Atendidas</span>
-                            <div class="status-bar-bg">
-                                <div class="status-bar-fill green" data-width="@(ViewData["PctAtendidas"] ?? 0)"></div>
-                            </div>
-                            <span class="status-val">@(ViewData["CitasAtendidas"] ?? 0)</span>
+    <section class="content-grid" aria-label="Contenido principal del dashboard">
+        <div class="content-left">
+            <section class="card" aria-labelledby="statusTitle">
+                <h2 class="card-title" id="statusTitle" data-i18n="citas.status">Distribución de estados de cita — este mes</h2>
+                <div class="status-chart" id="statusChart" role="img" aria-label="Distribución de citas por estado este mes">
+                    <div class="status-row">
+                        <span class="status-label">Atendidas</span>
+                        <div class="status-bar-bg">
+                            <div class="status-bar-fill green" data-width="@(ViewData["PctAtendidas"] ?? 0)"></div>
                         </div>
-                        <div class="status-row">
-                            <span class="status-label">Confirmadas</span>
-                            <div class="status-bar-bg">
-                                <div class="status-bar-fill blue" data-width="@(ViewData["PctConfirmadas"] ?? 0)"></div>
-                            </div>
-                            <span class="status-val">@(ViewData["CitasConfirmadas"] ?? 0)</span>
-                        </div>
-                        <div class="status-row">
-                            <span class="status-label">Programadas</span>
-                            <div class="status-bar-bg">
-                                <div class="status-bar-fill orange" data-width="@(ViewData["PctProgramadas"] ?? 0)"></div>
-                            </div>
-                            <span class="status-val">@(ViewData["CitasProgramadas"] ?? 0)</span>
-                        </div>
-                        <div class="status-row">
-                            <span class="status-label">Canceladas</span>
-                            <div class="status-bar-bg">
-                                <div class="status-bar-fill red" data-width="@(ViewData["PctCanceladas"] ?? 0)"></div>
-                            </div>
-                            <span class="status-val">@(ViewData["CitasCanceladas"] ?? 0)</span>
-                        </div>
+                        <span class="status-val">@(ViewData["CitasAtendidas"] ?? 0)</span>
                     </div>
-                    @{
-                        var diferenciaAtendidas = Convert.ToInt32(ViewData["StatKpiDifSemana"] ?? 0);
-                    }
-                    <p class="chart-summary" aria-live="polite">
-                        Atendidas @(diferenciaAtendidas >= 0 ? "↑" : "↓") @Math.Abs(diferenciaAtendidas)% respecto a la semana anterior
-                    </p>
-                </section>
+                    <div class="status-row">
+                        <span class="status-label">Confirmadas</span>
+                        <div class="status-bar-bg">
+                            <div class="status-bar-fill blue" data-width="@(ViewData["PctConfirmadas"] ?? 0)"></div>
+                        </div>
+                        <span class="status-val">@(ViewData["CitasConfirmadas"] ?? 0)</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Programadas</span>
+                        <div class="status-bar-bg">
+                            <div class="status-bar-fill orange" data-width="@(ViewData["PctProgramadas"] ?? 0)"></div>
+                        </div>
+                        <span class="status-val">@(ViewData["CitasProgramadas"] ?? 0)</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Canceladas</span>
+                        <div class="status-bar-bg">
+                            <div class="status-bar-fill red" data-width="@(ViewData["PctCanceladas"] ?? 0)"></div>
+                        </div>
+                        <span class="status-val">@(ViewData["CitasCanceladas"] ?? 0)</span>
+                    </div>
+                </div>
+                @{
+                    var diferenciaAtendidas = Convert.ToInt32(ViewData["StatKpiDifSemana"] ?? 0);
+                }
+                <p class="chart-summary" aria-live="polite">
+                    Atendidas @(diferenciaAtendidas >= 0 ? "↑" : "↓") @Math.Abs(diferenciaAtendidas)% respecto a la semana anterior
+                </p>
+            </section>
 
-                <section class="card" aria-labelledby="topProfessionalsTitle">
-                    <h2 class="card-title" id="topProfessionalsTitle">Top 3 profesionales del mes</h2>
-                    <div class="table-wrap">
-                        <table class="table-base" aria-label="Top 3 profesionales por citas">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Profesional</th>
-                                    <th scope="col">Especialidad</th>
-                                    <th scope="col">Total citas</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @{ var topProfesionales = ViewData["TopProfesionales"] as IEnumerable<dynamic> ?? Enumerable.Empty<dynamic>(); }
-                                @if (topProfesionales.Any())
-                                {
-                                    foreach (var prof in topProfesionales)
-                                    {
-                                        <tr>
-                                            <td>@prof.Nombre</td>
-                                            <td>@prof.Especialidad</td>
-                                            <td>@prof.TotalCitas</td>
-                                        </tr>
-                                    }
-                                }
-                                else
+            <section class="card" aria-labelledby="topProfessionalsTitle">
+                <h2 class="card-title" id="topProfessionalsTitle">Top 3 profesionales del mes</h2>
+                <div class="table-wrap">
+                    <table class="table-base" aria-label="Top 3 profesionales por citas">
+                        <thead>
+                            <tr>
+                                <th scope="col">Profesional</th>
+                                <th scope="col">Especialidad</th>
+                                <th scope="col">Total citas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{ var topProfesionales = ViewData["TopProfesionales"] as IEnumerable<dynamic> ?? Enumerable.Empty<dynamic>(); }
+                            @if (topProfesionales.Any())
+                            {
+                                foreach (var prof in topProfesionales)
                                 {
                                     <tr>
-                                        <td colspan="3" class="table-empty">No hay datos suficientes para mostrar los top profesionales.</td>
+                                        <td>@prof.Nombre</td>
+                                        <td>@prof.Especialidad</td>
+                                        <td>@prof.TotalCitas</td>
                                     </tr>
                                 }
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="3" class="table-empty">No hay datos suficientes para mostrar los top profesionales.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
 
-            <aside class="content-right" aria-label="Información complementaria">
-                <!-- Antes: dos botones de texto plano al fondo de la columna derecha.
-                     Ahora: tarjetas de acción con ícono + descripción, mismo lenguaje
-                     visual del resto de tarjetas (.card), para que pesen visualmente
-                     lo que realmente son: los dos accesos más usados del rol Admin. -->
-                <section class="card" aria-labelledby="quickActionsTitle">
-                    <h2 class="card-title" id="quickActionsTitle">Acciones rápidas</h2>
-                    <div class="quick-actions">
-                        <a href="/gestion-de-citas/st-adm-09-citas" class="quick-action" aria-label="Ir a la gestión integral de citas">
-                            <span class="material-symbols-outlined quick-action-icon" aria-hidden="true">event_note</span>
-                            <span class="quick-action-text">
-                                <span class="quick-action-title">Gestión de citas</span>
-                                <span class="quick-action-desc">Ver, editar y filtrar todas las citas</span>
-                            </span>
-                            <span class="material-symbols-outlined quick-action-arrow" aria-hidden="true">chevron_right</span>
-                        </a>
-                        <a href="/gestion-de-citas/st-adm-08-agenda" class="quick-action" aria-label="Ir a la agenda general">
-                            <span class="material-symbols-outlined quick-action-icon" aria-hidden="true">calendar_month</span>
-                            <span class="quick-action-text">
-                                <span class="quick-action-title">Agenda general</span>
-                                <span class="quick-action-desc">Vista semanal por consultorio</span>
-                            </span>
-                            <span class="material-symbols-outlined quick-action-arrow" aria-hidden="true">chevron_right</span>
-                        </a>
-                    </div>
-                </section>
-                <section class="card" aria-labelledby="notesTitle">
-                    <h2 class="card-title" id="notesTitle">Notas del sistema</h2>
-                    <p class="notes-text">Este panel presenta métricas resumidas. Para modificar una cita o verificar disponibilidad, utiliza la agenda general o la gestión de citas.</p>
-                </section>
-            </aside>
-        </section>
-    </main>
+        <aside class="content-right" aria-label="Información complementaria">
+            <section class="card" aria-labelledby="quickActionsTitle">
+                <h2 class="card-title" id="quickActionsTitle">Acciones rápidas</h2>
+                <div class="quick-actions">
+                    <a href="/gestion-de-citas/st-adm-09-citas" class="quick-action" aria-label="Ir a la gestión integral de citas">
+                        <span class="material-symbols-outlined quick-action-icon" aria-hidden="true">event_note</span>
+                        <span class="quick-action-text">
+                            <span class="quick-action-title">Gestión de citas</span>
+                            <span class="quick-action-desc">Ver, editar y filtrar todas las citas</span>
+                        </span>
+                        <span class="material-symbols-outlined quick-action-arrow" aria-hidden="true">chevron_right</span>
+                    </a>
+                    <a href="/gestion-de-citas/st-adm-08-agenda" class="quick-action" aria-label="Ir a la agenda general">
+                        <span class="material-symbols-outlined quick-action-icon" aria-hidden="true">calendar_month</span>
+                        <span class="quick-action-text">
+                            <span class="quick-action-title">Agenda general</span>
+                            <span class="quick-action-desc">Vista semanal por consultorio</span>
+                        </span>
+                        <span class="material-symbols-outlined quick-action-arrow" aria-hidden="true">chevron_right</span>
+                    </a>
+                </div>
+            </section>
+            <section class="card" aria-labelledby="notesTitle">
+                <h2 class="card-title" id="notesTitle">Notas del sistema</h2>
+                <p class="notes-text">Este panel presenta métricas resumidas. Para modificar una cita o verificar disponibilidad, utiliza la agenda general o la gestión de citas.</p>
+            </section>
+        </aside>
+    </section>
+</main>
 
-    <script src="@Url.Content("~/js/Gestion_De_Citas/st-adm-01-dashboard/app.js")"></script>
-    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-    @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-
-    <!-- Mobile bottom nav — Administrador -->
-    <nav class="mobile-nav" aria-label="Navegación móvil">
-      <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item active" aria-current="page">
+<!-- Mobile bottom nav — Administrador -->
+<nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item active" aria-current="page">
         <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">bar_chart</span></span>
         <span>Dashboard</span>
-      </a>
-      <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
+    </a>
+    <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
         <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
         <span>Agenda</span>
-      </a>
-      <a href="/gestion-de-citas/st-adm-09-citas" class="mobile-nav-item">
+    </a>
+    <a href="/gestion-de-citas/st-adm-09-citas" class="mobile-nav-item">
         <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
         <span>Citas</span>
-      </a>
-    </nav>
+    </a>
+</nav>
 
-    <!-- Footer canónico -->
-    <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-      <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+<!-- Footer -->
+<footer id="dynamic-footer" class="site-footer" role="contentinfo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
         <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
         <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-      </div>
-      <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-      <script src="@Url.Content("~/js/footer.js")"></script>
-      <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-    </footer>
-</body>
-</html>
+    </div>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
+</footer>
+
+@section Scripts {
+    <script src="~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js" asp-append-version="true" defer></script>
+}

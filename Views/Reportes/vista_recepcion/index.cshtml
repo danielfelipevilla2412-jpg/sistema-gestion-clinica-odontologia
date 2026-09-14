@@ -23,6 +23,7 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Skip link accesibilidad -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
@@ -62,7 +63,7 @@
           <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active">Reportes Operativos</span>
         </nav>
-        <h1 class="page-title">Reportes Operativos</h1>
+        <h1 class="page-title" data-i18n="nav.group_reportes_analitica">Reportes Operativos</h1>
         <p class="page-subtitle">Vista operativa detallada para hoy · Portal de Recepción</p>
       </div>
       <div class="header-actions">
@@ -435,5 +436,7 @@
   </main>
 
 <script src="@Url.Content("~/js/Reportes/vista_recepcion/main.js")"></script>
+<script src="@Url.Content("~/js/i18n-core.js")"></script>
+<script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>

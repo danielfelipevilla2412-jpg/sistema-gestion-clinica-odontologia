@@ -16,10 +16,11 @@
   </style>
 </head>
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
   <div class="wrap">
     <div class="card">
-      <h1>Panel de módulos</h1>
-      <p>Accede a las pantallas principales del sistema.</p>
+      <h1 data-i18n="nav.group_reportes_analitica">Panel de módulos</h1>
+      <p data-i18n="common.info">Accede a las pantallas principales del sistema.</p>
       <div class="grid">
         <a class="item" href="/acceso-y-seguridad/login">Acceso y seguridad</a>
         <a class="item" href="/gestion-de-citas/st-adm-01-dashboard">Gestión de citas</a>
@@ -33,5 +34,7 @@
   </div>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>
