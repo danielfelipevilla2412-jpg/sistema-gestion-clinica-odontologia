@@ -1,0 +1,100 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Styleguide";
+    var colors = new[]
+    {
+        ("--primary", "#1a56cc"),
+        ("--primary-dark", "#0f3da0"),
+        ("--success", "#22c55e"),
+        ("--warning", "#f59e0b"),
+        ("--danger", "#ef4444"),
+        ("--text-muted", "#5f6b7a"),
+        ("--bg", "#f4f6fb")
+    };
+}
+
+@section Styles {
+    <style>
+        .styleguide-main { max-width: 1180px; }
+        .styleguide-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); }
+        .styleguide-section { margin-bottom: var(--space-6); }
+        .styleguide-section h2 { margin-bottom: var(--space-3); font-size: var(--type-heading); }
+        .token-card { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); background: var(--white); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+        .swatch { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border); flex: 0 0 auto; }
+        .type-sample { padding: var(--space-3); background: var(--white); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+        .component-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+        .elevation-sample { min-height: 72px; padding: var(--space-4); background: var(--white); border-radius: var(--radius-sm); }
+    </style>
+}
+
+<main class="main styleguide-main" id="main-content">
+    <header class="page-header">
+        <div>
+            <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+                <span data-i18n="styleguide.development">Desarrollo</span><span class="bc-sep" aria-hidden="true">›</span><span class="bc-active" data-i18n="styleguide.title">Styleguide</span>
+            </nav>
+            <h1 class="page-title" data-i18n="styleguide.design_system">Sistema de diseño</h1>
+            <p class="page-subtitle">Referencia interna de los tokens y componentes existentes de SmileTrack.</p>
+        </div>
+    </header>
+
+    <section class="styleguide-section" aria-labelledby="colorsTitle">
+        <h2 id="colorsTitle">Paleta de tokens</h2>
+        <div class="styleguide-grid">
+            @foreach (var color in colors)
+            {
+                <div class="token-card">
+                    <span class="swatch" style="background:@color.Item2" aria-hidden="true"></span>
+                    <span><strong>@color.Item1</strong><br /><small>@color.Item2</small></span>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="styleguide-section" aria-labelledby="typeTitle">
+        <h2 id="typeTitle">Escala tipográfica</h2>
+        <div class="styleguide-grid">
+            <div class="type-sample" style="font-size:var(--type-title);font-weight:var(--weight-title)">Título</div>
+            <div class="type-sample" style="font-size:var(--type-heading);font-weight:var(--weight-heading)">Heading</div>
+            <div class="type-sample" style="font-size:var(--type-body);font-weight:var(--weight-body)">Texto de cuerpo</div>
+            <div class="type-sample" style="font-size:var(--type-caption);font-weight:var(--weight-caption)">Texto auxiliar</div>
+        </div>
+    </section>
+
+    <section class="styleguide-section" aria-labelledby="elevationTitle">
+        <h2 id="elevationTitle">Elevación</h2>
+        <div class="styleguide-grid">
+            <div class="elevation-sample" style="box-shadow:var(--shadow-sm)">Shadow small</div>
+            <div class="elevation-sample" style="box-shadow:var(--shadow-md)">Shadow medium</div>
+            <div class="elevation-sample" style="box-shadow:var(--shadow-lg)">Shadow large</div>
+        </div>
+    </section>
+
+    <section class="styleguide-section" aria-labelledby="componentsTitle">
+        <h2 id="componentsTitle">Componentes existentes</h2>
+        <div class="styleguide-grid">
+            <div class="card">
+                <h3 class="card-title">Tarjeta</h3>
+                <p class="page-subtitle">Componente de contenido reutilizado en dashboards.</p>
+                <div class="component-row">
+                    <button class="btn-primary" type="button">Primario</button>
+                    <button class="btn-secondary" type="button">Secundario</button>
+                    <button class="btn-danger" type="button">Peligro</button>
+                </div>
+            </div>
+            <div class="card">
+                <h3 class="card-title">Campo</h3>
+                <label class="form-label" for="styleguideInput">Input</label>
+                <input class="form-input" id="styleguideInput" placeholder="Texto de ejemplo" />
+            </div>
+            <div class="card">
+                <h3 class="card-title">Estados</h3>
+                <div class="component-row">
+                    <span class="status-badge status-agendada">Agendada</span>
+                    <span class="status-badge status-atendida">Atendida</span>
+                    <span class="status-badge status-no-asistio">Cancelada</span>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>

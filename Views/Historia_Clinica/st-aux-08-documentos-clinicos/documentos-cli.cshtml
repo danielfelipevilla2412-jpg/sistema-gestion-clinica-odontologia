@@ -17,8 +17,9 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   @Html.AntiForgeryToken()
   @* Yeray (2025) - Fallo 2: la vista no tenía el campo oculto con el pacienteId,
@@ -44,11 +45,11 @@
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb">
-          <span>Auxiliar</span>
+          <span data-i18n="common_role_auxiliar">Auxiliar</span>
           <span class="bc-sep">→</span>
-          <span class="bc-active">Carga de documentos</span>
+          <span class="bc-active" data-i18n="historia.attachments">Carga de documentos</span>
         </nav>
-        <h1 class="page-title">Carga de Documentos Clínicos</h1>
+        <h1 class="page-title" data-i18n="historia.attachments">Carga de Documentos Clínicos</h1>
         <p class="page-subtitle">@ViewData["PacienteNombre"] · @ViewData["PacienteCodigoHC"]</p>
       </div>
     </header>
@@ -59,11 +60,11 @@
       <!-- Columna izquierda: Formulario de carga -->
       <div class="content-left">
         <div class="card">
-          <h3 class="card-title">Adjuntar nuevo documento</h3>
+          <h3 class="card-title" data-i18n="historia.add_attachment">Adjuntar nuevo documento</h3>
 
           <form id="uploadForm" novalidate>
             <div class="form-group">
-              <label class="form-label" for="docType">Tipo de documento <span class="required">*</span></label>
+              <label class="form-label" for="docType" data-i18n="common.document">Tipo de documento <span class="required">*</span></label>
               <div class="select-wrapper">
                 <select class="form-select" id="docType" required>
                   <option value="">Seleccionar tipo...</option>
@@ -91,7 +92,7 @@
 
             <div class="form-group">
               <label class="form-label" for="docDesc">Descripción</label>
-              <input type="text" class="form-input" id="docDesc" placeholder="Descripción del documento..." />
+              <input type="text" class="form-input" id="docDesc" placeholder="Descripción del documento..." data-i18n-ph="historia.doc_desc_ph" />
             </div>
 
             <!-- Drag & Drop -->
@@ -204,6 +205,8 @@
     .skip-link:focus { top:0; }
     .visually-hidden { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
   </style>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 
 </html>

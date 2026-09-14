@@ -36,7 +36,6 @@
     --bg: #f4f6fb;
     --white: #ffffff;
     --text: #1e293b;
-    --text-muted: #64748b;
     --border: #e2e8f0;
 
     /* Paleta de colores principal */
@@ -503,9 +502,9 @@ img {
    ═══════════════════════════════════════════════════════════════ */
 .table-section {
     background: var(--white);
-    border-radius: 18px;
+    border-radius: var(--radius);
     border: 1px solid var(--border);
-    box-shadow: 0 14px 32px rgba(15, 32, 87, 0.08);
+    box-shadow: var(--shadow-md);
     overflow: hidden;
     margin-bottom: 20px;
 }
@@ -629,17 +628,15 @@ img {
 .btn-icon {
     background: var(--white); border: 1.5px solid var(--border);
     border-radius: var(--radius-sm); padding: 5px 8px;
-    cursor: pointer; font-size: 14px;
-    transition: background var(--tr), border-color var(--tr), transform var(--tr);
+    cursor: pointer; font-size: 14px; color: var(--text-muted);
+    transition: background var(--tr), border-color var(--tr), color var(--tr), transform var(--tr);
     line-height: 1; box-shadow: 0 4px 10px rgba(15, 32, 87, 0.05);
     text-decoration: none;
 }
-.btn-icon:hover { background: var(--primary-light); border-color: var(--primary); transform: translateY(-1px); }
+.btn-icon:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
 .btn-icon:active { transform: translateY(1px); background: #e0e7ff; }
 .btn-icon:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.btn-icon.view { color: var(--primary); }
-.btn-icon.edit { color: var(--warning); }
-.btn-icon.toggle, .btn-icon.btn-delete { color: var(--danger); }
+.btn-icon.btn-delete:hover { background: #fee2e2; border-color: #fecaca; color: var(--danger); }
 
 /* Reglas base para botones con texto */
 .action-btn .btn-text {

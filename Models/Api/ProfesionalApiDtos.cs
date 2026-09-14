@@ -25,6 +25,9 @@ public sealed class ProfesionalApiRequest
     [StringLength(500, ErrorMessage = "La descripción no puede superar 500 caracteres.")]
     public string? Descripcion { get; set; }
 
+    [StringLength(30, ErrorMessage = "El estado no puede superar 30 caracteres.")]
+    public string? Estado { get; set; }
+
     [Required(ErrorMessage = "El correo de acceso es obligatorio.")]
     [EmailAddress(ErrorMessage = "El correo de acceso no es válido.")]
     public string CorreoAcceso { get; set; } = string.Empty;

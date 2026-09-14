@@ -1,6 +1,24 @@
-/* ===========================================
-style.css - ESTILOS PERSONALIZADOS EXPLICADOS
-=========================================== */
+/* ============================================
+   SmileTrack — Estilos de la Página Principal (homepage.css)
+   ============================================
+   Autor: Johan Santamaria / SmileTrack Team
+   Fecha: 29/07/2026 (Actualizado 2026-09-12)
+
+   DESCRIPCIÓN Y POR QUÉ DE DISEÑO VISUAL:
+   Define los estilos personalizados, gradientes y componentes visuales avanzados para la página de inicio pública.
+   Utiliza un enfoque de diseño basado en Glassmorphism (efecto cristal translúcido), micro-animaciones suaves
+   y la paleta institucional azul odontológica para proyectar confianza, higiene y alta tecnología médica.
+
+   ESTRUCTURA DE COMPONENTES:
+   - Configuración base de iconos Google Material Symbols.
+   - Tarjetas Glassmorphism (`.glass-card`) con desfoque de fondo (`backdrop-filter: blur(12px)`).
+   - Fondo gradiente Hero (`.hero-gradient`) con iluminación radial en la esquina superior derecha.
+   - Modales flotantes y transiciones suavizadas para elementos interactivos.
+
+   DEPENDENCIAS:
+   - Vista: Views/Publico/homepage.cshtml
+   - Sistema de Diseño: Documentacion/DESIGN_SYSTEM_GUIDE.md
+============================================ */
 .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
@@ -363,3 +381,13 @@ style.css - ESTILOS PERSONALIZADOS EXPLICADOS
 /* ═════ LINKS UTILITARIOS ═════ */
 .link-primary { color: #005ea4; text-decoration: none; font-weight: 500; }
 .link-primary:hover { text-decoration: underline; }
+
+/* ══════════════════════════════════════════
+   SELECTOR DE IDIOMA — Header homepage
+   ══════════════════════════════════════════ */
+.lang-switch-btn.is-active {
+  background-color: #fff !important;
+  color: #005ea4 !important;
+  border-color: #005ea4 !important;
+  font-weight: 800;
+}

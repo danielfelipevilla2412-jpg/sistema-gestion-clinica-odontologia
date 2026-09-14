@@ -73,6 +73,12 @@ public sealed class CitasApiController : ControllerBase
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 500);
+
+        // No todos los usuarios autenticados pueden consultar la agenda. En
+        // particular, Auxiliar no debe obtener el listado clínico completo.
+        if (!User.IsInRole("Administrador") && !User.IsInRole("Recepcionista") &&
+            !User.IsInRole("Paciente") && !User.IsInRole("Profesional"))
+            return Forbid();
         string? role = null;
         int? idPaciente = null;
         int? idProfesional = null;
@@ -412,7 +418,7 @@ public sealed class CitasApiController : ControllerBase
 
     [HttpPut]
     [CookieAwareValidateAntiforgeryToken]
-    [Authorize(Roles = "Profesional")]
+    [Authorize(Roles = "Profesional", Policy = "ApiOrCookie")]
     [Route("api/citas/{id:int}/notas")]
     public async Task<IActionResult> ActualizarNotas(int id, [FromBody] CitaNotasDto dto, CancellationToken ct = default)
     {
@@ -433,7 +439,7 @@ public sealed class CitasApiController : ControllerBase
 
     [HttpPut]
     [CookieAwareValidateAntiforgeryToken]
-    [Authorize(Roles = "Profesional")]
+    [Authorize(Roles = "Profesional", Policy = "ApiOrCookie")]
     [Route("api/citas/{id:int}/estado")]
     public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoCitaDto dto, CancellationToken ct = default)
     {
@@ -464,18 +470,11 @@ public sealed class CitasApiController : ControllerBase
         if (cita is null) return NotFound(new { success = false, message = "Cita no encontrada." });
         if (User.IsInRole("Profesional")) return Forbid();
         if (User.IsInRole("Paciente") && !EsPacientePropietario(cita)) return Forbid();
-        if (User.IsInRole("Paciente") && (cita.FechaHora - DateTime.Now).TotalHours < 2)
-        {
-            return BadRequest(new
-            {
-                success = false,
-                message = "No es posible cancelar citas con menos de 2 horas de anticipación."
-            });
-        }
         if (!User.IsInRole("Paciente") && !User.IsInRole("Administrador") && !User.IsInRole("Recepcionista")) return Forbid();
         try
         {
-            if (!await _citaService.CancelarAsync(id, ct)) return NotFound(new { success = false, message = "Cita no encontrada." });
+            TimeSpan? anticipacionMinima = User.IsInRole("Paciente") ? TimeSpan.FromHours(2) : null;
+            if (!await _citaService.CancelarAsync(id, anticipacionMinima, ct)) return NotFound(new { success = false, message = "Cita no encontrada." });
             await RegistrarAuditoriaAsync("UPDATE", id, "Cita cancelada mediante API.", ct);
             return Ok(new { success = true, message = "Cita cancelada exitosamente.", id });
         }

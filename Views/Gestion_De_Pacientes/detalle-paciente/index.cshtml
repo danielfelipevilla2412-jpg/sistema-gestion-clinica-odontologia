@@ -51,7 +51,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — @Model.Name</title>
+  <title data-i18n="detalle_paciente_title">SmileTrack — @Model.Name</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
@@ -178,21 +178,22 @@
 <body>
   @Html.AntiForgeryToken()
 
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+  <button class="hamburger" id="hamburger" data-i18n-aria-label="detalle_paciente_abrir_menu" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
     <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
   </button>
   <div class="overlay" id="overlay" aria-hidden="true"></div>
   @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
 
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
   <main class="main" id="main-content">
 
     <!-- ── Encabezado de navegación ─────────────────── -->
     <div class="page-header">
-      <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="back-btn" aria-label="Volver al listado">
-        ← Volver
+      <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="back-btn" data-i18n-aria-label="detalle_paciente_volver_listado" aria-label="Volver al listado">
+        <span data-i18n="detalle_paciente_volver">← Volver</span>
       </a>
-      <nav class="breadcrumb" aria-label="Ruta de navegación">
-        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes">Pacientes</a>
+      <nav class="breadcrumb" data-i18n-aria-label="detalle_paciente_ruta_navegacion" aria-label="Ruta de navegación">
+        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" data-i18n="detalle_paciente_breadcrumb_pacientes">Pacientes</a>
         <span class="sep" aria-hidden="true">›</span>
         <span>@Model.Name</span>
       </nav>
@@ -209,7 +210,7 @@
           <span class="badge badge-@Model.Estado.ToLower()" role="status">@Model.Estado.ToUpperInvariant()</span>
           @if (Model.Allergies.Count > 0)
           {
-            <span class="badge" style="background:#fee2e2;color:#991b1b;">⚠️ Alergias</span>
+            <span class="badge" style="background:#fee2e2;color:#991b1b;" data-i18n="detalle_paciente_alergias_badge">⚠️ Alergias</span>
           }
           @if (Model.NextVisit.HasValue)
           {
@@ -220,37 +221,37 @@
 
       <div class="hero-actions">
         <a href="/historia-clinica/st-odo-03-historial?pacienteId=@Model.Id"
-           class="btn-primary" aria-label="Abrir historia clínica de @Model.Name">
-          🦷 Historia Clínica
+           class="btn-primary" data-i18n-aria-label="detalle_paciente_abrir_historia_clinica" aria-label="Abrir historia clínica de @Model.Name">
+          <span data-i18n="detalle_paciente_historia_clinica">🦷 Historia Clínica</span>
         </a>
         <button class="btn-secondary" id="btnEditarPaciente"
-                data-id="@Model.Id" aria-label="Editar datos de @Model.Name">
-          ✏️ Editar
+                data-id="@Model.Id" data-i18n-aria-label="detalle_paciente_editar_datos" aria-label="Editar datos de @Model.Name">
+          <span data-i18n="detalle_paciente_editar">✏️ Editar</span>
         </button>
       </div>
     </section>
 
     <!-- ── Métricas de actividad ─────────────────────── -->
-    <section class="stats-strip" aria-label="Resumen de actividad">
+    <section class="stats-strip" data-i18n-aria-label="detalle_paciente_resumen_actividad" aria-label="Resumen de actividad">
       <div class="stat-item">
         <div class="num" style="color:var(--primary)">@Model.TotalCitas</div>
-        <div class="lbl">Citas totales</div>
+        <div class="lbl" data-i18n="detalle_paciente_citas_totales">Citas totales</div>
       </div>
       <div class="stat-item">
         <div class="num" style="color:var(--green)">@Model.CitasPendientes</div>
-        <div class="lbl">Citas pendientes</div>
+        <div class="lbl" data-i18n="detalle_paciente_citas_pendientes">Citas pendientes</div>
       </div>
       <div class="stat-item">
         <div class="num" style="color:@(Model.Allergies.Count > 0 ? "var(--red)" : "var(--green)")">
           @Model.Allergies.Count
         </div>
-        <div class="lbl">Alergias registradas</div>
+        <div class="lbl" data-i18n="detalle_paciente_alergias_registradas">Alergias registradas</div>
       </div>
       <div class="stat-item">
         <div class="num" style="color:var(--text-muted)">
           @(Model.LastVisit.HasValue ? Model.LastVisit.Value.ToString("dd/MM") : "—")
         </div>
-        <div class="lbl">Última visita</div>
+        <div class="lbl" data-i18n="detalle_paciente_ultima_visita">Última visita</div>
       </div>
     </section>
 
@@ -259,39 +260,39 @@
 
       <!-- Datos personales -->
       <div class="section-card" aria-labelledby="secPersonal">
-        <h2 class="section-title" id="secPersonal">👤 Datos personales</h2>
+        <h2 class="section-title" id="secPersonal" data-i18n="detalle_paciente_datos_personales">👤 Datos personales</h2>
         <div class="field-row">
-          <span class="field-label">Documento</span>
+          <span class="field-label" data-i18n="detalle_paciente_documento_label">Documento</span>
           <span class="field-value">@Model.Doc</span>
         </div>
         <div class="field-row">
-          <span class="field-label">Fecha de nacimiento</span>
+          <span class="field-label" data-i18n="detalle_paciente_fecha_nacimiento_label">Fecha de nacimiento</span>
           <span class="field-value">@Model.FechaNacimiento.ToString("dd MMM yyyy") (@edad años)</span>
         </div>
         <div class="field-row">
-          <span class="field-label">Género</span>
+          <span class="field-label" data-i18n="detalle_paciente_genero_label">Género</span>
           <span class="field-value">@generoTexto</span>
         </div>
         <div class="field-row">
-          <span class="field-label">Teléfono</span>
+          <span class="field-label" data-i18n="detalle_paciente_telefono_label">Teléfono</span>
           <span class="field-value @(string.IsNullOrWhiteSpace(Model.Telefono) ? "empty" : "")">
             @(string.IsNullOrWhiteSpace(Model.Telefono) ? "No registrado" : Model.Telefono)
           </span>
         </div>
         <div class="field-row">
-          <span class="field-label">Correo</span>
+          <span class="field-label" data-i18n="detalle_paciente_correo_label">Correo</span>
           <span class="field-value @(string.IsNullOrWhiteSpace(Model.Correo) ? "empty" : "")">
             @(string.IsNullOrWhiteSpace(Model.Correo) ? "No registrado" : Model.Correo)
           </span>
         </div>
         <div class="field-row">
-          <span class="field-label">Ciudad</span>
+          <span class="field-label" data-i18n="detalle_paciente_ciudad_label">Ciudad</span>
           <span class="field-value @(string.IsNullOrWhiteSpace(Model.Ciudad) ? "empty" : "")">
             @(string.IsNullOrWhiteSpace(Model.Ciudad) ? "No registrada" : Model.Ciudad)
           </span>
         </div>
         <div class="field-row">
-          <span class="field-label">Dirección</span>
+          <span class="field-label" data-i18n="detalle_paciente_direccion_label">Dirección</span>
           <span class="field-value @(string.IsNullOrWhiteSpace(Model.Direccion) ? "empty" : "")">
             @(string.IsNullOrWhiteSpace(Model.Direccion) ? "No registrada" : Model.Direccion)
           </span>
@@ -300,18 +301,18 @@
 
       <!-- Datos médicos -->
       <div class="section-card" aria-labelledby="secMedico">
-        <h2 class="section-title" id="secMedico">🩺 Datos médicos</h2>
+        <h2 class="section-title" id="secMedico" data-i18n="detalle_paciente_datos_medicos">🩺 Datos médicos</h2>
         <div class="field-row">
-          <span class="field-label">Grupo sanguíneo</span>
+          <span class="field-label" data-i18n="detalle_paciente_grupo_sanguineo_label">Grupo sanguíneo</span>
           <span class="field-value @(string.IsNullOrWhiteSpace(Model.GrupoSanguineo) ? "empty" : "")">
             @(string.IsNullOrWhiteSpace(Model.GrupoSanguineo) ? "No registrado" : Model.GrupoSanguineo)
           </span>
         </div>
         <div class="field-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
-          <span class="field-label">Alergias</span>
+          <span class="field-label" data-i18n="detalle_paciente_alergias_label">Alergias</span>
           @if (Model.Allergies.Count > 0)
           {
-            <div class="allergy-list" role="list" aria-label="Lista de alergias">
+            <div class="allergy-list" role="list" data-i18n-aria-label="detalle_paciente_lista_alergias" aria-label="Lista de alergias">
               @foreach (var a in Model.Allergies)
               {
                 <span class="allergy-badge" role="listitem">@a</span>
@@ -320,11 +321,11 @@
           }
           else
           {
-            <span class="field-value empty">Sin alergias registradas</span>
+            <span class="field-value empty" data-i18n="detalle_paciente_sin_alergias">Sin alergias registradas</span>
           }
         </div>
         <div class="field-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
-          <span class="field-label">Antecedentes médicos</span>
+          <span class="field-label" data-i18n="detalle_paciente_antecedentes_medicos_label">Antecedentes médicos</span>
           <span class="field-value @(string.IsNullOrWhiteSpace(Model.AntecedentesMedicos) ? "empty" : "")"
                 style="white-space: pre-wrap; font-size:.88rem;">
             @(string.IsNullOrWhiteSpace(Model.AntecedentesMedicos) ? "Sin antecedentes registrados" : Model.AntecedentesMedicos)
@@ -334,15 +335,15 @@
 
       <!-- Contacto de emergencia -->
       <div class="section-card" aria-labelledby="secEmergencia">
-        <h2 class="section-title" id="secEmergencia">🚨 Contacto de emergencia</h2>
+        <h2 class="section-title" id="secEmergencia" data-i18n="detalle_paciente_contacto_emergencia">🚨 Contacto de emergencia</h2>
         <div class="field-row">
-          <span class="field-label">Nombre</span>
+          <span class="field-label" data-i18n="detalle_paciente_nombre_emergencia_label">Nombre</span>
           <span class="field-value @(string.IsNullOrWhiteSpace(Model.ContactoEmergencia) ? "empty" : "")">
             @(string.IsNullOrWhiteSpace(Model.ContactoEmergencia) ? "No registrado" : Model.ContactoEmergencia)
           </span>
         </div>
         <div class="field-row">
-          <span class="field-label">Teléfono</span>
+          <span class="field-label" data-i18n="detalle_paciente_telefono_emergencia_label">Teléfono</span>
           <span class="field-value @(string.IsNullOrWhiteSpace(Model.TelefonoEmergencia) ? "empty" : "")">
             @(string.IsNullOrWhiteSpace(Model.TelefonoEmergencia) ? "No registrado" : Model.TelefonoEmergencia)
           </span>
@@ -351,15 +352,15 @@
 
       <!-- Próxima cita -->
       <div class="section-card" aria-labelledby="secProxima">
-        <h2 class="section-title" id="secProxima">📅 Próxima cita</h2>
+        <h2 class="section-title" id="secProxima" data-i18n="detalle_paciente_proxima_cita">📅 Próxima cita</h2>
         @if (Model.NextVisit.HasValue)
         {
           <div class="field-row">
-            <span class="field-label">Fecha</span>
+            <span class="field-label" data-i18n="detalle_paciente_fecha_cita_label">Fecha</span>
             <span class="field-value">@Model.NextVisit.Value.ToString("dd MMM yyyy · HH:mm")</span>
           </div>
           <div class="field-row">
-            <span class="field-label">Último diagnóstico</span>
+            <span class="field-label" data-i18n="detalle_paciente_ultimo_diagnostico_label">Último diagnóstico</span>
             <span class="field-value @(string.IsNullOrWhiteSpace(Model.Diagnosis) ? "empty" : "")">
               @(string.IsNullOrWhiteSpace(Model.Diagnosis) ? "Sin datos" : Model.Diagnosis)
             </span>
@@ -367,7 +368,7 @@
         }
         else
         {
-          <p class="empty-msg">Sin citas programadas</p>
+          <p class="empty-msg" data-i18n="detalle_paciente_sin_citas_programadas">Sin citas programadas</p>
         }
       </div>
 
@@ -377,53 +378,54 @@
          AHORA: muestra la imagen actual (si existe) y permite subir una nueva o eliminarla
                 usando el endpoint POST /gestion-de-pacientes/{id}/archivo-adjunto. *@
       <div class="section-card" aria-labelledby="secArchivo">
-        <h2 class="section-title" id="secArchivo">📎 Foto / Documento adjunto</h2>
+        <h2 class="section-title" id="secArchivo" data-i18n="detalle_paciente_foto_documento_adjunto">📎 Foto / Documento adjunto</h2>
 
         @if (!string.IsNullOrWhiteSpace(Model.ArchivoAdjunto))
         {
           <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
             <img src="/@Model.ArchivoAdjunto"
+                 data-i18n-alt="detalle_paciente_archivo_adjunto_de"
                  alt="Archivo adjunto de @Model.Name"
                  style="max-width:120px;max-height:120px;border-radius:8px;
                         border:1px solid var(--border);object-fit:cover;" />
             <div>
               <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">
-                Archivo actual: <strong>@System.IO.Path.GetFileName(Model.ArchivoAdjunto)</strong>
+                <span data-i18n="detalle_paciente_archivo_actual">Archivo actual:</span> <strong>@System.IO.Path.GetFileName(Model.ArchivoAdjunto)</strong>
               </p>
               <button class="btn-secondary" id="btnCambiarArchivo" style="font-size:.82rem;padding:6px 14px;">
-                🔄 Cambiar
+                <span data-i18n="detalle_paciente_cambiar">🔄 Cambiar</span>
               </button>
               <button class="btn-secondary" id="btnEliminarArchivo"
                       style="font-size:.82rem;padding:6px 14px;color:var(--red);border-color:var(--red);margin-left:6px;">
-                🗑️ Eliminar
+                <span data-i18n="detalle_paciente_eliminar">🗑️ Eliminar</span>
               </button>
             </div>
           </div>
         }
         else
         {
-          <p class="field-value empty" style="margin-bottom:12px;">Sin archivo adjunto</p>
+          <p class="field-value empty" style="margin-bottom:12px;" data-i18n="detalle_paciente_sin_archivo_adjunto">Sin archivo adjunto</p>
         }
 
         <!-- Input de subida (oculto, se activa con los botones) -->
         <div id="uploadZone" style="margin-top:12px;@(string.IsNullOrWhiteSpace(Model.ArchivoAdjunto) ? "" : "display:none;")">
           <input type="file" id="inputArchivo" accept="image/jpeg,image/png,image/webp"
-                 style="display:none;" aria-label="Seleccionar archivo adjunto" />
+                 style="display:none;" data-i18n-aria-label="detalle_paciente_seleccionar_archivo_adjunto" aria-label="Seleccionar archivo adjunto" />
           <button class="btn-secondary" id="btnSeleccionarArchivo"
                   style="font-size:.85rem;padding:8px 18px;">
-            📁 Seleccionar imagen (JPG, PNG o WEBP — máx. 5 MB)
+            <span data-i18n="detalle_paciente_seleccionar_imagen">📁 Seleccionar imagen (JPG, PNG o WEBP — máx. 5 MB)</span>
           </button>
           <span id="archivoNombre" style="font-size:.82rem;color:var(--text-muted);margin-left:10px;"></span>
           <button class="btn-primary" id="btnSubirArchivo" disabled
                   style="font-size:.85rem;padding:8px 18px;margin-left:8px;">
-            ⬆️ Subir
+            <span data-i18n="detalle_paciente_subir">⬆️ Subir</span>
           </button>
         </div>
       </div>
 
       <!-- Historial de citas -->
       <div class="section-card full-width" aria-labelledby="secHistorial">
-        <h2 class="section-title" id="secHistorial">📋 Historial de citas</h2>
+        <h2 class="section-title" id="secHistorial" data-i18n="detalle_paciente_historial_citas">📋 Historial de citas</h2>
         @if (Model.History.Count > 0)
         {
           <div class="history-list" role="list" id="historyList">
@@ -444,7 +446,7 @@
         }
         else
         {
-          <p class="empty-msg">Sin historial de citas registrado</p>
+          <p class="empty-msg" data-i18n="detalle_paciente_sin_historial_citas">Sin historial de citas registrado</p>
         }
       </div>
 
@@ -575,5 +577,7 @@
 
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿@* ============================================
+﻿@* ============================================
 SmileTrack — Asistencia en Procedimiento (st-aux-06-asistencia-procedi)
 ============================================
 Autor: Johan Santamaria
@@ -23,40 +23,15 @@ NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 - El banner de alerta médica usa role="alert" con aria-live="assertive" para lectura inmediata en tecnologías de asistencia.
 ============================================ *@
-@{ Layout = null; }
-@using System.Text.Json
-@{ var asistenciaProcedDataJson = JsonSerializer.Serialize(ViewData["AsistenciaProcedData"]); }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Asistencia en Procedimiento";
+    var asistenciaProcedDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["AsistenciaProcedData"] ?? new object());
+}
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Asistencia en Procedimiento</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-aux-06-asistencia-procedi/asistencia-proc.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-  @{ await Html.RenderPartialAsync(User.IsInRole("Administrador") ? "_SidebarAdmin" : "_SidebarAuxiliar"); }
-
-  <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-aux-06-asistencia-procedi/asistencia-proc.css" asp-append-version="true" />
+}
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
@@ -64,13 +39,13 @@ NOTAS DE MANTENIMIENTO:
     <!-- Breadcrumb y header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Auxiliar</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_auxiliar">Auxiliar</span>
           <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active">Asistencia en procedimiento</span>
+          <span class="bc-active" data-i18n="citas.procedure_assistance">Asistencia en procedimiento</span>
         </nav>
-        <h1 class="page-title">Asistencia en Procedimiento</h1>
-        <p class="page-subtitle" id="apSubtitle">Cargando…</p>
+        <h1 class="page-title" data-i18n="citas.procedure_assistance">Asistencia en Procedimiento</h1>
+        <p class="page-subtitle" id="apSubtitle" data-i18n="common.loading">Cargando…</p>
       </div>
     </header>
 
@@ -93,7 +68,7 @@ NOTAS DE MANTENIMIENTO:
             <span class="timer-label">min</span>
           </div>
           <div class="status-info">
-            <p class="status-label">Estado del procedimiento</p>
+            <p class="status-label" data-i18n="citas.status">Estado del procedimiento</p>
             <span class="status-badge" role="status">En curso</span>
             <p class="status-time">Iniciado a las <time datetime="2026-03-20T10:03">10:03 AM</time></p>
           </div>
@@ -101,7 +76,7 @@ NOTAS DE MANTENIMIENTO:
 
         <!-- Datos de la cita -->
         <div class="data-card">
-          <h3 class="data-card-title">Datos de la cita</h3>
+          <h3 class="data-card-title" data-i18n="citas.appointment_data">Datos de la cita</h3>
           <div class="data-row"><strong>Paciente:</strong> <span id="apPaciente">—</span></div>
           <div class="data-row"><strong>Profesional:</strong> <span id="apProfesional">—</span></div>
           <div class="data-row"><strong>Servicio:</strong> <span id="apServicio">—</span></div>
@@ -196,34 +171,6 @@ NOTAS DE MANTENIMIENTO:
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Estilos para contenido solo accesible por screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -231,22 +178,13 @@ NOTAS DE MANTENIMIENTO:
       <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
     <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
 
   <script>
     window.smiletrackAsistenciaProcedData = @Html.Raw(asistenciaProcedDataJson);
   </script>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-06-asistencia-procedi/asistencia-proc.js")"></script>
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
-</body>
-
-</html>
-
-
+@section Scripts {
+    <script src="~/js/Gestion_De_Citas/st-aux-06-asistencia-procedi/asistencia-proc.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
+}

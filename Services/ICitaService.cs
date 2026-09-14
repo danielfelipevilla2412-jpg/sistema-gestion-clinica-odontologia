@@ -50,6 +50,7 @@ public interface ICitaService
 
     Task<bool> CancelarAsync(
         int id,
+        TimeSpan? anticipacionMinima = null,
         CancellationToken ct = default);
 
     /// <summary>

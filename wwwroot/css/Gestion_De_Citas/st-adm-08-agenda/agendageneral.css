@@ -35,7 +35,6 @@
     --bg: #f4f6fb;
     --white: #ffffff;
     --text: #1e293b;
-    --text-muted: #64748b;
     --border: #e2e8f0;
 
     /* Paleta de colores principal */
@@ -1091,4 +1090,25 @@ body.modal-open {
 .clinic-hours-banner strong {
     color: var(--text);
     margin-bottom: 2px;
+}
+
+.calendar-section.is-loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.calendar-section.is-loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: linear-gradient(100deg, rgba(255,255,255,.72) 20%, rgba(226,232,240,.92) 40%, rgba(255,255,255,.72) 60%);
+    background-size: 200% 100%;
+    animation: agenda-skeleton-shimmer 1.2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes agenda-skeleton-shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
 }

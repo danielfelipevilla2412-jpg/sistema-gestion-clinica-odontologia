@@ -17,9 +17,10 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!-- ═════ SIDEBAR UNIFICADO (Activo: Control post-operatorio) ═════ -->
 
@@ -39,15 +40,15 @@
     <!-- Breadcrumb y header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Auxiliar</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_auxiliar">Auxiliar</span>
           <span class="bc-sep" aria-hidden="true">→</span>
           <span>Citas finalizadas</span>
           <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active">Postoperatorio</span>
         </nav>
-        <h1 class="page-title">Control Postoperatorio</h1>
-        <p class="page-subtitle" id="postopSubtitle">Cargando…</p>
+        <h1 class="page-title" data-i18n="historia.evolution">Control Postoperatorio</h1>
+        <p class="page-subtitle" id="postopSubtitle" data-i18n="common.loading">Cargando…</p>
       </div>
       @* Yeray (2025) - Selector de cita postoperatoria.
          ANTES: la vista siempre cargaba la cita completada más reciente por defecto;
@@ -58,7 +59,7 @@
                 del control postoperatorio correspondiente. *@
       <div class="header-right" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <label for="selectorCitaPostop" style="font-size:.85rem;color:var(--text-muted);white-space:nowrap;">
-          Cita:
+          <span data-i18n="citas.title">Cita:</span>
         </label>
         <select id="selectorCitaPostop"
                 aria-label="Seleccionar cita postoperatoria"
@@ -77,7 +78,7 @@
 
         <!-- Estado final del consultorio con role radiogroup -->
         <div class="card status-card">
-          <h3 class="card-title" id="statusTitle">Estado final del consultorio</h3>
+          <h3 class="card-title" id="statusTitle" data-i18n="facturacion.status">Estado final del consultorio</h3>
           <div class="status-buttons" role="radiogroup" aria-labelledby="statusTitle">
             <button class="status-btn stable active" role="radio" aria-checked="true" id="statusStable"
               aria-label="Paciente estable - sin complicaciones">
@@ -113,6 +114,7 @@
           <!-- Input para agregar nueva instrucción -->
           <div class="add-instruction-wrapper">
             <input type="text" id="newInstructionInput" placeholder="Escribir nueva instrucción..."
+              data-i18n-ph="historia.new_instruction_ph"
               aria-label="Nueva instrucción postoperatoria" />
             <button class="add-btn" id="btnAddInstruction" aria-label="Agregar instrucción a la lista">+</button>
           </div>
@@ -127,6 +129,7 @@
         <div class="card observation-card">
           <h3 class="card-title" id="observationsTitle">Observaciones</h3>
           <textarea class="obs-textarea" id="obsTextarea" placeholder="Paciente toleró bien el procedimiento..."
+            data-i18n-ph="historia.observations_ph"
             aria-label="Observaciones del auxiliar sobre el estado postoperatorio"
             aria-describedby="observationsTitle"></textarea>
         </div>
@@ -217,6 +220,8 @@
   </footer>
 
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>

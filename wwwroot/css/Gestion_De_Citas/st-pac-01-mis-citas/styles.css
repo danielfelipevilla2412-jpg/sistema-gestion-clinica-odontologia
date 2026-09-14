@@ -1,4 +1,4 @@
-/* ============================================
+﻿/* ============================================
 SmileTrack — Mis Citas Paciente (st-pac-01-mis-citas)
 ============================================
 Autor: Johan Santamaria
@@ -30,11 +30,10 @@ NOTAS DE MANTENIMIENTO:
   --primary: #1a56cc;
   --primary-light: #eef2ff;
   --green: #22c55e;
-  --orange: #b45309;
+  --orange: #f59e0b;
   --purple: #9333ea;
   --blue-pill: #2563eb;
   --text: #1e293b;
-  --text-muted: #64748b;
   --border: #e2e8f0;
   --shadow: 0 1px 4px rgba(0,0,0,.07);
   --shadow-md: 0 4px 16px rgba(0,0,0,.1);
@@ -207,7 +206,7 @@ td.td-doctor { font-weight: 600; font-size: .82rem; }
 
 /* ═══ BOTONES ═══ */
 .btn-primary { background: var(--primary); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr), transform var(--tr); }
-.btn-primary:hover { background: #1547a8; }
+.btn-primary:hover { background: var(--primary-dark); }
 .btn-primary:active { transform: scale(0.97); }
 .btn-secondary { background: var(--white); color: var(--text); border: 1.5px solid var(--border); padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr), border-color var(--tr), transform var(--tr); }
 .btn-secondary:hover { background: var(--primary-light); border-color: var(--primary); }

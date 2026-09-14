@@ -226,7 +226,8 @@
             <span class="material-symbols-outlined">menu</span>
           </button>
           <div class="border-l-[3px] border-[#002a58] pl-3.5 flex flex-col justify-center my-0.5">
-            <h1 class="text-[19px] font-bold text-[#002a58] leading-none mb-1">Centro de Ayuda</h1>
+            @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+            <h1 class="text-[19px] font-bold text-[#002a58] leading-none mb-1" data-i18n="help.title">Centro de Ayuda</h1>
             <p class="text-[11px] text-slate-500 font-medium leading-none">Guía de usuario SmileTrack</p>
           </div>
         </div>
@@ -274,7 +275,7 @@
         </nav>
 
         <div class="bg-white p-card-padding rounded-xl form-shadow mb-gutter border-l-[6px] border-[#002a58] support-card">
-          <h2 class="font-headline-xl text-headline-xl text-[#002a58]">Nuevo Ticket de Soporte</h2>
+          <h2 class="font-headline-xl text-headline-xl text-[#002a58]" data-i18n="help.support_channels">Nuevo Ticket de Soporte</h2>
           <p class="font-body-md text-body-md text-[#424750] mt-1">Reporte cualquier inconveniente técnico o solicitud administrativa. Nuestro equipo responderá en menos de 2 horas.</p>
         </div>
 
@@ -537,6 +538,8 @@
 
     @await Html.PartialAsync("_ValidationScriptsPartial")
     <script src="@Url.Content("~/js/Centro_De_Ayuda/Guia_De_Usuario/script.js")"></script>
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
   </body>
 </html>
 

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿@using System.Text.Json
+﻿﻿@using System.Text.Json
 @using SmileTrack_MVC.Models.ViewModels
 @model HistorialPacienteViewModel
 @{
@@ -74,9 +74,10 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- [MEJORA]: Skip link para accesibilidad keyboard-first (consistente con st-pac-01) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!-- ----- SIDEBAR UNIFICADO (Activo: Historial) ----- -->
   @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
@@ -95,42 +96,42 @@
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb">Paciente › Mi historial</div>
-        <h1 class="page-title">Mi Historial Clínico</h1>
-        <p class="page-subtitle">Consulta tus registros, tratamientos y odontograma</p>
+        <div class="breadcrumb"><span data-i18n="common_role_patient">Paciente</span> › <span data-i18n="historia.title">Mi historial</span></div>
+        <h1 class="page-title" data-i18n="historia.title">Mi Historial Clínico</h1>
+        <p class="page-subtitle" data-i18n="historia.evolution">Consulta tus registros, tratamientos y odontograma</p>
       </div>
       <!-- [MEJORA]: aria-label para botón de acción principal -->
-      <button class="btn-primary" id="btnDescargar" aria-label="Descargar informe clínico completo"><span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar
+      <button class="btn-primary" id="btnDescargar" aria-label="Descargar informe clínico completo" data-i18n-aria-label="table.export"><span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar
         informe</button>
     </header>
 
     <!-- Stats -->
     <!-- [MEJORA]: aria-label para sección de estadÍdsticas -->
-    <section class="stats-grid" aria-label="Resumen de historial clínico">
+    <section class="stats-grid" aria-label="Resumen de historial clínico" data-i18n-aria-label="historia.title">
       <div class="stat-card" data-color="blue"><span class="stat-number" id="cnt-total">0</span><span
-          class="stat-label">Total registros</span></div>
+          class="stat-label" data-i18n="table.total_records">Total registros</span></div>
       <div class="stat-card" data-color="green"><span class="stat-number" id="cnt-atendidas">0</span><span
-          class="stat-label">Atendidas</span><span class="stat-sub" id="stat-sub-atendidas"></span></div>
+          class="stat-label" data-i18n="status.attended">Atendidas</span><span class="stat-sub" id="stat-sub-atendidas"></span></div>
       <div class="stat-card" data-color="orange"><span class="stat-number" id="cnt-pendientes">0</span><span
-          class="stat-label">Pendientes</span></div>
+          class="stat-label" data-i18n="status.pending">Pendientes</span></div>
       <div class="stat-card" data-color="purple"><span class="stat-number" id="cnt-alertas">0</span><span
-          class="stat-label">Alertas médicas</span></div>
+          class="stat-label" data-i18n="common.warning">Alertas médicas</span></div>
     </section>
 
     <!-- Sección principal -->
     <section class="agenda-section" aria-label="Contenido de historial">
 
       <!-- Toolbar -->
-      <div class="toolbar" role="toolbar" aria-label="Filtros de historial">
+      <div class="toolbar" role="toolbar" aria-label="Filtros de historial" data-i18n-aria-label="table.filter">
         <div class="search-wrap">
           <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
           <!-- [MEJORA]: aria-label para input de búsqueda (consistente con st-pac-01) -->
           <input type="search" id="searchInput" class="search-input" placeholder="Buscar en historial\…"
-            autocomplete="off" aria-label="Buscar en historial clínico" />
+            autocomplete="off" aria-label="Buscar en historial clínico" data-i18n-ph="table.search" data-i18n-aria-label="historia.title" />
         </div>
         <!-- [MEJORA]: aria-label para select de filtro -->
-        <select id="filterTipo" class="status-select" aria-label="Filtrar por tipo de registro">
-          <option value="">Todos los tipos</option>
+        <select id="filterTipo" class="status-select" aria-label="Filtrar por tipo de registro" data-i18n-aria-label="historia.diagnosis">
+          <option value="" data-i18n="table.filter">Todos los tipos</option>
           <option value="consulta">Consulta</option>
           <option value="limpieza">Limpieza</option>
           <option value="tratamiento">Tratamiento</option>
@@ -148,8 +149,8 @@
           <!-- --- ODONTOGRAMA INTERACTIVO COMPLETO --- -->
           <div class="odontogram-widget">
             <div class="odontogram-header">
-              <h3 id="odontogramTitle"><span class="material-symbols-outlined" aria-hidden="true">medical_information</span> Mi odontograma</h3>
-              <span class="odontogram-badge" aria-label="Modo de visualización">Solo lectura</span>
+              <h3 id="odontogramTitle" data-i18n="historia.teeth_chart"><span class="material-symbols-outlined" aria-hidden="true">medical_information</span> Mi odontograma</h3>
+              <span class="odontogram-badge" aria-label="Modo de visualización" data-i18n-aria-label="historia.title" data-i18n="common.read_only">Solo lectura</span>
             </div>
 
             <!-- Widget odontograma original (ESTRUCTURA VISUAL PRESERVADA) -->
@@ -719,6 +720,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 
 </html>

@@ -32,6 +32,29 @@ namespace SmileTrack_MVC.Models.Entities
         [Column("notas")]
         public string? Notas { get; set; }
 
+        [Column("motivo_consulta")]
+        public string? MotivoConsulta { get; set; }
+
+        [Column("notas_previas")]
+        public string? NotasPrevias { get; set; }
+
+        [Column("tipo_cita")]
+        [StringLength(20)]
+        public string? TipoCita { get; set; }
+
+        [Column("fecha_creacion")]
+        public DateTime? FechaCreacion { get; set; }
+
+        [Column("creado_por")]
+        public int? CreadoPor { get; set; }
+
+        [Column("archivo_adjunto")]
+        [StringLength(255)]
+        public string? ArchivoAdjunto { get; set; }
+
+        [Column("duracion_minutos")]
+        public int DuracionMinutos { get; set; } = 60;
+
         [NotMapped]
         public DateTime Fecha
         {
@@ -48,37 +71,13 @@ namespace SmileTrack_MVC.Models.Entities
 
         [NotMapped]
         public TimeSpan HoraFin =>
-        FechaHora.AddMinutes(60).TimeOfDay;
+        FechaHora.AddMinutes(DuracionMinutos > 0 ? DuracionMinutos : 60).TimeOfDay;
 
-        [NotMapped]
-        public string? MotivoConsulta
-        {
-            get => Notas;
-            set => Notas = value;
-        }
-
-        [NotMapped]
-        public string? NotasPrevias
-        {
-            get => Notas;
-            set => Notas = value;
-        }
-
-        [NotMapped]
-        public string? TipoCita { get; set; }
-
+        [Column("id_consultorio")]
         public int? IdConsultorio { get; set; }
 
+        [Column("id_estado")]
         public int? IdEstado { get; set; }
-
-        [NotMapped]
-        public DateTime? FechaCreacion { get; set; }
-
-        [NotMapped]
-        public int? CreadoPor { get; set; }
-
-        [NotMapped]
-        public string? ArchivoAdjunto { get; set; }
 
         [ForeignKey(nameof(IdPaciente))]
         public Paciente? Paciente { get; set; }

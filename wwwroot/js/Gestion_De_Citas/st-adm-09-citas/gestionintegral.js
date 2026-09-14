@@ -37,12 +37,9 @@
 const API_BASE = '/api';
 let configuredDurationMinutes = 60;
 
-const escapeHtml = (value) => String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+// NOTA: escapeHtml está disponible en window.SmileTrack.utils.escapeHtml()
+// Se mantiene accesible globalmente como alias para retrocompatibilidad
+// const escapeHtml = window.SmileTrack.utils.escapeHtml;
 
 /**
  * Tamaño de página para paginación de API.
@@ -76,40 +73,24 @@ const getAuthHeaders = () => {
 };
 
 // ════════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
+//  UTILIDADES GLOBALES - CENTRALIZADAS EN utils.js
 // ════════════════════════════════════════════════════════════════════
-
-/**
- * Obtiene un elemento del DOM de forma segura.
- * Previene excepciones fatales en la inicialización si un elemento no existe.
- *
- * @param {string} elementId - ID del elemento a buscar
- * @returns {HTMLElement|null} Elemento encontrado o null
- */
-const safeGetElement = (elementId) => {
-    const element = document.getElementById(elementId);
-    if (!element) {
-        console.warn(`[SmileTrack] Elemento no encontrado: #${elementId}`);
-    }
-    return element;
-};
-
-/**
- * Debounce para evitar saturar la API con peticiones redundantes
- * ante cambios veloces del usuario (ej: typing en búsqueda).
- *
- * @param {Function} callback - Función a ejecutar
- * @param {number} delay - Milisegundos de espera
- * @returns {Function} Función debounced
- */
-const debounce = (callback, delay) => {
-    let timeoutId;
-
-    return (...args) => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => callback.apply(this, args), delay);
-    };
-};
+// 
+// NOTA: Las funciones siguientes están centralizadas en wwwroot/js/shared/utils.js
+// Importadas bajo el namespace window.SmileTrack.utils
+//
+// Aliases globales disponibles para retrocompatibilidad:
+// - safeGetElement()
+// - debounce()
+// - escapeHtml()
+// - apiRequest()
+// - animateCounter()
+// - showToast()
+// - openModal() / closeModal()
+// - validateForm()
+//
+// Uso recomendado: window.SmileTrack.utils.safeGetElement(id)
+// ════════════════════════════════════════════════════════════════════
 
 /**
  * Muestra una notificación toast no bloqueante.
@@ -993,10 +974,10 @@ const updateStats = () => {
     const cancelled = appointments.filter(appointment => appointment.status === 'cancelada').length;
     const attended = appointments.filter(appointment => appointment.status === 'atendida').length;
 
-    animateCounter(safeGetElement('statTotal'), total);
-    animateCounter(safeGetElement('statScheduled'), scheduled);
-    animateCounter(safeGetElement('statCancelled'), cancelled);
-    animateCounter(safeGetElement('statAttended'), attended);
+    animateCounter(safeGetElement('citas-stat-total'), total);
+    animateCounter(safeGetElement('citas-stat-programadas'), scheduled);
+    animateCounter(safeGetElement('citas-stat-canceladas'), cancelled);
+    animateCounter(safeGetElement('citas-stat-atendidas'), attended);
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -1137,7 +1118,7 @@ const initPagination = () => {
  * garantizando disponibilidad antes de cualquier DOMContentLoaded (incluido el inline script).
  */
 const initNewAppointment = () => {
-    const newAppointmentButton = safeGetElement('btnNewCita') || safeGetElement('btnNewAppointment');
+    const newAppointmentButton = safeGetElement('citas-btn-nueva') || safeGetElement('btnNewCita') || safeGetElement('btnNewAppointment');
     if (!newAppointmentButton) return;
     if (newAppointmentButton.hasAttribute('onclick')) return;
     newAppointmentButton.addEventListener('click', () => {
@@ -1344,8 +1325,42 @@ const init = async () => {
                     `${String(horaFinal).padStart(2, '0')}:${String(minutoFinal).padStart(2, '0')}`;
             };
 
-            horaInicio.addEventListener('input', calcularHoraFin);
-            horaInicio.addEventListener('change', calcularHoraFin);
+            const validarHorarioInline = () => {
+                const fecha = document.getElementById('fechaCita')?.value || '';
+                const errorEl = document.getElementById('error-horaInicioCita');
+                if (!fecha || !horaInicio.value || !horaFin.value || !window.AppointmentUtils) return;
+
+                const error = window.AppointmentUtils.validateAppointmentTime(
+                    fecha,
+                    horaInicio.value,
+                    horaFin.value
+                ).find(item => item.field === 'horaInicio' || item.field === 'horaFin' || item.field === 'general');
+
+                if (error) {
+                    horaInicio.setAttribute('aria-invalid', 'true');
+                    if (errorEl) {
+                        errorEl.textContent = error.message;
+                        errorEl.hidden = false;
+                    }
+                } else {
+                    horaInicio.setAttribute('aria-invalid', 'false');
+                    if (errorEl) {
+                        errorEl.textContent = '';
+                        errorEl.hidden = true;
+                    }
+                }
+            };
+
+            horaInicio.addEventListener('input', () => {
+                calcularHoraFin();
+                validarHorarioInline();
+            });
+            horaInicio.addEventListener('change', () => {
+                calcularHoraFin();
+                validarHorarioInline();
+            });
+            horaFin.addEventListener('change', validarHorarioInline);
+            document.getElementById('fechaCita')?.addEventListener('change', validarHorarioInline);
 
             // Calcular al abrir/cargar
             calcularHoraFin();

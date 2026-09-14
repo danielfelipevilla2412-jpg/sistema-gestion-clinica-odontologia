@@ -290,6 +290,8 @@ const initWeekNavigation = () => {
     };
 
     const loadWeek = async (weekStartIso, push = true) => {
+        const calendarSection = document.querySelector('.calendar-section');
+        calendarSection?.classList.add('is-loading');
         try {
             const search = new URLSearchParams(window.location.search);
             search.set('weekStart', weekStartIso);
@@ -310,6 +312,8 @@ const initWeekNavigation = () => {
         } catch (err) {
             console.error('[SmileTrack][Agenda] Error cargando semana:', err);
             window.ToastService.error('❌ No fue posible cargar la semana seleccionada');
+        } finally {
+            calendarSection?.classList.remove('is-loading');
         }
     };
 

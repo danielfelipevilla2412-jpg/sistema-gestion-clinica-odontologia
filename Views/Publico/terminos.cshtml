@@ -39,8 +39,9 @@
     </style>
 </head>
 <body>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
     <main class="privacy-container">
-        <h1>Términos y Condiciones</h1>
+        <h1 data-i18n="common.terms">Términos y Condiciones</h1>
         <p class="updated">Última actualización: @DateTime.Now.ToString("dd 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES"))</p>
 
         <p>
@@ -145,5 +146,7 @@
 
         <a class="back-link" href="@Url.Content("~/")">&larr; Volver al inicio</a>
     </main>
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>

@@ -66,6 +66,8 @@ NOTAS DE MANTENIMIENTO:
 
 <body>
 
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
   <!--
   =========================================================
   ACCESIBILIDAD — ENLACE DE SALTO
@@ -75,7 +77,7 @@ NOTAS DE MANTENIMIENTO:
   nuevamente todo el menú lateral.
   =========================================================
   -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!--
   =========================================================
@@ -100,65 +102,65 @@ NOTAS DE MANTENIMIENTO:
   *@
   @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Inicio <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_inicio">Inicio <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
-        <a href="/" class="nav-item" data-icon="🏠">Homepage</a>
+        <a href="/" class="nav-item" data-icon="🏠" data-i18n="common_nav_homepage">Homepage</a>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Acceso y Seguridad <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_acceso_seguridad">Acceso y Seguridad <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
-        <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios" class="nav-item" data-icon="👥">Gestión de Usuarios</a>
-        <a href="/acceso-y-seguridad/st-adm-03-gestion-roles" class="nav-item" data-icon="🛡️">Gestión de Roles</a>
-        <a href="/acceso-y-seguridad/st-adm-15-bitacora" class="nav-item" data-icon="📜">Bitácora del Sistema</a>
+        <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios" class="nav-item" data-icon="👥" data-i18n="common_nav_gestion_usuarios">Gestión de Usuarios</a>
+        <a href="/acceso-y-seguridad/st-adm-03-gestion-roles" class="nav-item" data-icon="🛡️" data-i18n="common_nav_gestion_roles">Gestión de Roles</a>
+        <a href="/acceso-y-seguridad/st-adm-15-bitacora" class="nav-item" data-icon="📜" data-i18n="common_nav_bitacora">Bitácora del Sistema</a>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_gestion_pacientes">Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
-        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="nav-item" data-icon="👥">Gestión de Pacientes</a>
+        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="nav-item" data-icon="👥" data-i18n="common_nav_gestion_pacientes">Gestión de Pacientes</a>
 
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Gestión de Profesionales <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_gestion_profesionales">Gestión de Profesionales <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
-        <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" class="nav-item" data-icon="🩺">Gestión de Profesionales</a>
-        <a href="/gestion-de-profesionales/st-adm-14-reportes-clinicos" class="nav-item" data-icon="📈">Reportes Clínicos</a>
+        <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" class="nav-item" data-icon="🩺" data-i18n="common_nav_gestion_profesionales">Gestión de Profesionales</a>
+        <a href="/gestion-de-profesionales/st-adm-14-reportes-clinicos" class="nav-item" data-icon="📈" data-i18n="common_nav_reportes_clinicos">Reportes Clínicos</a>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_gestion_citas">Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
-        <a href="/gestion-de-citas/st-adm-01-dashboard" class="nav-item" data-icon="📊">Dashboard General</a>
-        <a href="/gestion-de-citas/st-adm-08-agenda" class="nav-item" data-icon="📅">Agenda General</a>
-        <a href="/gestion-de-citas/st-adm-09-citas" class="nav-item" data-icon="🗓️">Gestión Integral de Citas</a>
+        <a href="/gestion-de-citas/st-adm-01-dashboard" class="nav-item" data-icon="📊" data-i18n="common_nav_dashboard">Dashboard General</a>
+        <a href="/gestion-de-citas/st-adm-08-agenda" class="nav-item" data-icon="📅" data-i18n="common_nav_agenda">Agenda General</a>
+        <a href="/gestion-de-citas/st-adm-09-citas" class="nav-item" data-icon="🗓️" data-i18n="common_nav_gestion_citas_int">Gestión Integral de Citas</a>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_historia_clinica">Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span></div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Facturación y Pagos <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_facturacion_pagos">Facturación y Pagos <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
-        <a href="/facturacion-y-pagos/st-adm-12-facturacion" class="nav-item active" data-icon="💰" aria-current="page">Gestión de Facturación</a>
-        <a href="/facturacion-y-pagos/st-adm-13-reportes-financieros" class="nav-item" data-icon="📊">Reportes Financieros</a>
+        <a href="/facturacion-y-pagos/st-adm-12-facturacion" class="nav-item active" data-icon="💰" aria-current="page" data-i18n="common_nav_gestion_facturacion">Gestión de Facturación</a>
+        <a href="/facturacion-y-pagos/st-adm-13-reportes-financieros" class="nav-item" data-icon="📊" data-i18n="common_nav_reportes_financieros">Reportes Financieros</a>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0">Servicios y Recursos <span class="nav-arrow" aria-hidden="true">▼</span></div>
+      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_servicios_recursos">Servicios y Recursos <span class="nav-arrow" aria-hidden="true">▼</span></div>
       <div class="nav-group-items">
-        <a href="/servicios-y-recursos/st-adm-10-servicios" class="nav-item" data-icon="🔧">Catálogo de Servicios</a>
-        <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="nav-item" data-icon="⚙️">Configuración General</a>
+        <a href="/servicios-y-recursos/st-adm-10-servicios" class="nav-item" data-icon="🔧" data-i18n="common_nav_catalogo_servicios">Catálogo de Servicios</a>
+        <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="nav-item" data-icon="⚙️" data-i18n="common_nav_configuracion">Configuración General</a>
       </div>
     </div>
     <div class="nav-separator" aria-hidden="true"></div>
-    <a href="/acceso-y-seguridad/login" class="nav-item nav-item--logout" data-icon="🚪" aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
+    <a href="/acceso-y-seguridad/login" class="nav-item nav-item--logout" data-icon="🚪" data-i18n-aria-label="common_nav_logout_aria" data-i18n="common_nav_cerrar_sesion" aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
   </nav>
   <div class="sidebar-user">
     <div class="user-avatar" aria-hidden="true">AD</div>
     <div class="user-info">
-      <span class="user-role">Administrador</span>
+      <span class="user-role" data-i18n="common_role_admin">Administrador</span>
       <span class="user-email">admin@smiletrack.co</span>
     </div>
   </div>
@@ -175,7 +177,7 @@ NOTAS DE MANTENIMIENTO:
   identificar visualmente el menú abierto.
   =========================================================
   -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+  <button class="hamburger" id="hamburger" data-i18n-aria-label="common_hamburger_aria" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
     <span aria-hidden="true"></span>
     <span aria-hidden="true"></span>
     <span aria-hidden="true"></span>
@@ -200,13 +202,13 @@ NOTAS DE MANTENIMIENTO:
     -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Administración</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_bc_administracion">Administración</span>
           <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Facturación</span>
+          <span class="bc-active" data-i18n="gestion_facturacion_title">Facturación</span>
         </nav>
-        <h1 class="page-title">Facturación</h1>
-        <p class="page-subtitle">Ingresos y cobros</p>
+        <h1 class="page-title" data-i18n="gestion_facturacion_title">Facturación</h1>
+        <p class="page-subtitle" data-i18n="gestion_facturacion_subtitle">Ingresos y cobros</p>
       </div>
     </header>
 
@@ -226,26 +228,26 @@ NOTAS DE MANTENIMIENTO:
     dinámicos a tecnologías de asistencia.
     =====================================================
     -->
-    <section class="stats-grid" aria-label="Resumen de facturación">
+    <section class="stats-grid" aria-label="Resumen de facturación" data-i18n-aria-label="facturacion.title">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="statTotal" data-target="1248" aria-live="polite">0</span>
-        <span class="stat-label">Total Facturas</span>
-        <span class="stat-sub">Este año fiscal</span>
+        <span class="stat-label" data-i18n="gestion_facturacion_kpi_total_facturas">Total Facturas</span>
+        <span class="stat-sub" data-i18n="gestion_facturacion_kpi_anio_fiscal">Este año fiscal</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="statPending" data-target="4200000" aria-live="polite">$0</span>
-        <span class="stat-label">Por Cobrar</span>
-        <span class="stat-sub">↑ 8% vs mes anterior</span>
+        <span class="stat-label" data-i18n="gestion_facturacion_kpi_por_cobrar">Por Cobrar</span>
+        <span class="stat-sub" data-i18n="gestion_facturacion_kpi_vs_mes_anterior_up">↑ 8% vs mes anterior</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="stat-number" id="statPaidToday" data-target="12" aria-live="polite">0</span>
-        <span class="stat-label">Pagadas Hoy</span>
-        <span class="stat-sub">Actualizado hace 5 min</span>
+        <span class="stat-label" data-i18n="gestion_facturacion_kpi_pagadas_hoy">Pagadas Hoy</span>
+        <span class="stat-sub" data-i18n="gestion_facturacion_kpi_actualizado_hace">Actualizado hace 5 min</span>
       </div>
       <div class="stat-card" data-color="red">
         <span class="stat-number" id="statCancelled" data-target="3" aria-live="polite">0</span>
-        <span class="stat-label">Anuladas</span>
-        <span class="stat-sub">Últimas 24 horas</span>
+        <span class="stat-label" data-i18n="gestion_facturacion_kpi_anuladas">Anuladas</span>
+        <span class="stat-sub" data-i18n="gestion_facturacion_kpi_ultimas_24h">Últimas 24 horas</span>
       </div>
     </section>
 
@@ -266,7 +268,7 @@ NOTAS DE MANTENIMIENTO:
           <span class="search-icon" aria-hidden="true">🔍</span>
           <!-- Búsqueda rápida por número de factura o nombre del paciente. -->
           <input type="search" id="searchInvoices" class="search-input" placeholder="Buscar por N° o Paciente..."
-            aria-label="Buscar factura">
+            aria-label="Buscar factura" data-i18n-ph="table.search" data-i18n-aria-label="facturacion.invoice">
         </div>
         <select id="filterStatus" class="filter-select" aria-label="Filtrar por estado">
           <option value="">Todos los Estados</option>
@@ -282,7 +284,7 @@ NOTAS DE MANTENIMIENTO:
           <option value="2026-03">Marzo 2026</option>
         </select>
         <!-- Abre el formulario modal para registrar una nueva factura. -->
-        <button class="btn-primary" id="btnNewInvoice" aria-label="Crear nueva factura">
+        <button class="btn-primary" id="btnNewInvoice" aria-label="Crear nueva factura" data-i18n-aria-label="facturacion.new_invoice" data-i18n="facturacion.new_invoice">
           ➕ Nueva factura
         </button>
       </div>
@@ -309,13 +311,13 @@ NOTAS DE MANTENIMIENTO:
       ante tecnologías de asistencia.
       -->
       <div class="table-header" role="row">
-        <div class="table-col col-numero" role="columnheader">N° Factura</div>
-        <div class="table-col col-paciente" role="columnheader">Paciente</div>
-        <div class="table-col col-fecha" role="columnheader">Fecha</div>
-        <div class="table-col col-total" role="columnheader">Total</div>
-        <div class="table-col col-pendiente" role="columnheader">Pendiente</div>
-        <div class="table-col col-estado text-center" role="columnheader">Estado</div>
-        <div class="table-col col-acciones text-right" role="columnheader">Acciones</div>
+        <div class="table-col col-numero" role="columnheader" data-i18n="facturacion.invoice">N° Factura</div>
+        <div class="table-col col-paciente" role="columnheader" data-i18n="citas.patient">Paciente</div>
+        <div class="table-col col-fecha" role="columnheader" data-i18n="facturacion.date">Fecha</div>
+        <div class="table-col col-total" role="columnheader" data-i18n="facturacion.total">Total</div>
+        <div class="table-col col-pendiente" role="columnheader" data-i18n="status.pending">Pendiente</div>
+        <div class="table-col col-estado text-center" role="columnheader" data-i18n="facturacion.status">Estado</div>
+        <div class="table-col col-acciones text-right" role="columnheader" data-i18n="table.actions">Acciones</div>
       </div>
 
       <!--
@@ -358,7 +360,7 @@ NOTAS DE MANTENIMIENTO:
     aria-hidden="true" inert>
     <div class="drawer-panel" id="drawerPanel">
       <header class="drawer-header">
-        <h3 class="drawer-title" id="drawerTitle">Detalle de Factura</h3>
+        <h3 class="drawer-title" id="drawerTitle" data-i18n="facturacion.invoice">Detalle de Factura</h3>
         <button class="drawer-close" id="drawerClose" aria-label="Cerrar panel">×</button>
       </header>
       <div class="drawer-content" role="document">
@@ -459,7 +461,7 @@ NOTAS DE MANTENIMIENTO:
     aria-labelledby="newInvoiceTitle" aria-hidden="true" inert>
     <div class="new-invoice-modal">
       <header class="new-invoice-header">
-        <h3 class="new-invoice-title" id="newInvoiceTitle">Nueva factura</h3>
+        <h3 class="new-invoice-title" id="newInvoiceTitle" data-i18n="facturacion.new_invoice">Nueva factura</h3>
         <button class="new-invoice-close" id="newInvoiceClose" type="button" aria-label="Cerrar formulario">×</button>
       </header>
       <!-- Formulario de creación de factura. La validación requerida se realiza sobre sus campos. -->
@@ -499,8 +501,8 @@ NOTAS DE MANTENIMIENTO:
           </label>
         </div>
         <footer class="new-invoice-footer">
-          <button class="btn-secondary" id="newInvoiceCancel" type="button">Cancelar</button>
-          <button class="btn-primary" type="submit">Generar factura</button>
+          <button class="btn-secondary" id="newInvoiceCancel" type="button" data-i18n="common.cancel">Cancelar</button>
+          <button class="btn-primary" type="submit" data-i18n="facturacion.new_invoice">Generar factura</button>
         </footer>
       </form>
     </div>
@@ -613,6 +615,8 @@ NOTAS DE MANTENIMIENTO:
 </script>
 <script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
 <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.js")"></script>
+<script src="@Url.Content("~/js/i18n-core.js")"></script>
+<script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 
 </html>

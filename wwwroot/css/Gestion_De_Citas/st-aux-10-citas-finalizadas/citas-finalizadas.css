@@ -37,7 +37,6 @@ NOTAS DE MANTENIMIENTO:
   --purple: #9333ea;
   --danger: #ef4444;
   --text: #1e293b;
-  --text-muted: #64748b;
   --border: #e2e8f0;
   --shadow: 0 1px 4px rgba(0,0,0,.07);
   --shadow-md: 0 4px 16px rgba(0,0,0,.1);
@@ -166,18 +165,18 @@ img { max-width: 100%; height: auto; display: block; }
 .stat-number { display: block; font-family: var(--font-display); font-size: 2.2rem; font-weight: 700; line-height: 1; margin-bottom: 4px; }
 .stat-card[data-color="green"]  .stat-number { color: var(--green); }
 .stat-card[data-color="red"]    .stat-number { color: var(--danger); }
-.stat-card[data-color="orange"] .stat-number { color: #b45309; }
+.stat-card[data-color="orange"] .stat-number { color: var(--orange); }
 .stat-card[data-color="blue"]   .stat-number { color: #3b82f6; }
 .stat-card[data-color="purple"] .stat-number { color: var(--purple); }
 .stat-label { font-size: .77rem; color: var(--text-muted); font-weight: 500; }
 
 /* ═══ TABLA DE CITAS ═══ */
 .table-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); overflow: hidden; }
-.appointments-table { width: 100%; border-collapse: collapse; font-size: .83rem; }
-.appointments-table thead { background: var(--bg); border-bottom: 2px solid var(--border); }
-.appointments-table th { padding: 12px 16px; text-align: left; font-size: .69rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; }
-.appointments-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-.appointments-table tbody tr:hover { background: #f8fafc; }
+.table-base { width: 100%; border-collapse: collapse; font-size: .83rem; }
+.table-base thead { background: var(--bg); border-bottom: 2px solid var(--border); }
+.table-base th { padding: 12px 16px; text-align: left; font-size: .69rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; }
+.table-base td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table-base tbody tr:hover { background: #f8fafc; }
 .td-hora { font-weight: 700; color: var(--text); white-space: nowrap; }
 .td-paciente { font-weight: 600; color: var(--text); }
 .td-profesional, .td-servicio { color: var(--text-muted); }

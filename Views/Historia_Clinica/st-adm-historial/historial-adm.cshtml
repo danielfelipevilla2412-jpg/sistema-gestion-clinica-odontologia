@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 <body>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
     @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
@@ -40,10 +41,10 @@
                 <div class="breadcrumb" aria-label="Ruta de navegación">
                     <span>Administración</span>
                     <span aria-hidden="true">→</span>
-                    <span class="current">Historia Clínica Global</span>
+                    <span class="current" data-i18n="historia.title">Historia Clínica Global</span>
                 </div>
-                <h1 class="page-title">Historia Clínica Global</h1>
-                <p class="page-subtitle">Acceso de solo lectura a todos los historiales del sistema</p>
+                <h1 class="page-title" data-i18n="historia.title">Historia Clínica Global</h1>
+                <p class="page-subtitle" data-i18n="historia.evolution">Acceso de solo lectura a todos los historiales del sistema</p>
             </div>
             <span class="badge-admin" role="status" aria-label="Modo de visualización">
                 🔒 Solo lectura
@@ -75,7 +76,7 @@
             <div class="filters-row">
                 <div class="search-wrap">
                     <span class="search-icon" aria-hidden="true">🔍</span>
-                    <input type="search" id="searchInput" class="search-input" placeholder="Buscar por nombre, cédula o correo..." aria-label="Buscar pacientes" />
+                    <input type="search" id="searchInput" class="search-input" placeholder="Buscar por nombre, c&#233;dula o correo..." data-i18n-ph="table.search" aria-label="Buscar pacientes" />
                 </div>
                 <div class="filter-wrap">
                     <select id="filterOdontologo" class="status-select" aria-label="Filtrar por odontólogo">
@@ -234,6 +235,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>
 

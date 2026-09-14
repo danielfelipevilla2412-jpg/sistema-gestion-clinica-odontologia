@@ -237,7 +237,12 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
 
         string destino;
         string rr = returnUrl ?? string.Empty;
-        if (IsLocalUrl(rr) && !rr.StartsWith("/acceso-y-seguridad/login", StringComparison.OrdinalIgnoreCase))
+        bool administradorDebeAbrirDashboard =
+            string.Equals(rolNombre, "Administrador", StringComparison.OrdinalIgnoreCase);
+
+        if (!administradorDebeAbrirDashboard &&
+            IsLocalUrl(rr) &&
+            !rr.StartsWith("/acceso-y-seguridad/login", StringComparison.OrdinalIgnoreCase))
         {
             destino = rr;
         }
