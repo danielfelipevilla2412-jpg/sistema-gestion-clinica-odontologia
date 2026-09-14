@@ -64,6 +64,12 @@ public interface ICitaService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Devuelve las solicitudes pendientes de confirmación por parte de la recepción.
+    /// </summary>
+    Task<List<Cita>> ObtenerSolicitudesPendientesAsync(
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Obtiene la lista de profesionales activos que tienen disponibilidad en la fecha y horario solicitados,
     /// verificando que el horario esté dentro de su jornada laboral, no tengan ausencias ni bloqueos registrados,
     /// y no tengan citas solapadas.

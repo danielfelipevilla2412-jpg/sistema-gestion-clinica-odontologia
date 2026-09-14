@@ -8,39 +8,38 @@ DESCRIPCIÓN:
 Maneja la lógica interactiva del historial parcial del paciente: consulta de alertas, renderizado de la tabla de consultas anteriores con remoción de skeleton loaders, y accesibilidad ARIA.
 
 FUNCIONALIDADES PRINCIPALES:
-- Consulta asíncrona simulada de datos demográficos y antecedentes del paciente
-- Renderizado interactivo de la tarjeta de alertas de alergias con indicadores visuales
-- Poblamiento de la tabla de consultas con remoción dinámica de skeleton loaders
-- Soporte para lectores de pantalla con actualización de etiquetas aria-live y descriptivas
+- Lectura de los datos reales del paciente y su historial, inyectados por el servidor vía SSR
+  (window.smiletrackHistorialParcialData, ver ConstruirHistorialParcialAsync en
+  GestionCitasController.cs). No hay ninguna llamada a la API desde esta vista: es de solo lectura.
+- Renderizado interactivo de la tarjeta de alertas de alergias con indicadores visuales, escalando
+  su severidad ARIA (role/aria-live) según si el paciente tiene alergias registradas o no.
+- Poblamiento de la tabla de consultas con remoción dinámica de skeleton loaders.
+- Soporte para lectores de pantalla con actualización de etiquetas aria-live y descriptivas.
 
 DEPENDENCIAS TÉCNICAS:
 - Controller: GestionCitasController y Stadm09Citas
 - CSS: ~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css
 - JS: ~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js
+- Requiere: ~/js/shared/common.js (window.CommonUtils) cargado ANTES que este archivo
 - Partial / Otros: historial-parcial.cshtml
 
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 - El controlador limita estrictamente las consultas a un máximo de 3 filas para mantener el perfil "parcial" por seguridad.
+- AUDITORÍA (ver docs/mejoras/st-aux-05-historial-parcial.md):
+  - safeGetElement ya no se reimplementa acá: usamos window.CommonUtils.safeGetElement, que hacía
+    exactamente lo mismo (shared/common.js).
+  - Se eliminó el debounce local: esta vista no tiene buscador ni filtro que lo necesite, era código
+    muerto.
+  - El formateo de fecha corta ahora usa window.CommonUtils.formatFechaLocal en vez de reinventar
+    toLocaleDateString('es-CO', ...) — mismo formato "05 Sep 2026" que usa el resto del proyecto.
+  - El Promise.all de getAlertas()/getConsultas() NO espera ninguna red real (los datos ya están en
+    memoria desde el SSR): se conserva por consistencia estructural con vistas que sí hacen fetch,
+    no porque haya una espera asíncrona genuina.
 ============================================ */
 
-// WHY: safeGetElement previene excepciones fatales en la inicialización si un elemento no existe en el DOM
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  return el;
-};
-
-// WHY: Debounce evita saturar la API con peticiones redundantes ante cambios veloces del usuario
-const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
-};
-
-// WHY: Las notificaciones no bloqueantes brindan retroalimentación al usuario sin entorpecer el flujo de trabajo
+// WHY: reutilizamos la versión canónica de shared/common.js en vez de reimplementarla por vista.
+const safeGetElement = window.CommonUtils.safeGetElement;
 
 // ═══════════════════════════════════════════════════════════════════
 //  HISTORIA PARCIAL CONTROLLER CON PERSISTENCIA
@@ -52,7 +51,7 @@ class HistoriaParcialController {
     this._limite = data.limite || 3;
     this._historial = (data.consultas || []).map(c => ({
       ...c,
-      fecha: c.fecha ? new Date(c.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+      fecha: c.fecha ? window.CommonUtils.formatFechaLocal(c.fecha) : ''
     }));
   }
 
@@ -97,7 +96,11 @@ const initMobileMenu = () => {
 //  RENDER: Alerta médica con actualización dinámica
 // ═══════════════════════════════════════════════════════════════════
 const renderAlerta = (alertas) => {
-  // WHY: Actualiza nodos del DOM e inyecta etiquetas ARIA descriptivas para lectores de pantalla
+  // WHY: Actualiza nodos del DOM e inyecta etiquetas ARIA descriptivas para lectores de pantalla.
+  // Los spans internos ya NO tienen aria-live propio (ver historial-parcial.cshtml): la región
+  // aria-live única es #alertaMedica, para que el navegador anuncie el cambio con la severidad
+  // (assertive/polite) que le asignamos más abajo, en vez del comportamiento indefinido que
+  // resulta de anidar live regions.
   const updateElement = (id, value) => {
     const el = safeGetElement(id);
     if (el) {
@@ -112,11 +115,22 @@ const renderAlerta = (alertas) => {
   updateElement('medicamentos', alertas.medicamentos.join(', ') || 'Ninguno');
   updateElement('grupoSang', alertas.grupoSanguineo || '—');
 
-  // WHY: Reduce el impacto visual si no hay alertas críticas, evitando falsas alarmas
+  // WHY: la severidad ARIA del contenedor se decide con los datos reales del paciente, no de forma
+  // estática en el HTML: un paciente sin alergias registradas no debe generar una alerta "assertive"
+  // (interrupción inmediata) para usuarios de lector de pantalla — sería una falsa alarma médica.
   const card = safeGetElement('alertaMedica');
-  if (card && !alertas.alergias.length && !alertas.medicamentos.length) {
-    card.style.opacity = '.6';
-    card.setAttribute('aria-label', 'Sin alertas médicas registradas para este paciente');
+  if (card) {
+    const hayAlergias = alertas.alergias.length > 0;
+    card.setAttribute('role', hayAlergias ? 'alert' : 'status');
+    card.setAttribute('aria-live', hayAlergias ? 'assertive' : 'polite');
+
+    // WHY: Reduce el impacto visual si no hay alertas críticas, evitando falsas alarmas
+    if (!hayAlergias && !alertas.medicamentos.length) {
+      card.style.opacity = '.6';
+      card.setAttribute('aria-label', 'Sin alertas médicas registradas para este paciente');
+    } else {
+      card.removeAttribute('aria-label');
+    }
   }
 };
 

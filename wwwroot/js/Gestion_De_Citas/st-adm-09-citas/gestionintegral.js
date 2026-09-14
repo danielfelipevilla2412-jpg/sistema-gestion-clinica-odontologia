@@ -391,63 +391,15 @@ const mapEstadoClientToServer = (estado) => {
 //  ESTADO EFÍMERO DE LA VISTA
 // ════════════════════════════════════════════════════════════════════
 
-/**
- * Mantiene datos únicamente durante la sesión de la página.
- */
-const appointmentsStorage = {
-    /**
-    * Sin SSR/API no se muestran datos persistidos localmente.
-     *
-     * @returns {Array} Array de citas (vacío si no hay caché ni conexión)
-     */
-    load: () => {
-        return [];
-    },
-
-    /**
-    * No persiste citas en el navegador.
-     *
-     * @param {Array} data - Array de citas a guardar
-     * @returns {boolean} True si se guardó exitosamente
-     */
-    save: (data) => {
-        return false;
-    },
-
-    /**
-     * Agrega una nueva cita al almacenamiento local.
-     *
-     * @param {Object} appointment - Cita a agregar
-     * @returns {Object} Cita agregada con ID asignado
-     */
-    addAppointment: (appointment) => {
-        const data = appointmentsStorage.load();
-        appointment.id = data.length > 0 ? Math.max(...data.map(a => a.id)) + 1 : 1;
-        data.unshift(appointment);
-        appointmentsStorage.save(data);
-        return appointment;
-    },
-
-    /**
-     * Obtiene una cita por su ID desde el almacenamiento local.
-     *
-     * @param {number} id - ID de la cita
-     * @returns {Object|undefined} Cita encontrada o undefined
-     */
-    getAppointment: (id) => {
-        return appointmentsStorage.load().find(appointment => appointment.id === id);
-    }
-};
-
 // ════════════════════════════════════════════════════════════════════
 //  DATOS Y ESTADO DE LA APLICACIÓN
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
 
 /**
  * Estado global de la aplicación.
- * Se inicializa con datos del almacenamiento local.
+ * Las citas se cargan desde la API y se mantienen en memoria para la vista.
  */
-let appointments = appointmentsStorage.load();
+let appointments = [];
 let searchQuery = '';
 let filterStatus = '';
 let filterProfessional = '';
@@ -689,15 +641,13 @@ const renderAppointments = () => {
 // ════════════════════════════════════════════════════════════════════
 
 /**
- * Obtiene una cita por su ID, buscando primero en memoria y luego en storage.
+ * Obtiene una cita por su ID desde la colección real cargada en memoria.
  *
  * @param {number} id - ID de la cita
  * @returns {Object|undefined} Cita encontrada o undefined
  */
 const getAppointmentById = (id) => {
-    const inMemory = appointments.find(appointment => appointment.id === id);
-    if (inMemory) return inMemory;
-    return appointmentsStorage.getAppointment(id);
+    return appointments.find(appointment => Number(appointment.id) === Number(id));
 };
 
 /**
@@ -727,8 +677,8 @@ const openAppointmentModal = (id, mode) => {
         editButton.style.display = 'none';
 
         contentElement.innerHTML = `
-            <p><strong>Fecha:</strong> <time datetime="${appointment.date}">${fmtDate(appointment.date)}</time></p>
-            <p><strong>Hora:</strong> <time datetime="${appointment.date}T${appointment.time}:00">${fmtTime(appointment.time)}</time></p>
+            <p><strong>Fecha:</strong> <time datetime="${escapeHtml(appointment.date)}">${escapeHtml(fmtDate(appointment.date))}</time></p>
+            <p><strong>Hora:</strong> <time datetime="${escapeHtml(`${appointment.date}T${appointment.time}:00`)}">${escapeHtml(fmtTime(appointment.time))}</time></p>
             <p><strong>Documento / ID:</strong> ${escapeHtml(appointment.doc)}</p>
             <p><strong>Profesional:</strong> ${escapeHtml(appointment.professionalName)}</p>
             <p><strong>Servicio:</strong> ${escapeHtml(appointment.service)}</p>
@@ -747,15 +697,15 @@ const openAppointmentModal = (id, mode) => {
         contentElement.innerHTML = `
             <p>
                 <strong>Fecha:</strong> 
-                <input type="date" value="${appointment.date}" id="editDate" class="filter-date" style="margin-left:8px">
+                <input type="date" value="${escapeHtml(appointment.date)}" id="editDate" class="filter-date" style="margin-left:8px">
             </p>
             <p>
                 <strong>Hora:</strong> 
-                <input type="time" value="${appointment.time}" id="editTime" class="filter-select" style="margin-left:8px">
+                <input type="time" value="${escapeHtml(appointment.time)}" id="editTime" class="filter-select" style="margin-left:8px">
             </p>
             <p>
                 <strong>Servicio:</strong> 
-                <input type="text" value="${appointment.service}" id="editService" class="search-input" style="margin-left:8px;width:200px" placeholder="Nombre servicio">
+                <input type="text" value="${escapeHtml(appointment.service)}" id="editService" class="search-input" style="margin-left:8px;width:200px" placeholder="Nombre servicio">
             </p>
             <p>
                 <strong>Estado:</strong> 
@@ -1140,9 +1090,9 @@ const initNewAppointment = () => {
  * @returns {Promise<Array>} Array de citas mapeadas
  */
 async function fetchAppointments() {
-    // La tabla SSR es la fuente principal; sin ella no se muestran datos locales.
-    console.warn('[SmileTrack] st-adm-09 no dispone de datos API en este flujo; se muestra una lista vacía.');
-    return appointmentsStorage.load();
+    // La vista usa la colección en memoria cargada en init(); si no hay datos reales
+    // disponibles, se devuelve la colección actual para evitar falsos negativos.
+    return Array.isArray(appointments) ? appointments : [];
 }
 
 // ════════════════════════════════════════════════════════════════════

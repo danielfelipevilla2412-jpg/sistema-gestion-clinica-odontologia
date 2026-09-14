@@ -91,6 +91,19 @@ NOTAS DE MANTENIMIENTO:
       </div>
     </section>
 
+    <section class="queue-panel" aria-labelledby="pendingRequestsTitle" style="margin: 1.25rem 0; background: #fff; border-radius: 16px; padding: 1.25rem; box-shadow: 0 10px 30px rgba(15,23,42,0.06); border: 1px solid #e2e8f0;">
+      <div class="queue-header" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
+        <div>
+          <p style="margin:0; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Cola de atención</p>
+          <h2 id="pendingRequestsTitle" style="margin:0.35rem 0 0; font-size:1.2rem;">Solicitudes pendientes</h2>
+        </div>
+        <span id="solicitudesPendientesBadge" class="status-badge status-agendada" style="padding:0.5rem 0.75rem; border-radius:999px;">0</span>
+      </div>
+      <div id="solicitudesPendientesList" class="pending-requests-list" aria-live="polite">
+        <div class="empty-state" role="status" style="padding:1.25rem; color:#64748b;">No hay solicitudes pendientes por confirmar.</div>
+      </div>
+    </section>
+
     <form method="get" class="filter-bar" role="toolbar" aria-label="Filtros de citas" data-i18n-aria-label="citas.filter_status">
       <div class="search-wrap">
         <span class="search-icon" aria-hidden="true">🔍</span>

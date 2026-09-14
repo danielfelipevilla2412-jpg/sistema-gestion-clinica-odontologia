@@ -5,6 +5,7 @@ using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -237,7 +238,7 @@ public partial class ProfesionalService : IProfesionalService
         string apellidos = request.Apellidos.Trim();
         string registro = request.RegistroMedico.Trim();
         string correo = request.CorreoAcceso.Trim();
-        string password = request.ContrasenaAcceso!;
+        string password = GenerarContrasenaTemporal();
 
         try
         {
@@ -353,7 +354,7 @@ public partial class ProfesionalService : IProfesionalService
             // Recargar con navegación para devolver DTO completo
             var dto = await ObtenerPorIdAsync(profesional!.IdProfesional, ct);
             return ProfesionalApiOperationResult.Ok(
-                "El profesional y su cuenta de acceso fueron creados correctamente.", dto);
+                "El profesional y su cuenta de acceso fueron creados correctamente. La contraseña temporal segura fue generada automáticamente.", dto);
         }
         catch (CorreoDuplicadoException)
         {
@@ -978,20 +979,33 @@ public partial class ProfesionalService : IProfesionalService
         if (string.IsNullOrWhiteSpace(request.CorreoAcceso))
             return (false, "El correo de acceso es requerido.");
 
-        if (esCreacion)
-        {
-            if (string.IsNullOrWhiteSpace(request.ContrasenaAcceso) ||
-                !ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
-                return (false, "La contraseña inicial debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
-        }
-        else
-        {
-            if (!string.IsNullOrWhiteSpace(request.ContrasenaAcceso) &&
-                !ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
-                return (false, "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
-        }
+        if (!esCreacion &&
+            !string.IsNullOrWhiteSpace(request.ContrasenaAcceso) &&
+            !ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
+            return (false, "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
 
         return (true, null);
+    }
+
+    private static string GenerarContrasenaTemporal()
+    {
+        const string mayusculas = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const string minusculas = "abcdefghijkmnopqrstuvwxyz";
+        const string digitos = "23456789";
+        const string simbolos = "!@#$%^&*";
+        const string todos = mayusculas + minusculas + digitos + simbolos;
+
+        var caracteres = new char[12];
+        caracteres[0] = mayusculas[RandomNumberGenerator.GetInt32(mayusculas.Length)];
+        caracteres[1] = minusculas[RandomNumberGenerator.GetInt32(minusculas.Length)];
+        caracteres[2] = digitos[RandomNumberGenerator.GetInt32(digitos.Length)];
+        caracteres[3] = simbolos[RandomNumberGenerator.GetInt32(simbolos.Length)];
+
+        for (int i = 4; i < caracteres.Length; i++)
+            caracteres[i] = todos[RandomNumberGenerator.GetInt32(todos.Length)];
+
+        var aleatorio = caracteres.OrderBy(_ => RandomNumberGenerator.GetInt32(int.MaxValue)).ToArray();
+        return new string(aleatorio);
     }
 
     private static bool EsViolacionIndiceUnico(DbUpdateException dbex)

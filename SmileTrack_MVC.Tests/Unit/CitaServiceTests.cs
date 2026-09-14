@@ -88,6 +88,28 @@ public class CitaServiceTests
     }
 
     [Fact]
+    public async Task ObtenerSolicitudesPendientesAsync_DevuelveSoloCitasEnEstadoSolicitada()
+    {
+        await using var db = CrearDb();
+        var paciente = new Paciente { Nombres = "Ana", Apellidos = "García", Estado = "activo", Correo = "ana@test.com" };
+        db.Pacientes.Add(paciente);
+        await db.SaveChangesAsync();
+
+        db.Citas.AddRange(
+            new Cita { IdPaciente = paciente.IdPaciente, FechaHora = DateTime.Today.AddDays(3).AddHours(9), Estado = "Solicitada", IdServicio = 1, Notas = "Necesito revisión" },
+            new Cita { IdPaciente = paciente.IdPaciente, FechaHora = DateTime.Today.AddDays(4).AddHours(10), Estado = "Confirmada", IdServicio = 1, Notas = "Confirmada" },
+            new Cita { IdPaciente = paciente.IdPaciente, FechaHora = DateTime.Today.AddDays(5).AddHours(11), Estado = "Programada", IdServicio = 1, Notas = "Programada" }
+        );
+        await db.SaveChangesAsync();
+
+        var solicitudes = await CrearServicio(db).ObtenerSolicitudesPendientesAsync();
+
+        Assert.Single(solicitudes);
+        Assert.Equal("Solicitada", solicitudes[0].Estado);
+        Assert.Contains("Necesito revisión", solicitudes[0].Notas);
+    }
+
+    [Fact]
     public async Task CrearAsync_AceptaAliasProgramadaCuandoElCatalogoUsaAgendada()
     {
         await using var db = CrearDb();
@@ -398,6 +420,40 @@ public class CitaServiceTests
     // =========================================================================
     // NUEVAS PRUEBAS: SolicitarCitaPacienteAsync
     // =========================================================================
+
+    [Fact]
+    public async Task ObtenerProfesionalesDisponiblesAsync_RechazaServicioNoAsignadoCuandoHayCatalogoActivo()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var fecha = ProximaFecha(DayOfWeek.Monday).Date.AddHours(9);
+
+        db.HorariosProfesional.Add(new HorarioProfesional
+        {
+            IdProfesional = datos.Profesional.IdProfesional,
+            DiaSemana = "Lunes",
+            HoraInicio = new TimeOnly(8, 0),
+            HoraFin = new TimeOnly(12, 0),
+            Activo = true
+        });
+
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio + 1,
+            Activo = true
+        });
+
+        await db.SaveChangesAsync();
+
+        var disponibles = await CrearServicio(db).ObtenerProfesionalesDisponiblesAsync(
+            fecha.Date,
+            TimeSpan.FromHours(9),
+            duracionMinutos: 60,
+            idServicio: datos.Servicio.IdServicio);
+
+        Assert.Empty(disponibles);
+    }
 
     [Fact]
     public async Task SolicitarCitaPacienteAsync_RechazaFechaPasada()

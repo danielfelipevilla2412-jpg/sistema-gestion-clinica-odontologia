@@ -18,6 +18,59 @@
 
 ---
 
+## 0. Mapa real de vistas existentes y flujo operativo
+
+El proyecto ya cuenta con las vistas principales del recorrido real de negocio. Se validó que la estructura actual de la solución incluye 19 vistas en los módulos de citas y profesionales, sin huecos funcionales críticos en la navegación principal. El flujo real debe seguir esta secuencia:
+
+### 0.1 Módulo de Gestión de Citas
+
+| Vista | Ruta real | Flujo principal | Estado |
+| :--- | :--- | :--- | :--- |
+| Dashboard administrativo | `/gestion-de-citas/st-adm-01-dashboard` | Entrada principal del administrador | ✅ Existe |
+| Agenda general | `/gestion-de-citas/st-adm-08-agenda` | Central de planificación y coordinación | ✅ Existe |
+| Gestión de citas | `/gestion-de-citas/st-adm-09-citas` | Administración detallada y acciones masivas | ✅ Existe |
+| Panel operativo | `/gestion-de-citas/st-aux-01-panel-operativo` | Supervisión operativa y contexto inmediato | ✅ Existe |
+| Agenda de apoyo | `/gestion-de-citas/st-aux-02-agenda-apoyo` | Coordinación de asistencia y llamadas | ✅ Existe |
+| Historial parcial | `/gestion-de-citas/st-aux-05-historial-parcial` | Seguimiento clínico breve | ✅ Existe |
+| Asistencia procedural | `/gestion-de-citas/st-aux-06-asistencia-procedi` | Registro operativo de procedimientos | ✅ Existe |
+| Estado de consultorio | `/gestion-de-citas/st-aux-09-estado-consultorio` | Monitoreo de ocupación por consultorio | ✅ Existe |
+| Citas finalizadas | `/gestion-de-citas/st-aux-10-citas-finalizadas` | Cierre y cierre operativo del día | ✅ Existe |
+| Mi agenda profesional | `/gestion-de-citas/st-odo-02-agenda` | Gestión diaria de la agenda del odontólogo | ✅ Existe |
+| Mis citas | `/gestion-de-citas/st-pac-01-mis-citas` | Vista del paciente | ✅ Existe |
+| Notificaciones | `/gestion-de-citas/st-pac-03-notificaciones` | Recordatorios y alertas | ✅ Existe |
+| Dashboard de recepcionista | `/gestion-de-citas/st-rec-01-dashboard` | Panel de coordinación y seguimiento | ✅ Existe |
+| Gestión de citas recepción | `/gestion-de-citas/st-rec-03-gestion-citas` | Registro y edición de citas desde recepción | ✅ Existe |
+| Recordatorios | `/gestion-de-citas/st-rec-05-recordatorios` | Programación y observación de recordatorios | ✅ Existe |
+
+### 0.2 Módulo de Gestión de Profesionales
+
+| Vista | Ruta real | Flujo principal | Estado |
+| :--- | :--- | :--- | :--- |
+| Gestión de profesionales | `/gestion-de-profesionales/st-adm-07-gestion-profesionales` | Alta, edición, filtros y estado del personal | ✅ Existe |
+| Reportes clínicos | `/gestion-de-profesionales/st-adm-14-reportes-clinicos` | KPI y análisis del equipo | ✅ Existe |
+| Dashboard profesional | `/gestion-de-profesionales/st-odo-01-dashboard` | Resumen de citas, ingresos y desempeño | ✅ Existe |
+| Perfil profesional | `/gestion-de-profesionales/st-odo-09-perfil-profesional` | Configuración del horario y credenciales | ✅ Existe |
+
+### 0.3 Flujo de navegación recomendado
+
+```mermaid
+flowchart LR
+    A[Login] --> B[Dashboard administrativo]
+    B --> C[Agenda general]
+    C --> D[Gestión de citas]
+    C --> E[Mi agenda profesional]
+    E --> F[Perfil profesional]
+    E --> G[Odontograma / historia clínica]
+    B --> H[Gestión de profesionales]
+    H --> I[Reportes clínicos]
+    H --> J[Perfil del profesional]
+    D --> K[Paciente / Notificaciones / Recordatorios]
+```
+
+> La navegación real fue alineada con las rutas y vistas presentes en el proyecto. No se detectaron faltantes funcionales en los módulos principales; cuando una vista no estaba presente en la lógica de negocio, se consolidó en la estructura actual y en la documentación de flujo.
+
+---
+
 ## 1. Mapeo de Roles de Usuario y Casos de Uso
 
 El sistema **SmileTrack** clasifica los actores del sistema en 4 roles fundamentales mediante Control de Acceso Basado en Roles (**RBAC**). Cada rol interactúa con los módulos de **Gestión de Citas** y **Gestión de Profesionales** según sus responsabilidades operativas.

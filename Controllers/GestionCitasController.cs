@@ -1607,29 +1607,47 @@ public sealed class CambiarEstadoCitaDto
                     .Include(c => c.Servicio)
                     .Include(c => c.Profesional)
                     .Include(c => c.Consultorio)
+                    .Include(c => c.EstadoCita)
                     .FirstOrDefaultAsync(
                         c => c.IdCita == citaId,
                         ct)
-                : (await _context.Citas
+                : await _context.Citas
                     .AsNoTracking()
                     .Include(c => c.Paciente)
                     .Include(c => c.Servicio)
                     .Include(c => c.Profesional)
                     .Include(c => c.Consultorio)
-                    .Where(
-                        c =>
-                            c.FechaHora.Date ==
-                            DateTime.Now.Date)
-                    .OrderBy(c => c.FechaHora)
-                    .FirstOrDefaultAsync(ct)
-                   ?? await _context.Citas
-                    .AsNoTracking()
-                    .Include(c => c.Paciente)
-                    .Include(c => c.Servicio)
-                    .Include(c => c.Profesional)
-                    .Include(c => c.Consultorio)
+                    .Include(c => c.EstadoCita)
+                    .Where(c =>
+                        c.FechaHora >= DateTime.Now.AddMinutes(-60) &&
+                        c.FechaHora <= DateTime.Now)
                     .OrderByDescending(c => c.FechaHora)
-                    .FirstOrDefaultAsync(ct));
+                    .FirstOrDefaultAsync(
+                        c =>
+                            c.Estado == "en_proceso" ||
+                            c.Estado == "En proceso" ||
+                            c.Estado == "en_consulta" ||
+                            c.Estado == "En consulta" ||
+                            (c.EstadoCita != null &&
+                             (c.EstadoCita.NombreEstado == "en_proceso" ||
+                              c.EstadoCita.NombreEstado == "En proceso" ||
+                              c.EstadoCita.NombreEstado == "en_consulta" ||
+                              c.EstadoCita.NombreEstado == "En consulta")),
+                        ct);
+
+        if (cita is not null)
+        {
+            var estadoRaw =
+                (cita.EstadoCita?.NombreEstado ?? cita.Estado).Trim().ToLowerInvariant();
+            var estado = estadoRaw is "en consulta" or "en_consulta"
+                ? "en_proceso"
+                : NormalizarEstado(estadoRaw);
+
+            if (estado != "en_proceso")
+            {
+                cita = null;
+            }
+        }
 
         if (cita is null)
         {
@@ -1648,6 +1666,8 @@ public sealed class CambiarEstadoCitaDto
         return new
         {
             citaId = cita.IdCita,
+
+            inicioProcedimiento = cita.FechaHora,
 
             paciente =
                 cita.Paciente?.NombresCompleto ??
@@ -1906,45 +1926,31 @@ public sealed class CambiarEstadoCitaDto
     [Authorize(Roles = "Profesional,Administrador")]
     [Route("gestion-de-citas/st-odo-02-agenda")]
     public async Task<IActionResult> Stodo02Agenda(
-        [FromQuery] DateTime? weekStart,
-        [FromQuery] int? officeId,
+        [FromQuery] int? editId,
         CancellationToken ct = default)
     {
         try
         {
-            _antiforgery.GetAndStoreTokens(HttpContext);
-
-            int? professionalId = null;
-            if (User.IsInRole("Profesional"))
-            {
-                var usuarioIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (int.TryParse(usuarioIdClaim, out int idUsuario))
-                {
-                    var prof = await _context.Profesionales.AsNoTracking()
-                        .FirstOrDefaultAsync(p => p.IdUsuario == idUsuario, ct);
-                    if (prof != null) professionalId = prof.IdProfesional;
-                }
-            }
-
-            var model = await _agendaService.ObtenerAgendaAsync(
-                weekStart,
-                professionalId,
-                officeId,
+            await CargarDatosCitas(
+                editId,
+                "/gestion-de-citas/st-odo-02-agenda",
+                null,
                 ct);
 
             return View(
-                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml",
-                model);
+                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml");
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Error en Stodo02Agenda");
+                "Error Stodo02Agenda");
+
+            TempData["ErrorValidacion"] =
+                MensajeErrorFallback;
 
             return View(
-                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml",
-                new SmileTrack_MVC.Models.ViewModels.AgendaViewModel());
+                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml");
         }
     }
 
@@ -3728,8 +3734,7 @@ public sealed class CambiarEstadoCitaDto
             "no asistio" => "no_asistida",
             "no asistió" => "no_asistida",
             "no-show" => "no_asistida",
-            "completada" => "atendida",
-            "realizada" => "atendida",
+            "completada" or "finalizada" or "realizada" => "atendida",
             _ => normalizado
         };
     }

@@ -187,6 +187,7 @@ img { max-width: 100%; height: auto; display: block; }
 .content-right { display: flex; flex-direction: column; gap: 20px; }
 
 /* Alertas del paciente */
+.alert-list { list-style: none; padding: 0; margin: 0; }
 .alert-card { background: var(--alert-amber-bg); border: 1px solid var(--alert-amber-border); border-radius: var(--radius); padding: 16px; }
 .alert-card-title { font-size: .72rem; font-weight: 700; color: var(--alert-amber-text); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
 .alert-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: .8rem; color: var(--text); border-bottom: 1px solid var(--alert-amber-border); }
@@ -203,6 +204,8 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* Píldoras de estado con estilos interactivos */
 .procedure-pill { padding: 8px 16px; border-radius: 20px; font-size: .78rem; font-weight: 600; min-width: 110px; text-align: center; border: 1.5px solid transparent; cursor: pointer; transition: background var(--tr), color var(--tr), border-color var(--tr), box-shadow var(--tr); }
+.procedure-pill:active:not(:disabled) { transform: translateY(1px); }
+.procedure-pill:disabled { cursor: not-allowed; opacity: .6; }
 .procedure-pill.azul { background: var(--pill-azul); color: var(--pill-azul-text); border-color: #bfdbfe; }
 .procedure-pill.azul.completed { background: var(--pill-azul-completed); color: #fff; border-color: var(--pill-azul-completed); box-shadow: 0 2px 8px rgba(29, 78, 216, .3); }
 .procedure-pill.azul:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }

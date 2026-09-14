@@ -290,12 +290,28 @@ public partial class GestionProfesionalesController(
                 citasQuery = citasQuery.Where(c => c.FechaHora >= filterStart && c.FechaHora < filterEnd);
             }
 
-            var pacientesQuery = citasQuery
+            var todasCitasPacientes = await citasQuery
+                .OrderByDescending(c => c.FechaHora)
+                .AsNoTracking()
+                .ToListAsync(ct);
+
+            var citasUnicasPorPaciente = todasCitasPacientes
                 .GroupBy(c => c.IdPaciente)
                 .Select(g => g.OrderByDescending(c => c.FechaHora).First())
-                .OrderByDescending(c => c.FechaHora);
+                .OrderByDescending(c => c.FechaHora)
+                .ToList();
 
-            var pagedCitas = await pacientesQuery.ToPagedResultAsync(page, pageSize, ct);
+            var totalReales = citasUnicasPorPaciente.Count;
+            var pagedCitas = new PagedResult<Cita>
+            {
+                Page = page < 1 ? 1 : page,
+                PageSize = pageSize < 1 ? 10 : pageSize,
+                TotalCount = totalReales,
+                Items = citasUnicasPorPaciente
+                    .Skip((Math.Max(1, page) - 1) * Math.Clamp(pageSize, 1, 500))
+                    .Take(Math.Clamp(pageSize, 1, 500))
+                    .ToList()
+            };
 
             var profesionalesOptions = await _context.Profesionales
                 .Where(p => p.Estado == "activo")
@@ -305,8 +321,6 @@ public partial class GestionProfesionalesController(
                 .Distinct()
                 .OrderBy(name => name)
                 .ToListAsync(ct);
-
-            var todasCitasPacientes = await citasQuery.AsNoTracking().ToListAsync(ct);
 
             var reportes = pagedCitas.Items.Select(cita =>
             {

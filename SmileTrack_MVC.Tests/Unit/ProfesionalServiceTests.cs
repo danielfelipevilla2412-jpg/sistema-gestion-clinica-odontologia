@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Api.Profesionales;
@@ -18,6 +19,7 @@ public sealed class ProfesionalServiceTests
     public async Task ActualizarHorariosAsync_NormalizaDiasConAcentoParaLaBaseDeDatos()
     {
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         var profesional = new Profesional
         {
@@ -66,6 +68,7 @@ public sealed class ProfesionalServiceTests
     public async Task ObtenerHorariosAsync_RechazaHorarioDeOtroProfesional()
     {
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         var profesional = new Profesional
         {
@@ -89,9 +92,40 @@ public sealed class ProfesionalServiceTests
     }
 
     [Fact]
+    public async Task CrearAsync_GeneraContrasenaAutomaticaCuandoNoSeEnvioUna()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+        db.Roles.Add(new Rol { NombreRol = "Profesional" });
+        await db.SaveChangesAsync();
+
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        var result = await service.CrearAsync(
+            new ProfesionalApiRequest
+            {
+                Nombres = "María",
+                Apellidos = "García",
+                RegistroMedico = "RM-GEN-001",
+                CorreoAcceso = "maria.garcia@smiletrack.test",
+                ContrasenaAcceso = null
+            },
+            operadorId: 1,
+            ipOrigen: "127.0.0.1");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("generada", result.Message, StringComparison.OrdinalIgnoreCase);
+        var usuario = await db.Usuarios.SingleAsync();
+        Assert.False(string.IsNullOrWhiteSpace(usuario.Contrasena));
+        Assert.NotEqual(string.Empty, usuario.Contrasena);
+    }
+
+    [Fact]
     public async Task ObtenerVistaMVCAsync_AplicaFiltroYPaginacion()
     {
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         db.Profesionales.AddRange(
             new Profesional { Nombres = "Ana", Apellidos = "Zuluaga", Estado = "activo", RegistroMedico = "RM-1" },

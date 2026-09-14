@@ -67,7 +67,7 @@ const debounce = (fn, delay) => {
 // Muestra notificación temporal con auto-cierre
 
 // ═══════════════════════════════════════════════════════════════════
-//  DATOS DE EJEMPLO (Fallback si API falla)
+//  Fallback seguro: al fallar la API se mantiene el horario vacío.
 // ═══════════════════════════════════════════════════════════════════
 const SAMPLE_PROFILE = { horario: [] };
 
@@ -549,8 +549,8 @@ const getProfesionalId = () => {
 async function fetchProfile() {
   const profesionalId = getProfesionalId();
   if (!profesionalId) {
-    console.warn('[SmileTrack] No se encontró el ID del profesional en el DOM. Usando datos de ejemplo.');
-    return SAMPLE_PROFILE;
+    console.warn('[SmileTrack] No se encontró el ID del profesional en el DOM; se omite la carga del horario.');
+    return { horario: [] };
   }
 
   try {
@@ -561,8 +561,8 @@ async function fetchProfile() {
     });
 
     if (!response.ok) {
-      console.warn(`[SmileTrack] Error al cargar horarios: ${response.status}. Usando datos de ejemplo.`);
-      return SAMPLE_PROFILE;
+      console.warn(`[SmileTrack] Error al cargar horarios: ${response.status}. Se deja el horario vacío.`);
+      return { horario: [] };
     }
 
     const json = await response.json();
@@ -570,7 +570,7 @@ async function fetchProfile() {
     return { horario };
   } catch (err) {
     console.warn('[SmileTrack] Error de red al cargar horarios:', err);
-    return SAMPLE_PROFILE;
+    return { horario: [] };
   }
 }
 

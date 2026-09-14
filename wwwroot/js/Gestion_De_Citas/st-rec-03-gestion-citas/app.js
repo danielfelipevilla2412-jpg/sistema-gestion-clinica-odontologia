@@ -785,6 +785,106 @@ const actualizarProfesionalesDisponibles = debounce(async () => {
   }
 }, 400);
 
+const fetchSolicitudesPendientes = async () => {
+  const listEl = safeGetElement('solicitudesPendientesList');
+  const badgeEl = safeGetElement('solicitudesPendientesBadge');
+  if (!listEl) return [];
+
+  try {
+    const res = await fetch(`${API_BASE}/citas/solicitudes-pendientes`, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { ...getAuthHeaders(), 'Accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const payload = await res.json();
+    const solicitudes = Array.isArray(payload?.data) ? payload.data : [];
+
+    if (badgeEl) badgeEl.textContent = String(solicitudes.length);
+
+    if (!solicitudes.length) {
+      listEl.innerHTML = '<div class="empty-state" role="status" style="padding:1.25rem; color:#64748b;">No hay solicitudes pendientes por confirmar.</div>';
+      return solicitudes;
+    }
+
+    const items = solicitudes.map((solicitud) => {
+      const fecha = solicitud?.fecha ? new Date(solicitud.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha';
+      const hora = solicitud?.horaInicio ? String(solicitud.horaInicio).slice(0, 5) : '08:00';
+      const paciente = solicitud?.paciente?.nombreCompleto || 'Paciente';
+      const servicio = solicitud?.servicio?.nombre || 'Servicio por confirmar';
+      const notas = solicitud?.notas ? escapeHtml(solicitud.notas) : 'Sin observaciones adicionales.';
+      return `
+        <article class="pending-request-item" style="display:flex; flex-wrap:wrap; gap:1rem; justify-content:space-between; align-items:center; padding:1rem 1.1rem; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; margin-bottom:0.75rem;">
+          <div>
+            <strong style="display:block; font-size:0.98rem; margin-bottom:0.35rem;">${escapeHtml(paciente)}</strong>
+            <small style="display:block; color:#475569;">${escapeHtml(fecha)} · ${escapeHtml(hora)} · ${escapeHtml(servicio)}</small>
+            <small style="display:block; color:#64748b; margin-top:0.3rem;">${notas}</small>
+          </div>
+          <button type="button" class="btn-primary" data-confirm-pending="${solicitud.idCita}" style="white-space:nowrap;">Confirmar</button>
+        </article>
+      `;
+    }).join('');
+
+    listEl.innerHTML = items;
+    listEl.querySelectorAll('[data-confirm-pending]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const idCita = Number(button.getAttribute('data-confirm-pending'));
+        const solicitud = solicitudes.find(item => Number(item.idCita) === idCita);
+        if (!solicitud) return;
+
+        try {
+          const fecha = solicitud.fecha ? String(solicitud.fecha).slice(0, 10) : new Date().toISOString().slice(0, 10);
+          const horaBase = solicitud.horaInicio ? String(solicitud.horaInicio).slice(0, 5) : '09:00';
+          const professionalesRes = await fetch(`${API_BASE}/citas/profesionales-disponibles?fecha=${encodeURIComponent(fecha)}&horaInicio=${encodeURIComponent(horaBase)}&idServicio=${encodeURIComponent(solicitud.servicio?.idServicio ?? 0)}`, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { ...getAuthHeaders(), 'Accept': 'application/json' }
+          });
+          const profesionalesPayload = await professionalesRes.json().catch(() => ({ data: [] }));
+          const profesionales = Array.isArray(profesionalesPayload.data) ? profesionalesPayload.data : [];
+          if (!profesionales.length) {
+            showToast('No hay profesionales disponibles para confirmar esta solicitud. Intente otra fecha u horario.', 'error');
+            return;
+          }
+
+          const consultorioId = document.querySelector('#newConsultorio')?.value || document.querySelector('#modalNewAppointment [name="IdConsultorio"]')?.value || 1;
+          const payload = {
+            idCita: idCita,
+            idProfesional: Number(profesionales[0].idProfesional ?? profesionales[0].IdProfesional),
+            idConsultorio: Number(consultorioId),
+            fecha: fecha,
+            horaInicio: `${horaBase}:00`,
+            notas: solicitud.notas || solicitud.motivoConsulta || ''
+          };
+
+          const res = await fetch(`${API_BASE}/citas/${idCita}/confirmar-asignacion`, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2] ? decodeURIComponent(document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)[2]) : '', 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const result = await res.json().catch(() => ({}));
+          if (!res.ok || result.success === false) {
+            throw new Error(result.message || 'No fue posible confirmar la solicitud.');
+          }
+          showToast('Solicitud confirmada y cita asignada correctamente.', 'success');
+          await fetchSolicitudesPendientes();
+          await fetchAppointments(1);
+        } catch (error) {
+          console.warn('[SmileTrack] Error confirmando solicitud pendiente:', error);
+          showToast(error.message || 'No fue posible confirmar la solicitud pendiente.', 'error');
+        }
+      });
+    });
+
+    return solicitudes;
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudo cargar solicitudes pendientes:', error);
+    if (listEl) listEl.innerHTML = '<div class="empty-state" role="status" style="padding:1.25rem; color:#64748b;">No fue posible cargar las solicitudes pendientes en este momento.</div>';
+    return [];
+  }
+};
+
 const initNewAppointmentButtons = () => {
   const open = () => {
     const form = safeGetElement('formNewAppointment');
@@ -961,6 +1061,7 @@ const init = async () => {
     if (!useSSR) {
       // Carga inicial desde la API; no se usa persistencia local como respaldo.
       await fetchAppointments();
+      await fetchSolicitudesPendientes();
       updateMetrics();
       renderAppointments(appointmentStorage.getAll());
 
@@ -973,6 +1074,7 @@ const init = async () => {
       });
       const refreshFromApi = async () => {
         const citas = await fetchAppointments(1);
+        await fetchSolicitudesPendientes();
         renderAppointments(citas);
         updateMetrics();
       };

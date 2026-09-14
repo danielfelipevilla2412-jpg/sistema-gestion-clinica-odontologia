@@ -460,19 +460,8 @@ const validateProfessionalForm = (form) => {
     }
   }
 
-  const password = safeGetElement('formContrasenaAcceso');
-  const formId = safeGetElement('formIdProfesional');
-  const editing = Number(formId?.value || 0) > 0;
-
-  if (password) {
-    const value = password.value || '';
-    const passwordValid = /^(?=.{8,100}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/.test(value);
-    if ((!editing && !passwordValid) || (editing && value && !passwordValid)) {
-      valid = false;
-      updateProfessionalPasswordRules();
-    }
-  }
-
+  // Seguridad: la contraseña no se valida ni se envía desde el cliente.
+  // La generación segura se realiza en backend al crear el profesional.
   return valid;
 };
 
@@ -499,17 +488,14 @@ const updateProfessionalPasswordRules = () => {
   const formId = safeGetElement('formIdProfesional');
   const editing = Number(formId?.value || 0) > 0;
   const help = safeGetElement('formContrasenaHelp');
-  const allValid = Object.values(rules).every(Boolean);
 
   if (help) {
     if (editing && value.length === 0) {
-      help.textContent = 'Déjala vacía para conservar la contraseña actual.';
+      help.textContent = 'La contraseña no se modifica desde esta pantalla.';
       help.style.color = '#6b7280';
     } else {
-      help.textContent = allValid
-        ? 'Contraseña válida.'
-        : 'Completa todos los requisitos de la contraseña.';
-      help.style.color = allValid ? '#15803d' : '#b91c1c';
+      help.textContent = 'La contraseña se genera automáticamente en el sistema.';
+      help.style.color = '#6b7280';
     }
   }
 };
@@ -574,13 +560,12 @@ const saveProfessional = async (e) => {
     estado:         isEditing ? (safeGetElement('formStatus')?.value || safeGetElement('formEstado')?.value || '').trim().toLowerCase() || null : null,
   };
 
-  // FASE-0 E-SEC-01: La contraseña SOLO se envía en CREACIÓN (POST).
-  // En edición (PUT) NUNCA se envía por este endpoint; si requiere cambio, debe
-  // ser a través de un flujo separado (recuperación / cambio de contraseña seguro).
-  // TODO Seguridad: A mediano plazo generar la contraseña temporal en BACKEND
-  // y notificar por email, evitando que viaje en la solicitud desde cliente.
-  const passwordVal = getData('formContrasenaAcceso');
-  if (!isEditing && passwordVal) payload.contrasenaAcceso = passwordVal;
+  // Seguridad: la contraseña nunca se envía desde el cliente. El backend genera
+  // una contraseña temporal segura al crear el profesional y la notificación se
+  // gestiona en el servidor, evitando exponer credenciales en la solicitud.
+  if (!isEditing) {
+    delete payload.contrasenaAcceso;
+  }
 
   try {
     let result;

@@ -839,6 +839,29 @@ public class CitaService : ICitaService
         return cita;
     }
 
+    /// <inheritdoc/>
+    public async Task<List<Cita>> ObtenerSolicitudesPendientesAsync(CancellationToken ct = default)
+    {
+        var estadosSolicitados = await _context.EstadosCita
+            .AsNoTracking()
+            .Where(e => e.NombreEstado != null && (e.NombreEstado.ToLower() == "solicitada" || e.NombreEstado.ToLower() == "pendiente"))
+            .Select(e => e.IdEstado)
+            .ToListAsync(ct);
+
+        return await _context.Citas
+            .AsNoTracking()
+            .Include(c => c.Paciente)
+            .Include(c => c.Servicio)
+            .Where(c =>
+                (c.IdEstado.HasValue && estadosSolicitados.Contains(c.IdEstado.Value)) ||
+                c.Estado != null && (
+                    c.Estado.ToLower() == "solicitada" ||
+                    c.Estado.ToLower() == "pendiente" ||
+                    c.Estado.ToLower() == "solicitado"))
+            .OrderBy(c => c.FechaHora)
+            .ToListAsync(ct);
+    }
+
     // =========================================================================
     // DISPONIBILIDAD DE PROFESIONALES
     // =========================================================================
@@ -1128,13 +1151,18 @@ public class CitaService : ICitaService
         {
             bool tieneAsignaciones = await _context.ProfesionalServicios
                 .AsNoTracking()
-                .AnyAsync(ps => ps.IdProfesional == idProfesional, ct);
+                .AnyAsync(ps => ps.IdProfesional == idProfesional && ps.Activo, ct);
 
-            if (tieneAsignaciones && !await _context.ProfesionalServicios.AsNoTracking().AnyAsync(
-                    ps => ps.IdProfesional == idProfesional && ps.IdServicio == idServicio && ps.Activo,
-                    ct))
+            if (tieneAsignaciones)
             {
-                return (false, "El servicio seleccionado no está asignado al profesional.");
+                bool servicioAsignado = await _context.ProfesionalServicios
+                    .AsNoTracking()
+                    .AnyAsync(ps => ps.IdProfesional == idProfesional && ps.IdServicio == idServicio && ps.Activo, ct);
+
+                if (!servicioAsignado)
+                {
+                    return (false, "El servicio seleccionado no está asignado al profesional.");
+                }
             }
         }
 
@@ -1238,8 +1266,7 @@ public class CitaService : ICitaService
             "en_consulta" or "en_proceso" => "en_proceso",
             "atendida" or "finalizada" or "completada" or "realizada" => "atendida",
             "cancelada" or "cancelado" => "cancelada",
-            "no_asistida" or "no_asistio" => "no_asistida",
-            "no_show" => "no_asistida",
+            "no_asistida" or "no_asistio" or "no_show" => "no_asistida",
             _ => normalizado
         };
     }

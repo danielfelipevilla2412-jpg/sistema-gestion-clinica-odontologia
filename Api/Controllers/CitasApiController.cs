@@ -259,7 +259,7 @@ public sealed class CitasApiController : ControllerBase
     [Route("api/citas/{id:int}")]
     public async Task<IActionResult> Actualizar(int id, [FromBody] CitaApiUpdateDto dto, CancellationToken ct = default)
     {
-        if (dto is null || id != dto.IdCita || dto.IdPaciente <= 0)
+        if (dto is null || id != dto.IdCita || !ModelState.IsValid || dto.IdPaciente <= 0)
             return BadRequest(new { success = false, message = "Datos de cita inválidos." });
 
         var existente = await _citaService.ObtenerPorIdAsync(id, ct);
@@ -311,6 +311,29 @@ public sealed class CitasApiController : ControllerBase
         {
             return BadRequest(new { success = false, message = ex.Message });
         }
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [Route("api/citas/solicitudes-pendientes")]
+    public async Task<IActionResult> ObtenerSolicitudesPendientes(CancellationToken ct = default)
+    {
+        var solicitudes = await _citaService.ObtenerSolicitudesPendientesAsync(ct);
+        var payload = solicitudes.Select(c => new
+        {
+            idCita = c.IdCita,
+            idPaciente = c.IdPaciente,
+            paciente = c.Paciente is null ? null : new { nombreCompleto = $"{c.Paciente.Nombres} {c.Paciente.Apellidos}".Trim() },
+            fechaHora = c.FechaHora,
+            fecha = c.FechaHora.Date,
+            horaInicio = c.FechaHora.TimeOfDay,
+            servicio = c.Servicio is null ? null : new { idServicio = c.Servicio.IdServicio, nombre = c.Servicio.Nombre },
+            estado = c.Estado,
+            notas = c.Notas,
+            motivoConsulta = c.MotivoConsulta
+        }).ToList();
+
+        return Ok(new { success = true, data = payload, total = payload.Count });
     }
 
     [HttpGet]
@@ -373,7 +396,7 @@ public sealed class CitasApiController : ControllerBase
     [Route("api/citas/recordatorios/enviar")]
     public async Task<IActionResult> EnviarRecordatorios([FromBody] EnviarRecordatoriosDto dto, CancellationToken ct = default)
     {
-        if (dto is null || dto.IdsCitas == null || dto.IdsCitas.Count == 0)
+        if (dto is null || !ModelState.IsValid || dto.IdsCitas == null || dto.IdsCitas.Count == 0)
             return BadRequest(new { success = false, message = "Debe seleccionar al menos una cita para enviar recordatorios." });
 
         var (enviados, fallidos) = await _citaService.EnviarRecordatoriosAsync(dto.IdsCitas, dto.MensajePersonalizado, ct);
@@ -422,7 +445,7 @@ public sealed class CitasApiController : ControllerBase
     [Route("api/citas/{id:int}/notas")]
     public async Task<IActionResult> ActualizarNotas(int id, [FromBody] CitaNotasDto dto, CancellationToken ct = default)
     {
-        if (dto is null || id != dto.IdCita || id <= 0)
+        if (dto is null || id != dto.IdCita || id <= 0 || !ModelState.IsValid)
             return BadRequest(new { success = false, message = "Datos de notas inválidos." });
         var cita = await _citaService.ObtenerPorIdAsync(id, ct);
         if (cita is null) return NotFound(new { success = false, message = "Cita no encontrada." });
@@ -443,7 +466,7 @@ public sealed class CitasApiController : ControllerBase
     [Route("api/citas/{id:int}/estado")]
     public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoCitaDto dto, CancellationToken ct = default)
     {
-        if (id <= 0 || dto is null || string.IsNullOrWhiteSpace(dto.Estado))
+        if (id <= 0 || dto is null || !ModelState.IsValid || string.IsNullOrWhiteSpace(dto.Estado))
             return BadRequest(new { success = false, message = "El estado de la cita es obligatorio." });
         var cita = await _citaService.ObtenerPorIdAsync(id, ct);
         if (cita is null) return NotFound(new { success = false, message = "La cita no existe." });
@@ -485,7 +508,15 @@ public sealed class CitasApiController : ControllerBase
     private bool EsPacientePropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdPaciente"), out int id) && id == cita.IdPaciente;
     private bool EsProfesionalPropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdProfesional"), out int id) && id == cita.IdProfesional;
     private static bool EsConflicto(string? message) => message?.Contains("horario", StringComparison.OrdinalIgnoreCase) == true;
-    private static string NormalizarEstado(string? estado) => (estado ?? string.Empty).Trim().ToLowerInvariant() switch { "agendada" or "programado" => "programada", "confirmado" => "confirmada", "cancelado" => "cancelada", "no asistio" or "no asistió" or "no-show" => "no_asistida", "completada" or "realizada" => "atendida", var value => value };
+    private static string NormalizarEstado(string? estado) => (estado ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "agendada" or "programado" => "programada",
+        "confirmado" => "confirmada",
+        "cancelado" => "cancelada",
+        "no asistio" or "no asistió" or "no-show" => "no_asistida",
+        "completada" or "finalizada" or "realizada" => "atendida",
+        var value => value
+    };
 
     private async Task RegistrarAuditoriaAsync(string accion, int idRegistro, string descripcion, CancellationToken ct)
     {
