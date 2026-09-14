@@ -2,6 +2,9 @@ using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Models.Api.CentroDeAyuda;
+using SmileTrack_MVC.Services.CentroDeAyuda;
+using System.Security.Claims;
 
 namespace SmileTrack_MVC.Controllers;
 
@@ -24,6 +27,13 @@ namespace SmileTrack_MVC.Controllers;
 [Authorize]
 public class CentroDeAyudaController : Controller
 {
+    private readonly ICentroDeAyudaService _ticketService;
+
+    public CentroDeAyudaController(ICentroDeAyudaService ticketService)
+    {
+        _ticketService = ticketService;
+    }
+
     // ─── Acción principal: Guías y Tutoriales ─────────────────────────────────
     /// <summary>
     /// Vista principal del Centro de Ayuda.
@@ -34,7 +44,7 @@ public class CentroDeAyudaController : Controller
     public IActionResult GuiasTutoriales()
     {
         var vm = BuildGuiasTutorialesViewModel();
-        return View("~/Views/Centro_De_Ayuda/Guias_Tutoriales_y_Soporte/index.cshtml", vm);
+        return View("~/Views/Centro_De_Ayuda/Soporte y Tickets/index.cshtml", vm);
     }
 
     // ─── Cómo programar una cita ──────────────────────────────────────────────
@@ -71,33 +81,7 @@ public class CentroDeAyudaController : Controller
                 new() { Id = "guide-1", IconName = "help_outline", Title = "Inicio rápido", SectionHeading = "Cómo comenzar", Items = new List<string> { "Crear cita", "Buscar paciente", "Asignar profesional" } },
                 new() { Id = "guide-2", IconName = "support_agent", Title = "Soporte técnico", SectionHeading = "¿Necesitas ayuda?", Items = new List<string> { "Reportar incidente", "Ver estado del sistema", "Contactar soporte" } }
             },
-            SupportPanels = new List<CentroAyudaSupportPanel>
-            {
-                new()
-                {
-                    IconName = "chat_bubble_outline",
-                    Eyebrow = "Asistencia inmediata",
-                    Heading = "Chat en línea disponible",
-                    Description = "Recibe respuesta en menos de 2 horas.",
-                    Bullets = new List<string>
-                    {
-                        "Chat en línea disponible de 8 am a 6 pm.",
-                        "Recibe respuesta en menos de 2 horas."
-                    }
-                },
-                new()
-                {
-                    IconName = "email_outlined",
-                    Eyebrow = "Correo de soporte",
-                    Heading = "Contacto por correo",
-                    Description = "Envía tu incidencia a soporte@smiletrack.local.",
-                    Bullets = new List<string>
-                    {
-                        "Envía tu incidencia a soporte@smiletrack.local.",
-                        "Incluye datos de usuario y módulo afectado."
-                    }
-                }
-            },
+            SupportPanels = BuildSupportPanels(),
             Contact = new CentroAyudaContactInfo
             {
                 Email = "soporte@smiletrack.local",
@@ -114,11 +98,43 @@ public class CentroDeAyudaController : Controller
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "Administrador")]
     [Route("centro-de-ayuda/soporte")]
-    public IActionResult CreateTicket(SupportTicketViewModel model)
+    public async Task<IActionResult> CreateTicket(SupportTicketViewModel model, CancellationToken ct)
     {
         if (!ModelState.IsValid)
         {
             ViewData["Title"] = "SmileTrack — Soporte";
+            return View("~/Views/Centro_De_Ayuda/Guia De Usuario/SoporteTicket.cshtml", BuildSupportTicketViewModel(model));
+        }
+
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdValue, out var userId) || userId <= 0)
+        {
+            ModelState.AddModelError(string.Empty, "No fue posible identificar al usuario autenticado.");
+            return View("~/Views/Centro_De_Ayuda/Guia De Usuario/SoporteTicket.cshtml", BuildSupportTicketViewModel(model));
+        }
+
+        var request = new CentroAyudaTicketRequest
+        {
+            Asunto = model.Subject,
+            Categoria = model.Category.ToString().ToLowerInvariant(),
+            ModuloAfectado = model.Module.ToString().ToLowerInvariant(),
+            Severidad = model.Severity.ToLowerInvariant(),
+            Descripcion = model.Description,
+            CapturaPantalla = model.Screenshot
+        };
+
+        try
+        {
+            var (ticket, error) = await _ticketService.CrearTicketAsync(request, userId, ct);
+            if (error is not null || ticket is null)
+            {
+                ModelState.AddModelError(string.Empty, error ?? "No fue posible registrar el ticket.");
+                return View("~/Views/Centro_De_Ayuda/Guia De Usuario/SoporteTicket.cshtml", BuildSupportTicketViewModel(model));
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
             return View("~/Views/Centro_De_Ayuda/Guia De Usuario/SoporteTicket.cshtml", BuildSupportTicketViewModel(model));
         }
 
@@ -138,33 +154,7 @@ public class CentroDeAyudaController : Controller
                 new() { Id = "guide-1", IconName = "help_outline", Title = "Inicio rápido", SectionHeading = "Cómo comenzar", Items = new List<string> { "Crear cita", "Buscar paciente", "Asignar profesional" } },
                 new() { Id = "guide-2", IconName = "support_agent", Title = "Soporte técnico", SectionHeading = "¿Necesitas ayuda?", Items = new List<string> { "Reportar incidente", "Ver estado del sistema", "Contactar soporte" } }
             },
-            SupportPanels = new List<CentroAyudaSupportPanel>
-            {
-                new()
-                {
-                    IconName = "chat_bubble_outline",
-                    Eyebrow = "Asistencia inmediata",
-                    Heading = "Chat en línea disponible",
-                    Description = "Recibe respuesta en menos de 2 horas.",
-                    Bullets = new List<string>
-                    {
-                        "Chat en línea disponible de 8 am a 6 pm.",
-                        "Recibe respuesta en menos de 2 horas."
-                    }
-                },
-                new()
-                {
-                    IconName = "email_outlined",
-                    Eyebrow = "Correo de soporte",
-                    Heading = "Contacto por correo",
-                    Description = "Envía tu incidencia a soporte@smiletrack.local.",
-                    Bullets = new List<string>
-                    {
-                        "Envía tu incidencia a soporte@smiletrack.local.",
-                        "Incluye datos de usuario y módulo afectado."
-                    }
-                }
-            },
+            SupportPanels = BuildSupportPanels(),
             Contact = new CentroAyudaContactInfo
             {
                 Email = "soporte@smiletrack.local",
@@ -177,6 +167,78 @@ public class CentroDeAyudaController : Controller
             Module = model.Module,
             Severity = model.Severity,
             Description = model.Description
+        };
+    }
+
+    private static List<CentroAyudaSupportPanel> BuildSupportPanels()
+    {
+        return new List<CentroAyudaSupportPanel>
+        {
+            new()
+            {
+                Id = "urgency-detail-panel",
+                IconName = "support_agent",
+                Eyebrow = "Atención prioritaria",
+                Heading = "Soporte de urgencia",
+                Description = "Usa este canal cuando una falla impida trabajar en la plataforma.",
+                Bullets = new List<string>
+                {
+                    "Indica qué módulo está bloqueado.",
+                    "Incluye el mensaje de error y los pasos realizados."
+                }
+            },
+            new()
+            {
+                Id = "contact-detail-panel",
+                IconName = "contact_support",
+                Eyebrow = "Contacto directo",
+                Heading = "Comunícate con nuestro equipo",
+                Description = "Puedes contactar a soporte por teléfono o correo electrónico.",
+                Bullets = new List<string>
+                {
+                    "El equipo responde durante el horario de atención.",
+                    "Ten a la mano el número de tu ticket."
+                }
+            },
+            new()
+            {
+                Id = "schedule-detail-panel",
+                IconName = "schedule",
+                Eyebrow = "Horario de atención",
+                Heading = "Disponibilidad del servicio",
+                Description = "Nuestro equipo está disponible para ayudarte con tus solicitudes.",
+                Bullets = new List<string>
+                {
+                    "Atención de lunes a viernes de 8:00 AM a 6:00 PM.",
+                    "Las solicitudes recibidas fuera de horario se atienden el siguiente día hábil."
+                }
+            },
+            new()
+            {
+                Id = "faq-detail-panel",
+                IconName = "quiz",
+                Eyebrow = "Preguntas frecuentes",
+                Heading = "Resuelve dudas comunes",
+                Description = "Consulta las recomendaciones básicas antes de crear un ticket.",
+                Bullets = new List<string>
+                {
+                    "Verifica tu conexión y vuelve a intentar la operación.",
+                    "Describe el problema con el mayor detalle posible."
+                }
+            },
+            new()
+            {
+                Id = "tracking-detail-panel",
+                IconName = "task_alt",
+                Eyebrow = "Seguimiento del ticket",
+                Heading = "Consulta el estado de tu solicitud",
+                Description = "Conserva la referencia del ticket para consultar su avance con soporte.",
+                Bullets = new List<string>
+                {
+                    "Revisa tu correo para recibir actualizaciones.",
+                    "Responde al equipo si solicita información adicional."
+                }
+            }
         };
     }
 

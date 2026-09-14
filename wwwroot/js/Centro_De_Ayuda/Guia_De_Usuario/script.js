@@ -12,6 +12,9 @@ const uploadButton = document.getElementById('upload-screenshot-btn');
 const uploadPreview = document.getElementById('upload-preview');
 const uploadPreviewImage = document.getElementById('upload-preview-image');
 const uploadFileName = document.getElementById('upload-file-name');
+const attachmentModal = document.getElementById('attachment-modal');
+const attachmentModalClose = document.getElementById('attachment-modal-close');
+const attachmentModalError = document.getElementById('attachment-modal-error');
 const cancelButton = document.getElementById('cancel-ticket-btn');
 const submitButton = supportForm?.querySelector('button[type="submit"]');
 const submitButtonDefaultClasses = submitButton?.className || '';
@@ -74,30 +77,64 @@ function resetSubmitState() {
   }
 }
 
+function closeAttachmentModal() {
+  attachmentModal?.classList.add('hidden');
+  if (attachmentModalError) {
+    attachmentModalError.textContent = '';
+    attachmentModalError.classList.add('hidden');
+  }
+}
+
+function showAttachmentError(message) {
+  if (!attachmentModalError) return;
+  attachmentModalError.textContent = message;
+  attachmentModalError.classList.remove('hidden');
+}
+
+function showSelectedAttachment(file) {
+  if (!file || !screenshotInput || !uploadPreview || !uploadFileName) return;
+
+  if (file.size > 5 * 1024 * 1024) {
+    showAttachmentError('El archivo no puede superar 5 MB.');
+    return;
+  }
+
+  uploadFileName.textContent = file.name;
+  uploadPreview.classList.remove('hidden');
+  uploadPreviewImage?.classList.add('hidden');
+
+  if (file.type.startsWith('image/') && uploadPreviewImage) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      uploadPreviewImage.src = event.target.result;
+      uploadPreviewImage.classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  screenshotInput.files = transfer.files;
+  uploadButton.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Archivo seleccionado';
+  uploadButton.classList.remove('border-dashed', 'text-[#424750]');
+  uploadButton.classList.add('border-[#22c55e]', 'bg-[#ecfdf3]', 'text-[#166534]');
+  closeAttachmentModal();
+}
+
 if (uploadButton && screenshotInput) {
-  uploadButton.addEventListener('click', () => screenshotInput.click());
+  uploadButton.addEventListener('click', () => attachmentModal?.classList.remove('hidden'));
+
+  attachmentModalClose?.addEventListener('click', closeAttachmentModal);
+  attachmentModal?.addEventListener('click', (event) => {
+    if (event.target === attachmentModal) closeAttachmentModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !attachmentModal?.classList.contains('hidden')) closeAttachmentModal();
+  });
 
   screenshotInput.addEventListener('change', (event) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-
-    uploadFileName.textContent = file.name;
-    uploadPreview.classList.remove('hidden');
-
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        uploadPreviewImage.src = event.target.result;
-        uploadPreviewImage.classList.remove('hidden');
-      };
-      reader.readAsDataURL(file);
-    } else {
-      uploadPreviewImage.classList.add('hidden');
-    }
-
-    uploadButton.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Captura seleccionada';
-    uploadButton.classList.remove('border-dashed', 'text-[#424750]');
-    uploadButton.classList.add('border-[#22c55e]', 'bg-[#ecfdf3]', 'text-[#166534]');
+    showSelectedAttachment(file);
   });
 }
 
@@ -269,30 +306,7 @@ if (cancelButton) {
   cancelButton.addEventListener('click', () => {
     resetSubmitState();
     resetAttachmentState();
-    if (supportForm) supportForm.reset();
-  });
-}
-
-if (supportForm) {
-  supportForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (!submitButton) return;
-
-    resetSubmitState();
-    submitButton.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Procesando...';
-    submitButton.classList.add('opacity-80', 'cursor-not-allowed');
-    submitButton.disabled = true;
-
-    submitTimer = setTimeout(() => {
-      submitButton.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Ticket Enviado';
-      submitButton.classList.remove('bg-[#0060a8]');
-      submitButton.classList.add('bg-[#16a34a]');
-      resetTimer = setTimeout(() => {
-        resetSubmitState();
-        resetAttachmentState();
-        supportForm.reset();
-      }, 3000);
-    }, 1500);
+    window.location.href = '/centro-de-ayuda/guias-tutoriales';
   });
 }
 

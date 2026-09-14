@@ -22,19 +22,7 @@
   <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!-- ═════ SIDEBAR UNIFICADO (Activo: Facturas) ═════ -->
-  <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
-  <div class="sidebar-logo">
-    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
-  </div>
   @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
-  <div class="sidebar-user">
-    <div class="user-avatar" aria-hidden="true">RE</div>
-    <div class="user-info">
-      <span class="user-role">Recepción</span>
-      <span class="user-email">recepcion@smiletrack.co</span>
-    </div>
-  </div>
-</aside>
 
   <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -196,12 +184,10 @@
         <button class="btn-secondary" id="btnPrint" aria-label="Imprimir factura actual">🖨️ Imprimir factura</button>
         <button class="btn-success" id="btnPay" aria-label="Registrar pago de la factura">✓ Registrar pago — $0</button>
       </div>
+      <div id="toastContainer" class="toast-container" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
     </section>
 
   </main>
-
-  <!-- Toast container con atributos ARIA para notificaciones -->
-  <div id="toastContainer" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
 
   <!-- Estilos para contenido solo accesible por screen readers -->
   <style>
@@ -234,37 +220,6 @@
   <script src="@Url.Content("~/js/i18n-core.js")"></script>
   <script src="@Url.Content("~/js/i18n.config.js")"></script>
    @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.nav-group-header').forEach(header => {
-      const items = header.nextElementSibling;
-      const arrow = header.querySelector('.nav-arrow');
-
-      if (!items || !arrow) return;
-
-      const setExpanded = (isExpanded) => {
-        items.style.maxHeight = isExpanded ? `${items.scrollHeight}px` : '0px';
-        arrow.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)';
-        header.setAttribute('aria-expanded', String(isExpanded));
-      };
-
-      setExpanded(false);
-
-      const toggle = () => {
-        const isExpanded = header.getAttribute('aria-expanded') === 'true';
-        setExpanded(!isExpanded);
-      };
-
-      header.addEventListener('click', toggle);
-      header.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          toggle();
-        }
-      });
-    });
-  });
-</script>
 </body>
 
 </html>
