@@ -539,35 +539,18 @@ const initNewAppointmentModal = () => {
      * Mapea el estado de la cita a la clase CSS correspondiente
      */
     const getStatusClass = (status) => {
-        if (window.AppointmentUtils) {
-            const normalized = String(status ?? '').trim().toLowerCase();
-            const statusMap = {
-                'programada': 'reserved',
-                'agendada': 'reserved',
-                'pendiente': 'reserved',
-                'confirmada': 'confirmed',
-                'atendida': 'attended',
-                'cancelada': 'cancelled',
-                'cancelado': 'cancelled',
-                'no_asistida': 'cancelled',
-                'no-show': 'cancelled',
-                'disponible': 'available'
-            };
+        const normalized = String(status ?? '').trim().toLowerCase();
+        if (normalized === 'disponible') return 'available';
+        if (normalized === 'pendiente') return 'reserved';
 
-            return statusMap[normalized] ?? window.AppointmentUtils.getStatusLabelAndClass(normalized).class;
-        }
-
-        const statusMap = {
-            'Agendada': 'reserved',
-            'Programada': 'reserved',
-            'Pendiente': 'reserved',
-            'Confirmada': 'confirmed',
-            'Asistida': 'attended',
-            'Cancelada': 'cancelled',
-            'Disponible': 'available'
-        };
-
-        return statusMap[String(status ?? '')] || 'reserved';
+        return {
+            programada: 'reserved',
+            confirmada: 'confirmed',
+            en_proceso: 'confirmed',
+            atendida: 'attended',
+            cancelada: 'cancelled',
+            no_asistida: 'cancelled'
+        }[CommonUtils.normalizeAppointmentStatus(status)] || 'reserved';
     };
 
     /**

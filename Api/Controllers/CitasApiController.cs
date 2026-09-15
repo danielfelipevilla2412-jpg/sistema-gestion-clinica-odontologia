@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
+using SmileTrack_MVC.Models.Api;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
@@ -482,6 +484,78 @@ public sealed class CitasApiController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(new { success = false, message = ex.Message }); }
     }
 
+    [HttpGet]
+    [Authorize(Roles = "Auxiliar,Administrador,Profesional", Policy = "ApiOrCookie")]
+    [Route("api/citas/{id:int}/asistencia-procedimiento")]
+    public async Task<IActionResult> ObtenerAsistenciaProcedimiento(int id, CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador de cita inválido." });
+
+        if (!await _context.Citas.AsNoTracking().AnyAsync(c => c.IdCita == id, ct))
+            return NotFound(new { success = false, message = "Cita no encontrada." });
+
+        var asistencia = await _context.AsistenciasProcedimiento.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.IdCita == id, ct);
+        return Ok(new
+        {
+            success = true,
+            data = asistencia is null ? null : new AsistenciaProcedimientoApiDto
+            {
+                IdCita = asistencia.IdCita,
+                Minutos = asistencia.Minutos,
+                Inicio = asistencia.Inicio,
+                Limpieza = asistencia.Limpieza,
+                Esterilizacion = asistencia.Esterilizacion,
+                Equipos = asistencia.Equipos,
+                ActualizadoEn = asistencia.ActualizadoEn
+            }
+        });
+    }
+
+    [HttpPut]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Auxiliar,Administrador,Profesional", Policy = "ApiOrCookie")]
+    [Route("api/citas/{id:int}/asistencia-procedimiento")]
+    public async Task<IActionResult> GuardarAsistenciaProcedimiento(
+        int id,
+        [FromBody] AsistenciaProcedimientoApiRequest request,
+        CancellationToken ct = default)
+    {
+        if (id <= 0 || request is null || !ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Datos de asistencia inválidos." });
+
+        if (!await _context.Citas.AnyAsync(c => c.IdCita == id, ct))
+            return NotFound(new { success = false, message = "Cita no encontrada." });
+
+        var asistencia = await _context.AsistenciasProcedimiento
+            .FirstOrDefaultAsync(a => a.IdCita == id, ct);
+        if (asistencia is null)
+        {
+            asistencia = new AsistenciaProcedimiento { IdCita = id };
+            _context.AsistenciasProcedimiento.Add(asistencia);
+        }
+
+        asistencia.Minutos = request.Minutos;
+        if (request.Inicio.HasValue)
+            asistencia.Inicio = request.Inicio.Value;
+        else if (asistencia.Inicio == default)
+            asistencia.Inicio = DateTime.UtcNow;
+        asistencia.Limpieza = request.Limpieza;
+        asistencia.Esterilizacion = request.Esterilizacion;
+        asistencia.Equipos = request.Equipos;
+        asistencia.ActualizadoPor = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId) ? userId : null;
+        asistencia.ActualizadoEn = DateTime.UtcNow;
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new { success = true, message = "Asistencia del procedimiento guardada.", data = new AsistenciaProcedimientoApiDto
+        {
+            IdCita = asistencia.IdCita, Minutos = asistencia.Minutos, Inicio = asistencia.Inicio,
+            Limpieza = asistencia.Limpieza, Esterilizacion = asistencia.Esterilizacion,
+            Equipos = asistencia.Equipos, ActualizadoEn = asistencia.ActualizadoEn
+        }});
+    }
+
     [HttpDelete]
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Policy = "ApiOrCookie")]
@@ -508,15 +582,7 @@ public sealed class CitasApiController : ControllerBase
     private bool EsPacientePropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdPaciente"), out int id) && id == cita.IdPaciente;
     private bool EsProfesionalPropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdProfesional"), out int id) && id == cita.IdProfesional;
     private static bool EsConflicto(string? message) => message?.Contains("horario", StringComparison.OrdinalIgnoreCase) == true;
-    private static string NormalizarEstado(string? estado) => (estado ?? string.Empty).Trim().ToLowerInvariant() switch
-    {
-        "agendada" or "programado" => "programada",
-        "confirmado" => "confirmada",
-        "cancelado" => "cancelada",
-        "no asistio" or "no asistió" or "no-show" => "no_asistida",
-        "completada" or "finalizada" or "realizada" => "atendida",
-        var value => value
-    };
+    private static string NormalizarEstado(string? estado) => EstadoCitaHelper.Normalize(estado);
 
     private async Task RegistrarAuditoriaAsync(string accion, int idRegistro, string descripcion, CancellationToken ct)
     {

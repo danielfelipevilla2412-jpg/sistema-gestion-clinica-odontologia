@@ -20,4 +20,14 @@ public class EstadoCitaHelperTests
         Assert.Equal("Atendida", EstadoCitaHelper.ResolveEstadoNombre("ATENDIDA"));
         Assert.Equal("Cancelada", EstadoCitaHelper.ResolveEstadoNombre("cancelada"));
     }
+
+    [Theory]
+    [InlineData("agendada", "programada")]
+    [InlineData("En consulta", "en_proceso")]
+    [InlineData("finalizada", "atendida")]
+    [InlineData("no asistió", "no_asistida")]
+    public void Normalize_ReturnsCanonicalAppointmentToken(string estado, string esperado)
+    {
+        Assert.Equal(esperado, EstadoCitaHelper.Normalize(estado));
+    }
 }

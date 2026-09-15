@@ -403,6 +403,55 @@ public sealed class ProfesionalesApiController : ControllerBase
             : NotFound(new { success = false, message = result.Message });
     }
 
+    [HttpPost("{id:int}/ausencias")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [CookieAwareValidateAntiforgeryToken]
+    public async Task<IActionResult> CreateAusencia(
+        int id,
+        [FromBody] AusenciaProfesionalApiRequest request,
+        CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Datos de ausencia inválidos.", errors = ModelState });
+
+        var result = await _service.CrearAusenciaAsync(id, request, GetCurrentUserId(), ct);
+        return result.Success
+            ? StatusCode(StatusCodes.Status201Created, new { success = true, message = result.Message, data = result.Data })
+            : StatusCode(result.ErrorStatusCode ?? 400, new { success = false, message = result.Message });
+    }
+
+    [HttpPut("{id:int}/ausencias/{idAusencia:int}")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [CookieAwareValidateAntiforgeryToken]
+    public async Task<IActionResult> UpdateAusencia(
+        int id,
+        int idAusencia,
+        [FromBody] AusenciaProfesionalApiRequest request,
+        CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Datos de ausencia inválidos.", errors = ModelState });
+
+        var result = await _service.ActualizarAusenciaAsync(id, idAusencia, request, GetCurrentUserId(), ct);
+        return result.Success
+            ? Ok(new { success = true, message = result.Message, data = result.Data })
+            : StatusCode(result.ErrorStatusCode ?? 400, new { success = false, message = result.Message });
+    }
+
+    [HttpDelete("{id:int}/ausencias/{idAusencia:int}")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [CookieAwareValidateAntiforgeryToken]
+    public async Task<IActionResult> DeleteAusencia(
+        int id,
+        int idAusencia,
+        CancellationToken ct = default)
+    {
+        var result = await _service.EliminarAusenciaAsync(id, idAusencia, GetCurrentUserId(), ct);
+        return result.Success
+            ? Ok(new { success = true, message = result.Message })
+            : StatusCode(result.ErrorStatusCode ?? 400, new { success = false, message = result.Message });
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // GET /api/profesionales/{id}/servicios
     // Lista los servicios que puede ejecutar el profesional (P-01 / U-06)

@@ -21,7 +21,7 @@ DEPENDENCIAS TÉCNICAS:
 - Partial / Otros: index.cshtml
 
 NOTAS DE MANTENIMIENTO:
-- Los formatos de estado servidor↔UI están centralizados en STATUS_MAP_SERVER / STATUS_MAP_CLIENTE.
+- Los formatos de estado servidor↔UI se consumen desde CommonUtils.
   (Cambiar la etiqueta visible al usuario = solo tocar esos 2 objetos).
 - appointmentStorage mantiene únicamente la respuesta API actual en memoria.
 ============================================ */
@@ -43,44 +43,6 @@ const getAuthHeaders = () => {
   } catch (e) { /* sessionStorage deshabilitado (modo privado) */ }
   return headers;
 };
-
-// Mapeos de estado (estándar en TODOS módulos citas)
-const normalizeEstadoKey = (value) => {
-  return String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[áàäâ]/g, 'a')
-    .replace(/[éèëê]/g, 'e')
-    .replace(/[íìïî]/g, 'i')
-    .replace(/[óòöô]/g, 'o')
-    .replace(/[úùüû]/g, 'u')
-    .replace(/[_\-\s]+/g, '_')
-    .replace(/[^a-z0-9_]/g, '');
-};
-
-const STATUS_MAP_SERVER = {
-  programada:  { label: 'Agendada',    cls: 'status-agendada' },
-  agendada:    { label: 'Agendada',    cls: 'status-agendada' },
-  confirmada:  { label: 'Confirmada',  cls: 'status-agendada' },
-  en_proceso:  { label: 'En consulta', cls: 'status-consulta' },
-  'en_proceso_': { label: 'En consulta', cls: 'status-consulta' },
-  'en_proceso_1': { label: 'En consulta', cls: 'status-consulta' },
-  finalizada:  { label: 'Atendida',    cls: 'status-atendida' },
-  atendida:    { label: 'Atendida',    cls: 'status-atendida' },
-  cancelada:   { label: 'Cancelada',   cls: 'status-no-asistio' },
-  no_asistida: { label: 'No asistió',  cls: 'status-no-asistio' },
-  'no_asistio': { label: 'No asistió', cls: 'status-no-asistio' }
-};
-const STATUS_MAP_CLIENTE = {
-  'Agendada':    'programada',
-  'Confirmada':  'confirmada',
-  'En consulta': 'en_proceso',
-  'Atendida':    'finalizada',
-  'Cancelada':   'cancelada',
-  'No asistió':  'no_asistida',
-  'No asistio':  'no_asistida'
-};
-const STATUS_OPTIONS = Object.keys(STATUS_MAP_CLIENTE);
 
 function mostrarErrorUsuario(mensaje) {
   let div = document.getElementById('smiletrack-error-bar');
@@ -190,8 +152,8 @@ const mapServerToClient = (srv) => {
   const profesionalRaw = srv.Profesional || srv.profesional;
   const servicioRaw = srv.Servicio || srv.servicio;
   const consultorioRaw = srv.Consultorio || srv.consultorio;
-  const srvEstado = normalizeEstadoKey(estadoRaw);
-  const info = STATUS_MAP_SERVER[srvEstado] || STATUS_MAP_SERVER.programada;
+  const srvEstado = CommonUtils.mapEstadoServerToClient(estadoRaw);
+  const info = CommonUtils.getStatusInfo(srvEstado);
   const doctor = profesionalRaw?.NombreCompleto || profesionalRaw?.nombreCompleto || '—';
   const patient = pacienteRaw?.NombreCompleto || pacienteRaw?.nombreCompleto || '—';
   const service = servicioRaw?.Nombre || servicioRaw?.nombre || '—';
@@ -447,8 +409,7 @@ const buildServerBody = (appt, overrides = {}) => {
     ? `${overrides.dateISO || appt.dateISO}T${overrides.timeISO || appt.timeISO}:00`
     : raw.FechaHora || new Date().toISOString();
   const estadoUI = overrides.status || appt.status;
-  const estadoServidor = STATUS_MAP_CLIENTE[estadoUI] ||
-    (normalizeEstadoKey(estadoUI) === 'en_consulta' ? 'en_proceso' : normalizeEstadoKey(estadoUI) || 'programada');
+  const estadoServidor = CommonUtils.mapEstadoClienteToServer(estadoUI);
   return {
     IdCita: appt.id,
     IdPaciente: raw.IdPaciente ?? raw.idPaciente ?? appt.patientId ?? 0,

@@ -25,7 +25,7 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - SEGURIDAD IMPORTANTE: El filtro por IdPaciente se aplica EN EL CONTROLLER, no en cliente.
   (Si se hace solo en JS, paciente podría ver otras citas; el backend lo impide siempre).
-- STATUS_MAP_SERVER / STATUS_MAP_CLIENTE = mismas constantes que los otros 3 módulos citas.
+- Los estados de cita se consumen desde CommonUtils.
 ============================================ */
 
 // ═══════════════════════════════════════════════════════════════════
@@ -50,25 +50,6 @@ const getAuthHeaders = () => {
     if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
   } catch (e) { /* navegación privada */ }
   return headers;
-};
-
-// Estados (mismo mapeo que agenda.js / app.js)
-const STATUS_MAP_SERVER = {
-  programada:  { label: 'Agendada',   cls: 'badge-agendada'   },
-  confirmada:  { label: 'Confirmada', cls: 'badge-confirmada' },
-  en_proceso:  { label: 'En curso',   cls: 'badge-confirmada' },
-  finalizada:  { label: 'Completada', cls: 'badge-completada' },
-  atendida:    { label: 'Completada', cls: 'badge-completada' },
-  cancelada:   { label: 'Cancelada',  cls: 'badge-cancelada'  },
-  no_asistida: { label: 'No asistió', cls: 'badge-cancelada'  }
-};
-const STATUS_MAP_CLIENTE = {
-  'Agendada':   'programada',
-  'Confirmada': 'confirmada',
-  'En curso':   'en_proceso',
-  'Completada': 'finalizada',
-  'Cancelada':  'cancelada',
-  'No asistió': 'no_asistida'
 };
 
 function mostrarErrorUsuario(mensaje) {
@@ -153,8 +134,8 @@ const fmtHora = (fh) => {
 // ═══════════════════════════════════════════════════════════════════
 
 const mapServerToClient = (srv) => {
-  const est = (srv.Estado || 'programada').toLowerCase();
-  const info = STATUS_MAP_SERVER[est] || STATUS_MAP_SERVER['programada'];
+  const est = CommonUtils.mapEstadoServerToClient(srv.Estado);
+  const info = CommonUtils.getStatusInfo(est);
   const fhISO = srv.FechaHora ? new Date(srv.FechaHora).toISOString() : null;
   const proximaFutura = info.label === 'Agendada' || info.label === 'Confirmada';
   const todayISO = new Date().toISOString().split('T')[0];
@@ -208,8 +189,8 @@ let cancelId = null;
 // ═══════════════════════════════════════════════════════════════════
 
 const badgeClass = (estado) => {
-  const serverKey = (STATUS_MAP_CLIENTE[estado] || estado).toLowerCase();
-  return STATUS_MAP_SERVER[serverKey]?.cls || 'badge-agendada';
+  const serverKey = CommonUtils.mapEstadoClienteToServer(estado);
+  return CommonUtils.getStatusInfo(serverKey).cls || 'badge-agendada';
 };
 
 const getFiltered = () => {

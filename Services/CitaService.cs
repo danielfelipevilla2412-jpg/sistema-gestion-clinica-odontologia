@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
 
@@ -1255,20 +1256,7 @@ public class CitaService : ICitaService
 
     private static string NormalizarEstado(string? estado)
     {
-        var normalizado = NormalizarTexto(estado ?? string.Empty)
-            .Replace("-", "_")
-            .Replace(" ", "_");
-
-        return normalizado switch
-        {
-            "agendada" or "programada" or "programado" => "programada",
-            "confirmada" or "confirmado" => "confirmada",
-            "en_consulta" or "en_proceso" => "en_proceso",
-            "atendida" or "finalizada" or "completada" or "realizada" => "atendida",
-            "cancelada" or "cancelado" => "cancelada",
-            "no_asistida" or "no_asistio" or "no_show" => "no_asistida",
-            _ => normalizado
-        };
+        return EstadoCitaHelper.Normalize(estado);
     }
 
     private static bool EsTransicionEstadoPermitida(string estadoActual, string nuevoEstado)

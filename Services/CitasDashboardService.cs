@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using System.Globalization;
@@ -354,14 +355,5 @@ public sealed class CitasDashboardService : ICitasDashboardService
 
     /// <summary>Normaliza alias de estados al token canónico del sistema.</summary>
     private static string NormalizarEstado(string? estado) =>
-        (estado ?? string.Empty).Trim().ToLowerInvariant() switch
-        {
-            "agendada"    or "programado"  => "programada",
-            "confirmado"                   => "confirmada",
-            "cancelado"                    => "cancelada",
-            "completada"  or "realizada"   => "atendida",
-            "no asistio"  or "no asistió"
-                          or "no-show"     => "no_asistida",
-            var s                          => s
-        };
+        EstadoCitaHelper.Normalize(estado);
 }

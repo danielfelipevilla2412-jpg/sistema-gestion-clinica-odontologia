@@ -57,9 +57,9 @@ const finalizedStorage = {
   // WHY: Centraliza el cálculo de contadores para no duplicar la lógica de filtrado entre la tabla y las tarjetas de resumen
   getCounts: (citas) => {
     return {
-      atendidas: citas.filter(c => c.estado === 'Atendida').length,
-      canceladas: citas.filter(c => c.estado === 'Cancelada').length,
-      noAsistio: citas.filter(c => c.estado === 'No asistió').length
+      atendidas: citas.filter(c => CommonUtils.normalizeAppointmentStatus(c.estado) === 'atendida').length,
+      canceladas: citas.filter(c => CommonUtils.normalizeAppointmentStatus(c.estado) === 'cancelada').length,
+      noAsistio: citas.filter(c => CommonUtils.normalizeAppointmentStatus(c.estado) === 'no_asistida').length
     };
   }
 };
@@ -109,8 +109,9 @@ const renderAppointments = (data) => {
 
   // WHY: Mapea el estado de la cita a una clase CSS semántica para que el color refleje el resultado clínico del turno
   tbody.replaceChildren(...data.map(apt => {
-    const statusClass = apt.estado === 'Atendida' ? 'atendida' : 
-                       apt.estado === 'Cancelada' ? 'cancelada' : 'no-asistio';
+    const estado = CommonUtils.normalizeAppointmentStatus(apt.estado);
+    const statusClass = estado === 'atendida' ? 'atendida' :
+               estado === 'cancelada' ? 'cancelada' : 'no-asistio';
     const row = document.createElement('tr');
     row.setAttribute('role', 'row');
     const cell = (className, value) => {

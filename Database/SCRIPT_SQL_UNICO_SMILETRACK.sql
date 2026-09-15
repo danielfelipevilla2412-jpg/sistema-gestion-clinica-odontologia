@@ -1648,5 +1648,41 @@ BEGIN
 END
 GO
 
+-- Persistencia de asistencia procedural y estado operativo del consultorio.
+IF OBJECT_ID(N'dbo.Asistencia_Procedimiento', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Asistencia_Procedimiento (
+        id_asistencia INT IDENTITY(1,1) PRIMARY KEY,
+        id_cita INT NOT NULL,
+        minutos INT NOT NULL DEFAULT 0,
+        inicio DATETIME2 NOT NULL,
+        limpieza BIT NOT NULL DEFAULT 0,
+        esterilizacion BIT NOT NULL DEFAULT 0,
+        equipos BIT NOT NULL DEFAULT 0,
+        actualizado_por INT NULL,
+        actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT UQ_AsistenciaProcedimiento_Cita UNIQUE (id_cita),
+        CONSTRAINT FK_AsistenciaProcedimiento_Cita FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita) ON DELETE CASCADE,
+        CONSTRAINT FK_AsistenciaProcedimiento_Usuario FOREIGN KEY (actualizado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
+    );
+END
+GO
+
+IF OBJECT_ID(N'dbo.Consultorio_Estado_Operativo', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Consultorio_Estado_Operativo (
+        id_estado_operativo INT IDENTITY(1,1) PRIMARY KEY,
+        id_consultorio INT NOT NULL,
+        checklist_json NVARCHAR(MAX) NOT NULL DEFAULT N'[]',
+        observaciones NVARCHAR(2000) NULL,
+        actualizado_por INT NULL,
+        actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT UQ_ConsultorioEstadoOperativo_Consultorio UNIQUE (id_consultorio),
+        CONSTRAINT FK_ConsultorioEstadoOperativo_Consultorio FOREIGN KEY (id_consultorio) REFERENCES dbo.Consultorio(id_consultorio) ON DELETE CASCADE,
+        CONSTRAINT FK_ConsultorioEstadoOperativo_Usuario FOREIGN KEY (actualizado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
+    );
+END
+GO
+
 PRINT 'Ampliación operativa de citas y profesionales aplicada correctamente.';
 GO

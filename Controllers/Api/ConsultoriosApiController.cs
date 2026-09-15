@@ -11,7 +11,13 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Models.Api;
+using SmileTrack_MVC.Models.Entities;
+using System.Security.Claims;
+using System.Text.Json;
 
 namespace SmileTrack_MVC.Controllers.Api;
 
@@ -71,6 +77,88 @@ public sealed class ConsultoriosApiController : ControllerBase
             request.Observaciones);
 
         return Ok(new { success = true, message = "Estado registrado correctamente." });
+    }
+
+    [HttpGet("{id:int}/estado-operativo")]
+    public async Task<IActionResult> ObtenerEstadoOperativo(int id, CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "ID de consultorio inválido." });
+
+        var consultorio = await _context.Consultorios.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.IdConsultorio == id, ct);
+        if (consultorio is null)
+            return NotFound(new { success = false, message = "Consultorio no encontrado." });
+
+        var operativo = await _context.EstadosOperativosConsultorio.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.IdConsultorio == id, ct);
+        var historial = await _context.ConsultoriosHistorial.AsNoTracking()
+            .Where(h => h.IdConsultorio == id)
+            .OrderByDescending(h => h.FechaCambio)
+            .Take(20)
+            .Select(h => new ConsultorioHistorialApiDto { Estado = h.Estado, Motivo = h.Motivo, FechaCambio = h.FechaCambio })
+            .ToListAsync(ct);
+
+        return Ok(new { success = true, data = new ConsultorioEstadoOperativoApiDto
+        {
+            IdConsultorio = id,
+            Estado = consultorio.Estado,
+            Checklist = operativo is null ? [] : JsonSerializer.Deserialize<object[]>(operativo.ChecklistJson) ?? [],
+            Observaciones = operativo?.Observaciones,
+            ActualizadoEn = operativo?.ActualizadoEn,
+            Historial = historial
+        }});
+    }
+
+    [HttpPut("{id:int}/estado-operativo")]
+    [CookieAwareValidateAntiforgeryToken]
+    public async Task<IActionResult> GuardarEstadoOperativo(
+        int id,
+        [FromBody] ConsultorioEstadoOperativoApiRequest request,
+        CancellationToken ct = default)
+    {
+        if (id <= 0 || request is null || !ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Datos de estado operativo inválidos." });
+
+        var consultorio = await _context.Consultorios.FirstOrDefaultAsync(c => c.IdConsultorio == id, ct);
+        if (consultorio is null)
+            return NotFound(new { success = false, message = "Consultorio no encontrado." });
+
+        string estado = request.Estado.Trim().ToLowerInvariant() switch
+        {
+            "disponible" => "disponible",
+            "mantenimiento" => "mantenimiento",
+            "no-disponible" or "no_disponible" => "no_disponible",
+            _ => string.Empty
+        };
+        if (string.IsNullOrEmpty(estado))
+            return BadRequest(new { success = false, message = "El estado del consultorio no es válido." });
+
+        int? userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsedUserId) ? parsedUserId : null;
+        var operativo = await _context.EstadosOperativosConsultorio
+            .FirstOrDefaultAsync(e => e.IdConsultorio == id, ct);
+        if (operativo is null)
+        {
+            operativo = new ConsultorioEstadoOperativo { IdConsultorio = id };
+            _context.EstadosOperativosConsultorio.Add(operativo);
+        }
+
+        consultorio.Estado = estado;
+        operativo.ChecklistJson = JsonSerializer.Serialize(request.Checklist ?? []);
+        operativo.Observaciones = request.Observaciones?.Trim();
+        operativo.ActualizadoPor = userId;
+        operativo.ActualizadoEn = DateTime.UtcNow;
+        _context.ConsultoriosHistorial.Add(new ConsultorioHistorial
+        {
+            IdConsultorio = id,
+            Estado = estado,
+            IdUsuario = userId,
+            Motivo = operativo.Observaciones,
+            FechaCambio = operativo.ActualizadoEn
+        });
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new { success = true, message = "Estado operativo guardado correctamente." });
     }
 }
 

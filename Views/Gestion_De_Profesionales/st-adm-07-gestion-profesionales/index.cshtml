@@ -381,6 +381,35 @@ NOTAS DE MANTENIMIENTO:
           </div>
         </div>
       </div>
+      <section id="professionalAbsences" aria-labelledby="professionalAbsencesTitle" style="margin-top:20px;border-top:1px solid var(--border-color, #e5e7eb);padding-top:16px;">
+        <h3 id="professionalAbsencesTitle" style="margin:0 0 12px;">Ausencias</h3>
+        <form id="absenceForm" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+          <input type="hidden" id="absenceId" value="">
+          <label class="form-label">Tipo
+            <select id="absenceTipo" class="form-input" required>
+              <option value="vacaciones">Vacaciones</option>
+              <option value="incapacidad">Incapacidad</option>
+              <option value="permiso">Permiso</option>
+              <option value="otro">Otro</option>
+            </select>
+          </label>
+          <label class="form-label">Inicio
+            <input type="date" id="absenceFechaInicio" class="form-input" required>
+          </label>
+          <label class="form-label">Fin
+            <input type="date" id="absenceFechaFin" class="form-input" required>
+          </label>
+          <label class="form-label" style="grid-column:1/-1;">Observaciones
+            <input type="text" id="absenceObservaciones" class="form-input" maxlength="500">
+          </label>
+          <div style="grid-column:1/-1;display:flex;gap:8px;">
+            <button type="submit" class="btn-primary" id="absenceSaveButton">Registrar ausencia</button>
+            <button type="button" class="btn-secondary" id="absenceCancelEdit" hidden>Cancelar edición</button>
+          </div>
+        </form>
+        <p id="absenceLoading" aria-live="polite" style="margin:12px 0 0;">Cargando ausencias...</p>
+        <div id="absenceList" style="display:grid;gap:8px;margin-top:10px;"></div>
+      </section>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" id="modalDetailCloseBtn" data-i18n="common.close">Cerrar</button>
       </div>

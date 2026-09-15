@@ -40,6 +40,60 @@ const debounce = (fn, delay) => {
   };
 };
 
+const procedureData = window.smiletrackAsistenciaProcedData || {};
+let procedureSyncTimer = null;
+
+const procedureHeaders = () => {
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  if (token) headers['X-CSRF-TOKEN'] = token;
+  return headers;
+};
+
+async function persistProcedureState() {
+  if (!procedureData.citaId) return;
+  const state = procedureStorage.load();
+  try {
+    await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: procedureHeaders(),
+      body: JSON.stringify({
+        minutos: state.minutes,
+        inicio: state.startTime,
+        limpieza: Boolean(state.pills.limpieza),
+        esterilizacion: Boolean(state.pills.esterilizacion),
+        equipos: Boolean(state.pills.equipos)
+      })
+    });
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudo sincronizar asistencia procedural:', error);
+  }
+}
+
+async function hydrateProcedureState() {
+  if (!procedureData.citaId) return;
+  try {
+    const response = await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
+      credentials: 'same-origin', headers: procedureHeaders()
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (!payload.data) return;
+    procedureStorage.save({
+      minutes: payload.data.minutos || 0,
+      startTime: payload.data.inicio || new Date().toISOString(),
+      pills: {
+        limpieza: Boolean(payload.data.limpieza),
+        esterilizacion: Boolean(payload.data.esterilizacion),
+        equipos: Boolean(payload.data.equipos)
+      }
+    });
+  } catch (error) {
+    console.warn('[SmileTrack] Se usará el respaldo local de asistencia:', error);
+  }
+}
+
 // WHY: Las notificaciones no bloqueantes brindan retroalimentación al usuario sin interrumpir el flujo durante el procedimiento
 
 // WHY: La clave incluye fecha y hora para evitar colisiones entre sesiones de diferentes procedimientos en el mismo dispositivo
@@ -85,6 +139,8 @@ const procedureStorage = {
     const state = procedureStorage.load();
     state.minutes = minutes;
     procedureStorage.save(state);
+    clearTimeout(procedureSyncTimer);
+    procedureSyncTimer = setTimeout(persistProcedureState, 250);
   },
   
   // WHY: Actualiza solo la píldora modificada en lugar de reescribir el estado completo, optimizando escrituras
@@ -92,6 +148,8 @@ const procedureStorage = {
     const state = procedureStorage.load();
     state.pills[pillId] = completed;
     procedureStorage.save(state);
+    clearTimeout(procedureSyncTimer);
+    procedureSyncTimer = setTimeout(persistProcedureState, 250);
   }
 };
 
@@ -217,7 +275,8 @@ const renderDatosCita = () => {
   if (hayAlertas && sinAlertas) sinAlertas.style.display = 'none';
 };
 
-const init = () => {
+const init = async () => {
+  await hydrateProcedureState();
     // Inicializar componentes de UI
     renderDatosCita();
     initMobileMenu();

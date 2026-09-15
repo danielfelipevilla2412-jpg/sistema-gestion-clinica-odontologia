@@ -368,11 +368,7 @@ const mapServerToClient = (serverData) => {
  * @returns {string} Estado normalizado para el cliente
  */
 const mapEstadoServerToClient = (estado) => {
-    if (window.AppointmentUtils) {
-        return window.AppointmentUtils.mapEstadoServerToClient(estado);
-    }
-    if (!estado) return 'programada';
-    return estado.toLowerCase().trim();
+    return window.CommonUtils.mapEstadoServerToClient(estado);
 };
 
 /**
@@ -382,9 +378,7 @@ const mapEstadoServerToClient = (estado) => {
  * @returns {string} Estado normalizado para el servidor
  */
 const mapEstadoClientToServer = (estado) => {
-    if (estado === 'atendida') return 'finalizada';
-    if (estado === 'no-show') return 'no_asistida';
-    return estado || 'programada';
+    return window.CommonUtils.mapEstadoClienteToServer(estado);
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -437,10 +431,8 @@ const shouldUseServerRenderedList = () => {
  */
 const statusLabels = new Proxy({}, {
     get: function (target, prop) {
-        if (window.AppointmentUtils) {
-            return window.AppointmentUtils.getStatusLabelAndClass(prop);
-        }
-        return { label: prop, class: 'programada' };
+        const info = window.CommonUtils.getStatusInfo(prop);
+        return { label: info.label, class: info.cls };
     }
 });
 

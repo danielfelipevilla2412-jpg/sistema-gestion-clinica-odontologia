@@ -74,6 +74,25 @@ public interface IProfesionalService
         int id,
         CancellationToken ct = default);
 
+    Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> CrearAusenciaAsync(
+        int id,
+        AusenciaProfesionalApiRequest request,
+        int? operadorId,
+        CancellationToken ct = default);
+
+    Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> ActualizarAusenciaAsync(
+        int id,
+        int idAusencia,
+        AusenciaProfesionalApiRequest request,
+        int? operadorId,
+        CancellationToken ct = default);
+
+    Task<ProfesionalApiOperationResult> EliminarAusenciaAsync(
+        int id,
+        int idAusencia,
+        int? operadorId,
+        CancellationToken ct = default);
+
     Task<ProfesionalApiCollectionResult<ServicioProfesionalApiDto>> ObtenerServiciosAsync(
         int id,
         CancellationToken ct = default);

@@ -132,8 +132,9 @@ const renderTabla = (citas) => {
   };
 
   const badgeEstado = (e) => {
-    const map = { 'Atendida':'badge-atendida', 'Pendiente':'badge-pendiente', 'Cancelada':'badge-cancelada' };
-    return crearBadge(`badge-estado ${map[e] || 'badge-pendiente'}`, `● ${e}`, `Estado: ${e}`);
+    const estado = CommonUtils.normalizeAppointmentStatus(e);
+    const map = { atendida: 'badge-atendida', pendiente: 'badge-pendiente', cancelada: 'badge-cancelada' };
+    return crearBadge(`badge-estado ${map[estado] || 'badge-pendiente'}`, `● ${e}`, `Estado: ${e}`);
   };
 
   const crearCelda = (className, text) => {

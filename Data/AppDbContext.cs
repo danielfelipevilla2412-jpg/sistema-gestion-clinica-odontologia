@@ -21,6 +21,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
             public DbSet<RecordatorioCita> RecordatoriosCita => Set<RecordatorioCita>();
             public DbSet<ConsultorioHistorial> ConsultoriosHistorial => Set<ConsultorioHistorial>();
+            public DbSet<AsistenciaProcedimiento> AsistenciasProcedimiento => Set<AsistenciaProcedimiento>();
+            public DbSet<ConsultorioEstadoOperativo> EstadosOperativosConsultorio => Set<ConsultorioEstadoOperativo>();
     public DbSet<HistoriaClinica> HistoriasClinicas => Set<HistoriaClinica>();
 
     // Yeray - Agregado DbSet para tabla Registro_Odontograma
@@ -350,6 +352,39 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   entity.Property(h => h.FechaCambio).HasColumnName("fecha_cambio");
                   entity.HasOne(h => h.Consultorio).WithMany().HasForeignKey(h => h.IdConsultorio).OnDelete(DeleteBehavior.Cascade);
                   entity.HasOne(h => h.Usuario).WithMany().HasForeignKey(h => h.IdUsuario).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<AsistenciaProcedimiento>(entity =>
+            {
+                  entity.ToTable("Asistencia_Procedimiento");
+                  entity.HasKey(a => a.IdAsistencia);
+                  entity.Property(a => a.IdAsistencia).HasColumnName("id_asistencia");
+                  entity.Property(a => a.IdCita).HasColumnName("id_cita");
+                  entity.Property(a => a.Minutos).HasColumnName("minutos");
+                  entity.Property(a => a.Inicio).HasColumnName("inicio");
+                  entity.Property(a => a.Limpieza).HasColumnName("limpieza");
+                  entity.Property(a => a.Esterilizacion).HasColumnName("esterilizacion");
+                  entity.Property(a => a.Equipos).HasColumnName("equipos");
+                  entity.Property(a => a.ActualizadoPor).HasColumnName("actualizado_por");
+                  entity.Property(a => a.ActualizadoEn).HasColumnName("actualizado_en");
+                  entity.HasIndex(a => a.IdCita).IsUnique();
+                  entity.HasOne(a => a.Cita).WithMany().HasForeignKey(a => a.IdCita).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(a => a.Usuario).WithMany().HasForeignKey(a => a.ActualizadoPor).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<ConsultorioEstadoOperativo>(entity =>
+            {
+                  entity.ToTable("Consultorio_Estado_Operativo");
+                  entity.HasKey(e => e.IdEstadoOperativo);
+                  entity.Property(e => e.IdEstadoOperativo).HasColumnName("id_estado_operativo");
+                  entity.Property(e => e.IdConsultorio).HasColumnName("id_consultorio");
+                  entity.Property(e => e.ChecklistJson).HasColumnName("checklist_json");
+                  entity.Property(e => e.Observaciones).HasColumnName("observaciones");
+                  entity.Property(e => e.ActualizadoPor).HasColumnName("actualizado_por");
+                  entity.Property(e => e.ActualizadoEn).HasColumnName("actualizado_en");
+                  entity.HasIndex(e => e.IdConsultorio).IsUnique();
+                  entity.HasOne(e => e.Consultorio).WithMany().HasForeignKey(e => e.IdConsultorio).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(e => e.Usuario).WithMany().HasForeignKey(e => e.ActualizadoPor).OnDelete(DeleteBehavior.SetNull);
             });
 
         modelBuilder.Entity<HistoriaClinica>(entity =>

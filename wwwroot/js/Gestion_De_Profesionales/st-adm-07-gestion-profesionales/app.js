@@ -81,6 +81,8 @@ const itemsPerPage = 10;
  * null = ninguno (modo creación). Se limpia al cerrar el modal.
  */
 let editingId = null;
+let detailProfessionalId = null;
+let professionalAbsences = [];
 
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIONES DE RENDERIZADO Y UTILIDADES DE UI
@@ -261,6 +263,9 @@ function renderTableFromApi(result) {
                 modal.setAttribute('aria-hidden', 'false');
                 modal.removeAttribute('inert');
                 document.body.style.overflow = 'hidden';
+                detailProfessionalId = Number(viewBtn.dataset.id);
+                resetAbsenceForm();
+                loadProfessionalAbsences(detailProfessionalId);
                 safeGetElement('modalDetailClose')?.focus();
             }
         });
@@ -280,6 +285,108 @@ const setProfessionalsLoading = (loading) => {
   if (table) table.setAttribute('aria-busy', String(loading));
   const buttons = safeGetElement('paginationButtons');
   if (buttons) buttons.querySelectorAll('button').forEach(button => { button.disabled = loading; });
+};
+
+const resetAbsenceForm = () => {
+  safeGetElement('absenceForm')?.reset();
+  safeGetElement('absenceId').value = '';
+  safeGetElement('absenceSaveButton').textContent = 'Registrar ausencia';
+  safeGetElement('absenceCancelEdit').hidden = true;
+};
+
+const renderAbsences = () => {
+  const list = safeGetElement('absenceList');
+  if (!list) return;
+  list.replaceChildren();
+  if (professionalAbsences.length === 0) {
+    list.textContent = 'No hay ausencias registradas.';
+    return;
+  }
+
+  professionalAbsences.forEach((absence) => {
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--border-color,#e5e7eb);padding:10px;border-radius:6px;';
+    const details = document.createElement('div');
+    details.innerHTML = `<strong>${escapeHtml(absence.tipo || 'Ausencia')}</strong><br><small>${escapeHtml(absence.fechaInicio)} a ${escapeHtml(absence.fechaFin)}</small>${absence.observaciones ? `<br><small>${escapeHtml(absence.observaciones)}</small>` : ''}`;
+    const actions = document.createElement('div');
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'btn-secondary';
+    edit.textContent = 'Editar';
+    edit.addEventListener('click', () => {
+      safeGetElement('absenceId').value = absence.idAusencia;
+      safeGetElement('absenceTipo').value = absence.tipo || 'otro';
+      safeGetElement('absenceFechaInicio').value = absence.fechaInicio;
+      safeGetElement('absenceFechaFin').value = absence.fechaFin;
+      safeGetElement('absenceObservaciones').value = absence.observaciones || '';
+      safeGetElement('absenceSaveButton').textContent = 'Guardar ausencia';
+      safeGetElement('absenceCancelEdit').hidden = false;
+    });
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn-secondary';
+    remove.textContent = 'Eliminar';
+    remove.addEventListener('click', async () => {
+      if (!window.confirm('¿Eliminar esta ausencia?')) return;
+      try {
+        const result = await apiRequest(`${API_BASE}/${detailProfessionalId}/ausencias/${absence.idAusencia}`, { method: 'DELETE' });
+        window.ToastService?.success(result.message || 'Ausencia eliminada.');
+        await loadProfessionalAbsences(detailProfessionalId);
+      } catch (error) {
+        window.ToastService?.error(`No se pudo eliminar la ausencia: ${error.message}`);
+      }
+    });
+    actions.append(edit, remove);
+    item.append(details, actions);
+    list.appendChild(item);
+  });
+};
+
+const loadProfessionalAbsences = async (id) => {
+  detailProfessionalId = Number(id);
+  const loading = safeGetElement('absenceLoading');
+  if (loading) loading.textContent = 'Cargando ausencias...';
+  try {
+    const result = await apiRequest(`${API_BASE}/${detailProfessionalId}/ausencias`);
+    professionalAbsences = result?.data || [];
+    renderAbsences();
+  } catch (error) {
+    professionalAbsences = [];
+    const list = safeGetElement('absenceList');
+    if (list) list.textContent = `No se pudieron cargar las ausencias: ${error.message}`;
+  } finally {
+    if (loading) loading.textContent = '';
+  }
+};
+
+const saveAbsence = async (event) => {
+  event.preventDefault();
+  const id = safeGetElement('absenceId').value;
+  const body = {
+    tipo: safeGetElement('absenceTipo').value,
+    fechaInicio: safeGetElement('absenceFechaInicio').value,
+    fechaFin: safeGetElement('absenceFechaFin').value,
+    observaciones: safeGetElement('absenceObservaciones').value || null
+  };
+  if (body.fechaFin < body.fechaInicio) {
+    window.ToastService?.warning('La fecha de fin debe ser igual o posterior a la fecha de inicio.');
+    return;
+  }
+  const button = safeGetElement('absenceSaveButton');
+  button.disabled = true;
+  try {
+    const endpoint = id
+      ? `${API_BASE}/${detailProfessionalId}/ausencias/${id}`
+      : `${API_BASE}/${detailProfessionalId}/ausencias`;
+    const result = await apiRequest(endpoint, { method: id ? 'PUT' : 'POST', body });
+    window.ToastService?.success(result.message || 'Ausencia guardada.');
+    resetAbsenceForm();
+    await loadProfessionalAbsences(detailProfessionalId);
+  } catch (error) {
+    window.ToastService?.error(`No se pudo guardar la ausencia: ${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
 };
 
 
@@ -599,6 +706,7 @@ const saveProfessional = async (e) => {
 
 const bindProfessionalFieldValidation = () => {
   const form = safeGetElement('formProfessional');
+  const absenceForm = safeGetElement('absenceForm');
   if (!form) return;
 
   form.querySelectorAll('input, select').forEach((field) => {
@@ -937,6 +1045,8 @@ const initModals = () => {
   
   // Submit del formulario (POST / PUT via API)
   form?.addEventListener('submit', saveProfessional);
+  absenceForm?.addEventListener('submit', saveAbsence);
+  safeGetElement('absenceCancelEdit')?.addEventListener('click', resetAbsenceForm);
 
   // Delegación de eventos para botones de la tabla SSR y renderTableFromApi.
   // WHY: los botones de la tabla SSR existen al cargar la página; los de renderTableFromApi
@@ -986,6 +1096,9 @@ const initModals = () => {
         modal.setAttribute('aria-hidden', 'false');
         modal.removeAttribute('inert');
         document.body.style.overflow = 'hidden';
+        detailProfessionalId = Number(btn.dataset.id);
+        resetAbsenceForm();
+        loadProfessionalAbsences(detailProfessionalId);
         safeGetElement('modalDetailClose')?.focus();
       }
     }

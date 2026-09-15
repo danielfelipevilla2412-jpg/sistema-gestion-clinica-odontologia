@@ -908,6 +908,105 @@ public partial class ProfesionalService : IProfesionalService
         return ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>.Ok(ausencias);
     }
 
+    public async Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> CrearAusenciaAsync(
+        int id,
+        AusenciaProfesionalApiRequest request,
+        int? operadorId,
+        CancellationToken ct = default)
+    {
+        var validation = await ValidarAusenciaAsync(id, request, ct);
+        if (!validation.Success)
+            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(validation.Message, validation.StatusCode);
+
+        var ausencia = new AusenciaProfesional
+        {
+            IdProfesional = id,
+            Tipo = request.Tipo.Trim().ToLowerInvariant(),
+            FechaInicio = request.FechaInicio,
+            FechaFin = request.FechaFin,
+            Duracion = request.FechaFin.DayNumber - request.FechaInicio.DayNumber + 1,
+            Observaciones = request.Observaciones?.Trim(),
+            AprobadoPor = operadorId
+        };
+
+        _context.AusenciasProfesional.Add(ausencia);
+        await _context.SaveChangesAsync(ct);
+        return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Ok(
+            "Ausencia registrada correctamente.", [MapAusencia(ausencia)]);
+    }
+
+    public async Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> ActualizarAusenciaAsync(
+        int id,
+        int idAusencia,
+        AusenciaProfesionalApiRequest request,
+        int? operadorId,
+        CancellationToken ct = default)
+    {
+        var validation = await ValidarAusenciaAsync(id, request, ct);
+        if (!validation.Success)
+            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(validation.Message, validation.StatusCode);
+
+        var ausencia = await _context.AusenciasProfesional
+            .FirstOrDefaultAsync(a => a.IdAusencia == idAusencia && a.IdProfesional == id, ct);
+        if (ausencia is null)
+            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail("Ausencia no encontrada.", 404);
+
+        ausencia.Tipo = request.Tipo.Trim().ToLowerInvariant();
+        ausencia.FechaInicio = request.FechaInicio;
+        ausencia.FechaFin = request.FechaFin;
+        ausencia.Duracion = request.FechaFin.DayNumber - request.FechaInicio.DayNumber + 1;
+        ausencia.Observaciones = request.Observaciones?.Trim();
+        ausencia.AprobadoPor = operadorId;
+        await _context.SaveChangesAsync(ct);
+        return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Ok(
+            "Ausencia actualizada correctamente.", [MapAusencia(ausencia)]);
+    }
+
+    public async Task<ProfesionalApiOperationResult> EliminarAusenciaAsync(
+        int id,
+        int idAusencia,
+        int? operadorId,
+        CancellationToken ct = default)
+    {
+        var ausencia = await _context.AusenciasProfesional
+            .FirstOrDefaultAsync(a => a.IdAusencia == idAusencia && a.IdProfesional == id, ct);
+        if (ausencia is null)
+            return ProfesionalApiOperationResult.Fail("Ausencia no encontrada.", 404);
+
+        _context.AusenciasProfesional.Remove(ausencia);
+        await _context.SaveChangesAsync(ct);
+        return ProfesionalApiOperationResult.Ok("Ausencia eliminada correctamente.");
+    }
+
+    private async Task<(bool Success, string Message, int StatusCode)> ValidarAusenciaAsync(
+        int id,
+        AusenciaProfesionalApiRequest request,
+        CancellationToken ct)
+    {
+        if (request is null || id <= 0)
+            return (false, "Datos de ausencia inválidos.", 400);
+        if (!await _context.Profesionales.AnyAsync(p => p.IdProfesional == id, ct))
+            return (false, "Profesional no encontrado.", 404);
+        if (request.FechaFin < request.FechaInicio)
+            return (false, "La fecha de fin debe ser igual o posterior a la fecha de inicio.", 400);
+
+        string[] tiposPermitidos = ["vacaciones", "incapacidad", "permiso", "otro"];
+        if (!tiposPermitidos.Contains(request.Tipo.Trim(), StringComparer.OrdinalIgnoreCase))
+            return (false, "El tipo de ausencia no es válido.", 400);
+
+        return (true, string.Empty, 200);
+    }
+
+    private static AusenciaProfesionalApiDto MapAusencia(AusenciaProfesional ausencia) => new()
+    {
+        IdAusencia = ausencia.IdAusencia,
+        Tipo = ausencia.Tipo,
+        FechaInicio = ausencia.FechaInicio.ToString("yyyy-MM-dd"),
+        FechaFin = ausencia.FechaFin.ToString("yyyy-MM-dd"),
+        Duracion = ausencia.Duracion,
+        Observaciones = ausencia.Observaciones
+    };
+
     public async Task<ProfesionalApiCollectionResult<ServicioProfesionalApiDto>> ObtenerServiciosAsync(
         int id,
         CancellationToken ct = default)

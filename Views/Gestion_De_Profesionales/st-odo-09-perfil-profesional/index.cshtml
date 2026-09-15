@@ -258,7 +258,7 @@ NOTAS DE MANTENIMIENTO:
 
       <div class="modal-footer">
         <button class="modal-btn modal-btn-secondary" id="modalCancel">Cancelar</button>
-        <button class="modal-btn modal-btn-primary" id="modalSave"><span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar horario</button>
+        <button class="modal-btn modal-btn-primary" id="modalSave" disabled aria-disabled="true" title="Cargando horario..."><span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar horario</button>
       </div>
     </div>
   </div>
@@ -292,6 +292,7 @@ NOTAS DE MANTENIMIENTO:
 
   </footer>
 @section Scripts {
-    <script src="~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/toasts.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+    <script src="~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js" asp-append-version="true" defer></script>
 }

@@ -49,6 +49,8 @@ const debounce = (fn, delay) => {
 
 // WHY: La clave incluye consultorio y fecha para evitar colisiones entre sesiones de distintos consultorios en el mismo dispositivo
 const consultorioData = window.smiletrackEstadoConsultorioData || {};
+let consultorioSyncTimer = null;
+let consultorioServerState = null;
 const consultorioStorage = {
   key: `smiletrack_consultorio_${consultorioData.consultorioId || 'sin_consultorio'}_${new Date().toISOString().slice(0, 10)}`,
   
@@ -95,6 +97,7 @@ const consultorioStorage = {
     if (state.checklist[index]) {
       state.checklist[index].checked = checked;
       consultorioStorage.save(state);
+      scheduleConsultorioSync();
     }
   },
   
@@ -103,6 +106,7 @@ const consultorioStorage = {
     const state = consultorioStorage.load();
     state.checklist.push({ text, checked: false });
     consultorioStorage.save(state);
+    scheduleConsultorioSync();
   },
   
   // WHY: Registra el estado seleccionado para sintonizar la UI con el estado persistido al recargar la vista
@@ -110,6 +114,7 @@ const consultorioStorage = {
     const state = consultorioStorage.load();
     state.status = status;
     consultorioStorage.save(state);
+    scheduleConsultorioSync();
   },
   
   // WHY: Guarda las observaciones del auxiliar para que no se pierdan al navegar entre vistas
@@ -117,6 +122,7 @@ const consultorioStorage = {
     const state = consultorioStorage.load();
     state.observations = text;
     consultorioStorage.save(state);
+    scheduleConsultorioSync();
   },
   
   // WHY: Limita el historial a 10 entradas para no saturar LocalStorage con datos indefinidos
@@ -130,8 +136,57 @@ const consultorioStorage = {
     // WHY: Limita el historial a máximo 10 entradas para evitar el crecimiento indefinido del objeto en LocalStorage
     if (state.history.length > 10) state.history.pop();
     consultorioStorage.save(state);
+    scheduleConsultorioSync();
   }
 };
+
+const scheduleConsultorioSync = () => {
+  clearTimeout(consultorioSyncTimer);
+  consultorioSyncTimer = setTimeout(saveConsultorioState, 400);
+};
+
+async function saveConsultorioState() {
+  if (!consultorioData.consultorioId) return;
+  const state = consultorioStorage.load();
+  try {
+    const response = await fetch(`/api/consultorios/${consultorioData.consultorioId}/estado-operativo`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: getRequestHeaders(),
+      body: JSON.stringify({ estado: state.status, checklist: state.checklist, observaciones: state.observations })
+    });
+    if (!response.ok) throw new Error(`status ${response.status}`);
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudo sincronizar el estado del consultorio:', error);
+  }
+}
+
+async function hydrateConsultorioState() {
+  if (!consultorioData.consultorioId) return;
+  try {
+    const response = await fetch(`/api/consultorios/${consultorioData.consultorioId}/estado-operativo`, {
+      credentials: 'same-origin', headers: getRequestHeaders()
+    });
+    if (!response.ok) return;
+    const server = (await response.json()).data;
+    if (!server) return;
+    consultorioServerState = server;
+    const current = consultorioStorage.load();
+    consultorioStorage.save({
+      ...current,
+      status: server.estado || current.status,
+      checklist: Array.isArray(server.checklist) && server.checklist.length ? server.checklist : current.checklist,
+      observations: server.observaciones ?? current.observations,
+      history: Array.isArray(server.historial) ? server.historial.map(entry => ({
+        time: entry.fechaCambio,
+        user: 'Sistema',
+        detail: entry.motivo || `Estado actualizado a: ${entry.estado}`
+      })) : current.history
+    });
+  } catch (error) {
+    console.warn('[SmileTrack] Se usará el respaldo local del consultorio:', error);
+  }
+}
 
 // WHY: Calcula el progreso en tiempo real para actualizar tanto la barra visual como la etiqueta ARIA accesible
 const calculateProgress = () => {
@@ -548,8 +603,9 @@ const initHistoryList = () => {
 };
 
 // Función principal de inicialización
-const init = () => {
+const init = async () => {
     // Inicializar componentes de UI
+  await hydrateConsultorioState();
     initMobileMenu();
     initChecklist();
     initAddItem();

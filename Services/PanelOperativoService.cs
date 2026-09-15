@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.ViewModels;
 
 namespace SmileTrack_MVC.Services;
@@ -131,11 +132,10 @@ public sealed class PanelOperativoService : IPanelOperativoService
 
     private static string MapEstadoLabel(string? estado)
     {
-        var normalizado = (estado ?? string.Empty).Trim().ToLowerInvariant();
-        return normalizado switch
+        return EstadoCitaHelper.Normalize(estado) switch
         {
-            "atendida" or "completada" or "realizada" => "Atendida",
-            "cancelada" or "cancelado" or "no_asistida" or "no asistio" or "no asistió" or "no-show" => "Cancelada",
+            "atendida" => "Atendida",
+            "cancelada" or "no_asistida" => "Cancelada",
             _ => "Pendiente"
         };
     }
