@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Agenda de Apoyo Clínico (st-aux-02-agenda-apoyo)
 ============================================
 Autor: Johan Santamaria
@@ -60,7 +60,8 @@ class AgendaController {
     let resultado = [...this._citasBase];
     
     if (profesional !== 'todos') {
-      resultado = resultado.filter(c => c.profesional.toLowerCase().includes(profesional));
+      const normalizar = (valor) => String(valor || '').trim().toLocaleLowerCase('es-CO');
+      resultado = resultado.filter(c => normalizar(c.profesional) === normalizar(profesional));
     }
     if (tipo !== 'todos') {
       resultado = resultado.filter(c => c.tipo === tipo);
@@ -78,45 +79,7 @@ const agendaCtrl = new AgendaController();
 //  SIDEBAR MÓVIL CON GESTIÓN DE FOCO Y ARIA
 // ═══════════════════════════════════════════════════════════════════
 const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamburger = safeGetElement('hamburger');
-
-  if (!sidebar || !overlay || !hamburger) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sidebar.classList.add('open');
-      overlay.classList.add('open');
-      hamburger.setAttribute('aria-expanded', 'true');
-      overlay.setAttribute('aria-hidden', 'false');
-      
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      overlay.setAttribute('aria-hidden', 'true');
-      hamburger.focus();
-    }
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -128,7 +91,7 @@ const renderTabla = (citas) => {
   if (!tbody) return;
 
   if (!citas.length) {
-    tbody.innerHTML = '';
+    tbody.replaceChildren();
     if (empty) {
       empty.style.display = 'block';
       empty.setAttribute('aria-label', 'No hay citas que coincidan con los filtros aplicados');
@@ -138,38 +101,65 @@ const renderTabla = (citas) => {
   if (empty) empty.style.display = 'none';
 
   // WHY: Funciones auxiliares para aislar la lógica de renderizado de insignias y asegurar la inyección de atributos de accesibilidad
+  const crearBadge = (className, label, ariaLabel) => {
+    const badge = document.createElement('span');
+    badge.className = className;
+    badge.setAttribute('role', 'status');
+    badge.setAttribute('aria-label', ariaLabel);
+    badge.textContent = label;
+    return badge;
+  };
+
   const badgeTipo = (tipo) => {
     const map = {
       consulta: ['badge-consulta', 'Consulta'],
       procedimiento: ['badge-procedimiento', 'Procedimiento'],
       urgencia: ['badge-urgencia', 'Urgencia'],
     };
-    const [cls, label] = map[tipo] || ['', tipo];
-    return `<span class="badge-tipo ${cls}" role="status" aria-label="Tipo: ${label}">${label}</span>`;
+    const [cls, label] = map[tipo] || ['', tipo || 'Sin tipo'];
+    return crearBadge(`badge-tipo ${cls}`, label, `Tipo: ${label}`);
   };
 
   const badgeAlergia = (a) => {
     if (a) {
-      return `<span class="badge-alergia" role="status" aria-label="Alergia: ${a}">🚨 ${a}</span>`;
+      return crearBadge('badge-alergia', `Alerta: ${a}`, `Alergia: ${a}`);
     }
-    return `<span style="color:var(--text-muted)" aria-label="Sin alergias registradas">—</span>`;
+    const badge = document.createElement('span');
+    badge.style.color = 'var(--text-muted)';
+    badge.setAttribute('aria-label', 'Sin alergias registradas');
+    badge.textContent = '—';
+    return badge;
   };
 
   const badgeEstado = (e) => {
     const map = { 'Atendida':'badge-atendida', 'Pendiente':'badge-pendiente', 'Cancelada':'badge-cancelada' };
-    return `<span class="badge-estado ${map[e]||'badge-pendiente'}" role="status" aria-label="Estado: ${e}">● ${e}</span>`;
+    return crearBadge(`badge-estado ${map[e] || 'badge-pendiente'}`, `● ${e}`, `Estado: ${e}`);
   };
 
-  tbody.innerHTML = citas.map(c => `
-    <tr role="row">
-      <td class="td-hora">${c.hora}</td>
-      <td class="td-paciente">${c.paciente}</td>
-      <td class="td-profesional">${c.profesional}</td>
-      <td>${badgeTipo(c.tipo)}</td>
-      <td>${badgeAlergia(c.alergia)}</td>
-      <td>${badgeEstado(c.estado)}</td>
-    </tr>
-  `).join('');
+  const crearCelda = (className, text) => {
+    const cell = document.createElement('td');
+    cell.className = className;
+    cell.textContent = text || '';
+    return cell;
+  };
+
+  tbody.replaceChildren(...citas.map(c => {
+    const row = document.createElement('tr');
+    row.setAttribute('role', 'row');
+    row.append(
+      crearCelda('td-hora', c.hora),
+      crearCelda('td-paciente', c.paciente),
+      crearCelda('td-profesional', c.profesional)
+    );
+    const tipoCell = document.createElement('td');
+    tipoCell.appendChild(badgeTipo(c.tipo));
+    const alergiaCell = document.createElement('td');
+    alergiaCell.appendChild(badgeAlergia(c.alergia));
+    const estadoCell = document.createElement('td');
+    estadoCell.appendChild(badgeEstado(c.estado));
+    row.append(tipoCell, alergiaCell, estadoCell);
+    return row;
+  }));
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -248,7 +238,11 @@ const initProfesionalDropdown = () => {
       agendaCtrl._filtroProfesional = value;
       
       // Actualiza texto del botón
-      btn.innerHTML = `${item.textContent.trim()} <span class="dd-arrow" aria-hidden="true">▼</span>`;
+      const arrow = document.createElement('span');
+      arrow.className = 'dd-arrow';
+      arrow.setAttribute('aria-hidden', 'true');
+      arrow.textContent = '▼';
+      btn.replaceChildren(document.createTextNode(item.textContent.trim() + ' '), arrow);
       
       // Actualiza estado visual
       items.forEach(i => i.classList.remove('active'));

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Services;
 using System.Security.Claims;
@@ -7,13 +8,38 @@ using System.Security.Claims;
 namespace SmileTrack_MVC.Controllers.Api;
 
 /// <summary>
+/// DTO para recibir un bloque de horario semanal desde el frontend (perfil.js).
+/// Los campos Day/DayFull son informativos; DiaSemana es el valor normalizado para BD.
+/// </summary>
+public sealed class HorarioSemanalDto
+{
+    /// <summary>Abreviatura del día (p. ej. "Lun"). Informativo.</summary>
+    public string? Day { get; set; }
+
+    /// <summary>Nombre completo del día en español (p. ej. "Lunes"). Se usa para BD.</summary>
+    public string? DiaSemana { get; set; }
+
+    /// <summary>Nombre completo del día (alias alternativo enviado por perfil.js).</summary>
+    public string? DayFull { get; set; }
+
+    /// <summary>Si el día es laboral.</summary>
+    public bool Active { get; set; }
+
+    /// <summary>Hora de inicio en formato "HH:mm".</summary>
+    public string? Start { get; set; }
+
+    /// <summary>Hora de fin en formato "HH:mm".</summary>
+    public string? End { get; set; }
+}
+
+
+/// <summary>
 /// API REST de Gestión de Profesionales.
 /// Todos los endpoints requieren rol Administrador y autenticación por cookie o JWT.
 /// </summary>
 [ApiController]
 [Route("api/profesionales")]
-[Authorize(Roles = "Administrador")]
-[AutoValidateAntiforgeryToken]
+[Authorize(Roles = "Administrador,Recepcionista,Profesional", Policy = "ApiOrCookie")]
 [Produces("application/json")]
 public sealed class ProfesionalesApiController : ControllerBase
 {
@@ -45,6 +71,7 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpGet]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(
         [FromQuery] int page = 1,
@@ -91,6 +118,7 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpGet("{id:int}")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(int id, CancellationToken ct = default)
@@ -112,6 +140,8 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpPost]
+    [Authorize(Roles = "Administrador")]
+    [CookieAwareValidateAntiforgeryToken]
     [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(object), StatusCodes.Status422UnprocessableEntity)]
@@ -150,6 +180,8 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "Administrador")]
+    [CookieAwareValidateAntiforgeryToken]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
@@ -197,6 +229,8 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpPatch("{id:int}/estado")]
+    [Authorize(Roles = "Administrador")]
+    [CookieAwareValidateAntiforgeryToken]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
@@ -240,6 +274,8 @@ public sealed class ProfesionalesApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
 
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Administrador")]
+    [CookieAwareValidateAntiforgeryToken]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
@@ -263,5 +299,129 @@ public sealed class ProfesionalesApiController : ControllerBase
         }
 
         return Ok(new { success = true, message = result.Message });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/profesionales/{id}/horarios
+    // Lista los bloques de horario semanal del profesional (P-01 / U-06)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/horarios")]
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional", Policy = "ApiOrCookie")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetHorarios(
+        int id,
+        CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        bool esAdministrador =
+            User.IsInRole("Administrador") || User.IsInRole("Recepcionista");
+        var result = await _service.ObtenerHorariosAsync(
+            id,
+            GetCurrentUserId(),
+            esAdministrador,
+            ct);
+
+        return result.Success
+            ? Ok(new { success = true, data = result.Data })
+            : result.ErrorStatusCode == 403
+                ? Forbid()
+                : NotFound(new { success = false, message = result.Message });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PUT /api/profesionales/{id}/horarios
+    // Actualiza el horario semanal del profesional (PRO-01 bugfix)
+    // Rol Profesional: sólo puede actualizar su propio horario
+    // Rol Administrador: puede actualizar cualquier profesional
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpPut("{id:int}/horarios")]
+    [Authorize(Roles = "Administrador,Profesional", Policy = "ApiOrCookie")]
+    [CookieAwareValidateAntiforgeryToken]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> UpdateHorarios(
+        int id,
+        [FromBody] List<HorarioSemanalDto> horarios,
+        CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        if (horarios is null)
+            return BadRequest(new { success = false, message = "El cuerpo de la solicitud es requerido." });
+
+        var currentUserId = GetCurrentUserId();
+        var result = await _service.ActualizarHorariosAsync(
+            id,
+            horarios.Select(h => new HorarioSemanalApiRequest
+            {
+                Day = h.Day,
+                DiaSemana = h.DiaSemana,
+                DayFull = h.DayFull,
+                Active = h.Active,
+                Start = h.Start,
+                End = h.End
+            }).ToList(),
+            currentUserId,
+            User.IsInRole("Administrador"),
+            ct);
+
+        if (!result.Success)
+            return StatusCode(result.ErrorStatusCode ?? 500,
+                new { success = false, message = result.Message });
+
+        return Ok(new { success = true, message = result.Message, data = result.Data });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/profesionales/{id}/ausencias
+    // Lista las ausencias registradas para el profesional (P-01 / U-06)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/ausencias")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAusencias(
+        int id,
+        CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        var result = await _service.ObtenerAusenciasAsync(id, ct);
+        return result.Success
+            ? Ok(new { success = true, data = result.Data })
+            : NotFound(new { success = false, message = result.Message });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/profesionales/{id}/servicios
+    // Lista los servicios que puede ejecutar el profesional (P-01 / U-06)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/servicios")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetServicios(
+        int id,
+        CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        var result = await _service.ObtenerServiciosAsync(id, ct);
+        return result.Success
+            ? Ok(new { success = true, data = result.Data })
+            : NotFound(new { success = false, message = result.Message });
     }
 }

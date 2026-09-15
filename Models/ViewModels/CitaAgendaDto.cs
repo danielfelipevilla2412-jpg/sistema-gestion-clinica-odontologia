@@ -26,9 +26,8 @@ namespace SmileTrack_MVC.Models.ViewModels
         [DataType(DataType.Time)]
         public TimeSpan HoraInicio { get; set; }
 
-        [Required(ErrorMessage = "La hora de fin es obligatoria")]
         [DataType(DataType.Time)]
-        public TimeSpan HoraFin { get; set; }
+        public TimeSpan? HoraFin { get; set; }
 
         [Required(ErrorMessage = "El estado es obligatorio")]
         public string Estado { get; set; } = "Programada";
@@ -37,16 +36,10 @@ namespace SmileTrack_MVC.Models.ViewModels
 
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
-            if (HoraFin <= HoraInicio)
+            if (HoraFin.HasValue && HoraFin.Value <= HoraInicio)
             {
                 yield return new ValidationResult(
                     "La hora de fin debe ser posterior a la hora de inicio.",
-                    [nameof(HoraFin)]);
-            }
-            if ((HoraFin - HoraInicio).TotalMinutes != 60)
-            {
-                yield return new ValidationResult(
-                    "La cita debe tener una duración de 60 minutos.",
                     [nameof(HoraFin)]);
             }
         }

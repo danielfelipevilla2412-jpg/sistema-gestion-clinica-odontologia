@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@* ============================================
+@* ============================================
 SmileTrack — Mis Citas Paciente (st-pac-01-mis-citas)
 ============================================
 Autor: Johan Santamaria
@@ -21,72 +21,46 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 ============================================ *@
-@{ Layout = null; }
+@{ Layout = "_Layout"; ViewData["Title"] = "Mis Citas"; }
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <!-- Metadatos obligatorios: codificación UTF-8 y viewport responsivo -->
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Mis Citas</title>
-
-  <!-- Fuentes externas desde Google Fonts: DM Sans para texto y Syne para títulos -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <!-- Hoja de estilos principal de la página -->
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-  <!-- Enlace de salto: permite a usuarios de teclado ir directo al contenido principal -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-  <!-- SIDEBAR: barra de navegación lateral fija con logo, menú y datos del usuario -->
-  @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
-
-  <!-- HAMBURGER: botón que abre/cierra el menú lateral en dispositivos mÓviles -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <!-- Overlay semitransparente que aparece detrás del menú mÓvil abierto -->
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css" asp-append-version="true" />
+}
 
   <!-- MAIN: área de contenido principal de la página -->
   <main class="main" id="main-content">
+    @Html.AntiForgeryToken()
     <!-- Cabecera de página con breadcrumb, título, subtítulo y botón para solicitar nueva cita -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb">Paciente ? Mis citas</div>
-        <h1 class="page-title">Mis Citas</h1>
-        <p class="page-subtitle">Gestiona y consulta tus citas odontológicas personales</p>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="common.breadcrumb_nav">
+          <span data-i18n="common_role_patient">Paciente</span>
+          <span class="bc-sep material-symbols-outlined" aria-hidden="true">chevron_right</span>
+          <span class="bc-active" data-i18n="citas.title">Mis citas</span>
+        </nav>
+        <h1 class="page-title" data-i18n="citas.title">Mis Citas</h1>
+        <p class="page-subtitle" data-i18n="citas.pac_subtitle">Gestiona y consulta tus citas odontológicas personales</p>
       </div>
-      <button class="btn-primary" id="btnNuevaCita">+ Solicitar cita</button>
+      <button class="btn-primary" id="btnNuevaCita" data-i18n="citas.new">+ Solicitar cita</button>
     </header>
 
     <!-- Stats Grid (usando clases unificadas + IDs para animación) -->
-    <section class="stats-grid" aria-label="Resumen de actividad del día">
+    <section class="stats-grid" aria-label="Resumen de actividad del día" data-i18n-aria-label="citas.title">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="cnt-total">0</span>
-        <span class="stat-label">Total citas</span>
+        <span class="stat-label" data-i18n="citas.stat_total">Total citas</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="cnt-completadas">0</span>
-        <span class="stat-label">Completadas</span>
+        <span class="stat-label" data-i18n="status.completed">Completadas</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="stat-number" id="cnt-pendientes">0</span>
-        <span class="stat-label">Pendientes</span>
+        <span class="stat-label" data-i18n="status.pending">Pendientes</span>
       </div>
       <div class="stat-card" data-color="red">
         <span class="stat-number" id="cnt-canceladas">0</span>
-        <span class="stat-label">Canceladas</span>
+        <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
       </div>
     </section>
 
@@ -97,15 +71,15 @@ NOTAS DE MANTENIMIENTO:
         <div class="progress-bar-bg" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
           <div class="progress-bar" id="progressBar" style="width:0%"></div>
         </div>
-        <span class="progress-label" id="progressLabel">Cargando—</span>
+        <span class="progress-label" id="progressLabel">Cargando...</span>
       </div>
 
       <!-- Barra de herramientas con campo de búsqueda por texto y filtro por estado -->
-      <div class="toolbar" role="toolbar" aria-label="Filtros de citas">
+      <div class="toolbar" role="toolbar" aria-label="Filtros de citas" data-i18n-aria-label="table.filter">
         <div class="search-wrap">
           <span class="search-icon material-symbols-outlined" aria-hidden="true">search</span>
           <!-- Campo de búsqueda para filtrar citas por doctor, servicio o fecha -->
-          <input type="search" id="searchInput" class="search-input" placeholder="Buscar por doctor, servicio o fecha\…"
+          <input type="search" id="searchInput" class="search-input" placeholder="Buscar por doctor, servicio o fecha..." data-i18n-ph="table.search"
             autocomplete="off" />
         </div>
         <!-- Selector para filtrar citas por estado (Agendada, Confirmada, Completada, Cancelada) -->
@@ -121,15 +95,15 @@ NOTAS DE MANTENIMIENTO:
 
       <!-- Tabla de citas con columnas: fecha, hora, doctor, servicio, estado y acciones -->
       <div class="table-wrap">
-        <table id="citasTable">
+        <table id="citasTable" class="table-base">
           <thead>
             <tr>
-              <th scope="col">Fecha</th>
-              <th scope="col">Hora</th>
-              <th scope="col">Doctor</th>
-              <th scope="col">Servicio</th>
-              <th scope="col">Estado</th>
-              <th scope="col">Acciones</th>
+              <th scope="col" data-i18n="citas.date">Fecha</th>
+              <th scope="col" data-i18n="citas.time">Hora</th>
+              <th scope="col" data-i18n="citas.professional">Doctor</th>
+              <th scope="col" data-i18n="citas.service">Servicio</th>
+              <th scope="col" data-i18n="citas.status">Estado</th>
+              <th scope="col" data-i18n="table.actions">Acciones</th>
             </tr>
           </thead>
           <tbody id="citasTbody"></tbody>
@@ -145,8 +119,8 @@ NOTAS DE MANTENIMIENTO:
   <div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true"
        aria-labelledby="modalTitle" aria-hidden="true" inert>
     <div class="modal">
-      <button class="modal-close" id="modalClose" aria-label="Cerrar">—</button>
-      <h2 class="modal-title" id="modalTitle">Detalle de Cita</h2>
+      <button class="modal-close" id="modalClose" aria-label="Cerrar" data-i18n-aria-label="common.close"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+      <h2 class="modal-title" id="modalTitle" data-i18n="citas.modal_detail_title">Detalle de Cita</h2>
       <div id="modalContent"></div>
     </div>
   </div>
@@ -156,13 +130,13 @@ NOTAS DE MANTENIMIENTO:
   <div class="modal-overlay" id="modalCancelar" role="dialog" aria-modal="true"
        aria-labelledby="cancelarTitle" aria-hidden="true" inert>
     <div class="modal modal--sm">
-      <h2 class="modal-title" id="cancelarTitle">¿Cancelar esta cita?</h2>
+      <h2 class="modal-title" id="cancelarTitle" data-i18n="citas.modal_cancel_title">¿Cancelar esta cita?</h2>
       <p class="modal-desc" id="cancelarDesc"></p>
       <p class="modal-note modal-warning hidden" id="cancelarAdvertencia" aria-live="polite"></p>
       <p class="modal-note modal-error hidden" id="cancelarError" aria-live="assertive"></p>
       <div class="modal-footer">
-        <button class="btn-secondary" id="cancelarNo">Volver</button>
-        <button class="btn-danger" id="cancelarSi">Sí, cancelar</button>
+        <button class="btn-secondary" id="cancelarNo" data-i18n="common.back">Volver</button>
+        <button class="btn-danger" id="cancelarSi" data-i18n="citas.btn_confirm_cancel">Sí, cancelar</button>
       </div>
     </div>
   </div>
@@ -172,32 +146,28 @@ NOTAS DE MANTENIMIENTO:
   <div class="modal-overlay" id="modalNuevaCita" role="dialog" aria-modal="true"
        aria-labelledby="nuevaCitaTitle" aria-hidden="true" inert>
     <div class="modal">
-      <button class="modal-close" id="closeNuevaCita" aria-label="Cerrar">—</button>
-      <h2 class="modal-title" id="nuevaCitaTitle">Solicitar nueva cita</h2>
+      <button class="modal-close" id="closeNuevaCita" aria-label="Cerrar" data-i18n-aria-label="common.close"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+      <h2 class="modal-title" id="nuevaCitaTitle" data-i18n="citas.modal_new_title">Solicitar nueva cita</h2>
       <!-- Campos del formulario: fecha preferida, tipo de servicio y notas adicionales -->
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label" for="citaFecha">Fecha preferida</label>
+          <label class="form-label" for="citaFecha" data-i18n="citas.form_preferred_date">Fecha preferida</label>
           <input type="date" class="form-input" id="citaFecha" />
         </div>
         <div class="form-group">
-          <label class="form-label" for="citaServicio">Tipo de servicio</label>
+          <label class="form-label" for="citaServicio" data-i18n="citas.form_service_type">Tipo de servicio</label>
           <select class="form-input" id="citaServicio">
-            <option>Consulta general</option>
-            <option>Limpieza dental</option>
-            <option>Control de tratamiento</option>
-            <option>Ortodoncia</option>
-            <option>Urgencia</option>
+            <option value="" data-i18n="citas.loading_services">Cargando servicios...</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="citaNota">Notas adicionales</label>
-          <textarea class="form-input" id="citaNota" rows="3" placeholder="Describe tu motivo\…"></textarea>
+          <label class="form-label" for="citaNota" data-i18n="citas.form_notes">Notas adicionales</label>
+          <textarea class="form-input" id="citaNota" rows="3" placeholder="Describe tu motivo..." data-i18n-ph="citas.form_notes_ph"></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" id="cancelarNuevaCita">Cancelar</button>
-        <button class="btn-primary" id="confirmarNuevaCita">Solicitar</button>
+        <button class="btn-secondary" id="cancelarNuevaCita" data-i18n="common.cancel">Cancelar</button>
+        <button class="btn-primary" id="confirmarNuevaCita" data-i18n="citas.btn_request">Solicitar</button>
       </div>
     </div>
   </div>
@@ -206,24 +176,32 @@ NOTAS DE MANTENIMIENTO:
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <!-- Script principal con toda la lógica de la página de citas -->
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js")"></script>
+  <script src="@Url.Content("~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js")" defer></script>
+
+  <!-- Mobile bottom nav — Paciente -->
+  <nav class="mobile-nav" aria-label="Navegación móvil" data-i18n-aria-label="common_mobile_nav">
+    <a href="/gestion-de-citas/st-pac-01-mis-citas" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
+      <span data-i18n="citas.title">Mis citas</span>
+    </a>
+    <a href="/gestion-de-citas/st-pac-03-notificaciones" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">notifications</span></span>
+      <span data-i18n="notifications.tab_notices">Avisos</span>
+    </a>
+    <a href="/perfiles/st-pac-04-perfil-paciente" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
+      <span data-i18n="profile.title">Perfil</span>
+    </a>
+  </nav>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
   </footer>
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
-</body>
-
-</html>
-
+@section Scripts {
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
+}

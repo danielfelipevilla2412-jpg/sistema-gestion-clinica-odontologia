@@ -7,43 +7,30 @@ using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Services;
 using System.Globalization;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace SmileTrack_MVC.Controllers;
 
-public partial class GestionProfesionalesController(AppDbContext context, ILogger<GestionProfesionalesController> logger) : Controller
+public partial class GestionProfesionalesController(
+    AppDbContext context,
+    ILogger<GestionProfesionalesController> logger,
+    IProfesionalService profesionalService) : Controller
 {
     private readonly AppDbContext _context = context;
     private readonly ILogger<GestionProfesionalesController> _logger = logger;
+    private readonly IProfesionalService _profesionalService = profesionalService;
 
     private const string MensajeErrorFallback =
         "Ocurrió un error inesperado al cargar la página. Por favor intente nuevamente. Si el problema persiste, contacte al soporte.";
 
-    private static readonly Regex PasswordAccesoRegex = new(
-        @"^(?=.{8,100}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$",
-        RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(500));
-
     private static bool EsTelefonoValido(string? telefono)
     {
-        // El teléfono es opcional; si está vacío o nulo, se considera válido.
         if (string.IsNullOrWhiteSpace(telefono)) return true;
         string digitsOnly = new string(telefono.Where(char.IsDigit).ToArray());
         return digitsOnly.Length is >= 7 and <= 15;
     }
-
-    private static bool EsRegistroMedicoValido(string? registro)
-    {
-        if (string.IsNullOrWhiteSpace(registro)) return false;
-        registro = registro.Trim();
-        if (registro.Length < 3 || registro.Length > 30) return false;
-        return RegistroMedicoRegex().IsMatch(registro);
-    }
-
-    [GeneratedRegex(@"^[A-Za-z0-9\-\. ]+$")]
-    private static partial Regex RegistroMedicoRegex();
 
     [HttpGet]
     [Authorize(Roles = "Administrador")]
@@ -90,7 +77,7 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
     }
 
     [HttpGet]
-    [Authorize(Roles = "Profesional")]
+    [Authorize(Roles = "Profesional,Administrador")]
     [Route("gestion-de-profesionales/st-odo-01-dashboard")]
     public async Task<IActionResult> Stodo01Dashboard(CancellationToken ct = default)
     {
@@ -175,10 +162,10 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
                                     c.FechaHora >= monthStart &&
                                     c.FechaHora < nextMonth &&
                                     (
-                                        NormalizarEstado(c.Estado) == "atendida" ||
-                                        NormalizarEstado(c.Estado) == "finalizada" ||
-                                        NormalizarEstado(c.Estado) == "completada" ||
-                                        NormalizarEstado(c.Estado) == "realizada"
+                                        c.Estado?.Trim().ToLowerInvariant() == "atendida" ||
+                                        c.Estado?.Trim().ToLowerInvariant() == "finalizada" ||
+                                        c.Estado?.Trim().ToLowerInvariant() == "completada" ||
+                                        c.Estado?.Trim().ToLowerInvariant() == "realizada"
                                     ))
                                 .Sum(c => c.Servicio?.Precio ?? 0m);
 
@@ -208,7 +195,7 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
     }
 
     [HttpGet]
-    [Authorize(Roles = "Profesional")]
+    [Authorize(Roles = "Profesional,Administrador")]
     [Route("gestion-de-profesionales/st-odo-09-perfil-profesional")]
     public async Task<IActionResult> Stodo09PerfilProfesional(CancellationToken ct = default)
     {
@@ -303,12 +290,28 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
                 citasQuery = citasQuery.Where(c => c.FechaHora >= filterStart && c.FechaHora < filterEnd);
             }
 
-            var pacientesQuery = citasQuery
+            var todasCitasPacientes = await citasQuery
+                .OrderByDescending(c => c.FechaHora)
+                .AsNoTracking()
+                .ToListAsync(ct);
+
+            var citasUnicasPorPaciente = todasCitasPacientes
                 .GroupBy(c => c.IdPaciente)
                 .Select(g => g.OrderByDescending(c => c.FechaHora).First())
-                .OrderByDescending(c => c.FechaHora);
+                .OrderByDescending(c => c.FechaHora)
+                .ToList();
 
-            var pagedCitas = await pacientesQuery.ToPagedResultAsync(page, pageSize, ct);
+            var totalReales = citasUnicasPorPaciente.Count;
+            var pagedCitas = new PagedResult<Cita>
+            {
+                Page = page < 1 ? 1 : page,
+                PageSize = pageSize < 1 ? 10 : pageSize,
+                TotalCount = totalReales,
+                Items = citasUnicasPorPaciente
+                    .Skip((Math.Max(1, page) - 1) * Math.Clamp(pageSize, 1, 500))
+                    .Take(Math.Clamp(pageSize, 1, 500))
+                    .ToList()
+            };
 
             var profesionalesOptions = await _context.Profesionales
                 .Where(p => p.Estado == "activo")
@@ -318,8 +321,6 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
                 .Distinct()
                 .OrderBy(name => name)
                 .ToListAsync(ct);
-
-            var todasCitasPacientes = await citasQuery.AsNoTracking().ToListAsync(ct);
 
             var reportes = pagedCitas.Items.Select(cita =>
             {
@@ -429,50 +430,14 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
         try
         {
             var pagination = query ?? new PaginationQuery();
-            int page = pagination.Page < 1 ? 1 : pagination.Page;
-            int pageSize = pagination.PageSize < 1 ? 10 : pagination.PageSize;
+            var resultado = await _profesionalService.ObtenerVistaMVCAsync(pagination, ct);
 
-            ViewData["StatTotal"] = await _context.Profesionales.CountAsync(ct);
-            ViewData["StatActivos"] = await _context.Profesionales.CountAsync(p => p.Estado == "activo", ct);
-            ViewData["StatVacaciones"] = await _context.Profesionales.CountAsync(p => p.Estado == "vacaciones", ct);
-            ViewData["StatInactivos"] = await _context.Profesionales.CountAsync(p => p.Estado == "inactivo", ct);
-
-            var profesionalesQuery = _context.Profesionales
-                .Include(p => p.Usuario)
-                .Include(p => p.Especialidades)
-                .ThenInclude(pe => pe.Especialidad)
-                .AsNoTracking()
-                .AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(pagination.Search))
-            {
-                string searchTerm = pagination.Search.Trim();
-                profesionalesQuery = profesionalesQuery.Where(p =>
-                    (p.Usuario != null && ((p.Usuario.Nombre != null && p.Usuario.Nombre.Contains(searchTerm)) || (p.Usuario.Apellidos != null && p.Usuario.Apellidos.Contains(searchTerm)))) ||
-                    (p.Nombres != null && p.Nombres.Contains(searchTerm)) ||
-                    (p.Apellidos != null && p.Apellidos.Contains(searchTerm)) ||
-                    (p.RegistroMedico != null && p.RegistroMedico.Contains(searchTerm)) ||
-                    (p.Especialidades.Any(pe => pe.Especialidad != null && pe.Especialidad.Nombre.Contains(searchTerm))));
-            }
-
-            if (!string.IsNullOrWhiteSpace(pagination.Profesional))
-            {
-                string especialidad = pagination.Profesional.Trim();
-                profesionalesQuery = profesionalesQuery.Where(p => p.Especialidades.Any(pe => pe.Especialidad != null && pe.Especialidad.Nombre == especialidad));
-            }
-
-            if (!string.IsNullOrWhiteSpace(pagination.Estado))
-            {
-                string estado = pagination.Estado.Trim();
-                profesionalesQuery = profesionalesQuery.Where(p => p.Estado == estado);
-            }
-
-            profesionalesQuery = profesionalesQuery.OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres);
-
-            var paged = await profesionalesQuery.ToPagedResultAsync(page, pageSize, ct);
-
-            ViewData["Profesionales"] = paged.Items.ToList();
-            ViewData["ProfesionalesPage"] = paged;
+            ViewData["StatTotal"] = resultado.Stats.StatTotal;
+            ViewData["StatActivos"] = resultado.Stats.StatActivos;
+            ViewData["StatVacaciones"] = resultado.Stats.StatVacaciones;
+            ViewData["StatInactivos"] = resultado.Stats.StatInactivos;
+            ViewData["Profesionales"] = resultado.Items;
+            ViewData["ProfesionalesPage"] = resultado.Paginacion;
             ViewData["PaginationQuery"] = pagination;
             ViewData["SearchFilter"] = pagination.Search ?? string.Empty;
             ViewData["EspecialidadFilter"] = pagination.Profesional ?? string.Empty;
@@ -542,14 +507,4 @@ public partial class GestionProfesionalesController(AppDbContext context, ILogge
         if (sqlEx == null) return false;
         return sqlEx.Number is 547 or 515;
     }
-    private static string NormalizarEstado(string? estado)
-{
-    return estado?.Trim().ToLowerInvariant() switch
-    {
-        "activo" => "activo",
-        "vacaciones" => "vacaciones",
-        "inactivo" => "inactivo",
-        _ => "activo"
-    };
-}
 }

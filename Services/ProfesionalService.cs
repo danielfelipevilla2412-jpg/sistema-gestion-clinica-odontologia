@@ -1,8 +1,11 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Models.Shared;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -13,19 +16,19 @@ public partial class ProfesionalService : IProfesionalService
     private readonly AppDbContext _context;
     private readonly ILogger<ProfesionalService> _logger;
 
-    // ── Reglas de negocio (idénticas al MVC controller) ──────────────────────
+    // ── Reglas de negocio — delegan al Helper centralizado (P-04, P-05) ─────
 
-    private static readonly Regex PasswordRegex = new(
-        @"^(?=.{8,100}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$",
-        RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(500));
+    // La validación de contraseña usa ProfesionalEstadoHelper.EsPasswordValida()
+    // que encapsula la política única del sistema (mínimo 8 chars, mayúscula,
+    // minúscula, dígito y símbolo). Si cambia la política, solo se toca el Helper.
+    private static readonly HashSet<string> EstadosPermitidos =
+        new(StringComparer.OrdinalIgnoreCase) { "activo", "vacaciones", "inactivo" };
 
     [GeneratedRegex(@"^[A-Za-z0-9\-\. ]+$")]
     private static partial Regex RegistroMedicoRegex();
 
     private static bool EsTelefonoValido(string? telefono)
     {
-        // El teléfono es opcional; si está vacío o nulo se considera válido.
         if (string.IsNullOrWhiteSpace(telefono)) return true;
         string digits = new(telefono.Where(char.IsDigit).ToArray());
         return digits.Length is >= 7 and <= 15;
@@ -38,9 +41,6 @@ public partial class ProfesionalService : IProfesionalService
         if (registro.Length < 3 || registro.Length > 30) return false;
         return RegistroMedicoRegex().IsMatch(registro);
     }
-
-    private static readonly HashSet<string> EstadosPermitidos =
-        new(StringComparer.OrdinalIgnoreCase) { "activo", "vacaciones", "inactivo" };
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -127,6 +127,70 @@ public partial class ProfesionalService : IProfesionalService
         }
     }
 
+    // ── Vista MVC (paginación + filtros + estadísticas) ──────────────────────
+
+    public async Task<(List<Profesional> Items, PagedResult<Profesional> Paginacion, ProfesionalesStats Stats)>
+        ObtenerVistaMVCAsync(
+            PaginationQuery q,
+            CancellationToken ct = default)
+    {
+        var query = q ?? new PaginationQuery();
+        int page = query.Page < 1 ? 1 : query.Page;
+        int pageSize = query.PageSize < 1 ? 10 : query.PageSize;
+        if (pageSize > 100) pageSize = 100;
+
+        var stats = new ProfesionalesStats
+        {
+            StatTotal = await _context.Profesionales.CountAsync(ct),
+            StatActivos = await _context.Profesionales.CountAsync(p => p.Estado == "activo", ct),
+            StatVacaciones = await _context.Profesionales.CountAsync(p => p.Estado == "vacaciones", ct),
+            StatInactivos = await _context.Profesionales.CountAsync(p => p.Estado == "inactivo", ct)
+        };
+
+        var profesionales = _context.Profesionales
+            .Include(p => p.Usuario)
+            .Include(p => p.Especialidades)
+                .ThenInclude(pe => pe.Especialidad)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            string s = query.Search.Trim();
+            profesionales = profesionales.Where(p =>
+                (p.Nombres != null && p.Nombres.Contains(s)) ||
+                (p.Apellidos != null && p.Apellidos.Contains(s)) ||
+                (p.RegistroMedico != null && p.RegistroMedico.Contains(s)) ||
+                (p.Usuario != null &&
+                    ((p.Usuario.Nombre != null && p.Usuario.Nombre.Contains(s)) ||
+                     (p.Usuario.Apellidos != null && p.Usuario.Apellidos.Contains(s)))) ||
+                p.Especialidades.Any(pe =>
+                    pe.Especialidad != null && pe.Especialidad.Nombre.Contains(s)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Profesional))
+        {
+            string esp = query.Profesional.Trim();
+            profesionales = profesionales.Where(p =>
+                p.Especialidades.Any(pe =>
+                    pe.Especialidad != null && pe.Especialidad.Nombre == esp));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Estado))
+        {
+            string est = ProfesionalEstadoHelper.NormalizarEstado(query.Estado);
+            profesionales = profesionales.Where(p => p.Estado == est);
+        }
+
+        profesionales = profesionales.OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres);
+
+        var paged = await profesionales.ToPagedResultAsync(page, pageSize, ct);
+
+        var items = paged.Items.Cast<Profesional>().ToList();
+
+        return (items, paged, stats);
+    }
+
     // ── Obtener por ID ────────────────────────────────────────────────────────
 
     public async Task<ProfesionalApiDto?> ObtenerPorIdAsync(int id, CancellationToken ct = default)
@@ -174,7 +238,7 @@ public partial class ProfesionalService : IProfesionalService
         string apellidos = request.Apellidos.Trim();
         string registro = request.RegistroMedico.Trim();
         string correo = request.CorreoAcceso.Trim();
-        string password = request.ContrasenaAcceso!;
+        string password = GenerarContrasenaTemporal();
 
         try
         {
@@ -290,7 +354,7 @@ public partial class ProfesionalService : IProfesionalService
             // Recargar con navegación para devolver DTO completo
             var dto = await ObtenerPorIdAsync(profesional!.IdProfesional, ct);
             return ProfesionalApiOperationResult.Ok(
-                "El profesional y su cuenta de acceso fueron creados correctamente.", dto);
+                "El profesional y su cuenta de acceso fueron creados correctamente. La contraseña temporal segura fue generada automáticamente.", dto);
         }
         catch (CorreoDuplicadoException)
         {
@@ -331,6 +395,13 @@ public partial class ProfesionalService : IProfesionalService
         string apellidos = request.Apellidos.Trim();
         string registro = request.RegistroMedico.Trim();
         string correo = request.CorreoAcceso.Trim();
+        string? estadoSolicitado = string.IsNullOrWhiteSpace(request.Estado)
+            ? null
+            : request.Estado.Trim().ToLowerInvariant();
+
+        if (estadoSolicitado is not null && !EstadosPermitidos.Contains(estadoSolicitado))
+            return ProfesionalApiOperationResult.Fail(
+                "El estado debe ser activo, vacaciones o inactivo.", 422);
 
         try
         {
@@ -380,7 +451,7 @@ public partial class ProfesionalService : IProfesionalService
 
                     if (!string.IsNullOrWhiteSpace(request.ContrasenaAcceso))
                     {
-                        if (!PasswordRegex.IsMatch(request.ContrasenaAcceso))
+                        if (!ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
                             throw new InvalidOperationException(
                                 "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
 
@@ -397,6 +468,19 @@ public partial class ProfesionalService : IProfesionalService
                     profesional.Telefono = request.Telefono?.Trim();
                     profesional.Descripcion = request.Descripcion?.Trim();
                     profesional.FechaIngreso ??= DateTime.Today;
+
+                    if (estadoSolicitado == "inactivo" && profesional.Estado != "inactivo")
+                    {
+                        bool tieneCitasActivas = await _context.Citas.AnyAsync(c =>
+                            c.IdProfesional == id &&
+                            !new[] { "cancelada", "cancelado" }.Contains(c.Estado.ToLower()) &&
+                            c.FechaHora >= DateTime.Today, ct);
+                        if (tieneCitasActivas)
+                            throw new InvalidOperationException("No se puede inactivar: este profesional tiene citas agendadas pendientes.");
+                    }
+
+                    if (estadoSolicitado is not null)
+                        profesional.Estado = estadoSolicitado;
 
                     // Sincronizar estado de la cuenta
                     usuario.Estado = profesional.Estado == "inactivo" ? "inactivo" : "activo";
@@ -529,6 +613,9 @@ public partial class ProfesionalService : IProfesionalService
                             .AnyAsync(c =>
                                 c.IdProfesional == id &&
                                 c.Estado != "Cancelada" &&
+                                c.Estado != "cancelada" &&
+                                c.Estado != "Cancelado" &&
+                                c.Estado != "cancelado" &&
                                 c.FechaHora >= DateTime.Today, ct);
 
                         if (tieneCitasActivas)
@@ -611,6 +698,9 @@ public partial class ProfesionalService : IProfesionalService
                         .AnyAsync(c =>
                             c.IdProfesional == id &&
                             c.Estado != "Cancelada" &&
+                            c.Estado != "cancelada" &&
+                            c.Estado != "Cancelado" &&
+                            c.Estado != "cancelado" &&
                             c.FechaHora >= DateTime.Today, ct);
 
                     if (tieneCitasActivas && profesional.Estado != "inactivo")
@@ -675,10 +765,183 @@ public partial class ProfesionalService : IProfesionalService
 
     // ── Helpers privados ──────────────────────────────────────────────────────
 
+    public async Task<ProfesionalApiCollectionResult<HorarioProfesionalApiDto>> ObtenerHorariosAsync(
+        int id,
+        int? usuarioActualId = null,
+        bool esAdministrador = true,
+        CancellationToken ct = default)
+    {
+        var profesional = await _context.Profesionales.AsNoTracking()
+            .Where(p => p.IdProfesional == id)
+            .Select(p => new { p.IdProfesional, p.IdUsuario })
+            .FirstOrDefaultAsync(ct);
+        if (profesional is null)
+            return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Fail(
+                "Profesional no encontrado.", 404);
+
+        if (!esAdministrador &&
+            (!usuarioActualId.HasValue || profesional.IdUsuario != usuarioActualId.Value))
+        {
+            return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Fail(
+                "No tienes permiso para consultar el horario de otro profesional.", 403);
+        }
+
+        var horarios = await _context.HorariosProfesional
+            .AsNoTracking()
+            .Where(h => h.IdProfesional == id && h.Activo)
+            .OrderBy(h => h.DiaSemana)
+            .ThenBy(h => h.HoraInicio)
+            .Select(h => new HorarioProfesionalApiDto
+            {
+                IdHorario = h.IdHorario,
+                DiaSemana = h.DiaSemana,
+                HoraInicio = h.HoraInicio.ToString("HH:mm"),
+                HoraFin = h.HoraFin.ToString("HH:mm"),
+                Activo = h.Activo
+            })
+            .ToListAsync(ct);
+
+        return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Ok(horarios);
+    }
+
+    public async Task<ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>> ActualizarHorariosAsync(
+        int id,
+        IReadOnlyCollection<HorarioSemanalApiRequest> horarios,
+        int? usuarioActualId,
+        bool esAdministrador,
+        CancellationToken ct = default)
+    {
+        if (horarios.Count == 0)
+            return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
+                "Debe enviar al menos un día de la semana para actualizar el horario.", 422);
+        bool existe = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+        if (!existe)
+            return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
+                "Profesional no encontrado.", 404);
+
+        if (!esAdministrador)
+        {
+            bool esPropietario = usuarioActualId.HasValue && await _context.Profesionales
+                .AsNoTracking()
+                .AnyAsync(p => p.IdProfesional == id && p.IdUsuario == usuarioActualId.Value, ct);
+            if (!esPropietario)
+                return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
+                    "No tienes permiso para modificar el horario de otro profesional.", 403);
+        }
+
+        var diasValidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Lunes", "Martes", "Miércoles", "Miercoles", "Jueves", "Viernes", "Sábado", "Sabado", "Domingo"
+        };
+
+        static string NormalizarDiaSemana(string dia) =>
+            dia.Trim().ToLowerInvariant() switch
+            {
+                "miércoles" or "miercoles" => "Miercoles",
+                "sábado" or "sabado" => "Sabado",
+                _ => dia.Trim()
+            };
+
+        var bloquesActivos = horarios.Where(b => b.Active).ToList();
+        bool hayBloqueInvalido = bloquesActivos.Any(b =>
+            string.IsNullOrWhiteSpace(b.DiaSemana) ||
+            !diasValidos.Contains(b.DiaSemana) ||
+            !TimeOnly.TryParse(b.Start, out var inicio) ||
+            !TimeOnly.TryParse(b.End, out var fin) ||
+            fin <= inicio);
+        if (hayBloqueInvalido)
+            return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
+                "Cada día activo debe tener un día válido y una hora de inicio y fin válidas.", 422);
+
+        var nuevosHorarios = bloquesActivos
+            .Select(b => new { Bloque = b, Inicio = TimeOnly.TryParse(b.Start, out var inicio) ? inicio : (TimeOnly?)null, Fin = TimeOnly.TryParse(b.End, out var fin) ? fin : (TimeOnly?)null })
+            .Where(x => x.Inicio.HasValue && x.Fin.HasValue && x.Fin > x.Inicio)
+            .Select(x => new HorarioProfesional
+            {
+                IdProfesional = id,
+                DiaSemana = NormalizarDiaSemana(x.Bloque.DiaSemana!),
+                HoraInicio = x.Inicio!.Value,
+                HoraFin = x.Fin!.Value,
+                Activo = true
+            })
+            .ToList();
+
+        var existentes = await _context.HorariosProfesional
+            .Where(h => h.IdProfesional == id)
+            .ToListAsync(ct);
+        _context.HorariosProfesional.RemoveRange(existentes);
+        if (nuevosHorarios.Count > 0)
+            await _context.HorariosProfesional.AddRangeAsync(nuevosHorarios, ct);
+        await _context.SaveChangesAsync(ct);
+
+        var actualizado = await ObtenerHorariosAsync(id, usuarioActualId, esAdministrador, ct);
+        return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Ok(
+            "Horario actualizado correctamente.", actualizado.Data);
+    }
+
+    public async Task<ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>> ObtenerAusenciasAsync(
+        int id,
+        CancellationToken ct = default)
+    {
+        bool existe = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+        if (!existe)
+            return ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>.Fail(
+                "Profesional no encontrado.", 404);
+
+        var ausencias = await _context.AusenciasProfesional
+            .AsNoTracking()
+            .Where(a => a.IdProfesional == id)
+            .OrderByDescending(a => a.FechaInicio)
+            .Select(a => new AusenciaProfesionalApiDto
+            {
+                IdAusencia = a.IdAusencia,
+                Tipo = a.Tipo,
+                FechaInicio = a.FechaInicio.ToString("yyyy-MM-dd"),
+                FechaFin = a.FechaFin.ToString("yyyy-MM-dd"),
+                Duracion = a.Duracion,
+                Observaciones = a.Observaciones
+            })
+            .ToListAsync(ct);
+
+        return ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>.Ok(ausencias);
+    }
+
+    public async Task<ProfesionalApiCollectionResult<ServicioProfesionalApiDto>> ObtenerServiciosAsync(
+        int id,
+        CancellationToken ct = default)
+    {
+        bool existe = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+        if (!existe)
+            return ProfesionalApiCollectionResult<ServicioProfesionalApiDto>.Fail(
+                "Profesional no encontrado.", 404);
+
+        var servicios = await _context.ProfesionalServicios
+            .AsNoTracking()
+            .Where(ps => ps.IdProfesional == id && ps.Activo)
+            .Include(ps => ps.Servicio)
+            .Select(ps => new ServicioProfesionalApiDto
+            {
+                IdProfesional = ps.IdProfesional,
+                IdServicio = ps.IdServicio,
+                NombreServicio = ps.Servicio != null ? ps.Servicio.Nombre : string.Empty,
+                PrecioBase = ps.Servicio != null ? ps.Servicio.Precio : 0m,
+                PrecioPersonalizado = ps.PrecioPersonalizado,
+                PrecioEfectivo = ps.PrecioPersonalizado ?? (ps.Servicio != null ? ps.Servicio.Precio : 0m),
+                Activo = ps.Activo
+            })
+            .OrderBy(ps => ps.NombreServicio)
+            .ToListAsync(ct);
+
+        return ProfesionalApiCollectionResult<ServicioProfesionalApiDto>.Ok(servicios);
+    }
+
     private static ProfesionalApiDto MapToDto(Profesional p) => new()
     {
         IdProfesional = p.IdProfesional,
-        IdUsuario = p.IdUsuario,
+        IdUsuario = p.IdUsuario ?? 0,
         Nombres = p.Nombres,
         Apellidos = p.Apellidos,
         RegistroMedico = p.RegistroMedico,
@@ -716,20 +979,33 @@ public partial class ProfesionalService : IProfesionalService
         if (string.IsNullOrWhiteSpace(request.CorreoAcceso))
             return (false, "El correo de acceso es requerido.");
 
-        if (esCreacion)
-        {
-            if (string.IsNullOrWhiteSpace(request.ContrasenaAcceso) ||
-                !PasswordRegex.IsMatch(request.ContrasenaAcceso))
-                return (false, "La contraseña inicial debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
-        }
-        else
-        {
-            if (!string.IsNullOrWhiteSpace(request.ContrasenaAcceso) &&
-                !PasswordRegex.IsMatch(request.ContrasenaAcceso))
-                return (false, "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
-        }
+        if (!esCreacion &&
+            !string.IsNullOrWhiteSpace(request.ContrasenaAcceso) &&
+            !ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
+            return (false, "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
 
         return (true, null);
+    }
+
+    private static string GenerarContrasenaTemporal()
+    {
+        const string mayusculas = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const string minusculas = "abcdefghijkmnopqrstuvwxyz";
+        const string digitos = "23456789";
+        const string simbolos = "!@#$%^&*";
+        const string todos = mayusculas + minusculas + digitos + simbolos;
+
+        var caracteres = new char[12];
+        caracteres[0] = mayusculas[RandomNumberGenerator.GetInt32(mayusculas.Length)];
+        caracteres[1] = minusculas[RandomNumberGenerator.GetInt32(minusculas.Length)];
+        caracteres[2] = digitos[RandomNumberGenerator.GetInt32(digitos.Length)];
+        caracteres[3] = simbolos[RandomNumberGenerator.GetInt32(simbolos.Length)];
+
+        for (int i = 4; i < caracteres.Length; i++)
+            caracteres[i] = todos[RandomNumberGenerator.GetInt32(todos.Length)];
+
+        var aleatorio = caracteres.OrderBy(_ => RandomNumberGenerator.GetInt32(int.MaxValue)).ToArray();
+        return new string(aleatorio);
     }
 
     private static bool EsViolacionIndiceUnico(DbUpdateException dbex)

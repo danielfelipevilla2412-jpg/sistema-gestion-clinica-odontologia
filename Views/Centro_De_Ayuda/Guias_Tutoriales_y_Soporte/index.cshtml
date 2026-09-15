@@ -1,0 +1,205 @@
+@* Vista sin modelo tipado - datos estáticos *@
+@{
+    ViewData["Title"] = "SmileTrack - Centro de Ayuda";
+    Layout = null; // Cambia esto por tu _Layout.cshtml si esta vista debe usar un layout compartido
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/styles.css")">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+
+<body>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+    <div class="app-container">
+        <!-- Mobile Header -->
+        <div class="mobile-header">
+            <button id="menu-toggle" class="menu-btn" data-i18n-aria-label="common_hamburger_aria" aria-label="Abrir menú">
+                <i class="fas fa-bars"></i>
+            </button>
+            <span class="mobile-title" data-i18n="home.logo_alt">SmileTrack</span>
+        </div>
+
+        <!-- Overlay for mobile -->
+        <div id="overlay" class="overlay"></div>
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar">
+            <!-- Logo -->
+            <div class="logo-container">
+                <img src="~/images/logo.jpg" alt="SmileTrack Logo">
+            </div>
+
+            <!-- Navigation -->
+            <nav class="nav-menu">
+                <a asp-controller="Dashboard" asp-action="Index" class="nav-item">
+                    <i class="fas fa-table-columns nav-icon"></i>
+                    <span data-i18n="nav.dashboard">Panel</span>
+                </a>
+                <a asp-controller="Patients" asp-action="Index" class="nav-item">
+                    <i class="fas fa-users nav-icon"></i>
+                    <span data-i18n="nav.patients">Pacientes</span>
+                </a>
+                <a asp-controller="Appointments" asp-action="Index" class="nav-item active">
+                    <i class="fas fa-calendar-alt nav-icon"></i>
+                    <span data-i18n="nav.appointments">Citas</span>
+                </a>
+                <a asp-controller="Invoices" asp-action="Index" class="nav-item">
+                    <i class="fas fa-file-invoice nav-icon"></i>
+                    <span data-i18n="nav.billing">Facturas</span>
+                </a>
+                <a asp-controller="Reminders" asp-action="Index" class="nav-item">
+                    <i class="fas fa-bell nav-icon"></i>
+                    <span data-i18n="notifications.reminders">Recordatorios</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <!-- User Profile -->
+                <div class="user-profile">
+                    <div class="user-avatar">@Model.User.Initials</div>
+                    <div class="user-info">
+                        <div class="user-name">@Model.User.FullName</div>
+                        <div class="user-email">@Model.User.Email</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header Card with Support Button -->
+            <div class="header-card">
+                <div>
+                    <h1 data-i18n="help.title">Centro de Ayuda</h1>
+                    <p>Busca guías, tutoriales y soporte para tu clínica</p>
+                </div>
+                <button class="btn-support" type="button" aria-expanded="false">
+                    <i class="fas fa-headset"></i>
+                    <span>+ Soporte Directo</span>
+                </button>
+                <div id="support-panel" class="support-panel" hidden>
+                    <div class="support-panel-header">
+                        <i class="fas fa-circle-info"></i>
+                        <span data-i18n="help.support_channels">Canales de soporte</span>
+                    </div>
+                    <ul class="support-list">
+                        <li><i class="fas fa-comment-dots"></i> @Model.Support.ChatHours</li>
+                        <li><i class="fas fa-envelope"></i> @Model.Support.Email</li>
+                        <li><i class="fas fa-phone"></i> @Model.Support.Phone</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Category Cards -->
+            <div class="category-grid">
+                @foreach (var category in Model.Categories)
+                {
+                    <div class="category-card border-@category.ColorKey" data-category="@category.Slug">
+                        <div class="category-icon">
+                            <i class="fas @category.IconClass text-@category.ColorKey"></i>
+                        </div>
+                        <h3 class="text-@category.ColorKey">@category.Title</h3>
+                        <span>@category.Description</span>
+                    </div>
+                }
+            </div>
+
+            <!-- Search and Articles Section -->
+            <div class="search-section">
+                <!-- Search Bar -->
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="search-input" placeholder="¿Cómo programar una cita?...">
+                    </div>
+                </div>
+
+                <!-- Articles -->
+                <div class="articles-section">
+                    <div class="articles-header">
+                        <h3 data-i18n="help.recommended">Artículos Recomendados</h3>
+                        <a asp-controller="HelpCenter" asp-action="AllArticles" class="view-all" data-i18n="common.view_all">Ver todo</a>
+                    </div>
+
+                    <!-- Article List -->
+                    <div class="article-list">
+                        @foreach (var article in Model.Articles)
+                        {
+                            <div class="article-item" data-category="@article.CategorySlug">
+                                <div class="article-icon icon-@article.ColorKey">
+                                    <i class="fas @article.IconClass"></i>
+                                </div>
+                                <div class="article-content">
+                                    <h4>@article.Title</h4>
+                                    <p>@article.Summary</p>
+                                </div>
+                                <div class="article-meta">
+                                    <span class="article-badge badge-@article.ColorKey">@article.BadgeLabel</span>
+                                    <i class="fas fa-chevron-right article-arrow"></i>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="pagination">
+                        <span>Mostrando @Model.Articles.Count de @Model.TotalArticlesCount artículos sugeridos</span>
+                        <div class="pagination-controls">
+                            <button class="pagination-btn" @(Model.CurrentPage <= 1 ? "disabled" : "") data-i18n="common.previous">Anterior</button>
+                            @for (int i = 1; i <= Model.TotalPages; i++)
+                            {
+                                <button class="pagination-btn @(i == Model.CurrentPage ? "active" : "")">@i</button>
+                            }
+                            <button class="pagination-btn" @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "") data-i18n="common.next">Siguiente</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.nav-group-header').forEach(header => {
+      const items = header.nextElementSibling;
+      const arrow = header.querySelector('.nav-arrow');
+
+      if (!items || !arrow) return;
+
+      const setExpanded = (isExpanded) => {
+        items.style.maxHeight = isExpanded ? `${items.scrollHeight}px` : '0px';
+        arrow.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+        header.setAttribute('aria-expanded', String(isExpanded));
+      };
+
+      setExpanded(false);
+
+      const toggle = () => {
+        const isExpanded = header.getAttribute('aria-expanded') === 'true';
+        setExpanded(!isExpanded);
+      };
+
+      header.addEventListener('click', toggle);
+      header.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggle();
+        }
+      });
+    });
+  });
+</script>
+    <script src="@Url.Content("~/js/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/app.js")"></script>
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
+</body>
+
+</html>
+

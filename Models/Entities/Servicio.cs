@@ -26,5 +26,13 @@ namespace SmileTrack_MVC.Models.Entities
         [Column("estado")]
         [StringLength(10)]
         public string Estado { get; set; } = "activo";
+
+        [Required]
+        [Column("categoria")]
+        [StringLength(50)]
+        public string Categoria { get; set; } = "general";
+
+        [Column("duracion_minutos")]
+        public int DuracionMinutos { get; set; } = 30;
     }
 }

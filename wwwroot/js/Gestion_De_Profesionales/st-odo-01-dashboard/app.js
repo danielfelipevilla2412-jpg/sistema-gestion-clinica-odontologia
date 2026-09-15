@@ -5,6 +5,13 @@
 
 const safeGetElement = (id) => document.getElementById(id);
 
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
 const animateCounter = (el, target) => {
   if (!el) return;
   const numericTarget = Number(target) || 0;
@@ -47,10 +54,10 @@ const renderRevenueChart = () => {
     : [];
 
   if (!data.length) {
-    container.innerHTML = `
-      <p style="padding:16px;color:var(--text-muted);">
-        No hay ingresos registrados en el período.
-      </p>`;
+    const empty = document.createElement('p');
+    empty.style.cssText = 'padding:16px;color:var(--text-muted);';
+    empty.textContent = 'No hay ingresos registrados en el período.';
+    container.replaceChildren(empty);
     return;
   }
 
@@ -77,7 +84,7 @@ const renderRevenueChart = () => {
 
     return `
       <div class="chart-row">
-        <span class="chart-label">${String(item.mes || '').replace(/</g, '&lt;')}</span>
+        <span class="chart-label">${escapeHtml(item.mes)}</span>
         <div class="chart-bar-bg">
           <div
             class="chart-bar-fill ${colorClass}"
@@ -87,7 +94,7 @@ const renderRevenueChart = () => {
             aria-valuenow="${width}"
             aria-valuemin="0"
             aria-valuemax="100"
-            aria-label="${String(item.mes || '')}: ${currency.format(value)}"
+            aria-label="${escapeHtml(item.mes)}: ${escapeHtml(currency.format(value))}"
           ></div>
         </div>
         <span class="chart-val">${currency.format(value)}</span>

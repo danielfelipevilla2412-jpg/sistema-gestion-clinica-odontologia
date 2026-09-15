@@ -1,6 +1,6 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿@{ Layout = null; }
+﻿@{ Layout = null; }
 
-?<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -17,9 +17,10 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
     @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
 
@@ -36,14 +37,14 @@
 
     <!-- Header con saludo dinámico accesible -->
     <header class="page-header">
-      <nav class="breadcrumb" aria-label="Ruta de navegación">
-        <span>Auxiliar</span>
+      <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+        <span data-i18n="common_role_auxiliar">Auxiliar</span>
         <span class="bc-sep" aria-hidden="true">›</span>
-        <span class="bc-active">Mi perfil</span>
+        <span class="bc-active" data-i18n="profile.title">Mi perfil</span>
       </nav>
       <p class="greeting" id="greeting" aria-live="polite">Cargando saludo...</p>
-      <h1 class="page-title">Mi Perfil</h1>
-      <p class="page-subtitle">Gestiona tu información personal y acceso al sistema.</p>
+      <h1 class="page-title" data-i18n="profile.title">Mi Perfil</h1>
+      <p class="page-subtitle" data-i18n="profile.subtitle">Gestiona tu informaci&#243;n personal y acceso al sistema.</p>
     </header>
 
     <!-- Layout de perfil con dos columnas -->
@@ -53,7 +54,7 @@
       <section class="profile-card" aria-labelledby="personalDataTitle">
         <div class="profile-header">
           <div class="avatar-large" id="userAvatar" aria-label="Avatar de usuario: Sara Jiménez">SJ</div>
-          <h2 class="profile-title" id="personalDataTitle">Datos personales</h2>
+          <h2 class="profile-title" id="personalDataTitle" data-i18n="common.personal_data">Datos personales</h2>
           <button class="btn-edit" id="btnEditProfile" aria-label="Editar información personal">
             <span>Editar</span><span class="material-symbols-outlined edit-icon" aria-hidden="true">edit</span>
           </button>
@@ -180,23 +181,23 @@
 
   </main>
 
-  <!-- Mobile bottom nav con aria-label para navegación mÓvil -->
-  <nav class="mobile-nav" aria-label="Navegación mÓvil">
+  <!-- Mobile bottom nav con aria-label para navegación móvil -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">dashboard</span>
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
       <span>Panel</span>
     </a>
     <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">event</span>
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
       <span>Agenda</span>
-    </a>
-    <a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
-      <span>Perfil</span>
     </a>
     <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item">
       <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">check_circle</span>
       <span>Finalizadas</span>
+    </a>
+    <a href="#" class="mobile-nav-item active" aria-current="page">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
+      <span>Perfil</span>
     </a>
   </nav>
 
@@ -248,6 +249,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 
 </html>

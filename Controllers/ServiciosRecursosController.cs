@@ -3,16 +3,19 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Models.ViewModels;
 
 namespace SmileTrack_MVC.Controllers;
 
 public class ServiciosRecursosController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly ILogger<ServiciosRecursosController> _logger;
 
-    public ServiciosRecursosController(AppDbContext context)
+    public ServiciosRecursosController(AppDbContext context, ILogger<ServiciosRecursosController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -22,15 +25,15 @@ public class ServiciosRecursosController : Controller
     {
         var serviciosDb = await _context.Servicios.OrderBy(s => s.Nombre).ToListAsync();
 
-        // La tabla Servicio del script SQL no maneja categoría/duración/ícono; se completan
-        // con valores por defecto para no romper el diseño de tarjetas del catálogo.
+        // El ícono es puramente decorativo y no se persiste; categoría, duración,
+        // precio y estado ya vienen de la tabla Servicio en SQL Server.
         var servicios = serviciosDb.Select(s => new
         {
             id = s.IdServicio,
             name = s.Nombre,
             description = string.IsNullOrWhiteSpace(s.Descripcion) ? "Sin descripción registrada." : s.Descripcion,
-            category = "general",
-            duration = 30,
+            category = s.Categoria,
+            duration = s.DuracionMinutos,
             cost = s.Precio,
             active = s.Estado == "activo",
             icon = "🦷"
@@ -107,5 +110,184 @@ public class ServiciosRecursosController : Controller
     {
         var inventarioDb = await _context.Inventarios.ToListAsync();
         return Json(inventarioDb);
+    }
+
+    // =========================================================================
+    // API REST - CRUD real del catálogo de servicios (reemplaza la simulación
+    // en localStorage que existía en catalogoservicios.js)
+    // =========================================================================
+
+    [HttpPost]
+    [Authorize(Roles = "Administrador")]
+    [Route("servicios-y-recursos/api/servicios")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApiCrearServicio([FromBody] ServicioRequest request, CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            bool nombreDuplicado = await _context.Servicios
+                .AnyAsync(s => s.Nombre.ToLower() == request.Nombre.Trim().ToLower(), ct);
+
+            if (nombreDuplicado)
+            {
+                return BadRequest(new { success = false, message = "Ya existe un servicio con ese nombre." });
+            }
+
+            var servicio = new Servicio
+            {
+                Nombre = request.Nombre.Trim(),
+                Descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim(),
+                Precio = request.Precio,
+                Categoria = request.Category,
+                DuracionMinutos = request.Duration,
+                Estado = "activo"
+            };
+
+            _context.Servicios.Add(servicio);
+            await _context.SaveChangesAsync(ct);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Servicio creado correctamente.",
+                data = new
+                {
+                    id = servicio.IdServicio,
+                    nombre = servicio.Nombre,
+                    descripcion = servicio.Descripcion,
+                    precio = servicio.Precio,
+                    categoria = servicio.Categoria,
+                    duracion = servicio.DuracionMinutos,
+                    estado = servicio.Estado
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creando servicio.");
+            return StatusCode(500, new { success = false, message = "No fue posible crear el servicio." });
+        }
+    }
+
+    [HttpPut]
+    [Authorize(Roles = "Administrador")]
+    [Route("servicios-y-recursos/api/servicios/{id:int}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApiActualizarServicio(int id, [FromBody] ServicioRequest request, CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            var servicio = await _context.Servicios.FirstOrDefaultAsync(s => s.IdServicio == id, ct);
+            if (servicio == null)
+            {
+                return NotFound(new { success = false, message = "Servicio no encontrado." });
+            }
+
+            bool nombreDuplicado = await _context.Servicios
+                .AnyAsync(s => s.IdServicio != id && s.Nombre.ToLower() == request.Nombre.Trim().ToLower(), ct);
+
+            if (nombreDuplicado)
+            {
+                return BadRequest(new { success = false, message = "Ya existe otro servicio con ese nombre." });
+            }
+
+            servicio.Nombre = request.Nombre.Trim();
+            servicio.Descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim();
+            servicio.Precio = request.Precio;
+            servicio.Categoria = request.Category;
+            servicio.DuracionMinutos = request.Duration;
+
+            await _context.SaveChangesAsync(ct);
+
+            return Ok(new { success = true, message = "Servicio actualizado correctamente.", data = new { id = servicio.IdServicio } });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error actualizando el servicio {IdServicio}.", id);
+            return StatusCode(500, new { success = false, message = "No fue posible actualizar el servicio." });
+        }
+    }
+
+    [HttpPut]
+    [Authorize(Roles = "Administrador")]
+    [Route("servicios-y-recursos/api/servicios/{id:int}/estado")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApiCambiarEstadoServicio(int id, [FromBody] ServicioEstadoRequest request, CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            var servicio = await _context.Servicios.FirstOrDefaultAsync(s => s.IdServicio == id, ct);
+            if (servicio == null)
+            {
+                return NotFound(new { success = false, message = "Servicio no encontrado." });
+            }
+
+            servicio.Estado = request.Estado;
+            await _context.SaveChangesAsync(ct);
+
+            return Ok(new { success = true, message = $"Servicio marcado como {request.Estado}.", data = new { id, estado = servicio.Estado } });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error cambiando el estado del servicio {IdServicio}.", id);
+            return StatusCode(500, new { success = false, message = "No fue posible cambiar el estado del servicio." });
+        }
+    }
+
+    [HttpDelete]
+    [Authorize(Roles = "Administrador")]
+    [Route("servicios-y-recursos/api/servicios/{id:int}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApiEliminarServicio(int id, CancellationToken ct = default)
+    {
+        try
+        {
+            var servicio = await _context.Servicios.FirstOrDefaultAsync(s => s.IdServicio == id, ct);
+            if (servicio == null)
+            {
+                return NotFound(new { success = false, message = "Servicio no encontrado." });
+            }
+
+            bool tieneReferencias = await _context.Citas.AnyAsync(c => c.IdServicio == id, ct);
+
+            if (tieneReferencias)
+            {
+                // No se puede eliminar físicamente por las FK (hay citas que referencian
+                // este servicio); se desactiva en su lugar para no romper el historial.
+                servicio.Estado = "inactivo";
+                await _context.SaveChangesAsync(ct);
+                return Ok(new
+                {
+                    success = true,
+                    message = "El servicio tiene citas asociadas; se desactivó en lugar de eliminarlo.",
+                    data = new { id, estado = "inactivo" }
+                });
+            }
+
+            _context.Servicios.Remove(servicio);
+            await _context.SaveChangesAsync(ct);
+
+            return Ok(new { success = true, message = "Servicio eliminado correctamente.", data = new { id } });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error eliminando el servicio {IdServicio}.", id);
+            return StatusCode(500, new { success = false, message = "No fue posible eliminar el servicio." });
+        }
     }
 }

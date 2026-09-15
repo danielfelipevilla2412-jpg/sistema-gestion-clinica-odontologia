@@ -1,0 +1,185 @@
+@*
+  SmileTrack — Conmutador de Idioma (_LangSwitcher.cshtml)
+  ══════════════════════════════════════════════════════════
+  Partial reutilizable que renderiza los botones ES / EN con banderas SVG
+  inline (sin dependencias externas). Se posiciona en la esquina superior
+  derecha mediante CSS fixed.
+
+  USO:
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
+  DEPENDENCIAS:
+    - wwwroot/js/i18n-core.js   (debe cargarse antes o después — ya lo gestiona el layout)
+    - wwwroot/js/i18n.config.js
+*@
+
+@* ── Conmutador Internacional de Idioma (ES / EN) ── *@
+@* ── Conmutador Internacional de Idioma (ES / EN) ── *@
+<div class="lang-switcher-fixed" role="group" aria-label="Selector de idioma">
+
+  @* Botón Español — bandera de España *@
+  <button data-i18n-switcher
+          data-i18n-lang="es"
+          class="lang-btn"
+          type="button"
+          aria-pressed="false"
+          title="Cambiar a Español">
+    <span class="lang-flag" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 14" width="20" height="14" role="img" aria-label="Bandera de España">
+        <rect width="20" height="14" fill="#c60b1e"/>
+        <rect y="3.5" width="20" height="7" fill="#ffc400"/>
+      </svg>
+    </span>
+    <span class="lang-code" data-i18n="lang.es">ES</span>
+  </button>
+
+  @* Botón Inglés — bandera de Estados Unidos *@
+  <button data-i18n-switcher
+          data-i18n-lang="en"
+          class="lang-btn"
+          type="button"
+          aria-pressed="false"
+          title="Switch to English">
+    <span class="lang-flag" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 14" width="20" height="14" role="img" aria-label="Bandera de Estados Unidos">
+        <rect width="20" height="14" fill="#fff"/>
+        <rect width="20" height="1.077" y="0"      fill="#B22234"/>
+        <rect width="20" height="1.077" y="2.154"  fill="#B22234"/>
+        <rect width="20" height="1.077" y="4.308"  fill="#B22234"/>
+        <rect width="20" height="1.077" y="6.462"  fill="#B22234"/>
+        <rect width="20" height="1.077" y="8.616"  fill="#B22234"/>
+        <rect width="20" height="1.077" y="10.770" fill="#B22234"/>
+        <rect width="20" height="1.077" y="12.923" fill="#B22234"/>
+        <rect width="8"  height="7.539" fill="#3C3B6E"/>
+        <g fill="#fff">
+          <circle cx="0.8"  cy="0.75" r="0.35"/><circle cx="2.13" cy="0.75" r="0.35"/><circle cx="3.47" cy="0.75" r="0.35"/>
+          <circle cx="4.8"  cy="0.75" r="0.35"/><circle cx="6.13" cy="0.75" r="0.35"/><circle cx="7.47" cy="0.75" r="0.35"/>
+          <circle cx="1.47" cy="1.55" r="0.35"/><circle cx="2.8"  cy="1.55" r="0.35"/><circle cx="4.13" cy="1.55" r="0.35"/>
+          <circle cx="5.47" cy="1.55" r="0.35"/><circle cx="6.8"  cy="1.55" r="0.35"/>
+          <circle cx="0.8"  cy="2.35" r="0.35"/><circle cx="2.13" cy="2.35" r="0.35"/><circle cx="3.47" cy="2.35" r="0.35"/>
+          <circle cx="4.8"  cy="2.35" r="0.35"/><circle cx="6.13" cy="2.35" r="0.35"/><circle cx="7.47" cy="2.35" r="0.35"/>
+          <circle cx="1.47" cy="3.15" r="0.35"/><circle cx="2.8"  cy="3.15" r="0.35"/><circle cx="4.13" cy="3.15" r="0.35"/>
+          <circle cx="5.47" cy="3.15" r="0.35"/><circle cx="6.8"  cy="3.15" r="0.35"/>
+          <circle cx="0.8"  cy="3.95" r="0.35"/><circle cx="2.13" cy="3.95" r="0.35"/><circle cx="3.47" cy="3.95" r="0.35"/>
+          <circle cx="4.8"  cy="3.95" r="0.35"/><circle cx="6.13" cy="3.95" r="0.35"/><circle cx="7.47" cy="3.95" r="0.35"/>
+          <circle cx="1.47" cy="4.75" r="0.35"/><circle cx="2.8"  cy="4.75" r="0.35"/><circle cx="4.13" cy="4.75" r="0.35"/>
+          <circle cx="5.47" cy="4.75" r="0.35"/><circle cx="6.8"  cy="4.75" r="0.35"/>
+          <circle cx="0.8"  cy="5.55" r="0.35"/><circle cx="2.13" cy="5.55" r="0.35"/><circle cx="3.47" cy="5.55" r="0.35"/>
+          <circle cx="4.8"  cy="5.55" r="0.35"/><circle cx="6.13" cy="5.55" r="0.35"/><circle cx="7.47" cy="5.55" r="0.35"/>
+          <circle cx="1.47" cy="6.35" r="0.35"/><circle cx="2.8"  cy="6.35" r="0.35"/><circle cx="4.13" cy="6.35" r="0.35"/>
+          <circle cx="5.47" cy="6.35" r="0.35"/><circle cx="6.8"  cy="6.35" r="0.35"/>
+          <circle cx="0.8"  cy="7.15" r="0.35"/><circle cx="2.13" cy="7.15" r="0.35"/><circle cx="3.47" cy="7.15" r="0.35"/>
+          <circle cx="4.8"  cy="7.15" r="0.35"/><circle cx="6.13" cy="7.15" r="0.35"/><circle cx="7.47" cy="7.15" r="0.35"/>
+        </g>
+      </svg>
+    </span>
+    <span class="lang-code" data-i18n="lang.en">EN</span>
+  </button>
+
+</div>
+
+<style>
+  .lang-switcher-fixed {
+    position: fixed;
+    top: 1.125rem;
+    right: 1.5rem;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 4px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(0, 94, 164, 0.25);
+    box-shadow: 0 4px 18px rgba(2, 28, 58, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .lang-switcher-fixed:hover {
+    border-color: rgba(0, 94, 164, 0.45);
+    box-shadow: 0 6px 22px rgba(0, 94, 164, 0.22);
+  }
+
+  .lang-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #1e293b;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.2s ease;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .lang-btn .lang-code {
+    color: #1e293b;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+
+  .lang-btn:hover:not(.is-active) {
+    background: rgba(0, 94, 164, 0.08);
+    color: #005ea4;
+  }
+
+  .lang-btn:hover:not(.is-active) .lang-code {
+    color: #005ea4;
+  }
+
+  .lang-btn:focus-visible {
+    outline: 2px solid #005ea4;
+    outline-offset: 2px;
+  }
+
+  /* ESTADO ACTIVO — Alto contraste con fondo azul primario y texto blanco puro */
+  .lang-btn.is-active {
+    background: #005ea4 !important;
+    color: #ffffff !important;
+    border-color: #004b84 !important;
+    box-shadow: 0 2px 8px rgba(0, 94, 164, 0.35) !important;
+  }
+
+  .lang-btn.is-active .lang-code {
+    color: #ffffff !important;
+    font-weight: 800 !important;
+  }
+
+  .lang-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
+    flex-shrink: 0;
+  }
+
+  .lang-flag svg {
+    display: block;
+  }
+
+  @@media (max-width: 768px) {
+    .lang-switcher-fixed {
+      top: 0.75rem;
+      right: 0.75rem;
+      padding: 3px;
+    }
+    .lang-btn {
+      padding: 5px 9px;
+      font-size: 10px;
+    }
+  }
+</style>

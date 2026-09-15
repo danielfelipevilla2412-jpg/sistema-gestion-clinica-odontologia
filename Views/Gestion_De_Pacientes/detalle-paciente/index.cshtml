@@ -1,0 +1,583 @@
+@* ─────────────────────────────────────────────────────────────────────────────
+   Yeray (2025) - Vista de detalle individual de paciente
+   Ruta:  GET /gestion-de-pacientes/{id}
+   Roles: Administrador, Recepcionista, Profesional
+
+   MOTIVO: antes solo existía un modal con datos limitados del listado.
+   Esta vista muestra el perfil completo: datos personales, médicos,
+   antecedentes, contacto de emergencia, resumen de actividad e historial
+   completo de citas. Incluye accesos rápidos a editar y a la historia clínica.
+   ─────────────────────────────────────────────────────────────────────────── *@
+@using System.Text.Json
+@model SmileTrack_MVC.Models.ViewModels.PacienteViewModel
+@{
+    Layout = null;
+
+    // Calcular edad a partir de FechaNacimiento
+    var hoy    = DateTime.Today;
+    var edad   = hoy.Year - Model.FechaNacimiento.Year;
+    if (Model.FechaNacimiento.Date > hoy.AddYears(-edad)) edad--;
+
+    // Género legible
+    var generoTexto = Model.Genero switch
+    {
+        "M" => "Masculino",
+        "F" => "Femenino",
+        "O" => "Otro",
+        _   => "No registrado"
+    };
+
+    // Color del avatar (misma lógica rotativa del listado)
+    var colorMap = new Dictionary<string, string>
+    {
+        ["blue"]   = "#2563eb",
+        ["green"]  = "#22c55e",
+        ["yellow"] = "#f59e0b",
+        ["purple"] = "#9333ea",
+        ["slate"]  = "#64748b"
+    };
+    var avatarColor = colorMap.GetValueOrDefault(Model.Color, "#2563eb");
+
+    // Serializar historial para el JS
+    var historialJson = JsonSerializer.Serialize(Model.History.Select(h => new
+    {
+        fecha     = h.Date.ToString("yyyy-MM-dd"),
+        procedimiento = h.Procedure,
+        doctor    = h.Doctor
+    }));
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="detalle_paciente_title">SmileTrack — @Model.Name</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+  <style>
+    /* ── Reset y variables ────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #2563eb; --primary-light: #dbeafe;
+      --green: #22c55e;   --green-light: #dcfce7;
+      --red: #ef4444;     --red-light: #fee2e2;
+      --yellow: #f59e0b;  --yellow-light: #fef3c7;
+      --bg: #f8fafc;      --surface: #ffffff;
+      --border: #e2e8f0;  --text: #0f172a;
+      --text-muted: #64748b;
+      --radius: 12px;     --shadow: 0 1px 3px rgba(0,0,0,.08);
+      --tr: .18s ease;
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    .page-wrap { display: flex; min-height: 100vh; }
+    .main { flex: 1; padding: 28px 32px; max-width: 1100px; margin: 0 auto; width: 100%; }
+
+    /* ── Header ──────────────────────────────────────────── */
+    .page-header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+      border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+      color: var(--text-muted); font-size: .88rem; cursor: pointer; text-decoration: none;
+      transition: all var(--tr); }
+    .back-btn:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+    .breadcrumb { font-size: .82rem; color: var(--text-muted); }
+    .breadcrumb a { color: var(--primary); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb .sep { margin: 0 6px; }
+
+    /* ── Hero card ───────────────────────────────────────── */
+    .hero-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px 32px; display: flex; gap: 24px; align-items: flex-start;
+      box-shadow: var(--shadow); margin-bottom: 24px; flex-wrap: wrap; }
+    .hero-avatar { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 2rem; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .hero-info { flex: 1; min-width: 200px; }
+    .hero-name { font-size: 1.5rem; font-weight: 700; font-family: 'Syne', sans-serif; margin-bottom: 4px; }
+    .hero-sub  { color: var(--text-muted); font-size: .9rem; margin-bottom: 12px; }
+    .badge-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge { padding: 4px 12px; border-radius: 20px; font-size: .78rem; font-weight: 500; }
+    .badge-activo   { background: var(--green-light);  color: #166534; }
+    .badge-inactivo { background: var(--red-light);    color: #991b1b; }
+    .badge-retirado { background: var(--yellow-light); color: #92400e; }
+    .badge-info     { background: var(--primary-light); color: var(--primary); }
+    .hero-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+    .btn-primary   { padding: 9px 20px; background: var(--primary); color: #fff; border: none;
+      border-radius: 8px; font-size: .88rem; font-weight: 500; cursor: pointer;
+      text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: opacity var(--tr); }
+    .btn-primary:hover { opacity: .88; }
+    .btn-secondary { padding: 9px 20px; background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px; font-size: .88rem;
+      cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
+      gap: 6px; transition: all var(--tr); }
+    .btn-secondary:hover { background: var(--bg); }
+
+    /* ── Stats strip ─────────────────────────────────────── */
+    .stats-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px; margin-bottom: 24px; }
+    .stat-item { background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); }
+    .stat-item .num  { font-size: 1.8rem; font-weight: 700; font-family: 'Syne', sans-serif; }
+    .stat-item .lbl  { font-size: .8rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── Grid de secciones ───────────────────────────────── */
+    .sections-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+    @@media (max-width: 720px) { .sections-grid { grid-template-columns: 1fr; } }
+
+    /* ── Cards de sección ─────────────────────────────────  */
+    .section-card { background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px 24px; box-shadow: var(--shadow); }
+    .section-card.full-width { grid-column: 1 / -1; }
+    .section-title { font-size: .95rem; font-weight: 600; font-family: 'Syne', sans-serif;
+      margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .field-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 0;
+      border-bottom: 1px solid var(--border); font-size: .9rem; }
+    .field-row:last-child { border-bottom: none; }
+    .field-label { color: var(--text-muted); min-width: 160px; flex-shrink: 0; }
+    .field-value { color: var(--text); font-weight: 500; }
+    .field-value.empty { color: var(--text-muted); font-weight: 400; font-style: italic; }
+
+    /* ── Alergias badges ─────────────────────────────────── */
+    .allergy-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .allergy-badge { padding: 3px 10px; background: var(--red-light);
+      color: #991b1b; border-radius: 20px; font-size: .78rem; font-weight: 500; }
+
+    /* ── Historial de citas ──────────────────────────────── */
+    .history-list { display: flex; flex-direction: column; gap: 0; }
+    .history-item { padding: 12px 0; border-bottom: 1px solid var(--border);
+      display: flex; gap: 14px; align-items: flex-start; }
+    .history-item:last-child { border-bottom: none; }
+    .history-dot  { width: 8px; height: 8px; border-radius: 50%;
+      background: var(--primary); margin-top: 5px; flex-shrink: 0; }
+    .history-body { flex: 1; }
+    .history-proc { font-weight: 500; font-size: .9rem; }
+    .history-meta { color: var(--text-muted); font-size: .8rem; margin-top: 2px; }
+    .empty-msg    { color: var(--text-muted); font-style: italic; text-align: center;
+      padding: 20px 0; font-size: .9rem; }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b;
+      color: #fff; padding: 12px 20px; border-radius: 10px; font-size: .9rem;
+      opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 9999; }
+    .toast.show { opacity: 1; pointer-events: auto; }
+    .toast.error   { background: var(--red); }
+    .toast.warning { background: var(--yellow); color: #1e293b; }
+
+    /* ── Responsive hamburguesa ──────────────────────────── */
+    .hamburger { display: none; position: fixed; top: 16px; left: 16px; z-index: 200;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px; cursor: pointer; }
+    @@media (max-width: 768px) {
+      .hamburger { display: flex; }
+      .main { padding: 64px 16px 24px; }
+      .hero-card { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  @Html.AntiForgeryToken()
+
+  <button class="hamburger" id="hamburger" data-i18n-aria-label="detalle_paciente_abrir_menu" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+  @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+  <main class="main" id="main-content">
+
+    <!-- ── Encabezado de navegación ─────────────────── -->
+    <div class="page-header">
+      <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="back-btn" data-i18n-aria-label="detalle_paciente_volver_listado" aria-label="Volver al listado">
+        <span data-i18n="detalle_paciente_volver">← Volver</span>
+      </a>
+      <nav class="breadcrumb" data-i18n-aria-label="detalle_paciente_ruta_navegacion" aria-label="Ruta de navegación">
+        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" data-i18n="detalle_paciente_breadcrumb_pacientes">Pacientes</a>
+        <span class="sep" aria-hidden="true">›</span>
+        <span>@Model.Name</span>
+      </nav>
+    </div>
+
+    <!-- ── Hero: avatar + nombre + estado + acciones ─ -->
+    <section class="hero-card" aria-labelledby="heroName">
+      <div class="hero-avatar" style="background:@avatarColor" aria-hidden="true">@Model.Initials</div>
+
+      <div class="hero-info">
+        <h1 class="hero-name" id="heroName">@Model.Name</h1>
+        <p class="hero-sub">@Model.Doc · @edad años · Registrado el @(Model.FechaRegistro?.ToString("dd MMM yyyy") ?? "N/D")</p>
+        <div class="badge-row">
+          <span class="badge badge-@Model.Estado.ToLower()" role="status">@Model.Estado.ToUpperInvariant()</span>
+          @if (Model.Allergies.Count > 0)
+          {
+            <span class="badge" style="background:#fee2e2;color:#991b1b;" data-i18n="detalle_paciente_alergias_badge">⚠️ Alergias</span>
+          }
+          @if (Model.NextVisit.HasValue)
+          {
+            <span class="badge badge-info">📅 Cita: @Model.NextVisit.Value.ToString("dd MMM yyyy")</span>
+          }
+        </div>
+      </div>
+
+      <div class="hero-actions">
+        <a href="/historia-clinica/st-odo-03-historial?pacienteId=@Model.Id"
+           class="btn-primary" data-i18n-aria-label="detalle_paciente_abrir_historia_clinica" aria-label="Abrir historia clínica de @Model.Name">
+          <span data-i18n="detalle_paciente_historia_clinica">🦷 Historia Clínica</span>
+        </a>
+        <button class="btn-secondary" id="btnEditarPaciente"
+                data-id="@Model.Id" data-i18n-aria-label="detalle_paciente_editar_datos" aria-label="Editar datos de @Model.Name">
+          <span data-i18n="detalle_paciente_editar">✏️ Editar</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ── Métricas de actividad ─────────────────────── -->
+    <section class="stats-strip" data-i18n-aria-label="detalle_paciente_resumen_actividad" aria-label="Resumen de actividad">
+      <div class="stat-item">
+        <div class="num" style="color:var(--primary)">@Model.TotalCitas</div>
+        <div class="lbl" data-i18n="detalle_paciente_citas_totales">Citas totales</div>
+      </div>
+      <div class="stat-item">
+        <div class="num" style="color:var(--green)">@Model.CitasPendientes</div>
+        <div class="lbl" data-i18n="detalle_paciente_citas_pendientes">Citas pendientes</div>
+      </div>
+      <div class="stat-item">
+        <div class="num" style="color:@(Model.Allergies.Count > 0 ? "var(--red)" : "var(--green)")">
+          @Model.Allergies.Count
+        </div>
+        <div class="lbl" data-i18n="detalle_paciente_alergias_registradas">Alergias registradas</div>
+      </div>
+      <div class="stat-item">
+        <div class="num" style="color:var(--text-muted)">
+          @(Model.LastVisit.HasValue ? Model.LastVisit.Value.ToString("dd/MM") : "—")
+        </div>
+        <div class="lbl" data-i18n="detalle_paciente_ultima_visita">Última visita</div>
+      </div>
+    </section>
+
+    <!-- ── Secciones de datos ─────────────────────────── -->
+    <div class="sections-grid">
+
+      <!-- Datos personales -->
+      <div class="section-card" aria-labelledby="secPersonal">
+        <h2 class="section-title" id="secPersonal" data-i18n="detalle_paciente_datos_personales">👤 Datos personales</h2>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_documento_label">Documento</span>
+          <span class="field-value">@Model.Doc</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_fecha_nacimiento_label">Fecha de nacimiento</span>
+          <span class="field-value">@Model.FechaNacimiento.ToString("dd MMM yyyy") (@edad años)</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_genero_label">Género</span>
+          <span class="field-value">@generoTexto</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_telefono_label">Teléfono</span>
+          <span class="field-value @(string.IsNullOrWhiteSpace(Model.Telefono) ? "empty" : "")">
+            @(string.IsNullOrWhiteSpace(Model.Telefono) ? "No registrado" : Model.Telefono)
+          </span>
+        </div>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_correo_label">Correo</span>
+          <span class="field-value @(string.IsNullOrWhiteSpace(Model.Correo) ? "empty" : "")">
+            @(string.IsNullOrWhiteSpace(Model.Correo) ? "No registrado" : Model.Correo)
+          </span>
+        </div>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_ciudad_label">Ciudad</span>
+          <span class="field-value @(string.IsNullOrWhiteSpace(Model.Ciudad) ? "empty" : "")">
+            @(string.IsNullOrWhiteSpace(Model.Ciudad) ? "No registrada" : Model.Ciudad)
+          </span>
+        </div>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_direccion_label">Dirección</span>
+          <span class="field-value @(string.IsNullOrWhiteSpace(Model.Direccion) ? "empty" : "")">
+            @(string.IsNullOrWhiteSpace(Model.Direccion) ? "No registrada" : Model.Direccion)
+          </span>
+        </div>
+      </div>
+
+      <!-- Datos médicos -->
+      <div class="section-card" aria-labelledby="secMedico">
+        <h2 class="section-title" id="secMedico" data-i18n="detalle_paciente_datos_medicos">🩺 Datos médicos</h2>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_grupo_sanguineo_label">Grupo sanguíneo</span>
+          <span class="field-value @(string.IsNullOrWhiteSpace(Model.GrupoSanguineo) ? "empty" : "")">
+            @(string.IsNullOrWhiteSpace(Model.GrupoSanguineo) ? "No registrado" : Model.GrupoSanguineo)
+          </span>
+        </div>
+        <div class="field-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <span class="field-label" data-i18n="detalle_paciente_alergias_label">Alergias</span>
+          @if (Model.Allergies.Count > 0)
+          {
+            <div class="allergy-list" role="list" data-i18n-aria-label="detalle_paciente_lista_alergias" aria-label="Lista de alergias">
+              @foreach (var a in Model.Allergies)
+              {
+                <span class="allergy-badge" role="listitem">@a</span>
+              }
+            </div>
+          }
+          else
+          {
+            <span class="field-value empty" data-i18n="detalle_paciente_sin_alergias">Sin alergias registradas</span>
+          }
+        </div>
+        <div class="field-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
+          <span class="field-label" data-i18n="detalle_paciente_antecedentes_medicos_label">Antecedentes médicos</span>
+          <span class="field-value @(string.IsNullOrWhiteSpace(Model.AntecedentesMedicos) ? "empty" : "")"
+                style="white-space: pre-wrap; font-size:.88rem;">
+            @(string.IsNullOrWhiteSpace(Model.AntecedentesMedicos) ? "Sin antecedentes registrados" : Model.AntecedentesMedicos)
+          </span>
+        </div>
+      </div>
+
+      <!-- Contacto de emergencia -->
+      <div class="section-card" aria-labelledby="secEmergencia">
+        <h2 class="section-title" id="secEmergencia" data-i18n="detalle_paciente_contacto_emergencia">🚨 Contacto de emergencia</h2>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_nombre_emergencia_label">Nombre</span>
+          <span class="field-value @(string.IsNullOrWhiteSpace(Model.ContactoEmergencia) ? "empty" : "")">
+            @(string.IsNullOrWhiteSpace(Model.ContactoEmergencia) ? "No registrado" : Model.ContactoEmergencia)
+          </span>
+        </div>
+        <div class="field-row">
+          <span class="field-label" data-i18n="detalle_paciente_telefono_emergencia_label">Teléfono</span>
+          <span class="field-value @(string.IsNullOrWhiteSpace(Model.TelefonoEmergencia) ? "empty" : "")">
+            @(string.IsNullOrWhiteSpace(Model.TelefonoEmergencia) ? "No registrado" : Model.TelefonoEmergencia)
+          </span>
+        </div>
+      </div>
+
+      <!-- Próxima cita -->
+      <div class="section-card" aria-labelledby="secProxima">
+        <h2 class="section-title" id="secProxima" data-i18n="detalle_paciente_proxima_cita">📅 Próxima cita</h2>
+        @if (Model.NextVisit.HasValue)
+        {
+          <div class="field-row">
+            <span class="field-label" data-i18n="detalle_paciente_fecha_cita_label">Fecha</span>
+            <span class="field-value">@Model.NextVisit.Value.ToString("dd MMM yyyy · HH:mm")</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label" data-i18n="detalle_paciente_ultimo_diagnostico_label">Último diagnóstico</span>
+            <span class="field-value @(string.IsNullOrWhiteSpace(Model.Diagnosis) ? "empty" : "")">
+              @(string.IsNullOrWhiteSpace(Model.Diagnosis) ? "Sin datos" : Model.Diagnosis)
+            </span>
+          </div>
+        }
+        else
+        {
+          <p class="empty-msg" data-i18n="detalle_paciente_sin_citas_programadas">Sin citas programadas</p>
+        }
+      </div>
+
+      <!-- Archivo adjunto del paciente -->
+      @* Yeray (2025) - Sección nueva para ArchivoAdjunto.
+         ANTES: el campo existía en la entidad y la BD pero nunca tenía UI ni endpoint.
+         AHORA: muestra la imagen actual (si existe) y permite subir una nueva o eliminarla
+                usando el endpoint POST /gestion-de-pacientes/{id}/archivo-adjunto. *@
+      <div class="section-card" aria-labelledby="secArchivo">
+        <h2 class="section-title" id="secArchivo" data-i18n="detalle_paciente_foto_documento_adjunto">📎 Foto / Documento adjunto</h2>
+
+        @if (!string.IsNullOrWhiteSpace(Model.ArchivoAdjunto))
+        {
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <img src="/@Model.ArchivoAdjunto"
+                 data-i18n-alt="detalle_paciente_archivo_adjunto_de"
+                 alt="Archivo adjunto de @Model.Name"
+                 style="max-width:120px;max-height:120px;border-radius:8px;
+                        border:1px solid var(--border);object-fit:cover;" />
+            <div>
+              <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">
+                <span data-i18n="detalle_paciente_archivo_actual">Archivo actual:</span> <strong>@System.IO.Path.GetFileName(Model.ArchivoAdjunto)</strong>
+              </p>
+              <button class="btn-secondary" id="btnCambiarArchivo" style="font-size:.82rem;padding:6px 14px;">
+                <span data-i18n="detalle_paciente_cambiar">🔄 Cambiar</span>
+              </button>
+              <button class="btn-secondary" id="btnEliminarArchivo"
+                      style="font-size:.82rem;padding:6px 14px;color:var(--red);border-color:var(--red);margin-left:6px;">
+                <span data-i18n="detalle_paciente_eliminar">🗑️ Eliminar</span>
+              </button>
+            </div>
+          </div>
+        }
+        else
+        {
+          <p class="field-value empty" style="margin-bottom:12px;" data-i18n="detalle_paciente_sin_archivo_adjunto">Sin archivo adjunto</p>
+        }
+
+        <!-- Input de subida (oculto, se activa con los botones) -->
+        <div id="uploadZone" style="margin-top:12px;@(string.IsNullOrWhiteSpace(Model.ArchivoAdjunto) ? "" : "display:none;")">
+          <input type="file" id="inputArchivo" accept="image/jpeg,image/png,image/webp"
+                 style="display:none;" data-i18n-aria-label="detalle_paciente_seleccionar_archivo_adjunto" aria-label="Seleccionar archivo adjunto" />
+          <button class="btn-secondary" id="btnSeleccionarArchivo"
+                  style="font-size:.85rem;padding:8px 18px;">
+            <span data-i18n="detalle_paciente_seleccionar_imagen">📁 Seleccionar imagen (JPG, PNG o WEBP — máx. 5 MB)</span>
+          </button>
+          <span id="archivoNombre" style="font-size:.82rem;color:var(--text-muted);margin-left:10px;"></span>
+          <button class="btn-primary" id="btnSubirArchivo" disabled
+                  style="font-size:.85rem;padding:8px 18px;margin-left:8px;">
+            <span data-i18n="detalle_paciente_subir">⬆️ Subir</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Historial de citas -->
+      <div class="section-card full-width" aria-labelledby="secHistorial">
+        <h2 class="section-title" id="secHistorial" data-i18n="detalle_paciente_historial_citas">📋 Historial de citas</h2>
+        @if (Model.History.Count > 0)
+        {
+          <div class="history-list" role="list" id="historyList">
+            @foreach (var h in Model.History)
+            {
+              <div class="history-item" role="listitem">
+                <div class="history-dot" aria-hidden="true"></div>
+                <div class="history-body">
+                  <div class="history-proc">@h.Procedure</div>
+                  <div class="history-meta">
+                    <time datetime="@h.Date.ToString("yyyy-MM-dd")">@h.Date.ToString("dd MMM yyyy · HH:mm")</time>
+                    · @h.Doctor
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+        else
+        {
+          <p class="empty-msg" data-i18n="detalle_paciente_sin_historial_citas">Sin historial de citas registrado</p>
+        }
+      </div>
+
+    </div><!-- /sections-grid -->
+
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    // Yeray (2025) - Script inline de la vista de detalle.
+    // Solo maneja el botón "Editar" (abre modal inline con el form existente)
+    // y el toast de feedback. La lógica de edición reutiliza el endpoint
+    // POST /gestion-de-pacientes/actualizar ya existente.
+
+    const pacienteId   = @Model.Id;
+    const pacienteNombre = @Html.Raw(JsonSerializer.Serialize(Model.Name));
+
+    const showToast = (msg, type = 'success') => {
+      const t = document.getElementById('toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
+      clearTimeout(t._tid);
+      t._tid = setTimeout(() => t.classList.remove('show'), 3200);
+    };
+
+    // Botón Editar: redirige al listado con el modal de edición precargado
+    // El listado ya tiene toda la lógica de edición implementada.
+    document.getElementById('btnEditarPaciente')?.addEventListener('click', () => {
+      window.location.href =
+        `/gestion-de-pacientes/st-adm-05-gestion-pacientes#editar-${pacienteId}`;
+    });
+
+    // ── Archivo adjunto ───────────────────────────────────────────────────────
+    // Yeray (2025) - Lógica de upload / eliminación del ArchivoAdjunto.
+    //
+    // Flujo:
+    //   1. Si hay archivo → botones "Cambiar" y "Eliminar" visibles.
+    //   2. "Cambiar" muestra la zona de upload (igual que cuando no hay archivo).
+    //   3. "Seleccionar imagen" abre el input[type=file] oculto.
+    //   4. Al seleccionar el archivo se habilita el botón "Subir".
+    //   5. "Subir" hace POST multipart a /{id}/archivo-adjunto y recarga la página
+    //      para mostrar la nueva imagen (evita lógica compleja de reemplazo en DOM).
+    //   6. "Eliminar" hace POST a /{id}/archivo-adjunto/eliminar y recarga.
+
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+    // Botón "Cambiar" (solo visible si ya hay archivo)
+    document.getElementById('btnCambiarArchivo')?.addEventListener('click', () => {
+      document.getElementById('uploadZone').style.display = '';
+    });
+
+    // Botón "Seleccionar imagen" abre el input oculto
+    document.getElementById('btnSeleccionarArchivo')?.addEventListener('click', () => {
+      document.getElementById('inputArchivo')?.click();
+    });
+
+    // Al seleccionar archivo: mostrar nombre y habilitar botón Subir
+    document.getElementById('inputArchivo')?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      document.getElementById('archivoNombre').textContent = file.name;
+      const btn = document.getElementById('btnSubirArchivo');
+      if (btn) btn.disabled = false;
+    });
+
+    // Botón "Subir": envía multipart al servidor
+    document.getElementById('btnSubirArchivo')?.addEventListener('click', async () => {
+      const input = document.getElementById('inputArchivo');
+      const file  = input?.files?.[0];
+      if (!file) return;
+
+      const btn = document.getElementById('btnSubirArchivo');
+      btn.disabled    = true;
+      btn.textContent = '⏳ Subiendo...';
+
+      const fd = new FormData();
+      fd.append('archivo', file, file.name);
+
+      try {
+        const resp = await fetch(
+          `/gestion-de-pacientes/${pacienteId}/archivo-adjunto`,
+          {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+            body: fd,
+            credentials: 'same-origin'
+          }
+        );
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.ok === false) throw new Error(data.message || 'Error al subir el archivo.');
+
+        showToast('✅ Archivo adjunto guardado correctamente.');
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        showToast(err.message || 'No se pudo subir el archivo.', 'error');
+        btn.disabled    = false;
+        btn.textContent = '⬆️ Subir';
+      }
+    });
+
+    // Botón "Eliminar": elimina el archivo del disco y limpia el campo en BD
+    document.getElementById('btnEliminarArchivo')?.addEventListener('click', async () => {
+      if (!confirm('¿Seguro que deseas eliminar el archivo adjunto?')) return;
+
+      try {
+        const fd = new FormData();
+        const resp = await fetch(
+          `/gestion-de-pacientes/${pacienteId}/archivo-adjunto/eliminar`,
+          {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+            body: fd,
+            credentials: 'same-origin'
+          }
+        );
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.ok === false) throw new Error(data.message || 'Error al eliminar el archivo.');
+
+        showToast('✅ Archivo eliminado correctamente.');
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        showToast(err.message || 'No se pudo eliminar el archivo.', 'error');
+      }
+    });
+  </script>
+
+  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
+</body>
+</html>

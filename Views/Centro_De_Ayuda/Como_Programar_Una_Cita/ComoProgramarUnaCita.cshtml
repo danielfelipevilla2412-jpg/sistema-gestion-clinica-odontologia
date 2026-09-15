@@ -87,6 +87,8 @@
     }
   </script>
 
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
   <!-- ⭐ CSS PRINCIPAL: sidebar + layout (MISMO que st-adm-01) -->
   <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-adm-01-dashboard/styles.css")" />
 
@@ -147,7 +149,7 @@
           <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active">@articleTitle</span>
         </nav>
-        <h1 class="page-title">Guía: @articleTitle</h1>
+        <h1 class="page-title" data-i18n="help.recommended">Guía: @articleTitle</h1>
         <p class="page-subtitle">
           Tutorial paso a paso ·
           <time datetime="@DateTime.Now.ToString("yyyy-MM-dd")">Actualizado el @DateTime.Now.ToString("dddd d 'de' MMMM yyyy", new System.Globalization.CultureInfo("es-ES"))</time>
@@ -334,6 +336,8 @@
 
   <!-- JS ESPECÍFICO DE LA GUÍA (rating, modal temas) -->
   <script src="@Url.Content("~/js/Centro_De_Ayuda/Como_Programar_Una_Cita/script.js")" defer></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>
 

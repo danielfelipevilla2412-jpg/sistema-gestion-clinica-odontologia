@@ -1,4 +1,51 @@
-@{ Layout = null; }
+@* ─────────────────────────────────────────────────────────────────────────────
+   Yeray (2025) - Vista de Preparación de Consulta actualizada
+   Ruta:  GET /gestion-de-pacientes/st-aux-03-preparacion-consulta[?citaId=N]
+   Rol:   Auxiliar
+
+   ANTES: todos los datos estaban hardcodeados en el HTML
+          ("Pedro García", "Penicilina", "Dr. Carlos Méndez", etc.)
+          y el controlador devolvía View() sin ningún ViewModel.
+
+   AHORA: el controlador carga la cita más próxima del día (o la indicada por
+          ?citaId=) y construye PreparacionConsultaViewModel con datos reales.
+          La vista inyecta esos datos en window.smiletrackPreparacionConfig
+          para que el JS los use, y renderiza el panel lateral con datos reales.
+   ─────────────────────────────────────────────────────────────────────────── *@
+@using System.Text.Json
+@model SmileTrack_MVC.Models.ViewModels.PreparacionConsultaViewModel
+@{
+    Layout = null;
+
+    // Tiempo hasta la cita: texto legible para el badge
+    string badgeTiempo = "Sin citas hoy";
+    if (Model.CitaFechaHora.HasValue)
+    {
+        int mins = Model.MinutosHastaCita;
+        if      (mins < 0)   badgeTiempo = $"Hace {Math.Abs(mins)} min";
+        else if (mins == 0)  badgeTiempo = "Ahora";
+        else if (mins < 60)  badgeTiempo = $"En {mins} minutos";
+        else                 badgeTiempo = $"En {mins / 60}h {mins % 60}min";
+    }
+
+    // Serializar config para el JS
+    var configJson = JsonSerializer.Serialize(new
+    {
+        citaId          = Model.CitaId,
+        pacienteId      = Model.PacienteId,
+        pacienteNombre  = Model.PacienteNombre,
+        codigoHC        = Model.CodigoHC ?? "Sin HC",
+        sinCitasHoy     = Model.SinCitasHoy,
+        citasDelDia     = Model.CitasDelDia.Select(c => new
+        {
+            id       = c.Id,
+            paciente = c.Paciente,
+            hora     = c.Hora,
+            servicio = c.Servicio,
+            esActual = c.EsActual
+        })
+    });
+}
 
 <!DOCTYPE html>
 <html lang="es">
@@ -7,78 +54,100 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SmileTrack — Preparación de Consulta</title>
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Pacientes/st-aux-03-preparacion-consulta/preparacion.css")" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 
 <body>
+  @Html.AntiForgeryToken()
 
-  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-  <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
-  <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
     <span aria-hidden="true">☰</span>
   </button>
-
-  <!-- Overlay para menú móvil -->
   <div class="overlay" id="overlay" aria-hidden="true"></div>
+  @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
 
-    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
   <!-- ═════ MAIN ═════ -->
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
   <main class="main-content" id="main-content">
 
     <!-- Top Header -->
     <div class="top-header">
       <div class="header-left">
-        <div class="breadcrumb">Auxiliar → Preparación Consulta</div>
-        <h1>Preparación de Consulta</h1>
-        <div class="subtitle">
-          <time datetime="2026-03-20T10:00">10:00 AM</time> · Pedro García · Control · Consultorio 1
-        </div>
+        <div class="breadcrumb"><span data-i18n="common_role_auxiliar">Auxiliar</span> → <span data-i18n="citas.title">Preparación Consulta</span></div>
+        <h1 data-i18n="citas.title">Preparación de Consulta</h1>
+        @if (Model.SinCitasHoy)
+        {
+          <div class="subtitle" id="citaSubtitle">Sin citas programadas para hoy</div>
+        }
+        else
+        {
+          <div class="subtitle" id="citaSubtitle">
+            @* Hora · Paciente · Servicio · Consultorio — datos reales de la cita *@
+            <time datetime="@Model.CitaFechaHora?.ToString("yyyy-MM-ddTHH:mm")" id="citaHora">
+              @Model.CitaFechaHora?.ToString("hh:mm tt")
+            </time>
+            · <span id="citaPaciente">@Model.PacienteNombre</span>
+            · <span id="citaServicio">@Model.ServicioNombre</span>
+            · <span id="citaConsultorio">@Model.ConsultorioNombre</span>
+          </div>
+        }
       </div>
-      <div class="header-badge" role="status" aria-live="polite">
-        En 15 minutos
+      <div class="header-right" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        @* Selector de citas del día *@
+        @if (Model.CitasDelDia.Count > 1)
+        {
+          <select id="selectorCita" aria-label="Seleccionar cita del día"
+                  style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:.85rem;cursor:pointer;">
+            @foreach (var c in Model.CitasDelDia)
+            {
+              <option value="@c.Id" selected="@(c.EsActual ? "selected" : null)">
+                @c.Hora — @c.Paciente (@c.Servicio)
+              </option>
+            }
+          </select>
+        }
+        <div class="header-badge" id="badgeTiempo" role="status" aria-live="polite">@badgeTiempo</div>
       </div>
     </div>
 
-    <!-- Barra de progreso con accesibilidad ARIA -->
+    <!-- Barra de progreso -->
     <div class="progress-section">
-      <div class="progress-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="43"
-        aria-label="Progreso de preparación">
+        <div class="progress-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+          aria-label="Progreso de preparación" data-i18n-aria-label="citas.title">
         <div class="progress-bar-fill" id="progressFill"></div>
       </div>
-      <div class="progress-text" id="progressText">3 de 7 ítems completados</div>
+      <div class="progress-text" id="progressText">0 de 7 ítems completados</div>
     </div>
 
     <!-- Content Layout -->
     <div class="content-layout">
 
-      <!-- Main Card: Checklist de preparación -->
+      <!-- ── Checklist de preparación ── -->
       <div class="content-main">
         <div class="card">
           <div class="card-title">
             <span class="icon-check" aria-hidden="true">✅</span> Checklist de preparación
           </div>
 
-          <!-- Lista de verificación con role list para accesibilidad -->
           <div class="checklist" id="checklist" role="list" aria-label="Lista de tareas de preparación">
-            <label class="checklist-item checked" role="listitem">
-              <input type="checkbox" checked aria-label="Consultorio limpio y desinfectado - completado" />
+            @* Los ítems son genéricos para cualquier tipo de consulta.
+               El JS lee su estado desde localStorage con clave dinámica por citaId. *@
+            <label class="checklist-item" role="listitem">
+              <input type="checkbox" aria-label="Consultorio limpio y desinfectado" />
               <span class="custom-checkbox" aria-hidden="true">✓</span>
               <span>Consultorio limpio y desinfectado</span>
             </label>
-            <label class="checklist-item checked" role="listitem">
-              <input type="checkbox" checked aria-label="Instrumental esterilizado listo - completado" />
+            <label class="checklist-item" role="listitem">
+              <input type="checkbox" aria-label="Instrumental esterilizado listo" />
               <span class="custom-checkbox" aria-hidden="true">✓</span>
               <span>Instrumental esterilizado listo</span>
             </label>
-            <label class="checklist-item checked" role="listitem">
-              <input type="checkbox" checked aria-label="Guantes y tapabocas disponibles - completado" />
+            <label class="checklist-item" role="listitem">
+              <input type="checkbox" aria-label="Guantes y tapabocas disponibles" />
               <span class="custom-checkbox" aria-hidden="true">✓</span>
               <span>Guantes y tapabocas disponibles</span>
             </label>
@@ -90,91 +159,159 @@
             <label class="checklist-item" role="listitem">
               <input type="checkbox" aria-label="Radiografías cargadas en el sistema" />
               <span class="custom-checkbox" aria-hidden="true">✓</span>
-              <span>Radiografías cargadas en el sistema</span>
+              <span>Radiografías / documentos cargados</span>
             </label>
             <label class="checklist-item" role="listitem">
-              <input type="checkbox" aria-label="Materiales de resina preparados" />
+              <input type="checkbox" aria-label="Materiales y equipos preparados" />
               <span class="custom-checkbox" aria-hidden="true">✓</span>
-              <span>Materiales de resina preparados</span>
+              <span>Materiales y equipos preparados</span>
             </label>
             <label class="checklist-item" role="listitem">
-              <input type="checkbox" aria-label="Lámpara de fotocurado verificada" />
+              <input type="checkbox" aria-label="Alertas del paciente informadas al profesional" />
               <span class="custom-checkbox" aria-hidden="true">✓</span>
-              <span>Lámpara de fotocurado verificada</span>
+              <span>Alertas del paciente informadas al profesional</span>
             </label>
           </div>
 
           <div class="divider" aria-hidden="true"></div>
 
-          <!-- Campo de observaciones -->
           <label class="observations-label" for="observations">Observaciones de preparación</label>
           <textarea class="observations-textarea" id="observations"
-            placeholder="Ej: Paciente con alergia a penicilina, se informó al Dr. Méndez..."
+            placeholder="Ej: Paciente con alergia a penicilina, se informó al profesional..."
+            data-i18n-ph="citas.observations_ph"
             aria-label="Observaciones adicionales para la preparación de la consulta"></textarea>
 
-          <!-- Botón de confirmación -->
           <button class="confirm-btn" id="btnConfirmPreparation"
-            aria-label="Confirmar que la preparación está completa">
+                  @(Model.SinCitasHoy ? "disabled" : "")
+                  aria-label="Confirmar que la preparación está completa">
             Confirmar preparación completa
           </button>
         </div>
       </div>
 
-      <!-- Right Sidebar: Información del paciente y consultorio -->
+      <!-- ── Panel lateral con datos reales ── -->
       <div class="content-right">
 
         <!-- Alertas del paciente -->
         <div class="alert-card" aria-labelledby="alertsTitle">
           <div class="alert-card-title" id="alertsTitle">⚠️ ALERTAS DEL PACIENTE</div>
-          <div class="alert-item" role="listitem">
-            <span class="alert-icon" aria-hidden="true">🚨</span>
-            <span><strong>Alergia:</strong> Penicilina</span>
-          </div>
-          <div class="alert-item" role="listitem">
-            <span class="alert-icon" aria-hidden="true">💊</span>
-            <span><strong>Medicamentos:</strong> Enalapril 5mg</span>
-          </div>
-          <div class="alert-item" role="listitem">
-            <span class="alert-icon" aria-hidden="true">🩸</span>
-            <span><strong>Grupo sanguíneo:</strong> O+</span>
-          </div>
+          @if (Model.SinCitasHoy || Model.PacienteId is null)
+          {
+            <div class="alert-item" role="listitem">
+              <span class="alert-icon" aria-hidden="true">ℹ️</span>
+              <span>Sin cita activa — no hay alertas que mostrar.</span>
+            </div>
+          }
+          else
+          {
+            @if (Model.AlergiasLista.Count > 0)
+            {
+              foreach (var a in Model.AlergiasLista)
+              {
+                <div class="alert-item" role="listitem">
+                  <span class="alert-icon" aria-hidden="true">🚨</span>
+                  <span><strong>Alergia:</strong> @a</span>
+                </div>
+              }
+            }
+            else
+            {
+              <div class="alert-item" role="listitem">
+                <span class="alert-icon" aria-hidden="true">✅</span>
+                <span>Sin alergias registradas</span>
+              </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.GrupoSanguineo))
+            {
+              <div class="alert-item" role="listitem">
+                <span class="alert-icon" aria-hidden="true">🩸</span>
+                <span><strong>Grupo sanguíneo:</strong> @Model.GrupoSanguineo</span>
+              </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.AntecedentesMedicos))
+            {
+              <div class="alert-item" role="listitem">
+                <span class="alert-icon" aria-hidden="true">📋</span>
+                <span><strong>Antecedentes:</strong> @Model.AntecedentesMedicos</span>
+              </div>
+            }
+          }
         </div>
 
-        <!-- Datos de la cita -->
+        <!-- Datos de la cita (reales) -->
         <div class="data-card" aria-labelledby="appointmentDataTitle">
           <div class="data-card-title" id="appointmentDataTitle">Datos de la cita</div>
-          <div class="data-row"><strong>Paciente:</strong> Pedro García</div>
-          <div class="data-row"><strong>Profesional:</strong> Dr. Carlos Méndez</div>
-          <div class="data-row"><strong>Servicio:</strong> Control de tratamiento</div>
-          <div class="data-row"><strong>Consultorio:</strong> Consultorio 1- piso 1</div>
-          <div class="data-row"><strong>Duración:</strong> 30 minutos</div>
+          @if (Model.SinCitasHoy)
+          {
+            <div class="data-row">No hay citas programadas para hoy.</div>
+          }
+          else
+          {
+            <div class="data-row"><strong>Paciente:</strong> @Model.PacienteNombre</div>
+            <div class="data-row"><strong>Documento:</strong> @(Model.PacienteDocumento ?? "N/D")</div>
+            <div class="data-row"><strong>Profesional:</strong> @Model.ProfesionalNombre</div>
+            <div class="data-row"><strong>Servicio:</strong> @Model.ServicioNombre</div>
+            <div class="data-row"><strong>Consultorio:</strong> @Model.ConsultorioNombre</div>
+            <div class="data-row">
+              <strong>Hora:</strong>
+              <time datetime="@Model.CitaFechaHora?.ToString("yyyy-MM-ddTHH:mm")">
+                @Model.CitaFechaHora?.ToString("dd MMM yyyy · hh:mm tt")
+              </time>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.CitaNotas))
+            {
+              <div class="data-row"><strong>Notas:</strong> @Model.CitaNotas</div>
+            }
+          }
         </div>
 
-        <!-- Estado del consultorio -->
+        <!-- Indicaciones previas (última nota de la HC) -->
+        @if (!Model.SinCitasHoy && Model.UltimaNotaClinica is not null)
+        {
+          <div class="data-card" aria-labelledby="prevNotasTitle">
+            <div class="data-card-title" id="prevNotasTitle">📋 Última indicación clínica</div>
+            <div class="data-row" style="white-space:pre-wrap;">@Model.UltimaNotaClinica</div>
+            @if (Model.FechaUltimaNota.HasValue)
+            {
+              <div class="data-row" style="font-size:.82rem;color:#64748b;">
+                @Model.FechaUltimaNota.Value.ToString("dd MMM yyyy")
+                @if (Model.ProfesionalUltimaNota is not null)
+                {
+                  <text> · @Model.ProfesionalUltimaNota</text>
+                }
+              </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.CodigoHC))
+            {
+              <a href="/historia-clinica/st-odo-03-historial?pacienteId=@Model.PacienteId"
+                 style="display:inline-block;margin-top:8px;font-size:.82rem;color:#2563eb;text-decoration:none;">
+                🦷 Ver historia clínica completa (@Model.CodigoHC)
+              </a>
+            }
+          </div>
+        }
+
+        <!-- Estado del consultorio (visual estático; el checklist es la fuente real) -->
         <div class="estado-card" aria-labelledby="officeStatusTitle">
           <div class="estado-card-title" id="officeStatusTitle">Estado del consultorio</div>
           <div class="estado-row">
-            <div class="estado-row-left">
-              <span class="estado-icon" aria-hidden="true">🧹</span> Limpieza
-            </div>
-            <span class="status-badge listo" role="status">
-              <span class="status-dot green" aria-hidden="true"></span>Listo
+            <div class="estado-row-left"><span class="estado-icon" aria-hidden="true">🧹</span> Limpieza</div>
+            <span class="status-badge" id="statusLimpieza" role="status">
+              <span class="status-dot" aria-hidden="true"></span><span id="statusLimpiezaTxt">Pendiente</span>
             </span>
           </div>
           <div class="estado-row">
-            <div class="estado-row-left">
-              <span class="estado-icon" aria-hidden="true">🔬</span> Esterilización
-            </div>
-            <span class="status-badge listo" role="status">
-              <span class="status-dot green" aria-hidden="true"></span>Listo
+            <div class="estado-row-left"><span class="estado-icon" aria-hidden="true">🔬</span> Esterilización</div>
+            <span class="status-badge" id="statusEsterilizacion" role="status">
+              <span class="status-dot" aria-hidden="true"></span><span id="statusEsterilizacionTxt">Pendiente</span>
             </span>
           </div>
           <div class="estado-row">
-            <div class="estado-row-left">
-              <span class="estado-icon" aria-hidden="true">⚙️</span> Equipos
-            </div>
-            <span class="status-badge verificando" role="status">
-              <span class="status-dot orange" aria-hidden="true"></span>Verificando
+            <div class="estado-row-left"><span class="estado-icon" aria-hidden="true">⚙️</span> Materiales</div>
+            <span class="status-badge" id="statusMateriales" role="status">
+              <span class="status-dot" aria-hidden="true"></span><span id="statusMaterialesTxt">Pendiente</span>
             </span>
           </div>
         </div>
@@ -184,37 +321,32 @@
 
   </main>
 
-  <!-- Toast para notificaciones temporales -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Estilos para contenido solo accesible por screen readers -->
+  <!-- Mobile nav -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
+      <span>Panel</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item active" aria-current="page">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+      <span>Agenda</span>
+    </a>
+    <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">check_circle</span>
+      <span>Finalizadas</span>
+    </a>
+    <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
+      <span>Perfil</span>
+    </a>
+  </nav>
+
   <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
+    .skip-link { position:absolute;top:-40px;left:0;background:var(--primary);color:#fff;padding:8px 16px;z-index:1000;transition:top .15s; }
+    .skip-link:focus { top:0; }
+    .visually-hidden { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
   </style>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
@@ -227,12 +359,16 @@
     <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
 
-  <script src="@Url.Content("~/js/Gestion_De_Pacientes/st-aux-03-preparacion-consulta/preparacion.js")"></script>
+  @* Inyectar config real para el JS *@
+  <script>
+    window.smiletrackPreparacionConfig = @Html.Raw(configJson);
+  </script>
 
+  <script src="@Url.Content("~/js/Gestion_De_Pacientes/st-aux-03-preparacion-consulta/preparacion.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
-
 </html>
-

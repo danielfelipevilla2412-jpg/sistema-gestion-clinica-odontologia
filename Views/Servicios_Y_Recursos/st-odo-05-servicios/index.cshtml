@@ -42,9 +42,10 @@
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 <body class="bg-surface text-gray-800 font-body">
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded focus:z-50">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded focus:z-50" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
 
@@ -62,19 +63,19 @@
     <!-- Header con breadcrumb -->
     <header class="mb-8">
       <nav class="text-xs text-gray-500 mb-2" aria-label="Breadcrumb">
-        <span>Odontólogo</span>
+        <span data-i18n="common_role_profesional">Odontólogo</span>
         <span class="mx-1">→</span>
         <span>Historia clínica</span>
         <span class="mx-1">→</span>
-        <span class="text-primary font-semibold">Servicios prestados</span>
+        <span class="text-primary font-semibold" data-i18n="servicios.title">Servicios prestados</span>
       </nav>
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 class="text-2xl sm:text-3xl font-display font-bold text-primary">Servicios Prestados</h1>
+          <h1 class="text-2xl sm:text-3xl font-display font-bold text-primary" data-i18n="servicios.title">Servicios Prestados</h1>
           <p class="text-sm text-gray-600 mt-1">Cita del 20 Mar 2026 · Pedro García · Dr. Carlos Méndez</p>
         </div>
-        <button id="btnAddService" class="bg-primary hover:bg-blue-600 text-white px-5 sm:px-6 py-2.5 rounded-lg font-display font-semibold flex items-center justify-center gap-2 transition-all shadow-md w-full md:w-auto" aria-label="Agregar nuevo servicio">
-          <span class="text-xl leading-none" aria-hidden="true">+</span> Agregar servicio
+        <button id="btnAddService" class="bg-primary hover:bg-blue-600 text-white px-5 sm:px-6 py-2.5 rounded-lg font-display font-semibold flex items-center justify-center gap-2 transition-all shadow-md w-full md:w-auto" aria-label="Agregar nuevo servicio" data-i18n-aria-label="servicios.new">
+          <span class="text-xl leading-none" aria-hidden="true">+</span> <span data-i18n="servicios.new">Agregar servicio</span>
         </button>
       </div>
     </header>
@@ -213,6 +214,8 @@
 
   <script src="@Url.Content("~/js/Servicios_Y_Recursos/st-odo-05-servicios/servicios.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>

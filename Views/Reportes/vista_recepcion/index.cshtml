@@ -1,0 +1,442 @@
+@model SmileTrack_MVC.Models.ViewModels.ReportesOperativosViewModel
+@using System.Globalization
+@{
+    Layout = null;
+    ViewData["Title"] = "Reportes Operativos";
+    // es-CO usa "." como separador de miles (ej. $12.450).
+    var moneyCulture = CultureInfo.GetCultureInfo("es-CO");
+}
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Reportes operativos del portal de recepción SmileTrack." />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>SmileTrack — @ViewData["Title"]</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Reportes/vista_recepcion/styles.css")" />
+</head>
+
+<body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
+  <!-- Skip link accesibilidad -->
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+  @if (TempData["ErrorValidacion"] != null)
+  {
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const toast = document.getElementById('toast');
+          if (toast) {
+            toast.textContent = '⚠️ @TempData["ErrorValidacion"]';
+            toast.className = 'toast warning show';
+            setTimeout(() => toast.classList.remove('show'), 4500);
+          }
+        });
+      </script>
+}
+  <!-- ═════ SIDEBAR ═════ -->
+ @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
+  <!-- ═════ HAMBURGER (móvil) ═════ -->
+  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- ═════ MAIN ═════ -->
+  <main class="main" id="main-content">
+
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>Recepción</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-active">Reportes Operativos</span>
+        </nav>
+        <h1 class="page-title" data-i18n="nav.group_reportes_analitica">Reportes Operativos</h1>
+        <p class="page-subtitle">Vista operativa detallada para hoy · Portal de Recepción</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn-sm js-crear-cita">+ Crear Cita</button>
+      </div>
+    </header>
+
+    <!-- KPIs Grid -->
+    <section class="stats-grid" aria-label="Indicadores clave">
+      @{ var kpiColors = new[] { "blue", "green", "purple", "orange", "red", "teal" }; var kpiIndex = 0; }
+      @foreach (var kpi in Model.Kpis)
+      {
+        var color = kpi.ColorVariant switch
+        {
+            "error" => "red",
+            "primary" => "blue",
+            "secondary" => "teal",
+            "tertiary" => "purple",
+            _ => kpiColors[kpiIndex % kpiColors.Length]
+        };
+        <div class="stat-card" data-color="@color">
+          <span class="stat-number">@kpi.Value</span>
+          <span class="stat-label">@kpi.Label</span>
+          <span class="stat-sub">@kpi.Subtitle</span>
+        </div>
+        kpiIndex++;
+      }
+    </section>
+
+    <!-- Content Grid -->
+    <div class="content-grid">
+
+      <!-- Left Column -->
+      <div class="content-grid__left">
+
+        <!-- Agenda del Día -->
+        <section class="table-section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Agenda de Turnos</h2>
+              <p class="section-subtitle">Vista operativa detallada para hoy</p>
+            </div>
+            <button type="button" class="btn-sm js-crear-cita">+ Crear Cita</button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Hora</th>
+                  <th>Profesional</th>
+                  <th>Servicio</th>
+                  <th>Estado</th>
+                  <th style="text-align:right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach (var cita in Model.Agenda)
+                {
+                  <tr class="@(cita.IsCancelled ? "row--cancelled" : "")">
+                    <td class="cell-time">@cita.Time</td>
+                    <td>@cita.Professional</td>
+                    <td>@cita.Service</td>
+                    <td>
+                      @{
+                        var pillClass = cita.StatusVariant switch
+                          {
+                              "neutral"   => "status-pill--neutral",
+                              "secondary" => "status-pill--green",
+                              "green"     => "status-pill--green",
+                              "blue"      => "status-pill--blue",
+                              "orange"    => "status-pill--orange",
+                              "red"       => "status-pill--red",
+                              "purple"    => "status-pill--purple",
+                              "error"     => "status-pill--red",
+                              "primary"   => "status-pill--blue",
+                              _           => "status-pill--neutral"
+                          };
+                      }
+                      <span class="status-pill @pillClass">@cita.Status</span>
+                    </td>
+                    <td>
+                      @if (cita.IsCancelled)
+                        {
+                          <div class="row-actions row-actions--always">
+                            <button type="button" class="btn-icon-sm js-reprogramar" title="Reprogramar"
+                                    data-id="@cita.IdCita" data-paciente="@cita.IdPaciente" data-profesional="@cita.IdProfesional"
+                                    data-servicio="@cita.IdServicio" data-profesional-nombre="@cita.Professional" data-servicio-nombre="@cita.Service">🔄</button>
+                          </div>
+                        }
+                        else
+                        {
+                          <div class="row-actions">
+                            <button type="button" class="btn-icon-sm js-reprogramar" title="Reprogramar"
+                                    data-id="@cita.IdCita" data-paciente="@cita.IdPaciente" data-profesional="@cita.IdProfesional"
+                                    data-servicio="@cita.IdServicio" data-profesional-nombre="@cita.Professional" data-servicio-nombre="@cita.Service">📅</button>
+                            <button type="button" class="btn-icon-sm btn-icon-sm--danger js-cancelar" title="Cancelar"
+                                    data-id="@cita.IdCita" data-profesional-nombre="@cita.Professional" data-servicio-nombre="@cita.Service" data-hora="@cita.Time">❌</button>
+                          </div>
+                        }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Pacientes Recientes -->
+        <section class="table-section">
+          <div class="section-header">
+            <h2 class="section-title">Pacientes Recientes</h2>
+            <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="btn-link">Ver todos →</a>
+          </div>
+          <div class="patient-grid">
+            @foreach (var p in Model.PacientesRecientes)
+            {
+              var avatarClass = p.AvatarColorVariant switch
+              {
+                  "primary"   => "patient-avatar--blue",
+                  "secondary" => "patient-avatar--teal",
+                  "tertiary"  => "patient-avatar--purple",
+                  "error"     => "patient-avatar--red",
+                  "green"     => "patient-avatar--green",
+                  "orange"    => "patient-avatar--orange",
+                  "blue"      => "patient-avatar--blue",
+                  "purple"    => "patient-avatar--purple",
+                  "teal"      => "patient-avatar--teal",
+                  "red"       => "patient-avatar--red",
+                  _           => "patient-avatar--blue"
+              };
+              <div class="patient-card">
+                <div class="patient-avatar @avatarClass">@p.Initials</div>
+                <div class="patient-info">
+                  <span class="patient-name">@p.Name</span>
+                  <span class="patient-contact">@p.ContactInfo</span>
+                </div>
+                <button type="button" class="btn-icon-sm js-editar-paciente" title="Editar"
+                  data-id="@p.IdPaciente" data-nombre="@p.Name" data-contacto="@p.ContactInfo">✏️</button>
+              </div>
+            }
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Right Column: Panel de Cobros -->
+      <div class="cobro-card-wrapper">
+        <section class="table-section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Registro de Cobros</h2>
+              <p class="section-subtitle">Últimos movimientos del turno</p>
+            </div>
+          </div>
+
+          <div class="cobro-list">
+            @foreach (var cobro in Model.Cobros)
+            {
+              var iconColorClass = cobro.IconColorVariant switch
+              {
+                  "green"   => "cobro-method__icon--green",
+                  "blue"    => "cobro-method__icon--blue",
+                  "primary" => "cobro-method__icon--blue",
+                  "purple"  => "cobro-method__icon--purple",
+                  "orange"  => "cobro-method__icon--orange",
+                  _         => "cobro-method__icon--blue"
+              };
+              <div class="cobro-item">
+                <div class="cobro-item__top">
+                  <span class="cobro-method">
+                    <span class="cobro-method__icon @iconColorClass">@cobro.Icon</span>
+                    @cobro.Method
+                  </span>
+                  <span class="cobro-amount">$@cobro.Amount.ToString("N0", moneyCulture)</span>
+                </div>
+                <div class="cobro-item__bottom">
+                  <div>
+                    <p class="cobro-patient">@cobro.PatientName</p>
+                    <p class="cobro-folio">Folio: @cobro.Folio</p>
+                  </div>
+                  <span class="cobro-time">@cobro.Time</span>
+                </div>
+              </div>
+            }
+
+            <!-- Morosos -->
+            <div class="morosos-section">
+              <h3 class="morosos-title">⚠️ Saldos Pendientes Hoy</h3>
+              <div class="morosos-list">
+                @foreach (var saldo in Model.SaldosPendientes)
+                {
+                  <div class="moroso-row">
+                    <div class="moroso-row__info">
+                      <span class="patient-name">@saldo.PatientName</span>
+                      <p class="moroso-amount">-$@saldo.Amount.ToString("N0", moneyCulture)</p>
+                    </div>
+                    <a href="/facturacion-y-pagos/st-rec-04-generar-factura" class="btn-collect">Cobrar</a>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- Cierre parcial de caja -->
+          <div class="caja-footer">
+            <div class="caja-footer__row">
+              <span class="caja-footer__label">Cierre parcial caja</span>
+              <span class="caja-footer__total">$@Model.CierreParcialCaja.ToString("N0", moneyCulture)</span>
+            </div>
+            <button type="button" class="btn-secondary--teal btn-primary--full js-conciliar">Conciliar Turno Mañana</button>
+          </div>
+        </section>
+      </div>
+
+    </div>
+    <!-- Modal: Crear Cita (real, POST a /gestion-de-citas/guardar-cita) -->
+<div class="modal-overlay" id="modalCrearCita" hidden aria-hidden="true">
+  <div class="modal">
+    <button type="button" class="modal-close" data-modal-close="modalCrearCita" aria-label="Cerrar">&times;</button>
+    <h3 class="modal-title">Crear nueva cita</h3>
+    <p class="modal-desc">Se guardará directamente en la agenda.</p>
+    <form method="post" action="/gestion-de-citas/guardar-cita">
+      @Html.AntiForgeryToken()
+      <input type="hidden" name="ReturnUrl" value="/reportes/vista-recepcion" />
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="ccPaciente">Paciente</label>
+          <select class="form-input" id="ccPaciente" name="IdPaciente" required>
+            <option value="">Selecciona un paciente...</option>
+            @foreach (var p in Model.PacientesDisponibles)
+            {
+              <option value="@p.Id">@p.Nombre</option>
+            }
+          </select>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="ccProfesional">Profesional</label>
+            <select class="form-input" id="ccProfesional" name="IdProfesional" required>
+              <option value="">Selecciona...</option>
+              @foreach (var p in Model.ProfesionalesDisponibles)
+              {
+                <option value="@p.Id">@p.Nombre</option>
+              }
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ccServicio">Servicio</label>
+            <select class="form-input" id="ccServicio" name="IdServicio">
+              <option value="">Selecciona...</option>
+              @foreach (var s in Model.ServiciosDisponibles)
+              {
+                <option value="@s.Id">@s.Nombre</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="ccFecha">Fecha</label>
+            <input class="form-input" id="ccFecha" name="Fecha" type="date" required>
+          </div>
+          <div class="form-group">
+            <label for="ccHora">Hora</label>
+            <input class="form-input" id="ccHora" name="HoraInicio" type="time" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="ccNotas">Notas (opcional)</label>
+          <input class="form-input" id="ccNotas" name="Notas" type="text" maxlength="500">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-modal-close="modalCrearCita">Cancelar</button>
+        <button type="submit" class="btn-primary">Guardar cita</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Reprogramar (real, POST a /gestion-de-citas/guardar-cita en modo actualización) -->
+<div class="modal-overlay" id="modalReprogramar" hidden aria-hidden="true">
+  <div class="modal">
+    <button type="button" class="modal-close" data-modal-close="modalReprogramar" aria-label="Cerrar">&times;</button>
+    <h3 class="modal-title">Reprogramar cita</h3>
+    <p class="modal-desc" id="reprogramarDesc">Elige la nueva fecha y hora.</p>
+    <form method="post" action="/gestion-de-citas/guardar-cita" id="formReprogramar">
+      @Html.AntiForgeryToken()
+      <input type="hidden" name="ReturnUrl" value="/reportes/vista-recepcion" />
+      <input type="hidden" name="IdCita" id="rpIdCita">
+      <input type="hidden" name="IdPaciente" id="rpIdPaciente">
+      <input type="hidden" name="IdProfesional" id="rpIdProfesional">
+      <input type="hidden" name="IdServicio" id="rpIdServicio">
+      <div class="modal-body">
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="rpFecha">Nueva fecha</label>
+            <input class="form-input" id="rpFecha" name="Fecha" type="date" required>
+          </div>
+          <div class="form-group">
+            <label for="rpHora">Nueva hora</label>
+            <input class="form-input" id="rpHora" name="HoraInicio" type="time" required>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-modal-close="modalReprogramar">Cancelar</button>
+        <button type="submit" class="btn-primary">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Cancelar (real, POST a /gestion-de-citas/eliminar-cita) -->
+<div class="modal-overlay" id="modalCancelar" hidden aria-hidden="true">
+  <div class="modal">
+    <button type="button" class="modal-close" data-modal-close="modalCancelar" aria-label="Cerrar">&times;</button>
+    <h3 class="modal-title">Cancelar cita</h3>
+    <p class="modal-desc modal-desc--danger" id="cancelarDesc">¿Seguro que deseas cancelar esta cita? Esta acción no se puede deshacer.</p>
+    <form method="post" action="/gestion-de-citas/eliminar-cita">
+      @Html.AntiForgeryToken()
+      <input type="hidden" name="ReturnUrl" value="/reportes/vista-recepcion" />
+      <input type="hidden" name="IdCita" id="cnIdCita">
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-modal-close="modalCancelar">Volver</button>
+        <button type="submit" class="btn-primary" style="background:var(--red);">Sí, cancelar cita</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Conciliar turno (confirmación visual, no persiste en BD) -->
+<div class="modal-overlay" id="modalConciliar" hidden aria-hidden="true">
+  <div class="modal">
+    <button type="button" class="modal-close" data-modal-close="modalConciliar" aria-label="Cerrar">&times;</button>
+    <h3 class="modal-title">Conciliar turno</h3>
+    <p class="modal-desc">
+      Vas a cerrar el turno actual con un total recaudado de
+      <strong>$@Model.CierreParcialCaja.ToString("N0", moneyCulture)</strong>.
+      Verifica que el efectivo y los pagos con tarjeta coincidan con este monto antes de confirmar.
+    </p>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" data-modal-close="modalConciliar">Cancelar</button>
+      <button type="button" class="btn-primary" id="btnConfirmarConciliar">Sí, conciliar turno</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar paciente (informativo, con link a la gestión completa) -->
+<div class="modal-overlay" id="modalEditarPaciente" hidden aria-hidden="true">
+  <div class="modal">
+    <button type="button" class="modal-close" data-modal-close="modalEditarPaciente" aria-label="Cerrar">&times;</button>
+    <h3 class="modal-title">Datos del paciente</h3>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Nombre</label>
+        <div class="form-input" id="epNombre" style="background:var(--bg);"></div>
+      </div>
+      <div class="form-group">
+        <label>Contacto</label>
+        <div class="form-input" id="epContacto" style="background:var(--bg);"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" data-modal-close="modalEditarPaciente">Cerrar</button>
+      <a class="btn-primary" href="/gestion-de-pacientes/st-adm-05-gestion-pacientes">Editar en Gestión de Pacientes</a>
+    </div>
+  </div>
+</div>
+  </main>
+
+<script src="@Url.Content("~/js/Reportes/vista_recepcion/main.js")"></script>
+<script src="@Url.Content("~/js/i18n-core.js")"></script>
+<script src="@Url.Content("~/js/i18n.config.js")"></script>
+</body>
+</html>

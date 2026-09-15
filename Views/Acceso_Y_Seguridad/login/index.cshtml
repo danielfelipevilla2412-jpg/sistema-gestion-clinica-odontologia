@@ -1,20 +1,53 @@
-﻿@removeTagHelper "Microsoft.AspNetCore.Mvc.TagHelpers.BodyTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers"
+@* ============================================
+   SmileTrack — Autenticación e Inicio de Sesión (login/index.cshtml)
+   ============================================
+   Autor: Johan Santamaria / SmileTrack Team
+   Fecha: 29/07/2026 (Actualizado 2026-09-12)
+
+   DESCRIPCIÓN Y POR QUÉ DE NEGOCIO Y SEGURIDAD:
+   Esta vista gestiona el punto de acceso seguro (Login) para todos los roles del sistema
+   (Administrador, Profesional, Paciente, Recepcionista y Auxiliar). Su diseño garantiza que la
+   autenticación sea explícita respecto al rol seleccionado por el usuario, evitando suplantaciones y
+   permitiendo la redirección directa al dashboard o panel operativo correspondiente.
+
+   FUNCIONALIDADES CLAVE:
+   - Selección de Rol interactiva mediante botones tipo radio accesible (`data-role`).
+   - Formulario de credenciales (Correo electrónico + Contraseña) con toggle de visibilidad.
+   - Procesamiento de mensajes de error de autenticación provenientes de ModelState / ViewData.
+   - Enlaces de navegación rápida hacia Recuperación de Contraseña y Registro de Pacientes.
+
+   SEGURIDAD Y ACCESIBILIDAD:
+   - Inyección implícita/explícita de tokens Antiforgery contra ataques CSRF.
+   - Modal de error accesible (`#authErrorModal`) anunciado mediante `aria-live` y `role="dialog"`.
+   - Etiquetas dinámicas con atributos i18n (`data-i18n`) para soporte multi-idioma.
+
+   DEPENDENCIAS TÉCNICAS:
+   - Controller: AccesoSeguridadController -> Login (GET / POST)
+   - CSS: ~/css/Acceso_Y_Seguridad/login/login.css
+   - JS: ~/js/Acceso_Y_Seguridad/login/login.js
+============================================ *@
+@removeTagHelper "Microsoft.AspNetCore.Mvc.TagHelpers.BodyTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers"
 @{
     Layout = null;
+
+    @* Captura de mensajes de error devueltos desde AccesoSeguridadController C# *@
     var mensajeErrorServidor = "";
     var errorStatus = 0;
     var successMessage = string.Empty;
 
+    @* Estado HTTP devuelto por la API o el controlador C# (401 = no autorizado, 403 = bloqueado/prohibido) *@
     if (ViewData["ErrorStatus"] is int statusCode)
     {
         errorStatus = statusCode;
     }
 
+    @* Mensaje de éxito tras restablecer contraseña o registrarse *@
     if (TempData["SuccessMessage"] is string tempSuccess)
     {
         successMessage = tempSuccess;
     }
 
+    @* Extracción del primer error de ModelState para mostrar alerta inline *@
     foreach (var estadoModelo in ViewData.ModelState.Values)
     {
         foreach (var error in estadoModelo.Errors)
@@ -23,13 +56,13 @@
         }
     }
 
-    // showAuthModal: solo se activa cuando el servidor devuelve 401 o 403
-    // (credenciales inválidas o cuenta bloqueada), NUNCA para errores de campos
-    // vacíos (status 0) ni errores de servidor (500).
+    @* 
+      POR QUÉ: showAuthModal solo se activa para respuestas HTTP 401 o 403 del servidor (credenciales inválidas o cuenta bloqueada).
+      Esto previene mostrar el modal emergente en caso de simples campos vacíos en el cliente o errores 500 de servidor.
+    *@
     var showAuthModal = errorStatus is 401 or 403;
 
-    // El error-box inline solo se muestra para errores que NO son de credenciales
-    // (campos vacíos, rol inválido, etc.) para evitar duplicar el mismo mensaje.
+    @* El mensaje inline solo se muestra si NO es un error credencial para evitar duplicar mensajes de error al usuario *@
     var mensajeInline = showAuthModal ? string.Empty : mensajeErrorServidor;
     var infoMessage = string.Empty;
     if (TempData["InfoMessage"] is string tempInfo)
@@ -43,94 +76,118 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Inicia sesión en SmileTrack para acceder a tu cuenta y gestionar tus citas, historial y más.">
-  <title>SmileTrack — Iniciar Sesión</title>
+  <meta name="description" data-i18n="login.meta_description" content="Inicia sesión en SmileTrack para acceder a tu cuenta y gestionar tus citas, historial y más.">
+  <title data-i18n="login.page_title">SmileTrack — Iniciar Sesión</title>
+  
+  @* Fuentes corporativas Google Fonts y Material Symbols Icon Set *@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  
+  @* Estilos en CSS puro de Login *@
   <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/login/login.css")">
 </head>
 <body data-error-status="@errorStatus">
+  
+  @* Fondo institucional clínico con efecto superpuesto *@
   <div class="login-bg">
     <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1920&q=80" alt="Clínica dental" class="bg-img">
     <div class="bg-overlay"></div>
   </div>
 
-  <a href="/" class="back-link" aria-label="Volver al inicio">
+  @* Conmutador internacional de idioma (ES / EN) — banderas + partial reutilizable *@
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
+  @* Enlace de retorno a la página pública principal *@
+  <a href="/" class="back-link" data-i18n-aria-label="common.back_to_home" aria-label="Volver al inicio">
     <span class="material-symbols-outlined back-arrow" aria-hidden="true">arrow_back</span>
-    <span>Volver al inicio</span>
+    <span data-i18n="common.back_to_home">Volver al inicio</span>
   </a>
 
   <main class="login-main" role="main">
     <div class="login-card">
+      @* Encabezado y Marca SmileTrack *@
       <div class="login-header">
         <div class="logo-wrap">
           <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="Logo SmileTrack" class="logo-img">
         </div>
-        <h1 class="login-title">SmileTrack</h1>
-        <p class="login-subtitle">Sistema de Gestión Odontológica</p>
+        <h1 class="login-title" data-i18n="common.smiletrack">SmileTrack</h1>
+        <p class="login-subtitle" data-i18n="login.subtitle">Sistema de Gestión Odontológica</p>
       </div>
 
+      @* 
+        SELECCIÓN DE ROL:
+        POR QUÉ: Permite al usuario declarar explícitamente el perfil con el que desea ingresar.
+        El backend valida estrictamente que la cuenta de usuario posea el rol seleccionado antes de autorizar.
+      *@
       <div class="login-section">
-        <p class="section-label" id="roleLabel">Selecciona tu rol</p>
+        <p class="section-label" id="roleLabel" data-i18n="login.select_role">Selecciona tu rol</p>
         <div class="role-grid" role="radiogroup" aria-labelledby="roleLabel">
-          <button class="role-btn" type="button" data-role="administrador" data-role-label="Administrador" role="radio" aria-label="Ingresar como Administrador">
-            <span class="role-text">Administrador</span>
+          <button class="role-btn" type="button" data-role="administrador" data-role-label="Administrador" role="radio" data-i18n-aria-label="login.role_aria_admin" aria-label="Ingresar como Administrador">
+            <span class="role-text" data-i18n="login.role_admin">Administrador</span>
           </button>
-          <button class="role-btn" type="button" data-role="profesional" data-role-label="Profesional" role="radio" aria-label="Ingresar como Profesional">
-            <span class="role-text">Profesional</span>
+          <button class="role-btn" type="button" data-role="profesional" data-role-label="Profesional" role="radio" data-i18n-aria-label="login.role_aria_profesional" aria-label="Ingresar como Profesional">
+            <span class="role-text" data-i18n="login.role_profesional">Profesional</span>
           </button>
-          <button class="role-btn" type="button" data-role="paciente" data-role-label="Paciente" role="radio" aria-label="Ingresar como Paciente">
-            <span class="role-text">Paciente</span>
+          <button class="role-btn" type="button" data-role="paciente" data-role-label="Paciente" role="radio" data-i18n-aria-label="login.role_aria_paciente" aria-label="Ingresar como Paciente">
+            <span class="role-text" data-i18n="login.role_paciente">Paciente</span>
           </button>
-          <button class="role-btn" type="button" data-role="recepcionista" data-role-label="Recepcionista" role="radio" aria-label="Ingresar como Recepcionista">
-            <span class="role-text">Recepcionista</span>
+          <button class="role-btn" type="button" data-role="recepcionista" data-role-label="Recepcionista" role="radio" data-i18n-aria-label="login.role_aria_recepcionista" aria-label="Ingresar como Recepcionista">
+            <span class="role-text" data-i18n="login.role_recepcionista">Recepcionista</span>
           </button>
-          <button class="role-btn" type="button" data-role="auxiliar" data-role-label="Auxiliar" role="radio" aria-label="Ingresar como Auxiliar">
-            <span class="role-text">Auxiliar</span>
+          <button class="role-btn" type="button" data-role="auxiliar" data-role-label="Auxiliar" role="radio" data-i18n-aria-label="login.role_aria_auxiliar" aria-label="Ingresar como Auxiliar">
+            <span class="role-text" data-i18n="login.role_auxiliar">Auxiliar</span>
           </button>
         </div>
       </div>
 
+      @* Formulario principal POST *@
       <form id="loginForm" class="login-form" action="/acceso-y-seguridad/login" method="post" novalidate>
+        @* Protege contra Cross-Site Request Forgery *@
         @Html.AntiForgeryToken()
+        
+        @* Inyección del rol seleccionado por el script login.js *@
         <input type="hidden" name="rol" id="selectedRole" value="Profesional" />
         <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
 
+        @* Campo Correo Electrónico *@
         <div class="form-group">
           <label class="form-label" for="email">
-            CORREO ELECTRÓNICO <span class="text-error" aria-hidden="true">*</span>
+            <span data-i18n="login.email_label">CORREO ELECTRÓNICO</span> <span class="text-error" aria-hidden="true">*</span>
           </label>
           <div class="input-wrap">
             <span class="material-symbols-outlined input-icon" aria-hidden="true">mail</span>
-            <input class="form-input" id="email" name="email" placeholder="dr.smith@smiletrack.com" type="email" autocomplete="email" aria-required="true">
+            <input class="form-input" id="email" name="email" data-i18n-ph="login.email_placeholder" placeholder="dr.smith@smiletrack.com" type="email" autocomplete="email" aria-required="true">
           </div>
           <span id="emailError" class="error-msg" role="alert"></span>
         </div>
 
+        @* Campo Contraseña con Toggle de Visibilidad *@
         <div class="form-group">
           <label class="form-label" for="password">
-            CONTRASEÑA <span class="text-error" aria-hidden="true">*</span>
+            <span data-i18n="login.password_label">CONTRASEÑA</span> <span class="text-error" aria-hidden="true">*</span>
           </label>
           <div class="input-wrap">
             <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
-            <input class="form-input" id="password" name="password" placeholder="••••••••" type="password" autocomplete="current-password" aria-required="true" required>
-            <button id="togglePassword" class="toggle-pass" type="button" aria-label="Mostrar contraseña" aria-pressed="false">
+            <input class="form-input" id="password" name="password" data-i18n-ph="login.password_placeholder" placeholder="••••••••" type="password" autocomplete="current-password" aria-required="true" required>
+            <button id="togglePassword" class="toggle-pass" type="button" data-i18n-aria-label="login.show_password" aria-label="Mostrar contraseña" aria-pressed="false">
               <span id="toggleIcon" class="material-symbols-outlined" aria-hidden="true">visibility</span>
             </button>
           </div>
         </div>
 
+        @* Opciones adicionales y enlace de recuperación *@
         <div class="form-options">
           <label class="checkbox-wrap">
             <input class="checkbox-input" type="checkbox" id="rememberMe" name="remember">
             <span class="checkbox-custom"></span>
-            <span class="checkbox-label">Recordarme</span>
+            <span class="checkbox-label" data-i18n="login.remember_me">Recordarme</span>
           </label>
-          <a class="link-forgot" href="/acceso-y-seguridad/recover">¿Olvidaste tu contraseña?</a>
+          <a class="link-forgot" href="/acceso-y-seguridad/recover" data-i18n="login.forgot_password">¿Olvidaste tu contraseña?</a>
         </div>
 
+        @* Cajas de alertas inline para errores, éxito o mensajes informativos *@
         <div id="errorMsg" class="error-box @(string.IsNullOrEmpty(mensajeInline) ? "hidden" : "")" role="alert" aria-live="assertive">
           <span class="material-symbols-outlined" aria-hidden="true">error</span>
           <span id="errorText">@mensajeInline</span>
@@ -146,15 +203,17 @@
           <span id="infoText">@infoMessage</span>
         </div>
 
+        @* Botón Submit con estado visual aria-busy *@
         <button id="loginBtn" class="btn-login" type="submit" aria-busy="false">
           <span class="material-symbols-outlined" aria-hidden="true">login</span>
-          <span id="btnText">Iniciar Sesión</span>
+          <span id="btnText" data-i18n="login.button_submit">Iniciar Sesión</span>
         </button>
 
+        @* Enlace a Registro para Pacientes nuevos *@
         <div class="form-footer">
           <p class="footer-text">
-            ¿No tienes cuenta?
-            <a class="link-register" href="/acceso-y-seguridad/register">Regístrate aquí</a>
+            <span data-i18n="login.no_account">¿No tienes cuenta?</span>
+            <a class="link-register" href="/acceso-y-seguridad/register" data-i18n="login.register_here">Regístrate aquí</a>
           </p>
         </div>
       </form>
@@ -163,19 +222,16 @@
     <footer class="login-footer">
       <p class="footer-badge">
         <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
-        Portal Clínico Seguro · v2.4.0
+        <span data-i18n="login.footer_badge">Portal Clínico Seguro · v2.4.0</span>
       </p>
     </footer>
   </main>
 
-  <!--
-    Modal de error de credenciales:
-    - Se activa solo cuando el servidor devuelve HTTP 401 (credenciales incorrectas)
-      o HTTP 403 (cuenta bloqueada). No se muestra para otros tipos de error.
-    - inert: bloquea el foco del teclado cuando el modal está cerrado (WCAG 2.1).
-    - aria-hidden="true" lo oculta de lectores de pantalla cuando está cerrado.
-    - El mensaje siempre muestra el texto exacto requerido, en minúsculas.
-  -->
+  @*
+    MODAL DE ERROR DE AUTENTICACIÓN (WCAG 2.1 AA):
+    POR QUÉ: Se despliega cuando el backend retorna 401 (credenciales incorrectas) o 403 (bloqueado).
+    Utiliza inert cuando está cerrado para bloquear el foco del teclado y prevenir trampas de foco.
+  *@
   <div
     id="authErrorModal"
     class="modal-overlay @(showAuthModal ? "" : "hidden")"
@@ -187,23 +243,25 @@
     @(showAuthModal ? "" : "inert")>
     <div class="modal-box">
       <div class="modal-header">
-        <h2 id="authErrorTitle">Error de autenticación</h2>
-        <button type="button" id="authErrorClose" class="modal-close" aria-label="Cerrar ventana">×</button>
+        <h2 id="authErrorTitle" data-i18n="login.auth_error_title">Error de autenticación</h2>
+        <button type="button" id="authErrorClose" class="modal-close" data-i18n-aria-label="login.auth_error_close_aria" aria-label="Cerrar ventana">×</button>
       </div>
       <div class="modal-body">
-        <!-- Mensaje exacto requerido. Se muestra en minúsculas según especificación. -->
-        <p id="authErrorMessage">correo o contraseña incorrectos</p>
+        <p id="authErrorMessage" data-i18n="login.auth_error_message">correo o contraseña incorrectos</p>
       </div>
       <div class="modal-footer">
-        <button type="button" id="authErrorCloseBtn" class="btn-secondary">Cerrar</button>
+        <button type="button" id="authErrorCloseBtn" class="btn-secondary" data-i18n="login.auth_error_button">Cerrar</button>
       </div>
     </div>
   </div>
 
+  @* Scripts de internacionalización i18n, utilidades y parciales del sistema *@
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
   <script src="@Url.Content("~/js/shared/validation-utils.js")" defer></script>
   <script src="@Url.Content("~/js/Acceso_Y_Seguridad/login/login.js")" defer></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+
 </body>
 </html>
-

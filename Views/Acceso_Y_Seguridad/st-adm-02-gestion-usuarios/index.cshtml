@@ -21,9 +21,10 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="nav.skip_link">Saltar al contenido principal</a>
 
   <!-- ═════ SIDEBAR UNIFICADO (Activo: Gestión Usuarios) ═════ -->
    <!-- ═════ SIDEBAR UNIFICADO - ADMINISTRADOR (Con módulos desplegables) ═════ -->
@@ -44,65 +45,65 @@
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Administración</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
+          <span data-i18n="nav.group_acceso">Administración</span>
           <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Gestión de Usuarios</span>
+          <span class="bc-active" data-i18n="nav.gestion_usuarios">Gestión de Usuarios</span>
         </nav>
-        <h1 class="page-title">Gestión de Usuarios</h1>
-        <p class="page-subtitle">Administra usuarios y roles del sistema SmileTrack</p>
+        <h1 class="page-title" data-i18n="nav.gestion_usuarios">Gestión de Usuarios</h1>
+        <p class="page-subtitle" data-i18n="common.loading">Administra usuarios y roles del sistema SmileTrack</p>
       </div>
-      <button class="btn-primary" id="btnAddUser" aria-label="Crear nuevo usuario">
+      <button class="btn-primary" id="btnAddUser" aria-label="Crear nuevo usuario" data-i18n-aria-label="pacientes.new" data-i18n="pacientes.new">
         + Nuevo usuario
       </button>
     </header>
 
     <!-- Stats Grid -->
-    <section class="stats-grid" aria-label="Estadísticas de usuarios">
+    <section class="stats-grid" aria-label="Estadísticas de usuarios" data-i18n-aria-label="table.filter">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="statTotal" data-target="15" aria-live="polite">0</span>
-        <span class="stat-label">Total usuarios</span>
+        <span class="stat-label" data-i18n="nav.gestion_usuarios">Total usuarios</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="statActive" data-target="12" aria-live="polite">0</span>
-        <span class="stat-label">Activos</span>
+        <span class="stat-label" data-i18n="status.active">Activos</span>
       </div>
       <div class="stat-card" data-color="red">
         <span class="stat-number" id="statBlocked" data-target="2" aria-live="polite">0</span>
-        <span class="stat-label">Bloqueados</span>
+        <span class="stat-label" data-i18n="status.blocked">Bloqueados</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="stat-number" id="statInactive" data-target="1" aria-live="polite">0</span>
-        <span class="stat-label">Inactivos</span>
+        <span class="stat-label" data-i18n="status.inactive">Inactivos</span>
       </div>
     </section>
 
     <!-- Filtros -->
-    <section class="filters-section" aria-label="Filtros de búsqueda">
+    <section class="filters-section" aria-label="Filtros de búsqueda" data-i18n-aria-label="table.filter">
       <div class="filters-row">
         <div class="search-wrap">
           <span class="search-icon" aria-hidden="true">🔍</span>
           <input type="search" id="searchUser" class="search-input" placeholder="Buscar por nombre o correo..."
-            aria-label="Buscar usuario">
+            aria-label="Buscar usuario" data-i18n-ph="table.search" data-i18n-aria-label="table.search">
         </div>
         <div class="filter-wrap">
-          <label for="filterRole" class="visually-hidden">Filtrar por rol</label>
-          <select id="filterRole" class="status-select" aria-label="Filtrar usuarios por rol">
-            <option value="">Todos los roles</option>
-            <option value="Administrador">Administrador</option>
-            <option value="Recepcionista">Recepcionista</option>
-            <option value="Profesional">Profesional</option>
-            <option value="Auxiliar">Auxiliar</option>
-            <option value="Paciente">Paciente</option>
+          <label for="filterRole" class="visually-hidden" data-i18n="nav.gestion_roles">Filtrar por rol</label>
+          <select id="filterRole" class="status-select" aria-label="Filtrar usuarios por rol" data-i18n-aria-label="nav.gestion_roles">
+            <option value="" data-i18n="table.filter">Todos los roles</option>
+            <option value="Administrador" data-i18n="login.role_admin">Administrador</option>
+            <option value="Recepcionista" data-i18n="login.role_recepcionista">Recepcionista</option>
+            <option value="Profesional" data-i18n="login.role_profesional">Profesional</option>
+            <option value="Auxiliar" data-i18n="login.role_auxiliar">Auxiliar</option>
+            <option value="Paciente" data-i18n="login.role_paciente">Paciente</option>
           </select>
         </div>
         <div class="filter-wrap">
-          <label for="filterStatus" class="visually-hidden">Filtrar por estado</label>
-          <select id="filterStatus" class="status-select" aria-label="Filtrar usuarios por estado">
-            <option value="">Todos los estados</option>
-            <option value="Activo">Activo</option>
-            <option value="Inactivo">Inactivo</option>
-            <option value="Bloqueado">Bloqueado</option>
+          <label for="filterStatus" class="visually-hidden" data-i18n="status.active">Filtrar por estado</label>
+          <select id="filterStatus" class="status-select" aria-label="Filtrar usuarios por estado" data-i18n-aria-label="status.active">
+            <option value="" data-i18n="table.filter">Todos los estados</option>
+            <option value="Activo" data-i18n="status.active">Activo</option>
+            <option value="Inactivo" data-i18n="status.inactive">Inactivo</option>
+            <option value="Bloqueado" data-i18n="status.blocked">Bloqueado</option>
           </select>
         </div>
       </div>
@@ -112,15 +113,15 @@
     <section class="table-card" aria-labelledby="usersTitle">
       <h2 class="visually-hidden" id="usersTitle">Lista de usuarios</h2>
       <div class="table-wrap">
-        <table id="usersTable" class="table-base" aria-label="Tabla de usuarios del sistema">
+        <table id="usersTable" class="table-base" aria-label="Tabla de usuarios del sistema" data-i18n-aria-label="table.filter">
           <thead>
             <tr>
-              <th scope="col">USUARIO</th>
-              <th scope="col">CORREO</th>
-              <th scope="col">ROL</th>
-              <th scope="col">ESTADO</th>
-              <th scope="col">ÚLTIMO ACCESO</th>
-              <th scope="col">ACCIONES</th>
+              <th scope="col" data-i18n="common.name">USUARIO</th>
+              <th scope="col" data-i18n="common.email">CORREO</th>
+              <th scope="col" data-i18n="login.role_admin">ROL</th>
+              <th scope="col" data-i18n="status.active">ESTADO</th>
+              <th scope="col" data-i18n="common.last_visit">ÚLTIMO ACCESO</th>
+              <th scope="col" data-i18n="table.actions">ACCIONES</th>
             </tr>
           </thead>
           <tbody id="usersTbody" aria-live="polite">
@@ -130,8 +131,8 @@
       </div>
 
       <!-- Paginación -->
-      <div class="pagination" role="navigation" aria-label="Paginación de usuarios">
-        <span id="paginationInfo" aria-live="polite">Mostrando 1-5 de 15 usuarios</span>
+      <div class="pagination" role="navigation" aria-label="Paginación de usuarios" data-i18n-aria-label="table.page_of">
+        <span id="paginationInfo" aria-live="polite" data-i18n="table.page_of">Mostrando 1-5 de 15 usuarios</span>
         <div class="pagination-buttons" id="paginationButtons">
           <!-- Botones generados por JS -->
         </div>
@@ -274,6 +275,8 @@
 </script>
 <script src="@Url.Content("~/js/Acceso_Y_Seguridad/st-adm-02-gestion-usuarios/script.js")"></script>
     <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>

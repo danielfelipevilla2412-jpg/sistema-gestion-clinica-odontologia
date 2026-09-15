@@ -21,8 +21,14 @@ public class PublicoController : Controller
     [HttpGet]
     [Authorize(Roles = "Administrador")]
     [Route("dev/generar-hash")]
-    public IActionResult GenerarHash(string pwd = "Admin123!")
+    public IActionResult GenerarHash(string? pwd)
     {
+        if (!HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
+            return NotFound();
+
+        if (string.IsNullOrWhiteSpace(pwd))
+            return BadRequest("Debe proporcionar la contraseña que desea convertir en hash.");
+
         string hash = BCrypt.Net.BCrypt.HashPassword(pwd);
         return Content($"Contraseña: {pwd}\nHash: {hash}");
     }

@@ -1,0 +1,139 @@
+@*
+  ═══════════════════════════════════════════════════════════════════
+  Empty State Component - Vista compartida para módulos sin datos
+  ═══════════════════════════════════════════════════════════════════
+  
+  Propósito: Mostrar un estado vacío consistente cuando no hay datos
+  que mostrar en tablas o listas dinámicas.
+  
+  Uso en Razor:
+    @await Html.PartialAsync("_EmptyState", new { 
+        message = "No se encontraron citas",
+        icon = "📅",
+        showIcon = true 
+    })
+  
+  Parámetros:
+    - message (string): Mensaje principal a mostrar
+    - icon (string, opcional): Emoji o símbolo a mostrar (default: 🚫)
+    - showIcon (bool, opcional): Mostrar icono (default: true)
+    - colspan (int, opcional): Atributo colspan para celdas de tabla (default: 6)
+    - className (string, opcional): Clases CSS adicionales
+  
+  Accesibilidad:
+    - role="status" para anunciar cambios a screen readers
+    - aria-label descriptivo
+    - Colores suficientemente contrastados
+  
+  Responsividad:
+    - Adaptado para mobile
+    - Padding consistente
+    
+  Nota: Este componente puede usarse en <td colspan> o en <div> independiente.
+  
+  ═══════════════════════════════════════════════════════════════════
+*@
+
+@{
+    string message = ViewBag.message ?? ViewData["message"] as string ?? "No se encontraron resultados";
+    string icon = ViewBag.icon ?? ViewData["icon"] as string ?? "🚫";
+    bool showIcon = ViewBag.showIcon ?? (ViewData["showIcon"] as bool? ?? true);
+    int colspan = ViewBag.colspan ?? (ViewData["colspan"] as int? ?? 6);
+    string className = ViewBag.className ?? ViewData["className"] as string ?? "";
+}
+
+<tr class="empty-state-row @className" role="row" aria-label="Estado vacío" data-i18n-aria-label="common.info">
+    <td colspan="@colspan" class="empty-state-cell">
+        <div class="empty-state-content" role="status" aria-live="polite">
+            @if (showIcon)
+            {
+                <div class="empty-state-icon" aria-hidden="true">
+                    @icon
+                </div>
+            }
+            
+            <p class="empty-state-message">
+                @message
+            </p>
+        </div>
+    </td>
+</tr>
+
+<style>
+    /* Estilos para el estado vacío - compatible con ambos módulos */
+    .empty-state-row {
+        border: none;
+        background: transparent;
+    }
+
+    .empty-state-cell {
+        text-align: center;
+        padding: 48px 32px !important;
+        border: none;
+        background: var(--bg-secondary, #f8f9fa);
+        border-radius: var(--radius, 8px);
+        margin: 16px 0;
+    }
+
+    .empty-state-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+    }
+
+    .empty-state-icon {
+        font-size: 3.5rem;
+        line-height: 1;
+        opacity: 0.7;
+    }
+
+    .empty-state-message {
+        margin: 0;
+        font-size: 1rem;
+        color: var(--text-muted, #6b7280);
+        font-weight: 500;
+        letter-spacing: 0.4px;
+    }
+
+    /* Responsive */
+    @@media (max-width: 680px) {
+        .empty-state-cell {
+            padding: 32px 16px !important;
+        }
+
+        .empty-state-icon {
+            font-size: 2.5rem;
+        }
+
+        .empty-state-message {
+            font-size: 0.9rem;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .empty-state-cell {
+            padding: 24px 12px !important;
+        }
+
+        .empty-state-icon {
+            font-size: 2rem;
+        }
+
+        .empty-state-message {
+            font-size: 0.85rem;
+        }
+    }
+
+    /* Dark mode support (si se implementa) */
+    @@media (prefers-color-scheme: dark) {
+        .empty-state-cell {
+            background: var(--bg-secondary-dark, #1f2937);
+        }
+
+        .empty-state-message {
+            color: var(--text-muted-dark, #9ca3af);
+        }
+    }
+</style>

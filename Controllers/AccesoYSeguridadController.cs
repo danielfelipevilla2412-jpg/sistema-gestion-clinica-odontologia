@@ -237,7 +237,12 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
 
         string destino;
         string rr = returnUrl ?? string.Empty;
-        if (IsLocalUrl(rr) && !rr.StartsWith("/acceso-y-seguridad/login", StringComparison.OrdinalIgnoreCase))
+        bool administradorDebeAbrirDashboard =
+            string.Equals(rolNombre, "Administrador", StringComparison.OrdinalIgnoreCase);
+
+        if (!administradorDebeAbrirDashboard &&
+            IsLocalUrl(rr) &&
+            !rr.StartsWith("/acceso-y-seguridad/login", StringComparison.OrdinalIgnoreCase))
         {
             destino = rr;
         }
@@ -449,6 +454,23 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         TempData["SuccessMessage"] = response.Message;
         return RedirectToAction("Login");
+    }
+
+    [HttpPost]
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    [Route("acceso-y-seguridad/cambiar-contrasena/api")]
+    public async Task<IActionResult> ChangePasswordApi(
+        [FromBody] ChangePasswordRequest request,
+        CancellationToken ct = default)
+    {
+        var response = await _authService.ChangePasswordAsync(request, ct);
+        if (!response.Success)
+            return BadRequest(new { success = false, message = response.Message });
+
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        Response.Cookies.Delete("SmileTrack-JWT");
+        return Ok(new { success = true, message = response.Message, requiresLogin = true });
     }
 
     [HttpGet]

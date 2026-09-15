@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Asistencia en Procedimiento (st-aux-06-asistencia-procedi)
 ============================================
 Autor: Johan Santamaria
@@ -95,47 +95,9 @@ const procedureStorage = {
   }
 };
 
-// Inicializa menú móvil con gestión de foco y atributos ARIA
+// Inicializa menú móvil (delegado al módulo centralizado)
 const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamburger = safeGetElement('hamburger');
-
-  if (!sidebar || !overlay || !hamburger) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sidebar.classList.add('open');
-      overlay.classList.add('open');
-      hamburger.setAttribute('aria-expanded', 'true');
-      overlay.setAttribute('aria-hidden', 'false');
-      
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      overlay.setAttribute('aria-hidden', 'true');
-      hamburger.focus();
-    }
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 // WHY: Inicializa el timer del procedimiento cargando el valor persistido y ejecutando un intervalo de 60s
@@ -237,7 +199,9 @@ const renderDatosCita = () => {
   const banner = safeGetElement('apAlertBanner');
   const bannerText = safeGetElement('apAlertBannerText');
   if (d.alergia && banner && bannerText) {
-    bannerText.innerHTML = `<strong>ALERTA</strong> — ${d.paciente} — Alérgico a ${d.alergia}`;
+    const strong = document.createElement('strong');
+    strong.textContent = 'ALERTA';
+    bannerText.replaceChildren(strong, document.createTextNode(` — ${d.paciente} — Alérgico a ${d.alergia}`));
     banner.style.display = '';
   }
 

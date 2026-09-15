@@ -146,8 +146,8 @@ const renderTable = (data) => {
       <td><span class="badge ${badgeClass(p.estado)}" role="status" aria-label="Estado: ${estadoLabel(p.estado)}">${estadoLabel(p.estado)}</span></td>
       <td>
         <div class="actions-cell">
-          <button class="btn-action btn-detalle" data-id="${p.id}" aria-label="Ver detalle de ${p.nombre}" title="Ver detalle del paciente">
-            <span aria-hidden="true">👁️</span> Detalle
+          <button class="btn-action btn-detalle" data-id="${p.id}" aria-label="Ver detalle de ${p.nombre}" title="Ver perfil completo del paciente">
+            <span aria-hidden="true">👁️</span> Perfil
           </button>
           <button class="btn-action btn-historial" data-id="${p.id}" aria-label="Ver historial clínico de ${p.nombre}" title="Historial clínico">
             <span aria-hidden="true">📋</span> Historial
@@ -156,30 +156,41 @@ const renderTable = (data) => {
       </td>
     `;
 
+    // Yeray (2025) - Fallo 3+5: clic en la fila navega al perfil completo
+    // y guarda el contexto de paciente en sessionStorage para el sidebar.
     tr.addEventListener('click', (e) => {
-      if (!e.target.closest('.btn-action')) openModal(p.id);
+      if (!e.target.closest('.btn-action')) {
+        sessionStorage.setItem('st_paciente_id', String(p.id));
+        window.location.href = `/gestion-de-pacientes/${p.id}`;
+      }
     });
     tr.addEventListener('keydown', (e) => {
       if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.btn-action')) {
         e.preventDefault();
-        openModal(p.id);
+        sessionStorage.setItem('st_paciente_id', String(p.id));
+        window.location.href = `/gestion-de-pacientes/${p.id}`;
       }
     });
 
     tbody.appendChild(tr);
   });
 
-  // Eventos de botones
+  // Yeray (2025) - Fallo 3+5: navega al perfil y guarda contexto de paciente.
   tbody.querySelectorAll('.btn-detalle').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      openModal(Number(btn.dataset.id));
+      sessionStorage.setItem('st_paciente_id', btn.dataset.id);
+      window.location.href = `/gestion-de-pacientes/${btn.dataset.id}`;
     });
   });
+  // Yeray (2025) - Fallo 4: antes abría el modal interno con historial limitado.
+  // Ahora navega a la vista real de Historia Clínica con el pacienteId correcto.
   tbody.querySelectorAll('.btn-historial').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      openHistorialModal(Number(btn.dataset.id));
+      // Guardar contexto antes de navegar (reutilizado por Fallo 5)
+      sessionStorage.setItem('st_paciente_id', btn.dataset.id);
+      window.location.href = `/historia-clinica/st-odo-03-historial?pacienteId=${btn.dataset.id}`;
     });
   });
 
@@ -288,7 +299,10 @@ const openModal = (id) => {
         </div>
       </div>
       <div class="modal-actions">
-        <button class="btn-modal-historial" onclick="openHistorialModal(${p.id}); closeModal();">📋 Ver historial clínico</button>
+        <button class="btn-modal-historial" onclick="
+          sessionStorage.setItem('st_paciente_id', '${p.id}');
+          window.location.href='/historia-clinica/st-odo-03-historial?pacienteId=${p.id}';
+        ">📋 Ver historia clínica completa</button>
       </div>
     `;
   }

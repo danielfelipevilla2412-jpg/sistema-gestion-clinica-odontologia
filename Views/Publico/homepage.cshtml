@@ -64,37 +64,51 @@
                 <div class="h-10 w-10 rounded-xl overflow-hidden flex items-center justify-center bg-[#005ea4]/10">
                     <img alt="Smile Track Logo" class="h-10 w-auto object-contain" loading="lazy" decoding="async"
                         src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")"
-                        onerror="this.onerror=null;this.src='@Url.Content("~/images/logo.jpg")'">
+                        onerror="this.onerror=null;this.src='@Url.Content("~/images/logo.jpg")'"
+                        data-i18n-title="home.logo_alt">
                 </div>
-                <span class="font-[Montserrat,sans-serif] text-xl font-extrabold text-[#005ea4] tracking-tight">Smile
+                <span class="font-[Montserrat,sans-serif] text-xl font-extrabold text-[#005ea4] tracking-tight" data-i18n="home.logo_text">Smile
                     Track</span>
             </a>
 
             <!-- Nav links -->
             <div class="hidden md:flex items-center gap-8">
                 <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
-                    href="#servicios">Servicios</a>
+                    href="#servicios" data-i18n="home.nav_services">Servicios</a>
                 <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
-                    href="#profesionales">Profesionales</a>
+                    href="#profesionales" data-i18n="home.nav_professionals">Profesionales</a>
                 <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
-                    href="#testimonios">Testimonios</a>
+                    href="#testimonios" data-i18n="home.nav_testimonials">Testimonios</a>
                 <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
-                    href="#nosotros">Nosotros</a>
+                    href="#nosotros" data-i18n="home.nav_about">Nosotros</a>
                 <a class="nav-link text-sm font-semibold text-[#404752] hover:text-[#005ea4] transition-colors"
-                    href="#contacto">Contacto</a>
+                    href="#contacto" data-i18n="home.nav_contact">Contacto</a>
             </div>
 
-            <!-- CTA buttons -->
+            <!-- CTA buttons + Language switcher -->
             <div class="flex items-center gap-3">
+                <!-- Selector de idioma -->
+                <div class="hidden sm:flex items-center gap-1.5 mr-2">
+                    <button type="button" data-i18n-switcher data-i18n-lang="es"
+                        class="lang-switch-btn px-3 py-1.5 text-xs font-bold rounded-full border border-[#005ea4] text-[#005ea4] bg-white hover:bg-[#005ea4]/8 transition-all active:scale-95"
+                        aria-label="Español">
+                        <span data-i18n="lang.es">ES</span>
+                    </button>
+                    <button type="button" data-i18n-switcher data-i18n-lang="en"
+                        class="lang-switch-btn px-3 py-1.5 text-xs font-bold rounded-full border border-[#005ea4] text-[#005ea4] bg-white hover:bg-[#005ea4]/8 transition-all active:scale-95"
+                        aria-label="English">
+                        <span data-i18n="lang.en">EN</span>
+                    </button>
+                </div>
                 <a href="/acceso-y-seguridad/login"
                     class="hidden sm:inline-flex items-center gap-1.5 border border-[#005ea4] text-[#005ea4] px-5 py-2 rounded-xl text-sm font-bold hover:bg-[#005ea4]/8 transition-all active:scale-95">
                     <span class="material-symbols-outlined text-base">login</span>
-                    Iniciar sesión
+                    <span data-i18n="home.cta_login">Iniciar sesión</span>
                 </a>
                 <a href="#contacto"
                     class="inline-flex items-center gap-1.5 bg-[#005ea4] text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-[#004881] transition-all active:scale-95 shadow-md hover:shadow-lg">
                     <span class="material-symbols-outlined text-base">calendar_month</span>
-                    Agendar cita
+                    <span data-i18n="home.cta_book">Agendar cita</span>
                 </a>
             </div>
         </nav>
@@ -104,12 +118,12 @@
     <div class="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-3 mr-5">
         <button
             class="bg-white text-[#021c3a] p-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-x-1 transition-all active:scale-95"
-            title="Chat">
+            title="Chat" data-i18n-title="home.float_chat_title">
             <span class="material-symbols-outlined text-xl">chat_bubble</span>
         </button>
         <button
             class="bg-white text-[#005ea4] p-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-x-1 transition-all active:scale-95"
-            title="Llamar">
+            title="Llamar" data-i18n-title="home.float_phone_title">
             <span class="material-symbols-outlined text-xl">phone</span>
         </button>
     </div>
@@ -123,44 +137,45 @@
                     <div
                         class="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 rounded-full border border-white/20 mb-8 animate-fade-in-up">
                         <span class="material-symbols-outlined text-sm text-[#a4f0e9]">verified</span>
-                        <span class="text-xs font-semibold text-[#a4f0e9] tracking-wide">Clínica certificada · Bogotá,
+                        <span class="text-xs font-semibold text-[#a4f0e9] tracking-wide" data-i18n="home.hero_badge">Clínica certificada · Bogotá,
                             Colombia</span>
                     </div>
                     <h1
-                        class="font-[Montserrat,sans-serif] text-5xl lg:text-[52px] font-extrabold leading-[1.1] mb-6 animate-fade-in-up delay-100">
+                        class="font-[Montserrat,sans-serif] text-5xl lg:text-[52px] font-extrabold leading-[1.1] mb-6 animate-fade-in-up delay-100"
+                        data-i18n-html="home.hero_title_html">
                         Tu salud bucal en manos de <span class="text-[#a4f0e9]">especialistas</span> de confianza
                     </h1>
-                    <p class="text-lg text-[#d5e3ff]/80 mb-10 max-w-xl animate-fade-in-up delay-200">
+                    <p class="text-lg text-[#d5e3ff]/80 mb-10 max-w-xl animate-fade-in-up delay-200" data-i18n="home.hero_subtitle">
                         Más de 15 años devolviendo sonrisas con diagnóstico digital y tecnología de vanguardia.
                     </p>
                     <div class="flex flex-col sm:flex-row gap-4 animate-fade-in-up delay-300">
                         <a href="/acceso-y-seguridad/login"
                             class="bg-[#0077ce] text-white px-8 py-4 rounded-xl font-bold hover:bg-[#005ea4] hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
-                            Iniciar sesión
+                            <span data-i18n="home.hero_login">Iniciar sesión</span>
                             <span class="material-symbols-outlined">login</span>
                         </a>
                         <a href="/acceso-y-seguridad/register"
                             class="bg-white/10 backdrop-blur-sm border border-white/25 text-white px-8 py-4 rounded-xl font-bold hover:bg-white/20 transition-all active:scale-95 text-center">
-                            Crear cuenta
+                            <span data-i18n="home.hero_register">Crear cuenta</span>
                         </a>
                     </div>
                     <div class="mt-6 flex flex-wrap gap-3 text-sm text-[#d5e3ff]/80">
-                        <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1">Reserva fácil</span>
-                        <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1">Atención confiable</span>
-                        <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1">Seguimiento clínico</span>
+                        <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1" data-i18n="home.tag_easy_booking">Reserva fácil</span>
+                        <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1" data-i18n="home.tag_reliable">Atención confiable</span>
+                        <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1" data-i18n="home.tag_followup">Seguimiento clínico</span>
                     </div>
                     <div class="mt-8 grid gap-3 sm:grid-cols-3">
                         <a href="/acceso-y-seguridad/register" class="rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-left text-sm text-white hover:bg-white/15 transition focus:outline-none focus:ring-2 focus:ring-[#a4f0e9]/60">
-                            <p class="font-semibold">Soy paciente</p>
-                            <p class="text-[#d5e3ff]/80 mt-1 text-xs">Crea tu cuenta y agenda tu primera cita.</p>
+                            <p class="font-semibold" data-i18n="home.card_patient_title">Soy paciente</p>
+                            <p class="text-[#d5e3ff]/80 mt-1 text-xs" data-i18n="home.card_patient_desc">Crea tu cuenta y agenda tu primera cita.</p>
                         </a>
                         <a href="/acceso-y-seguridad/login" class="rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-left text-sm text-white hover:bg-white/15 transition focus:outline-none focus:ring-2 focus:ring-[#a4f0e9]/60">
-                            <p class="font-semibold">Soy profesional</p>
-                            <p class="text-[#d5e3ff]/80 mt-1 text-xs">Accede a tu agenda y controla tus citas.</p>
+                            <p class="font-semibold" data-i18n="home.card_pro_title">Soy profesional</p>
+                            <p class="text-[#d5e3ff]/80 mt-1 text-xs" data-i18n="home.card_pro_desc">Accede a tu agenda y controla tus citas.</p>
                         </a>
                         <a href="#contacto" class="rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-left text-sm text-white hover:bg-white/15 transition focus:outline-none focus:ring-2 focus:ring-[#a4f0e9]/60">
-                            <p class="font-semibold">Contacto rápido</p>
-                            <p class="text-[#d5e3ff]/80 mt-1 text-xs">Habla con nuestro equipo para resolver tus dudas.</p>
+                            <p class="font-semibold" data-i18n="home.card_contact_title">Contacto rápido</p>
+                            <p class="text-[#d5e3ff]/80 mt-1 text-xs" data-i18n="home.card_contact_desc">Habla con nuestro equipo para resolver tus dudas.</p>
                         </a>
                     </div>
                 </div>
@@ -171,7 +186,7 @@
                         <h3
                             class="font-[Montserrat,sans-serif] font-bold text-lg text-white mb-6 flex items-center gap-2">
                             <span class="material-symbols-outlined text-[#a2c9ff]">dentistry</span>
-                            Servicios destacados
+                            <span data-i18n="home.glass_services_title">Servicios destacados</span>
                         </h3>
                         <div class="space-y-3">
                             <div
@@ -179,33 +194,33 @@
                                 <div class="flex items-center gap-4">
                                     <span class="text-2xl">🪥</span>
                                     <div>
-                                        <p class="font-semibold text-white text-sm">Limpieza dental</p>
-                                        <p class="text-xs text-[#d5e3ff]/70">Prevención · 45 min</p>
+                                        <p class="font-semibold text-white text-sm" data-i18n="home.service_cleaning_name">Limpieza dental</p>
+                                        <p class="text-xs text-[#d5e3ff]/70" data-i18n="home.service_cleaning_desc">Prevención · 45 min</p>
                                     </div>
                                 </div>
-                                <span class="font-bold text-[#a2c9ff] text-sm">Desde $80k</span>
+                                <span class="font-bold text-[#a2c9ff] text-sm" data-i18n="home.service_cleaning_price">Desde $80k</span>
                             </div>
                             <div
                                 class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
                                 <div class="flex items-center gap-4">
                                     <span class="text-2xl">✨</span>
                                     <div>
-                                        <p class="font-semibold text-white text-sm">Blanqueamiento</p>
-                                        <p class="text-xs text-[#d5e3ff]/70">Estética · 90 min</p>
+                                        <p class="font-semibold text-white text-sm" data-i18n="home.service_whitening_name">Blanqueamiento</p>
+                                        <p class="text-xs text-[#d5e3ff]/70" data-i18n="home.service_whitening_desc">Estética · 90 min</p>
                                     </div>
                                 </div>
-                                <span class="font-bold text-[#a2c9ff] text-sm">Desde $350k</span>
+                                <span class="font-bold text-[#a2c9ff] text-sm" data-i18n="home.service_whitening_price">Desde $350k</span>
                             </div>
                             <div
                                 class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
                                 <div class="flex items-center gap-4">
                                     <span class="text-2xl">🦷</span>
                                     <div>
-                                        <p class="font-semibold text-white text-sm">Ortodoncia</p>
-                                        <p class="text-xs text-[#d5e3ff]/70">Corrección · Plan mes</p>
+                                        <p class="font-semibold text-white text-sm" data-i18n="home.service_ortho_name">Ortodoncia</p>
+                                        <p class="text-xs text-[#d5e3ff]/70" data-i18n="home.service_ortho_desc">Corrección · Plan mes</p>
                                     </div>
                                 </div>
-                                <span class="font-bold text-[#a2c9ff] text-sm">Desde $200k/mes</span>
+                                <span class="font-bold text-[#a2c9ff] text-sm" data-i18n="home.service_ortho_price">Desde $200k/mes</span>
                             </div>
                         </div>
                         <div class="mt-6 pt-5 border-t border-white/10 flex items-center justify-between">
@@ -221,7 +236,7 @@
                                         alt="Especialista">
                                 </div>
                             </div>
-                            <p class="text-xs text-[#d5e3ff]/70 font-medium">Consultar con especialistas →</p>
+                            <p class="text-xs text-[#d5e3ff]/70 font-medium" data-i18n="home.glass_see_specialists">Consultar con especialistas →</p>
                         </div>
                     </div>
                 </div>
@@ -234,29 +249,29 @@
                 <div class="flex items-center gap-4 flex-1 min-w-[180px]">
                     <span class="material-symbols-outlined text-[#a4f0e9] text-4xl">group</span>
                     <div>
-                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold">+2.400</p>
-                        <p class="text-sm text-[#d5e3ff]/60">Pacientes atendidos</p>
+                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold" data-i18n="home.trust_patients_count">+2.400</p>
+                        <p class="text-sm text-[#d5e3ff]/60" data-i18n="home.trust_patients_label">Pacientes atendidos</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-4 flex-1 min-w-[180px]">
                     <span class="material-symbols-outlined text-[#a4f0e9] text-4xl">star</span>
                     <div>
-                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold">4.9/5.0</p>
-                        <p class="text-sm text-[#d5e3ff]/60">Calificación Google</p>
+                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold" data-i18n="home.trust_rating_count">4.9/5.0</p>
+                        <p class="text-sm text-[#d5e3ff]/60" data-i18n="home.trust_rating_label">Calificación Google</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-4 flex-1 min-w-[180px]">
                     <span class="material-symbols-outlined text-[#a4f0e9] text-4xl">medical_services</span>
                     <div>
-                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold">15 años</p>
-                        <p class="text-sm text-[#d5e3ff]/60">De experiencia clínica</p>
+                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold" data-i18n="home.trust_experience_count">15 años</p>
+                        <p class="text-sm text-[#d5e3ff]/60" data-i18n="home.trust_experience_label">De experiencia clínica</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-4 flex-1 min-w-[180px]">
                     <span class="material-symbols-outlined text-[#a4f0e9] text-4xl">verified_user</span>
                     <div>
-                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold">INVIMA</p>
-                        <p class="text-sm text-[#d5e3ff]/60">Habilitados y certificados</p>
+                        <p class="font-[Montserrat,sans-serif] text-2xl font-bold" data-i18n="home.trust_invima_count">INVIMA</p>
+                        <p class="text-sm text-[#d5e3ff]/60" data-i18n="home.trust_invima_label">Habilitados y certificados</p>
                     </div>
                 </div>
             </div>
@@ -266,10 +281,10 @@
         <section class="py-24 bg-[#F5F7FA]" id="servicios">
             <div class="max-w-[1280px] mx-auto px-10">
                 <div class="mb-16">
-                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest">Lo que hacemos</p>
-                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a] mb-4">Tratamientos que
+                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest" data-i18n="home.services_eyebrow">Lo que hacemos</p>
+                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a] mb-4" data-i18n="home.services_title">Tratamientos que
                         cambian sonrisas</h2>
-                    <p class="max-w-2xl text-[#404752]">Ofrecemos soluciones odontológicas de alta precisión, desde
+                    <p class="max-w-2xl text-[#404752]" data-i18n="home.services_subtitle">Ofrecemos soluciones odontológicas de alta precisión, desde
                         prevención básica hasta estética avanzada.</p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -281,13 +296,13 @@
                             <span class="material-symbols-outlined">cleaning_services</span>
                         </div>
                         <div class="flex justify-between items-start mb-3">
-                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Limpieza dental</h3>
-                            <span class="text-[#005ea4] font-bold text-sm">$80.000</span>
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold" data-i18n="home.svc_cleaning_title">Limpieza dental</h3>
+                            <span class="text-[#005ea4] font-bold text-sm" data-i18n="home.svc_cleaning_price">$80.000</span>
                         </div>
-                        <p class="text-[#404752] text-sm mb-5">Elimina el sarro y placa bacteriana que el cepillo no
+                        <p class="text-[#404752] text-sm mb-5" data-i18n="home.svc_cleaning_desc">Elimina el sarro y placa bacteriana que el cepillo no
                             alcanza.</p>
                         <span
-                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Para
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase" data-i18n="home.svc_cleaning_tag">Para
                             toda la familia</span>
                     </div>
                     <div
@@ -297,13 +312,13 @@
                             <span class="material-symbols-outlined">auto_fix_high</span>
                         </div>
                         <div class="flex justify-between items-start mb-3">
-                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Blanqueamiento</h3>
-                            <span class="text-[#005ea4] font-bold text-sm">$350.000</span>
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold" data-i18n="home.svc_whitening_title">Blanqueamiento</h3>
+                            <span class="text-[#005ea4] font-bold text-sm" data-i18n="home.svc_whitening_price">$350.000</span>
                         </div>
-                        <p class="text-[#404752] text-sm mb-5">Recupera el brillo natural de tus dientes de forma segura
+                        <p class="text-[#404752] text-sm mb-5" data-i18n="home.svc_whitening_desc">Recupera el brillo natural de tus dientes de forma segura
                             y efectiva.</p>
                         <span
-                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Estética
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase" data-i18n="home.svc_whitening_tag">Estética
                             avanzada</span>
                     </div>
                     <div
@@ -313,13 +328,13 @@
                             <span class="material-symbols-outlined">straighten</span>
                         </div>
                         <div class="flex justify-between items-start mb-3">
-                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Ortodoncia</h3>
-                            <span class="text-[#005ea4] font-bold text-sm">$200k/mes</span>
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold" data-i18n="home.svc_ortho_title">Ortodoncia</h3>
+                            <span class="text-[#005ea4] font-bold text-sm" data-i18n="home.svc_ortho_price">$200k/mes</span>
                         </div>
-                        <p class="text-[#404752] text-sm mb-5">Corrección de la posición dental con técnicas fijas e
+                        <p class="text-[#404752] text-sm mb-5" data-i18n="home.svc_ortho_desc">Corrección de la posición dental con técnicas fijas e
                             invisibles.</p>
                         <span
-                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Niños
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase" data-i18n="home.svc_ortho_tag">Niños
                             y adultos</span>
                     </div>
                     <div
@@ -329,13 +344,13 @@
                             <span class="material-symbols-outlined">healing</span>
                         </div>
                         <div class="flex justify-between items-start mb-3">
-                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Endodoncia</h3>
-                            <span class="text-[#005ea4] font-bold text-sm">$450.000</span>
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold" data-i18n="home.svc_endo_title">Endodoncia</h3>
+                            <span class="text-[#005ea4] font-bold text-sm" data-i18n="home.svc_endo_price">$450.000</span>
                         </div>
-                        <p class="text-[#404752] text-sm mb-5">Tratamiento de conductos para salvar piezas dentales
+                        <p class="text-[#404752] text-sm mb-5" data-i18n="home.svc_endo_desc">Tratamiento de conductos para salvar piezas dentales
                             comprometidas.</p>
                         <span
-                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Alta
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase" data-i18n="home.svc_endo_tag">Alta
                             precisión</span>
                     </div>
                     <div
@@ -345,13 +360,13 @@
                             <span class="material-symbols-outlined">sentiment_very_satisfied</span>
                         </div>
                         <div class="flex justify-between items-start mb-3">
-                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Implantes</h3>
-                            <span class="text-[#005ea4] font-bold text-sm">$2.800.000</span>
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold" data-i18n="home.svc_implants_title">Implantes</h3>
+                            <span class="text-[#005ea4] font-bold text-sm" data-i18n="home.svc_implants_price">$2.800.000</span>
                         </div>
-                        <p class="text-[#404752] text-sm mb-5">Reemplaza piezas perdidas con implantes de titanio de
+                        <p class="text-[#404752] text-sm mb-5" data-i18n="home.svc_implants_desc">Reemplaza piezas perdidas con implantes de titanio de
                             larga duración.</p>
                         <span
-                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Solución
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase" data-i18n="home.svc_implants_tag">Solución
                             permanente</span>
                     </div>
                     <div
@@ -361,13 +376,13 @@
                             <span class="material-symbols-outlined">child_care</span>
                         </div>
                         <div class="flex justify-between items-start mb-3">
-                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold">Odontopediatría</h3>
-                            <span class="text-[#005ea4] font-bold text-sm">Desde $60k</span>
+                            <h3 class="font-[Montserrat,sans-serif] text-lg font-bold" data-i18n="home.svc_pediatrics_title">Odontopediatría</h3>
+                            <span class="text-[#005ea4] font-bold text-sm" data-i18n="home.svc_pediatrics_price">Desde $60k</span>
                         </div>
-                        <p class="text-[#404752] text-sm mb-5">Cuidado dental especializado para los más pequeños del
+                        <p class="text-[#404752] text-sm mb-5" data-i18n="home.svc_pediatrics_desc">Cuidado dental especializado para los más pequeños del
                             hogar.</p>
                         <span
-                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase">Niños
+                            class="px-3 py-1 bg-[#d5e3ff]/50 text-[#005ea4] text-xs font-bold rounded-full uppercase" data-i18n="home.svc_pediatrics_tag">Niños
                             0–12 años</span>
                     </div>
                 </div>
@@ -660,10 +675,10 @@
                 </p>
                 <div class="flex flex-col sm:flex-row justify-center gap-4">
                     <a href="/acceso-y-seguridad/register" class="bg-white text-[#005ea4] px-8 py-4 rounded-xl font-bold hover:bg-[#f0f3ff] hover:shadow-xl transition-all active:scale-95 text-lg flex justify-center items-center gap-2">
-                        Comenzar ahora
+                        <span data-i18n="home.final_cta_begin">Comenzar ahora</span>
                         <span class="material-symbols-outlined">arrow_forward</span>
                     </a>
-                    <a href="#contacto" class="bg-white/10 backdrop-blur-sm border border-white/25 text-white px-8 py-4 rounded-xl font-bold hover:bg-white/20 transition-all active:scale-95 text-lg flex justify-center items-center">
+                    <a href="#contacto" class="bg-white/10 backdrop-blur-sm border border-white/25 text-white px-8 py-4 rounded-xl font-bold hover:bg-white/20 transition-all active:scale-95 text-lg flex justify-center items-center" data-i18n="home.final_cta_contact">
                         Contáctanos
                     </a>
                 </div>
@@ -675,8 +690,8 @@
             <div class="max-w-[1280px] mx-auto px-10 grid grid-cols-1 lg:grid-cols-2 gap-16">
                 <!-- Info -->
                 <div>
-                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest">Encuéntranos</p>
-                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a] mb-8">Estamos aquí para
+                    <p class="text-[#005ea4] text-xs font-bold mb-3 uppercase tracking-widest" data-i18n="home.contact_eyebrow">Encuéntranos</p>
+                    <h2 class="font-[Montserrat,sans-serif] text-3xl font-bold text-[#021c3a] mb-8" data-i18n="home.contact_title">Estamos aquí para
                         atenderte</h2>
                     <div class="space-y-5 mb-10">
                         <div class="flex items-start gap-4">
@@ -685,8 +700,8 @@
                                 <span class="material-symbols-outlined text-xl">location_on</span>
                             </div>
                             <div>
-                                <p class="font-semibold text-sm mb-0.5">Dirección</p>
-                                <p class="text-[#404752] text-sm">Cra. 15 #93-47, Oficina 302<br>Bogotá D.C., Colombia
+                                <p class="font-semibold text-sm mb-0.5" data-i18n="home.contact_address_label">Dirección</p>
+                                <p class="text-[#404752] text-sm" data-i18n-html="home.contact_address_value_html">Cra. 15 #93-47, Oficina 302<br>Bogotá D.C., Colombia
                                 </p>
                             </div>
                         </div>
@@ -696,8 +711,8 @@
                                 <span class="material-symbols-outlined text-xl">schedule</span>
                             </div>
                             <div>
-                                <p class="font-semibold text-sm mb-0.5">Horarios</p>
-                                <p class="text-[#404752] text-sm">Lunes a Viernes: 8am – 6pm<br>Sábados: 9am – 2pm ·
+                                <p class="font-semibold text-sm mb-0.5" data-i18n="home.contact_schedule_label">Horarios</p>
+                                <p class="text-[#404752] text-sm" data-i18n-html="home.contact_schedule_value_html">Lunes a Viernes: 8am – 6pm<br>Sábados: 9am – 2pm ·
                                     Domingos: Cerrado</p>
                             </div>
                         </div>
@@ -707,8 +722,8 @@
                                 <span class="material-symbols-outlined text-xl">phone</span>
                             </div>
                             <div>
-                                <p class="font-semibold text-sm mb-0.5">Teléfono / WhatsApp</p>
-                                <p class="text-[#404752] text-sm">+57 300 123 4567</p>
+                                <p class="font-semibold text-sm mb-0.5" data-i18n="home.contact_phone_label">Teléfono / WhatsApp</p>
+                                <p class="text-[#404752] text-sm" data-i18n="home.contact_phone_value">+57 300 123 4567</p>
                             </div>
                         </div>
                     </div>
@@ -717,36 +732,36 @@
                         class="h-52 rounded-2xl overflow-hidden border border-[#c0c7d4]/30 shadow-sm grayscale opacity-80">
                         <img class="w-full h-full object-cover" loading="lazy"
                             src="https://lh3.googleusercontent.com/aida-public/AB6AXuDAlXGYzdHVH34RGdCNL8pm7JrUqFK_kHKv07jn2MO6IHJgpQYXdKTvcDK2RCfLPNKhOWkyLK2iPVVALg9JukqtPVnwC8PzBZcqcZ-JLi38kNaCkGfG9nANwFFKJwcstUFprApvlCV-QxnWiNFDVQvQwiTJ61L94m2zbR0FQ2XMxJIn1NCh85Ba675ulHkI5q7VCEqkwPa2AuANGUjp56jjzCIa5ZSJfSKYmRqnZOy2p5pvRzVDmeiOi1evgININXVKnnn35cdeng"
-                            alt="Mapa clínica Bogotá">
+                            data-i18n-title="home.contact_map_alt" alt="Mapa clínica Bogotá">
                     </div>
                 </div>
 
                 <!-- Form -->
                 <div>
                     <div class="bg-white p-8 rounded-2xl shadow-md border border-[#c0c7d4]/20">
-                        <h3 class="font-[Montserrat,sans-serif] text-xl font-bold text-[#021c3a] mb-6">Agenda tu cita
+                        <h3 class="font-[Montserrat,sans-serif] text-xl font-bold text-[#021c3a] mb-6" data-i18n="home.form_title">Agenda tu cita
                             aquí</h3>
                         <form class="space-y-4" id="contactForm">
                             <input
                                 class="w-full px-4 py-3 rounded-xl border border-[#c0c7d4] focus:ring-2 focus:ring-[#005ea4]/30 focus:border-[#005ea4] outline-none transition-all text-sm"
-                                placeholder="Nombre completo" type="text" required>
+                                data-i18n-ph="home.form_name_placeholder" placeholder="Nombre completo" type="text" required>
                             <input
                                 class="w-full px-4 py-3 rounded-xl border border-[#c0c7d4] focus:ring-2 focus:ring-[#005ea4]/30 focus:border-[#005ea4] outline-none transition-all text-sm"
-                                placeholder="Teléfono / WhatsApp" type="tel" required>
+                                data-i18n-ph="home.form_phone_placeholder" placeholder="Teléfono / WhatsApp" type="tel" required>
                             <select
                                 class="w-full px-4 py-3 rounded-xl border border-[#c0c7d4] focus:ring-2 focus:ring-[#005ea4]/30 focus:border-[#005ea4] outline-none transition-all bg-white text-sm text-[#021c3a]">
-                                <option value="">Servicio de interés</option>
-                                <option>Limpieza dental</option>
-                                <option>Blanqueamiento</option>
-                                <option>Ortodoncia</option>
-                                <option>Endodoncia</option>
-                                <option>Implantes</option>
-                                <option>Consulta general</option>
+                                <option value="" data-i18n="home.form_service_select">Servicio de interés</option>
+                                <option data-i18n="home.form_option_cleaning">Limpieza dental</option>
+                                <option data-i18n="home.form_option_whitening">Blanqueamiento</option>
+                                <option data-i18n="home.form_option_ortho">Ortodoncia</option>
+                                <option data-i18n="home.form_option_endo">Endodoncia</option>
+                                <option data-i18n="home.form_option_implants">Implantes</option>
+                                <option data-i18n="home.form_option_general">Consulta general</option>
                             </select>
                             <button type="submit"
                                 class="w-full bg-[#43A047] text-white py-4 rounded-xl font-bold hover:bg-[#388E3C] transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95">
                                 <span class="material-symbols-outlined">send</span>
-                                Confirmar por WhatsApp
+                                <span data-i18n="home.form_submit">Confirmar por WhatsApp</span>
                             </button>
                         </form>
                     </div>
@@ -758,19 +773,20 @@
         <section class="py-24 bg-[#005ea4] relative overflow-hidden">
             <div class="absolute inset-0 bg-gradient-to-br from-[#005ea4] to-[#021c3a] opacity-80"></div>
             <div class="max-w-[1280px] mx-auto px-10 text-center relative z-10 text-white">
-                <h2 class="font-[Montserrat,sans-serif] text-4xl lg:text-5xl font-extrabold mb-5">Tu sonrisa no debería
+                <h2 class="font-[Montserrat,sans-serif] text-4xl lg:text-5xl font-extrabold mb-5" data-i18n="home.bottom_cta_title">Tu sonrisa no debería
                     esperar más</h2>
-                <p class="text-lg mb-10 opacity-85 max-w-xl mx-auto">Primera valoración completa incluida. Sin
+                <p class="text-lg mb-10 opacity-85 max-w-xl mx-auto" data-i18n="home.bottom_cta_subtitle">Primera valoración completa incluida. Sin
                     compromiso.</p>
                 <div class="flex flex-col sm:flex-row gap-5 justify-center">
                     <a href="#contacto"
-                        class="bg-white text-[#005ea4] px-10 py-4 rounded-2xl font-bold shadow-2xl hover:scale-105 hover:shadow-[0_20px_60px_rgba(0,0,0,0.3)] transition-all active:scale-95">
+                        class="bg-white text-[#005ea4] px-10 py-4 rounded-2xl font-bold shadow-2xl hover:scale-105 hover:shadow-[0_20px_60px_rgba(0,0,0,0.3)] transition-all active:scale-95"
+                        data-i18n="home.bottom_cta_book">
                         Agendar cita ahora
                     </a>
                     <a href="https://wa.me/573123627335" target="_blank"
                         class="bg-[#25D366] text-white px-10 py-4 rounded-2xl font-bold shadow-2xl hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-2">
                         <span class="material-symbols-outlined">chat</span>
-                        Escribir por WhatsApp
+                        <span data-i18n="home.bottom_cta_whatsapp">Escribir por WhatsApp</span>
                     </a>
                 </div>
             </div>
@@ -783,36 +799,36 @@
                 <div class="flex items-center gap-3 mb-5">
                     <img alt="Smile Track" class="h-8 w-auto grayscale brightness-200"
                         src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWdsdOlulbH1l8P8NDayRRP-_ktepKm4alKWQKbwiBw33rWAjDrLf5OV0Xzan7Ezxu2br8vV7IyWeTWyLe9f9kOqd37w5u4DQkxUjcN7fVFCK9X5MT1ssiI2NtfoETP1QeebXCm0WIfL6xLGUA54dJUfS-6ab80dfTAvc5R7QrL7jW8QHm_Yd_9E1BJ84ieSGmQa9fQ977nwZDXCEPGX6vfcvUYYwseRBk2EM0D2GNg3Wwz5-X5KZoxKae2Xd4750myYhdaFlV7w"
-                        onerror="this.onerror=null;this.src="@Url.Content("~/images/logo.jpg")"">
-                    <span class="font-[Montserrat,sans-serif] font-bold text-lg text-white">Smile Track</span>
+                        onerror="this.onerror=null;this.src='@Url.Content("~/images/logo.jpg")'">
+                    <span class="font-[Montserrat,sans-serif] font-bold text-lg text-white" data-i18n="home.footer_logo_alt">Smile Track</span>
                 </div>
-                <p class="text-sm max-w-xs mb-5 text-white/50 leading-relaxed">
+                <p class="text-sm max-w-xs mb-5 text-white/50 leading-relaxed" data-i18n-html="home.footer_copyright_html">
                     © 2025 Smile Track. Todos los derechos reservados. Gestión Dental de Alta Precisión.<br>
                     Habilitado INVIMA · RIPS activo · Registro Distrital vigente.
                 </p>
                 <div class="flex gap-4">
-                    <a class="hover:text-white transition-colors" href="#" aria-label="Facebook"><span
+                    <a class="hover:text-white transition-colors" href="#" data-i18n-aria-label="home.footer_social_fb" aria-label="Facebook"><span
                             class="material-symbols-outlined">face_nod</span></a>
-                    <a class="hover:text-white transition-colors" href="#" aria-label="Instagram"><span
+                    <a class="hover:text-white transition-colors" href="#" data-i18n-aria-label="home.footer_social_ig" aria-label="Instagram"><span
                             class="material-symbols-outlined">photo_camera</span></a>
-                    <a class="hover:text-white transition-colors" href="#" aria-label="Email"><span
+                    <a class="hover:text-white transition-colors" href="#" data-i18n-aria-label="home.footer_social_email" aria-label="Email"><span
                             class="material-symbols-outlined">alternate_email</span></a>
                 </div>
             </div>
             <div>
-                <h4 class="text-white text-xs font-bold mb-5 uppercase tracking-widest">Legal</h4>
+                <h4 class="text-white text-xs font-bold mb-5 uppercase tracking-widest" data-i18n="home.footer_legal_title">Legal</h4>
                 <ul class="space-y-3 text-sm">
-                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Privacidad</a></li>
-                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Términos</a></li>
-                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Aviso Legal</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#" data-i18n="home.footer_privacy">Privacidad</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#" data-i18n="home.footer_terms">Términos</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#" data-i18n="home.footer_notice">Aviso Legal</a></li>
                 </ul>
             </div>
             <div>
-                <h4 class="text-white text-xs font-bold mb-5 uppercase tracking-widest">Compañía</h4>
+                <h4 class="text-white text-xs font-bold mb-5 uppercase tracking-widest" data-i18n="home.footer_company_title">Compañía</h4>
                 <ul class="space-y-3 text-sm">
-                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Soporte</a></li>
-                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Blog</a></li>
-                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#">Preguntas frecuentes</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#" data-i18n="home.footer_support">Soporte</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#" data-i18n="home.footer_blog">Blog</a></li>
+                    <li><a class="hover:text-[#a4f0e9] transition-colors" href="#" data-i18n="home.footer_faq">Preguntas frecuentes</a></li>
                 </ul>
             </div>
         </div>
@@ -820,13 +836,17 @@
 
     <!-- Floating WhatsApp -->
     <a class="fixed bottom-8 right-8 w-14 h-14 bg-[#25D366] text-white rounded-full flex items-center justify-center shadow-2xl z-50 hover:scale-110 transition-all active:scale-95 group"
-        href="https://wa.me/573123627335" target="_blank" aria-label="WhatsApp">
+        href="https://wa.me/573123627335" target="_blank" data-i18n-aria-label="home.whatsapp_aria" aria-label="WhatsApp">
         <span class="material-symbols-outlined text-3xl">chat</span>
         <span
-            class="absolute right-full mr-4 bg-white text-[#021c3a] px-4 py-2 rounded-xl text-xs font-bold shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">¡Hola!
+            class="absolute right-full mr-4 bg-white text-[#021c3a] px-4 py-2 rounded-xl text-xs font-bold shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none"
+            data-i18n="home.whatsapp_tooltip">¡Hola!
             ¿En qué podemos ayudarte?</span>
     </a>
 
+    <!-- Scripts i18n — deben ir ANTES de homepage.js para que I18N esté disponible -->
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
     <script src="@Url.Content("~/js/Publico/homepage.js")" defer></script>
 
 <!-- ═════ MODALES: Chatbot + PQRS (Funcionalidad sin alterar diseño) ═════ -->
@@ -1014,9 +1034,6 @@ $$('.st-quick-btn').forEach(b=>b.addEventListener('click',()=>{const q=b.dataset
 pqrsForm?.addEventListener('submit',async e=>{e.preventDefault();const btn=pqrsForm.querySelector('button[type="submit"]'),bt=btn?.querySelector('.st-btn-text'),bl=btn?.querySelector('.st-btn-load');try{if(bt&&bl){bt.hidden=true;bl.hidden=false;btn.disabled=true}await new Promise(r=>setTimeout(r,1200));if(pqrsForm)pqrsForm.hidden=true;if(pqrsSuccess){pqrsSuccess.hidden=false;pqrsTicket.textContent=`ST-${new Date().getFullYear()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;pqrsResp.textContent=$('pqrsEmail')?.value||'tu@email.com'}showToast('✅ PQRS registrada exitosamente','success')}catch(err){console.error('PQRS error',err);showToast('❌ Error al enviar. Intenta de nuevo.','error')}finally{if(bt&&bl){bt.hidden=false;bl.hidden=true;btn.disabled=false}}});
 $('#pqrsNew')?.addEventListener('click',()=>{if(pqrsSuccess)pqrsSuccess.hidden=true;if(pqrsForm){pqrsForm.hidden=false;pqrsForm.reset()}});$('#pqrsCancel')?.addEventListener('click',()=>{if(confirm('¿Cancelar esta solicitud?'))closeM(pqrsModal)});$('#stToastClose')?.addEventListener('click',()=>{if(toast){toast.classList.remove('show');setTimeout(()=>{toast.hidden=true},200)}});console.log('✅ SmileTrack: Chatbot+PQRS listos');})();
 </script>
-
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>
 
 </html>

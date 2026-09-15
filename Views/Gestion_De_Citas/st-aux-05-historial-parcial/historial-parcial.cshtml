@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿@* ============================================
+@* ============================================
 SmileTrack — Historial Clínico Parcial (st-aux-05-historial-parcial)
 ============================================
 Autor: Johan Santamaria
@@ -21,42 +21,26 @@ DEPENDENCIAS TÉCNICAS:
 
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- La alerta médica utiliza atributos role="alert" y aria-live="assertive" para notificaciones urgentes e inmediatas en tecnologías de asistencia.
+- AUDITORÍA (ver docs/mejoras/st-aux-05-historial-parcial.md): el contenedor #alertaMedica es la
+  ÚNICA región aria-live de este componente. Antes había aria-live="polite" duplicado en cada
+  span interno (#alergia, #medicamentos, #grupoSang), lo que según la spec de ARIA (comportamiento
+  indefinido para live regions anidadas) hacía que los lectores de pantalla anunciaran los cambios
+  como "polite" en vez de "assertive" — contradiciendo el propio propósito de la alerta médica.
+  No agregues aria-live a los spans internos: la actualización de su texto ya es capturada por la
+  región del contenedor. El role/aria-live del contenedor ahora es dinámico vía JS
+  (ver renderAlerta en historial-parcial.js): arranca en "status"/"polite" y solo escala a
+  "alert"/"assertive" cuando el paciente tiene alergias registradas, para no anunciar una alerta
+  médica urgente a pacientes sin antecedentes.
 ============================================ *@
-@{ Layout = null; }
-@using System.Text.Json
-@{ var historialParcialDataJson = JsonSerializer.Serialize(ViewData["HistorialParcialData"]); }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Historial Clínico Parcial";
+    var historialParcialDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["HistorialParcialData"] ?? new object());
+}
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Historia Parcial del Paciente</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-@{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
-
-  <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css" asp-append-version="true" />
+}
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
@@ -64,52 +48,52 @@ NOTAS DE MANTENIMIENTO:
     <!-- Page header con metadatos del paciente -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Auxiliar</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_auxiliar">Auxiliar</span>
           <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active">Historial Clínico</span>
+          <span class="bc-active" data-i18n="historia.title">Historial Clínico</span>
         </nav>
-        <h1 class="page-title">Historial Clínico — Solo Lectura</h1>
-        <p class="page-subtitle" id="patientMeta" aria-live="polite">Cargando...</p>
+        <h1 class="page-title" data-i18n="historia.title">Historial Clínico — Solo Lectura</h1>
+        <p class="page-subtitle" id="patientMeta" aria-live="polite" data-i18n="common.loading">Cargando...</p>
       </div>
     </header>
 
     <!-- Contenido principal -->
     <div class="content">
 
-      <!-- Alerta médica con role alert para anuncio inmediato -->
-      <div class="alerta-medica" id="alertaMedica" role="alert" aria-live="assertive">
+      <!-- Alerta médica: role/aria-live arrancan neutros y el JS los escala a "alert"/"assertive"
+           solo si el paciente tiene alergias registradas (ver renderAlerta en el JS). Los spans
+           internos NO llevan aria-live propio: anidar live regions es un anti-patrón ARIA que
+           hacía que el navegador anunciara los cambios como "polite" en vez de "assertive". -->
+      <div class="alerta-medica" id="alertaMedica" role="status" aria-live="polite">
         <div class="alerta-medica-title">
           <span class="material-symbols-outlined" aria-hidden="true">warning</span>
-          <span>ALERTA M—DICA — LEER ANTES DE PROCEDER</span>
+          <span data-i18n="common.warning">ALERTA MÉDICA — LEER ANTES DE PROCEDER</span>
         </div>
         <div class="alerta-medica-row">
           <span class="material-symbols-outlined allergy-icon" aria-hidden="true">warning</span>
-          <span><strong>Alergia:</strong> <span class="alerta-medica-value red" id="alergia"
-              aria-live="polite">—</span></span>
+          <span><strong>Alergia:</strong> <span class="alerta-medica-value red" id="alergia">—</span></span>
         </div>
         <div class="alerta-medica-row">
           <span class="material-symbols-outlined alerta-medica-icon" aria-hidden="true">medication</span>
-          <span><strong>Medicamentos:</strong> <span class="alerta-medica-value" id="medicamentos"
-              aria-live="polite">—</span></span>
+          <span><strong>Medicamentos:</strong> <span class="alerta-medica-value" id="medicamentos">—</span></span>
         </div>
         <div class="alerta-medica-row">
           <span class="material-symbols-outlined alerta-medica-icon" aria-hidden="true">bloodtype</span>
-          <span><strong>Grupo sanguíneo:</strong> <span class="alerta-medica-value" id="grupoSang"
-              aria-live="polite">—</span></span>
+          <span><strong>Grupo sanguíneo:</strong> <span class="alerta-medica-value" id="grupoSang">—</span></span>
         </div>
       </div>
 
       <!-- Tabla de historial con estructura accesible -->
       <div class="table-card">
         <div class="table-scroll">
-          <table class="hist-table" aria-label="Historial de consultas del paciente">
+          <table class="table-base hist-table" aria-label="Historial de consultas del paciente" data-i18n-aria-label="historia.title">
             <thead>
               <tr>
-                <th scope="col">FECHA</th>
-                <th scope="col">PROFESIONAL</th>
-                <th scope="col">DIAGN—STICO</th>
-                <th scope="col">PROCEDIMIENTO</th>
+                <th scope="col" data-i18n="historia.date">FECHA</th>
+                <th scope="col" data-i18n="historia.professional">PROFESIONAL</th>
+                <th scope="col" data-i18n="historia.diagnosis">DIAGNÓSTICO</th>
+                <th scope="col" data-i18n="historia.treatment">PROCEDIMIENTO</th>
               </tr>
             </thead>
             <tbody id="histBody" aria-live="polite">
@@ -172,55 +156,19 @@ NOTAS DE MANTENIMIENTO:
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Estilos para contenido solo accesible por screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
     <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
   <script>
     window.smiletrackHistorialParcialData = @Html.Raw(historialParcialDataJson);
   </script>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js")"></script>
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
-</body>
-
-</html>
-
+@section Scripts {
+    <script src="~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
+}

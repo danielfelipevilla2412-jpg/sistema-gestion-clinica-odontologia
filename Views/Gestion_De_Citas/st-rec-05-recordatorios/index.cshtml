@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@* ============================================
+@* ============================================
 SmileTrack — Recordatorios (st-rec-05-recordatorios)
 ============================================
 Autor: Johan Santamaria
@@ -21,67 +21,42 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 ============================================ *@
-@{ Layout = null; }
-@using SmileTrack_MVC.Models.Entities
 @{
-    dynamic recData = ViewData["RecordatoriosData"]!;
-    IEnumerable<dynamic> pendientes = recData.pendientes;
-    int sinConfirmar = recData.sinConfirmar;
-    int facturasVencidas = recData.facturasVencidas;
+    Layout = "_Layout";
+    ViewData["Title"] = "Recordatorios";
+    dynamic recData = ViewData["RecordatoriosData"] ?? new { pendientes = Enumerable.Empty<dynamic>(), sinConfirmar = 0, facturasVencidas = 0 };
+    var pendientes = (IEnumerable<dynamic>)(recData.pendientes ?? Enumerable.Empty<dynamic>());
+    int sinConfirmar = (int)(recData.sinConfirmar ?? 0);
+    int facturasVencidas = (int)(recData.facturasVencidas ?? 0);
 }
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Recordatorios</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-rec-05-recordatorios/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
-
-  <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-rec-05-recordatorios/styles.css" asp-append-version="true" />
+}
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
+    @Html.AntiForgeryToken()
 
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb">Recepción <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span> Recordatorios</div>
-        <h1 class="page-title">Recordatorios y Notificaciones</h1>
-        <p class="page-subtitle">Gestiona los recordatorios automáticos y manuales de citas para pacientes</p>
+        <div class="breadcrumb"><span data-i18n="common_role_recepcionista">Recepción</span> <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span> <span data-i18n="common.notifications">Recordatorios</span></div>
+        <h1 class="page-title" data-i18n="notifications.title">Recordatorios y Notificaciones</h1>
+        <p class="page-subtitle" data-i18n="rec05.subtitle">Gestiona los recordatorios automáticos y manuales de citas para pacientes</p>
       </div>
-      <a href="/gestion-de-citas/st-rec-03-gestion-citas" class="btn-primary" aria-label="Crear nueva cita">+ Nueva cita</a>
+      <a href="/gestion-de-citas/st-rec-03-gestion-citas" class="btn-primary" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new">+ Nueva cita</a>
     </header>
 
     <!-- Stats con aria-label para sección de estadÍdsticas -->
-    <section class="stats-container" aria-label="Resumen de recordatorios">
+    <section class="stats-container" aria-label="Resumen de recordatorios" data-i18n-aria-label="common.notifications">
       <div class="stat-card success-card">
-        <span class="stat-value" id="statsSentCount" aria-live="polite">12</span>
-        <span class="stat-label">Enviados hoy</span>
+        <span class="stat-value" id="statsSentCount" aria-live="polite">0</span>
+        <span class="stat-label" data-i18n="status.sent">Enviados hoy</span>
       </div>
       <div class="stat-card warning-card">
-        <span class="stat-value" id="statsPendingCount" aria-live="polite">5</span>
-        <span class="stat-label">Pendientes de envío</span>
+        <span class="stat-value" id="statsPendingCount" aria-live="polite">@pendientes.Count()</span>
+        <span class="stat-label" data-i18n="status.pending">Pendientes de envío</span>
       </div>
     </section>
 
@@ -94,7 +69,7 @@ NOTAS DE MANTENIMIENTO:
         <!-- Recordatorios pendientes con role region -->
         <section class="reminders-section" aria-labelledby="pendingTitle">
           <div class="section-header">
-            <h2 id="pendingTitle">Pendientes de envío</h2>
+            <h2 id="pendingTitle" data-i18n="status.pending">Pendientes de envío</h2>
             <button class="btn-success" id="btnSendSelected"
               aria-label="Enviar recordatorios a pacientes seleccionados"><span class="material-symbols-outlined" aria-hidden="true">send</span> Enviar</button>
           </div>
@@ -116,11 +91,11 @@ NOTAS DE MANTENIMIENTO:
                 string diaTexto = p.esManana ? "Mañana" : "Pasado mañana";
                 string horaTexto = ((DateTime)p.fechaHora).ToString("h:mm tt");
                 string isoTexto = ((DateTime)p.fechaHora).ToString("yyyy-MM-ddTHH:mm");
-                string canalIcono = p.canal == "email" ? "email" : "sms";
-                string canalTexto = p.canal == "email" ? "Correo" : "SMS";
+                string canalIcono = p.canal == "email" ? "email" : "mail_off";
+                string canalTexto = p.canal == "email" ? "Correo electrónico" : "Correo electrónico no disponible";
                 string filaClase = p.confirmada ? "patient-row dimmed" : "patient-row selected";
 
-                <div class="@filaClase" data-id="@p.id" role="listitem">
+                <div class="@filaClase" data-id="@p.id" data-es-manana="@(((bool)p.esManana).ToString().ToLowerInvariant())" role="listitem">
                   <input type="checkbox" class="custom-checkbox" checked="@(!((bool)p.confirmada))"
                     aria-label="Seleccionar recordatorio para @p.paciente" />
                   <div class="avatar-circle @avatarClass" aria-hidden="true">@p.iniciales</div>
@@ -145,16 +120,15 @@ NOTAS DE MANTENIMIENTO:
         <!-- Historial de enviados -->
         <section class="history-section" aria-labelledby="historyTitle">
           <div class="history-header">
-            <h3 id="historyTitle">Enviados recientemente</h3>
-            <a href="#" class="view-all-link" aria-label="Ver historial completo de recordatorios enviados">Ver todos <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></a>
+            <h3 id="historyTitle" data-i18n="rec05.history_title">Enviados recientemente</h3>
+            <a href="#" class="view-all-link" aria-label="Ver historial completo de recordatorios enviados" data-i18n-aria-label="rec05.view_all_aria"><span data-i18n="table.view_all">Ver todos</span> <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></a>
           </div>
           <div class="history-scroller" id="historyScroller" role="list"
-            aria-label="Historial de recordatorios enviados">
+            aria-label="Historial de recordatorios enviados" data-i18n-aria-label="rec05.history_scroller_aria">
             <!-- No existe una tabla que registre el historial de recordatorios enviados en el
                  esquema actual, así que se muestra el estado vacío real (antes había 3 envíos
                  inventados aquí: María López, Carlos Ruiz, Jorge Díaz). -->
-            <p style="padding:12px;color:var(--text-secondary,#64748b);">Aún no se ha registrado el envío de recordatorios.</p>
-          </div>
+            <p style="padding:12px;color:var(--text-secondary,#64748b);" data-i18n="rec05.no_history">Aún no se ha registrado el envío de recordatorios.</p>
           </div>
         </section>
 
@@ -164,7 +138,7 @@ NOTAS DE MANTENIMIENTO:
       <aside class="alerts-sidebar-card" aria-labelledby="alertsTitle">
         <div class="alerts-header">
           <span class="material-symbols-outlined" aria-hidden="true">warning</span>
-          <h3 id="alertsTitle">Alertas pendientes</h3>
+          <h3 id="alertsTitle" data-i18n="rec05.alerts_title">Alertas pendientes</h3>
         </div>
         <div class="alerts-list" role="list" aria-label="Lista de alertas pendientes">
           <!-- Alerta roja: sin confirmar -->
@@ -179,7 +153,7 @@ NOTAS DE MANTENIMIENTO:
           </div>
           <!-- Alerta amarilla: facturas vencidas -->
           <div class="alert-item-card yellow-alert" role="listitem" style="@(facturasVencidas > 0 ? "" : "display:none;")">
-            <div class="alert-icon-box material-symbols-outlined" aria-hidden="true">invoice</div>
+            <div class="alert-icon-box material-symbols-outlined" aria-hidden="true">receipt_long</div>
             <div class="alert-content-box">
               <h4>@facturasVencidas factura@(facturasVencidas == 1 ? "" : "s") vencida@(facturasVencidas == 1 ? "" : "s")</h4>
               <p>Pacientes con pagos pendientes por más de 15 días.</p>
@@ -238,25 +212,13 @@ NOTAS DE MANTENIMIENTO:
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
   </footer>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-rec-05-recordatorios/app.js")"></script>
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
-</body>
-
-</html>
-
-
-
-
-
+@section Scripts {
+    <script src="~/js/Gestion_De_Citas/st-rec-05-recordatorios/app.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
+}

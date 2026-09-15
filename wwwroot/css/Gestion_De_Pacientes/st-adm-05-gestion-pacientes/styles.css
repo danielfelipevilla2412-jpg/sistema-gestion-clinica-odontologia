@@ -189,12 +189,16 @@ img { max-width: 100%; height: auto; display: block; }
 
 .btn-primary {
   background: var(--primary); color: #fff; border: none;
-  padding: 9px 18px; border-radius: var(--radius-sm);
+  padding: 10px 20px; border-radius: var(--radius-sm);
   font-weight: 600; font-size: .83rem;
-  cursor: pointer; transition: background var(--tr);
+  cursor: pointer; transition: background var(--tr), box-shadow var(--tr);
   display: inline-flex; align-items: center; gap: 6px;
+  box-shadow: 0 2px 8px rgba(26, 86, 204, 0.15);
 }
-.btn-primary:hover { background: var(--primary-dark); }
+.btn-primary:hover { 
+  background: var(--primary-dark);
+  box-shadow: 0 4px 12px rgba(26, 86, 204, 0.25);
+}
 .btn-primary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
 
@@ -273,11 +277,15 @@ img { max-width: 100%; height: auto; display: block; }
 .btn-secondary {
   background: var(--white); color: var(--text);
   border: 1.5px solid var(--border);
-  padding: 9px 18px; border-radius: var(--radius-sm);
+  padding: 10px 20px; border-radius: var(--radius-sm);
   font-weight: 600; font-size: .83rem;
-  cursor: pointer; transition: background var(--tr), border-color var(--tr);
+  cursor: pointer; transition: background var(--tr), border-color var(--tr), color var(--tr);
 }
-.btn-secondary:hover { background: var(--primary-light); border-color: var(--primary); }
+.btn-secondary:hover { 
+  background: #f8fafc;
+  border-color: var(--primary); 
+  color: var(--primary);
+}
 .btn-secondary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ═══ STATS GRID ══ */
@@ -319,7 +327,10 @@ img { max-width: 100%; height: auto; display: block; }
   border-radius: var(--radius);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  /* Yeray (2025) - overflow-x: auto para scroll horizontal cuando la pantalla
+     es estrecha y los 4 botones de acción no caben sin solaparse. */
+  overflow-x: auto;
+  overflow-y: visible;
   margin-bottom: 20px;
 }
 .table-header {
@@ -327,6 +338,7 @@ img { max-width: 100%; height: auto; display: block; }
   background: var(--bg); border-bottom: 2px solid var(--border);
   padding: 12px 16px; font-size: .69rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted);
+  min-width: 860px;
 }
 
 .table-col { flex: 1; padding: 0 8px; }
@@ -334,14 +346,17 @@ img { max-width: 100%; height: auto; display: block; }
 .col-fecha { flex: 1; min-width: 100px; }
 .col-diagnostico { flex: 1.5; min-width: 140px; }
 .col-cita { flex: 1; min-width: 100px; }
-.col-alergias { flex: 1; min-width: 120px; }
-.col-acciones { flex: 1.1; min-width: 160px; text-align: right; }
+.col-alergias { flex: 1; min-width: 110px; }
+/* Yeray (2025) - 3 botones caben con ~180px sin solapamiento. */
+.col-acciones { flex: 0 0 auto; width: 180px; min-width: 180px; text-align: right; }
 
 .table-body { display: flex; flex-direction: column; }
 .table-row {
   display: flex; align-items: center;
   padding: 12px 16px; border-bottom: 1px solid var(--border);
   transition: background var(--tr);
+  /* mismo ancho mínimo que el header para que las columnas alineen */
+  min-width: 860px;
 }
 .table-row:hover { background: var(--patient-card-hover); }
 .table-row:last-child { border-bottom: none; }
@@ -368,19 +383,25 @@ img { max-width: 100%; height: auto; display: block; }
 
 .actions-cell {
   display: flex; align-items: center; justify-content: flex-end;
-  gap: 6px;
+  gap: 3px;
   flex-wrap: nowrap;
 }
 .action-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 10px; border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 5px 7px; border-radius: var(--radius-sm);
   background: none; border: 1.5px solid var(--border); cursor: pointer;
   color: var(--text-muted); transition: background var(--tr), color var(--tr), border-color var(--tr);
-  font-size: .78rem; line-height: 1; font-family: var(--font); font-weight: 600;
+  font-size: .7rem; line-height: 1; font-family: var(--font); font-weight: 600;
   white-space: nowrap;
 }
-.action-icon { font-size: .95rem; flex-shrink: 0; }
-.action-label { font-size: .75rem; }
+.action-icon { font-size: .85rem; flex-shrink: 0; }
+/* Yeray (2025) - ocultar etiqueta de texto en pantallas < 1024px para que los
+   3 botones quepan cómodamente; quedan solo los íconos con title tooltip. */
+@media (max-width: 1024px) {
+  .action-label { display: none; }
+  .action-btn { padding: 5px 6px; }
+  .col-acciones { width: 120px; min-width: 120px; }
+}
 .action-btn:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
 .action-btn.btn-history:hover { background: #f0fdf4; color: #16a34a; border-color: #16a34a; }
 .action-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
@@ -411,37 +432,158 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* ═══ MODAL ══ */
 .modal-overlay {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,.45); z-index: 400;
-  align-items: center; justify-content: center;
+  display: none; 
+  position: fixed; 
+  inset: 0;
+  background: rgba(0,0,0,.5); 
+  z-index: 400;
+  align-items: center; 
+  justify-content: center;
   padding: 16px;
+  overflow: auto;
 }
-.modal-overlay.open { display: flex; }
+.modal-overlay.open { 
+  display: flex; 
+}
 .modal {
-  background: var(--white); border-radius: var(--radius);
-  padding: 24px; width: 100%; max-width: 480px;
-  box-shadow: var(--shadow-md); position: relative;
+  background: var(--white); 
+  border-radius: var(--radius);
+  padding: 28px; 
+  width: 100%; 
+  max-width: 620px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-md); 
+  position: relative;
   animation: fadeIn .2s ease;
+  margin: auto;
+  flex-shrink: 0;
 }
 .modal-close {
-  position: absolute; top: 14px; right: 16px;
-  background: none; border: none; font-size: 22px;
-  cursor: pointer; color: var(--text-muted);
-  padding: 4px; border-radius: 6px;
-  transition: background var(--tr);
+  position: absolute; 
+  top: 16px; 
+  right: 20px;
+  background: none; 
+  border: none; 
+  font-size: 24px;
+  cursor: pointer; 
+  color: var(--text-muted);
+  padding: 6px; 
+  border-radius: 6px;
+  transition: background var(--tr), color var(--tr);
+  z-index: 10;
 }
-.modal-close:hover { background: var(--primary-light); color: var(--primary); }
-.modal-close:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.modal-close:hover { 
+  background: var(--primary-light); 
+  color: var(--primary); 
+}
+.modal-close:focus-visible { 
+  outline: 2px solid var(--primary); 
+  outline-offset: 2px; 
+}
 .modal-title {
-  font-family: var(--font-display); font-size: 1.1rem;
-  font-weight: 700; margin-bottom: 4px; color: var(--primary);
+  font-family: var(--font-display); 
+  font-size: 1.25rem;
+  font-weight: 700; 
+  margin-bottom: 20px; 
+  color: var(--primary);
+  padding-bottom: 12px; 
+  border-bottom: 2px solid var(--primary-light);
+  padding-right: 32px;
 }
 .modal-content {
-  font-size: .85rem; color: var(--text);
-  line-height: 1.6; margin: 12px 0 20px;
+  font-size: .85rem; 
+  color: var(--text);
+  line-height: 1.6; 
+  margin: 12px 0 20px;
 }
 .modal-footer {
-  display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;
+  display: flex; 
+  justify-content: flex-end; 
+  gap: 12px; 
+  margin-top: 20px;
+}
+
+/* ═══ FORM DENTRO DEL MODAL DE EDICIÓN ═══
+   Yeray (2025) - formulario reorganizado con secciones claras
+   y mejor jerarquía visual */
+#editPatientForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 18px;
+  margin: 0;
+}
+/* títulos de sección */
+#editPatientForm .form-section-title {
+  grid-column: 1 / -1;
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin: 16px 0 8px 0;
+  padding-top: 12px;
+  border-top: 2px solid var(--primary-light);
+}
+#editPatientForm .form-section-title:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+/* campos de ancho completo */
+#editPatientForm .form-group--full {
+  grid-column: 1 / -1;
+}
+/* botones siempre al final a ancho completo */
+#editPatientForm .form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+}
+.form-label {
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  font-size: .82rem;
+  color: var(--text);
+  background: var(--white);
+  transition: border-color var(--tr), box-shadow var(--tr), background var(--tr);
+  outline: none;
+}
+.form-input:focus,
+.form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+  background: #fafbff;
+}
+.form-input::placeholder { 
+  color: #cbd5e1; 
+}
+textarea.form-input {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+  font-family: var(--font);
 }
 
 /* ═══ MOBILE NAV ═══ */
@@ -494,6 +636,28 @@ img { max-width: 100%; height: auto; display: block; }
   .main { margin-left: 0; padding: 58px 14px 32px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   
+  .modal {
+    padding: 20px;
+    max-width: 95vw;
+    max-height: 95vh;
+  }
+  .modal-title {
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+  }
+  #editPatientForm {
+    grid-template-columns: 1fr;
+    gap: 12px 14px;
+  }
+  .form-label {
+    font-size: .68rem;
+  }
+  .form-input,
+  .form-select {
+    font-size: .8rem;
+    padding: 8px 10px;
+  }
+  
   .table-header { display: none; }
   .table-row {
     flex-direction: column;
@@ -537,6 +701,44 @@ img { max-width: 100%; height: auto; display: block; }
   .stat-number { font-size: 1.9rem; }
   .patient-info { gap: 8px; }
   .patient-avatar { width: 36px; height: 36px; font-size: .7rem; }
+  
+  .modal {
+    padding: 16px;
+    margin: 8px;
+  }
+  .modal-title {
+    font-size: 1rem;
+    margin-bottom: 12px;
+    padding-right: 28px;
+  }
+  .modal-close {
+    top: 12px;
+    right: 12px;
+    font-size: 22px;
+  }
+  #editPatientForm {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  #editPatientForm .form-section-title {
+    margin: 12px 0 6px 0;
+  }
+  .form-label {
+    font-size: .65rem;
+  }
+  .form-input,
+  .form-select {
+    font-size: .78rem;
+    padding: 8px 10px;
+  }
+  textarea.form-input {
+    min-height: 70px;
+  }
+  .btn-primary,
+  .btn-secondary {
+    font-size: .8rem;
+    padding: 8px 14px;
+  }
 }
 
 /* ═══ PRINT STYLES ═══ */

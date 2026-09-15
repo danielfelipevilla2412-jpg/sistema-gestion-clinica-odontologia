@@ -15,7 +15,7 @@
     justify-content: center;
     padding: 20px;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.2s ease-out;
 }
 
 .modal-overlay.open {
@@ -32,19 +32,19 @@
     max-height: 90vh;
     display: flex;
     flex-direction: column;
-    transform: scale(0.95) translateY(10px);
+    transform: translateY(8px);
     opacity: 0;
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
     overflow: hidden;
 }
 
 .modal-overlay.open .modal-content {
-    transform: scale(1) translateY(0);
+    transform: translateY(0);
     opacity: 1;
 }
 
 .modal-header {
-    padding: 20px 24px;
+    padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid #e5e7eb;
     display: flex;
     justify-content: space-between;
@@ -79,7 +79,7 @@
 }
 
 .modal-body {
-    padding: 24px;
+    padding: var(--space-6);
     overflow-y: auto;
     font-family: 'DM Sans', sans-serif;
     color: #4b5563;
@@ -88,7 +88,7 @@
 }
 
 .modal-footer {
-    padding: 16px 24px;
+    padding: var(--space-4) var(--space-6);
     background-color: #f9fafb;
     border-top: 1px solid #e5e7eb;
     display: flex;

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@* ============================================
+@* ============================================
 SmileTrack — Dashboard Recepción (st-rec-01-dashboard)
 ============================================
 Autor: Johan Santamaria
@@ -21,42 +21,15 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 ============================================ *@
-@{ Layout = null; }
-@using System.Text.Json
-@{ var dashboardRecDataJson = JsonSerializer.Serialize(ViewData["DashboardRecepcionData"]); }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Dashboard Recepción";
+    var dashboardRecDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["DashboardRecData"] ?? new object());
+}
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Panel de Recepción</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-rec-01-dashboard/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- [MEJORA]: Skip link para accesibilidad keyboard-first (consistente con mÓdulos anteriores) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
-
-  <!-- ----- HAMBURGER (mÓvil) ----- -->
-  <!-- [MEJORA]: aria-expanded y aria-controls para accesibilidad de menú mÓvil -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <!-- [MEJORA]: aria-hidden inicial para overlay -->
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-rec-01-dashboard/styles.css" asp-append-version="true" />
+}
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
@@ -64,10 +37,10 @@ NOTAS DE MANTENIMIENTO:
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb">Recepción ? Panel</div>
-        <h1 class="page-title">Panel de Recepción</h1>
+        <div class="breadcrumb" data-i18n="rec01_breadcrumb">Recepción ? Panel</div>
+        <h1 class="page-title" data-i18n="rec01_title">Panel de Recepción</h1>
         <!-- [MEJORA]: time datetime para accesibilidad de fecha/hora -->
-        <p class="page-subtitle" id="pageSubtitleDate">Cargando…</p>
+        <p class="page-subtitle" id="pageSubtitleDate" data-i18n="common.loading">Cargando…</p>
       </div>
     </header>
 
@@ -76,7 +49,7 @@ NOTAS DE MANTENIMIENTO:
     <div class="alert-banner" id="alertBannerProximas" role="region" aria-label="Próximas citas en los siguientes 30 minutos" style="display:none;">
       <div class="alert-banner-icon material-symbols-outlined" aria-hidden="true">notifications</div>
       <div class="alert-banner-content">
-        <h3 class="alert-banner-title">Próximas citas — en los siguientes 30 minutos</h3>
+        <h3 class="alert-banner-title" data-i18n="rec01_alert_banner_title">Próximas citas — en los siguientes 30 minutos</h3>
         <div class="alert-banner-desc" id="alertBannerDesc">
           <!-- Se llena dinámicamente desde datos reales (ver renderProximasCitas en app.js) -->
         </div>
@@ -85,34 +58,34 @@ NOTAS DE MANTENIMIENTO:
 
     <!-- Stats Grid (usando clases unificadas) -->
     <!-- [MEJORA]: aria-label para sección de estadÍdsticas -->
-    <section class="stats-grid" aria-label="Resumen de actividad del día">
+    <section class="stats-grid" aria-label="Resumen de actividad del día" data-i18n-aria-label="rec01.stats_aria">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="statCitasHoy">—</span>
-        <span class="stat-label">Citas hoy</span>
+        <span class="stat-label" data-i18n="rec01.stat_today">Citas hoy</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="statConfirmadas">—</span>
-        <span class="stat-label">Confirmadas</span>
+        <span class="stat-label" data-i18n="status.confirmed">Confirmadas</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="stat-number" id="statPendientes">—</span>
-        <span class="stat-label">Pendientes</span>
+        <span class="stat-label" data-i18n="status.pending">Pendientes</span>
       </div>
       <div class="stat-card" data-color="purple">
         <span class="stat-number" id="statFacturasPendientes">—</span>
-        <span class="stat-label">Facturas pendientes</span>
+        <span class="stat-label" data-i18n="rec01.stat_invoices_pending">Facturas pendientes</span>
       </div>
     </section>
 
     <!-- Action Buttons -->
     <!-- [MEJORA]: role="group" para botones relacionados -->
-    <div class="action-buttons-row" role="group" aria-label="Acciones rápidas">
+    <div class="action-buttons-row" role="group" aria-label="Acciones rápidas" data-i18n-aria-label="rec01.quick_actions_aria">
       <!-- [MEJORA]: aria-label descriptivo para cada botón -->
-      <button class="btn-action btn-green" id="btnNuevoPaciente" aria-label="Registrar nuevo paciente en el sistema">
-        <span class="material-symbols-outlined" aria-hidden="true">person_add</span> Nuevo paciente
+      <button class="btn-action btn-green" id="btnNuevoPaciente" aria-label="Registrar nuevo paciente en el sistema" data-i18n-aria-label="rec01.btn_new_patient_aria">
+        <span class="material-symbols-outlined" aria-hidden="true">person_add</span> <span data-i18n="patients.new">Nuevo paciente</span>
       </button>
-      <button class="btn-action btn-blue" id="btnGenerarFactura" aria-label="Generar nueva factura para paciente">
-        <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span> Generar factura
+      <button class="btn-action btn-blue" id="btnGenerarFactura" aria-label="Generar nueva factura para paciente" data-i18n-aria-label="rec01.btn_generate_invoice_aria">
+        <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span> <span data-i18n="rec01.btn_generate_invoice">Generar factura</span>
       </button>
     </div>
 
@@ -123,16 +96,16 @@ NOTAS DE MANTENIMIENTO:
       <div class="table-section">
         <div class="table-wrap">
           <!-- [MEJORA]: aria-label y role para tabla accesible -->
-          <table class="table-base" aria-label="Listado de citas del día">
+          <table class="table-base" aria-label="Listado de citas del día" data-i18n-aria-label="rec01.table_aria">
             <thead>
               <tr>
                 <!-- [MEJORA]: scope="col" para accesibilidad de tablas -->
-                <th scope="col">Hora</th>
-                <th scope="col">Paciente</th>
-                <th scope="col">Profesional</th>
-                <th scope="col">Servicio</th>
-                <th scope="col">Estado</th>
-                <th scope="col">Acciones</th>
+                <th scope="col" data-i18n="citas.time">Hora</th>
+                <th scope="col" data-i18n="citas.patient">Paciente</th>
+                <th scope="col" data-i18n="citas.professional">Profesional</th>
+                <th scope="col" data-i18n="citas.service">Servicio</th>
+                <th scope="col" data-i18n="citas.status">Estado</th>
+                <th scope="col" data-i18n="table.actions">Acciones</th>
               </tr>
             </thead>
             <!-- [MEJORA]: aria-live para anunciar cambios dinámicos en la tabla -->
@@ -191,27 +164,32 @@ NOTAS DE MANTENIMIENTO:
   <script>
     window.smiletrackDashboardRecData = @Html.Raw(dashboardRecDataJson);
   </script>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-rec-01-dashboard/app.js")"></script>
+  <script src="@Url.Content("~/js/Gestion_De_Citas/st-rec-01-dashboard/app.js")" defer></script>
+
+  <!-- Mobile bottom nav — Recepcionista -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-rec-01-dashboard" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">bar_chart</span></span>
+      <span>Inicio</span>
+    </a>
+    <a href="/gestion-de-citas/st-rec-03-gestion-citas" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
+      <span>Citas</span>
+    </a>
+    <a href="/perfiles/st-rec-06-perfil-recepcionista" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
+      <span>Perfil</span>
+    </a>
+  </nav>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
   </footer>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
-</body>
-
-</html>
-
-
-
-
-
+@section Scripts {
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
+}

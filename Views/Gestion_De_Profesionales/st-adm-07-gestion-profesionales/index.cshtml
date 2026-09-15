@@ -23,7 +23,12 @@ NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 - La vista usa ViewData con fallback a colección vacía para evitar NullReferenceException si el Controller falla al poblar los datos.
 ============================================ *@
-@{
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/styles.css" asp-append-version="true" />
+}
+
+@{ Layout = "_Layout"; ViewData["Title"] = "Gestión de Profesionales";
+  
   // Extraer datos del ViewBag con fallback para evitar null reference en caso de error del Controller
   var especialidades = ViewData["Especialidades"] as List<SmileTrack_MVC.Models.Entities.Especialidad> ?? new();
   var profesionales  = ViewData["Profesionales"]  as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
@@ -37,58 +42,23 @@ NOTAS DE MANTENIMIENTO:
 }
 
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Gestión de odontólogos y especialistas de la clínica SmileTrack" />
-  <meta name="robots" content="noindex, nofollow" />
-  <title>SmileTrack — Gestión de Profesionales</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/styles.css?v=2")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/footer.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
-
-
-  <!-- ═════ HAMBURGER (móvil) ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
 
   <!-- ═════ MAIN ═════ -->
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
   <main class="main" id="main-content">
 
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Administración</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Gestión de Profesionales</span>
+          <span data-i18n="gestionprofesionales_breadcrumb_admin">Administración</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" data-i18n="gestionprofesionales_breadcrumb_current">Gestión de Profesionales</span>
         </nav>
-        <h1 class="page-title">Gestión de Profesionales</h1>
-        <p class="page-subtitle">Administra los odontólogos y especialistas de la clínica</p>
+        <h1 class="page-title" data-i18n="gestionprofesionales_title">Gestión de Profesionales</h1>
+        <p class="page-subtitle" data-i18n="gestionprofesionales_subtitle">Administra los odontólogos y especialistas de la clínica</p>
       </div>
-      <button class="btn-primary" id="btnNewProfessional" aria-label="Crear nuevo profesional">
+      <button class="btn-primary" id="profesionales-btn-nuevo" aria-label="Crear nuevo profesional" data-i18n-aria-label="gestionprofesionales_btn_nuevo_aria" data-i18n="gestionprofesionales_btn_nuevo">
         + Nuevo Profesional
       </button>
     </header>
@@ -98,39 +68,39 @@ NOTAS DE MANTENIMIENTO:
       WHY: el JS lee data-target y anima el contador de 0 al valor real al cargar la página.
            Los valores NO dependen de la página actual ni de filtros activos — siempre son el total real.
     -->
-    <section class="stats-grid" aria-label="Estadísticas de profesionales">
+    <section class="stats-grid" aria-label="Estadísticas de profesionales" data-i18n-aria-label="gestionprofesionales_stats_aria">
       <div class="stat-card" data-color="blue">
-        <span class="stat-number" id="metricTotal" data-target="@statTotal" aria-live="polite">0</span>
-        <span class="stat-label">Total Profesionales</span>
+        <span class="stat-number" id="profesionales-stat-total" data-target="@statTotal" aria-live="polite">0</span>
+        <span class="stat-label" data-i18n="gestionprofesionales_stat_total">Total Profesionales</span>
       </div>
       <div class="stat-card" data-color="green">
-        <span class="stat-number" id="metricActives" data-target="@statActivos" aria-live="polite">0</span>
-        <span class="stat-label">Activos</span>
+        <span class="stat-number" id="profesionales-stat-activos" data-target="@statActivos" aria-live="polite">0</span>
+        <span class="stat-label" data-i18n="gestionprofesionales_stat_activos">Activos</span>
       </div>
       <div class="stat-card" data-color="orange">
-        <span class="stat-number" id="metricVacations" data-target="@statVacaciones" aria-live="polite">0</span>
-        <span class="stat-label">En vacaciones</span>
+        <span class="stat-number" id="profesionales-stat-vacaciones" data-target="@statVacaciones" aria-live="polite">0</span>
+        <span class="stat-label" data-i18n="gestionprofesionales_stat_vacaciones">En vacaciones</span>
       </div>
       <div class="stat-card" data-color="red">
-        <span class="stat-number" id="metricInactives" data-target="@statInactivos" aria-live="polite">0</span>
-        <span class="stat-label">Inactivos</span>
+        <span class="stat-number" id="profesionales-stat-inactivos" data-target="@statInactivos" aria-live="polite">0</span>
+        <span class="stat-label" data-i18n="gestionprofesionales_stat_inactivos">Inactivos</span>
       </div>
     </section>
 
 
     <!-- Filtros: cada submit hace GET real al Controller — los parámetros van como query string -->
     <!-- WHY: GET en lugar de POST permite compartir URLs con filtros aplicados (bookmarkeable) -->
-    <section class="filters-section" aria-label="Filtros de búsqueda">
+    <section class="filters-section" aria-label="Filtros de búsqueda" data-i18n-aria-label="gestionprofesionales_filters_aria">
       <form method="get" class="filters-row">
         <div class="search-wrap">
           <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
           <input type="search" id="searchInput" name="search" class="search-input"
-            placeholder="Buscar por nombre, especialidad o registro..." aria-label="Buscar profesional" value="@ViewData["SearchFilter"]">
+            placeholder="Buscar por nombre, especialidad o registro..." aria-label="Buscar profesional" data-i18n-ph="gestionprofesionales_search_ph" data-i18n-aria-label="gestionprofesionales_search_aria" value="@ViewData["SearchFilter"]">
         </div>
         <div class="filter-wrap">
-          <label for="filterSpecialty" class="visually-hidden">Filtrar por especialidad</label>
-          <select id="filterSpecialty" name="especialidad" class="status-select" aria-label="Filtrar profesionales por especialidad">
-            <option value="">Todas las especialidades</option>
+          <label for="filterSpecialty" class="visually-hidden" data-i18n="gestionprofesionales_filter_specialty_label">Filtrar por especialidad</label>
+          <select id="filterSpecialty" name="especialidad" class="status-select" aria-label="Filtrar profesionales por especialidad" data-i18n-aria-label="gestionprofesionales_filter_specialty_aria">
+            <option value="" data-i18n="gestionprofesionales_filter_specialty_all">Todas las especialidades</option>
             @foreach (var especialidad in especialidades)
             {
               var espSelected = ViewData["EspecialidadFilter"]?.ToString() == especialidad.Nombre;
@@ -139,9 +109,9 @@ NOTAS DE MANTENIMIENTO:
           </select>
         </div>
         <div class="filter-wrap">
-          <label for="filterStatus" class="visually-hidden">Filtrar por estado</label>
-          <select id="filterStatus" name="estado" class="status-select" aria-label="Filtrar profesionales por estado">
-            <option value="">Todos los estados</option>
+          <label for="filterStatus" class="visually-hidden" data-i18n="gestionprofesionales_filter_status_label">Filtrar por estado</label>
+          <select id="filterStatus" name="estado" class="status-select" aria-label="Filtrar profesionales por estado" data-i18n-aria-label="gestionprofesionales_filter_status_aria">
+            <option value="" data-i18n="gestionprofesionales_filter_status_all">Todos los estados</option>
             @{
               var estadoActual = ViewData["EstadoFilter"]?.ToString();
               var estadosProf = new[] { ("activo", "Activo"), ("vacaciones", "Vacaciones"), ("inactivo", "Inactivo") };
@@ -149,11 +119,11 @@ NOTAS DE MANTENIMIENTO:
               {
                 if (estadoActual == clave)
                 {
-                  <option value="@clave" selected>@texto</option>
+                  <option value="@clave" selected data-i18n="gestionprofesionales_status_@clave">@texto</option>
                 }
                 else
                 {
-                  <option value="@clave">@texto</option>
+                  <option value="@clave" data-i18n="gestionprofesionales_status_@clave">@texto</option>
                 }
               }
             }
@@ -161,11 +131,11 @@ NOTAS DE MANTENIMIENTO:
         </div>
         <!-- Resetear page=1 al filtrar: evita quedarse en una página que ya no existe tras filtrar -->
         <input type="hidden" name="page" value="1" />
-        <button class="btn-primary" type="submit" aria-label="Aplicar los filtros de búsqueda seleccionados">
+        <button class="btn-primary" type="submit" aria-label="Aplicar los filtros de búsqueda seleccionados" data-i18n-aria-label="gestionprofesionales_btn_buscar_aria" data-i18n="gestionprofesionales_btn_buscar">
           🔍 Buscar
         </button>
         <!-- Limpiar: enlace simple al GET sin params — más limpio que resetear el form con JS -->
-        <a class="btn-secondary" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales")" aria-label="Limpiar todos los filtros y ver todos los profesionales">
+        <a class="btn-secondary" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales")" aria-label="Limpiar todos los filtros y ver todos los profesionales" data-i18n-aria-label="gestionprofesionales_btn_limpiar_aria" data-i18n="gestionprofesionales_btn_limpiar">
           ✕ Limpiar filtros
         </a>
       </form>
@@ -174,47 +144,27 @@ NOTAS DE MANTENIMIENTO:
     <!-- Tabla de profesionales: renderizada server-side por Razor (SSR) -->
     <!-- WHY: SSR garantiza que el contenido esté disponible inmediatamente sin esperar JS -->
     <section class="table-card" aria-labelledby="professionalsTitle">
-      <h2 class="visually-hidden" id="professionalsTitle">Lista de profesionales</h2>
+      <h2 class="visually-hidden" id="professionalsTitle" data-i18n="gestionprofesionales_table_title">Lista de profesionales</h2>
       <div class="table-wrap">
-        <table id="professionalsTable" class="table-base" aria-label="Tabla de profesionales de la clínica">
+        <table id="professionalsTable" class="table-base" aria-label="Tabla de profesionales de la clínica" data-i18n-aria-label="gestionprofesionales_table_aria">
           <thead>
             <tr>
-              <th scope="col">PROFESIONAL</th>
-              <th scope="col">ESPECIALIDAD</th>
-              <th scope="col">REGISTRO</th>
-              <th scope="col">TELÉFONO</th>
-              <th scope="col">ESTADO</th>
-              <th scope="col">ACCIONES</th>
+              <th scope="col" data-i18n="gestionprofesionales_th_profesional">PROFESIONAL</th>
+              <th scope="col" data-i18n="gestionprofesionales_th_especialidad">ESPECIALIDAD</th>
+              <th scope="col" data-i18n="gestionprofesionales_th_registro">REGISTRO</th>
+              <th scope="col" data-i18n="gestionprofesionales_th_telefono">TELÉFONO</th>
+              <th scope="col" data-i18n="gestionprofesionales_th_estado">ESTADO</th>
+              <th scope="col" data-i18n="gestionprofesionales_th_acciones">ACCIONES</th>
             </tr>
           </thead>
           <tbody id="professionalsTbody" aria-live="polite">
             @if (!profesionales.Any())
             {
-              @* 
-                CASO LÍMITE: Lista vacía.
-                Puede ocurrir porque:
-                a) No hay profesionales registrados en BD todavía.
-                b) Los filtros aplicados (búsqueda, especialidad, estado) no coincidieron con nada.
-                Mostramos un mensaje amigable en lugar de una tabla en blanco que confunde al usuario.
-              *@
-              var hayFiltros = !string.IsNullOrWhiteSpace(ViewData["SearchFilter"]?.ToString())
-                            || !string.IsNullOrWhiteSpace(ViewData["EspecialidadFilter"]?.ToString())
-                            || !string.IsNullOrWhiteSpace(ViewData["EstadoFilter"]?.ToString());
-              <tr>
-                <td colspan="6" style="text-align:center; padding:48px 24px; color:var(--text-muted);">
-                  <div style="font-size:2rem; margin-bottom:8px;">🩺</div>
-                  @if (hayFiltros)
-                  {
-                    <strong>Sin resultados</strong>
-                    <br /><span style="font-size:0.875rem;">Ningún profesional coincide con los filtros aplicados. <a href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales")">Limpiar filtros</a></span>
-                  }
-                  else
-                  {
-                    <strong>Aún no hay profesionales registrados</strong>
-                    <br /><span style="font-size:0.875rem;">Haz clic en "Nuevo Profesional" para agregar el primero.</span>
-                  }
-                </td>
-              </tr>
+              @await Html.PartialAsync("_EmptyState", new { 
+                message = "No se encontraron profesionales",
+                icon = "🩺",
+                colspan = 6
+              })
             }
             @foreach (var profesional in profesionales)
             {
@@ -236,10 +186,14 @@ NOTAS DE MANTENIMIENTO:
           @{
             var profNombreCompleto = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
             var profIniciales = string.Concat(profNombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
+            var avatarColorIdx = profesional.IdProfesional % 5;
+            var avatarColorPalette = new[] { "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6" };
+            var profAvatarColor = avatarColorPalette[avatarColorIdx];
+            var profStatusClass = $"badge-{((profesional.Estado ?? string.Empty).ToLowerInvariant())}";
           }
           <div class="actions-cell">
             <!-- Ver detalles: abrir modal con data desde atributos -->
-            <button class="btn-icon action-btn btn-view" type="button"
+            <button class="btn-icon action-btn btn-view view" type="button"
                     data-id="@profesional.IdProfesional"
                     data-name="@Html.Encode(profNombreCompleto)"
                     data-initials="@Html.Encode(profIniciales)"
@@ -247,28 +201,28 @@ NOTAS DE MANTENIMIENTO:
                     data-registry="@Html.Encode(profesional.RegistroMedico)"
                     data-phone="@Html.Encode(profesional.Telefono)"
                     data-status="@Html.Encode(profesional.Estado)"
+                    data-avatar-color="@profAvatarColor"
+                    data-status-class="@profStatusClass"
                     aria-label="@Html.Encode($"Ver detalles del profesional {profesional.Nombres} {profesional.Apellidos}")"
-                    title="Ver detalles del profesional @Html.Encode(profNombreCompleto)">
-              👁️ <span class="btn-text">Ver</span>
+                    title="Ver detalles del profesional @Html.Encode(profNombreCompleto)"
+                    data-i18n-title="gestionprofesionales_btn_ver_title">
+              <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_ver">Ver</span>
             </button>
-            <!-- Editar: llama directamente a editProfessional() en app.js via API.
-                 WHY: el enlace anterior (?editId=N) recargaba la página completa y el modal
-                 no se abría porque EditingProfesional ya no se usa en la vista.
-                 Ahora el flujo es: clic → editProfessional(id) → GET /api/profesionales/{id}
-                 → modal se abre con los datos sin recarga. -->
-            <button class="btn-icon edit action-btn" type="button"
+            <button class="btn-icon action-btn edit" type="button"
                     onclick="editProfessional(@profesional.IdProfesional)"
                     aria-label="Editar el profesional @profesional.Nombres @profesional.Apellidos"
-                    title="Editar profesional @Html.Encode(profNombreCompleto)">
-              ✏️ <span class="btn-text">Editar</span>
+                    title="Editar profesional @Html.Encode(profNombreCompleto)"
+                    data-i18n-title="gestionprofesionales_btn_editar_title">
+              <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_editar">Editar</span>
             </button>
             <!-- Eliminar: abrir modal de confirmación -->
-            <button class="btn-icon toggle action-btn btn-delete" type="button" 
+            <button class="btn-icon action-btn btn-delete toggle" type="button" 
                     data-id="@profesional.IdProfesional" 
                     data-name="@profesional.Nombres @profesional.Apellidos"
                     aria-label="Eliminar el profesional @profesional.Nombres @profesional.Apellidos"
-                    title="Eliminar profesional @Html.Encode(profNombreCompleto)">
-              ❌ <span class="btn-text">Eliminar</span>
+                    title="Eliminar profesional @Html.Encode(profNombreCompleto)"
+                    data-i18n-title="gestionprofesionales_btn_eliminar_title">
+              <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_eliminar">Eliminar</span>
             </button>
           </div>
         </td>
@@ -280,30 +234,30 @@ NOTAS DE MANTENIMIENTO:
 
       <!-- Paginación server-side: los links llevan page, pageSize y filtros actuales como query string -->
       <!-- WHY: cada click es un GET real al Controller — no se cargan todos los registros en memoria -->
-      <div class="pagination" role="navigation" aria-label="Paginación de profesionales">
+      <div class="pagination" role="navigation" aria-label="Paginación de profesionales" data-i18n-aria-label="gestionprofesionales_pagination_aria">
         @{ }
-      <span id="paginationInfo" aria-live="polite">Mostrando <strong>@(pageResult?.Items.Count ?? 0)</strong> de <strong>@(pageResult?.TotalCount ?? 0)</strong> profesionales registrados</span>
+      <span id="paginationInfo" aria-live="polite" data-i18n-html="gestionprofesionales_pagination_info" data-i18n-html-params="{\"showing\":\"@(pageResult?.Items.Count ?? 0)\",\"total\":\"@(pageResult?.TotalCount ?? 0)\"}">Mostrando <strong>@(pageResult?.Items.Count ?? 0)</strong> de <strong>@(pageResult?.TotalCount ?? 0)</strong> profesionales registrados</span>
         <div class="pagination-buttons" id="paginationButtons">
           @if (pageResult != null && pageResult.HasPreviousPage)
           {
-            <a class="pagination-btn" aria-label="Página anterior" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { page = pageResult.Page - 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], especialidad = ViewData["EspecialidadFilter"], estado = ViewData["EstadoFilter"] })">‹</a>
+            <a class="pagination-btn" aria-label="Página anterior" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { page = pageResult.Page - 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], especialidad = ViewData["EspecialidadFilter"], estado = ViewData["EstadoFilter"] })" data-i18n-aria-label="gestionprofesionales_pagination_prev_aria">‹</a>
           }
           else
           {
-            <button class="pagination-btn" aria-label="Página anterior" disabled>‹</button>
+            <button class="pagination-btn" aria-label="Página anterior" disabled data-i18n-aria-label="gestionprofesionales_pagination_prev_aria">‹</button>
           }
           @for (var i = 1; i <= (pageResult?.TotalPages ?? 1); i++)
           {
             var isActive = i == (pageResult?.Page ?? 1);
-            <a class="pagination-btn @(isActive ? "active" : string.Empty)" aria-current="@(isActive ? "page" : null)" aria-label="Página @i" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { page = i, pageSize = pageResult?.PageSize ?? 10, search = ViewData["SearchFilter"], especialidad = ViewData["EspecialidadFilter"], estado = ViewData["EstadoFilter"] })">@i</a>
+            <a class="pagination-btn @(isActive ? "active" : string.Empty)" aria-current="@(isActive ? "page" : null)" aria-label="Página @i" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { page = i, pageSize = pageResult?.PageSize ?? 10, search = ViewData["SearchFilter"], especialidad = ViewData["EspecialidadFilter"], estado = ViewData["EstadoFilter"] })" data-i18n-aria-label="gestionprofesionales_pagination_page_aria" data-i18n-aria-label-params="{\"page\":\"@i\"}">@i</a>
           }
           @if (pageResult != null && pageResult.HasNextPage)
           {
-            <a class="pagination-btn" aria-label="Página siguiente" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { page = pageResult.Page + 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], especialidad = ViewData["EspecialidadFilter"], estado = ViewData["EstadoFilter"] })">›</a>
+            <a class="pagination-btn" aria-label="Página siguiente" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales", new { page = pageResult.Page + 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], especialidad = ViewData["EspecialidadFilter"], estado = ViewData["EstadoFilter"] })" data-i18n-aria-label="gestionprofesionales_pagination_next_aria">›</a>
           }
           else
           {
-            <button class="pagination-btn" aria-label="Página siguiente" disabled>›</button>
+            <button class="pagination-btn" aria-label="Página siguiente" disabled data-i18n-aria-label="gestionprofesionales_pagination_next_aria">›</button>
           }
         </div>
       </div>
@@ -320,40 +274,40 @@ NOTAS DE MANTENIMIENTO:
   <div class="modal-overlay" id="modalForm" role="dialog" aria-modal="true" aria-labelledby="modalFormTitle"
     aria-hidden="true" inert>
     <div class="modal">
-      <button class="modal-close" id="modalFormClose" aria-label="Cerrar ventana">×</button>
-      <h2 class="modal-title" id="modalFormTitle">Nuevo Profesional</h2>
+      <button class="modal-close" id="modalFormClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria">×</button>
+      <h2 class="modal-title" id="modalFormTitle" data-i18n="gestionprofesionales_modal_form_title">Nuevo Profesional</h2>
       <!-- novalidate: desactiva validación HTML nativa para controlar el flujo desde JS -->
       <!-- WHY: la validación nativa del browser no muestra mensajes custom ni toast -->
       <form id="formProfessional" novalidate>
         @Html.AntiForgeryToken()
         <input type="hidden" name="IdProfesional" id="formIdProfesional" value="0" />
         <div class="form-group">
-          <label class="form-label" for="formNombres">Nombres *</label>
-          <input type="text" id="formNombres" name="Nombres" class="form-input" required aria-required="true" aria-describedby="error-formNombres" placeholder="Ej. Carlos" value="">
-          <span class="error-message" id="error-formNombres" role="alert">Por favor ingresa los nombres.</span>
+          <label class="form-label" for="formNombres" data-i18n="gestionprofesionales_form_nombres_label">Nombres *</label>
+          <input type="text" id="formNombres" name="Nombres" class="form-input" required aria-required="true" aria-describedby="error-formNombres" placeholder="Ej. Carlos" value="" data-i18n-ph="gestionprofesionales_form_nombres_ph">
+          <span class="error-message" id="error-formNombres" role="alert" data-i18n="gestionprofesionales_form_nombres_error">Por favor ingresa los nombres.</span>
         </div>
         <div class="form-group">
-          <label class="form-label" for="formApellidos">Apellidos *</label>
-          <input type="text" id="formApellidos" name="Apellidos" class="form-input" required aria-required="true" aria-describedby="error-formApellidos" placeholder="Ej. Méndez Ruiz" value="">
-          <span class="error-message" id="error-formApellidos" role="alert">Por favor ingresa los apellidos.</span>
+          <label class="form-label" for="formApellidos" data-i18n="gestionprofesionales_form_apellidos_label">Apellidos *</label>
+          <input type="text" id="formApellidos" name="Apellidos" class="form-input" required aria-required="true" aria-describedby="error-formApellidos" placeholder="Ej. Méndez Ruiz" value="" data-i18n-ph="gestionprofesionales_form_apellidos_ph">
+          <span class="error-message" id="error-formApellidos" role="alert" data-i18n="gestionprofesionales_form_apellidos_error">Por favor ingresa los apellidos.</span>
         </div>
         <div class="form-group">
-          <label class="form-label" for="formRegistroMedico">Registro Médico *</label>
-          <input type="text" id="formRegistroMedico" name="RegistroMedico" class="form-input" required aria-required="true" aria-describedby="error-formRegistroMedico" placeholder="Ej. RM-2026-001" value="">
-          <span class="error-message" id="error-formRegistroMedico" role="alert">Por favor ingresa el registro médico.</span>
+          <label class="form-label" for="formRegistroMedico" data-i18n="gestionprofesionales_form_registro_label">Registro Médico *</label>
+          <input type="text" id="formRegistroMedico" name="RegistroMedico" class="form-input" required aria-required="true" aria-describedby="error-formRegistroMedico" placeholder="Ej. RM-2026-001" value="" data-i18n-ph="gestionprofesionales_form_registro_ph">
+          <span class="error-message" id="error-formRegistroMedico" role="alert" data-i18n="gestionprofesionales_form_registro_error">Por favor ingresa el registro médico.</span>
         </div>
         <div class="form-group">
-          <label class="form-label" for="formCategoria">Categoría</label>
-          <input type="text" id="formCategoria" name="Categoria" class="form-input" placeholder="Ej. Odontología General" value="">
+          <label class="form-label" for="formCategoria" data-i18n="gestionprofesionales_form_categoria_label">Categoría</label>
+          <input type="text" id="formCategoria" name="Categoria" class="form-input" placeholder="Ej. Odontología General" value="" data-i18n-ph="gestionprofesionales_form_categoria_ph">
         </div>
         <div class="form-group">
-          <label class="form-label" for="formTelefono">Teléfono</label>
-          <input type="tel" id="formTelefono" name="Telefono" class="form-input" placeholder="Ej. 300 123 4567" value="">
+          <label class="form-label" for="formTelefono" data-i18n="gestionprofesionales_form_telefono_label">Teléfono</label>
+          <input type="tel" id="formTelefono" name="Telefono" class="form-input" placeholder="Ej. 300 123 4567" value="" data-i18n-ph="gestionprofesionales_form_telefono_ph">
         </div>
         <div class="form-group">
-          <label class="form-label" for="formEspecialidad">Especialidad</label>
+          <label class="form-label" for="formEspecialidad" data-i18n="gestionprofesionales_form_especialidad_label">Especialidad</label>
           <select id="formEspecialidad" name="IdEspecialidad" class="form-input">
-            <option value="">Sin especialidad</option>
+            <option value="" data-i18n="gestionprofesionales_form_especialidad_none">Sin especialidad</option>
             @foreach (var especialidad in especialidades)
             {
               <option value="@especialidad.IdEspecialidad">@especialidad.Nombre</option>
@@ -361,40 +315,40 @@ NOTAS DE MANTENIMIENTO:
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="formCorreoAcceso">Correo de acceso *</label>
-          <input type="email" id="formCorreoAcceso" name="CorreoAcceso" class="form-input" required aria-required="true" placeholder="Ej. profesional@smiletrack.co" value="">
-          <span class="error-message" id="error-formCorreoAcceso" role="alert">Ingresa un correo válido.</span>
+          <label class="form-label" for="formCorreoAcceso" data-i18n="gestionprofesionales_form_correo_label">Correo de acceso *</label>
+          <input type="email" id="formCorreoAcceso" name="CorreoAcceso" class="form-input" required aria-required="true" placeholder="Ej. profesional@smiletrack.co" value="" data-i18n-ph="gestionprofesionales_form_correo_ph">
+          <span class="error-message" id="error-formCorreoAcceso" role="alert" data-i18n="gestionprofesionales_form_correo_error">Ingresa un correo válido.</span>
         </div>
         <div class="form-group">
-          <label class="form-label" for="formContrasenaAcceso">Contraseña</label>
+          <label class="form-label" for="formContrasenaAcceso" data-i18n="gestionprofesionales_form_password_label">Contraseña</label>
           <div style="position:relative;">
-            <input type="password" id="formContrasenaAcceso" name="ContrasenaAcceso" class="form-input" minlength="8" placeholder="Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo" style="padding-right:44px;">
-            <button type="button" id="toggleProfesionalPassword" aria-label="Mostrar contraseña" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;font-size:16px;">👁</button>
+            <input type="password" id="formContrasenaAcceso" name="ContrasenaAcceso" class="form-input" minlength="8" placeholder="Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo" style="padding-right:44px;" data-i18n-ph="gestionprofesionales_form_password_ph">
+            <button type="button" id="toggleProfesionalPassword" aria-label="Mostrar contraseña" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;font-size:16px;" data-i18n-aria-label="gestionprofesionales_form_password_toggle_aria">👁</button>
           </div>
-          <small id="formContrasenaHelp" style="display:block;margin-top:5px;color:var(--text-muted);">Debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo.</small>
+          <small id="formContrasenaHelp" style="display:block;margin-top:5px;color:var(--text-muted);" data-i18n="gestionprofesionales_form_password_help">Debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo.</small>
         </div>
         <div class="form-group" id="professionalPasswordRules">
           <div style="font-size:12px;line-height:1.6;">
-            <div style="font-weight:600;margin-bottom:4px;">La contraseña debe cumplir:</div>
-            <div data-rule="length">✗ Mínimo 8 caracteres</div>
-            <div data-rule="upper">✗ Una letra mayúscula</div>
-            <div data-rule="lower">✗ Una letra minúscula</div>
-            <div data-rule="number">✗ Un número</div>
-            <div data-rule="symbol">✗ Un símbolo especial</div>
+            <div style="font-weight:600;margin-bottom:4px;" data-i18n="gestionprofesionales_form_password_rules_title">La contraseña debe cumplir:</div>
+            <div data-rule="length" data-i18n="gestionprofesionales_form_password_rule_length">✗ Mínimo 8 caracteres</div>
+            <div data-rule="upper" data-i18n="gestionprofesionales_form_password_rule_upper">✗ Una letra mayúscula</div>
+            <div data-rule="lower" data-i18n="gestionprofesionales_form_password_rule_lower">✗ Una letra minúscula</div>
+            <div data-rule="number" data-i18n="gestionprofesionales_form_password_rule_number">✗ Un número</div>
+            <div data-rule="symbol" data-i18n="gestionprofesionales_form_password_rule_symbol">✗ Un símbolo especial</div>
           </div>
         </div>
         <div class="form-group" id="statusGroup">
-          <label class="form-label" for="formStatus">Estado</label>
+          <label class="form-label" for="formStatus" data-i18n="gestionprofesionales_form_estado_label">Estado</label>
           <select id="formStatus" name="Estado" class="form-input" required>
-            <option value="activo">Activo</option>
-            <option value="vacaciones">Vacaciones</option>
-            <option value="inactivo">Inactivo</option>
+            <option value="activo" data-i18n="gestionprofesionales_status_activo">Activo</option>
+            <option value="vacaciones" data-i18n="gestionprofesionales_status_vacaciones">Vacaciones</option>
+            <option value="inactivo" data-i18n="gestionprofesionales_status_inactivo">Inactivo</option>
           </select>
           <input type="hidden" name="EstadoFallback" id="formEstado" value="activo" />
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn-secondary" id="modalFormCancel">Cancelar</button>
-          <button type="submit" class="btn-primary">Guardar Profesional</button>
+          <button type="button" class="btn-secondary" id="modalFormCancel" data-i18n="common.cancel">Cancelar</button>
+          <button type="submit" class="btn-primary" data-i18n="gestionprofesionales_btn_guardar">Guardar Profesional</button>
         </div>
       </form>
     </div>
@@ -404,8 +358,8 @@ NOTAS DE MANTENIMIENTO:
   <div class="modal-overlay" id="modalDetail" role="dialog" aria-modal="true" aria-labelledby="modalDetailTitle"
     aria-hidden="true" inert>
     <div class="modal">
-      <button class="modal-close" id="modalDetailClose" aria-label="Cerrar ventana">×</button>
-      <h2 class="modal-title" id="modalDetailTitle">Ficha de Profesional</h2>
+      <button class="modal-close" id="modalDetailClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria">×</button>
+      <h2 class="modal-title" id="modalDetailTitle" data-i18n="gestionprofesionales_modal_detail_title">Ficha de Profesional</h2>
       <div class="modal-detail">
         <div class="detail-avatar-wrap">
           <div class="detail-avatar" id="detailAvatar" aria-hidden="true">--</div>
@@ -414,21 +368,21 @@ NOTAS DE MANTENIMIENTO:
         <p class="detail-specialty" id="detailSpecialty">--</p>
         <div class="detail-grid">
           <div class="detail-item">
-            <span class="detail-key">Registro Médico</span>
+            <span class="detail-key" data-i18n="gestionprofesionales_detail_registro">Registro Médico</span>
             <span class="detail-value" id="detailRegistry">--</span>
           </div>
           <div class="detail-item">
-            <span class="detail-key">Teléfono</span>
+            <span class="detail-key" data-i18n="gestionprofesionales_detail_telefono">Teléfono</span>
             <span class="detail-value" id="detailPhone">--</span>
           </div>
           <div class="detail-item">
-            <span class="detail-key">Estado</span>
+            <span class="detail-key" data-i18n="gestionprofesionales_detail_estado">Estado</span>
             <span class="detail-value"><span class="badge-status" id="detailStatus">--</span></span>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn-secondary" id="modalDetailCloseBtn">Cerrar</button>
+        <button type="button" class="btn-secondary" id="modalDetailCloseBtn" data-i18n="common.close">Cerrar</button>
       </div>
     </div>
   </div>
@@ -437,10 +391,10 @@ NOTAS DE MANTENIMIENTO:
   <div class="modal-overlay" id="modalConfirmDelete" role="dialog" aria-modal="true" aria-labelledby="modalConfirmDeleteTitle"
     aria-hidden="true" inert>
     <div class="modal">
-      <button class="modal-close" id="modalConfirmDeleteClose" aria-label="Cerrar ventana">×</button>
-      <h2 class="modal-title" id="modalConfirmDeleteTitle">Desactivar profesional</h2>
-      <p id="modalConfirmDeleteMessage" style="margin-bottom: 8px;">¿Estás seguro de desactivar a este profesional?</p>
-      <p style="margin-bottom: 20px; font-size: 0.875rem; color: var(--text-muted);">
+      <button class="modal-close" id="modalConfirmDeleteClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria">×</button>
+      <h2 class="modal-title" id="modalConfirmDeleteTitle" data-i18n="gestionprofesionales_modal_delete_title">Desactivar profesional</h2>
+      <p id="modalConfirmDeleteMessage" style="margin-bottom: 8px;" data-i18n="gestionprofesionales_modal_delete_question">¿Estás seguro de desactivar a este profesional?</p>
+      <p style="margin-bottom: 20px; font-size: 0.875rem; color: var(--text-muted);" data-i18n="gestionprofesionales_modal_delete_warning">
         ⚠️ El profesional pasará a estado <strong>inactivo</strong> y no podrá recibir nuevas citas. Esta operación es reversible: puedes reactivarlo editando su perfil. No es posible desactivar profesionales con citas activas pendientes.
       </p>
       <!--
@@ -452,12 +406,12 @@ NOTAS DE MANTENIMIENTO:
       <input type="hidden" id="deleteProfesionalId" value="" />
       <div class="modal-footer">
         <button type="button" class="btn-secondary" id="modalConfirmDeleteCancel"
-                aria-label="Cancelar eliminación del profesional">
+                aria-label="Cancelar eliminación del profesional" data-i18n-aria-label="gestionprofesionales_modal_delete_cancel_aria" data-i18n="gestionprofesionales_modal_delete_cancel">
           Cancelar — no desactivar
         </button>
         <button type="button" id="modalConfirmDeleteConfirm" class="btn-primary"
                 style="background-color: var(--red); border-color: var(--red);"
-                aria-label="Confirmar desactivación del profesional seleccionado">
+                aria-label="Confirmar desactivación del profesional seleccionado" data-i18n-aria-label="gestionprofesionales_modal_delete_confirm_aria" data-i18n="gestionprofesionales_modal_delete_confirm">
           Confirmar desactivación
         </button>
       </div>
@@ -465,18 +419,18 @@ NOTAS DE MANTENIMIENTO:
   </div>
 
   <!-- Mobile bottom nav -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
+  <nav class="mobile-nav" aria-label="Navegación móvil" data-i18n-aria-label="gestionprofesionales_mobile_nav_aria">
     <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
-      <span>Dashboard</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">query_stats</span></span>
+      <span data-i18n="gestionprofesionales_mobile_dashboard">Dashboard</span>
     </a>
     <a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">🩺</span>
-      <span>Profesionales</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">stethoscope</span></span>
+      <span data-i18n="gestionprofesionales_mobile_profesionales">Profesionales</span>
     </a>
     <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
-      <span>Agenda</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+      <span data-i18n="gestionprofesionales_mobile_agenda">Agenda</span>
     </a>
   </nav>
 
@@ -545,14 +499,12 @@ NOTAS DE MANTENIMIENTO:
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>© @DateTime.Now.Year Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p data-i18n="footer.copyright" data-i18n-html-params="{\"year\":\"@DateTime.Now.Year\"}">© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <p class="footer-sub" data-i18n="gestionprofesionales_footer_sub">Proyecto Formativo ADSO — SENA</p>
   </footer>
   <!-- Scripts finales (fuera del footer para HTML válido) -->
-  <script src="@Url.Content("~/js/footer.js")"></script>
-  <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/app.js")"></script>
 
 <script>
    // La apertura del modal de edición SSR fue migrada a la Fase 2E:
@@ -561,12 +513,8 @@ NOTAS DE MANTENIMIENTO:
    // El bloque isEditing anterior fue eliminado porque editingProfesional ya no existe
    // en el contexto Razor (el flujo MVC de edición fue reemplazado por el flujo API).
 </script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-</body>
 
-</html>
-
-
+@section Scripts {
+    <script src="~/js/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/app.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+}

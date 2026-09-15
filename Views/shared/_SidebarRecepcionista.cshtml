@@ -4,9 +4,16 @@
   Incluye: <aside> completo, logo, nav con grupos colapsables y bloque de usuario.
 *@
 @{
-    var currentPath = Context.Request.Path.Value ?? "/";
+    var rawPath = Context.Request.Path.Value ?? "/";
+    var currentPath = rawPath.TrimEnd('/');
+    if (string.IsNullOrEmpty(currentPath)) currentPath = "/";
+
     Func<string, string> linkClass = href =>
-        currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    {
+        var cleanHref = (href ?? "/").TrimEnd('/');
+        if (string.IsNullOrEmpty(cleanHref)) cleanHref = "/";
+        return currentPath.Equals(cleanHref, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    };
 
     var _recName     = User.Identity?.Name ?? "Recepcionista";
     var _recEmail    = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "recepcionista@smiletrack.co";
@@ -18,7 +25,7 @@
     if (string.IsNullOrWhiteSpace(_recInitials)) _recInitials = "RE";
 }
 
-<aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+<aside class="sidebar" id="sidebar" aria-label="Navegación principal" data-i18n-aria-label="sidebar_main_nav">
 
   <div class="sidebar-logo">
     <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
@@ -26,106 +33,120 @@
 
   <nav class="sidebar-nav">
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_inicio">
         Inicio <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
-        <a href="/" class="@linkClass("/")" data-icon="🏠">Homepage</a>
+        <a href="/" class="@linkClass("/")" data-icon="🏠" data-i18n="nav.item_homepage">Homepage</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_citas">
         Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-citas/st-rec-01-dashboard"
            class="@linkClass("/gestion-de-citas/st-rec-01-dashboard")"
-           data-icon="📊">Panel de Recepción</a>
+           data-icon="📊" data-i18n="nav.item_panel_recepcion">Panel de Recepción</a>
         <a href="/gestion-de-citas/st-rec-03-gestion-citas"
            class="@linkClass("/gestion-de-citas/st-rec-03-gestion-citas")"
-           data-icon="📅">Gestión de Citas</a>
+           data-icon="📅" data-i18n="nav.item_gestion_citas">Gestión de Citas</a>
         <a href="/gestion-de-citas/st-rec-05-recordatorios"
            class="@linkClass("/gestion-de-citas/st-rec-05-recordatorios")"
-           data-icon="🔔">Recordatorios</a>
+           data-icon="🔔" data-i18n="nav.item_recordatorios">Recordatorios</a>
         <a href="/gestion-de-citas/st-aux-10-citas-finalizadas"
            class="@linkClass("/gestion-de-citas/st-aux-10-citas-finalizadas")"
-           data-icon="✅">Citas Finalizadas</a>
+           data-icon="✅" data-i18n="nav.item_citas_finalizadas">Citas Finalizadas</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_pacientes">
         Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
-        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes"
-           class="@linkClass("/gestion-de-pacientes/st-adm-05-gestion-pacientes")"
-           data-icon="👥">Gestión de Pacientes</a>
+        @* Yeray (2025) - antes apuntaba a la ruta del admin (/st-adm-05-gestion-pacientes),
+           lo que hacía que la recepcionista viera la vista de administrador con el sidebar
+           incorrecto. Ahora apunta a la ruta propia de recepcionista (/st-rec-pacientes). *@
+        <a href="/gestion-de-pacientes/st-rec-pacientes"
+           class="@linkClass("/gestion-de-pacientes/st-rec-pacientes")"
+           data-icon="👥" data-i18n="nav.item_gestion_pacientes">Gestión de Pacientes</a>
         <a href="/gestion-de-pacientes/st-rec-02-registrar-paciente"
            class="@linkClass("/gestion-de-pacientes/st-rec-02-registrar-paciente")"
-           data-icon="➕">Registrar Paciente + Cita</a>
+           data-icon="➕" data-i18n="nav.item_registrar_paciente_cita">Registrar Paciente + Cita</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_historia_clinica">
         Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/historia-clinica/st-rec-historial"
            class="@linkClass("/historia-clinica/st-rec-historial")"
-           data-icon="📋">Historial Clínico</a>
+           data-icon="📋" data-i18n="nav.item_historial_clinico">Historial Clínico</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_facturacion_pagos">
         Facturación y Pagos <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/facturacion-y-pagos/st-rec-04-generar-factura"
            class="@linkClass("/facturacion-y-pagos/st-rec-04-generar-factura")"
-           data-icon="🧾">Generar Factura y Pago</a>
+           data-icon="🧾" data-i18n="nav.item_generar_factura_pago">Generar Factura y Pago</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_pqr">
         Gestión de PQR <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-pqr/st-pac-04-nueva-pqr"
            class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")"
-           data-icon="📝">Nueva Solicitud</a>
+           data-icon="📝" data-i18n="nav.item_nueva_solicitud">Nueva Solicitud</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_ayuda">
         Gestión de Ayuda <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/centro-de-ayuda/guias-tutoriales"
            class="@linkClass("/centro-de-ayuda/guias-tutoriales")"
-           data-icon="❓">Centro de Ayuda</a>
+           data-icon="❓" data-i18n="nav.item_centro_ayuda">Centro de Ayuda</a>
         <a href="/gestion-de-pqr/st-pac-04-nueva-pqr"
            class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")"
-           data-icon="📝">Nueva Solicitud</a>
+           data-icon="📝" data-i18n="nav.item_nueva_solicitud">Nueva Solicitud</a>
+      </div>
+    </div>
+    
+    <div class="nav-group">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_reportes">
+        Reportes <span class="nav-arrow" aria-hidden="true">▼</span>
+      </div>
+      <div class="nav-group-items">
+        <a href="/reportes/vista-recepcion"
+           class="@linkClass("/reportes/vista-recepcion")"
+           data-icon="📊" data-i18n="nav.item_reportes_operativos">Reportes Operativos</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_perfil">
         Perfil <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/perfiles/st-rec-06-perfil-recepcionista"
            class="@linkClass("/perfiles/st-rec-06-perfil-recepcionista")"
-           data-icon="👤">Perfil del Recepcionista</a>
+           data-icon="👤" data-i18n="nav.item_perfil_recepcionista">Perfil del Recepcionista</a>
         <a href="/acceso-y-seguridad/cambiar-contrasena"
            class="@linkClass("/acceso-y-seguridad/cambiar-contrasena")"
-           data-icon="🔐">Cambiar Contraseña</a>
+           data-icon="🔐" data-i18n="nav.item_cambiar_contrasena">Cambiar Contraseña</a>
       </div>
     </div>
 
@@ -134,7 +155,9 @@
     <a href="/acceso-y-seguridad/login"
        class="nav-item nav-item--logout"
        data-icon="🚪"
-       aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
+       aria-label="Cerrar sesión y volver al login"
+       data-i18n-aria-label="sidebar_logout_aria"
+       data-i18n="sidebar_logout_text">Cerrar sesión</a>
   </nav>
 
   <div class="sidebar-user">
@@ -142,6 +165,10 @@
     <div class="user-info">
       <span class="user-role">@_recName</span>
       <span class="user-email">@_recEmail</span>
+    </div>
+    <div class="sidebar-lang" aria-label="Cambiar idioma" data-i18n-aria-label="sidebar_change_language">
+      <button type="button" data-i18n-switcher data-i18n-lang="es" class="lang-btn" aria-label="Español" data-i18n-aria-label="sidebar_lang_es">ES</button>
+      <button type="button" data-i18n-switcher data-i18n-lang="en" class="lang-btn" aria-label="English" data-i18n-aria-label="sidebar_lang_en">EN</button>
     </div>
   </div>
 

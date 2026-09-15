@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿@{
+﻿@{
     Layout = null;
     ViewData["Title"] = "Historial Clínico";
     ViewData["Description"] = "Consulta del historial clínico con navegación de recepción en SmileTrack.";
@@ -20,7 +20,8 @@
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 <body>
-    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+    <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
     @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
 
@@ -34,21 +35,21 @@
 
     <main class="main" id="main-content">
         <div class="content">
-            <nav class="breadcrumb" aria-label="Ruta de navegación">
-                <span>Recepción</span>
+            <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+                <span data-i18n="common_role_recepcionista">Recepción</span>
                 <span class="sep" aria-hidden="true">›</span>
-                <span class="current">Historial Clínico</span>
+                <span class="current" data-i18n="historia.title">Historial Clínico</span>
             </nav>
 
             <header class="page-header">
                 <div>
-                    <h1 class="page-title">Historial Clínico</h1>
-                    <p class="page-subtitle">Consulta rápida de pacientes, odontólogos y alertas médicas.</p>
+                    <h1 class="page-title" data-i18n="historia.title">Historial Clínico</h1>
+                    <p class="page-subtitle" data-i18n="historia.rec_subtitle">Consulta r&#225;pida de pacientes, odont&#243;logos y alertas m&#233;dicas.</p>
                 </div>
                 <div class="badge-admin"><span class="material-symbols-outlined" aria-hidden="true">visibility</span> Solo lectura</div>
             </header>
 
-            <section class="stats-grid" aria-label="Resumen de historiales">
+            <section class="stats-grid" aria-label="Resumen de historiales" data-i18n-aria-label="historia.title">
                 <div class="stat-card" data-color="blue">
                     <span class="stat-number" id="statTotal">8</span>
                     <span class="stat-label">Historiales totales</span>
@@ -71,7 +72,7 @@
                 <div class="filters-row">
                     <div class="search-wrap">
                         <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
-                        <input id="searchInput" class="search-input" type="search" placeholder="Buscar pacientes, cédula o correo" />
+                        <input id="searchInput" class="search-input" type="search" placeholder="Buscar pacientes, cédula o correo" data-i18n-ph="table.search" />
                     </div>
                     <select id="filterOdontologo" class="status-select" aria-label="Filtro por odontólogo">
                         <option value="">Todos los odontólogos</option>
@@ -179,6 +180,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>
 

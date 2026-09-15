@@ -4,6 +4,14 @@
 @{
     Layout = null;
     var odonto = Model.Odontograma;
+
+    @* Yeray (2025) - MIGRACIÓN: se agrega notasClinicas al objeto inyectado en el JS.
+       ANTES: gestion-historial.js obtenía las notas parseando el JSON de estadoPersistido
+              (ObservacionesGenerales["notasClinicas"]) — si ese JSON fallaba, las notas
+              no aparecían aunque existieran en Nota_Clinica.
+       AHORA: el servidor lee Nota_Clinica directamente en BuildHistorialPacienteViewModelAsync
+              y los entrega aquí como Model.NotasClinicas. El JS los recibe en
+              server.notasClinicas y ya no necesita parsear ningún JSON. *@
     var historiaDataJson = JsonSerializer.Serialize(new
     {
         pacienteId = odonto.PacienteId,
@@ -16,6 +24,18 @@
         medicamentos = Array.Empty<string>(), // no existe un campo de medicamentos activos en el esquema actual
         antecedentesMedicos = Model.AntecedentesMedicos,
         estadoPersistido = odonto.ObservacionesGenerales,
+        // Notas clínicas reales desde Nota_Clinica (ya formateadas por el servidor)
+        notasClinicas = Model.NotasClinicas.Select(n => new
+        {
+            titulo       = n.Titulo,
+            fecha        = n.Fecha,
+            doctor       = n.Doctor,
+            diagnostico  = n.Diagnostico,
+            procedimiento = n.Procedimiento,
+            proximaCita  = n.ProximaCita,
+            estado       = n.Estado
+        }),
+        // Historial de citas pasadas (para el mini-odontograma de solo lectura)
         historial = Model.Registros.Select(r => new
         {
             titulo = r.Descripcion,
@@ -48,9 +68,10 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
 
@@ -74,11 +95,11 @@
           <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active">Historia Clínica</span>
         </nav>
-        <h1 class="page-title">Historia Clínica</h1>
-        <p class="page-subtitle" id="patientMeta" aria-live="polite">Cargando...</p>
+        <h1 class="page-title" data-i18n="historia.title">Historia Clínica</h1>
+        <p class="page-subtitle" id="patientMeta" aria-live="polite" data-i18n="common.loading">Cargando...</p>
       </div>
       <div class="header-actions">
-        <button class="btn-secondary" id="btnNewEntry" aria-label="Crear nueva entrada clínica">+ Nueva entrada</button>
+        <button class="btn-secondary" id="btnNewEntry" aria-label="Crear nueva entrada clínica" data-i18n-aria-label="historia.new_record"><span data-i18n="historia.new_record">+ Nueva entrada</span></button>
         <button class="btn-primary" id="hcBtn" aria-label="Ver código de historia clínica">🗂 HC-2026-001</button>
       </div>
     </header>
@@ -91,14 +112,14 @@
 
         <!-- Odontograma con role img para screen readers -->
         <div class="card" id="cardOdo">
-          <h2 class="card-title" id="odontogramaTitle">Odontograma digital</h2>
+          <h2 class="card-title" id="odontogramaTitle" data-i18n="historia.teeth_chart">Odontograma digital</h2>
           <div id="odontogramaHost" role="img" aria-labelledby="odontogramaTitle"
             aria-label="Odontograma del paciente: vista gráfica de dientes con tratamientos"></div>
         </div>
 
         <!-- Historial de consultas con aria-live para actualizaciones -->
         <div class="card" id="cardHist">
-          <h2 class="card-title" id="historialTitle">Historial de consultas</h2>
+          <h2 class="card-title" id="historialTitle" data-i18n="historia.title">Historial de consultas</h2>
           <div id="historialList" aria-live="polite" role="list" aria-labelledby="historialTitle">
             <!-- Skeleton loader inicial para feedback visual -->
             <div class="skeleton-row" aria-hidden="true"></div>
@@ -142,7 +163,7 @@
             @Html.AntiForgeryToken()
 
             <div class="form-group">
-              <label class="form-lbl" for="fDiag">Diagnóstico <span class="required" aria-hidden="true">*</span></label>
+              <label class="form-lbl" for="fDiag" data-i18n="historia.diagnosis">Diagnóstico <span class="required" aria-hidden="true">*</span></label>
               <textarea class="form-ctrl" id="fDiag" name="diagnostico" rows="3"
                 placeholder="Caries en pieza 12, cara vestibular..." required aria-required="true"
                 aria-describedby="diagHelp"></textarea>
@@ -151,7 +172,7 @@
             </div>
 
             <div class="form-group">
-              <label class="form-lbl" for="fProc">Procedimiento <span class="required"
+              <label class="form-lbl" for="fProc" data-i18n="historia.treatment">Procedimiento <span class="required"
                   aria-hidden="true">*</span></label>
               <input class="form-ctrl" id="fProc" name="procedimiento" type="text"
                 placeholder="Obturación con resina compuesta" required aria-required="true" />
@@ -271,6 +292,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 
 </html>

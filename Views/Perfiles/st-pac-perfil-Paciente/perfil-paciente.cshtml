@@ -15,7 +15,8 @@
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 <body>
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!-- ═════ SIDEBAR DEL PACIENTE (Activo: Mi Perfil) ═════ -->
   @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
@@ -31,10 +32,10 @@
   <!-- ═══ MAIN ═══ -->
   <main class="main" id="main-content">
     <!-- Breadcrumb -->
-    <div class="breadcrumb" aria-label="Ruta de navegación">
-      <span>Inicio</span>
+    <div class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+      <span data-i18n="nav.group_inicio">Inicio</span>
       <span class="sep" aria-hidden="true">→</span>
-      <span class="current">Mi Perfil</span>
+      <span class="current" data-i18n="profile.title">Mi Perfil</span>
     </div>
 
     <!-- Profile Header -->
@@ -49,9 +50,9 @@
         </div>
       </div>
       <div class="header-actions">
-        <button class="btn-editar" id="btnEditar" aria-label="Activar modo edición">✏️ Editar perfil</button>
-        <button class="btn-guardar" id="btnGuardar" aria-label="Guardar cambios">💾 Guardar</button>
-        <button class="btn-cancelar" id="btnCancelar" aria-label="Cancelar edición">✕ Cancelar</button>
+        <button class="btn-editar" id="btnEditar" aria-label="Activar modo edición" data-i18n-aria-label="profile.edit"><span data-i18n="profile.edit">✏️ Editar perfil</span></button>
+        <button class="btn-guardar" id="btnGuardar" aria-label="Guardar cambios" data-i18n-aria-label="common.save"><span data-i18n="common.save">💾 Guardar</span></button>
+        <button class="btn-cancelar" id="btnCancelar" aria-label="Cancelar edición" data-i18n-aria-label="common.cancel"><span data-i18n="common.cancel">✕ Cancelar</span></button>
       </div>
     </header>
 
@@ -63,7 +64,7 @@
 
         <!-- Card: Datos personales -->
         <div class="card" id="cardPersonal">
-          <h2 class="card-title"><span class="card-icon" aria-hidden="true">👤</span> Datos personales</h2>
+          <h2 class="card-title"><span class="card-icon" aria-hidden="true">👤</span> <span data-i18n="common.personal_data">Datos personales</span></h2>
 
           <!-- Avatar Upload (oculto fuera de edición) -->
           <div class="avatar-upload" id="avatarUpload" style="display:none;">
@@ -304,6 +305,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>
 

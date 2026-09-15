@@ -1,78 +1,112 @@
-﻿/**
- * ════════════════════════════════════════════════════════
- * SMILETRACK — RECUPERAR CONTRASEÑA (3 PASOS)
- * recover.js
- * ════════════════════════════════════════════════════════
- */
+/* ============================================
+   SmileTrack — Lógica de Recuperación de Contraseña en 3 Pasos (recover.js)
+   ============================================
+   Autor: Johan Santamaria / SmileTrack Team
+   Fecha: 29/07/2026 (Actualizado 2026-09-12)
+
+   DESCRIPCIÓN Y POR QUÉ DE ARQUITECTURA:
+   Implementa una máquina de estados cliente en JavaScript (`PasswordRecovery`) que coordina el flujo
+   de recuperación de credenciales mediante peticiones asíncronas a las APIs REST del sistema.
+   Garantiza que el usuario reciba retroalimentación instantánea en cada paso sin perder el contexto visual.
+
+   MÁQUINA DE ESTADOS Y PASOS:
+   - Paso 1: Solicitud de código enviando correo a `/acceso-y-seguridad/api/recuperacion/solicitar-codigo`.
+   - Paso 2: Validación OTP de 6 dígitos enviando a `/acceso-y-seguridad/api/recuperacion/verificar-codigo`.
+     Maneja contador regresivo dinámico de reenvió de correo y limita intentos.
+   - Paso 3: Actualización de clave enviando a `/acceso-y-seguridad/api/recuperacion/restablecer-password`.
+   - Paso Exitoso: Muestra confirmación y redirige a la pantalla de inicio de sesión.
+
+   SEGURIDAD Y HEADER CSRF:
+   - Extrae el token Antiforgery desde la cookie `XSRF-TOKEN` o la etiqueta `<meta name="csrf-request-token">`
+     e inyecta el header `X-CSRF-TOKEN` en cada llamada `fetch`.
+============================================ */
 
 class PasswordRecovery {
     constructor() {
-        // Referencias DOM
+        // ── REFERENCIAS A LOS PASOS DEL FLUJO MULTI-PASO ──
+        // POR QUÉ: El flujo de recuperación tiene 4 estados distintos (pasos 1-3 + éxito).
+        // Guardamos todos como un objeto para navegar entre ellos de forma más expresiva
+        // que con variables sueltas (this.steps[1] vs this.step1).
         this.steps = {
-            1: document.getElementById('step1'),
-            2: document.getElementById('step2'),
-            3: document.getElementById('step3'),
-            success: document.getElementById('successStep')
+            1: document.getElementById('step1'),        // Formulario de email
+            2: document.getElementById('step2'),        // Formulario de código OTP
+            3: document.getElementById('step3'),        // Formulario de nueva contraseña
+            success: document.getElementById('successStep') // Pantalla de éxito final
         };
+
+        // Indicadores del progreso en la parte superior (círculos 1-2-3)
         this.indicators = document.querySelectorAll('.step-indicator');
+        // Texto descriptivo del paso actual (cambia según el paso)
         this.stepDesc = document.getElementById('stepDescription');
-        
-        // Formularios
-        this.form1 = document.getElementById('step1');
+
+        // ── FORMULARIOS DE CADA PASO ──
+        // Referenciamos por ID para que el submit handler de cada uno sea independiente
+        this.form1 = document.getElementById('step1'); // Step 1 actúa como form también
         this.form2 = document.getElementById('step2');
         this.form3 = document.getElementById('step3');
-        
-        // Inputs
-        this.emailInput = document.getElementById('email');
-        this.codeInput = document.getElementById('code');
-        this.newPassInput = document.getElementById('newPassword');
-        this.confirmPassInput = document.getElementById('confirmPassword');
-        
-        // Feedback
-        this.emailError = document.getElementById('emailError');
-        this.codeError = document.getElementById('codeError');
-        this.passMatch = document.getElementById('passMatch');
-        this.maskedEmail = document.getElementById('maskedEmail');
-        
-        // Botones
-        this.resendBtn = document.getElementById('resendCode');
-        this.back1 = document.getElementById('backToStep1');
-        this.back2 = document.getElementById('backToStep2');
-        this.resetBtn = document.getElementById('resetBtn');
-        
-        // Estado
-        this.currentStep = 1;
-        this.verificationCode = null;
-        this.userEmail = null;
-        this.resendCooldown = 0;
-        
+
+        // ── INPUTS DE CADA PASO ──
+        this.emailInput       = document.getElementById('email');           // Correo para enviar código
+        this.codeInput        = document.getElementById('code');            // Input hidden sincronizado con OTP boxes
+        this.newPassInput     = document.getElementById('newPassword');     // Nueva contraseña
+        this.confirmPassInput = document.getElementById('confirmPassword'); // Confirmación de nueva contraseña
+
+        // ── ELEMENTOS DE FEEDBACK ──
+        this.emailError  = document.getElementById('emailError');  // Mensaje de error bajo el campo de email
+        this.codeError   = document.getElementById('codeError');   // Mensaje de error bajo el OTP
+        this.passMatch   = document.getElementById('passMatch');    // Texto de coincidencia de contraseñas
+        this.maskedEmail = document.getElementById('maskedEmail'); // Muestra el email enmascarado (ab***@x.com)
+
+        // ── BOTONES DE ACCIÓN ──
+        this.resendBtn = document.getElementById('resendCode');   // Reenviar código OTP al correo
+        this.back1     = document.getElementById('backToStep1'); // Volver al paso 1 desde el paso 2
+        this.back2     = document.getElementById('backToStep2'); // Volver al paso 2 desde el paso 3
+        this.resetBtn  = document.getElementById('resetBtn');   // Botón de confirmación de nueva contraseña
+
+        // ── ESTADO INTERNO DE LA MÁQUINA ──
+        this.currentStep      = 1;    // Paso actual (1, 2 o 3)
+        this.verificationCode = null; // Código OTP generado (no se usa en cliente, solo en servidor)
+        this.userEmail        = null; // Email guardado en Paso 1 para reutilizar en Paso 2 y 3
+        this.resendCooldown   = 0;    // Contador de espera para reenviar (en segundos)
+
         this.init();
     }
 
     init() {
+        // Vinculamos todos los eventos a sus handlers correspondientes
         this.bindEvents();
+        // Configuramos la validación visual de criterios de contraseña del Paso 3
         this.setupPasswordValidation();
+        // Enfocamos el campo de email automáticamente al cargar.
+        // setTimeout de 300ms permite que la animación de entrada del form termine antes de enfocar.
         setTimeout(() => this.emailInput?.focus(), 300);
     }
 
     bindEvents() {
-        // Paso 1: Email
+        // ── PASO 1: EMAIL ──
+        // submit interceptado para enviar el código OTP sin recargar la página
         this.form1?.addEventListener('submit', (e) => this.handleStep1(e));
+        // Limpiamos el error de email mientras el usuario corrige el campo
         this.emailInput?.addEventListener('input', () => this.clearError(this.emailError));
-        
-        // Paso 2: Código — inicializar recuadros OTP
+
+        // ── PASO 2: CÓDIGO OTP ──
+        // Inicializamos los 6 recuadros individuales del código OTP (auto-avance, pegado, etc.)
         this.initOtpInputs();
         this.form2?.addEventListener('submit', (e) => this.handleStep2(e));
+        // Botón "Volver": el usuario puede corregir su email si se equivocó
         this.back1?.addEventListener('click', () => this.goToStep(1));
+        // Botón de reenvío: permite solicitar un nuevo código si no llegó o expiró
         this.resendBtn?.addEventListener('click', () => this.resendCode());
-        
-        // Paso 3: Nueva contraseña
+
+        // ── PASO 3: NUEVA CONTRASEÑA ──
         this.form3?.addEventListener('submit', (e) => this.handleStep3(e));
+        // Validamos requisitos Y coincidencia en tiempo real mientras escribe la nueva contraseña
         this.newPassInput?.addEventListener('input', () => { this.validatePasswordRequirements(); this.validatePasswordMatch(); });
+        // Validamos coincidencia también cuando escribe en el campo de confirmación
         this.confirmPassInput?.addEventListener('input', () => this.validatePasswordMatch());
         this.back2?.addEventListener('click', () => this.goToStep(2));
-        
-        // Toggle password visibility
+
+        // Toggle de visibilidad de contraseña (hay uno en nueva y otro en confirmar)
         document.querySelectorAll('.toggle-password').forEach(btn => {
             btn.addEventListener('click', (e) => this.togglePassword(e));
         });
@@ -144,20 +178,22 @@ class PasswordRecovery {
         });
     }
 
-    /** Limpia y resetea los recuadros OTP */
+    /** Limpia y resetea los recuadros OTP al volver al Paso 2 o al reenviar el código */
     clearOtpInputs() {
         document.querySelectorAll('.otp-digit').forEach(d => {
             d.value = '';
-            d.classList.remove('filled', 'error');
+            d.classList.remove('filled', 'error'); // Quitamos clases de estado
         });
-        if (this.codeInput) this.codeInput.value = '';
+        if (this.codeInput) this.codeInput.value = ''; // Limpiamos también el input hidden
     }
 
-    /** Muestra estado de error animado en todos los recuadros */
+    /** Muestra animación de "sacudida" en los recuadros cuando el código es incorrecto.
+     * POR QUÉ: La animación de error da feedback táctil sin necesitar texto adicional,
+     * indicando visualmente que el código ingresado fue rechazado por el servidor. */
     shakeOtpInputs() {
         document.querySelectorAll('.otp-digit').forEach(d => {
-            d.classList.add('error');
-            setTimeout(() => d.classList.remove('error'), 400);
+            d.classList.add('error'); // CSS aplica una animación de shake en esta clase
+            setTimeout(() => d.classList.remove('error'), 400); // Removemos tras 400ms
         });
     }
 
@@ -450,23 +486,30 @@ class PasswordRecovery {
         }
     }
 
-    // ── SIMULACIONES DE API (Reemplazar en producción) ─
+    // ── MÉTODOS DE LLAMADAS A LA API ──
+    // POR QUÉ: Separamos las llamadas HTTP en métodos propios para:
+    //   1. Poder reemplazarlos fácilmente si cambian los endpoints.
+    //   2. Mantener la lógica de negocio separada del manejo de HTTP.
+    //   3. Facilitar pruebas unitarias mediante mocking de estos métodos.
+    // Todos incluyen el token CSRF en el header para proteger contra ataques CSRF.
+
     async sendRecoveryCode(email) {
         const response = await fetch('/acceso-y-seguridad/recover/send-code', {
             method: 'POST',
-            credentials: 'same-origin',
+            credentials: 'same-origin', // Incluye cookies de sesión en la petición
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': this.getCsrfToken()
+                'X-CSRF-TOKEN': this.getCsrfToken() // Token anti-CSRF obligatorio
             },
-            body: JSON.stringify({ correo: email })
+            body: JSON.stringify({ correo: email }) // El servidor espera el campo 'correo'
         });
 
         if (!response.ok) {
+            // En error de red (4xx, 5xx), devolvemos un objeto de fallo uniforme
             return { success: false, message: 'No se pudo enviar el código. Intenta más tarde.' };
         }
 
-        return response.json();
+        return response.json(); // Esperamos { success: true, message: '...' } del servidor
     }
 
     async verifyCode(code) {
@@ -477,10 +520,12 @@ class PasswordRecovery {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': this.getCsrfToken()
             },
+            // Enviamos tanto el email como el código; el servidor los valida juntos
             body: JSON.stringify({ correo: this.userEmail, codigo: code })
         });
 
         if (!response.ok) {
+            // Intentamos parsear el mensaje de error del servidor, si existe
             const body = await response.json().catch(() => null);
             return { success: false, message: body?.message ?? 'No se pudo verificar el código.' };
         }
@@ -500,6 +545,7 @@ class PasswordRecovery {
                 correo: email,
                 codigo: code,
                 nuevaContrasena: newPassword,
+                // Enviamos también la confirmación para que el servidor pueda verificar coincidencia
                 confirmarContrasena: this.confirmPassInput.value
             })
         });
