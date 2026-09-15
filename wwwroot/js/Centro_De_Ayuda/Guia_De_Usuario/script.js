@@ -8,6 +8,7 @@ document.querySelectorAll('input, textarea, select').forEach((element) => {
 
 const supportForm = document.getElementById('support-form');
 const screenshotInput = document.getElementById('screenshot-input');
+const chooseFileButton = document.getElementById('choose-file-btn');
 const uploadButton = document.getElementById('upload-screenshot-btn');
 const uploadPreview = document.getElementById('upload-preview');
 const uploadPreviewImage = document.getElementById('upload-preview-image');
@@ -121,8 +122,19 @@ function showSelectedAttachment(file) {
   closeAttachmentModal();
 }
 
+function openFilePicker() {
+  if (!screenshotInput) return;
+
+  screenshotInput.value = '';
+  screenshotInput.click();
+}
+
 if (uploadButton && screenshotInput) {
-  uploadButton.addEventListener('click', () => attachmentModal?.classList.remove('hidden'));
+  uploadButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    attachmentModal?.classList.remove('hidden');
+  });
 
   attachmentModalClose?.addEventListener('click', closeAttachmentModal);
   attachmentModal?.addEventListener('click', (event) => {
@@ -132,9 +144,21 @@ if (uploadButton && screenshotInput) {
     if (event.key === 'Escape' && !attachmentModal?.classList.contains('hidden')) closeAttachmentModal();
   });
 
+  screenshotInput.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+
   screenshotInput.addEventListener('change', (event) => {
     const file = event.target.files?.[0];
     showSelectedAttachment(file);
+  });
+}
+
+if (chooseFileButton && screenshotInput) {
+  chooseFileButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setTimeout(() => openFilePicker(), 0);
   });
 }
 
