@@ -86,6 +86,11 @@
        * @param {boolean} expand - true para expandir, false para colapsar
        */
       function setExpanded(expand) {
+        header.classList.toggle('is-expanded', expand);
+        items.classList.toggle('is-expanded', expand);
+        items.style.visibility = expand ? 'visible' : 'hidden';
+        items.style.pointerEvents = expand ? 'auto' : 'none';
+
         if (expand) {
           // WHY scrollHeight: permite que la transición CSS muestre el
           // contenido completo sin hardcodear una altura máxima
@@ -113,6 +118,21 @@
        */
       function toggle() {
         var isCurrentlyExpanded = header.getAttribute('aria-expanded') === 'true';
+
+        if (!isCurrentlyExpanded) {
+          headers.forEach(function (otherHeader) {
+            if (otherHeader === header) return;
+            var otherItems = otherHeader.nextElementSibling;
+            var otherArrow = otherHeader.querySelector('.nav-arrow');
+            if (!otherItems || !otherArrow) return;
+            otherItems.style.maxHeight = '0px';
+            otherItems.style.visibility = 'hidden';
+            otherItems.style.pointerEvents = 'none';
+            otherArrow.style.transform = 'rotate(-90deg)';
+            otherHeader.setAttribute('aria-expanded', 'false');
+          });
+        }
+
         setExpanded(!isCurrentlyExpanded);
       }
 

@@ -25,7 +25,8 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-adm-01-dashboard/styles.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css?v=20260915")" />
     <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Guia_De_Usuario/styles.css")" />
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script id="tailwind-config">
@@ -210,6 +211,14 @@
       </header>
 
       <section class="support-shell">
+        @if (TempData["SupportTicketMessage"] is string ticketMessage)
+        {
+          <div class="mb-6 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-4 text-sm font-semibold text-[#166534]" role="status">
+            <span class="material-symbols-outlined mr-1">check_circle</span>
+            @ticketMessage
+          </div>
+        }
+
         <nav class="flex items-center gap-2 text-xs text-on-surface-variant mb-4">
           <span>Support</span>
           <span class="material-symbols-outlined text-[12px]">chevron_right</span>
@@ -506,7 +515,7 @@
     <script src="@Url.Content("~/js/Centro_De_Ayuda/Guia_De_Usuario/script.js")"></script>
     <script src="@Url.Content("~/js/i18n-core.js")"></script>
     <script src="@Url.Content("~/js/i18n.config.js")"></script>
-    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+    <script src="@Url.Content("~/js/shared/sidebar.js?v=20260915")"></script>
   </body>
 </html>
 

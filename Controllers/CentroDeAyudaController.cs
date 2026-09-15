@@ -58,7 +58,6 @@ public class CentroDeAyudaController : Controller
 
     // ─── Soporte / Ticket ─────────────────────────────────────────────────────
     [HttpGet]
-    [Authorize(Roles = "Administrador")]
     [Route("centro-de-ayuda/soporte")]
     public IActionResult Soporte()
     {
@@ -96,7 +95,6 @@ public class CentroDeAyudaController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador")]
     [Route("centro-de-ayuda/soporte")]
     public async Task<IActionResult> CreateTicket(SupportTicketViewModel model, CancellationToken ct)
     {
@@ -295,7 +293,7 @@ public class CentroDeAyudaController : Controller
             },
             new() {
                 Titulo      = "Facturación y pagos",
-                Descripcion = "Guía para generar facturas, registrar pagos y exportar reportes financieros.",
+                Descripcion = "Guía para generar facturas, registrar pagos y consultar información de facturación.",
                 Categoria   = "Facturación",
                 Icono       = "💳",
                 Url         = "/facturacion-y-pagos/st-adm-12-facturacion"

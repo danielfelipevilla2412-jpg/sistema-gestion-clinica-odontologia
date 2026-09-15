@@ -297,9 +297,16 @@
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
   transition: max-height 0.3s ease;
   max-height: 0;
   /* Colapsado por defecto; sidebar.js expande el grupo activo */
+}
+
+.nav-group-items.is-expanded {
+  visibility: visible;
+  pointer-events: auto;
 }
 
 /* Sangría visual para distinguir sub-ítems del grupo padre */

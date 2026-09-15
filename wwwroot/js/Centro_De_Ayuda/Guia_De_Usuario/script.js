@@ -132,6 +132,7 @@ function openFilePicker() {
 if (uploadButton && screenshotInput) {
   uploadButton.addEventListener('click', (event) => {
     event.preventDefault();
+
     event.stopPropagation();
     attachmentModal?.classList.remove('hidden');
   });
@@ -334,39 +335,4 @@ if (cancelButton) {
   });
 }
 
-// Mobile menu toggle functionality
-const sidebar = document.getElementById('sidebar');
-const overlay = document.getElementById('sidebar-overlay');
-const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-const closeSidebarBtn = document.getElementById('close-sidebar-btn');
-
-function openSidebar() {
-  sidebar.classList.remove('-translate-x-full');
-  overlay.classList.remove('hidden');
-  setTimeout(() => {
-    overlay.classList.remove('opacity-0');
-    overlay.classList.add('opacity-100');
-  }, 10);
-}
-
-function closeSidebar() {
-  sidebar.classList.add('-translate-x-full');
-  overlay.classList.remove('opacity-100');
-  overlay.classList.add('opacity-0');
-  setTimeout(() => {
-    overlay.classList.add('hidden');
-  }, 300);
-}
-
-if (mobileMenuBtn) {
-  mobileMenuBtn.addEventListener('click', openSidebar);
-}
-
-if (closeSidebarBtn) {
-  closeSidebarBtn.addEventListener('click', closeSidebar);
-}
-
-if (overlay) {
-  overlay.addEventListener('click', closeSidebar);
-}
 
