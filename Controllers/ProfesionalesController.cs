@@ -181,6 +181,88 @@ public partial class GestionProfesionalesController(
                         System.Text.Json.JsonSerializer.Serialize(revenueMonths);
 
                     ViewData["OdoFechaActual"] = hoy;
+
+                    // ═══════════════════════════════════════════════════════════════
+                    // NUEVAS CONSULTAS PARA MEJORAS DEL DASHBOARD
+                    // ═══════════════════════════════════════════════════════════════
+
+                    // 1. PRÓXIMA CITA URGENTE (con datos del paciente incluidos)
+                    var proximaCitaUrgente = await _context.Citas
+                        .Include(c => c.Paciente)
+                        .Include(c => c.Servicio)
+                        .Include(c => c.Consultorio)
+                        .AsNoTracking()
+                        .Where(c =>
+                            c.IdProfesional == profesional.IdProfesional &&
+                            c.FechaHora >= DateTime.Now &&
+                            (c.Estado == "Agendada" || c.Estado == "programada" || 
+                             c.Estado == "Confirmada" || c.Estado == "confirmada"))
+                        .OrderBy(c => c.FechaHora)
+                        .FirstOrDefaultAsync(ct);
+
+                    ViewData["OdoProximaCitaUrgente"] = proximaCitaUrgente;
+
+                    // 2. CITAS PENDIENTES DE CONFIRMAR (estado "Agendada" o "programada")
+                    var citasPendientesConfirmar = await _context.Citas
+                        .AsNoTracking()
+                        .CountAsync(c =>
+                            c.IdProfesional == profesional.IdProfesional &&
+                            c.FechaHora >= hoy &&
+                            (c.Estado == "Agendada" || c.Estado == "programada"), ct);
+
+                    ViewData["CitasPendientesConfirmar"] = citasPendientesConfirmar;
+
+                    // 3. PACIENTES EN ESPERA (citas de hoy en estado "Confirmada" y hora ya pasada)
+                    var ahora = DateTime.Now;
+                    var pacientesEnEspera = await _context.Citas
+                        .AsNoTracking()
+                        .CountAsync(c =>
+                            c.IdProfesional == profesional.IdProfesional &&
+                            c.FechaHora.Date == hoy &&
+                            c.FechaHora <= ahora &&
+                            (c.Estado == "Confirmada" || c.Estado == "confirmada"), ct);
+
+                    ViewData["PacientesEnEspera"] = pacientesEnEspera;
+
+                    // 4. HISTORIAS CLÍNICAS PENDIENTES (citas atendidas hoy sin notas)
+                    var historiasPendientes = await _context.Citas
+                        .AsNoTracking()
+                        .CountAsync(c =>
+                            c.IdProfesional == profesional.IdProfesional &&
+                            c.FechaHora.Date == hoy &&
+                            (c.Estado == "Atendida" || c.Estado == "atendida") &&
+                            string.IsNullOrWhiteSpace(c.Notas), ct);
+
+                    ViewData["HistoriasPendientes"] = historiasPendientes;
+
+                    // 5. RENDIMIENTO DEL DÍA (cálculo de tasa de asistencia)
+                    var citasHoyTotal = citasDelMes.Count(c => c.FechaHora.Date == hoy);
+                    var citasHoyAtendidas = citasDelMes.Count(c => 
+                        c.FechaHora.Date == hoy && 
+                        (c.Estado == "Atendida" || c.Estado == "atendida"));
+                    
+                    var tasaAsistencia = citasHoyTotal > 0 
+                        ? (int)Math.Round((double)citasHoyAtendidas / citasHoyTotal * 100) 
+                        : 0;
+
+                    ViewData["TasaAsistenciaHoy"] = tasaAsistencia;
+
+                    // 6. ÚLTIMA ATENCIÓN DEL PACIENTE DE LA PRÓXIMA CITA (para contexto)
+                    if (proximaCitaUrgente != null)
+                    {
+                        var ultimaAtencion = await _context.Citas
+                            .Include(c => c.Servicio)
+                            .AsNoTracking()
+                            .Where(c =>
+                                c.IdPaciente == proximaCitaUrgente.IdPaciente &&
+                                c.IdProfesional == profesional.IdProfesional &&
+                                c.FechaHora < proximaCitaUrgente.FechaHora &&
+                                (c.Estado == "Atendida" || c.Estado == "atendida"))
+                            .OrderByDescending(c => c.FechaHora)
+                            .FirstOrDefaultAsync(ct);
+
+                        ViewData["UltimaAtencionProximaCita"] = ultimaAtencion;
+                    }
                 }
             }
 

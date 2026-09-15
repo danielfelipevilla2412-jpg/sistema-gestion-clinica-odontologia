@@ -77,6 +77,22 @@
     <!-- Controles de navegación de semana -->
     <section class="agenda-controls" aria-label="Controles de navegación semanal">
         <div class="controls-left">
+            <!-- Toggle de Vista -->
+            <div class="view-toggle" role="radiogroup" aria-label="Tipo de vista">
+                <button class="view-btn active" data-view="week" aria-pressed="true" title="Vista semanal">
+                    <span class="material-symbols-outlined">view_week</span>
+                    <span class="view-btn-text">Semana</span>
+                </button>
+                <button class="view-btn" data-view="day" aria-pressed="false" title="Vista de día">
+                    <span class="material-symbols-outlined">view_day</span>
+                    <span class="view-btn-text">Día</span>
+                </button>
+                <button class="view-btn" data-view="list" aria-pressed="false" title="Vista de lista">
+                    <span class="material-symbols-outlined">list</span>
+                    <span class="view-btn-text">Lista</span>
+                </button>
+            </div>
+
             <div class="week-nav" role="navigation" aria-label="Navegación semanal">
                 <button class="btn-week" id="btnPrev" aria-label="Semana anterior">
                     <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
@@ -92,6 +108,28 @@
         </div>
 
         <div class="controls-right">
+            <!-- Búsqueda de Pacientes -->
+            <div class="search-patient-wrap">
+                <span class="material-symbols-outlined">search</span>
+                <input type="search" 
+                       id="searchPatient" 
+                       placeholder="Buscar paciente..."
+                       aria-label="Buscar paciente en la agenda">
+            </div>
+
+            <!-- Filtro por Estado -->
+            <div class="filter-group">
+                <label for="filterStatus" class="filter-label">Estado</label>
+                <select id="filterStatus" class="status-select" aria-label="Filtrar por estado">
+                    <option value="">Todos los estados</option>
+                    <option value="programada">Programadas (@(ViewData["CitasProgramadas"] ?? 0))</option>
+                    <option value="confirmada">Confirmadas (@(ViewData["CitasConfirmadas"] ?? 0))</option>
+                    <option value="atendida">Atendidas (@(ViewData["CitasAtendidas"] ?? 0))</option>
+                    <option value="cancelada">Canceladas (@(ViewData["CitasCanceladas"] ?? 0))</option>
+                </select>
+            </div>
+
+            <!-- Filtro por Consultorio -->
             <div class="filter-group">
                 <label for="filterOffice" class="filter-label">Consultorio</label>
                 <select id="filterOffice" class="status-select" aria-label="Filtrar por consultorio">
@@ -114,17 +152,55 @@
         </div>
     </section>
 
+    <!-- Panel de Estadísticas Rápidas -->
+    @{
+        var totalSemana = (int)(ViewData["TotalCitasSemana"] ?? 0);
+        var programadas = (int)(ViewData["CitasProgramadas"] ?? 0);
+        var confirmadas = (int)(ViewData["CitasConfirmadas"] ?? 0);
+        var atendidas = (int)(ViewData["CitasAtendidas"] ?? 0);
+    }
+    <section class="quick-stats-panel" aria-label="Estadísticas de la semana">
+        <div class="quick-stat-item" data-status="total">
+            <span class="material-symbols-outlined">event</span>
+            <div>
+                <strong>@totalSemana</strong>
+                <span>Total semana</span>
+            </div>
+        </div>
+        <div class="quick-stat-item" data-status="programada">
+            <span class="material-symbols-outlined">schedule</span>
+            <div>
+                <strong>@programadas</strong>
+                <span>Programadas</span>
+            </div>
+        </div>
+        <div class="quick-stat-item" data-status="confirmada">
+            <span class="material-symbols-outlined">check_circle</span>
+            <div>
+                <strong>@confirmadas</strong>
+                <span>Confirmadas</span>
+            </div>
+        </div>
+        <div class="quick-stat-item" data-status="atendida">
+            <span class="material-symbols-outlined">task_alt</span>
+            <div>
+                <strong>@atendidas</strong>
+                <span>Atendidas</span>
+            </div>
+        </div>
+    </section>
+
     <!-- Grid Semanal de Calendario -->
     <section class="calendar-section" aria-labelledby="calendarTitle">
         <h2 class="visually-hidden" id="calendarTitle">Calendario semanal de citas</h2>
-        <div class="calendar-scroll-wrapper">
+        <div class="calendar-scroll-wrapper" data-view="week">
             <div class="calendar-header" role="row">
                 @foreach (var dia in Model.Dias)
                 {
                     var headerClasses = "calendar-day-header";
                     if (dia.EsHoy) headerClasses += " current";
                     if (dia.Cerrado) headerClasses += " closed";
-                    <div class="@headerClasses" role="columnheader" aria-current="@(dia.EsHoy ? "date" : null)">
+                    <div class="@headerClasses" role="columnheader" aria-current="@(dia.EsHoy ? "date" : null)" data-date="@dia.Fecha.ToString("yyyy-MM-dd")">
                         <span class="day-name">@dia.NombreDia</span>
                         <time datetime="@dia.Fecha.ToString("yyyy-MM-dd")" class="day-number">@dia.NumeroDia</time>
                         @if (dia.EsHoy) { <span class="day-indicator" aria-hidden="true"></span> }
@@ -138,7 +214,7 @@
                     if (dia.EsHoy) diaClasses += " current";
                     if (dia.Cerrado) diaClasses += " closed";
                     var diaId = $"day-{dia.Fecha.ToString("yyyyMMdd")}";
-                    <div class="@diaClasses" role="row" aria-labelledby="@diaId">
+                    <div class="@diaClasses" role="row" aria-labelledby="@diaId" data-date="@dia.Fecha.ToString("yyyy-MM-dd")">
                         <span id="@diaId" class="visually-hidden">@dia.NombreDia @dia.Fecha.Day de @dia.Fecha.ToString("MMMM")</span>
                         @if (dia.Cerrado)
                         {
@@ -161,10 +237,12 @@
                                      data-office-id="@cita.IdConsultorio" data-service-id="@cita.IdServicio"
                                      data-status="@Html.Encode(cita.Estado)" data-notes="@Html.Encode(cita.Notas)"
                                      data-patient-name="@Html.Encode(cita.Paciente)" data-service-name="@Html.Encode(cita.Servicio)"
-                                     data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)">
+                                     data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)"
+                                     draggable="true">
                                     <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
                                     <span class="appt-patient">@cita.Paciente</span>
                                     <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
+                                    <span class="appt-status-indicator" data-status-time="" aria-live="polite"></span>
                                 </div>
                             }
                             @if (!dia.Citas.Any())

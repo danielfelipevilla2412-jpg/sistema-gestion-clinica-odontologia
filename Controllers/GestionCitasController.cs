@@ -1926,31 +1926,145 @@ public sealed class CambiarEstadoCitaDto
     [Authorize(Roles = "Profesional,Administrador")]
     [Route("gestion-de-citas/st-odo-02-agenda")]
     public async Task<IActionResult> Stodo02Agenda(
-        [FromQuery] int? editId,
+        [FromQuery] DateTime? weekStart,
+        [FromQuery] int? officeId,
         CancellationToken ct = default)
     {
         try
         {
-            await CargarDatosCitas(
-                editId,
-                "/gestion-de-citas/st-odo-02-agenda",
-                null,
+            _antiforgery.GetAndStoreTokens(HttpContext);
+
+            // Obtener el ID del profesional desde los claims del usuario autenticado
+            int? professionalId = null;
+            var idProfesionalClaim = User.FindFirst("IdProfesional")?.Value;
+            if (!string.IsNullOrEmpty(idProfesionalClaim) && int.TryParse(idProfesionalClaim, out int idProf))
+            {
+                professionalId = idProf;
+            }
+
+            var model = await _agendaService.ObtenerAgendaAsync(
+                weekStart,
+                professionalId,
+                officeId,
                 ct);
 
+            // ═══════════════════════════════════════════════════════════════
+            // MEJORAS: ESTADÍSTICAS ADICIONALES PARA AGENDA PROFESIONAL
+            // ═══════════════════════════════════════════════════════════════
+
+            if (professionalId.HasValue)
+            {
+                var inicioSemana = model.WeekStart;
+                var finSemana = inicioSemana.AddDays(7);
+
+                // 1. CONTEO DE CITAS POR ESTADO (para filtros)
+                var citasSemana = await _context.Citas
+                    .AsNoTracking()
+                    .Where(c => 
+                        c.IdProfesional == professionalId.Value &&
+                        c.FechaHora >= inicioSemana &&
+                        c.FechaHora < finSemana)
+                    .ToListAsync(ct);
+
+                ViewData["TotalCitasSemana"] = citasSemana.Count;
+                ViewData["CitasProgramadas"] = citasSemana.Count(c => 
+                    c.Estado == "Agendada" || c.Estado == "programada");
+                ViewData["CitasConfirmadas"] = citasSemana.Count(c => 
+                    c.Estado == "Confirmada" || c.Estado == "confirmada");
+                ViewData["CitasAtendidas"] = citasSemana.Count(c => 
+                    c.Estado == "Atendida" || c.Estado == "atendida");
+                ViewData["CitasCanceladas"] = citasSemana.Count(c => 
+                    c.Estado == "Cancelada" || c.Estado == "cancelada");
+
+                // 2. PRÓXIMAS 3 CITAS (para vista rápida)
+                var proximasCitas = citasSemana
+                    .Where(c => c.FechaHora >= DateTime.Now &&
+                               (c.Estado == "Agendada" || c.Estado == "programada" ||
+                                c.Estado == "Confirmada" || c.Estado == "confirmada"))
+                    .OrderBy(c => c.FechaHora)
+                    .Take(3)
+                    .ToList();
+
+                ViewData["ProximasCitasRapidas"] = proximasCitas;
+
+                // 3. HORAS MÁS OCUPADAS (para insights)
+                var horasOcupadas = citasSemana
+                    .Where(c => c.Estado != "Cancelada" && c.Estado != "cancelada")
+                    .GroupBy(c => c.FechaHora.Hour)
+                    .OrderByDescending(g => g.Count())
+                    .Take(3)
+                    .Select(g => new { Hora = g.Key, Cantidad = g.Count() })
+                    .ToList();
+
+                ViewData["HorasMasOcupadas"] = horasOcupadas;
+
+                // 4. PACIENTES FRECUENTES DE LA SEMANA
+                var pacientesFrecuentes = citasSemana
+                    .Where(c => c.IdPaciente > 0)
+                    .GroupBy(c => c.IdPaciente)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => new { IdPaciente = g.Key, Cantidad = g.Count() })
+                    .OrderByDescending(x => x.Cantidad)
+                    .ToList();
+
+                ViewData["PacientesFrecuentesCant"] = pacientesFrecuentes.Count;
+            }
+
             return View(
-                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml");
+                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml",
+                model);
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Solicitud cancelada Stodo02Agenda");
+
+            TempData["ErrorValidacion"] = MensajeErrorFallback;
+
+            return View(
+                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml",
+                new AgendaViewModel());
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error de base de datos en Stodo02Agenda");
+
+            TempData["ErrorValidacion"] =
+                "Error al consultar datos. Intente nuevamente.";
+
+            return View(
+                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml",
+                new AgendaViewModel());
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error SQL {Number} en Stodo02Agenda",
+                ex.Number);
+
+            TempData["ErrorValidacion"] =
+                "Servicio temporalmente no disponible. Intente en unos minutos.";
+
+            return View(
+                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml",
+                new AgendaViewModel());
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Error Stodo02Agenda");
+                "Error crítico cargando Stodo02Agenda");
 
             TempData["ErrorValidacion"] =
                 MensajeErrorFallback;
 
             return View(
-                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml");
+                "~/Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml",
+                new AgendaViewModel());
         }
     }
 
@@ -3720,23 +3834,7 @@ public sealed class CambiarEstadoCitaDto
     private static string NormalizarEstado(
         string? estado)
     {
-        var normalizado =
-            (estado ?? string.Empty)
-                .Trim()
-                .ToLowerInvariant();
-
-        return normalizado switch
-        {
-            "agendada" => "programada",
-            "programado" => "programada",
-            "confirmado" => "confirmada",
-            "cancelado" => "cancelada",
-            "no asistio" => "no_asistida",
-            "no asistió" => "no_asistida",
-            "no-show" => "no_asistida",
-            "completada" or "finalizada" or "realizada" => "atendida",
-            _ => normalizado
-        };
+        return EstadoCitaHelper.Normalize(estado);
     }
 
     private static bool EsTransicionEstadoPermitida(
