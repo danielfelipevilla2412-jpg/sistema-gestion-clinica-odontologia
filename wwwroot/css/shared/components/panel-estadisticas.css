@@ -1,0 +1,65 @@
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENTE: PanelEstadisticas
+   Reutiliza estilos de stats-grid existentes + animaciones
+   ═══════════════════════════════════════════════════════════════ */
+
+.panel-stats-titulo {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    color: var(--text-primary, #1e293b);
+}
+
+/* Tooltip button */
+.stat-tooltip-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: rgba(100, 116, 139, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: help;
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.stat-card:hover .stat-tooltip-btn {
+    opacity: 1;
+}
+
+.stat-tooltip-btn:hover,
+.stat-tooltip-btn:focus {
+    background: rgba(100, 116, 139, 0.2);
+    opacity: 1 !important;
+}
+
+.stat-tooltip-btn .material-symbols-outlined {
+    font-size: 1rem;
+    color: var(--text-secondary, #64748b);
+}
+
+.stat-card {
+    position: relative;
+}
+
+/* Animación de conteo */
+@keyframes count-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.stat-number {
+    animation: count-up 0.6s ease-out;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .stat-tooltip-btn {
+        opacity: 0.7;
+    }
+}
