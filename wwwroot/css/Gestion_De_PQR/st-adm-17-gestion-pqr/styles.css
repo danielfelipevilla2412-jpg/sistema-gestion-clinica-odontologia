@@ -50,7 +50,6 @@ body {
   font-family: var(--font);
   background: var(--bg);
   color: var(--text);
-  display: flex;
   min-height: 100vh;
 }
 a { text-decoration: none; color: inherit; }
@@ -222,21 +221,32 @@ img { max-width: 100%; height: auto; display: block; }
     --text-dark: #1f2937;
     --text-light: #6b7280;
     --border-color: #e5e7eb;
-    --sidebar-width: 260px;
+    --sidebar-width: 220px;
 }
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: var(--bg-gray);
     color: var(--text-dark);
     overflow-x: hidden;
+    min-height: 100vh;
 }
 /* ==================== SIDEBAR ==================== */
 /* ==================== MAIN CONTENT ==================== */
 .main-content {
     margin-left: var(--sidebar-width);
+    width: auto;
+    max-width: none;
+    min-width: 0;
     padding: 20px;
     min-height: 100vh;
+    box-sizing: border-box;
     transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-mini-offset {
+    margin-left: 56px;
+    width: auto;
+    flex: 1 1 auto;
 }
 /* ==================== TOP BAR ==================== */
 .top-bar {
@@ -367,6 +377,8 @@ body {
     flex: 1;
     min-width: 250px;
     position: relative;
+    width: 100%;
+    min-width: 0;
 }
 .search-box input {
     width: 100%;
@@ -415,6 +427,7 @@ body {
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     overflow: hidden;
+    min-width: 0;
 }
 .table-wrapper {
     overflow-x: auto;
@@ -553,6 +566,7 @@ tbody tr.selected {
     max-height: calc(100vh - 40px);
     overflow-y: auto;
     transition: all 0.3s ease;
+    max-height: none;
 }
 .detail-panel::-webkit-scrollbar {
     width: 6px;
@@ -883,6 +897,7 @@ tbody tr.selected {
 
     .main-content {
         margin-left: 0;
+        width: 100%;
         padding-top: 70px;
     }
 
