@@ -92,9 +92,10 @@
         items.style.pointerEvents = expand ? 'auto' : 'none';
 
         if (expand) {
-          // WHY scrollHeight: permite que la transición CSS muestre el
-          // contenido completo sin hardcodear una altura máxima
-          items.style.maxHeight = items.scrollHeight + 'px';
+          // WHY Math.max: scrollHeight might be 0 or small if fonts/styles aren't fully rendered.
+          // Setting Math.max(items.scrollHeight, 500) guarantees the group is never clipped or hidden.
+          var realHeight = items.scrollHeight || 0;
+          items.style.maxHeight = Math.max(realHeight, 500) + 'px';
           arrow.style.transform = 'rotate(0deg)';
         } else {
           items.style.maxHeight = '0px';

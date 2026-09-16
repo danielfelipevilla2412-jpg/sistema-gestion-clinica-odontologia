@@ -44,7 +44,7 @@ public class CentroDeAyudaController : Controller
     public IActionResult GuiasTutoriales()
     {
         var vm = BuildGuiasTutorialesViewModel();
-        return View("~/Views/Centro_De_Ayuda/Soporte y Tickets/index.cshtml", vm);
+        return View("~/Views/Centro_De_Ayuda/Guias_Tutoriales_y_Soporte/index.cshtml", vm);
     }
 
     // ─── Cómo programar una cita ──────────────────────────────────────────────
@@ -114,9 +114,9 @@ public class CentroDeAyudaController : Controller
         var request = new CentroAyudaTicketRequest
         {
             Asunto = model.Subject,
-            Categoria = model.Category.ToString().ToLowerInvariant(),
-            ModuloAfectado = model.Module.ToString().ToLowerInvariant(),
-            Severidad = model.Severity.ToLowerInvariant(),
+            Categoria = model.Category?.ToString().ToLowerInvariant() ?? "errortecnico",
+            ModuloAfectado = model.Module?.ToString().ToLowerInvariant() ?? "otronoestoyseguro",
+            Severidad = model.Severity?.ToLowerInvariant() ?? "baja",
             Descripcion = model.Description,
             CapturaPantalla = model.Screenshot
         };

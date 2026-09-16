@@ -1,205 +1,146 @@
-@* Vista sin modelo tipado - datos estáticos *@
+@model SmileTrack_MVC.Models.ViewModels.CentroDeAyudaViewModel
 @{
     ViewData["Title"] = "SmileTrack - Centro de Ayuda";
-    Layout = null; // Cambia esto por tu _Layout.cshtml si esta vista debe usar un layout compartido
+    Layout = null;
+
+    var userName = User?.Identity?.Name ?? "Usuario SmileTrack";
+    var nameParts = userName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var initials = string.Join("", nameParts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    if (string.IsNullOrWhiteSpace(initials)) initials = "ST";
+
+    var categories = Model.Articles
+        .GroupBy(a => a.Categoria)
+        .Select(g => new
+        {
+            Title = g.Key,
+            Description = g.FirstOrDefault()?.Descripcion ?? "Artículos de ayuda",
+            IconClass = g.Key switch
+            {
+                "Citas" => "fa-calendar-check",
+                "Pacientes" => "fa-user-injured",
+                "Facturación" => "fa-file-invoice-dollar",
+                "Profesionales" => "fa-user-md",
+                "Soporte" => "fa-headset",
+                _ => "fa-circle-question"
+            },
+            ColorKey = g.Key switch
+            {
+                "Citas" => "blue",
+                "Pacientes" => "green",
+                "Facturación" => "amber",
+                "Profesionales" => "purple",
+                "Soporte" => "red",
+                _ => "slate"
+            }
+        })
+        .ToList();
 }
 
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Guías, tutoriales y soporte del centro de ayuda de SmileTrack" />
     <title>@ViewData["Title"]</title>
-    <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/styles.css")">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/styles.css")" />
 </head>
-
 <body>
-    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-    <div class="app-container">
-        <!-- Mobile Header -->
-        <div class="mobile-header">
-            <button id="menu-toggle" class="menu-btn" data-i18n-aria-label="common_hamburger_aria" aria-label="Abrir menú">
-                <i class="fas fa-bars"></i>
+    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+    </button>
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+    <main class="main" id="main-content">
+        <header class="page-header">
+            <div class="header-left">
+                <nav class="breadcrumb" aria-label="Ruta de navegación">
+                    <span>Administración</span>
+                    <span class="bc-sep" aria-hidden="true">→</span>
+                    <span class="bc-active">Centro de Ayuda</span>
+                </nav>
+                <h1 class="page-title">Centro de Ayuda</h1>
+                <p class="page-subtitle">Busca guías, tutoriales y soporte para tu clínica</p>
+            </div>
+            <button class="btn-support" type="button" aria-expanded="false" onclick="window.location.href='/centro-de-ayuda/soporte'">
+                <i class="fas fa-headset"></i>
+                <span>+ Soporte Directo</span>
             </button>
-            <span class="mobile-title" data-i18n="home.logo_alt">SmileTrack</span>
-        </div>
+        </header>
 
-        <!-- Overlay for mobile -->
-        <div id="overlay" class="overlay"></div>
-
-        <!-- Sidebar -->
-        <aside id="sidebar" class="sidebar">
-            <!-- Logo -->
-            <div class="logo-container">
-                <img src="~/images/logo.jpg" alt="SmileTrack Logo">
-            </div>
-
-            <!-- Navigation -->
-            <nav class="nav-menu">
-                <a asp-controller="Dashboard" asp-action="Index" class="nav-item">
-                    <i class="fas fa-table-columns nav-icon"></i>
-                    <span data-i18n="nav.dashboard">Panel</span>
-                </a>
-                <a asp-controller="Patients" asp-action="Index" class="nav-item">
-                    <i class="fas fa-users nav-icon"></i>
-                    <span data-i18n="nav.patients">Pacientes</span>
-                </a>
-                <a asp-controller="Appointments" asp-action="Index" class="nav-item active">
-                    <i class="fas fa-calendar-alt nav-icon"></i>
-                    <span data-i18n="nav.appointments">Citas</span>
-                </a>
-                <a asp-controller="Invoices" asp-action="Index" class="nav-item">
-                    <i class="fas fa-file-invoice nav-icon"></i>
-                    <span data-i18n="nav.billing">Facturas</span>
-                </a>
-                <a asp-controller="Reminders" asp-action="Index" class="nav-item">
-                    <i class="fas fa-bell nav-icon"></i>
-                    <span data-i18n="notifications.reminders">Recordatorios</span>
-                </a>
-            </nav>
-
-            <div class="sidebar-bottom">
-                <!-- User Profile -->
-                <div class="user-profile">
-                    <div class="user-avatar">@Model.User.Initials</div>
-                    <div class="user-info">
-                        <div class="user-name">@Model.User.FullName</div>
-                        <div class="user-email">@Model.User.Email</div>
-                    </div>
+        <section class="support-banner">
+            <div class="support-card">
+                <div class="support-card__header">
+                    <div class="support-card__icon"><i class="fas fa-circle-info"></i></div>
+                    <h2>Canales de soporte</h2>
                 </div>
+                <ul class="support-list">
+                    <li><i class="fas fa-comment-dots"></i> @Model.Support.ChatHours</li>
+                    <li><i class="fas fa-envelope"></i> @Model.Support.Email</li>
+                    <li><i class="fas fa-phone"></i> @Model.Support.Phone</li>
+                </ul>
             </div>
-        </aside>
+        </section>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Header Card with Support Button -->
-            <div class="header-card">
-                <div>
-                    <h1 data-i18n="help.title">Centro de Ayuda</h1>
-                    <p>Busca guías, tutoriales y soporte para tu clínica</p>
-                </div>
-                <button class="btn-support" type="button" aria-expanded="false">
-                    <i class="fas fa-headset"></i>
-                    <span>+ Soporte Directo</span>
-                </button>
-                <div id="support-panel" class="support-panel" hidden>
-                    <div class="support-panel-header">
-                        <i class="fas fa-circle-info"></i>
-                        <span data-i18n="help.support_channels">Canales de soporte</span>
+        <section class="category-grid" aria-label="Categorías del centro de ayuda">
+            @foreach (var category in categories)
+            {
+                <article class="category-card border-@category.ColorKey" data-category="@category.Title">
+                    <div class="category-icon">
+                        <i class="fas @category.IconClass text-@category.ColorKey"></i>
                     </div>
-                    <ul class="support-list">
-                        <li><i class="fas fa-comment-dots"></i> @Model.Support.ChatHours</li>
-                        <li><i class="fas fa-envelope"></i> @Model.Support.Email</li>
-                        <li><i class="fas fa-phone"></i> @Model.Support.Phone</li>
-                    </ul>
+                    <h3 class="text-@category.ColorKey">@category.Title</h3>
+                    <span>@category.Description</span>
+                </article>
+            }
+        </section>
+
+        <section class="search-section">
+            <div class="search-container">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="search-input" placeholder="¿Cómo programar una cita?..." />
                 </div>
             </div>
 
-            <!-- Category Cards -->
-            <div class="category-grid">
-                @foreach (var category in Model.Categories)
-                {
-                    <div class="category-card border-@category.ColorKey" data-category="@category.Slug">
-                        <div class="category-icon">
-                            <i class="fas @category.IconClass text-@category.ColorKey"></i>
-                        </div>
-                        <h3 class="text-@category.ColorKey">@category.Title</h3>
-                        <span>@category.Description</span>
-                    </div>
-                }
-            </div>
-
-            <!-- Search and Articles Section -->
-            <div class="search-section">
-                <!-- Search Bar -->
-                <div class="search-container">
-                    <div class="search-input-wrapper">
-                        <i class="fas fa-search"></i>
-                        <input type="text" class="search-input" placeholder="¿Cómo programar una cita?...">
-                    </div>
+            <div class="articles-section">
+                <div class="articles-header">
+                    <h3>Artículos recomendados</h3>
+                    <a href="/centro-de-ayuda/guias-tutoriales" class="view-all">Ver todo</a>
                 </div>
 
-                <!-- Articles -->
-                <div class="articles-section">
-                    <div class="articles-header">
-                        <h3 data-i18n="help.recommended">Artículos Recomendados</h3>
-                        <a asp-controller="HelpCenter" asp-action="AllArticles" class="view-all" data-i18n="common.view_all">Ver todo</a>
-                    </div>
-
-                    <!-- Article List -->
-                    <div class="article-list">
-                        @foreach (var article in Model.Articles)
-                        {
-                            <div class="article-item" data-category="@article.CategorySlug">
-                                <div class="article-icon icon-@article.ColorKey">
-                                    <i class="fas @article.IconClass"></i>
-                                </div>
-                                <div class="article-content">
-                                    <h4>@article.Title</h4>
-                                    <p>@article.Summary</p>
-                                </div>
-                                <div class="article-meta">
-                                    <span class="article-badge badge-@article.ColorKey">@article.BadgeLabel</span>
-                                    <i class="fas fa-chevron-right article-arrow"></i>
-                                </div>
+                <div class="article-list">
+                    @foreach (var article in Model.Articles)
+                    {
+                        <article class="article-item" data-category="@article.Categoria" onclick="if ('@article.Url' !== '#') window.location.href='@article.Url';">
+                            <div class="article-icon icon-@article.Categoria">
+                                <i class="fas @article.Icono"></i>
                             </div>
-                        }
-                    </div>
-
-                    <!-- Pagination -->
-                    <div class="pagination">
-                        <span>Mostrando @Model.Articles.Count de @Model.TotalArticlesCount artículos sugeridos</span>
-                        <div class="pagination-controls">
-                            <button class="pagination-btn" @(Model.CurrentPage <= 1 ? "disabled" : "") data-i18n="common.previous">Anterior</button>
-                            @for (int i = 1; i <= Model.TotalPages; i++)
-                            {
-                                <button class="pagination-btn @(i == Model.CurrentPage ? "active" : "")">@i</button>
-                            }
-                            <button class="pagination-btn" @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "") data-i18n="common.next">Siguiente</button>
-                        </div>
-                    </div>
+                            <div class="article-content">
+                                <h4>@article.Titulo</h4>
+                                <p>@article.Descripcion</p>
+                            </div>
+                            <div class="article-meta">
+                                <span class="article-badge badge-@article.Categoria">@article.Categoria</span>
+                                <i class="fas fa-chevron-right article-arrow"></i>
+                            </div>
+                        </article>
+                    }
                 </div>
             </div>
-        </main>
-    </div>
+        </section>
+    </main>
 
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.nav-group-header').forEach(header => {
-      const items = header.nextElementSibling;
-      const arrow = header.querySelector('.nav-arrow');
-
-      if (!items || !arrow) return;
-
-      const setExpanded = (isExpanded) => {
-        items.style.maxHeight = isExpanded ? `${items.scrollHeight}px` : '0px';
-        arrow.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)';
-        header.setAttribute('aria-expanded', String(isExpanded));
-      };
-
-      setExpanded(false);
-
-      const toggle = () => {
-        const isExpanded = header.getAttribute('aria-expanded') === 'true';
-        setExpanded(!isExpanded);
-      };
-
-      header.addEventListener('click', toggle);
-      header.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          toggle();
-        }
-      });
-    });
-  });
-</script>
     <script src="@Url.Content("~/js/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/app.js")"></script>
-    <script src="@Url.Content("~/js/i18n-core.js")"></script>
-    <script src="@Url.Content("~/js/i18n.config.js")"></script>
+    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
 </body>
-
 </html>
-

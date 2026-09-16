@@ -250,12 +250,32 @@
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="flex flex-col gap-1.5">
                       <label asp-for="Category" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
-                      <select asp-for="Category" asp-items="Html.GetEnumSelectList<TicketCategory>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <select asp-for="Category" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white">
+                        <option value="" disabled selected>-- Seleccione Tipo de Incidente --</option>
+                        <option value="ErrorTecnico">Error técnico / Falla del sistema</option>
+                        <option value="ProblemaAcceso">Problema de acceso o inicio de sesión</option>
+                        <option value="SolicitudCambio">Solicitud de cambio o mejora</option>
+                        <option value="DudaConsulta">Duda o consulta general</option>
+                        <option value="ProblemaReporteDato">Problema con reporte o dato incorrecto</option>
+                      </select>
                       <span asp-validation-for="Category" class="text-error text-xs"></span>
                     </div>
                     <div class="flex flex-col gap-1.5">
                       <label asp-for="Module" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
-                      <select asp-for="Module" asp-items="Html.GetEnumSelectList<AffectedModule>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <select asp-for="Module" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white">
+                        <option value="" disabled selected>-- Seleccione Módulo / Vista --</option>
+                        <option value="Inicio">Inicio</option>
+                        <option value="ReportesAnalitica">Reportes y Analítica</option>
+                        <option value="AccesoSeguridad">Acceso y Seguridad</option>
+                        <option value="GestionPacientes">Gestión de Pacientes</option>
+                        <option value="HistoriaClinica">Historia Clínica</option>
+                        <option value="GestionProfesionales">Gestión de Profesionales</option>
+                        <option value="GestionCitas">Gestión de Citas</option>
+                        <option value="FacturacionPagos">Facturación y Pagos</option>
+                        <option value="ServiciosRecursos">Servicios y Recursos</option>
+                        <option value="GestionPQR">Gestión de PQR</option>
+                        <option value="OtroNoEstoySeguro">Otro / No estoy seguro</option>
+                      </select>
                       <span asp-validation-for="Module" class="text-error text-xs"></span>
                     </div>
                   </div>
@@ -348,11 +368,11 @@
               </button>
             </div>
             <div class="mt-6">
-              <label id="choose-file-btn" class="relative flex min-h-32 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-[#c3c6d2] p-4 text-center text-[#002a58] hover:border-[#0060a8] hover:bg-[#f8fbff]">
+              <label id="choose-file-btn" for="screenshot-input" class="relative flex min-h-36 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed border-[#c3c6d2] p-6 text-center text-[#002a58] hover:border-[#0060a8] hover:bg-[#f8fbff] transition-all">
                 <input asp-for="Screenshot" id="screenshot-input" form="support-form" accept="image/*,.pdf,.doc,.docx,.txt" class="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
-                <span class="material-symbols-outlined text-3xl text-[#0060a8]">upload_file</span>
-                <span class="font-label-bold text-label-bold">Elegir un archivo</span>
-                <span class="text-xs text-[#424750]">Imagen, PDF, Word o texto</span>
+                <span class="material-symbols-outlined text-4xl text-[#0060a8]">upload_file</span>
+                <span class="font-headline-sm text-headline-sm font-semibold">Elegir un archivo</span>
+                <span class="text-xs text-[#424750]">Imagen, PDF, Word o texto (máx. 10 MB)</span>
               </label>
             </div>
             <p id="attachment-modal-error" class="mt-4 hidden text-sm text-[#ba1a1a]" role="alert"></p>

@@ -95,12 +95,13 @@ function showAttachmentError(message) {
 function showSelectedAttachment(file) {
   if (!file || !screenshotInput || !uploadPreview || !uploadFileName) return;
 
-  if (file.size > 5 * 1024 * 1024) {
-    showAttachmentError('El archivo no puede superar 5 MB.');
+  if (file.size > 10 * 1024 * 1024) {
+    showAttachmentError('El archivo no puede superar 10 MB.');
     return;
   }
 
-  uploadFileName.textContent = file.name;
+  const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+  uploadFileName.textContent = `${file.name} (${sizeMB} MB)`;
   uploadPreview.classList.remove('hidden');
   uploadPreviewImage?.classList.add('hidden');
 
@@ -113,26 +114,18 @@ function showSelectedAttachment(file) {
     reader.readAsDataURL(file);
   }
 
-  const transfer = new DataTransfer();
-  transfer.items.add(file);
-  screenshotInput.files = transfer.files;
-  uploadButton.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Archivo seleccionado';
-  uploadButton.classList.remove('border-dashed', 'text-[#424750]');
-  uploadButton.classList.add('border-[#22c55e]', 'bg-[#ecfdf3]', 'text-[#166534]');
+  if (uploadButton) {
+    uploadButton.innerHTML = `<span class="material-symbols-outlined text-[#166534]">check_circle</span> <span class="truncate max-w-[200px]">${file.name}</span>`;
+    uploadButton.classList.remove('border-dashed', 'text-[#424750]');
+    uploadButton.classList.add('border-[#22c55e]', 'bg-[#ecfdf3]', 'text-[#166534]');
+  }
+
   closeAttachmentModal();
-}
-
-function openFilePicker() {
-  if (!screenshotInput) return;
-
-  screenshotInput.value = '';
-  screenshotInput.click();
 }
 
 if (uploadButton && screenshotInput) {
   uploadButton.addEventListener('click', (event) => {
     event.preventDefault();
-
     event.stopPropagation();
     attachmentModal?.classList.remove('hidden');
   });
@@ -145,21 +138,11 @@ if (uploadButton && screenshotInput) {
     if (event.key === 'Escape' && !attachmentModal?.classList.contains('hidden')) closeAttachmentModal();
   });
 
-  screenshotInput.addEventListener('click', (event) => {
-    event.stopPropagation();
-  });
-
   screenshotInput.addEventListener('change', (event) => {
     const file = event.target.files?.[0];
-    showSelectedAttachment(file);
-  });
-}
-
-if (chooseFileButton && screenshotInput) {
-  chooseFileButton.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setTimeout(() => openFilePicker(), 0);
+    if (file) {
+      showSelectedAttachment(file);
+    }
   });
 }
 
