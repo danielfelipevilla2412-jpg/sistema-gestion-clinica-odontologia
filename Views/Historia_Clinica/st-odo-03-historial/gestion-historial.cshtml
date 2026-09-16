@@ -21,8 +21,28 @@
         fechaNacimiento = odonto.FechaNacimiento,
         grupoSanguineo = Model.GrupoSanguineo,
         alergias = Model.Alergias,
-        medicamentos = Array.Empty<string>(), // no existe un campo de medicamentos activos en el esquema actual
-        antecedentesMedicos = Model.AntecedentesMedicos,
+         medicamentos = Array.Empty<string>(), // no existe un campo de medicamentos activos en el esquema actual
+         antecedentesMedicos = Model.AntecedentesMedicos,
+         //  — Datos clínicos adicionales enviados al JavaScript.
+         // Motivo: la ficha visual necesita mostrar datos reales de Paciente,
+         // próxima cita y eventos de todas las tablas clínicas, no solo notas.
+         paciente = new
+         {
+             tipoDocumento = Model.Paciente.TipoDocumento,
+             documento = Model.Paciente.Documento,
+             genero = Model.Paciente.Genero,
+             telefono = Model.Paciente.Telefono,
+             correo = Model.Paciente.Correo,
+             direccion = Model.Paciente.Direccion,
+             ciudad = Model.Paciente.Ciudad,
+             contactoEmergencia = Model.Paciente.ContactoEmergencia,
+             telefonoEmergencia = Model.Paciente.TelefonoEmergencia
+         },
+         proximaCita = Model.ProximaCitaFecha is null ? null : new
+         {
+             fecha = Model.ProximaCitaFecha.Value.ToString("yyyy-MM-ddTHH:mm:ss"),
+             profesional = Model.ProximaCitaProfesional
+         },
         estadoPersistido = odonto.ObservacionesGenerales,
         // Notas clínicas reales desde Nota_Clinica (ya formateadas por el servidor)
         notasClinicas = Model.NotasClinicas.Select(n => new
@@ -36,7 +56,7 @@
             estado       = n.Estado
         }),
         // Historial de citas pasadas (para el mini-odontograma de solo lectura)
-        historial = Model.Registros.Select(r => new
+         historial = Model.Registros.Select(r => new
         {
             titulo = r.Descripcion,
             fecha = r.Fecha.ToString("yyyy-MM-dd"),
@@ -44,8 +64,18 @@
             diagnostico = "",
             procedimiento = r.Descripcion,
             estado = r.Estado,
-            proximaCita = (string?)null
-        })
+             proximaCita = (string?)null
+         }),
+         lineaDeTiempo = Model.LineaDeTiempo.Select(e => new
+         {
+             fecha = e.Fecha.ToString("yyyy-MM-ddTHH:mm:ss"),
+             categoria = e.Categoria,
+             titulo = e.Titulo,
+             descripcion = e.Descripcion,
+             profesional = e.Profesional,
+             estado = e.Estado,
+             enlaceDocumento = e.EnlaceDocumento
+         })
     });
 }
 
@@ -65,6 +95,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-03-historial/gestion-historial.css")" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+  @* CORRECCIÓN FASE 2 — El id permite que odontograma-3d-readonly.js detecte
+     esta descarga de Sketchfab y espere su disponibilidad; así no crea un visor
+     vacío cuando la red tarda. La API sigue siendo solo de lectura en esta vista. *@
+  <script id="sketchfab-viewer-api-historial" src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
 </head>
 
 <body>
@@ -119,7 +153,16 @@
 
         <!-- Historial de consultas con aria-live para actualizaciones -->
         <div class="card" id="cardHist">
-          <h2 class="card-title" id="historialTitle" data-i18n="historia.title">Historial de consultas</h2>
+          @*  — Sustituye el listado simple por una línea de tiempo filtrable.
+             Solo cambia la presentación; los eventos provienen del ViewModel de BD. *@
+          <h2 class="card-title" id="historialTitle">Línea de tiempo clínica</h2>
+          <div class="timeline-filters" id="timelineFilters" aria-label="Filtrar línea de tiempo">
+            <button type="button" class="timeline-filter active" data-filter="todo">Todo</button>
+            <button type="button" class="timeline-filter" data-filter="nota">Notas</button>
+            <button type="button" class="timeline-filter" data-filter="odontograma">Odontograma</button>
+            <button type="button" class="timeline-filter" data-filter="consulta">Citas</button>
+            <button type="button" class="timeline-filter" data-filter="documento">Documentos</button>
+          </div>
           <div id="historialList" aria-live="polite" role="list" aria-labelledby="historialTitle">
             <!-- Skeleton loader inicial para feedback visual -->
             <div class="skeleton-row" aria-hidden="true"></div>
@@ -132,6 +175,21 @@
 
       <!-- Columna derecha: Alertas + Formulario -->
       <aside class="col-right" aria-label="Panel lateral">
+
+        @*  — Ficha de consulta rápida. Es solo lectura y no modifica Paciente. *@
+        <div class="card patient-summary" aria-labelledby="patientSummaryTitle">
+          <h2 class="card-title" id="patientSummaryTitle">Resumen del paciente</h2>
+          <dl class="patient-summary-grid">
+            <div><dt>Documento</dt><dd id="patientDocument">—</dd></div>
+            <div><dt>Género</dt><dd id="patientGender">—</dd></div>
+            <div><dt>Teléfono</dt><dd id="patientPhone">—</dd></div>
+            <div><dt>Correo</dt><dd id="patientEmail">—</dd></div>
+            <div class="patient-summary-wide"><dt>Dirección</dt><dd id="patientAddress">—</dd></div>
+            <div class="patient-summary-wide"><dt>Contacto de emergencia</dt><dd id="patientEmergency">—</dd></div>
+            <div class="patient-summary-wide"><dt>Antecedentes médicos</dt><dd id="patientBackground">—</dd></div>
+            <div class="patient-summary-wide"><dt>Próxima cita</dt><dd id="patientNextAppointment">—</dd></div>
+          </dl>
+        </div>
 
         <!-- Alerta médica con role alert para anuncio inmediato -->
         <div class="card card-alert" id="alertCard" role="alert" aria-live="assertive" aria-labelledby="alertTitle">
@@ -224,6 +282,10 @@
   <!-- Toast para notificaciones accesibles -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
+  @*  — Tooltip global del odontograma 3D. Está fuera del iframe para
+     mostrarse sobre Sketchfab y solo se alimenta con datos de lectura. *@
+  <div id="holo-tooltip-historial" role="status" aria-live="polite"></div>
+
   <!-- Estilos para contenido solo accesible por screen readers -->
   <style>
     .skip-link {
@@ -270,12 +332,49 @@
       border-color: var(--danger);
       box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
     }
+
+    /*  — Estilos de la ficha, filtros y enlaces de la línea de tiempo.
+       Se mantienen locales a esta vista para no alterar otras pantallas. */
+    .patient-summary-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin:0; }
+    .patient-summary-grid div { min-width:0; }
+    .patient-summary-grid dt { font-size:.7rem; color:var(--text-muted); margin-bottom:3px; }
+    .patient-summary-grid dd { margin:0; font-size:.82rem; overflow-wrap:anywhere; }
+    .patient-summary-wide { grid-column:1 / -1; }
+    .timeline-filters { display:flex; flex-wrap:wrap; gap:6px; margin:-4px 0 14px; }
+    .timeline-filter { border:1px solid var(--border); border-radius:999px; padding:5px 9px; background:#fff; color:var(--text-muted); font-size:.73rem; cursor:pointer; }
+    .timeline-filter.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+    .hist-category { font-size:.7rem; padding:2px 6px; border-radius:999px; background:var(--surface, #eef4ff); color:var(--primary); }
+    .hist-link { display:inline-block; margin-top:5px; font-size:.78rem; color:var(--primary); }
+    /*  — Contenedor y tooltip del visor 3D. No se reutiliza el CSS del
+       módulo editable para evitar exponer sus paneles y acciones clínicas. */
+    .odo3d-readonly-wrap { min-height:360px; position:relative; overflow:hidden; border-radius:12px; background:#030d1a; border:1px solid rgba(0,212,255,.22); }
+    .odo3d-readonly-wrap iframe { width:100%; height:360px; border:0; display:block; }
+    .odo3d-readonly-label { position:absolute; z-index:2; top:10px; left:10px; padding:4px 8px; border-radius:999px; background:rgba(0,10,25,.84); color:#00d4ff; font-size:.72rem; pointer-events:none; }
+    .odo3d-readonly-loading, .odo3d-readonly-error { position:absolute; inset:0; display:grid; place-items:center; color:#b9dbea; font-size:.86rem; background:rgba(3,13,26,.78); z-index:1; }
+    .odo3d-readonly-error { color:#ff9cac; }
+    /* CORRECCIÓN FASE 2 — Fuerza que el panel de error permanezca oculto hasta
+       un fallo real. Sin esta regla, su display:grid puede prevalecer sobre el
+       atributo hidden y tapar por completo el iframe 3D. */
+    .odo3d-readonly-error[hidden] { display:none !important; }
+    #holo-tooltip-historial { display:none; position:fixed; max-width:300px; max-height:300px; overflow:auto; padding:12px; border:1px solid #00d4ff; border-radius:9px; background:rgba(0,10,25,.97); color:#fff; font-size:.78rem; line-height:1.45; box-shadow:0 8px 28px rgba(0,212,255,.28); pointer-events:none; z-index:9999; }
+    .odo3d-tooltip-title { color:#00d4ff; font-weight:700; margin-bottom:6px; text-transform:uppercase; }
+    .odo3d-tooltip-state { font-weight:600; text-transform:capitalize; }
+    .odo3d-tooltip-observation { color:#d6e8f5; margin-top:4px; }
+    .odo3d-tooltip-loading, .odo3d-tooltip-empty { color:#9eb6c9; margin-top:8px; }
+    .odo3d-tooltip-item { border-top:1px solid rgba(0,212,255,.18); margin-top:7px; padding-top:7px; display:grid; gap:2px; }
+    .odo3d-tooltip-item small { color:#9eb6c9; }
+    @@media (max-width: 520px) { .patient-summary-grid { grid-template-columns:1fr; } }
   </style>
 
   <script>
     window.smiletrackHistoriaData = @Html.Raw(historiaDataJson);
   </script>
-  <script src="@Url.Content("~/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js")"></script>
+  @* FASE 2 — Componente aislado: expone solo inicializarOdontograma3DReadonly.
+     Se carga antes de la lógica de Historia Clínica para que esta lo invoque. *@
+  <script src="@Url.Content("~/js/Historia_Clinica/components/odontograma-3d-readonly.js")" asp-append-version="true"></script>
+  @* CORRECCIÓN FASE 2 — Versiona el JavaScript principal para que el navegador
+     no reutilice la versión anterior que aún renderizaba el odontograma 2D. *@
+  <script src="@Url.Content("~/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js")" asp-append-version="true"></script>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">

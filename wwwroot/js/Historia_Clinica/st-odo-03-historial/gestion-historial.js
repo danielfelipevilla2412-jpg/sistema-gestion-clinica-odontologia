@@ -141,8 +141,17 @@ const historiaStorage = {
       paciente: {
         id: server.pacienteId ?? null,
         nombre: server.nombre || 'Sin paciente asignado',
-        documento: '',
-        tipoDoc: '',
+        //  — Consumir la ficha enviada por Razor. Antes estos campos se
+        // dejaban vacíos; ahora son datos reales de Paciente y solo se muestran.
+        documento: server.paciente?.documento || '',
+        tipoDoc: server.paciente?.tipoDocumento || '',
+        genero: server.paciente?.genero || 'No registrado',
+        telefono: server.paciente?.telefono || 'No registrado',
+        correo: server.paciente?.correo || 'No registrado',
+        direccion: [server.paciente?.direccion, server.paciente?.ciudad].filter(Boolean).join(', ') || 'No registrada',
+        contactoEmergencia: [server.paciente?.contactoEmergencia, server.paciente?.telefonoEmergencia].filter(Boolean).join(' · ') || 'No registrado',
+        antecedentesMedicos: server.antecedentesMedicos || 'Sin antecedentes registrados',
+        proximaCita: server.proximaCita || null,
         fechaNacimiento: server.fechaNacimiento || null,
         grupoSanguineo: server.grupoSanguineo || 'N/D',
         codigoHC: server.codigoHC || 'HC-SIN-ASIGNAR',
@@ -151,7 +160,9 @@ const historiaStorage = {
         odontograma: tratamientos,
         observaciones,
         // Notas clínicas reales de BD + historial de citas del paciente
-        historial: [...notasClinicas, ...(server.historial || [])],
+        historial: Array.isArray(server.lineaDeTiempo) && server.lineaDeTiempo.length
+          ? server.lineaDeTiempo
+          : [...notasClinicas, ...(server.historial || [])],
       }
     };
   }
@@ -217,31 +228,91 @@ const renderAlertas = (alertas) => {
 //  RENDER: HISTORIAL DE CONSULTAS
 // ═══════════════════════════════════════════════════════════════════
 
-const renderHistorial = (historial) => {
+//  — Estado de solo lectura de la línea de tiempo. Se conserva para que
+// los filtros cambien la vista sin volver a consultar ni modificar la BD.
+let lineaDeTiempoActual = [];
+
+const escaparHtml = (valor) => String(valor ?? '').replace(/[&<>'"]/g, caracter => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
+}[caracter]));
+
+const etiquetaCategoria = (categoria) => ({
+  nota: 'Nota clínica', odontograma: 'Odontograma', consulta: 'Cita',
+  control: 'Control', documento: 'Documento'
+}[categoria] || 'Evento clínico');
+
+//  — Renderiza eventos de distintas fuentes con filtro por categoría.
+// También escapa texto de BD para evitar que una observación se interprete como HTML.
+const renderHistorial = (historial, filtro = 'todo') => {
   const list = safeGetElement('historialList');
   if (!list) return;
+
+  lineaDeTiempoActual = Array.isArray(historial) ? historial : [];
+  const eventos = filtro === 'todo'
+    ? lineaDeTiempoActual
+    : lineaDeTiempoActual.filter(h => h.categoria === filtro);
   
-  if (!historial?.length) {
-    list.innerHTML = '<p style="font-size:.85rem;color:var(--text-muted);padding:12px 0;text-align:center;">Sin consultas registradas</p>';
+  if (!eventos.length) {
+    list.innerHTML = '<p style="font-size:.85rem;color:var(--text-muted);padding:12px 0;text-align:center;">No hay eventos clínicos para este filtro.</p>';
     return;
   }
   
-  list.innerHTML = historial.map(h => {
+  list.innerHTML = eventos.map(h => {
     const fecha = formatFecha(h.fecha, true);
-    const desc = h.procedimiento || h.diagnostico || '';
+    const desc = h.descripcion || h.procedimiento || h.diagnostico || '';
+    const categoria = h.categoria || 'consulta';
+    const enlaceDocumento = typeof h.enlaceDocumento === 'string' && h.enlaceDocumento.startsWith('/')
+      ? `<a class="hist-link" href="${escaparHtml(h.enlaceDocumento)}" target="_blank" rel="noopener">Abrir documento</a>`
+      : '';
     return `
       <div class="hist-item" role="listitem">
         <div class="hist-bullet" aria-hidden="true">🦷</div>
         <div class="hist-body">
           <div class="hist-top">
-            <span class="hist-title">${h.titulo}</span>
-            <span class="hist-badge" role="status" aria-label="Estado: ${h.estado}">● ${h.estado}</span>
+            <span class="hist-title">${escaparHtml(h.titulo)}</span>
+            <span class="hist-badge" role="status" aria-label="Estado: ${escaparHtml(h.estado)}">● ${escaparHtml(h.estado || 'Registrado')}</span>
           </div>
-          <div class="hist-meta"><time datetime="${h.fecha}">${fecha}</time> · ${h.doctor}</div>
-          ${desc ? `<div class="hist-desc">${desc}</div>` : ''}
+          <div class="hist-meta"><time datetime="${escaparHtml(h.fecha)}">${fecha}</time> · ${escaparHtml(h.profesional || h.doctor || 'Sin asignar')} · <span class="hist-category">${etiquetaCategoria(categoria)}</span></div>
+          ${desc ? `<div class="hist-desc">${escaparHtml(desc)}</div>` : ''}
+          ${enlaceDocumento}
         </div>
       </div>`;
   }).join('');
+};
+
+//  — Pinta la ficha clínica lateral con los datos serializados por Razor.
+// Es estrictamente informativa: no añade listeners ni operaciones de escritura.
+const renderResumenPaciente = (paciente) => {
+  const asignar = (id, valor) => {
+    const elemento = safeGetElement(id);
+    if (elemento) elemento.textContent = valor || 'No registrado';
+  };
+
+  asignar('patientDocument', [paciente.tipoDoc, paciente.documento].filter(Boolean).join(' '));
+  asignar('patientGender', paciente.genero);
+  asignar('patientPhone', paciente.telefono);
+  asignar('patientEmail', paciente.correo);
+  asignar('patientAddress', paciente.direccion);
+  asignar('patientEmergency', paciente.contactoEmergencia);
+  asignar('patientBackground', paciente.antecedentesMedicos);
+  const cita = paciente.proximaCita;
+  asignar('patientNextAppointment', cita?.fecha
+    ? `${formatFecha(cita.fecha.slice(0, 10), true)}${cita.profesional ? ` · ${cita.profesional}` : ''}`
+    : 'Sin cita programada');
+};
+
+//  — Activa filtros locales para consulta rápida de notas, citas,
+// odontograma y documentos, sin recargar ni alterar el historial guardado.
+const initFiltrosLineaDeTiempo = () => {
+  const contenedor = safeGetElement('timelineFilters');
+  if (!contenedor) return;
+
+  contenedor.addEventListener('click', event => {
+    const boton = event.target.closest('[data-filter]');
+    if (!boton) return;
+    contenedor.querySelectorAll('[data-filter]').forEach(item => item.classList.toggle('active', item === boton));
+    renderHistorial(lineaDeTiempoActual, boton.dataset.filter || 'todo');
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -622,6 +693,20 @@ const initForm = () => {
         result.nota,
         ...(window.smiletrackHistoriaData.notasClinicas || [])
       ];
+      //  — Reflejar inmediatamente la nota recién guardada en la línea
+      // de tiempo; al recargar, la misma nota se vuelve a obtener desde BD.
+      window.smiletrackHistoriaData.lineaDeTiempo = [
+        {
+          fecha: `${result.nota.fecha}T12:00:00`,
+          categoria: 'nota',
+          titulo: result.nota.titulo,
+          descripcion: [result.nota.diagnostico, result.nota.procedimiento].filter(Boolean).join(' · '),
+          profesional: result.nota.doctor,
+          estado: result.nota.estado,
+          enlaceDocumento: null
+        },
+        ...(window.smiletrackHistoriaData.lineaDeTiempo || [])
+      ];
 
       const data = historiaStorage.load();
       renderHistorial(data.paciente.historial);
@@ -658,11 +743,87 @@ const initForm = () => {
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
+// CORRECCIÓN FASE 2 — Respaldo 3D integrado en el archivo que ya carga la
+// pantalla. Motivo: si el archivo nuevo components/odontograma-3d-readonly.js
+// no se copia o no se sirve desde wwwroot, antes se ejecutaba el odontograma
+// canvas 2D sin avisar. Este código conserva una vista 3D solo lectura, no
+// registra clics ni hace POST, y muestra el tooltip de las piezas mapeadas.
+const iniciarOdontograma3DIntegrado = (datosHistoria) => {
+  const host = safeGetElement('odontogramaHost');
+  if (!host) return;
+
+  host.innerHTML = `
+    <div style="height:360px;position:relative;overflow:hidden;border-radius:12px;background:#030d1a">
+      <div id="odo3dFallbackLoading" style="position:absolute;inset:0;display:grid;place-items:center;color:#b9dbea;z-index:1">Cargando odontograma 3D…</div>
+      <iframe id="odo3dFallbackFrame" title="Odontograma 3D de solo lectura" style="width:100%;height:360px;border:0;display:block" allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
+    </div>`;
+
+  const iframe = safeGetElement('odo3dFallbackFrame');
+  const loading = safeGetElement('odo3dFallbackLoading');
+  let estado = {};
+  try { estado = JSON.parse(datosHistoria?.estadoPersistido || '{}'); } catch { estado = {}; }
+  const mapeoFDI = estado?.mapeoFDI || {};
+  const registros = estado?.registros || {};
+  const ocultar = () => {
+    const tooltip = safeGetElement('holo-tooltip-historial');
+    if (tooltip) tooltip.style.display = 'none';
+  };
+
+  const iniciar = () => {
+    if (!window.Sketchfab) {
+      if (loading) loading.textContent = 'No fue posible cargar la biblioteca del visor 3D.';
+      return;
+    }
+    try {
+      const cliente = new window.Sketchfab('1.12.1', iframe);
+      cliente.init('7f5b381c66674e0a969e8db04d139666', {
+        autostart: 1,
+        ui_infos: 0, ui_watermark: 0, ui_help: 0, ui_settings: 0,
+        ui_vr: 0, ui_fullscreen: 0, ui_annotations: 0, ui_stop: 0,
+        success(api) {
+          api.start();
+          api.addEventListener('viewerready', () => {
+            if (loading) loading.style.display = 'none';
+            api.addEventListener('nodeMouseEnter', nodo => {
+              const id = nodo?.instanceID;
+              const fdi = id == null ? null : mapeoFDI[id];
+              const tooltip = safeGetElement('holo-tooltip-historial');
+              if (!fdi || !tooltip) return;
+              const tratamientos = registros?.[id]?.tratamientos || [];
+              const ultimo = tratamientos[tratamientos.length - 1];
+              tooltip.innerHTML = `<strong>${fdi} · Pieza dental</strong><br>${ultimo?.key || 'Sin tratamiento registrado'}`;
+              const cuadro = iframe.getBoundingClientRect();
+              tooltip.style.cssText += `;display:block;left:${Math.max(12, cuadro.right - 260)}px;top:${cuadro.top + 12}px`;
+            }, { pick: 'fast' });
+            api.addEventListener('nodeMouseLeave', ocultar, { pick: 'fast' });
+            iframe.addEventListener('mouseleave', ocultar);
+          });
+        },
+        error() { if (loading) loading.textContent = 'No fue posible cargar el modelo 3D.'; }
+      });
+    } catch {
+      if (loading) loading.textContent = 'No fue posible iniciar el visor 3D.';
+    }
+  };
+
+  if (window.Sketchfab) {
+    iniciar();
+    return;
+  }
+  const apiScript = document.createElement('script');
+  apiScript.src = 'https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js';
+  apiScript.onload = iniciar;
+  apiScript.onerror = () => { if (loading) loading.textContent = 'No se pudo descargar el visor 3D.'; };
+  document.head.appendChild(apiScript);
+};
+
 const init = async () => {
   // Inicializar componentes de UI
   initSidebar();
   initScrollToForm();
   initForm();
+  //  — Registrar los filtros antes de renderizar los datos clínicos.
+  initFiltrosLineaDeTiempo();
   
   // Cargar datos desde localStorage
   const data = historiaStorage.load();
@@ -687,13 +848,17 @@ const init = async () => {
     medicamentos: [...p.medicamentos],
     grupoSanguineo: p.grupoSanguineo
   });
+  //  — Mostrar ficha completa antes del odontograma y la línea de tiempo.
+  renderResumenPaciente(p);
   
-  renderOdontograma({
-    nombrePaciente: p.nombre,
-    tipo: tipoDenticion(p.fechaNacimiento),
-    tratamientos: { ...p.odontograma },
-    observaciones: { ...p.observaciones }
-  });
+  //  — Preferir el visor 3D de solo lectura. El componente consulta el
+  // estado persistido y muestra tooltips, pero no registra acciones de edición.
+  // Se conserva el render 2D como respaldo si Sketchfab no pudo cargarse.
+  if (typeof window.inicializarOdontograma3DReadonly === 'function') {
+    window.inicializarOdontograma3DReadonly(window.smiletrackHistoriaData || {});
+  } else {
+    iniciarOdontograma3DIntegrado(window.smiletrackHistoriaData || {});
+  }
   
   renderHistorial([...p.historial].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)));
   
