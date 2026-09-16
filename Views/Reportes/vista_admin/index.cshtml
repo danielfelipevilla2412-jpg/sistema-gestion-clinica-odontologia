@@ -29,6 +29,7 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Skip link accesibilidad -->
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
@@ -54,7 +55,7 @@
           <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active">Reportes y Estadísticas</span>
         </nav>
-        <h1 class="page-title">Reportes y Estadísticas</h1>
+        <h1 class="page-title" data-i18n="nav.group_reportes_analitica">Reportes y Estadísticas</h1>
         <p class="page-subtitle">
           Comparado con el mismo período del año anterior ·
           Actualizado hace @(Model.UltimaActualizacion <= DateTime.Now ? ((int)(DateTime.Now - Model.UltimaActualizacion).TotalMinutes) : 5) min
@@ -510,6 +511,8 @@
 
   <script src="@Url.Content("~/js/Reportes/vista_admin/app.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>

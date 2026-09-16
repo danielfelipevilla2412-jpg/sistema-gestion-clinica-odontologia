@@ -1,4 +1,4 @@
-﻿﻿﻿@using System.Text.Json
+﻿﻿@using System.Text.Json
 @using SmileTrack_MVC.Models.ViewModels
 @model OdontogramaViewModel
 @{
@@ -49,11 +49,12 @@
 </head>
 
 <body>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
 
 
  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+    <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
 
@@ -82,7 +83,7 @@
                     <span class="bc-sep" aria-hidden="true">→</span>
                     <span class="bc-active">Odontograma Digital 3D</span>
                 </nav>
-                <h1 class="page-title">Odontograma Digital 3D</h1>
+                <h1 class="page-title" data-i18n="historia.teeth_chart">Odontograma Digital 3D</h1>
                 <p class="page-subtitle">
                     <time datetime="" id="headerDate" aria-live="polite">Cargando fecha…</time> ·
                     <span id="patientName" aria-label="Paciente">@Model.PacienteNombre</span> ·
@@ -91,28 +92,28 @@
                 </p>
             </div>
             <div class="page-header-actions">
-                <button class="btn-secondary" id="btnMapeo" aria-label="Mapear numeración FDI">🔧 Mapear FDI</button>
-                <button class="btn-primary" id="btnGuardar" aria-label="Guardar cambios">💾 Guardar cambios</button>
+                <button class="btn-secondary" id="btnMapeo" aria-label="Mapear numeración FDI" data-i18n-aria-label="historia.teeth_chart">🔧 Mapear FDI</button>
+                <button class="btn-primary" id="btnGuardar" aria-label="Guardar cambios" data-i18n-aria-label="common.save">💾 Guardar cambios</button>
             </div>
         </header>
 
         <!-- STATS GRID -->
-        <section class="stats-grid" aria-label="Resumen de odontograma">
+        <section class="stats-grid" aria-label="Resumen de odontograma" data-i18n-aria-label="historia.teeth_chart">
             <div class="stat-card" data-color="green">
                 <span class="stat-number" id="stat-sanos" data-target="0" aria-live="polite">0</span>
-                <span class="stat-label">Sanos</span>
+                <span class="stat-label" data-i18n="historia.healthy">Sanos</span>
             </div>
             <div class="stat-card" data-color="orange">
                 <span class="stat-number" id="stat-caries" data-target="0" aria-live="polite">0</span>
-                <span class="stat-label">Con caries</span>
+                <span class="stat-label" data-i18n="historia.diagnosis">Con caries</span>
             </div>
             <div class="stat-card" data-color="purple">
                 <span class="stat-number" id="stat-tratamientos" data-target="0" aria-live="polite">0</span>
-                <span class="stat-label">Tratados</span>
+                <span class="stat-label" data-i18n="historia.treated">Tratados</span>
             </div>
             <div class="stat-card" data-color="blue">
                 <span class="stat-number" id="stat-total" data-target="32" aria-live="polite">0</span>
-                <span class="stat-label">Total piezas</span>
+                <span class="stat-label" data-i18n="table.total_records">Total piezas</span>
             </div>
         </section>
 
@@ -184,7 +185,7 @@
                         <div class="diag-label">Estado clínico:</div>
                         <div class="estado-btns" id="estadoBtns" role="radiogroup" aria-label="Seleccionar estado clínico"></div>
                         <label class="diag-label" for="obsTa">Observaciones:</label>
-                        <textarea class="obs" rows="2" id="obsTa" placeholder="Observaciones clínicas..."></textarea>
+                        <textarea class="obs" rows="2" id="obsTa" placeholder="Observaciones cl&#237;nicas..." data-i18n-ph="historia.observations_ph"></textarea>
                         <div class="diag-actions">
                             <button class="btn-primary" onclick="guardarRegistro()">💾 Actualizar</button>
                             <button class="btn-secondary" onclick="cerrarPanel()">Cancelar</button>
@@ -263,8 +264,19 @@
     <!-- TOAST -->
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
+       <!-- Yeray - FLECHA GUÍA hacia el tooltip: SVG a pantalla completa, no bloquea clicks -->
+    <svg id="tooltip-arrow-svg" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:9998; display:none;">
+        <defs>
+            <marker id="tooltip-arrow-head" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L7,3 z" fill="#00d4ff" />
+            </marker>
+        </defs>
+        <line id="tooltip-arrow-line" x1="0" y1="0" x2="0" y2="0" stroke="#00d4ff" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#tooltip-arrow-head)" />
+    </svg>
+
     <!-- TOOLTIP FLOTANTE -->
     <div id="holo-tooltip"></div>
+    
     <script src="@Url.Content("~/js/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.js")"></script>
 
     <footer id="dynamic-footer" class="site-footer" role="contentinfo">
@@ -282,5 +294,7 @@
     <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
     @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
     @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>

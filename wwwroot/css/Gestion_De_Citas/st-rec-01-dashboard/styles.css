@@ -1,4 +1,4 @@
-/* ============================================
+﻿/* ============================================
 SmileTrack — Dashboard Recepción (st-rec-01-dashboard)
 ============================================
 Autor: Johan Santamaria
@@ -34,7 +34,6 @@ NOTAS DE MANTENIMIENTO:
   --orange: #f59e0b;
   --purple: #9333ea;
   --text: #1e293b;
-  --text-muted: #64748b;
   --border: #e2e8f0;
   --shadow: 0 1px 4px rgba(0,0,0,.07);
   --shadow-md: 0 4px 16px rgba(0,0,0,.1);
@@ -142,11 +141,11 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* ═══ BOTONES & BADGES (IDÉNTICO A st-pac-01) ═══ */
 .btn-primary { background: var(--primary); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
-.btn-primary:hover { background: #1547a8; }
+.btn-primary:hover { background: var(--primary-dark); }
 .btn-secondary { background: var(--white); color: var(--text); border: 1.5px solid var(--border); padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr), border-color var(--tr); }
 .btn-secondary:hover { background: var(--primary-light); border-color: var(--primary); }
-.btn-danger { background: #dc2626; color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
-.btn-danger:hover { background: #b91c1c; }
+.btn-danger { background: var(--danger); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
+.btn-danger:hover { background: #dc2626; }
 .btn-icon { background: none; border: none; cursor: pointer; font-size: 16px; padding: 5px 7px; border-radius: 6px; transition: background var(--tr), color var(--tr); color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
 .btn-icon:hover { background: var(--primary-light); color: var(--primary); }
 .btn-icon.danger:hover { background: #fee2e2; color: #dc2626; }
@@ -161,7 +160,7 @@ img { max-width: 100%; height: auto; display: block; }
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .search-wrap { position: relative; flex: 1; min-width: 200px; }
 .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; }
-.search-input { width: 100%; padding: 8px 12px 8px 30px; border: 1.5px solid var(--border); border-radius: 20px; font-size: .8rem; font-family: var(--font); outline: none; background: var(--white); transition: border-color var(--tr); }
+.search-input { width: 100%; padding: 8px 12px 8px 30px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: .8rem; font-family: var(--font); outline: none; background: var(--white); transition: border-color var(--tr); }
 .search-input:focus { border-color: var(--primary); }
 .status-select { border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 12px; font-family: var(--font); font-size: .8rem; background: var(--white); color: var(--text); cursor: pointer; outline: none; transition: border-color var(--tr); }
 .status-select:focus { border-color: var(--primary); }
@@ -200,7 +199,7 @@ img { max-width: 100%; height: auto; display: block; }
 .btn-action.btn-green { background: var(--green); color: #fff; }
 .btn-action.btn-green:hover { background: #16a34a; }
 .btn-action.btn-blue { background: var(--primary); color: #fff; }
-.btn-action.btn-blue:hover { background: #1547a8; }
+.btn-action.btn-blue:hover { background: var(--primary-dark); }
 /* [MEJORA]: Focus visible para botones de acción */
 .btn-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 

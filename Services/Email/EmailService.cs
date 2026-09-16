@@ -276,14 +276,17 @@ Este es un mensaje automatico, por favor no respondas a este correo.
             ? recipientEmail
             : _options.RecipientOverride.Trim();
 
+        bool esRecordatorio = nuevoEstado.Equals("recordatorio", StringComparison.OrdinalIgnoreCase);
         bool esConfirmada = nuevoEstado.Equals("confirmada", StringComparison.OrdinalIgnoreCase);
-        string estadoLabel  = esConfirmada ? "Confirmada ✅" : "Cancelada ❌";
-        string colorBanner  = esConfirmada ? "#0f766e" : "#dc2626";
-        string colorEstado  = esConfirmada ? "#166534" : "#991b1b";
-        string bgEstado     = esConfirmada ? "#dcfce7" : "#fee2e2";
-        string asunto       = esConfirmada
-            ? $"SmileTrack — Tu cita del {fechaCita:dd/MM/yyyy} fue confirmada"
-            : $"SmileTrack — Tu cita del {fechaCita:dd/MM/yyyy} fue cancelada";
+        string estadoLabel  = esRecordatorio ? "Recordatorio de Cita 🔔" : esConfirmada ? "Confirmada ✅" : "Cancelada ❌";
+        string colorBanner  = esRecordatorio ? "#2563eb" : esConfirmada ? "#0f766e" : "#dc2626";
+        string colorEstado  = esRecordatorio ? "#1e40af" : esConfirmada ? "#166534" : "#991b1b";
+        string bgEstado     = esRecordatorio ? "#dbeafe" : esConfirmada ? "#dcfce7" : "#fee2e2";
+        string asunto       = esRecordatorio
+            ? $"SmileTrack — Recordatorio: Tu cita médica es el {fechaCita:dd/MM/yyyy}"
+            : esConfirmada
+                ? $"SmileTrack — Tu cita del {fechaCita:dd/MM/yyyy} fue confirmada"
+                : $"SmileTrack — Tu cita del {fechaCita:dd/MM/yyyy} fue cancelada";
 
         string nombreSafe   = WebUtility.HtmlEncode(nombrePaciente);
         string profSafe     = WebUtility.HtmlEncode(profesional);

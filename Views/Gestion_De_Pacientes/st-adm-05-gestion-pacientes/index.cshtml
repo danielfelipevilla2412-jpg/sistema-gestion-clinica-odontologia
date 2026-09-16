@@ -19,8 +19,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Gestiona y consulta el historial de pacientes atendidos en SmileTrack." />
-  <title>SmileTrack — Gestión de Pacientes</title>
+  <meta name="description" data-i18n="gestion_pacientes_meta_description" content="Gestiona y consulta el historial de pacientes atendidos en SmileTrack." />
+  <title data-i18n="gestion_pacientes_title">SmileTrack — Gestión de Pacientes</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
@@ -30,32 +30,37 @@
 </head>
 <body>
   @Html.AntiForgeryToken()
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="gestion_pacientes_skip_link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+  @* Yeray (2025) - Sidebar dinámico: la vista del listado se comparte entre
+     el rol Administrador (/_SidebarAdmin) y la Recepcionista (/_SidebarRecepcionista).
+     El controlador inyecta el partial correcto en ViewData["SidebarPartial"].
+     Si no se inyecta nada, se usa _SidebarAdmin como comportamiento por defecto. *@
+  @{ await Html.RenderPartialAsync((string)(ViewData["SidebarPartial"] ?? "_SidebarAdmin")); }
 
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+  <button class="hamburger" id="hamburger" data-i18n-aria-label="gestion_pacientes_abrir_menu" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
     <span aria-hidden="true"></span>
     <span aria-hidden="true"></span>
     <span aria-hidden="true"></span>
   </button>
   <div class="overlay" id="overlay" aria-hidden="true"></div>
 
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
   <main class="main" id="main-content">
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Administración</span>
+        <nav class="breadcrumb" data-i18n-aria-label="gestion_pacientes_ruta_navegacion" aria-label="Ruta de navegación">
+          <span data-i18n="gestion_pacientes_breadcrumb_administracion">Administración</span>
           <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Gestión de Pacientes</span>
+          <span class="bc-active" data-i18n="gestion_pacientes_breadcrumb_gestion_pacientes">Gestión de Pacientes</span>
         </nav>
-        <h1 class="page-title">Gestión de Pacientes</h1>
-        <p class="page-subtitle">Historial de pacientes — Solo lectura</p>
+        <h1 class="page-title" data-i18n="gestion_pacientes_page_title">Gestión de Pacientes</h1>
+        <p class="page-subtitle" data-i18n="gestion_pacientes_page_subtitle">Historial de pacientes — Solo lectura</p>
       </div>
       <div class="header-actions">
         <div class="search-wrap">
           <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
-          <input type="search" id="searchPatients" class="search-input" placeholder="Buscar paciente, cédula o diagnóstico..." aria-label="Buscar paciente" />
+          <input type="search" id="searchPatients" class="search-input" data-i18n-ph="gestion_pacientes_buscar_placeholder" placeholder="Buscar paciente, cédula o diagnóstico..." data-i18n-aria-label="gestion_pacientes_buscar_paciente" aria-label="Buscar paciente" />
         </div>
       </div>
     </header>
@@ -89,6 +94,20 @@
 
     <section class="filters-bar" aria-label="Filtros de búsqueda">
       <div class="filters-row">
+        <!-- Yeray (2025) - Selector de estado:
+             ANTES: el listado solo mostraba pacientes activos y no había forma de
+                    ver inactivos o retirados desde la UI (solo vía API REST).
+             AHORA: este select pasa el valor al parámetro estado= del endpoint
+                    /gestion-de-pacientes/buscar, que ya soportaba este filtro. -->
+        <div class="filter-group">
+          <label class="filter-label" for="filterEstado">Estado</label>
+          <select id="filterEstado" class="filter-select" aria-label="Filtrar por estado del paciente">
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+            <option value="retirado">Retirados</option>
+            <option value="todos">Todos</option>
+          </select>
+        </div>
         <div class="filter-group">
           <label class="filter-label" for="filterAlergias">Alergias</label>
           <select id="filterAlergias" class="filter-select" aria-label="Filtrar por alergias">
@@ -188,6 +207,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>
 

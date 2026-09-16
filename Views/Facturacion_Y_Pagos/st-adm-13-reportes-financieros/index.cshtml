@@ -1,4 +1,4 @@
-﻿@{ Layout = null; }
+@{ Layout = null; }
 
 <!DOCTYPE html>
 <html lang="es">
@@ -18,8 +18,10 @@
 
 <body>
 
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
   <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
  <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
   <div class="sidebar-logo">
@@ -106,31 +108,31 @@
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
           <span>Administración</span>
           <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Reportes Financieros</span>
+          <span class="bc-active" data-i18n="facturacion.title">Reportes Financieros</span>
         </nav>
-        <h1 class="page-title">Reportes Financieros</h1>
-        <p class="page-subtitle">Análisis de ingresos y facturación del centro dental.</p>
+        <h1 class="page-title" data-i18n="facturacion.title">Reportes Financieros</h1>
+        <p class="page-subtitle" data-i18n="facturacion.reportes_subtitle">An&#225;lisis de ingresos y facturaci&#243;n del centro dental.</p>
       </div>
     </header>
 
     <!-- KPI Cards con aria-live para contadores -->
-    <section class="stats-grid" aria-label="Resumen financiero">
+    <section class="stats-grid" aria-label="Resumen financiero" data-i18n-aria-label="facturacion.title">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="statIncome" data-target="18400000" aria-live="polite">$0</span>
-        <span class="stat-label">Ingresos del Mes</span>
+        <span class="stat-label" data-i18n="facturacion.total">Ingresos del Mes</span>
         <span class="stat-sub">↑ +12% vs mes anterior</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="statReceived" data-target="14100000" aria-live="polite">$0</span>
-        <span class="stat-label">Pagos Recibidos</span>
+        <span class="stat-label" data-i18n="facturacion.payment">Pagos Recibidos</span>
         <span class="stat-sub">76.6% cobrado</span>
       </div>
       <div class="stat-card" data-color="red">
         <span class="stat-number" id="statPending" data-target="4200000" aria-live="polite">$0</span>
-        <span class="stat-label">Por Cobrar</span>
+        <span class="stat-label" data-i18n="facturacion.amount">Por Cobrar</span>
         <span class="stat-sub">23 facturas pendientes</span>
       </div>
       <div class="stat-card" data-color="purple">
@@ -364,6 +366,8 @@
     window.RAZOR_FINANCIAL_REPORT = @Html.Raw(ViewData["ReportesFinancierosJson"] ?? "null");
   </script>
   <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-adm-13-reportes-financieros/reportes.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 
 </html>

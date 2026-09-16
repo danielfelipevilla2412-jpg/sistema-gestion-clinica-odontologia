@@ -18,6 +18,7 @@ public static class EstadoCitaHelper
 
         return normalized switch
         {
+            "solicitada" or "solicitado" => "Solicitada",
             "programada" or "agendada" => "Programada",
             "confirmada" or "confirmado" => "Confirmada",
             "atendida" or "realizada" or "completada" => "Atendida",

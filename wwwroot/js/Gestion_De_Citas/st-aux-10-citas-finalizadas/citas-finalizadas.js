@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Citas Finalizadas (st-aux-10-citas-finalizadas)
 ============================================
 Autor: Johan Santamaria
@@ -26,6 +26,9 @@ NOTAS DE MANTENIMIENTO:
 
 // WHY: safeGetElement previene excepciones fatales en la inicialización si un elemento no existe en el DOM
 const safeGetElement = (id) => {
+  if (window.CommonUtils?.safeGetElement) {
+    return window.CommonUtils.safeGetElement(id);
+  }
   const el = document.getElementById(id);
   if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
   return el;
@@ -33,6 +36,9 @@ const safeGetElement = (id) => {
 
 // WHY: Debounce protege contra eventos de input repetitivos que podrían generar exportaciones o escrituras redundantes
 const debounce = (fn, delay) => {
+  if (window.CommonUtils?.debounce) {
+    return window.CommonUtils.debounce(fn, delay);
+  }
   let timeoutId;
   return (...args) => {
     clearTimeout(timeoutId);
@@ -65,47 +71,9 @@ const formatDateForExport = () => {
   return `${now.getDate()} de ${months[now.getMonth()]} ${now.getFullYear()}`;
 };
 
-// Inicializa menú móvil con gestión de foco y atributos ARIA
+// Inicializa menú móvil (delegado al módulo centralizado)
 const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamburger = safeGetElement('hamburger');
-
-  if (!sidebar || !overlay || !hamburger) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sidebar.classList.add('open');
-      overlay.classList.add('open');
-      hamburger.setAttribute('aria-expanded', 'true');
-      overlay.setAttribute('aria-hidden', 'false');
-      
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      overlay.setAttribute('aria-hidden', 'true');
-      hamburger.focus();
-    }
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 // WHY: Renderiza la tabla dinámicamente para poder asignar clases y aria-labels de estado sin lógica duplicada en Razor
@@ -114,29 +82,64 @@ const renderAppointments = (data) => {
   if (!tbody) return;
 
   if (data.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">No hay citas finalizadas registradas.</td></tr>`;
+    const row = document.createElement('tr');
+    row.className = 'empty-state-row';
+    row.setAttribute('role', 'row');
+    row.setAttribute('aria-label', 'Estado vacío');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.className = 'empty-state-cell';
+    const content = document.createElement('div');
+    content.className = 'empty-state-content';
+    content.setAttribute('role', 'status');
+    content.setAttribute('aria-live', 'polite');
+    const icon = document.createElement('div');
+    icon.className = 'empty-state-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '📅';
+    const message = document.createElement('p');
+    message.className = 'empty-state-message';
+    message.textContent = 'No hay citas finalizadas registradas.';
+    content.append(icon, message);
+    cell.appendChild(content);
+    row.appendChild(cell);
+    tbody.replaceChildren(row);
     return;
   }
 
   // WHY: Mapea el estado de la cita a una clase CSS semántica para que el color refleje el resultado clínico del turno
-  tbody.innerHTML = data.map(apt => {
+  tbody.replaceChildren(...data.map(apt => {
     const statusClass = apt.estado === 'Atendida' ? 'atendida' : 
                        apt.estado === 'Cancelada' ? 'cancelada' : 'no-asistio';
-    const statusLabel = `Estado: ${apt.estado}`;
-    
-    return `
-      <tr role="row">
-        <td class="td-hora">${apt.hora}</td>
-        <td class="td-paciente">${apt.paciente}</td>
-        <td class="td-profesional">${apt.profesional}</td>
-        <td class="td-servicio">${apt.servicio}</td>
-        <td><span class="status-badge ${statusClass}" role="status" aria-label="${statusLabel}">${apt.estado}</span></td>
-      </tr>
-    `;
-  }).join('');
+    const row = document.createElement('tr');
+    row.setAttribute('role', 'row');
+    const cell = (className, value) => {
+      const element = document.createElement('td');
+      element.className = className;
+      element.textContent = value || '';
+      return element;
+    };
+    const statusCell = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = `status-badge ${statusClass}`;
+    badge.setAttribute('role', 'status');
+    badge.setAttribute('aria-label', `Estado: ${apt.estado}`);
+    badge.textContent = apt.estado || 'Sin estado';
+    statusCell.appendChild(badge);
+    row.append(cell('td-hora', apt.hora), cell('td-paciente', apt.paciente),
+      cell('td-profesional', apt.profesional), cell('td-servicio', apt.servicio), statusCell);
+    return row;
+  }));
+};
+
+const csvValue = (value) => {
+  const text = String(value ?? '');
+  return `"${text.replaceAll('"', '""')}"`;
 };
 
 // WHY: La animación de conteo progresivo hace que el auxiliar note el cambio sin leer texto, facilitando el scan rápido
+const summaryIntervals = new WeakMap();
+
 const updateSummary = () => {
   const citas = finalizedStorage.load();
   const counts = finalizedStorage.getCounts(citas);
@@ -147,21 +150,27 @@ const updateSummary = () => {
     noAsistio: safeGetElement('countNoAsistio')
   };
   
-  // Actualiza contadores con transición numérica suave
   Object.entries(els).forEach(([key, el]) => {
     if (el) {
-      const target = counts[key];
+      if (summaryIntervals.has(el)) {
+        clearInterval(summaryIntervals.get(el));
+      }
+      const target = counts[key] ?? 0;
       const current = parseInt(el.textContent) || 0;
       
       if (current !== target) {
-        // Animación simple de conteo
-        let step = 0;
+        let step = current;
         const increment = target > current ? 1 : -1;
         const interval = setInterval(() => {
           step += increment;
           el.textContent = step;
-          if (step === target) clearInterval(interval);
-        }, 50);
+          if ((increment > 0 && step >= target) || (increment < 0 && step <= target)) {
+            el.textContent = target;
+            clearInterval(interval);
+            summaryIntervals.delete(el);
+          }
+        }, 30);
+        summaryIntervals.set(el, interval);
       }
     }
   });
@@ -174,7 +183,7 @@ const initExportButton = () => {
   
   btn.addEventListener('click', async () => {
     const original = btn.innerHTML;
-    btn.innerHTML = '⏳ Generando...';
+    btn.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">hourglass_top</span><span class="btn-text">Generando...</span>';
     btn.disabled = true;
     
     try {
@@ -195,7 +204,7 @@ const initExportButton = () => {
         '',
         'DETALLE DE CITAS',
         'Hora,Paciente,Profesional,Servicio,Estado',
-        ...citas.map(c => `${c.hora},"${c.paciente}","${c.profesional}","${c.servicio}",${c.estado}`)
+        ...citas.map(c => [c.hora, c.paciente, c.profesional, c.servicio, c.estado].map(csvValue).join(','))
       ].join('\n');
       
       // Crea blob y descarga
@@ -208,15 +217,16 @@ const initExportButton = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      // WHY: URL.revokeObjectURL libera la memoria del Blob inmediatamente después de la descarga para evitar memory leaks
       URL.revokeObjectURL(url);
       
       // Feedback visual
-      btn.innerHTML = '✓ Descargado';
+      btn.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">check_circle</span><span class="btn-text">Descargado</span>';
       btn.style.background = '#dcfce7';
       btn.style.borderColor = '#22c55e';
       btn.style.color = '#166534';
-      window.ToastService.success('Resumen descargado exitosamente');
+      if (window.ToastService) {
+        window.ToastService.success('Resumen descargado exitosamente');
+      }
       
       // Restaura botón
       setTimeout(() => {

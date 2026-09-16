@@ -17,8 +17,9 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
 
@@ -34,12 +35,12 @@
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Odontólogo</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_profesional">Odontólogo</span>
           <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Seguimiento de Tratamientos</span>
+          <span class="bc-active" data-i18n="historia.treatment_followup">Seguimiento de Tratamientos</span>
         </nav>
-        <h1 class="page-title">Seguimiento de Tratamientos</h1>
+        <h1 class="page-title" data-i18n="historia.treatment_followup">Seguimiento de Tratamientos</h1>
         <p class="page-subtitle" id="pageSub">
           Tratamientos en curso, pausados y completados de tus pacientes
         </p>
@@ -47,12 +48,12 @@
     </header>
 
     <!-- ═════ TARJETAS DE ESTADÍSTICAS ═════ -->
-    <section class="stats-grid" aria-label="Estadísticas de tratamientos">
+    <section class="stats-grid" aria-label="Estadísticas de tratamientos" data-i18n-aria-label="historia.treatment">
       <div class="stat-card stat-total">
         <div class="stat-icon">📊</div>
         <div class="stat-content">
           <span class="stat-number" id="statTotal">0</span>
-          <span class="stat-label">Total de tratamientos</span>
+          <span class="stat-label" data-i18n="historia.treatment_total">Total de tratamientos</span>
         </div>
       </div>
       
@@ -60,7 +61,7 @@
         <div class="stat-icon">🔄</div>
         <div class="stat-content">
           <span class="stat-number" id="statEnCurso">0</span>
-          <span class="stat-label">En curso</span>
+          <span class="stat-label" data-i18n="status.in_progress">En curso</span>
         </div>
       </div>
       
@@ -88,7 +89,7 @@
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.35-4.35"></path>
         </svg>
-        <input type="text" id="searchInput" class="search-input" placeholder="Buscar por nombre de paciente..." aria-label="Buscar paciente" />
+        <input type="text" id="searchInput" class="search-input" placeholder="Buscar por nombre de paciente..." data-i18n-ph="table.search" aria-label="Buscar paciente" />
       </div>
       
       <div class="filters-grid">
@@ -239,5 +240,7 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>

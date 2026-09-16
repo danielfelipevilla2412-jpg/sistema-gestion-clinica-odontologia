@@ -24,12 +24,13 @@
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- ═════ SKIP LINKS PARA ACCESIBILIDAD ═════ -->
   <div class="skip-links">
-    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-    <a href="#sidebar" class="skip-link">Saltar a navegación</a>
-    <a href="#matrixBody" class="skip-link">Saltar a matriz de permisos</a>
+    <a href="#main-content" class="skip-link" data-i18n="nav.skip_link">Saltar al contenido principal</a>
+    <a href="#sidebar" class="skip-link" data-i18n="nav.sidebar_label">Saltar a navegación</a>
+    <a href="#matrixBody" class="skip-link" data-i18n="table.filter">Saltar a matriz de permisos</a>
   </div>
 
   <!-- ═════ SIDEBAR UNIFICADO ═════ -->
@@ -50,13 +51,13 @@
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <a href="/gestion-de-citas/st-adm-01-dashboard" class="bc-link">Administración</a>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
+          <a href="/gestion-de-citas/st-adm-01-dashboard" class="bc-link" data-i18n="nav.group_acceso">Administración</a>
           <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active" aria-current="page">Gestión de Roles</span>
+          <span class="bc-active" aria-current="page" data-i18n="nav.gestion_roles">Gestión de Roles</span>
         </nav>
-        <h1 class="page-title">Gestión de Roles y Permisos</h1>
-        <p class="page-subtitle">Configura qué puede hacer cada rol en cada módulo del sistema</p>
+        <h1 class="page-title" data-i18n="nav.gestion_roles">Gestión de Roles y Permisos</h1>
+        <p class="page-subtitle" data-i18n="common.loading">Configura qué puede hacer cada rol en cada módulo del sistema</p>
       </div>
       <div class="header-actions">
         <!-- Badge de cambios pendientes -->
@@ -68,13 +69,13 @@
 
         <!-- Botones de acción -->
         <div class="action-buttons">
-          <button class="btn-icon" id="btnShortcuts" aria-label="Ver atajos de teclado"
-            title="Atajos de teclado (Shift+?)">⌨️</button>
-          <button class="btn-secondary" id="btnExport" aria-label="Exportar configuración">📤 Exportar</button>
-          <button class="btn-primary" id="btnSave" disabled aria-label="Guardar configuración de permisos"
+          <button class="btn-icon" id="btnShortcuts" aria-label="Ver atajos de teclado" data-i18n-aria-label="table.filter"
+            title="Atajos de teclado (Shift+?)" data-i18n-title="table.filter">⌨️</button>
+          <button class="btn-secondary" id="btnExport" aria-label="Exportar configuración" data-i18n-aria-label="table.export" data-i18n="table.export">📤 Exportar</button>
+          <button class="btn-primary" id="btnSave" disabled aria-label="Guardar configuración de permisos" data-i18n-aria-label="form.save"
             aria-disabled="true">
             <span aria-hidden="true">💾</span>
-            <span id="saveBtnText">Guardar</span>
+            <span id="saveBtnText" data-i18n="form.save">Guardar</span>
           </button>
         </div>
       </div>
@@ -82,8 +83,8 @@
 
     <!-- Panel de ayuda contextual (oculto por defecto) -->
     <div id="helpPanel" class="help-panel hidden" role="complementary" aria-label="Ayuda y atajos">
-      <button class="help-close" id="helpClose" aria-label="Cerrar ayuda">×</button>
-      <h3 class="help-title">⌨️ Atajos de teclado</h3>
+      <button class="help-close" id="helpClose" aria-label="Cerrar ayuda" data-i18n-aria-label="common.close">×</button>
+      <h3 class="help-title" data-i18n="table.filter">⌨️ Atajos de teclado</h3>
       <ul class="help-list">
         <li><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> — Navegar matriz</li>
         <li><kbd>Enter</kbd> — Editar permiso seleccionado</li>
@@ -101,11 +102,11 @@
     <section class="filters-section" aria-label="Filtros de matriz">
       <div class="filters-row">
         <div class="search-wrap">
-          <label for="searchMatrix" class="visually-hidden">Buscar módulo o permiso</label>
+          <label for="searchMatrix" class="visually-hidden" data-i18n="table.filter">Buscar módulo o permiso</label>
           <span class="search-icon" aria-hidden="true">🔍</span>
           <input type="search" id="searchMatrix" class="search-input" placeholder="Buscar módulo o permiso..."
-            aria-label="Buscar en matriz de permisos" autocomplete="off">
-          <button class="search-clear" id="searchClear" aria-label="Limpiar búsqueda" hidden>×</button>
+            aria-label="Buscar en matriz de permisos" data-i18n-ph="table.search" data-i18n-aria-label="table.search" autocomplete="off">
+          <button class="search-clear" id="searchClear" aria-label="Limpiar búsqueda" data-i18n-aria-label="form.clear" hidden>×</button>
         </div>
         <div class="filter-wrap">
           <label for="filterRole" class="filter-label">Rol:</label>
@@ -444,6 +445,8 @@
 </script>
 <script src="@Url.Content("~/js/Acceso_Y_Seguridad/st-adm-03-gestion-roles/script.js")" defer></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>

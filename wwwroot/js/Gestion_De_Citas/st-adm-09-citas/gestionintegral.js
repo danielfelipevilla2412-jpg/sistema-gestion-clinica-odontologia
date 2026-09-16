@@ -14,7 +14,7 @@
  * DECISIONES TÉCNICAS:
  * - Predomina SSR en la vista de citas del administrador
  * - Guardado / cancelación se realizan mediante formularios MVC existentes
- * - LocalStorage se usa solo como fallback de datos para el cliente
+ * - La lista depende de SSR/API; no se usa persistencia local de citas
  * - Debounce en búsqueda para evitar recargas innecesarias
  * - Notificaciones no bloqueantes (toasts) para mejor UX
  *
@@ -35,6 +35,11 @@
  * Se mantiene como '/api' según la configuración del proyecto.
  */
 const API_BASE = '/api';
+let configuredDurationMinutes = 60;
+
+// NOTA: escapeHtml está disponible en window.SmileTrack.utils.escapeHtml()
+// Se mantiene accesible globalmente como alias para retrocompatibilidad
+// const escapeHtml = window.SmileTrack.utils.escapeHtml;
 
 /**
  * Tamaño de página para paginación de API.
@@ -68,40 +73,24 @@ const getAuthHeaders = () => {
 };
 
 // ════════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
+//  UTILIDADES GLOBALES - CENTRALIZADAS EN utils.js
 // ════════════════════════════════════════════════════════════════════
-
-/**
- * Obtiene un elemento del DOM de forma segura.
- * Previene excepciones fatales en la inicialización si un elemento no existe.
- *
- * @param {string} elementId - ID del elemento a buscar
- * @returns {HTMLElement|null} Elemento encontrado o null
- */
-const safeGetElement = (elementId) => {
-    const element = document.getElementById(elementId);
-    if (!element) {
-        console.warn(`[SmileTrack] Elemento no encontrado: #${elementId}`);
-    }
-    return element;
-};
-
-/**
- * Debounce para evitar saturar la API con peticiones redundantes
- * ante cambios veloces del usuario (ej: typing en búsqueda).
- *
- * @param {Function} callback - Función a ejecutar
- * @param {number} delay - Milisegundos de espera
- * @returns {Function} Función debounced
- */
-const debounce = (callback, delay) => {
-    let timeoutId;
-
-    return (...args) => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => callback.apply(this, args), delay);
-    };
-};
+// 
+// NOTA: Las funciones siguientes están centralizadas en wwwroot/js/shared/utils.js
+// Importadas bajo el namespace window.SmileTrack.utils
+//
+// Aliases globales disponibles para retrocompatibilidad:
+// - safeGetElement()
+// - debounce()
+// - escapeHtml()
+// - apiRequest()
+// - animateCounter()
+// - showToast()
+// - openModal() / closeModal()
+// - validateForm()
+//
+// Uso recomendado: window.SmileTrack.utils.safeGetElement(id)
+// ════════════════════════════════════════════════════════════════════
 
 /**
  * Muestra una notificación toast no bloqueante.
@@ -117,7 +106,10 @@ const debounce = (callback, delay) => {
  * inline script de la vista se registre en DOMContentLoaded (evita problema
  * de orden de carga: JS carga primero, luego inline script lo sobrescribe).
  */
-window.openModalCita = () => {
+let modalCitaTriggerEl = null;
+
+window.openModalCita = (triggerEl) => {
+    modalCitaTriggerEl = triggerEl || document.activeElement;
     const modal = document.getElementById('modalCita');
     if (!modal) return;
 
@@ -134,9 +126,6 @@ window.openModalCita = () => {
     });
 };
 
-/**
- * Cierra el modal de Crear/Editar Cita y restaura el scroll del body.
- */
 window.closeModalCita = () => {
     const modal = document.getElementById('modalCita');
     if (!modal) return;
@@ -145,6 +134,10 @@ window.closeModalCita = () => {
     modal.setAttribute('aria-hidden', 'true');
     modal.setAttribute('inert', '');
     document.body.style.overflow = '';
+    if (modalCitaTriggerEl && typeof modalCitaTriggerEl.focus === 'function' && document.contains(modalCitaTriggerEl)) {
+        modalCitaTriggerEl.focus();
+    }
+    modalCitaTriggerEl = null;
 };
 
 // setFieldError removed in favor of ValidationUtils
@@ -357,7 +350,8 @@ const mapServerToClient = (serverData) => {
         time: `${hours}:${minutes}`,
         patient: patientFullName,
         doc: documentId,
-        professional: slugFromName(serverData.Profesional?.NombreCompleto),
+        professional: (serverData.Profesional?.NombreCompleto || '')
+            .toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         professionalName: serverData.Profesional?.NombreCompleto || 'Sin asignar',
         service: serverData.Servicio?.Nombre || 'Sin servicio',
         status: mapEstadoServerToClient(serverData.Estado),
@@ -394,88 +388,18 @@ const mapEstadoClientToServer = (estado) => {
 };
 
 // ════════════════════════════════════════════════════════════════════
-//  PERSISTENCIA CON LOCALSTORAGE (FALLBACK OFFLINE)
+//  ESTADO EFÍMERO DE LA VISTA
 // ════════════════════════════════════════════════════════════════════
-
-/**
- * Módulo de almacenamiento local para citas.
- * Permite simular persistencia de datos en modo offline.
- */
-const appointmentsStorage = {
-    key: 'smiletrack_citas_admin',
-
-    /**
-     * Carga las citas desde LocalStorage (caché de la última respuesta real de la API).
-     * Esta ruta de código solo se activa cuando NO hay filas renderizadas por el servidor
-     * (ver shouldUseServerRenderedList) y fetchAppointments() no pudo contactar la API.
-     *
-     * @returns {Array} Array de citas (vacío si no hay caché ni conexión)
-     */
-    load: () => {
-        const stored = localStorage.getItem(appointmentsStorage.key);
-
-        if (stored) {
-            try {
-                return JSON.parse(stored);
-            } catch (error) {
-                console.warn('Error al cargar citas locales');
-            }
-        }
-
-        // Sin caché ni conexión: estado vacío real (antes había 5 citas ficticias)
-        return [];
-    },
-
-    /**
-     * Guarda las citas en LocalStorage.
-     *
-     * @param {Array} data - Array de citas a guardar
-     * @returns {boolean} True si se guardó exitosamente
-     */
-    save: (data) => {
-        try {
-            localStorage.setItem(appointmentsStorage.key, JSON.stringify(data));
-            return true;
-        } catch (error) {
-            console.error('Error al guardar citas locales:', error);
-            return false;
-        }
-    },
-
-    /**
-     * Agrega una nueva cita al almacenamiento local.
-     *
-     * @param {Object} appointment - Cita a agregar
-     * @returns {Object} Cita agregada con ID asignado
-     */
-    addAppointment: (appointment) => {
-        const data = appointmentsStorage.load();
-        appointment.id = data.length > 0 ? Math.max(...data.map(a => a.id)) + 1 : 1;
-        data.unshift(appointment);
-        appointmentsStorage.save(data);
-        return appointment;
-    },
-
-    /**
-     * Obtiene una cita por su ID desde el almacenamiento local.
-     *
-     * @param {number} id - ID de la cita
-     * @returns {Object|undefined} Cita encontrada o undefined
-     */
-    getAppointment: (id) => {
-        return appointmentsStorage.load().find(appointment => appointment.id === id);
-    }
-};
 
 // ════════════════════════════════════════════════════════════════════
 //  DATOS Y ESTADO DE LA APLICACIÓN
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
 
 /**
  * Estado global de la aplicación.
- * Se inicializa con datos del almacenamiento local.
+ * Las citas se cargan desde la API y se mantienen en memoria para la vista.
  */
-let appointments = appointmentsStorage.load();
+let appointments = [];
 let searchQuery = '';
 let filterStatus = '';
 let filterProfessional = '';
@@ -485,14 +409,15 @@ let currentPage = 1;
 const itemsPerPage = 5;
 
 /**
- * Mapeo de colores para avatares de pacientes.
+ * Mapeo de colores de avatar. I-03: se usan clases CSS del proyecto, no Tailwind.
+ * El CSS de la vista define .patient-avatar con background inline — se asigna via style.
  */
-const avatarColors = {
-    blue: 'bg-blue-100 text-blue-600',
-    green: 'bg-green-100 text-green-600',
-    purple: 'bg-purple-100 text-purple-600',
-    red: 'bg-red-100 text-red-600',
-    slate: 'bg-slate-100 text-slate-600'
+const avatarColorMap = {
+    blue:   '#2563eb',
+    green:  '#059669',
+    purple: '#7c3aed',
+    red:    '#dc2626',
+    slate:  '#64748b'
 };
 
 /**
@@ -623,44 +548,44 @@ const renderAppointments = () => {
         const status = statusLabels[appointment.status] || statusLabels.programada;
 
         return `
-            <div class="table-row" role="row" tabindex="0" aria-label="Cita de ${appointment.patient} el ${fmtDate(appointment.date)}">
+            <div class="table-row" role="row" tabindex="0" aria-label="Cita de ${escapeHtml(appointment.patient)} el ${escapeHtml(fmtDate(appointment.date))}">
                 <div class="table-col col-fecha" role="cell" data-label="Fecha">
-                    <time datetime="${appointment.date}">${fmtDate(appointment.date)}</time>
+                    <time datetime="${escapeHtml(appointment.date)}">${escapeHtml(fmtDate(appointment.date))}</time>
                 </div>
                 <div class="table-col col-hora" role="cell" data-label="Hora">
-                    <time datetime="${appointment.date}T${appointment.time}:00">${fmtTime(appointment.time)}</time>
+                    <time datetime="${escapeHtml(appointment.date)}T${escapeHtml(appointment.time)}:00">${escapeHtml(fmtTime(appointment.time))}</time>
                 </div>
                 <div class="table-col col-paciente" role="cell" data-label="Paciente">
                     <div class="patient-info">
-                        <div class="patient-avatar ${avatarColors[appointment.color] || avatarColors.blue}" aria-hidden="true">
-                            ${appointment.avatar}
+                        <div class="patient-avatar" style="background:${avatarColorMap[appointment.color] || avatarColorMap.blue}; color:#fff;" aria-hidden="true">
+                            ${escapeHtml(appointment.avatar)}
                         </div>
                         <div>
-                            <span class="patient-name">${appointment.patient}</span>
-                            <span class="patient-id">ID: ${appointment.doc}</span>
+                            <span class="patient-name">${escapeHtml(appointment.patient)}</span>
+                            <span class="patient-id">ID: ${escapeHtml(appointment.doc)}</span>
                         </div>
                     </div>
                 </div>
                 <div class="table-col col-profesional" role="cell" data-label="Profesional">
-                    ${appointment.professionalName}
+                    ${escapeHtml(appointment.professionalName)}
                 </div>
                 <div class="table-col col-servicio" role="cell" data-label="Servicio">
-                    ${appointment.service}
+                    ${escapeHtml(appointment.service)}
                 </div>
                 <div class="table-col col-estado text-center" role="cell" data-label="Estado">
-                    <span class="status-badge ${status.class}" role="status" aria-label="Estado: ${status.label}">
-                        ${status.label}
+                    <span class="status-badge ${status.class}" role="status" aria-label="Estado: ${escapeHtml(status.label)}">
+                        ${escapeHtml(status.label)}
                     </span>
                 </div>
                 <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
                     <div class="actions-cell">
-                        <button class="action-btn btn-view" aria-label="Ver detalle de cita de ${appointment.patient}" data-id="${appointment.id}" title="Ver detalle">
+                        <button class="action-btn btn-view" aria-label="Ver detalle de cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Ver detalle">
                           👁️ <span class="btn-text">Ver</span>
                         </button>
-                        <button class="action-btn btn-edit" aria-label="Editar cita de ${appointment.patient}" data-id="${appointment.id}" title="Editar cita">
+                        <button class="action-btn btn-edit" aria-label="Editar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Editar cita">
                           ✏️ <span class="btn-text">Editar</span>
                         </button>
-                        <button class="action-btn btn-delete" aria-label="Cancelar cita de ${appointment.patient}" data-id="${appointment.id}" title="Cancelar cita">
+                        <button class="action-btn btn-delete" aria-label="Cancelar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Cancelar cita">
                           ❌ <span class="btn-text">Cancelar</span>
                         </button>
                     </div>
@@ -716,15 +641,13 @@ const renderAppointments = () => {
 // ════════════════════════════════════════════════════════════════════
 
 /**
- * Obtiene una cita por su ID, buscando primero en memoria y luego en storage.
+ * Obtiene una cita por su ID desde la colección real cargada en memoria.
  *
  * @param {number} id - ID de la cita
  * @returns {Object|undefined} Cita encontrada o undefined
  */
 const getAppointmentById = (id) => {
-    const inMemory = appointments.find(appointment => appointment.id === id);
-    if (inMemory) return inMemory;
-    return appointmentsStorage.getAppointment(id);
+    return appointments.find(appointment => Number(appointment.id) === Number(id));
 };
 
 /**
@@ -754,14 +677,14 @@ const openAppointmentModal = (id, mode) => {
         editButton.style.display = 'none';
 
         contentElement.innerHTML = `
-            <p><strong>Fecha:</strong> <time datetime="${appointment.date}">${fmtDate(appointment.date)}</time></p>
-            <p><strong>Hora:</strong> <time datetime="${appointment.date}T${appointment.time}:00">${fmtTime(appointment.time)}</time></p>
-            <p><strong>Documento / ID:</strong> ${appointment.doc}</p>
-            <p><strong>Profesional:</strong> ${appointment.professionalName}</p>
-            <p><strong>Servicio:</strong> ${appointment.service}</p>
+            <p><strong>Fecha:</strong> <time datetime="${escapeHtml(appointment.date)}">${escapeHtml(fmtDate(appointment.date))}</time></p>
+            <p><strong>Hora:</strong> <time datetime="${escapeHtml(`${appointment.date}T${appointment.time}:00`)}">${escapeHtml(fmtTime(appointment.time))}</time></p>
+            <p><strong>Documento / ID:</strong> ${escapeHtml(appointment.doc)}</p>
+            <p><strong>Profesional:</strong> ${escapeHtml(appointment.professionalName)}</p>
+            <p><strong>Servicio:</strong> ${escapeHtml(appointment.service)}</p>
             <p><strong>Estado:</strong> 
                 <span class="status-badge ${statusLabels[appointment.status]?.class || 'programada'}">
-                    ${statusLabels[appointment.status]?.label || appointment.status}
+                    ${escapeHtml(statusLabels[appointment.status]?.label || appointment.status)}
                 </span>
             </p>
         `;
@@ -774,15 +697,15 @@ const openAppointmentModal = (id, mode) => {
         contentElement.innerHTML = `
             <p>
                 <strong>Fecha:</strong> 
-                <input type="date" value="${appointment.date}" id="editDate" class="filter-date" style="margin-left:8px">
+                <input type="date" value="${escapeHtml(appointment.date)}" id="editDate" class="filter-date" style="margin-left:8px">
             </p>
             <p>
                 <strong>Hora:</strong> 
-                <input type="time" value="${appointment.time}" id="editTime" class="filter-select" style="margin-left:8px">
+                <input type="time" value="${escapeHtml(appointment.time)}" id="editTime" class="filter-select" style="margin-left:8px">
             </p>
             <p>
                 <strong>Servicio:</strong> 
-                <input type="text" value="${appointment.service}" id="editService" class="search-input" style="margin-left:8px;width:200px" placeholder="Nombre servicio">
+                <input type="text" value="${escapeHtml(appointment.service)}" id="editService" class="search-input" style="margin-left:8px;width:200px" placeholder="Nombre servicio">
             </p>
             <p>
                 <strong>Estado:</strong> 
@@ -882,7 +805,10 @@ const saveAppointmentEdit = (id) => {
  * @param {number} id - ID de la cita a cancelar
  * @param {string} [patientName] - Nombre del paciente para el mensaje de confirmación
  */
-window.openConfirmDeleteCita = (id, patientName) => {
+let deleteCitaTriggerEl = null;
+
+window.openConfirmDeleteCita = (id, patientName, triggerEl) => {
+    deleteCitaTriggerEl = triggerEl || document.activeElement;
     const modal = document.getElementById('modalConfirmDeleteCita');
     const msgEl = document.getElementById('modalConfirmDeleteCitaMessage');
     const idInput = document.getElementById('deleteCitaId');
@@ -902,16 +828,12 @@ window.openConfirmDeleteCita = (id, patientName) => {
     modal.removeAttribute('inert');
     document.body.style.overflow = 'hidden';
 
-    // Focus en botón cancelar para prevenir confirmación accidental
     setTimeout(() => {
         const cancelBtn = document.getElementById('modalConfirmDeleteCitaCancel');
         if (cancelBtn) cancelBtn.focus();
     }, 50);
 };
 
-/**
- * Cierra el modal de confirmación de eliminación de cita.
- */
 window.closeConfirmDeleteCita = () => {
     const modal = document.getElementById('modalConfirmDeleteCita');
     if (!modal) return;
@@ -919,6 +841,10 @@ window.closeConfirmDeleteCita = () => {
     modal.setAttribute('aria-hidden', 'true');
     modal.setAttribute('inert', '');
     document.body.style.overflow = '';
+    if (deleteCitaTriggerEl && typeof deleteCitaTriggerEl.focus === 'function' && document.contains(deleteCitaTriggerEl)) {
+        deleteCitaTriggerEl.focus();
+    }
+    deleteCitaTriggerEl = null;
 };
 
 /**
@@ -947,13 +873,11 @@ const updatePagination = (totalItems) => {
 
     const pageShowingElement = safeGetElement('pageShowing');
     const pageTotalElement = safeGetElement('pageTotal');
-    const previousButton = safeGetElement('btnPrev');
-    const nextButton = safeGetElement('btnNext');
+    // I-02: btnPrev y btnNext no existen en el DOM SSR (paginación server-side).
+    // La paginación cliente solo aplica en modo no-SSR; en ese modo el DOM no tiene esos IDs.
 
     if (pageShowingElement) pageShowingElement.textContent = showing;
     if (pageTotalElement) pageTotalElement.textContent = totalItems;
-    if (previousButton) previousButton.disabled = currentPage === 1;
-    if (nextButton) nextButton.disabled = currentPage >= totalPages;
 };
 
 /**
@@ -962,8 +886,14 @@ const updatePagination = (totalItems) => {
  * @param {HTMLElement} element - Elemento DOM a animar
  * @param {number} target - Valor objetivo
  */
+const counterIntervals = new WeakMap();
+
 const animateCounter = (element, target) => {
     if (!element) return;
+
+    if (counterIntervals.has(element)) {
+        clearInterval(counterIntervals.get(element));
+    }
 
     let currentValue = 0;
     const step = Math.max(1, Math.ceil(target / 30));
@@ -974,8 +904,11 @@ const animateCounter = (element, target) => {
 
         if (currentValue >= target) {
             clearInterval(animationTimer);
+            counterIntervals.delete(element);
         }
     }, 30);
+
+    counterIntervals.set(element, animationTimer);
 };
 
 /**
@@ -991,10 +924,10 @@ const updateStats = () => {
     const cancelled = appointments.filter(appointment => appointment.status === 'cancelada').length;
     const attended = appointments.filter(appointment => appointment.status === 'atendida').length;
 
-    animateCounter(safeGetElement('statTotal'), total);
-    animateCounter(safeGetElement('statScheduled'), scheduled);
-    animateCounter(safeGetElement('statCancelled'), cancelled);
-    animateCounter(safeGetElement('statAttended'), attended);
+    animateCounter(safeGetElement('citas-stat-total'), total);
+    animateCounter(safeGetElement('citas-stat-programadas'), scheduled);
+    animateCounter(safeGetElement('citas-stat-canceladas'), cancelled);
+    animateCounter(safeGetElement('citas-stat-atendidas'), attended);
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -1121,27 +1054,12 @@ const initFilters = () => {
  * Inicializa la paginación de la tabla.
  */
 const initPagination = () => {
+    // I-02: btnPrev/btnNext no existen en el DOM SSR. La paginación server-side usa
+    // <a> con Url.Action generados por Razor. Esta función solo aplica en modo cliente
+    // (shouldUseServerRenderedList = false), que actualmente devuelve true siempre.
     if (shouldUseServerRenderedList()) return;
-
-    const previousButton = safeGetElement('btnPrev');
-    const nextButton = safeGetElement('btnNext');
-
-    previousButton?.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderAppointments();
-        }
-    });
-
-    nextButton?.addEventListener('click', () => {
-        const filteredAppointments = getFilteredAppointments();
-        const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
-
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderAppointments();
-        }
-    });
+    // Sin IDs de botones de paginación en modo cliente; la función queda sin efecto
+    // hasta que se implemente una tabla 100% cliente con esos IDs.
 };
 
 /**
@@ -1150,7 +1068,7 @@ const initPagination = () => {
  * garantizando disponibilidad antes de cualquier DOMContentLoaded (incluido el inline script).
  */
 const initNewAppointment = () => {
-    const newAppointmentButton = safeGetElement('btnNewCita') || safeGetElement('btnNewAppointment');
+    const newAppointmentButton = safeGetElement('citas-btn-nueva') || safeGetElement('btnNewCita') || safeGetElement('btnNewAppointment');
     if (!newAppointmentButton) return;
     if (newAppointmentButton.hasAttribute('onclick')) return;
     newAppointmentButton.addEventListener('click', () => {
@@ -1158,16 +1076,8 @@ const initNewAppointment = () => {
     });
 };
 
-/**
- * Inicializa el botón de optimización del banner.
- */
-const initBanner = () => {
-    const optimizeButton = safeGetElement('btnOptimize');
-
-    optimizeButton?.addEventListener('click', () => {
-        window.ToastService.success('⚙️ Optimizando agenda... (simulado)');
-    });
-};
+// initBanner eliminado: buscaba #btnOptimize que no existe en el DOM.
+// El banner .info-banner fue retirado de la vista en la refactorización de arquitectura.
 
 // ════════════════════════════════════════════════════════════════════
 //  LLAMADAS A LA API
@@ -1175,15 +1085,14 @@ const initBanner = () => {
 
 /**
  * Petición principal de carga de citas.
- * Si la API responde usa esos datos; si falla cae al cache LocalStorage.
+    * Si no hay datos SSR/API devuelve una lista vacía explícita.
  *
  * @returns {Promise<Array>} Array de citas mapeadas
  */
 async function fetchAppointments() {
-    // No hay un endpoint GET /api/citas disponible en el backend actual para esta vista.
-    // Usamos los datos locales / cache como fallback estable.
-    console.warn('[SmileTrack] No existe GET /api/citas para esta vista. Usando datos locales/cache.');
-    return appointmentsStorage.load();
+    // La vista usa la colección en memoria cargada en init(); si no hay datos reales
+    // disponibles, se devuelve la colección actual para evitar falsos negativos.
+    return Array.isArray(appointments) ? appointments : [];
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1257,6 +1166,62 @@ const initModal = () => {
 };
 
 /**
+ * CIT-03 Fix: Intercepta el cambio de estado del <select name="Estado"> en
+ * las filas de la tabla y muestra un modal de confirmación (ModalService.confirm)
+ * antes de enviar el formulario. Si el usuario cancela, restaura el valor previo.
+ */
+const initEstadoConfirmation = () => {
+    // Solo los selects de cambio rápido de estado (formularios POST inline),
+    // NO los selects de los filtros (que están en form[method="get"]).
+    const statusSelects = document.querySelectorAll(
+        '.form-estado-inline select[name="Estado"]'
+    );
+
+    statusSelects.forEach(select => {
+        // Guardar el valor actual cuando el usuario enfoca el select
+        select.addEventListener('focus', function () {
+            this.dataset.previousValue = this.value;
+        });
+
+        select.addEventListener('change', function (e) {
+            const sel = this;
+            // Leer el valor previo capturado en focus; si no existe, usar el valor actual
+            const previousValue = sel.dataset.previousValue ?? sel.value;
+            const newValue = sel.value;
+
+            // Si el valor no cambió realmente, no hacer nada
+            if (previousValue === newValue) return;
+
+            const capitalize = s =>
+                s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+
+            ModalService.confirm({
+                title: 'Cambiar estado de cita',
+                message: `¿Confirmas cambiar el estado de ` +
+                    `"<strong>${capitalize(previousValue)}</strong>" ` +
+                    `a "<strong>${capitalize(newValue)}</strong>"?`,
+                confirmText: 'Sí, cambiar',
+                cancelText: 'Cancelar',
+                isDanger: false,
+                onConfirm: () => {
+                    // B-01: PUT /api/citas/{id}/estado solo autoriza rol Profesional.
+                    // El admin usa POST /gestion-de-citas/cambiar-estado (MVC con AntiForgery),
+                    // que sí autoriza Administrador y Recepcionista.
+                    // Al hacer submit del form padre, la página recargará con el nuevo estado.
+                    sel.value = newValue;
+                    sel.form.submit();
+                }
+            });
+
+            // Restaurar inmediatamente el valor previo mientras el usuario decide.
+            // Si confirma, el form.submit() recargará la página con el nuevo estado.
+            // Si cancela, el select ya muestra el valor original.
+            sel.value = previousValue;
+        });
+    });
+};
+
+/**
  * Inicialización principal del módulo.
  */
 const init = async () => {
@@ -1298,7 +1263,7 @@ const init = async () => {
                     return;
                 }
 
-                const totalMinutos = (hora * 60) + minuto + 60;
+                const totalMinutos = (hora * 60) + minuto + configuredDurationMinutes;
                 const minutosDia = 24 * 60;
 
                 const resultado = totalMinutos % minutosDia;
@@ -1310,16 +1275,70 @@ const init = async () => {
                     `${String(horaFinal).padStart(2, '0')}:${String(minutoFinal).padStart(2, '0')}`;
             };
 
-            horaInicio.addEventListener('input', calcularHoraFin);
-            horaInicio.addEventListener('change', calcularHoraFin);
+            const validarHorarioInline = () => {
+                const fecha = document.getElementById('fechaCita')?.value || '';
+                const errorEl = document.getElementById('error-horaInicioCita');
+                if (!fecha || !horaInicio.value || !horaFin.value || !window.AppointmentUtils) return;
+
+                const error = window.AppointmentUtils.validateAppointmentTime(
+                    fecha,
+                    horaInicio.value,
+                    horaFin.value
+                ).find(item => item.field === 'horaInicio' || item.field === 'horaFin' || item.field === 'general');
+
+                if (error) {
+                    horaInicio.setAttribute('aria-invalid', 'true');
+                    if (errorEl) {
+                        errorEl.textContent = error.message;
+                        errorEl.hidden = false;
+                    }
+                } else {
+                    horaInicio.setAttribute('aria-invalid', 'false');
+                    if (errorEl) {
+                        errorEl.textContent = '';
+                        errorEl.hidden = true;
+                    }
+                }
+            };
+
+            horaInicio.addEventListener('input', () => {
+                calcularHoraFin();
+                validarHorarioInline();
+            });
+            horaInicio.addEventListener('change', () => {
+                calcularHoraFin();
+                validarHorarioInline();
+            });
+            horaFin.addEventListener('change', validarHorarioInline);
+            document.getElementById('fechaCita')?.addEventListener('change', validarHorarioInline);
 
             // Calcular al abrir/cargar
             calcularHoraFin();
         };
 
+        const loadConfiguredDuration = async () => {
+            try {
+                const response = await fetch(`${API_BASE}/citas?page=1&pageSize=1`, {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                if (!response.ok) return;
+                const payload = await response.json();
+                if (Number(payload.duracionMinutos) > 0) {
+                    configuredDurationMinutes = Number(payload.duracionMinutos);
+                }
+            } catch (error) {
+                console.warn('[SmileTrack] No se pudo cargar la duración configurada:', error);
+            }
+        };
+
+        await loadConfiguredDuration();
         initHoraCita();
         initModal();
-        initBanner();
+        // initBanner() eliminado — I-01
+
+        // CIT-03 Fix: Interceptar cambio de estado con confirmación modal
+        initEstadoConfirmation();
 
         // Componentes que solo se utilizan cuando
         // la tabla no viene renderizada por Razor.

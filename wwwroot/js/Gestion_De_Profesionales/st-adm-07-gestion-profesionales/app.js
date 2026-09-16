@@ -33,75 +33,24 @@ DEPENDENCIAS TÉCNICAS:
 const API_BASE = '/api/profesionales';
 
 // ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
+//  UTILIDADES GLOBALES - CENTRALIZADAS EN utils.js
 // ═══════════════════════════════════════════════════════════════════
-
-/**
- * Obtiene un elemento DOM de forma segura.
- * Previene errores cuando el elemento no existe en la página.
- *
- * @param {string} id - ID del elemento
- * @returns {HTMLElement|null}
- */
-const safeGetElement = (id) => {
-  const element = document.getElementById(id);
-  if (!element) {
-    console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  }
-  return element;
-};
-window.safeGetElement = safeGetElement;
-
-/**
- * Realiza una petición fetch centralizada a la API con manejo de CSRF.
- */
-async function apiRequest(url, options = {}) {
-    const headers = new Headers(options.headers || {});
-    headers.set('Accept', 'application/json');
-
-    if (options.body && !headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
-    }
-
-    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-    if (token) {
-        headers.set('X-CSRF-TOKEN', token);
-    }
-
-    const response = await fetch(url, {
-        ...options,
-        headers,
-        credentials: 'same-origin'
-    });
-
-    let data = null;
-    try {
-        data = await response.json();
-    } catch { }
-
-    if (!response.ok) {
-        const message = data?.message || `Error HTTP ${response.status}.`;
-        throw new Error(message);
-    }
-
-    return data;
-}
-/**
- * Ejecuta una función después de que el usuario deja de escribir.
- * Evita envíos repetidos de formulario o recargas en cada tecla.
- *
- * @param {Function} callback
- * @param {number} delay
- * @returns {Function}
- */
-const debounce = (callback, delay = 250) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => callback.apply(this, args), delay);
-  };
-};
-window.debounce = debounce;
+// 
+// NOTA: Las funciones siguientes están centralizadas en wwwroot/js/shared/utils.js
+// Importadas bajo el namespace window.SmileTrack.utils
+//
+// Aliases globales disponibles para retrocompatibilidad:
+// - safeGetElement()
+// - debounce()
+// - escapeHtml()
+// - apiRequest()
+// - animateCounter()
+// - showToast()
+// - openModal() / closeModal()
+// - validateForm()
+//
+// Uso recomendado: window.SmileTrack.utils.safeGetElement(id)
+// ═══════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════
 //  MAPEO DE COLORES (solo UI, no afecta lógica de negocio)
 // ═══════════════════════════════════════════════════════════════════
@@ -210,22 +159,18 @@ function renderTableFromApi(result) {
         return;
     }
 
-    const escapeHtml = (unsafe) => (unsafe || '').toString()
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    // Usar escapeHtml centralizado desde utils.js
+    const escapeHtmlLocal = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml || ((s) => s);
 
     for (const p of items) {
         const tr = document.createElement('tr');
         tr.setAttribute('role', 'row');
 
-        const name = `${escapeHtml(p.nombres)} ${escapeHtml(p.apellidos)}`.trim();
+        const name = `${escapeHtmlLocal(p.nombres)} ${escapeHtmlLocal(p.apellidos)}`.trim();
 
         // Especialidad principal: primera de la lista
         const especialidad = p.especialidades && p.especialidades.length > 0
-            ? escapeHtml(p.especialidades[0].nombre)
+            ? escapeHtmlLocal(p.especialidades[0].nombre)
             : '';
 
         const specClass = getSpecBadgeClass(especialidad);
@@ -236,9 +181,9 @@ function renderTableFromApi(result) {
         const initialA = p.apellidos ? p.apellidos.charAt(0).toUpperCase() : '';
         const initials = `${initialN}${initialA}`;
 
-        const telefono = escapeHtml(p.telefono);
-        const estadoText = escapeHtml(p.estado);
-        const registroMedico = escapeHtml(p.registroMedico);
+        const telefono = escapeHtmlLocal(p.telefono);
+        const estadoText = escapeHtmlLocal(p.estado);
+        const registroMedico = escapeHtmlLocal(p.registroMedico);
 
         tr.innerHTML = `
           <td class="td-profesional">
@@ -260,6 +205,8 @@ function renderTableFromApi(result) {
                       data-registry="${registroMedico}"
                       data-phone="${telefono}"
                       data-status="${estadoText}"
+                      data-avatar-color="${avatarColor}"
+                      data-status-class="${statusClass}"
                       aria-label="Ver detalles del profesional ${name}"
                       title="Ver detalles del profesional ${name}">
                 👁️ <span class="btn-text">Ver</span>
@@ -293,14 +240,19 @@ function renderTableFromApi(result) {
             const phoneEl = safeGetElement('detailPhone');
             const statusEl = safeGetElement('detailStatus');
 
-            if (avatar) { avatar.textContent = viewBtn.dataset.initials || '--'; avatar.style.background = avatarColor; }
+            // Leer color y clase del propio dataset del botón — evita el bug
+            // de closure donde avatarColor pertenecía a la última iteración del loop.
+            const btnAvatarColor = viewBtn.dataset.avatarColor || avatarColor;
+            const btnStatusClass = viewBtn.dataset.statusClass || statusClass;
+
+            if (avatar) { avatar.textContent = viewBtn.dataset.initials || '--'; avatar.style.background = btnAvatarColor; }
             if (nameEl) nameEl.textContent = viewBtn.dataset.name || '--';
             if (specialtyEl) specialtyEl.textContent = viewBtn.dataset.specialty || '--';
             if (registryEl) registryEl.textContent = viewBtn.dataset.registry || '--';
             if (phoneEl) phoneEl.textContent = viewBtn.dataset.phone || '--';
             if (statusEl) {
                 statusEl.textContent = viewBtn.dataset.status || '--';
-                statusEl.className = `badge-status ${statusClass}`;
+                statusEl.className = `badge-status ${btnStatusClass}`;
             }
 
             const modal = safeGetElement('modalDetail');
@@ -322,6 +274,13 @@ function renderTableFromApi(result) {
         tbody.appendChild(tr);
     }
 }
+
+const setProfessionalsLoading = (loading) => {
+  const table = safeGetElement('professionalsTable');
+  if (table) table.setAttribute('aria-busy', String(loading));
+  const buttons = safeGetElement('paginationButtons');
+  if (buttons) buttons.querySelectorAll('button').forEach(button => { button.disabled = loading; });
+};
 
 
 
@@ -501,19 +460,8 @@ const validateProfessionalForm = (form) => {
     }
   }
 
-  const password = safeGetElement('formContrasenaAcceso');
-  const formId = safeGetElement('formIdProfesional');
-  const editing = Number(formId?.value || 0) > 0;
-
-  if (password) {
-    const value = password.value || '';
-    const passwordValid = /^(?=.{8,100}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/.test(value);
-    if ((!editing && !passwordValid) || (editing && value && !passwordValid)) {
-      valid = false;
-      updateProfessionalPasswordRules();
-    }
-  }
-
+  // Seguridad: la contraseña no se valida ni se envía desde el cliente.
+  // La generación segura se realiza en backend al crear el profesional.
   return valid;
 };
 
@@ -540,17 +488,14 @@ const updateProfessionalPasswordRules = () => {
   const formId = safeGetElement('formIdProfesional');
   const editing = Number(formId?.value || 0) > 0;
   const help = safeGetElement('formContrasenaHelp');
-  const allValid = Object.values(rules).every(Boolean);
 
   if (help) {
     if (editing && value.length === 0) {
-      help.textContent = 'Déjala vacía para conservar la contraseña actual.';
+      help.textContent = 'La contraseña no se modifica desde esta pantalla.';
       help.style.color = '#6b7280';
     } else {
-      help.textContent = allValid
-        ? 'Contraseña válida.'
-        : 'Completa todos los requisitos de la contraseña.';
-      help.style.color = allValid ? '#15803d' : '#b91c1c';
+      help.textContent = 'La contraseña se genera automáticamente en el sistema.';
+      help.style.color = '#6b7280';
     }
   }
 };
@@ -612,21 +557,15 @@ const saveProfessional = async (e) => {
     telefono:       getData('formTelefono')  || null,
     correoAcceso:   getData('formCorreoAcceso'),
     idEspecialidad: idEspecialidad,
+    estado:         isEditing ? (safeGetElement('formStatus')?.value || safeGetElement('formEstado')?.value || '').trim().toLowerCase() || null : null,
   };
 
-  // Solo incluir contraseña si el campo tiene valor (en edición es opcional)
-  const passwordVal = getData('formContrasenaAcceso');
-  if (passwordVal) payload.contrasenaAcceso = passwordVal;
-
-  // H-05: capturar estado actual y original para decidir si hace falta el PATCH.
-  // originalEstado se guarda en data-originalEstado por editProfessional() al abrir el modal.
-  const statusSelect = safeGetElement('formStatus');
-  const nuevoEstado = isEditing
-    ? (statusSelect?.value || safeGetElement('formEstado')?.value || '').trim().toLowerCase()
-    : null;
-  const originalEstado = isEditing
-    ? (statusSelect?.dataset.originalEstado || '').toLowerCase()
-    : null;
+  // Seguridad: la contraseña nunca se envía desde el cliente. El backend genera
+  // una contraseña temporal segura al crear el profesional y la notificación se
+  // gestiona en el servidor, evitando exponer credenciales en la solicitud.
+  if (!isEditing) {
+    delete payload.contrasenaAcceso;
+  }
 
   try {
     let result;
@@ -636,25 +575,15 @@ const saveProfessional = async (e) => {
         body: JSON.stringify(payload)
       });
 
-      // H-05: PATCH solo cuando el estado cambió realmente.
-      // Si originalEstado === nuevoEstado no hay escritura ni auditoría innecesaria.
-      if (nuevoEstado && nuevoEstado !== originalEstado) {
-        try {
-          await apiRequest(`${API_BASE}/${idProfesional}/estado`, {
-            method: 'PATCH',
-            body: JSON.stringify({ estado: nuevoEstado })
-          });
-        } catch (estadoErr) {
-          // El PATCH falla independientemente del PUT ya completado;
-          // avisamos al usuario pero no revertimos los datos guardados.
-          window.ToastService?.warning(`⚠️ Datos guardados pero no se pudo actualizar el estado: ${estadoErr.message}`);
-        }
-      }
     } else {
       result = await apiRequest(API_BASE, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
+    }
+
+    if (!result || result.success === false) {
+      throw new Error(result?.message || 'No fue posible guardar el profesional.');
     }
 
     window.ToastService?.success(`✅ ${result.message || 'Profesional guardado correctamente.'}`);
@@ -675,7 +604,8 @@ const bindProfessionalFieldValidation = () => {
   form.querySelectorAll('input, select').forEach((field) => {
     field.addEventListener('input', () => {
       if (field.id === 'formTelefono' && field.value.trim()) {
-        const validPhone = /^[0-9+\s()-]{7,15}$/.test(field.value.trim());
+        const validPhone = (field.value.match(/\d/g) || []).length >= 7
+          && (field.value.match(/\d/g) || []).length <= 15;
         if (window.ValidationUtils) {
           if (!validPhone) window.ValidationUtils.showError(field, null, 'Ingresa un teléfono válido.');
           else window.ValidationUtils.clearError(field);
@@ -811,10 +741,12 @@ async function fetchProfessionals(params = {}) {
 }
 
 async function loadProfessionals() {
+  try {
     const search = document.querySelector('#searchInput')?.value?.trim() || '';
     const especialidad = document.querySelector('#filterSpecialty')?.value || '';
     const estado = document.querySelector('#filterStatus')?.value || '';
 
+    setProfessionalsLoading(true);
     const result = await fetchProfessionals({
         page: currentPage,
         pageSize: itemsPerPage,
@@ -825,6 +757,15 @@ async function loadProfessionals() {
 
     renderTableFromApi(result);
     renderPaginationFromApi(result);
+  } catch (error) {
+    const tbody = safeGetElement('professionalsTbody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No fue posible cargar los profesionales. Intenta nuevamente.</td></tr>`;
+    }
+    window.ToastService?.error?.(`No fue posible cargar los profesionales: ${error.message}`);
+  } finally {
+    setProfessionalsLoading(false);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -961,7 +902,7 @@ const closeConfirmDeleteModal = () => {
 };
 
 const initModals = () => {
-  const btnNew = safeGetElement('btnNewProfessional');
+  const btnNew = safeGetElement('profesionales-btn-nuevo') || safeGetElement('btnNewProfessional');
   const modalFormClose = safeGetElement('modalFormClose');
   const modalFormCancel = safeGetElement('modalFormCancel');
   const modalDetailClose = safeGetElement('modalDetailClose');
@@ -1021,7 +962,15 @@ const initModals = () => {
       const phoneEl = safeGetElement('detailPhone');
       const statusEl = safeGetElement('detailStatus');
 
-      if (avatar) avatar.textContent = btn.dataset.initials || '--';
+            if (avatar) {
+              avatar.textContent = btn.dataset.initials || '--';
+              // Restaurar el color del avatar desde data-avatar-color si fue generado por la API.
+              // Para filas SSR el dataset puede no tener el atributo; en ese caso usar
+              // el estilo inline que ya trae el avatar del HTML renderizado por Razor.
+              if (btn.dataset.avatarColor) {
+                avatar.style.background = btn.dataset.avatarColor;
+              }
+            }
       if (nameEl) nameEl.textContent = btn.dataset.name || '--';
       if (specialtyEl) specialtyEl.textContent = btn.dataset.specialty || '--';
       if (registryEl) registryEl.textContent = btn.dataset.registry || '--';
@@ -1103,10 +1052,10 @@ const initModals = () => {
  */
 const initServerStats = () => {
   const statEls = [
-    safeGetElement('metricTotal'),
-    safeGetElement('metricActives'),
-    safeGetElement('metricVacations'),
-    safeGetElement('metricInactives'),
+    safeGetElement('profesionales-stat-total') || safeGetElement('metricTotal'),
+    safeGetElement('profesionales-stat-activos') || safeGetElement('metricActives'),
+    safeGetElement('profesionales-stat-vacaciones') || safeGetElement('metricVacations'),
+    safeGetElement('profesionales-stat-inactivos') || safeGetElement('metricInactives'),
   ];
 
   statEls.forEach(el => {

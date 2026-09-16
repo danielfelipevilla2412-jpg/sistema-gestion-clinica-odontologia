@@ -558,12 +558,31 @@ public class HistoriaClinicaController(
     [Route("historia-clinica/st-odo-07-seguimiento-tratamiento/data")]
     public async Task<IActionResult> Stodo07SeguimientoTratamientoData()
     {
-        // No existe una tabla de "tratamientos" con progreso/estado en el esquema actual.
-        // El progreso y el estado se calculan a partir de las citas reales de cada
-        // paciente agrupadas por servicio (no se inventa ningún porcentaje ni estado):
-        //   - progreso = % de citas de ese servicio con estado "completada"/"realizada"/"atendida"
-        //   - estado   = "completado" si progreso=100%, "pausado" si la cita más reciente
-        //                está cancelada, "en-curso" en cualquier otro caso
+        // Yeray (2025) - ACTUALIZACIÓN: se agrega cálculo de fecha estimada.
+        //
+        // ANTES: el campo "estimado" siempre devolvía null con el comentario
+        //        "se puede pasar en el futuro". La vista mostraba "—" en todos
+        //        los tratamientos en curso.
+        //
+        // AHORA: para tratamientos "en-curso" se proyecta la fecha estimada así:
+        //
+        //   1. Se toman las fechas de las sesiones COMPLETADAS y se mide el
+        //      intervalo promedio en días entre sesión y sesión.
+        //
+        //   2. Se cuentan las sesiones que faltan (totalSesiones - completadas).
+        //
+        //   3. Proyección:
+        //        última sesión completada + (sesiones pendientes × promedio días)
+        //
+        //   4. Si solo hay 1 sesión completada (no se puede promediar),
+        //      se usa 30 días como intervalo conservador por defecto.
+        //
+        //   5. Si no hay ninguna sesión completada aún (progreso 0),
+        //      se usa la fecha de inicio + (totalSesiones × 30 días).
+        //
+        //   Para tratamientos "completado" o "pausado" → estimado = null
+        //   (ya tienen "finalizado" o no tiene sentido proyectar un pausado).
+
         var estadosCompletados = new[] { "completada", "realizada", "atendida" };
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
 
@@ -582,32 +601,83 @@ public class HistoriaClinicaController(
             .GroupBy(c => new { c.IdPaciente, c.IdServicio })
             .Select(g =>
             {
-                var ordenadas = g.OrderBy(c => c.FechaHora).ToList();
-                var ultima = ordenadas[^1];
-                int total = ordenadas.Count;
-                int completadas = ordenadas.Count(c => estadosCompletados.Contains(c.Estado.ToLowerInvariant()));
-                int progreso = total == 0 ? 0 : (int)Math.Round(completadas * 100.0 / total);
+                var ordenadas  = g.OrderBy(c => c.FechaHora).ToList();
+                var ultima     = ordenadas[^1];
+                int total      = ordenadas.Count;
+
+                int completadas = ordenadas.Count(c =>
+                    estadosCompletados.Contains(c.Estado.ToLowerInvariant()));
+
+                int progreso = total == 0 ? 0
+                    : (int)Math.Round(completadas * 100.0 / total);
+
                 string estado = progreso >= 100 ? "completado"
-                    : ultima.Estado.Equals("cancelada", StringComparison.OrdinalIgnoreCase) ? "pausado"
-                    : "en-curso";
+                    : ultima.Estado.Equals("cancelada", StringComparison.OrdinalIgnoreCase)
+                        ? "pausado"
+                        : "en-curso";
+
+                // ── Fecha estimada ────────────────────────────────────────────
+                // Solo se calcula para tratamientos en curso; los demás devuelven null.
+                DateTime? estimado = null;
+
+                if (estado == "en-curso")
+                {
+                    int pendientes = total - completadas; // sesiones que faltan
+
+                    // Citas ya completadas ordenadas por fecha (para medir intervalos)
+                    var sesionesHechas = ordenadas
+                        .Where(c => estadosCompletados.Contains(c.Estado.ToLowerInvariant()))
+                        .OrderBy(c => c.FechaHora)
+                        .ToList();
+
+                    double promedioDias;
+
+                    if (sesionesHechas.Count >= 2)
+                    {
+                        // Calcular el promedio real de días entre sesiones consecutivas
+                        double totalDias = 0;
+                        for (int i = 1; i < sesionesHechas.Count; i++)
+                            totalDias += (sesionesHechas[i].FechaHora - sesionesHechas[i - 1].FechaHora).TotalDays;
+
+                        promedioDias = totalDias / (sesionesHechas.Count - 1);
+                    }
+                    else
+                    {
+                        // Sin suficiente historial: intervalo conservador de 30 días
+                        promedioDias = 30;
+                    }
+
+                    // Punto de anclaje: última sesión completada o inicio del tratamiento
+                    var ancla = sesionesHechas.Count > 0
+                        ? sesionesHechas[^1].FechaHora
+                        : ordenadas[0].FechaHora;
+
+                    // Proyectar: ancla + (sesiones pendientes × promedio)
+                    estimado = ancla.AddDays(pendientes * promedioDias);
+                }
+                // ─────────────────────────────────────────────────────────────
 
                 return new
                 {
-                    id = $"{g.Key.IdPaciente}-{g.Key.IdServicio}",
-                    nombre = ordenadas[0].Servicio?.Nombre ?? "Servicio",
-                    tipo = ordenadas[0].Servicio?.Nombre ?? "Servicio",
-                    pacienteId = g.Key.IdPaciente,
-                    paciente = ordenadas[0].Paciente != null ? ordenadas[0].Paciente!.NombresCompleto : "Paciente sin datos",
-                    cedula = ordenadas[0].Paciente?.Documento ?? "",
-                    odontologo = ultima.Profesional is not null ? $"Dr(a). {ultima.Profesional.Nombres} {ultima.Profesional.Apellidos}" : "Sin asignar",
+                    id            = $"{g.Key.IdPaciente}-{g.Key.IdServicio}",
+                    nombre        = ordenadas[0].Servicio?.Nombre ?? "Servicio",
+                    tipo          = ordenadas[0].Servicio?.Nombre ?? "Servicio",
+                    pacienteId    = g.Key.IdPaciente,
+                    paciente      = ordenadas[0].Paciente != null
+                                        ? ordenadas[0].Paciente!.NombresCompleto
+                                        : "Paciente sin datos",
+                    cedula        = ordenadas[0].Paciente?.Documento ?? "",
+                    odontologo    = ultima.Profesional is not null
+                                        ? $"Dr(a). {ultima.Profesional.Nombres} {ultima.Profesional.Apellidos}"
+                                        : "Sin asignar",
                     estado,
                     progreso,
-                    inicio = ordenadas[0].FechaHora,
-                    estimado = estado == "en-curso" ? (DateTime?)null : null,
-                    finalizado = estado == "completado" ? ultima.FechaHora : (DateTime?)null,
-                    sesiones = completadas,
+                    inicio        = ordenadas[0].FechaHora,
+                    estimado,                                           // ← antes siempre null
+                    finalizado    = estado == "completado" ? ultima.FechaHora : (DateTime?)null,
+                    sesiones      = completadas,
                     totalSesiones = total,
-                    nota = ultima.Notas ?? ""
+                    nota          = ultima.Notas ?? ""
                 };
             })
             .OrderByDescending(x => x.inicio)

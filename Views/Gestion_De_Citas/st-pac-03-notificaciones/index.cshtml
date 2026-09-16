@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@* ============================================
+﻿@* ============================================
 SmileTrack — Notificaciones Paciente (st-pac-03-notificaciones)
 ============================================
 Autor: Johan Santamaria
@@ -21,41 +21,15 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 ============================================ *@
-@{ Layout = null; }
-@using System.Text.Json
-@{ var notificacionesDataJson = JsonSerializer.Serialize(ViewData["NotificacionesData"]); }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Notificaciones";
+    var notificacionesDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["NotificacionesData"] ?? new object());
+}
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Notificaciones</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-pac-03-notificaciones/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- [MEJORA]: Skip link para accesibilidad keyboard-first (consistente con st-pac-01) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-  <!-- ----- SIDEBAR UNIFICADO (Activo: Notificaciones) ----- -->
-  @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
-
-  <!-- ----- HAMBURGER (mÓvil) ----- -->
-  <!-- [MEJORA]: aria-expanded y aria-controls para accesibilidad de menú mÓvil -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
-  </button>
-  <!-- [MEJORA]: aria-hidden inicial para overlay -->
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-pac-03-notificaciones/styles.css" asp-append-version="true" />
+}
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
@@ -63,37 +37,36 @@ NOTAS DE MANTENIMIENTO:
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb">Paciente ? Notificaciones</div>
-        <h1 class="page-title">Notificaciones</h1>
-        <p class="page-subtitle">Recordatorios, confirmaciones y mensajes de la clínica</p>
+        <div class="breadcrumb"><span data-i18n="common_role_patient">Paciente</span> › <span data-i18n="common.notifications">Notificaciones</span></div>
+        <h1 class="page-title" data-i18n="notifications.page_title">Notificaciones</h1>
+        <p class="page-subtitle" data-i18n="notifications.subtitle">Recordatorios, confirmaciones y mensajes de la clínica</p>
       </div>
       <!-- [MEJORA]: aria-label para botón de acción principal -->
-      <button class="btn-primary" id="btnMarkAllRead" aria-label="Marcar todas las notificaciones como leÍdas">Marcar
-        todas como leÍdas</button>
+      <button class="btn-primary" id="btnMarkAllRead" aria-label="Marcar todas las notificaciones como leídas" data-i18n-aria-label="notifications.mark_all_aria" data-i18n="notifications.mark_all">Marcar todas como leídas</button>
     </header>
 
     <!-- Toolbar de filtros -->
-    <div class="toolbar" role="toolbar" aria-label="Filtros de notificaciones">
+    <div class="toolbar" role="toolbar" aria-label="Filtros de notificaciones" data-i18n-aria-label="notifications.filter_aria">
       <div class="search-wrap">
         <span class="search-icon material-symbols-outlined" aria-hidden="true">search</span>
         <!-- [MEJORA]: aria-label para input de búsqueda (consistente con st-pac-01) -->
-        <input type="search" id="searchInput" class="search-input" placeholder="Buscar notificaciones\…"
-          autocomplete="off" aria-label="Buscar notificaciones" />
+        <input type="search" id="searchInput" class="search-input" placeholder="Buscar notificaciones…" data-i18n-ph="notifications.search_ph"
+          autocomplete="off" aria-label="Buscar notificaciones" data-i18n-aria-label="notifications.search_aria" />
       </div>
-      <div class="filter-chips" role="group" aria-label="Filtrar notificaciones por tipo">
-        <button class="chip chip--active" data-filter="all" aria-pressed="true">Todas</button>
-        <button class="chip" data-filter="reminder" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">notifications</span> Recordatorios</button>
-        <button class="chip" data-filter="confirmed" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">check_circle</span> Confirmaciones</button>
-        <button class="chip" data-filter="cancelled" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">cancel</span> Cancelaciones</button>
-        <button class="chip" data-filter="message" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">message</span> Mensajes</button>
+      <div class="filter-chips" role="group" aria-label="Filtrar notificaciones por tipo" data-i18n-aria-label="notifications.filter_aria">
+        <button class="chip chip--active" data-filter="all" aria-pressed="true" data-i18n="notifications.filter_all">Todas</button>
+        <button class="chip" data-filter="reminder" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">notifications</span> <span data-i18n="notifications.filter_reminders">Recordatorios</span></button>
+        <button class="chip" data-filter="confirmed" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">check_circle</span> <span data-i18n="notifications.filter_confirmed">Confirmaciones</span></button>
+        <button class="chip" data-filter="cancelled" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">cancel</span> <span data-i18n="notifications.filter_cancelled">Cancelaciones</span></button>
+        <button class="chip" data-filter="message" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">message</span> <span data-i18n="notifications.filter_messages">Mensajes</span></button>
       </div>
       <span class="count-label" id="countLabel" aria-live="polite"></span>
     </div>
 
     <!-- Lista de notificaciones -->
-    <!-- [MEJORA]: role="list" explÍcito para lectores de pantalla -->
+    <!-- [MEJORA]: role="list" explícito para lectores de pantalla -->
     <ul class="notifications-list" id="notificationsList" role="list" aria-live="polite"
-      aria-label="Lista de notificaciones">
+      aria-label="Lista de notificaciones" data-i18n-aria-label="notifications.list_aria">
       <!-- Items inyectados por JS -->
     </ul>
 
@@ -101,7 +74,7 @@ NOTAS DE MANTENIMIENTO:
     <!-- [MEJORA]: aria-hidden gestionado por JS, texto más accesible -->
     <div class="empty-state" id="emptyState" aria-live="polite" aria-hidden="true" style="display:none;">
       <span class="empty-icon material-symbols-outlined" aria-hidden="true">notifications_off</span>
-      <p class="empty-state-text">No hay notificaciones en esta categor—a.</p>
+      <p class="empty-state-text" data-i18n="common.no_notifications">No hay notificaciones en esta categoría.</p>
     </div>
 
   </main>
@@ -112,23 +85,32 @@ NOTAS DE MANTENIMIENTO:
   <script>
     window.smiletrackNotificacionesData = @Html.Raw(notificacionesDataJson);
   </script>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-pac-03-notificaciones/notificaciones.js")"></script>
+  <script src="@Url.Content("~/js/Gestion_De_Citas/st-pac-03-notificaciones/notificaciones.js")" defer></script>
+
+  <!-- Mobile bottom nav — Paciente -->
+  <nav class="mobile-nav" aria-label="Navegación móvil" data-i18n-aria-label="common_mobile_nav">
+    <a href="/gestion-de-citas/st-pac-01-mis-citas" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
+      <span data-i18n="citas.title">Mis citas</span>
+    </a>
+    <a href="/gestion-de-citas/st-pac-03-notificaciones" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">notifications</span></span>
+      <span data-i18n="notifications.tab_notices">Avisos</span>
+    </a>
+    <a href="/perfiles/st-pac-04-perfil-paciente" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
+      <span data-i18n="profile.title">Perfil</span>
+    </a>
+  </nav>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
   </footer>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
-</body>
-
-</html>
-
+@section Scripts {
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
+}

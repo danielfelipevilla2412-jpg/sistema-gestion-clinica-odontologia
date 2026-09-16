@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Notificaciones Paciente (st-pac-03-notificaciones)
 ============================================
 Autor: Johan Santamaria
@@ -38,6 +38,14 @@ const debounce = (fn, delay) => {
     timeoutId = setTimeout(() => fn.apply(this, args), delay);
   };
 };
+
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  "'": '&#39;',
+  '"': '&quot;'
+}[character]));
 
 // WHY: Muestra retroalimentación temporal autolimpiable para no interrumpir el flujo visual de la lista de alertas
 
@@ -143,14 +151,14 @@ const createNotificationItem = (item) => {
   }
   
   li.innerHTML = `
-    <div class="notification-card__icon" aria-hidden="true">${getIconByType(item.tipo)}</div>
+    <div class="notification-card__icon" aria-hidden="true">${escapeHtml(getIconByType(item.tipo))}</div>
     <div class="notification-card__body">
       <div class="notification-card__header">
-        <h3 class="notification-card__title">${item.titulo}</h3>
-        <span class="badge ${badgeClass(item.badge)}" aria-label="Estado: ${badgeLabel(item.badge)}">${badgeLabel(item.badge)}</span>
+        <h3 class="notification-card__title">${escapeHtml(item.titulo)}</h3>
+        <span class="badge ${escapeHtml(badgeClass(item.badge))}" aria-label="Estado: ${escapeHtml(badgeLabel(item.badge))}">${escapeHtml(badgeLabel(item.badge))}</span>
       </div>
-      <p class="notification-card__desc">${item.desc}</p>
-      <time class="notification-card__time" datetime="${item.time}">${item.time}</time>
+      <p class="notification-card__desc">${escapeHtml(item.desc)}</p>
+      <time class="notification-card__time" datetime="${escapeHtml(item.time)}">${escapeHtml(item.time)}</time>
     </div>
     ${!item.leida ? '<span class="notification-card__dot" aria-label="No leída" role="status"></span>' : ''}
   `;
@@ -171,7 +179,7 @@ const renderNotifications = () => {
   // [MEJORA]: Validaciones de seguridad para elementos del DOM
   if (!container) return;
   
-  container.innerHTML = '';
+  container.replaceChildren();
   
   const countLabel = safeGetElement('countLabel');
   if (countLabel) countLabel.textContent = `${data.length} resultado${data.length !== 1 ? 's' : ''}`;
@@ -196,13 +204,28 @@ const renderNotifications = () => {
   });
 };
 
+const markReadOnServer = async (ids) => {
+  const response = await fetch(ids.length === 1
+    ? `/api/notificaciones/${ids[0]}/leida`
+    : '/api/notificaciones/leidas', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(ids.length === 1 ? {} : ids)
+    });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.success === false) {
+    throw new Error(payload.message || 'No fue posible guardar el estado de lectura.');
+  }
+};
+
 // ── Manejador centralizado de clicks en notificaciones ──
 /**
  * [MEJORA]: Event delegation para manejar clicks en lista dinámica
  * Evita attach de listeners individuales por item (mejor performance)
  * @param {Event} e - Evento de click
  */
-const handleNotificationClick = (e) => {
+const handleNotificationClick = async (e) => {
   // [MEJORA]: Encontrar el card más cercano (soporta clicks en hijos)
   const card = e.target.closest('.notification-card');
   if (!card) return;
@@ -218,11 +241,15 @@ const handleNotificationClick = (e) => {
   
   const notif = notificaciones.find(n => n.id === id);
   if (notif) {
-    notif.leida = true;
-    notif.badge = 'read';
-    renderNotifications();
-    // [MEJORA]: Feedback sutil al marcar como leída
-    window.ToastService.success('Notificación marcada como leída');
+    try {
+      await markReadOnServer([id]);
+      notif.leida = true;
+      notif.badge = 'read';
+      renderNotifications();
+      window.ToastService.success('Notificación marcada como leída');
+    } catch (error) {
+      window.ToastService.error(error.message);
+    }
   }
 };
 
@@ -230,20 +257,21 @@ const handleNotificationClick = (e) => {
 /**
  * Marca todas las notificaciones como leídas y actualiza UI
  */
-const markAllAsRead = () => {
+const markAllAsRead = async () => {
   const hayNoLeidas = notificaciones.some(n => !n.leida);
   if (!hayNoLeidas) {
     window.ToastService.success('No hay notificaciones sin leer');
     return;
   }
   
-  notificaciones.forEach(n => {
-    n.leida = true;
-    n.badge = 'read';
-  });
-  
-  renderNotifications();
-  window.ToastService.success('Todas las notificaciones marcadas como leídas');
+  try {
+    await markReadOnServer(notificaciones.filter(n => !n.leida).map(n => n.id));
+    notificaciones.forEach(n => { n.leida = true; n.badge = 'read'; });
+    renderNotifications();
+    window.ToastService.success('Todas las notificaciones marcadas como leídas');
+  } catch (error) {
+    window.ToastService.error(error.message);
+  }
 };
 
 // ── Manejo de chips de filtro ──
@@ -270,53 +298,7 @@ const handleChipClick = (chip) => {
  * Inicializa eventos del menú móvil con gestión de accesibilidad
  */
 const initMobileMenu = () => {
-  const ham = safeGetElement('hamburger');
-  const sb = safeGetElement('sidebar');
-  const ov = safeGetElement('overlay');
-  
-  if (!ham || !sb || !ov) return;
-  
-  // [MEJORA]: Sincronizar aria-expanded con estado visual
-  const toggleMenu = () => {
-    const isOpen = sb.classList.toggle('open');
-    ov.classList.toggle('open');
-    ham.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-    ov.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
-    
-    // [MEJORA]: Manejo de foco para accesibilidad
-    if (isOpen) {
-      // Guardar elemento activo para restaurar foco después
-      sb.dataset.previousFocus = document.activeElement?.id || '';
-      // Enfocar primer enlace de navegación
-      const firstLink = sb.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      // Restaurar foco al elemento que abrió el menú
-      const prevFocus = sb.dataset.previousFocus;
-      if (prevFocus) safeGetElement(prevFocus)?.focus();
-    }
-  };
-  
-  ham.addEventListener('click', toggleMenu);
-  ov.addEventListener('click', () => {
-    sb.classList.remove('open');
-    ov.classList.remove('open');
-    ham.setAttribute('aria-expanded', 'false');
-    ov.setAttribute('aria-hidden', 'true');
-    ham.focus(); // [MEJORA]: Restaurar foco al hamburger
-  });
-  
-  // [MEJORA]: Escape cierra menú con restauración de foco
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sb.classList.contains('open')) {
-      e.preventDefault();
-      sb.classList.remove('open');
-      ov.classList.remove('open');
-      ham.setAttribute('aria-expanded', 'false');
-      ov.setAttribute('aria-hidden', 'true');
-      ham.focus();
-    }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 // ── Init principal ──

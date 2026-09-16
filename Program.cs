@@ -13,6 +13,7 @@ using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Email;
 using System.Security.Claims;
 using System.Net;
@@ -68,6 +69,8 @@ builder.Configuration
     .AddCommandLine(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
+builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
 
 bool ejecutandoEnContenedor =
     string.Equals(
@@ -185,6 +188,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryDelay: TimeSpan.FromSeconds(3),
             errorNumbersToAdd: null)));
 
+builder.Services.AddScoped<ICitaService, CitaService>();
+builder.Services.AddScoped<IAgendaService, AgendaService>();
+builder.Services.AddScoped<IPanelOperativoService, PanelOperativoService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.ICitasDashboardService,
+    SmileTrack_MVC.Services.CitasDashboardService>();
+
 // -----------------------------------------------------------------------------
 // JWT
 // -----------------------------------------------------------------------------
@@ -195,7 +205,13 @@ var jwtSection =
 string jwtKey =
     jwtSection.GetValue<string>("Key")
     ?? throw new InvalidOperationException(
-        "No se encontró Jwt:Key. Configure la clave JWT en appsettings.Local.json.");
+        "No se encontró Jwt:Key. Configure la clave JWT mediante User Secrets o variables de entorno.");
+
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
+{
+    throw new InvalidOperationException(
+        "Jwt:Key debe estar configurada y tener al menos 32 caracteres.");
+}
 
 string jwtIssuer =
     jwtSection.GetValue<string>("Issuer")
@@ -784,16 +800,22 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        context.Context.Response.Headers.CacheControl =
+            "public,max-age=604800";
+    }
+});
 app.UseRouting();
 
 
 
+app.UseRateLimiter();
 app.UseAuthentication();
 
 app.UseAuthorization();
-
-app.UseRateLimiter();
 
 // -----------------------------------------------------------------------------
 // ROUTING

@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/login/login.css")">
 </head>
 <body>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
     <div class="login-bg">
         <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1920&q=80" alt="Clínica dental" class="bg-img">
         <div class="bg-overlay"></div>
@@ -35,7 +36,7 @@
                 <div class="logo-wrap">
                     <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="Logo SmileTrack" class="logo-img">
                 </div>
-                <h1 class="login-title">Cambiar Contraseña</h1>
+                <h1 class="login-title" data-i18n="common.password">Cambiar Contraseña</h1>
                 <p class="login-subtitle">Protege tu cuenta con una nueva contraseña segura.</p>
             </div>
 
@@ -86,13 +87,13 @@
                     </div>
                 }
 
-                <button id="changePasswordBtn" class="btn-login" type="submit" disabled aria-busy="false">
+                <button id="changePasswordBtn" class="btn-login" type="submit" disabled aria-busy="false" data-i18n="common.save">
                     <span class="material-symbols-outlined" aria-hidden="true">lock_open</span>
-                    <span>Cambiar contraseña</span>
+                    <span data-i18n="common.password">Cambiar contraseña</span>
                 </button>
 
                 <div class="form-footer">
-                    <p class="footer-text">
+                    <p class="footer-text" data-i18n="common.back_to_home">
                         <a class="link-register" href="/acceso-y-seguridad/login">Volver al inicio de sesión</a>
                     </p>
                 </div>
@@ -106,6 +107,8 @@
             </p>
         </footer>
     </main>
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
 
     <script src="@Url.Content("~/js/Acceso_Y_Seguridad/change-password/change-password.js")" defer></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }

@@ -1,7 +1,13 @@
-@* Vista sin modelo tipado - datos estáticos *@
+@using SmileTrack_MVC.Models.ViewModels
+@model SupportTicketViewModel
 @{
     ViewData["Title"] = "SmileTrack - Soporte";
-    Layout = null; // Cambia esto por tu _Layout.cshtml si esta vista debe usar un layout compartido
+    Layout = null;
+
+    var userName = User?.Identity?.Name ?? "Usuario SmileTrack";
+    var nameParts = userName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var initials = string.Join("", nameParts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    if (string.IsNullOrWhiteSpace(initials)) initials = "ST";
 }
 
 <!DOCTYPE html>
@@ -19,6 +25,7 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
     <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Guia_De_Usuario/styles.css")" />
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script id="tailwind-config">
@@ -144,93 +151,29 @@
     </style>
   </head>
   <body class="text-on-surface overflow-x-hidden">
-    <!-- Mobile Sidebar Overlay -->
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden transition-opacity duration-300 opacity-0"></div>
+    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    <aside id="sidebar" class="h-screen w-[260px] fixed left-0 top-0 bg-[#002a58] flex flex-col pt-4 pb-0 gap-2 z-50 transition-transform duration-300 -translate-x-full md:translate-x-0">
-      <!-- Close button for mobile -->
-      <button id="close-sidebar-btn" class="md:hidden absolute top-4 right-4 z-50 text-white/70 hover:text-white flex items-center justify-center p-1 rounded-lg hover:bg-white/10 transition-colors">
-        <span class="material-symbols-outlined">close</span>
-      </button>
+    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
 
-      <!-- Logo container -->
-      <div class="mx-5 mt-4 mb-6 overflow-hidden rounded-[20px] flex justify-center items-center">
-        <img src="~/images/logo.jpg" alt="SmileTrack logo" class="w-[82%] max-w-[170px] h-auto object-contain" />
-      </div>
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+    </button>
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
 
-      <!-- Navigation menu -->
-      <nav class="flex-1 flex flex-col px-0 gap-1">
-        <!-- Panel -->
-        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Dashboard" asp-action="Index">
-          <div class="grid grid-cols-2 gap-[3px] w-[18px] h-[18px] mr-4 flex-shrink-0">
-            <div class="bg-[#4ade80] rounded-[2px]"></div>
-            <div class="bg-[#f43f5e] rounded-[2px]"></div>
-            <div class="bg-[#3b82f6] rounded-[2px]"></div>
-            <div class="bg-[#fbbf24] rounded-[2px]"></div>
-          </div>
-          <span class="text-sm">Panel</span>
-        </a>
-
-        <!-- Pacientes -->
-        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Patients" asp-action="Index">
-          <span class="material-symbols-outlined mr-4 text-[#c084fc]">group</span>
-          <span class="text-sm">Pacientes</span>
-        </a>
-
-        <!-- Citas -->
-        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Appointments" asp-action="Index">
-          <span class="material-symbols-outlined mr-4 text-[#60a5fa]">calendar_month</span>
-          <span class="text-sm">Citas</span>
-        </a>
-
-        <!-- Facturas -->
-        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Invoices" asp-action="Index">
-          <span class="material-symbols-outlined mr-4 text-slate-300">description</span>
-          <span class="text-sm">Facturas</span>
-        </a>
-
-        <!-- Recordatorios -->
-        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Reminders" asp-action="Index">
-          <span class="material-symbols-outlined mr-4 text-[#fbbf24]">notifications</span>
-          <span class="text-sm">Recordatorios</span>
-        </a>
-
-        <!-- Ayuda (Active) -->
-        <a class="bg-[#0060a8] text-white border-l-[6px] border-white flex items-center px-[18px] py-4 transition-all duration-200 font-semibold" asp-controller="HelpCenter" asp-action="Index">
-          <span class="material-symbols-outlined mr-4 text-white" style="font-variation-settings: 'FILL' 1;">help</span>
-          <span class="text-sm">Ayuda</span>
-        </a>
-
-        <!-- Mi perfil -->
-        <a class="flex items-center px-6 py-4 text-slate-300 hover:bg-white/5 hover:text-white transition-all duration-200 font-medium" asp-controller="Profile" asp-action="Index">
-          <span class="material-symbols-outlined mr-4 text-[#e879f9]">person</span>
-          <span class="text-sm">Mi perfil</span>
-        </a>
-      </nav>
-
-      <!-- Bottom Profile Section -->
-      <div class="border-t border-white/10 bg-[#002a58] px-6 py-4 flex items-center gap-3 mt-auto">
-        <div class="w-10 h-10 rounded-full bg-[#47a1ff] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">@Model.User.Initials</div>
-        <div class="overflow-hidden">
-          <p class="text-white text-xs font-bold truncate">@Model.User.FullName</p>
-          <p class="text-blue-200 text-[10px] truncate">@Model.User.Email</p>
+    <main class="main" id="main-content">
+      <header class="page-header">
+        <div class="header-left">
+          <nav class="breadcrumb" aria-label="Ruta de navegación">
+            <span>Administración</span>
+            <span class="bc-sep" aria-hidden="true">›</span>
+            <span class="bc-active">Centro de Ayuda</span>
+          </nav>
+          <h1 class="page-title">Soporte y Tickets</h1>
+          <p class="page-subtitle">Guías de usuario y atención técnica de SmileTrack</p>
         </div>
-      </div>
-    </aside>
-
-    <main class="ml-0 md:ml-[260px] min-h-screen transition-all duration-300">
-      <header class="w-full top-0 sticky bg-surface-container-lowest shadow-sm border-b border-outline-variant flex items-center justify-between px-margin-page py-4 z-20">
-        <div class="flex items-center gap-4">
-          <!-- Hamburger menu button -->
-          <button id="mobile-menu-btn" class="md:hidden p-2 text-on-surface-variant hover:bg-surface-container rounded-lg focus:outline-none flex items-center justify-center">
-            <span class="material-symbols-outlined">menu</span>
-          </button>
-          <div class="border-l-[3px] border-[#002a58] pl-3.5 flex flex-col justify-center my-0.5">
-            <h1 class="text-[19px] font-bold text-[#002a58] leading-none mb-1">Centro de Ayuda</h1>
-            <p class="text-[11px] text-slate-500 font-medium leading-none">Guía de usuario SmileTrack</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-6">
+        <div class="header-actions">
           <div class="relative">
             <button id="guides-toggle" class="topbar-pill flex items-center gap-2 text-on-surface-variant hover:bg-surface-container-high transition-colors px-3 py-1.5 rounded-lg cursor-pointer" type="button">
               <span class="font-label-bold text-label-bold">Guías</span>
@@ -266,7 +209,7 @@
         </div>
       </header>
 
-      <section class="p-margin-page max-w-5xl mx-auto">
+      <section class="support-shell">
         <nav class="flex items-center gap-2 text-xs text-on-surface-variant mb-4">
           <span>Support</span>
           <span class="material-symbols-outlined text-[12px]">chevron_right</span>
@@ -274,11 +217,11 @@
         </nav>
 
         <div class="bg-white p-card-padding rounded-xl form-shadow mb-gutter border-l-[6px] border-[#002a58] support-card">
-          <h2 class="font-headline-xl text-headline-xl text-[#002a58]">Nuevo Ticket de Soporte</h2>
+          <h2 class="font-headline-xl text-headline-xl text-[#002a58]" data-i18n="help.support_channels">Nuevo Ticket de Soporte</h2>
           <p class="font-body-md text-body-md text-[#424750] mt-1">Reporte cualquier inconveniente técnico o solicitud administrativa. Nuestro equipo responderá en menos de 2 horas.</p>
         </div>
 
-        <form asp-controller="Support" asp-action="CreateTicket" method="post" enctype="multipart/form-data" id="support-form" class="space-y-6">
+        <form asp-controller="CentroDeAyuda" asp-action="CreateTicket" method="post" enctype="multipart/form-data" id="support-form" class="space-y-6">
           @Html.AntiForgeryToken()
           <div asp-validation-summary="ModelOnly" class="text-error text-sm"></div>
 
@@ -298,12 +241,12 @@
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="flex flex-col gap-1.5">
                       <label asp-for="Category" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
-                      <select asp-for="Category" asp-items="Html.GetEnumSelectList<SmileTrack_MVC.Models.TicketCategory>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <select asp-for="Category" asp-items="Html.GetEnumSelectList<TicketCategory>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
                       <span asp-validation-for="Category" class="text-error text-xs"></span>
                     </div>
                     <div class="flex flex-col gap-1.5">
                       <label asp-for="Module" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
-                      <select asp-for="Module" asp-items="Html.GetEnumSelectList<SmileTrack_MVC.Models.AffectedModule>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <select asp-for="Module" asp-items="Html.GetEnumSelectList<AffectedModule>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
                       <span asp-validation-for="Module" class="text-error text-xs"></span>
                     </div>
                   </div>
@@ -347,10 +290,9 @@
                 </div>
                 <h4 class="font-headline-md text-headline-md text-[#002a58] mb-2">Adjuntar Captura</h4>
                 <p class="font-label-sm text-label-sm text-[#424750] mb-4 px-4">Evidencias visuales ayudan a resolver el ticket un 40% más rápido.</p>
-                <input asp-for="Screenshot" id="screenshot-input" accept="image/*" class="hidden" />
                 <button id="upload-screenshot-btn" class="w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-[#c3c6d2] bg-[#f8fbff] text-[#424750] hover:border-[#0060a8] hover:text-[#0060a8] transition-all font-label-bold text-label-bold active:bg-[#eaf3ff] cursor-pointer" type="button">
                   <span class="material-symbols-outlined">attachment</span>
-                  Adjuntar Captura de Pantalla
+                  Adjuntar archivo
                 </button>
                 <div id="upload-preview" class="hidden mt-4 w-full rounded-lg border border-[#c3c6d2] bg-[#f8fbff] p-3 text-left">
                   <p class="text-[10px] uppercase tracking-[0.2em] text-[#0060a8] font-semibold mb-2">Archivo adjunto</p>
@@ -384,6 +326,29 @@
             </div>
           </div>
         </form>
+
+        <div id="attachment-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[#002a58]/50 p-4" role="dialog" aria-modal="true" aria-labelledby="attachment-modal-title">
+          <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl" role="document">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="attachment-modal-title" class="font-headline-md text-headline-md text-[#002a58]">Adjuntar evidencia</h2>
+                <p class="mt-1 text-sm text-[#424750]">Selecciona el archivo que deseas adjuntar al ticket.</p>
+              </div>
+              <button id="attachment-modal-close" type="button" class="rounded-lg p-1 text-[#424750] hover:bg-[#eaf3ff]" aria-label="Cerrar ventana">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div class="mt-6">
+              <label id="choose-file-btn" class="relative flex min-h-32 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-[#c3c6d2] p-4 text-center text-[#002a58] hover:border-[#0060a8] hover:bg-[#f8fbff]">
+                <input asp-for="Screenshot" id="screenshot-input" form="support-form" accept="image/*,.pdf,.doc,.docx,.txt" class="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
+                <span class="material-symbols-outlined text-3xl text-[#0060a8]">upload_file</span>
+                <span class="font-label-bold text-label-bold">Elegir un archivo</span>
+                <span class="text-xs text-[#424750]">Imagen, PDF, Word o texto</span>
+              </label>
+            </div>
+            <p id="attachment-modal-error" class="mt-4 hidden text-sm text-[#ba1a1a]" role="alert"></p>
+          </div>
+        </div>
 
         <div class="mt-margin-page">
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
@@ -535,8 +500,13 @@
       </div>
     </div>
 
-    @await Html.PartialAsync("_ValidationScriptsPartial")
+    <script src="@Url.Content("~/lib/jquery/dist/jquery.min.js")"></script>
+    <script src="@Url.Content("~/lib/jquery-validation/dist/jquery.validate.min.js")"></script>
+    <script src="@Url.Content("~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js")"></script>
     <script src="@Url.Content("~/js/Centro_De_Ayuda/Guia_De_Usuario/script.js")"></script>
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
+    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   </body>
 </html>
 

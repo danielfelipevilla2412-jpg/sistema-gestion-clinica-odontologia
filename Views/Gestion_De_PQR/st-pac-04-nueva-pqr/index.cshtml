@@ -16,7 +16,8 @@
 </head>
 
 <body>
-    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+    <a href="#main-content" class="skip-link" data-i18n="nav.skip_link">Saltar al contenido principal</a>
 
     @if (User.IsInRole("Paciente"))
     {
@@ -56,21 +57,21 @@
         <div class="top-bar">
             <div>
                 <div class="breadcrumb">
-                    <a href="/">Inicio</a> › Peticiones, Quejas y Reclamos
+                    <a href="/" data-i18n="nav.homepage">Inicio</a> › <span data-i18n="pqr.title">Peticiones, Quejas y Reclamos</span>
                 </div>
                 <div class="page-title">
-                    <h1>Peticiones, Quejas y Reclamos</h1>
-                    <p>MÓdulo PQR - SmileTrack</p>
+                    <h1 data-i18n="pqr.title">Peticiones, Quejas y Reclamos</h1>
+                    <p data-i18n="pqr.response_time">MÓdulo PQR - SmileTrack</p>
                 </div>
             </div>
             <div class="top-actions">
-                <button class="icon-btn">
+                <button class="icon-btn" data-i18n-title="home.chat_title" title="Notificaciones">
                     <i class="fas fa-bell"></i>
                     <span class="notification-badge">3</span>
                 </button>
                 <button class="btn-primary">
                     <i class="fas fa-plus"></i>
-                    Nueva Solicitud PQR
+                    <span data-i18n="pqr.new">Nueva Solicitud PQR</span>
                 </button>
             </div>
         </div>
@@ -79,7 +80,7 @@
         <div class="content-grid">
             <!-- Main Form -->
             <div class="main-form">
-                <div class="section-title">1 - TIPO DE SOLICITUD</div>
+                <div class="section-title" data-i18n="pqr.type">1 - TIPO DE SOLICITUD</div>
 
                 <!-- Request Types -->
                 <div class="request-types">
@@ -87,38 +88,36 @@
                         <div class="request-icon">
                             <i class="fas fa-file-alt"></i>
                         </div>
-                        <div class="request-title">Petición</div>
-                        <div class="request-desc">Solicita información, documentos o servicios relacionados con tu
-                            atención.</div>
+                        <div class="request-title" data-i18n="pqr.type_petition">Petición</div>
+                        <div class="request-desc" data-i18n="pqr.petition_description">Solicita información, documentos o servicios relacionados con tu atención.</div>
                     </div>
                     <div class="request-card complaint" onclick="selectRequestType(this, 'complaint')">
                         <div class="request-icon">
                             <i class="fas fa-comment-dots"></i>
                         </div>
-                        <div class="request-title">Queja</div>
-                        <div class="request-desc">Manifiesta inconformidad con la atención o servicio recibido.</div>
+                        <div class="request-title" data-i18n="pqr.type_complaint">Queja</div>
+                        <div class="request-desc" data-i18n="pqr.complaint_description">Manifiesta inconformidad con la atención o servicio recibido.</div>
                     </div>
                     <div class="request-card claim" onclick="selectRequestType(this, 'claim')">
                         <div class="request-icon">
                             <i class="fas fa-exclamation-triangle"></i>
                         </div>
-                        <div class="request-title">Reclamo</div>
-                        <div class="request-desc">Exige la corrección de irregularidades o incumplimientos del servicio.
-                        </div>
+                        <div class="request-title" data-i18n="pqr.type_claim">Reclamo</div>
+                        <div class="request-desc" data-i18n="pqr.claim_description">Exige la corrección de irregularidades o incumplimientos del servicio.</div>
                     </div>
                 </div>
 
-                <div class="section-title" style="margin-top: 30px;">2 - DATOS DEL SOLICITANTE</div>
+                <div class="section-title" style="margin-top: 30px;" data-i18n="pqr.applicant_data">2 - DATOS DEL SOLICITANTE</div>
 
                 <form id="pqrForm">
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Nombre completo</label>
-                            <input type="text" placeholder="Ej: María Fernanda López" required>
+                            <label data-i18n="common.name">Nombre completo</label>
+                            <input type="text" placeholder="Ej: María Fernanda López" required data-i18n-ph="common.name">
                         </div>
                         <div class="form-group">
-                            <label>Número de documento</label>
-                            <input type="text" placeholder="Cédula o T.I." required>
+                            <label data-i18n="pacientes.document">Número de documento</label>
+                            <input type="text" placeholder="Cédula o T.I." required data-i18n-ph="pacientes.document">
                         </div>
                     </div>
 
@@ -282,6 +281,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+    <script src="@Url.Content("~/js/i18n-core.js")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 
 </html>

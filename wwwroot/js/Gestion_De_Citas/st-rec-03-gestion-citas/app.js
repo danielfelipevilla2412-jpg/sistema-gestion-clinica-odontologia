@@ -1,20 +1,17 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Gestión de Citas Recepción (st-rec-03-gestion-citas)
 ============================================
 Autor: Johan Santamaria
 Fecha: 29/07/2026 (actualizado 2026-07-31)
 
 DESCRIPCIÓN:
-Módulo principal de recepcionista. Carga la UI de citas con datos renderizados por SSR o fallback
-a LocalStorage cuando no hay un endpoint de listado disponible, y escribe cambios de alta/edición/cancelación
-mediante los controladores MVC existentes, no mediante API REST PUT/DELETE remotos directos.
+Módulo principal de recepcionista. La API REST es la fuente de verdad del listado y las operaciones.
 
 FUNCIONALIDADES PRINCIPALES:
-- Carga de citas renderizadas por servidor o fallback LocalStorage cuando la API de listado no está disponible
+- Carga de citas desde la API, sin persistencia local alternativa
 - Filtros combinados (búsqueda texto, profesional, fecha, estado)
 - CRUD UI: ver detalle y edición mediante formularios HTML a /gestion-de-citas/guardar-cita;
            cancelación mediante POST a /gestion-de-citas/eliminar-cita
-- Persistencia LocalStorage transparente como fallback offline
 
 DEPENDENCIAS TÉCNICAS:
 - Controller: GestionCitasController → GuardarCita/EliminarCita para escritura (listado no expuesto vía API genérica)
@@ -26,15 +23,17 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - Los formatos de estado servidor↔UI están centralizados en STATUS_MAP_SERVER / STATUS_MAP_CLIENTE.
   (Cambiar la etiqueta visible al usuario = solo tocar esos 2 objetos).
-- appointmentStorage usa fallback LocalStorage SIEMPRE. El fetch a la API sobrescribe el cache.
+- appointmentStorage mantiene únicamente la respuesta API actual en memoria.
 ============================================ */
 
 // ═══════════════════════════════════════════════════════════════════
 //  CONFIGURACIÓN API + AUTH
 // ═══════════════════════════════════════════════════════════════════
 const API_BASE = '/api';
-const API_PAGE_SIZE = 200;
-const STORAGE_KEY = 'smiletrack_rec_appointments';
+const API_PAGE_SIZE = 10;
+let configuredDurationMinutes = 60;
+let currentApiPage = 1;
+let totalApiRecords = 0;
 
 const getAuthHeaders = () => {
   const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
@@ -46,14 +45,31 @@ const getAuthHeaders = () => {
 };
 
 // Mapeos de estado (estándar en TODOS módulos citas)
+const normalizeEstadoKey = (value) => {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[áàäâ]/g, 'a')
+    .replace(/[éèëê]/g, 'e')
+    .replace(/[íìïî]/g, 'i')
+    .replace(/[óòöô]/g, 'o')
+    .replace(/[úùüû]/g, 'u')
+    .replace(/[_\-\s]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+};
+
 const STATUS_MAP_SERVER = {
-  programada:  { label: 'Agendada',    cls: 'status-agendada'  },
-  confirmada:  { label: 'Confirmada',  cls: 'status-agendada'  },
-  en_proceso:  { label: 'En consulta', cls: 'status-consulta'  },
-  finalizada:  { label: 'Atendida',    cls: 'status-atendida'  },
-  atendida:    { label: 'Atendida',    cls: 'status-atendida'  },
-  cancelada:   { label: 'Cancelada',   cls: 'status-no-asistio'},
-  no_asistida: { label: 'No asistió',  cls: 'status-no-asistio'}
+  programada:  { label: 'Agendada',    cls: 'status-agendada' },
+  agendada:    { label: 'Agendada',    cls: 'status-agendada' },
+  confirmada:  { label: 'Confirmada',  cls: 'status-agendada' },
+  en_proceso:  { label: 'En consulta', cls: 'status-consulta' },
+  'en_proceso_': { label: 'En consulta', cls: 'status-consulta' },
+  'en_proceso_1': { label: 'En consulta', cls: 'status-consulta' },
+  finalizada:  { label: 'Atendida',    cls: 'status-atendida' },
+  atendida:    { label: 'Atendida',    cls: 'status-atendida' },
+  cancelada:   { label: 'Cancelada',   cls: 'status-no-asistio' },
+  no_asistida: { label: 'No asistió',  cls: 'status-no-asistio' },
+  'no_asistio': { label: 'No asistió', cls: 'status-no-asistio' }
 };
 const STATUS_MAP_CLIENTE = {
   'Agendada':    'programada',
@@ -61,7 +77,8 @@ const STATUS_MAP_CLIENTE = {
   'En consulta': 'en_proceso',
   'Atendida':    'finalizada',
   'Cancelada':   'cancelada',
-  'No asistió':  'no_asistida'
+  'No asistió':  'no_asistida',
+  'No asistio':  'no_asistida'
 };
 const STATUS_OPTIONS = Object.keys(STATUS_MAP_CLIENTE);
 
@@ -74,9 +91,26 @@ function mostrarErrorUsuario(mensaje) {
     div.setAttribute('role', 'alert');
     document.body.appendChild(div);
   }
-  div.innerHTML = '<strong>[SmileTrack]</strong> ' + mensaje + ' <button onclick="document.getElementById(\'smiletrack-error-bar\').style.display=\'none\'" style="margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;">×</button>';
+  div.replaceChildren();
+  const strong = document.createElement('strong');
+  strong.textContent = '[SmileTrack]';
+  const message = document.createTextNode(` ${mensaje} `);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Cerrar mensaje');
+  close.style.cssText = 'margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;';
+  close.addEventListener('click', () => { div.style.display = 'none'; });
+  div.append(strong, message, close);
   div.style.display = 'block';
 }
+
+const showToast = (message, type = 'info') => {
+  const toast = window.ToastService;
+  if (toast?.show) toast.show(message, type);
+  else if (type === 'error') toast?.error?.(message);
+  else toast?.success?.(message);
+};
 
 // ═══════════════════════════════════════════════════════════════════
 //  UTILIDADES
@@ -93,10 +127,16 @@ const debounce = (fn, delay) => {
   return (...args) => { clearTimeout(timeoutId); timeoutId = setTimeout(() => fn(...args), delay); };
 };
 
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
 
 const shouldUseServerRenderedList = () => {
-  const tbody = safeGetElement('appointmentsTable');
-  return !!(tbody && tbody.children.length > 0 && tbody.querySelector('tr'));
+  return false;
 };
 
 const animateCounter = (el, target) => {
@@ -143,92 +183,61 @@ const fmtFechaISO = (fhIso) => {
 // ═══════════════════════════════════════════════════════════════════
 
 const mapServerToClient = (srv) => {
-  const srvEstado = (srv.Estado || 'programada').toLowerCase();
-  const info = STATUS_MAP_SERVER[srvEstado] || STATUS_MAP_SERVER['programada'];
-  const doctor = srv.Profesional?.NombreCompleto || '—';
-  const patient = srv.Paciente?.NombreCompleto || '—';
-  const service = srv.Servicio?.Nombre || '—';
-  const dateISO = fmtFechaISO(srv.FechaHora);
+  const get = (name) => srv[name] ?? srv[name.charAt(0).toLowerCase() + name.slice(1)];
+  const estadoRaw = get('Estado') || 'programada';
+  const fechaHora = get('FechaHora');
+  const pacienteRaw = srv.Paciente || srv.paciente;
+  const profesionalRaw = srv.Profesional || srv.profesional;
+  const servicioRaw = srv.Servicio || srv.servicio;
+  const consultorioRaw = srv.Consultorio || srv.consultorio;
+  const srvEstado = normalizeEstadoKey(estadoRaw);
+  const info = STATUS_MAP_SERVER[srvEstado] || STATUS_MAP_SERVER.programada;
+  const doctor = profesionalRaw?.NombreCompleto || profesionalRaw?.nombreCompleto || '—';
+  const patient = pacienteRaw?.NombreCompleto || pacienteRaw?.nombreCompleto || '—';
+  const service = servicioRaw?.Nombre || servicioRaw?.nombre || '—';
+  const dateISO = fmtFechaISO(fechaHora);
   const hoy = new Date().toISOString().split('T')[0];
   const manana = (() => { const t = new Date(); t.setDate(t.getDate()+1); return t.toISOString().split('T')[0]; })();
 
   return {
-    id: srv.IdCita,
-    date: fmtFechaCorta(srv.FechaHora),
+    id: get('IdCita'),
+    patientId: get('IdPaciente'),
+    professionalId: get('IdProfesional'),
+    serviceId: get('IdServicio'),
+    officeId: get('IdConsultorio'),
+    date: fmtFechaCorta(fechaHora),
     dateISO,
-    time: fmtHora12(srv.FechaHora),
-    timeISO: fmtHora24(srv.FechaHora),
+    time: fmtHora12(fechaHora),
+    timeISO: fmtHora24(fechaHora),
     patient,
     doctor,
     service,
-    office: 'C1', // En un proyecto real vendría del campo Consultorio en la tabla Citas
+    office: consultorioRaw?.Nombre || consultorioRaw?.nombre || '—',
     status: info.label,
     statusClass: info.cls,
     highlight: dateISO === hoy && info.label === 'En consulta',
     noShow: info.label === 'No asistió',
-    notes: srv.Notas || '',
+    notes: get('Notas') || '',
     // Helper para filtros predefinidos ('today' / 'tomorrow')
     _dateMatchPreset: { today: dateISO === hoy, tomorrow: dateISO === manana },
-    _raw: srv
+    _raw: srv,
+    _durationMinutes: get('DuracionMinutos') || null
   };
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  CACHÉ LOCAL (respaldo de la última respuesta real, solo si no hay SSR)
+//  ESTADO EFÍMERO DE LA RESPUESTA API ACTUAL
 // ═══════════════════════════════════════════════════════════════════
 
-// Estado vacío real: esta ruta de código solo se usa si la tabla no viene
-// renderizada por el servidor (ver shouldUseServerRenderedList) y la API
-// tampoco responde. Antes había 5 citas ficticias aquí.
-const FALLBACK_DATA = [];
-
-// Almacén en memoria (cargado de LocalStorage / API al init)
 let _appointments = [];
 
 const appointmentStorage = {
-  init: () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) { _appointments = JSON.parse(raw); return; }
-    } catch {}
-    _appointments = [...FALLBACK_DATA];
-    appointmentStorage._persist();
-  },
-  _persist: () => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_appointments)); }
-    catch (e) { console.error('[SmileTrack] Save LocalStorage:', e); }
-  },
+  init: () => { _appointments = []; },
   getAll: () => [..._appointments],
   findById: (id) => _appointments.find(a => a.id === parseInt(id, 10)) || null,
 
   replaceAll: (nuevos) => {
     _appointments = Array.isArray(nuevos) ? nuevos : [];
-    appointmentStorage._persist();
-  },
-  add: (appt) => {
-    const newId = _appointments.length
-      ? Math.max(..._appointments.map(a => a.id)) + 1
-      : 1;
-    const nuevo = { ...appt, id: newId };
-    _appointments.unshift(nuevo);
-    appointmentStorage._persist();
-    return nuevo;
-  },
-  update: (id, updates) => {
-    const i = _appointments.findIndex(a => a.id === parseInt(id, 10));
-    if (i === -1) return null;
-    _appointments[i] = { ..._appointments[i], ...updates };
-    appointmentStorage._persist();
-    return _appointments[i];
-  },
-  // "delete" = cancelar cita (coincide con soft-delete server)
-  delete: (id) => {
-    const i = _appointments.findIndex(a => a.id === parseInt(id, 10));
-    if (i !== -1) {
-      _appointments[i].status = 'Cancelada';
-      _appointments[i].statusClass = 'status-no-asistio';
-      appointmentStorage._persist();
-    }
   }
 };
 
@@ -310,42 +319,36 @@ const createAppointmentRow = (appt) => {
   const avatarColor = PALETTE[Math.abs(hash) % PALETTE.length];
 
   tr.innerHTML = `
-    <td class="col-fecha">${appt.date}</td>
-    <td class="col-hora"><span class="pill-hora" aria-label="Hora: ${appt.time}">${appt.time}</span></td>
+    <td class="col-fecha">${escapeHtml(appt.date)}</td>
+    <td class="col-hora"><span class="pill-hora" aria-label="Hora: ${escapeHtml(appt.time)}">${escapeHtml(appt.time)}</span></td>
     <td class="col-paciente">
       <div class="td-paciente">
-        <div class="pac-avatar pac-avatar--${avatarColor}" aria-hidden="true">${initials}</div>
-        <span class="pac-name">${appt.patient}</span>
+        <div class="pac-avatar pac-avatar--${avatarColor}" aria-hidden="true">${escapeHtml(initials)}</div>
+        <span class="pac-name">${escapeHtml(appt.patient)}</span>
       </div>
     </td>
-    <td class="col-profesional">${appt.doctor}</td>
-    <td class="col-servicio">${appt.service}</td>
-    <td class="col-consultorio">${appt.office}</td>
-    <td><span class="status-badge ${appt.statusClass}" role="status" aria-label="Estado: ${appt.status}">${appt.status}</span></td>
+    <td class="col-profesional">${escapeHtml(appt.doctor)}</td>
+    <td class="col-servicio">${escapeHtml(appt.service)}</td>
+    <td class="col-consultorio">${escapeHtml(appt.office)}</td>
+    <td><span class="status-badge ${appt.statusClass}" role="status" aria-label="Estado: ${escapeHtml(appt.status)}">${escapeHtml(appt.status)}</span></td>
     <td>
-      <div class="actions-cell" role="group" aria-label="Acciones para ${appt.patient}">
+      <div class="actions-cell" role="group" aria-label="Acciones para ${escapeHtml(appt.patient)}">
         <button class="btn-icon action-btn btn-view" type="button"
                 data-action="view" data-id="${appt.id}"
-                aria-label="Ver detalles de ${appt.patient}"
-                title="Ver detalles de ${appt.patient}">
+                aria-label="Ver detalles de ${escapeHtml(appt.patient)}"
+                title="Ver detalles de ${escapeHtml(appt.patient)}">
           👁️ <span class="btn-text">Ver</span>
         </button>
         <button class="btn-icon action-btn edit" type="button"
                 data-action="edit" data-id="${appt.id}"
-                aria-label="Editar cita de ${appt.patient}"
-                title="Editar cita de ${appt.patient}">
+                aria-label="Editar cita de ${escapeHtml(appt.patient)}"
+                title="Editar cita de ${escapeHtml(appt.patient)}">
           ✏️ <span class="btn-text">Editar</span>
-        </button>
-        <button class="btn-icon action-btn" type="button"
-                data-action="sync" data-id="${appt.id}"
-                aria-label="Sincronizar cita de ${appt.patient}"
-                title="Sincronizar cita de ${appt.patient}">
-          🔄 <span class="btn-text">Sincronizar</span>
         </button>
         <button class="btn-icon action-btn btn-delete" type="button"
                 data-action="cancel" data-id="${appt.id}"
-                aria-label="Cancelar cita de ${appt.patient}"
-                title="Cancelar cita de ${appt.patient}">
+                aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
+                title="Cancelar cita de ${escapeHtml(appt.patient)}">
           ✕ <span class="btn-text">Cancelar</span>
         </button>
       </div>
@@ -355,7 +358,6 @@ const createAppointmentRow = (appt) => {
 };
 
 const renderAppointments = (data) => {
-  if (shouldUseServerRenderedList()) return;
   const tbody = safeGetElement('appointmentsTable');
   if (!tbody) return;
 
@@ -368,7 +370,9 @@ const renderAppointments = (data) => {
   data.forEach(a => frag.appendChild(createAppointmentRow(a)));
   tbody.innerHTML = '';
   tbody.appendChild(frag);
-  updatePaginationInfo(1, Math.min(5, data.length), data.length);
+  const start = data.length ? ((currentApiPage - 1) * API_PAGE_SIZE) + 1 : 0;
+  const end = Math.min(start + data.length - 1, totalApiRecords);
+  updatePaginationInfo(start, end, totalApiRecords);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -386,10 +390,9 @@ const filterAppointments = () => {
     const matchQ = !q || a.patient.toLowerCase().includes(q)
       || a.doctor.toLowerCase().includes(q)
       || a.service.toLowerCase().includes(q);
-    const matchProf = !prof || a.doctor === prof;
-    const matchDate = !datePreset || (datePreset === 'today' && a._dateMatchPreset?.today)
-                                  || (datePreset === 'tomorrow' && a._dateMatchPreset?.tomorrow);
-    const matchSt = !st || a.status === st;
+    const matchProf = !prof || String(a.professionalId) === String(prof);
+    const matchDate = !datePreset || a.dateISO === datePreset;
+    const matchSt = !st || String(a._raw?.Estado || '').toLowerCase() === st.toLowerCase();
     return matchQ && matchProf && matchDate && matchSt;
   });
 
@@ -444,32 +447,150 @@ const buildServerBody = (appt, overrides = {}) => {
     ? `${overrides.dateISO || appt.dateISO}T${overrides.timeISO || appt.timeISO}:00`
     : raw.FechaHora || new Date().toISOString();
   const estadoUI = overrides.status || appt.status;
+  const estadoServidor = STATUS_MAP_CLIENTE[estadoUI] ||
+    (normalizeEstadoKey(estadoUI) === 'en_consulta' ? 'en_proceso' : normalizeEstadoKey(estadoUI) || 'programada');
   return {
     IdCita: appt.id,
-    IdPaciente: raw.IdPaciente || 0,
-    IdProfesional: raw.IdProfesional || null,
-    IdServicio: raw.IdServicio || 0,
+    IdPaciente: raw.IdPaciente ?? raw.idPaciente ?? appt.patientId ?? 0,
+    IdProfesional: raw.IdProfesional ?? raw.idProfesional ?? appt.professionalId ?? null,
+    IdServicio: raw.IdServicio ?? raw.idServicio ?? appt.serviceId ?? 0,
     FechaHora: fh,
-    Estado: STATUS_MAP_CLIENTE[estadoUI] || (estadoUI || 'programada').toLowerCase(),
+    Estado: estadoServidor,
     Notas: overrides.notes !== undefined ? overrides.notes : (appt.notes || '')
   };
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  MODAL CONFIRMACIÓN CANCELAR CITA (recepción)
+// ═══════════════════════════════════════════════════════════════════
+
+let _cancelTargetId = null;
+
+const getCancelHeaders = () => {
+  const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  // CSRF token desde cookie XSRF-TOKEN
+  const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
+  if (match) headers['X-CSRF-TOKEN'] = decodeURIComponent(match[2]);
+  try {
+    const jwt = sessionStorage.getItem('st_jwt');
+    if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+  } catch { /* modo privado */ }
+  return headers;
+};
+
+const openCancelModal = (id) => {
+  _cancelTargetId = parseInt(id, 10);
+  const appt = appointmentStorage.findById(id);
+  const patient = appt?.patient || `ID ${id}`;
+  // Reutilizar el modal de confirmación genérico _ConfirmModal.cshtml si existe
+  const modal = document.getElementById('confirmModal');
+  if (modal) {
+    const msgEl = modal.querySelector('#confirmModalMessage, .confirm-modal-message, p');
+    if (msgEl) msgEl.textContent = `¿Estás seguro de que deseas cancelar la cita de ${patient}? Esta acción no se puede deshacer.`;
+    const title = modal.querySelector('#confirmModalTitle, .confirm-modal-title, h2');
+    if (title) title.textContent = 'Cancelar cita';
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    modal.removeAttribute('inert');
+    document.body.style.overflow = 'hidden';
+    // Asociar botón de confirmación
+    const confirmBtn = modal.querySelector('#confirmModalConfirm, .confirm-modal-confirm, [data-action="confirm"]');
+    if (confirmBtn) {
+      const fresh = confirmBtn.cloneNode(true);
+      confirmBtn.replaceWith(fresh);
+      fresh.addEventListener('click', executeCancelCita);
+    }
+    const cancelBtn = modal.querySelector('#confirmModalCancel, .confirm-modal-cancel, [data-action="cancel"]');
+    if (cancelBtn) {
+      const fresh = cancelBtn.cloneNode(true);
+      cancelBtn.replaceWith(fresh);
+      fresh.addEventListener('click', closeCancelModal);
+    }
+  } else {
+    // Fallback: modal inline creado dinámicamente
+    _openInlineCancelModal(patient);
+  }
+};
+
+const closeCancelModal = () => {
+  const modal = document.getElementById('confirmModal') || document.getElementById('inlineCancelModal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  }
+  _cancelTargetId = null;
+};
+
+const _openInlineCancelModal = (patient) => {
+  let modal = document.getElementById('inlineCancelModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'inlineCancelModal';
+    modal.className = 'modal-overlay';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'inlineCancelTitle');
+    modal.innerHTML = `
+      <div class="modal modal--sm">
+        <h2 class="modal-title" id="inlineCancelTitle">Cancelar cita</h2>
+        <p class="modal-desc" id="inlineCancelMsg"></p>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="inlineCancelNo">Volver</button>
+          <button type="button" class="btn-danger" id="inlineCancelSi">Sí, cancelar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeCancelModal(); });
+    document.getElementById('inlineCancelNo')?.addEventListener('click', closeCancelModal);
+    document.getElementById('inlineCancelSi')?.addEventListener('click', executeCancelCita);
+  }
+  const msgEl = document.getElementById('inlineCancelMsg');
+  if (msgEl) msgEl.textContent = `¿Estás seguro de que deseas cancelar la cita de ${patient}? Esta acción no se puede deshacer.`;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+  document.body.style.overflow = 'hidden';
+};
+
+const executeCancelCita = async () => {
+  if (!_cancelTargetId) return;
+  const id = _cancelTargetId;
+  closeCancelModal();
+  try {
+    const res = await fetch(`${API_BASE}/citas/${id}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: getCancelHeaders()
+    });
+    let payload;
+    try { payload = await res.json(); } catch { payload = { success: res.ok }; }
+    if (res.ok && payload.success !== false) {
+      showToast('Cita cancelada exitosamente.', 'success');
+      // Recargar la tabla para reflejar el cambio
+      const citas = await fetchAppointments(currentApiPage);
+      renderAppointments(citas);
+      updateMetrics();
+    } else {
+      showToast(payload.message || 'No fue posible cancelar la cita.', 'error');
+    }
+  } catch (err) {
+    console.warn('[SmileTrack] Error al cancelar cita:', err);
+    showToast('Error de conexión al cancelar la cita.', 'error');
+  }
 };
 
 const handleTableAction = async (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
   const { action, id } = btn.dataset;
 
   if (action === 'view')   return openViewModal(id);
   if (action === 'edit')   return openEditModal(id, btn.dataset);
-  if (action === 'sync')   return openSyncModal(id);
-  if (action === 'cancel') {
-    // Abrir modal de confirmación personalizado en lugar de window.confirm() nativo
-    if (typeof window.openConfirmDeleteCita === 'function') {
-      window.openConfirmDeleteCita(id, '');
-    }
-    return;
-  }
+  if (action === 'cancel') return openCancelModal(id);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -482,14 +603,14 @@ const openViewModal = (id) => {
   const content = safeGetElement('modalViewContent');
   if (content) {
     content.innerHTML = `
-      <div class="modal-row"><span class="modal-key">Paciente</span>     <span class="modal-val">${a.patient}</span></div>
-      <div class="modal-row"><span class="modal-key">Fecha</span>        <span class="modal-val"><time datetime="${a.dateISO}">${a.date}</time></span></div>
-      <div class="modal-row"><span class="modal-key">Hora</span>         <span class="modal-val">${a.time}</span></div>
-      <div class="modal-row"><span class="modal-key">Profesional</span>  <span class="modal-val">${a.doctor}</span></div>
-      <div class="modal-row"><span class="modal-key">Servicio</span>     <span class="modal-val">${a.service}</span></div>
-      <div class="modal-row"><span class="modal-key">Consultorio</span>  <span class="modal-val">${a.office}</span></div>
-      <div class="modal-row"><span class="modal-key">Estado</span>       <span class="modal-val"><span class="status-badge ${a.statusClass}">${a.status}</span></span></div>
-      ${a.notes ? `<div class="modal-row"><span class="modal-key">Notas</span><span class="modal-val">${a.notes}</span></div>` : ''}
+      <div class="modal-row"><span class="modal-key">Paciente</span>     <span class="modal-val">${escapeHtml(a.patient)}</span></div>
+      <div class="modal-row"><span class="modal-key">Fecha</span>        <span class="modal-val"><time datetime="${escapeHtml(a.dateISO)}">${escapeHtml(a.date)}</time></span></div>
+      <div class="modal-row"><span class="modal-key">Hora</span>         <span class="modal-val">${escapeHtml(a.time)}</span></div>
+      <div class="modal-row"><span class="modal-key">Profesional</span>  <span class="modal-val">${escapeHtml(a.doctor)}</span></div>
+      <div class="modal-row"><span class="modal-key">Servicio</span>     <span class="modal-val">${escapeHtml(a.service)}</span></div>
+      <div class="modal-row"><span class="modal-key">Consultorio</span>  <span class="modal-val">${escapeHtml(a.office)}</span></div>
+      <div class="modal-row"><span class="modal-key">Estado</span>       <span class="modal-val"><span class="status-badge ${a.statusClass}">${escapeHtml(a.status)}</span></span></div>
+      ${a.notes ? `<div class="modal-row"><span class="modal-key">Notas</span><span class="modal-val">${escapeHtml(a.notes)}</span></div>` : ''}
     `;
   }
   const editBtn = safeGetElement('modalViewEdit');
@@ -527,9 +648,9 @@ const openEditModal = (id) => {
 };
 
 const submitEditAppointment = (e) => {
+  e.preventDefault();
   const form = e.currentTarget;
   if (!validateForm(form)) {
-    e.preventDefault();
     window.ToastService.error('Por favor completa los campos requeridos.');
     return;
   }
@@ -538,26 +659,9 @@ const submitEditAppointment = (e) => {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Guardando...';
   }
+  guardarCitaPorApi(form, true, submitBtn);
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  MODAL SINCRONIZAR (Google/Outlook/Apple) — UI placebo
-// ═══════════════════════════════════════════════════════════════════
-
-const openSyncModal = (id) => {
-  ['syncGoogle','syncOutlook','syncApple'].forEach(bid => {
-    const b = safeGetElement(bid);
-    if (!b) return;
-    const fresh = b.cloneNode(true);
-    b.replaceWith(fresh);
-    fresh.addEventListener('click', () => {
-      const platform = fresh.dataset.platform || 'calendario';
-      showToast(`Sincronizando con ${platform}…`, 'info');
-      setTimeout(() => { window.ToastService.success(`Cita sincronizada con ${platform}`); modalManager.close('modalSyncCalendar'); }, 1500);
-    });
-  });
-  modalManager.open('modalSyncCalendar');
-};
 
 // ═══════════════════════════════════════════════════════════════════
 //  HANDLERS MODALES + MÓVIL + FORM NUEVA CITA
@@ -566,9 +670,9 @@ const openSyncModal = (id) => {
 const initModalHandlers = () => {
   const map = {
     modalNewClose: 'modalNewAppointment', modalViewClose: 'modalViewAppointment',
-    modalEditClose: 'modalEditAppointment', modalSyncClose: 'modalSyncCalendar',
+    modalEditClose: 'modalEditAppointment',
     modalNewCancel: 'modalNewAppointment', modalViewCancel: 'modalViewAppointment',
-    modalEditCancel: 'modalEditAppointment', modalSyncCancel: 'modalSyncCalendar'
+    modalEditCancel: 'modalEditAppointment'
   };
   Object.entries(map).forEach(([btnId, mid]) => {
     safeGetElement(btnId)?.addEventListener('click', () => modalManager.close(mid));
@@ -585,25 +689,7 @@ const initModalHandlers = () => {
 };
 
 const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamb = safeGetElement('hamburger');
-  if (!sidebar || !overlay || !hamb) return;
-  const toggle = (s) => {
-    sidebar.classList.toggle('open', s);
-    overlay.classList.toggle('open', s);
-    hamb.setAttribute('aria-expanded', String(s));
-    overlay.setAttribute('aria-hidden', String(!s));
-    if (s) sidebar.querySelector('.nav-item')?.focus(); else hamb.focus();
-  };
-  hamb.addEventListener('click', () => toggle(true));
-  overlay.addEventListener('click', () => toggle(false));
-  sidebar.querySelectorAll('.nav-item').forEach(l =>
-    l.addEventListener('click', () => { if (window.innerWidth <= 680) toggle(false); })
-  );
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) { e.preventDefault(); toggle(false); }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 const handleViewToggle = (btn) => {
@@ -636,6 +722,169 @@ const initPagination = () => {
   });
 };
 
+// ═══════════════════════════════════════════════════════════════════
+//  FILTRADO DINÁMICO PROFESIONALES DISPONIBLES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Consulta /api/citas/profesionales-disponibles con la fecha y hora indicadas
+ * y actualiza las opciones del SELECT #newDoctor en tiempo real.
+ * Si la API falla o devuelve lista vacía, restaura la lista completa desde el HTML original.
+ */
+let _originalDoctorOptions = null;
+
+const actualizarProfesionalesDisponibles = debounce(async () => {
+  const dateInp = safeGetElement('newDate');
+  const timeInp = safeGetElement('newTime');
+  const doctorSel = safeGetElement('newDoctor');
+  if (!dateInp || !timeInp || !doctorSel) return;
+
+  const fecha = dateInp.value;
+  const hora  = timeInp.value;
+  if (!fecha || !hora) return;
+
+  // Guardar opciones originales la primera vez
+  if (!_originalDoctorOptions) {
+    _originalDoctorOptions = doctorSel.innerHTML;
+  }
+
+  try {
+    const params = new URLSearchParams({ fecha, horaInicio: hora });
+    const res = await fetch(`${API_BASE}/citas/profesionales-disponibles?${params}`, {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const payload = await res.json();
+    const lista = payload.data ?? [];
+
+    const prevVal = doctorSel.value;
+    doctorSel.innerHTML = `<option value="">Seleccionar profesional${lista.length === 0 ? ' (sin disponibilidad)' : ''}</option>`;
+    lista.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.idProfesional ?? p.IdProfesional ?? '';
+      opt.textContent = p.nombreCompleto ?? p.NombreCompleto ?? p.nombre ?? '';
+      doctorSel.appendChild(opt);
+    });
+    // Intentar mantener la selección previa si el profesional sigue disponible
+    if (prevVal) doctorSel.value = prevVal;
+
+    // Mostrar alerta de disponibilidad
+    const alert = safeGetElement('availabilityAlert');
+    if (alert) {
+      const txt = alert.querySelector('.availability-alert-text');
+      if (txt) txt.textContent = lista.length > 0
+        ? `${lista.length} profesional(es) disponible(s) para el horario seleccionado`
+        : 'Sin profesionales disponibles para el horario seleccionado';
+      alert.style.display = '';
+    }
+  } catch (err) {
+    console.warn('[SmileTrack] No se pudo consultar disponibilidad de profesionales:', err);
+    window.ToastService?.error?.('No se pudo verificar la disponibilidad de profesionales. Intenta de nuevo.');
+    // Restaurar lista original en caso de error
+    if (_originalDoctorOptions) doctorSel.innerHTML = _originalDoctorOptions;
+  }
+}, 400);
+
+const fetchSolicitudesPendientes = async () => {
+  const listEl = safeGetElement('solicitudesPendientesList');
+  const badgeEl = safeGetElement('solicitudesPendientesBadge');
+  if (!listEl) return [];
+
+  try {
+    const res = await fetch(`${API_BASE}/citas/solicitudes-pendientes`, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { ...getAuthHeaders(), 'Accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const payload = await res.json();
+    const solicitudes = Array.isArray(payload?.data) ? payload.data : [];
+
+    if (badgeEl) badgeEl.textContent = String(solicitudes.length);
+
+    if (!solicitudes.length) {
+      listEl.innerHTML = '<div class="empty-state" role="status" style="padding:1.25rem; color:#64748b;">No hay solicitudes pendientes por confirmar.</div>';
+      return solicitudes;
+    }
+
+    const items = solicitudes.map((solicitud) => {
+      const fecha = solicitud?.fecha ? new Date(solicitud.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha';
+      const hora = solicitud?.horaInicio ? String(solicitud.horaInicio).slice(0, 5) : '08:00';
+      const paciente = solicitud?.paciente?.nombreCompleto || 'Paciente';
+      const servicio = solicitud?.servicio?.nombre || 'Servicio por confirmar';
+      const notas = solicitud?.notas ? escapeHtml(solicitud.notas) : 'Sin observaciones adicionales.';
+      return `
+        <article class="pending-request-item" style="display:flex; flex-wrap:wrap; gap:1rem; justify-content:space-between; align-items:center; padding:1rem 1.1rem; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; margin-bottom:0.75rem;">
+          <div>
+            <strong style="display:block; font-size:0.98rem; margin-bottom:0.35rem;">${escapeHtml(paciente)}</strong>
+            <small style="display:block; color:#475569;">${escapeHtml(fecha)} · ${escapeHtml(hora)} · ${escapeHtml(servicio)}</small>
+            <small style="display:block; color:#64748b; margin-top:0.3rem;">${notas}</small>
+          </div>
+          <button type="button" class="btn-primary" data-confirm-pending="${solicitud.idCita}" style="white-space:nowrap;">Confirmar</button>
+        </article>
+      `;
+    }).join('');
+
+    listEl.innerHTML = items;
+    listEl.querySelectorAll('[data-confirm-pending]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const idCita = Number(button.getAttribute('data-confirm-pending'));
+        const solicitud = solicitudes.find(item => Number(item.idCita) === idCita);
+        if (!solicitud) return;
+
+        try {
+          const fecha = solicitud.fecha ? String(solicitud.fecha).slice(0, 10) : new Date().toISOString().slice(0, 10);
+          const horaBase = solicitud.horaInicio ? String(solicitud.horaInicio).slice(0, 5) : '09:00';
+          const professionalesRes = await fetch(`${API_BASE}/citas/profesionales-disponibles?fecha=${encodeURIComponent(fecha)}&horaInicio=${encodeURIComponent(horaBase)}&idServicio=${encodeURIComponent(solicitud.servicio?.idServicio ?? 0)}`, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { ...getAuthHeaders(), 'Accept': 'application/json' }
+          });
+          const profesionalesPayload = await professionalesRes.json().catch(() => ({ data: [] }));
+          const profesionales = Array.isArray(profesionalesPayload.data) ? profesionalesPayload.data : [];
+          if (!profesionales.length) {
+            showToast('No hay profesionales disponibles para confirmar esta solicitud. Intente otra fecha u horario.', 'error');
+            return;
+          }
+
+          const consultorioId = document.querySelector('#newConsultorio')?.value || document.querySelector('#modalNewAppointment [name="IdConsultorio"]')?.value || 1;
+          const payload = {
+            idCita: idCita,
+            idProfesional: Number(profesionales[0].idProfesional ?? profesionales[0].IdProfesional),
+            idConsultorio: Number(consultorioId),
+            fecha: fecha,
+            horaInicio: `${horaBase}:00`,
+            notas: solicitud.notas || solicitud.motivoConsulta || ''
+          };
+
+          const res = await fetch(`${API_BASE}/citas/${idCita}/confirmar-asignacion`, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2] ? decodeURIComponent(document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)[2]) : '', 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const result = await res.json().catch(() => ({}));
+          if (!res.ok || result.success === false) {
+            throw new Error(result.message || 'No fue posible confirmar la solicitud.');
+          }
+          showToast('Solicitud confirmada y cita asignada correctamente.', 'success');
+          await fetchSolicitudesPendientes();
+          await fetchAppointments(1);
+        } catch (error) {
+          console.warn('[SmileTrack] Error confirmando solicitud pendiente:', error);
+          showToast(error.message || 'No fue posible confirmar la solicitud pendiente.', 'error');
+        }
+      });
+    });
+
+    return solicitudes;
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudo cargar solicitudes pendientes:', error);
+    if (listEl) listEl.innerHTML = '<div class="empty-state" role="status" style="padding:1.25rem; color:#64748b;">No fue posible cargar las solicitudes pendientes en este momento.</div>';
+    return [];
+  }
+};
+
 const initNewAppointmentButtons = () => {
   const open = () => {
     const form = safeGetElement('formNewAppointment');
@@ -647,16 +896,25 @@ const initNewAppointmentButtons = () => {
     }
     const dtInp = safeGetElement('newDate');
     if (dtInp) dtInp.min = new Date().toISOString().split('T')[0];
+    // Ocultar alerta de disponibilidad al abrir
+    const alert = safeGetElement('availabilityAlert');
+    if (alert) alert.style.display = 'none';
+    // Restaurar lista de profesionales completa
+    _originalDoctorOptions = null;
     modalManager.open('modalNewAppointment');
   };
   safeGetElement('btnNuevaCita')?.addEventListener('click', open);
   safeGetElement('fabNuevaCita')?.addEventListener('click', open);
+
+  // Filtrado dinámico: actualizar profesionales disponibles cuando cambian fecha u hora
+  safeGetElement('newDate')?.addEventListener('change', actualizarProfesionalesDisponibles);
+  safeGetElement('newTime')?.addEventListener('change', actualizarProfesionalesDisponibles);
 };
 
 const submitNewAppointment = (e) => {
+  e.preventDefault();
   const form = e.currentTarget;
   if (!validateForm(form)) {
-    e.preventDefault();
     window.ToastService.error('Por favor completa los campos requeridos.');
     return;
   }
@@ -665,29 +923,110 @@ const submitNewAppointment = (e) => {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Guardando...';
   }
+  guardarCitaPorApi(form, false, submitBtn);
+};
+
+const horaFinDesdeConfiguracion = (horaInicio) => {
+  const [hora, minuto] = horaInicio.split(':').map(Number);
+  const total = (hora * 60) + minuto + configuredDurationMinutes;
+  return `${String(Math.floor((total % 1440) / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+const guardarCitaPorApi = async (form, actualizar, submitBtn) => {
+  const getValue = (selector) => form.querySelector(selector)?.value || '';
+  const estado = form.querySelector('[name="IdEstado"] option:checked')?.textContent?.trim()
+    || form.querySelector('[name="Estado"]')?.value
+    || 'Programada';
+  const fecha = getValue('[name="Fecha"]');
+  const horaInicio = getValue('[name="HoraInicio"]');
+  const token = getValue('input[name="__RequestVerificationToken"]');
+  const body = {
+    IdCita: actualizar ? Number(getValue('[name="IdCita"]')) : null,
+    IdPaciente: Number(getValue('[name="IdPaciente"]')),
+    IdProfesional: Number(getValue('[name="IdProfesional"]')),
+    IdServicio: Number(getValue('[name="IdServicio"]')),
+    IdConsultorio: Number(getValue('[name="IdConsultorio"]')),
+    Fecha: fecha,
+    HoraInicio: horaInicio,
+    HoraFin: horaFinDesdeConfiguracion(horaInicio),
+    Estado: estado,
+    Notas: getValue('[name="MotivoConsulta"]') || getValue('[name="Notas"]')
+  };
+
+  try {
+    const response = await fetch(`${API_BASE}/citas/agenda`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': token },
+      body: JSON.stringify(body)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false)
+      throw new Error(payload.message || 'No fue posible guardar la cita.');
+    window.ToastService?.success?.(actualizar ? 'Cita actualizada correctamente.' : 'Cita creada correctamente.');
+    window.setTimeout(() => window.location.reload(), 300);
+  } catch (error) {
+    window.ToastService?.error?.(error.message || 'No fue posible guardar la cita.');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = actualizar ? 'Actualizar cita' : 'Guardar cita';
+    }
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════
 //  FETCH INICIAL
 // ═══════════════════════════════════════════════════════════════════
 
-async function fetchAppointments() {
+async function fetchAppointments(page = 1) {
   try {
-    const res = await fetch('/api/citas?page=1&pageSize=100', {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(API_PAGE_SIZE) });
+    const search = safeGetElement('searchPatient')?.value.trim();
+    const professional = safeGetElement('filterProfessional')?.value;
+    const date = safeGetElement('filterDate')?.value;
+    const status = safeGetElement('filterStatus')?.value;
+    if (search) params.set('search', search);
+    if (professional) params.set('profesional', professional);
+    if (date) params.set('fecha', date);
+    if (status) params.set('estado', status);
+
+    const res = await fetch(`${API_BASE}/citas?${params.toString()}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+      credentials: 'same-origin',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'Accept': 'application/json' }
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
     const payload = await res.json();
+    configuredDurationMinutes = Number(payload.duracionMinutos) > 0 ? Number(payload.duracionMinutos) : 60;
     if (payload && payload.success && Array.isArray(payload.data)) {
       const citas = payload.data.map(mapServerToClient);
+      currentApiPage = Number(payload.page) || page;
+      totalApiRecords = Number(payload.total) || citas.length;
       appointmentStorage.replaceAll(citas);
       return citas;
     }
     throw new Error('payload inválido');
   } catch (err) {
     console.warn('[SmileTrack] No se pudo cargar citas desde /api/citas:', err);
-    return appointmentStorage.getAll();
+    appointmentStorage.replaceAll([]);
+    mostrarErrorUsuario('No fue posible consultar las citas. La lista está vacía hasta recuperar la conexión con la API.');
+    return [];
+  }
+}
+
+async function fetchConfiguredDuration() {
+  try {
+    const res = await fetch(`${API_BASE}/citas?page=1&pageSize=1`, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { ...getAuthHeaders(), Accept: 'application/json' }
+    });
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (Number(payload.duracionMinutos) > 0)
+      configuredDurationMinutes = Number(payload.duracionMinutos);
+  } catch (err) {
+    console.warn('[SmileTrack] No se pudo cargar la duración configurada:', err);
   }
 }
 
@@ -720,8 +1059,9 @@ const init = async () => {
     });
 
     if (!useSSR) {
-      // Carga inicial de datos (API → LocalStorage fallback)
+      // Carga inicial desde la API; no se usa persistencia local como respaldo.
       await fetchAppointments();
+      await fetchSolicitudesPendientes();
       updateMetrics();
       renderAppointments(appointmentStorage.getAll());
 
@@ -732,10 +1072,31 @@ const init = async () => {
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewToggle(btn); }
         });
       });
-      safeGetElement('searchPatient')?.addEventListener('input', debounce(filterAppointments, 180));
+      const refreshFromApi = async () => {
+        const citas = await fetchAppointments(1);
+        await fetchSolicitudesPendientes();
+        renderAppointments(citas);
+        updateMetrics();
+      };
+      safeGetElement('searchPatient')?.addEventListener('input', debounce(refreshFromApi, 250));
       ['filterProfessional','filterDate','filterStatus'].forEach(id =>
-        safeGetElement(id)?.addEventListener('change', filterAppointments)
+        safeGetElement(id)?.addEventListener('change', refreshFromApi)
       );
+      document.querySelector('.filter-bar')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        refreshFromApi();
+      });
+      document.querySelectorAll('.pagination-number, #prevPage, #nextPage').forEach(control => {
+        control.addEventListener('click', async (event) => {
+          event.preventDefault();
+          const target = new URL(control.href, window.location.origin).searchParams.get('page');
+          const requestedPage = Number(target);
+          if (!Number.isInteger(requestedPage) || requestedPage < 1) return;
+          const citas = await fetchAppointments(requestedPage);
+          renderAppointments(citas);
+          updateMetrics();
+        });
+      });
       const tbody = safeGetElement('appointmentsTable');
       if (tbody) {
         tbody.addEventListener('click', handleTableAction);
@@ -746,6 +1107,7 @@ const init = async () => {
         });
       }
     } else {
+      await fetchConfiguredDuration();
       // Modo SSR: animar los KPI renderizados por Razor con data-target
       initServerMetrics();
     }

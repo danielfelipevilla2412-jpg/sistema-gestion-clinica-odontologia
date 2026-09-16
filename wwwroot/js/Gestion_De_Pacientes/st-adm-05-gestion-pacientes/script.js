@@ -91,17 +91,20 @@ const animateCounters = () => {
 //  VARIABLES GLOBALES
 // ═══════════════════════════════════════════════════════════════════
 
-// Yeray (2025) - Se agrega serverSearch para controlar si la búsqueda
-// activa ya llega del servidor o del array local de la primera carga.
-let searchQuery   = '';
+// Yeray (2025) - estadoFiltro: controla el filtro de estado del paciente
+// (activo / inactivo / retirado / todos). Se envía al endpoint /buscar
+// como parámetro estado= y se aplica siempre en el servidor, no en cliente.
+// ANTES: el listado solo mostraba activos y no había selector en la UI.
+let searchQuery    = '';
+let estadoFiltro   = 'activo';   // default: solo activos (comportamiento anterior)
 let filterAlergias = '';
 let filterCita     = '';
 let filterHistorial = '';
-let currentPage   = 1;
-let serverTotal   = 0;   // total de resultados según el servidor
-let serverPages   = 1;   // total de páginas según el servidor
+let currentPage    = 1;
+let serverTotal    = 0;
+let serverPages    = 1;
 
-const itemsPerPage = 20; // alineado con el pageSize del endpoint /buscar
+const itemsPerPage = 20;
 
 // ═══════════════════════════════════════════════════════════════════
 //  FORMATO DE FECHAS
@@ -250,11 +253,13 @@ const fetchPacientes = async () => {
   if (_fetchController) _fetchController.abort();
   _fetchController = new AbortController();
 
+  // Yeray (2025) - se agrega estado= para soportar inactivos/retirados/todos
   const params = new URLSearchParams({
     page:     String(currentPage),
-    pageSize: String(itemsPerPage)
+    pageSize: String(itemsPerPage),
+    estado:   estadoFiltro        // siempre se envía; default 'activo'
   });
-  if (searchQuery)  params.set('search', searchQuery);
+  if (searchQuery) params.set('search', searchQuery);
 
   try {
     const resp = await fetch(
@@ -269,7 +274,7 @@ const fetchPacientes = async () => {
     serverPages = json.totalPages ?? 1;
 
   } catch (err) {
-    if (err.name === 'AbortError') return; // fetch cancelado, ignorar
+    if (err.name === 'AbortError') return;
     console.error('[SmileTrack][Pacientes] Error búsqueda server-side:', err);
   }
 };
@@ -297,10 +302,10 @@ const renderPatients = async () => {
   let totalForPagination;
   let totalPagesForPagination;
 
-  if (searchQuery.trim() !== '') {
-    // ── Búsqueda activa: el servidor pagina y filtra por texto ──────────
+  if (searchQuery.trim() !== '' || estadoFiltro !== 'activo') {
+    // ── Búsqueda o estado distinto de activo: el servidor filtra ───────────
     await fetchPacientes();
-    displayPatients          = getFilteredPatients(); // filtros locales sobre la página
+    displayPatients          = getFilteredPatients();
     totalForPagination       = serverTotal;
     totalPagesForPagination  = serverPages;
   } else {
@@ -412,25 +417,16 @@ const renderPatients = async () => {
                 class="table-col col-acciones"
                 data-label="Acciones"
               >
-
                 <div class="actions-cell">
 
                   <button
                     class="action-btn btn-view"
                     data-id="${patient.Id}"
-                    aria-label="Ver detalle de ${patient.Name}"
-                    title="Ver detalle del paciente"
+                    aria-label="Ver perfil de ${patient.Name}"
+                    title="Ver perfil completo"
                   >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      👁️
-                    </span>
-
-                    <span class="action-label">
-                      Detalle
-                    </span>
+                    <span class="action-icon" aria-hidden="true">👁️</span>
+                    <span class="action-label">Perfil</span>
                   </button>
 
                   <button
@@ -439,52 +435,18 @@ const renderPatients = async () => {
                     aria-label="Editar ${patient.Name}"
                     title="Editar paciente"
                   >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      ✏️
-                    </span>
-
-                    <span class="action-label">
-                      Editar
-                    </span>
-                  </button>
-
-                  <button
-                    class="action-btn btn-disable"
-                    data-id="${patient.Id}"
-                    aria-label="Desactivar ${patient.Name}"
-                    title="Desactivar paciente"
-                  >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      🗑️
-                    </span>
-
-                    <span class="action-label">
-                      Desactivar
-                    </span>
+                    <span class="action-icon" aria-hidden="true">✏️</span>
+                    <span class="action-label">Editar</span>
                   </button>
 
                   <button
                     class="action-btn btn-history"
                     data-id="${patient.Id}"
-                    aria-label="Ver historial clínico de ${patient.Name}"
-                    title="Historial clínico"
+                    aria-label="Historia clínica de ${patient.Name}"
+                    title="Historia clínica"
                   >
-                    <span
-                      class="action-icon"
-                      aria-hidden="true"
-                    >
-                      📋
-                    </span>
-
-                    <span class="action-label">
-                      Historial
-                    </span>
+                    <span class="action-icon" aria-hidden="true">📋</span>
+                    <span class="action-label">Historial</span>
                   </button>
 
                 </div>
@@ -576,25 +538,6 @@ const renderPatients = async () => {
             ),
             'edit'
           );
-        }
-      );
-    });
-
-  // Desactivar
-  document
-    .querySelectorAll('.btn-disable')
-    .forEach((btn) => {
-
-      btn.addEventListener(
-        'click',
-        async (event) => {
-
-          const id =
-            Number(
-              event.currentTarget.dataset.id
-            );
-
-          await desactivarPaciente(id);
         }
       );
     });
@@ -713,6 +656,18 @@ const openPatientModal = (id, type) => {
           ${patient.Estado || 'N/A'}
         </p>
 
+        ${patient.Estado === 'activo' ? `
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+          <button
+            class="action-btn btn-disable"
+            data-id="${patient.Id}"
+            style="color:var(--red);border-color:var(--red);width:100%;justify-content:center;"
+            aria-label="Desactivar a ${patient.Name}"
+          >
+            🗑️ Desactivar paciente
+          </button>
+        </div>` : ''}
+
       </div>
     `;
 
@@ -826,15 +781,11 @@ const openPatientModal = (id, type) => {
     content.innerHTML = `
       <form id="editPatientForm">
 
+        <!-- SECCIÓN: INFORMACIÓN PERSONAL -->
+        <div class="form-section-title">Información Personal</div>
+
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editNombres"
-          >
-            Nombres
-          </label>
-
+          <label class="form-label" for="editNombres">Nombres</label>
           <input
             type="text"
             id="editNombres"
@@ -842,18 +793,10 @@ const openPatientModal = (id, type) => {
             value="${nombresActuales}"
             required
           />
-
         </div>
 
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editApellidos"
-          >
-            Apellidos
-          </label>
-
+          <label class="form-label" for="editApellidos">Apellidos</label>
           <input
             type="text"
             id="editApellidos"
@@ -861,145 +804,87 @@ const openPatientModal = (id, type) => {
             value="${apellidosActuales}"
             required
           />
-
         </div>
 
         <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editTelefono"
-          >
-            Teléfono
-          </label>
-
-          <input
-            type="text"
-            id="editTelefono"
-            class="form-input"
-            value="${patient.Telefono || ''}"
-          />
-
-        </div>
-
-        <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editCorreo"
-          >
-            Correo
-          </label>
-
-          <input
-            type="email"
-            id="editCorreo"
-            class="form-input"
-            value="${patient.Correo || ''}"
-          />
-
-        </div>
-
-        <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editCiudad"
-          >
-            Ciudad
-          </label>
-
-          <input
-            type="text"
-            id="editCiudad"
-            class="form-input"
-            value="${patient.Ciudad || ''}"
-          />
-
-        </div>
-
-        <div class="form-group">
-
-          <label
-            class="form-label"
-            for="editGenero"
-          >
-            Género
-          </label>
-
-          <select
-            id="editGenero"
-            class="form-select"
-          >
-
-            <option
-              value="M"
-              ${patient.Genero === 'M' ? 'selected' : ''}
-            >
-              Masculino
-            </option>
-
-            <option
-              value="F"
-              ${patient.Genero === 'F' ? 'selected' : ''}
-            >
-              Femenino
-            </option>
-
-            <option
-              value="O"
-              ${patient.Genero === 'O' ? 'selected' : ''}
-            >
-              Otro
-            </option>
-
+          <label class="form-label" for="editGenero">Género</label>
+          <select id="editGenero" class="form-select">
+            <option value="M" ${patient.Genero === 'M' ? 'selected' : ''}>Masculino</option>
+            <option value="F" ${patient.Genero === 'F' ? 'selected' : ''}>Femenino</option>
+            <option value="O" ${patient.Genero === 'O' ? 'selected' : ''}>Otro</option>
           </select>
-
         </div>
 
         <div class="form-group">
+          <label class="form-label" for="editCiudad">Ciudad</label>
+          <input type="text" id="editCiudad" class="form-input" value="${patient.Ciudad || ''}" />
+        </div>
 
-          <label
-            class="form-label"
-            for="editAlergias"
-          >
-            Alergias
-          </label>
+        <!-- SECCIÓN: CONTACTO -->
+        <div class="form-section-title">Información de Contacto</div>
 
+        <div class="form-group">
+          <label class="form-label" for="editTelefono">Teléfono</label>
+          <input type="tel" id="editTelefono" class="form-input" value="${patient.Telefono || ''}" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="editCorreo">Correo Electrónico</label>
+          <input type="email" id="editCorreo" class="form-input" value="${patient.Correo || ''}" />
+        </div>
+
+        <!-- SECCIÓN: EMERGENCIA -->
+        <div class="form-section-title">Contacto de Emergencia</div>
+
+        <div class="form-group">
+          <label class="form-label" for="editContactoEmergencia">Nombre del Contacto</label>
+          <input
+            type="text"
+            id="editContactoEmergencia"
+            class="form-input"
+            placeholder="Nombre completo"
+            value="${patient.ContactoEmergencia || ''}"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="editTelefonoEmergencia">Teléfono de Emergencia</label>
+          <input
+            type="tel"
+            id="editTelefonoEmergencia"
+            class="form-input"
+            placeholder="Ej. 300 123 4567"
+            value="${patient.TelefonoEmergencia || ''}"
+          />
+        </div>
+
+        <!-- SECCIÓN: SALUD -->
+        <div class="form-section-title">Información de Salud</div>
+
+        <div class="form-group">
+          <label class="form-label" for="editAlergias">Alergias Conocidas</label>
           <input
             type="text"
             id="editAlergias"
             class="form-input"
+            placeholder="Ej. Penicilina, Látex..."
             value="${patient.AlergiasTexto || ''}"
           />
-
         </div>
 
-        <div
-          style="
-            display:flex;
-            gap:10px;
-            justify-content:flex-end;
-            margin-top:20px;
-          "
-        >
+        <div class="form-group form-group--full">
+          <label class="form-label" for="editAntecedentesMedicos">Antecedentes Médicos</label>
+          <textarea
+            id="editAntecedentesMedicos"
+            class="form-input"
+            placeholder="Enfermedades previas, cirugías, condiciones crónicas, tratamientos actuales..."
+          >${patient.AntecedentesMedicos || ''}</textarea>
+        </div>
 
-          <button
-            type="button"
-            class="btn-secondary"
-            id="editCancelBtn"
-          >
-            Cancelar
-          </button>
-
-          <button
-            type="submit"
-            class="btn-primary"
-            id="editSaveBtn"
-          >
-            Guardar cambios
-          </button>
-
+        <!-- BOTONES DE ACCIÓN -->
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="editCancelBtn">Cancelar</button>
+          <button type="submit" class="btn-primary" id="editSaveBtn">Guardar cambios</button>
         </div>
 
       </form>
@@ -1083,6 +968,22 @@ const openPatientModal = (id, type) => {
           safeGetElement('editGenero')
             ?.value || '';
 
+        // Yeray (2025) - campos nuevos enviados al endpoint actualizar
+        const contactoEmergencia =
+          safeGetElement('editContactoEmergencia')
+            ?.value
+            .trim() ?? '';
+
+        const telefonoEmergencia =
+          safeGetElement('editTelefonoEmergencia')
+            ?.value
+            .trim() ?? '';
+
+        const antecedentesMedicos =
+          safeGetElement('editAntecedentesMedicos')
+            ?.value
+            .trim() ?? '';
+
         data.append(
           'idPaciente',
           String(patient.Id)
@@ -1122,6 +1023,11 @@ const openPatientModal = (id, type) => {
           'genero',
           genero
         );
+
+        // Yeray (2025) - append de los 3 campos nuevos
+        data.append('contactoEmergencia',  contactoEmergencia);
+        data.append('telefonoEmergencia',  telefonoEmergencia);
+        data.append('antecedentesMedicos', antecedentesMedicos);
 
         data.append(
           'estado',
@@ -1191,6 +1097,11 @@ const openPatientModal = (id, type) => {
 
               : [];
 
+          // Yeray (2025) - sincronizar los 3 campos nuevos en memoria
+          patient.ContactoEmergencia  = contactoEmergencia  || null;
+          patient.TelefonoEmergencia  = telefonoEmergencia  || null;
+          patient.AntecedentesMedicos = antecedentesMedicos || null;
+
           showToast(
             'Paciente actualizado correctamente.',
             'success'
@@ -1241,6 +1152,19 @@ const openPatientModal = (id, type) => {
   modal.removeAttribute(
     'inert'
   );
+
+  // Agregar listener para el botón de desactivar en el modal
+  const btnDisableInModal = content.querySelector('.btn-disable');
+  if (btnDisableInModal) {
+    btnDisableInModal.addEventListener(
+      'click',
+      async (event) => {
+        event.preventDefault();
+        await desactivarPaciente(patient.Id);
+        closePatientModal();
+      }
+    );
+  }
 
   document.body.style.overflow =
     'hidden';
@@ -1643,9 +1567,16 @@ const initFilters = () => {
     await renderPatients();
     const clearBtn = safeGetElement('btnClearFilters');
     if (clearBtn) {
-      clearBtn.classList.toggle('active', !!(filterAlergias || filterCita || filterHistorial));
+      clearBtn.classList.toggle('active', !!(filterAlergias || filterCita || filterHistorial || estadoFiltro !== 'activo'));
     }
   };
+
+  // Yeray (2025) - selector de estado: conecta filterEstado a estadoFiltro
+  // y dispara fetchPacientes (server-side) porque el estado se filtra en BD.
+  safeGetElement('filterEstado')?.addEventListener('change', (e) => {
+    estadoFiltro = e.target.value;
+    applyFilters();
+  });
 
   safeGetElement('filterAlergias')?.addEventListener('change', (e) => {
     filterAlergias = e.target.value; applyFilters();
@@ -1658,13 +1589,21 @@ const initFilters = () => {
   });
 
   safeGetElement('btnClearFilters')?.addEventListener('click', () => {
-    filterAlergias = ''; filterCita = ''; filterHistorial = '';
-    const sel1 = safeGetElement('filterAlergias');
-    const sel2 = safeGetElement('filterCita');
-    const sel3 = safeGetElement('filterHistorial');
+    estadoFiltro    = 'activo';   // vuelve al default
+    filterAlergias  = '';
+    filterCita      = '';
+    filterHistorial = '';
+
+    const selEstado = safeGetElement('filterEstado');
+    const sel1      = safeGetElement('filterAlergias');
+    const sel2      = safeGetElement('filterCita');
+    const sel3      = safeGetElement('filterHistorial');
+
+    if (selEstado) selEstado.value = 'activo';
     if (sel1) sel1.value = '';
     if (sel2) sel2.value = '';
     if (sel3) sel3.value = '';
+
     applyFilters();
   });
 };

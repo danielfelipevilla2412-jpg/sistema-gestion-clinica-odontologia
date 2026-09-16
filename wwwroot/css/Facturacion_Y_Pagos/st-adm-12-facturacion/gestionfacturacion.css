@@ -444,7 +444,8 @@ img { max-width: 100%; height: auto; display: block; }
 .payment-success-overlay {
   display: none; position: fixed; inset: 0; z-index: 500;
   align-items: center; justify-content: center;
-  padding: 20px; background: rgba(15, 23, 42, .45);
+  padding: 20px 20px 20px var(--sidebar-w);
+  background: rgba(15, 23, 42, .45);
 }
 .payment-success-overlay.open { display: flex; }
 .payment-success-modal {
@@ -471,6 +472,25 @@ img { max-width: 100%; height: auto; display: block; }
 .payment-success-title { margin: 0 0 8px; color: var(--text); font-size: 1.25rem; }
 .payment-success-message { margin: 0 0 22px; color: var(--text-muted); font-size: .9rem; line-height: 1.5; }
 .payment-success-button { min-width: 110px; }
+
+/* Notificaciones sobre el contenido, nunca debajo del sidebar. */
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 700;
+  display: none;
+  max-width: min(420px, calc(100vw - var(--sidebar-w) - 48px));
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+}
+.toast.show { display: block; }
+.toast.error { border-color: #fecaca; color: #991b1b; }
+.toast.warning { border-color: #fde68a; color: #92400e; }
 
 .invoice-details-overlay {
   display: none; position: fixed; inset: 0; z-index: 600;
@@ -596,6 +616,7 @@ img { max-width: 100%; height: auto; display: block; }
 @media (max-width: 680px) {
   .hamburger { display: flex; }
   .sidebar { transform: translateX(-100%); }
+  .payment-success-overlay { padding: 20px; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-md); }
   .overlay.open { display: block; }
   .main { margin-left: 0; padding: 58px 14px 32px; }
@@ -628,6 +649,7 @@ img { max-width: 100%; height: auto; display: block; }
 }
 @media (max-width: 480px) {
   .page-title { font-size: 1.2rem; }
+  .toast { right: 16px; bottom: 16px; max-width: calc(100vw - 32px); }
   .stat-number { font-size: 1.9rem; }
   .patient-info { gap: 8px; }
   .patient-avatar { width: 28px; height: 28px; font-size: .65rem; }

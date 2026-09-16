@@ -1,4 +1,4 @@
-﻿@{ Layout = null; }
+@{ Layout = null; }
 
 ﻿<!DOCTYPE html>
 <html lang="es">
@@ -16,23 +16,13 @@
 
 <body>
 
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!-- ═════ SIDEBAR UNIFICADO (Activo: Facturas) ═════ -->
-  <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
-  <div class="sidebar-logo">
-    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
-  </div>
   @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
-  <div class="sidebar-user">
-    <div class="user-avatar" aria-hidden="true">RE</div>
-    <div class="user-info">
-      <span class="user-role">Recepción</span>
-      <span class="user-email">recepcion@smiletrack.co</span>
-    </div>
-  </div>
-</aside>
 
   <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
   <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
@@ -49,8 +39,8 @@
     <header class="page-header">
       <div class="header-left">
         <div class="breadcrumb">Recepción → Facturas → Generar</div>
-        <h1 class="page-title">Generar Factura</h1>
-        <p class="page-subtitle">Cita del 20 Mar 2026 · Pedro García · Dr. Carlos Méndez</p>
+        <h1 class="page-title" data-i18n="facturacion.new_invoice">Generar Factura</h1>
+        <p class="page-subtitle" id="invoiceSubtitle" data-i18n="common.loading">Cita del 20 Mar 2026 · Pedro Garc&#237;a · Dr. Carlos M&#233;ndez</p>
       </div>
       <!-- Badge de estado con role status para anuncio dinámico -->
       <span class="status-badge status-pendiente" id="statusBadge" role="status" aria-live="polite">
@@ -77,7 +67,7 @@
       </div>
       <div class="invoice-info">
         <div class="invoice-info-section">
-          <p class="invoice-info-label">Paciente</p>
+          <p class="invoice-info-label" data-i18n="citas.patient">Paciente</p>
           <p class="invoice-info-value" id="invoicePatientName">Seleccione un paciente</p>
           <p class="invoice-info-sub" id="invoicePatientDoc">—</p>
         </div>
@@ -96,7 +86,7 @@
     <!-- Formulario de selección con aria-labels en controles -->
     <div class="form-row no-print">
       <div class="form-group">
-        <label class="form-label" for="pacienteSelect">Paciente</label>
+          <label class="form-label" for="pacienteSelect" data-i18n="citas.patient">Paciente</label>
         <select id="pacienteSelect" class="form-select" aria-label="Seleccionar paciente">
           <option value="" data-doc="">Seleccione un paciente...</option>
           @foreach (var p in pacientesFactura)
@@ -106,7 +96,7 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label" for="profesionalSelect">Profesional</label>
+          <label class="form-label" for="profesionalSelect" data-i18n="citas.professional">Profesional</label>
         <select id="profesionalSelect" class="form-select" aria-label="Seleccionar profesional">
           <option value="Dr. Carlos Méndez">Dr. Carlos Méndez - Odontología General</option>
           <option value="Dra. Laura Gómez">Dra. Laura Gómez - Ortodoncia</option>
@@ -114,7 +104,7 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label" for="servicioSelect">Añadir Servicio</label>
+          <label class="form-label" for="servicioSelect" data-i18n="facturacion.invoice">Añadir Servicio</label>
         <div style="display:flex;gap:8px;">
           <select id="servicioSelect" class="form-select" aria-label="Seleccionar servicio a añadir">
             @if (serviciosFactura.Count > 0)
@@ -194,12 +184,10 @@
         <button class="btn-secondary" id="btnPrint" aria-label="Imprimir factura actual">🖨️ Imprimir factura</button>
         <button class="btn-success" id="btnPay" aria-label="Registrar pago de la factura">✓ Registrar pago — $0</button>
       </div>
+      <div id="toastContainer" class="toast-container" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
     </section>
 
   </main>
-
-  <!-- Toast container con atributos ARIA para notificaciones -->
-  <div id="toastContainer" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
 
   <!-- Estilos para contenido solo accesible por screen readers -->
   <style>
@@ -229,38 +217,9 @@
  <script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
  <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-rec-04-generar-factura/app.js")"></script>
    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
    @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.nav-group-header').forEach(header => {
-      const items = header.nextElementSibling;
-      const arrow = header.querySelector('.nav-arrow');
-
-      if (!items || !arrow) return;
-
-      const setExpanded = (isExpanded) => {
-        items.style.maxHeight = isExpanded ? `${items.scrollHeight}px` : '0px';
-        arrow.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)';
-        header.setAttribute('aria-expanded', String(isExpanded));
-      };
-
-      setExpanded(false);
-
-      const toggle = () => {
-        const isExpanded = header.getAttribute('aria-expanded') === 'true';
-        setExpanded(!isExpanded);
-      };
-
-      header.addEventListener('click', toggle);
-      header.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          toggle();
-        }
-      });
-    });
-  });
-</script>
 </body>
 
 </html>
