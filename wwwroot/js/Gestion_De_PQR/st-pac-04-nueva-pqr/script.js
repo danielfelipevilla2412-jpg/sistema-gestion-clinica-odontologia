@@ -124,6 +124,21 @@ document.getElementById('pqrForm').addEventListener('submit', async function (e)
             alert(`¡Solicitud radicada exitosamente!\n\nNúmero de radicado: PQR-${String(result.id).padStart(4, '0')}`);
             this.reset();
             resetFileUpload();
+
+            // Reflejar inmediatamente la nueva solicitud en "Radicados recientes".
+            const recentList = document.getElementById('recentPqrList');
+            if (recentList) {
+                const tipoLabel = PQR_TYPE_LABEL[tipo] || tipo;
+                const nuevoItem = document.createElement('div');
+                nuevoItem.className = 'recent-item';
+                nuevoItem.innerHTML = `
+                    <div class="recent-code">PQR-${String(result.id).padStart(4, '0')}</div>
+                    <div class="recent-title">${asunto}</div>
+                    <div class="recent-date">${tipoLabel} · Hoy</div>
+                    <span class="badge process">Recibido</span>
+                `;
+                recentList.prepend(nuevoItem);
+            }
             document.querySelectorAll('.request-card').forEach(card => card.classList.remove('selected'));
             document.querySelector('.request-card.petition')?.classList.add('selected');
             selectedPqrType = 'petition';

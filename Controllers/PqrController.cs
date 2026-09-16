@@ -184,8 +184,55 @@ public class PqrController : Controller
     }
 
     // =========================================================================
-    // API REST - Gestión real de PQR (reemplaza changeStatus/"Enviar respuesta"
-    // que antes solo modificaban el DOM sin guardar nada en SQL Server)
+    // API REST - Consulta de PQR para actualización automática de la bandeja.
+    // La tabla PQR ya existe; no se requiere modificar la base de datos.
+    // =========================================================================
+
+    [HttpGet]
+    [Authorize(Roles = "Administrador")]
+    [Route("gestion-de-pqr/api/pqr")]
+    public async Task<IActionResult> ApiListarPqrs(CancellationToken ct = default)
+    {
+        var pqrsDb = await _context.PQRs
+            .Include(p => p.Paciente)
+            .Include(p => p.AtendidaPorUsuario)
+            .OrderByDescending(p => p.FechaCreacion)
+            .ToListAsync(ct);
+
+        var pqrs = pqrsDb.Select(p => new
+        {
+            id = p.IdPqr,
+            ticket = $"PQR-{p.IdPqr:D4}",
+            patient = p.Paciente != null ? $"{p.Paciente.Nombres} {p.Paciente.Apellidos}" : "Anónimo",
+            documento = p.Paciente?.Documento ?? "N/A",
+            email = p.Paciente?.Correo ?? "N/A",
+            type = p.Tipo,
+            subject = p.Asunto,
+            description = p.Descripcion,
+            status = p.Estado,
+            priority = p.Prioridad,
+            date = p.FechaCreacion.ToString("yyyy-MM-dd HH:mm"),
+            fechaCreacionIso = p.FechaCreacion.ToString("o"),
+            respuesta = p.Respuesta,
+            fechaRespuesta = p.FechaRespuesta.HasValue ? p.FechaRespuesta.Value.ToString("yyyy-MM-dd HH:mm") : null,
+            atendidaPor = p.AtendidaPorUsuario != null ? $"{p.AtendidaPorUsuario.Nombre} {p.AtendidaPorUsuario.Apellidos}" : null,
+            evidenciaAdjunto = p.EvidenciaAdjunto
+        }).ToList();
+
+        var stats = new
+        {
+            total = pqrsDb.Count,
+            sinResponder = pqrsDb.Count(p => p.Estado == "recibida"),
+            enGestion = pqrsDb.Count(p => p.Estado == "en_proceso"),
+            vencidas = pqrsDb.Count(p => p.Estado != "resuelta" && p.Estado != "cerrada" && p.Estado != "rechazada"
+                && (DateTime.Now - p.FechaCreacion).TotalDays > 15)
+        };
+
+        return Ok(new { success = true, pqrs, stats });
+    }
+
+    // =========================================================================
+    // API REST - Gestión real de PQR
     // =========================================================================
 
     [HttpPut]
