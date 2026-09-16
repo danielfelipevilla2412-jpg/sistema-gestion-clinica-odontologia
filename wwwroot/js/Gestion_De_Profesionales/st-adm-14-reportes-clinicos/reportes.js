@@ -82,7 +82,7 @@ const initServerStats = () => {
     const statEls = [
         safeGetElement('metricTotal'),
         safeGetElement('metricActivos'),
-            safeGetElement('metricSatisfaction'),
+            safeGetElement('metricAttendanceRate'),
     ];
 
     statEls.forEach(el => {

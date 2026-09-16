@@ -309,8 +309,9 @@
         </button>
         <h2 class="modal-title" id="modalNewApptTitle">Agendar Nueva Cita</h2>
         <div class="modal-content">
-            <form id="formNewAppointment">
+            <form id="formNewAppointment" method="post" action="/gestion-de-citas/guardar-cita" novalidate>
                 @Html.AntiForgeryToken()
+                <input type="hidden" name="ReturnUrl" value="/gestion-de-citas/st-odo-02-agenda" />
                 <input type="hidden" id="appointmentId" name="IdCita" value="" />
                 <div class="form-grid">
                     <div class="form-group">

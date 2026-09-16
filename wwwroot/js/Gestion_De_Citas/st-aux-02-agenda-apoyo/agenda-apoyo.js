@@ -133,7 +133,12 @@ const renderTabla = (citas) => {
 
   const badgeEstado = (e) => {
     const estado = CommonUtils.normalizeAppointmentStatus(e);
-    const map = { atendida: 'badge-atendida', pendiente: 'badge-pendiente', cancelada: 'badge-cancelada' };
+    const map = {
+      atendida: 'badge-atendida',
+      pendiente: 'badge-pendiente',
+      cancelada: 'badge-cancelada',
+      no_asistida: 'badge-no-asistio'
+    };
     return crearBadge(`badge-estado ${map[estado] || 'badge-pendiente'}`, `● ${e}`, `Estado: ${e}`);
   };
 
@@ -300,6 +305,22 @@ const init = async () => {
   initMobileMenu();
   initTipoFiltros();
   initProfesionalDropdown();
+
+  document.querySelector('.toggle-vistas')?.addEventListener('viewchange', (event) => {
+    const params = new URLSearchParams(window.location.search);
+    const current = params.get('fecha') || new Date().toISOString().slice(0, 10);
+    if (event.detail.view === 'semana') {
+      params.delete('fecha');
+      params.set('weekStart', params.get('weekStart') || current);
+    } else if (event.detail.view === 'dia') {
+      params.delete('weekStart');
+      params.set('fecha', current);
+    } else {
+      params.delete('weekStart');
+      params.set('fecha', current);
+    }
+    window.location.search = params.toString();
+  });
   
   // Actualiza metadatos del header
   const metaEl = safeGetElement('phMeta');

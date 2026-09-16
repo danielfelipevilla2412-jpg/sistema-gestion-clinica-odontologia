@@ -71,7 +71,7 @@ public class NotificacionesInteligentesViewComponent : ViewComponent
         // Citas sin confirmar (próximas 24h)
         var citasSinConfirmar = await _context.Citas
             .Where(c => c.IdProfesional == idProfesional.Value)
-            .Where(c => c.IdEstadoCita == 1) // Agendada
+            .Where(c => c.Estado == "programada" || c.Estado == "Programada" || c.Estado == "agendada" || c.Estado == "Agendada" || c.Estado == "solicitada" || c.Estado == "Solicitada")
             .Where(c => c.FechaHora >= ahora && c.FechaHora <= ahora.AddHours(24))
             .CountAsync();
 
@@ -91,7 +91,7 @@ public class NotificacionesInteligentesViewComponent : ViewComponent
         // Pacientes en sala de espera
         var pacientesEspera = await _context.Citas
             .Where(c => c.IdProfesional == idProfesional.Value)
-            .Where(c => c.IdEstadoCita == 2) // Confirmada (en espera)
+            .Where(c => c.Estado == "confirmada" || c.Estado == "Confirmada" || c.Estado == "en_espera" || c.Estado == "en espera" || c.Estado == "En espera")
             .Where(c => c.FechaHora.Date == DateTime.Today)
             .Where(c => c.FechaHora <= ahora)
             .CountAsync();
@@ -112,9 +112,9 @@ public class NotificacionesInteligentesViewComponent : ViewComponent
         // Historias clínicas pendientes (última semana)
         var historiasPendientes = await _context.Citas
             .Where(c => c.IdProfesional == idProfesional.Value)
-            .Where(c => c.IdEstadoCita == 3) // Atendida
+            .Where(c => c.Estado == "atendida" || c.Estado == "Atendida" || c.Estado == "completada" || c.Estado == "Completada" || c.Estado == "realizada" || c.Estado == "Realizada")
             .Where(c => c.FechaHora >= DateTime.Today.AddDays(-7))
-            .Where(c => c.IdHistoriaClinica == null)
+            .Where(c => !_context.HistoriasClinicas.Any(h => h.IdPaciente == c.IdPaciente && h.Activa))
             .CountAsync();
 
         if (historiasPendientes > 0)
@@ -143,7 +143,7 @@ public class NotificacionesInteligentesViewComponent : ViewComponent
 
         // Pacientes en espera (todos los profesionales)
         var pacientesEspera = await _context.Citas
-            .Where(c => c.IdEstadoCita == 2)
+            .Where(c => c.Estado == "confirmada" || c.Estado == "Confirmada" || c.Estado == "en_espera" || c.Estado == "en espera" || c.Estado == "En espera")
             .Where(c => c.FechaHora.Date == DateTime.Today)
             .Where(c => c.FechaHora <= ahora)
             .CountAsync();
@@ -163,7 +163,7 @@ public class NotificacionesInteligentesViewComponent : ViewComponent
 
         // Facturas pendientes de pago
         var facturasPendientes = await _context.Citas
-            .Where(c => c.IdEstadoCita == 3)
+            .Where(c => c.Estado == "atendida" || c.Estado == "Atendida" || c.Estado == "completada" || c.Estado == "Completada" || c.Estado == "realizada" || c.Estado == "Realizada")
             .Where(c => c.FechaHora.Date == DateTime.Today)
             .CountAsync(); // Simplificado, idealmente verificar tabla de facturas
 
@@ -197,7 +197,7 @@ public class NotificacionesInteligentesViewComponent : ViewComponent
         var proximasCitas = await _context.Citas
             .Where(c => c.IdPaciente == idPaciente.Value)
             .Where(c => c.FechaHora >= ahora && c.FechaHora <= ahora.AddHours(48))
-            .Where(c => c.IdEstadoCita != 4 && c.IdEstadoCita != 5)
+            .Where(c => c.Estado != "cancelada" && c.Estado != "Cancelada" && c.Estado != "atendida" && c.Estado != "Atendida" && c.Estado != "completada" && c.Estado != "Completada" && c.Estado != "no_asistida" && c.Estado != "No asistió")
             .CountAsync();
 
         if (proximasCitas > 0)

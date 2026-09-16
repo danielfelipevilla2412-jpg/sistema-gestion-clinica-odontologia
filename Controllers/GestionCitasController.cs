@@ -44,6 +44,7 @@ using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Email;
 using System.Net;
 using System.Security.Claims;
+using System.Text.Json;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -637,7 +638,7 @@ public sealed class CambiarEstadoCitaDto
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador,Recepcionista")]
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional")]
     [Route("gestion-de-citas/guardar-cita")]
     public async Task<IActionResult> GuardarCita(
         [FromForm] CitaViewModel model,
@@ -663,6 +664,31 @@ public sealed class CambiarEstadoCitaDto
                 "Los datos de la cita son obligatorios.";
 
             return Redirect(returnUrlSafe);
+        }
+
+        if (User.IsInRole("Profesional"))
+        {
+            if (!int.TryParse(User.FindFirstValue("IdProfesional"), out int idProfesionalActual) ||
+                idProfesionalActual <= 0 ||
+                model.IdProfesional != idProfesionalActual)
+            {
+                TempData["ErrorValidacion"] =
+                    "Solo puede agendar citas para usted mismo.";
+
+                return Redirect(returnUrlSafe);
+            }
+
+            if (model.IdCita is > 0)
+            {
+                var citaExistente = await _citaService.ObtenerPorIdAsync(model.IdCita.Value, ct);
+                if (citaExistente is null || citaExistente.IdProfesional != idProfesionalActual)
+                {
+                    TempData["ErrorValidacion"] =
+                        "No tiene permiso para modificar esta cita.";
+
+                    return Redirect(returnUrlSafe);
+                }
+            }
         }
 
         if (!ModelState.IsValid)
@@ -1251,8 +1277,9 @@ public sealed class CambiarEstadoCitaDto
     {
         try
         {
-            ViewData["PanelOperativoData"] =
-                await _panelOperativoService.ObtenerAsync(ct);
+            var panelData = await _panelOperativoService.ObtenerAsync(ct);
+            ViewData["PanelOperativoData"] = panelData;
+            ViewData["TopProfesionales"] = panelData.TopProfesionales;
 
             return View(
                 "~/Views/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.cshtml");
@@ -1280,6 +1307,8 @@ public sealed class CambiarEstadoCitaDto
     [Route("gestion-de-citas/st-aux-02-agenda-apoyo")]
     public async Task<IActionResult> Staux02AgendaApoyo(
         [FromQuery] int? editId,
+        [FromQuery] DateTime? fecha,
+        [FromQuery] DateTime? weekStart,
         CancellationToken ct = default)
     {
         try
@@ -1291,7 +1320,7 @@ public sealed class CambiarEstadoCitaDto
                 ct);
 
             ViewData["AgendaApoyoData"] =
-                await ConstruirAgendaApoyoAsync(ct);
+                await ConstruirAgendaApoyoAsync(fecha, weekStart, ct);
 
             return View(
                 "~/Views/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.cshtml");
@@ -1311,16 +1340,20 @@ public sealed class CambiarEstadoCitaDto
     }
 
     private async Task<object> ConstruirAgendaApoyoAsync(
+        DateTime? fecha,
+        DateTime? weekStart,
         CancellationToken ct)
     {
-        var hoy = DateTime.Now.Date;
+        bool esSemana = weekStart.HasValue;
+        var inicio = (weekStart ?? fecha ?? DateTime.Today).Date;
+        var fin = esSemana ? inicio.AddDays(7) : inicio.AddDays(1);
 
-        var citasHoy = await _context.Citas
+        var citasAgenda = await _context.Citas
             .AsNoTracking()
             .Include(c => c.Paciente)
             .Include(c => c.Profesional)
             .Include(c => c.Servicio)
-            .Where(c => c.FechaHora.Date == hoy)
+            .Where(c => c.FechaHora >= inicio && c.FechaHora < fin)
             .OrderBy(c => c.FechaHora)
             .ToListAsync(ct);
 
@@ -1357,15 +1390,17 @@ public sealed class CambiarEstadoCitaDto
                 "realizada"
                     => "Atendida",
 
-                "cancelada" or
+                "cancelada" => "Cancelada",
+
                 "no_asistida" or
-                "no-show"
-                    => "Cancelada",
+                "no-show" or
+                "no asistió"
+                    => "No asistió",
 
                 _ => "Pendiente"
             };
 
-        var citas = citasHoy.Select(
+        var citas = citasAgenda.Select(
             c => new
             {
                 id = c.IdCita,
@@ -1396,10 +1431,14 @@ public sealed class CambiarEstadoCitaDto
 
         return new
         {
-            fechaHoy =
-                hoy.ToString(
+            fechaInicio =
+                inicio.ToString(
                     "ddd d MMM yyyy",
                     new System.Globalization.CultureInfo("es-CO")),
+            fechaFin = fin.AddDays(-1).ToString(
+                "ddd d MMM yyyy",
+                new System.Globalization.CultureInfo("es-CO")),
+            modo = esSemana ? "semana" : "dia",
 
             citas
         };
@@ -1483,7 +1522,7 @@ public sealed class CambiarEstadoCitaDto
             };
         }
 
-        var consultas = await _context.Citas
+        var consultasBase = await _context.Citas
             .AsNoTracking()
             .Include(c => c.Profesional)
             .Include(c => c.Servicio)
@@ -1513,6 +1552,26 @@ public sealed class CambiarEstadoCitaDto
                             : "Consulta"
                 })
             .ToListAsync(ct);
+
+        var notaClinica = await _context.NotasClinicas
+            .AsNoTracking()
+            .Include(n => n.HistoriaClinica)
+            .Where(n => n.HistoriaClinica != null && n.HistoriaClinica.IdPaciente == paciente.IdPaciente)
+            .OrderByDescending(n => n.Fecha)
+            .FirstOrDefaultAsync(ct);
+
+        var consultas = consultasBase
+            .Select(c => new
+            {
+                c.id,
+                c.fecha,
+                c.profesional,
+                diagnostico = notaClinica is null || string.IsNullOrWhiteSpace(notaClinica.Diagnostico)
+                    ? "Sin notas clínicas registradas"
+                    : notaClinica.Diagnostico,
+                c.procedimiento
+            })
+            .ToList();
 
         return new
         {
@@ -1572,6 +1631,13 @@ public sealed class CambiarEstadoCitaDto
                 "/gestion-de-citas/st-aux-06-asistencia-procedi",
                 null,
                 ct);
+
+            ViewData["CitasAsistenciaSelector"] = await _context.Citas
+                .AsNoTracking()
+                .Include(c => c.Paciente)
+                .Where(c => c.FechaHora >= DateTime.Today && c.FechaHora < DateTime.Today.AddDays(1))
+                .OrderBy(c => c.FechaHora)
+                .ToListAsync(ct);
 
             ViewData["AsistenciaProcedData"] =
                 await ConstruirAsistenciaProcedimientoAsync(
@@ -1635,7 +1701,7 @@ public sealed class CambiarEstadoCitaDto
                               c.EstadoCita.NombreEstado == "En consulta")),
                         ct);
 
-        if (cita is not null)
+        if (cita is not null && !citaId.HasValue)
         {
             var estadoRaw =
                 (cita.EstadoCita?.NombreEstado ?? cita.Estado).Trim().ToLowerInvariant();
@@ -1755,49 +1821,39 @@ public sealed class CambiarEstadoCitaDto
             };
         }
 
-        // Obtener citas recientes de ese consultorio como historial aproximado.
-        // WHY: la proyección del "detail" usa NormalizarEstado (método local, no traducible a SQL),
-        // por eso se trae el estado crudo desde la DB y se proyecta en memoria.
-        var citasBruto = await _context.Citas
+        var estadoOperativo = await _context.EstadosOperativosConsultorio
             .AsNoTracking()
-            .Include(c => c.Profesional)
-            .Where(c => c.IdConsultorio == consultorio.IdConsultorio &&
-                        c.FechaHora <= DateTime.Now)
-            .OrderByDescending(c => c.FechaHora)
+            .FirstOrDefaultAsync(e => e.IdConsultorio == consultorio.IdConsultorio, ct);
+
+        var historial = await _context.ConsultoriosHistorial
+            .AsNoTracking()
+            .Where(h => h.IdConsultorio == consultorio.IdConsultorio)
+            .OrderByDescending(h => h.FechaCambio)
             .Take(5)
             .Select(c => new
             {
-                FechaHora = c.FechaHora,
-                NombresProfesional = c.Profesional != null ? c.Profesional.Nombres : null,
-                ApellidosProfesional = c.Profesional != null ? c.Profesional.Apellidos : null,
-                Estado = c.Estado
+                time = c.FechaCambio.ToString("o"),
+                user = "Estado operativo",
+                detail = string.IsNullOrWhiteSpace(c.Motivo)
+                    ? c.Estado
+                    : $"{c.Estado}: {c.Motivo}"
             })
             .ToListAsync(ct);
 
-        var citasRecientes = citasBruto.Select(c => new
-        {
-            time = c.FechaHora.ToString("o"),
-            user = c.NombresProfesional != null
-                ? $"Dr(a). {c.NombresProfesional} {c.ApellidosProfesional}"
-                : "Profesional",
-            detail = NormalizarEstado(c.Estado ?? "") switch
-            {
-                "atendida" or "completada" => "Cita atendida — consultorio liberado",
-                "cancelada" => "Cita cancelada",
-                _ => "Cita registrada"
-            }
-        }).ToList();
-
-        var ultimaCita = citasRecientes.FirstOrDefault();
+        object[] checklist = estadoOperativo is null
+            ? []
+            : JsonSerializer.Deserialize<object[]>(estadoOperativo.ChecklistJson) ?? [];
 
         return new
         {
             consultorioId = consultorio.IdConsultorio,
             nombre = consultorio.Nombre ?? $"Consultorio {consultorio.IdConsultorio}",
             ubicacion = consultorio.Ubicacion ?? "",
-            ultimaActualizacion = ultimaCita?.time ?? "",
+            ultimaActualizacion = estadoOperativo?.ActualizadoEn.ToString("o") ?? historial.FirstOrDefault()?.time ?? "",
             estadoActual = consultorio.Estado ?? "disponible",
-            historial = citasRecientes.Cast<object>().ToArray()
+            checklist,
+            observaciones = estadoOperativo?.Observaciones,
+            historial = historial.Cast<object>().ToArray()
         };
     }
 
@@ -1890,8 +1946,10 @@ public sealed class CambiarEstadoCitaDto
                     c => new
                     {
                         id = c.IdCita,
+                        fecha = c.FechaHora.ToString("dd/MM/yyyy"),
                         hora =
                             c.FechaHora.ToString("HH:mm"),
+                        esHoy = c.FechaHora.Date == hoy,
 
                         paciente =
                             c.Paciente?.NombresCompleto ??
@@ -2391,7 +2449,7 @@ public sealed class CambiarEstadoCitaDto
                 null,
                 ct);
 
-            ViewData["DashboardRecepcionData"] =
+            ViewData["DashboardRecData"] =
                 await ConstruirDashboardRecepcionAsync(ct);
 
             return View(
@@ -2409,6 +2467,39 @@ public sealed class CambiarEstadoCitaDto
             return View(
                 "~/Views/Gestion_De_Citas/st-rec-01-dashboard/index.cshtml");
         }
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Recepcionista,Administrador")]
+    [Route("api/citas/proximas")]
+    public async Task<IActionResult> ObtenerProximasCitasRecepcion(
+        [FromQuery] int ventanaMinutos = 30,
+        CancellationToken ct = default)
+    {
+        ventanaMinutos = Math.Clamp(ventanaMinutos, 1, 120);
+        var ahora = DateTime.Now;
+        var limite = ahora.AddMinutes(ventanaMinutos);
+
+        var proximas = await _context.Citas
+            .AsNoTracking()
+            .Include(c => c.Paciente)
+            .Include(c => c.Profesional)
+            .Include(c => c.Servicio)
+            .Include(c => c.Consultorio)
+            .Where(c => c.FechaHora > ahora && c.FechaHora <= limite && !EsEstadoCancelado(c.Estado))
+            .OrderBy(c => c.FechaHora)
+            .Select(c => new
+            {
+                hora = c.FechaHora.ToString("hh:mm tt"),
+                fechaIso = c.FechaHora.ToString("yyyy-MM-ddTHH:mm"),
+                texto = $"{(c.Paciente == null ? "Paciente sin datos" : c.Paciente.Nombres + " " + c.Paciente.Apellidos)} - " +
+                    $"{(c.Servicio == null ? "Consulta" : c.Servicio.Nombre)} - " +
+                    $"{(c.Profesional == null ? "Sin asignar" : "Dr(a). " + c.Profesional.Nombres + " " + c.Profesional.Apellidos)}" +
+                    $"{(c.Consultorio == null ? "" : " - " + c.Consultorio.Nombre)}"
+            })
+            .ToListAsync(ct);
+
+        return Ok(new { success = true, proximasCitas = proximas });
     }
 
     private async Task<object> ConstruirDashboardRecepcionAsync(
@@ -2619,6 +2710,8 @@ public sealed class CambiarEstadoCitaDto
                     Fecha = fecha
                 },
                 ct);
+
+            await CargarKpisRecepcionHoy(ct);
 
             return View(
                 "~/Views/Gestion_De_Citas/st-rec-03-gestion-citas/index.cshtml");
@@ -3006,6 +3099,27 @@ public sealed class CambiarEstadoCitaDto
     // ================================================================
     // KPI GESTIÓN INTEGRAL DE CITAS
     // ================================================================
+
+    private async Task CargarKpisRecepcionHoy(CancellationToken ct = default)
+    {
+        var inicio = DateTime.Today;
+        var fin = inicio.AddDays(1);
+        var estados = await _context.Citas
+            .AsNoTracking()
+            .Where(c => c.FechaHora >= inicio && c.FechaHora < fin)
+            .Select(c => c.Estado)
+            .ToListAsync(ct);
+
+        var normalizados = estados
+            .Select(EstadoCitaHelper.Normalize)
+            .ToList();
+
+        ViewData["StatRecHoy"] = normalizados.Count;
+        ViewData["StatRecConfirmadas"] = normalizados.Count(e => e == "confirmada");
+        ViewData["StatRecPendientes"] = normalizados.Count(e =>
+            e is "solicitada" or "programada" or "agendada" or "pendiente");
+        ViewData["StatRecCanceladasHoy"] = normalizados.Count(e => e == "cancelada");
+    }
 
     private async Task CargarKpisGestionCitas(
         CancellationToken ct = default)

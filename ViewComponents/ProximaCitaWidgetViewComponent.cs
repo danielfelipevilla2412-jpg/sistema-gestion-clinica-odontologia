@@ -37,7 +37,7 @@ public class ProximaCitaWidgetViewComponent : ViewComponent
             .Include(c => c.Servicio)
             .Include(c => c.Consultorio)
             .Where(c => c.FechaHora > ahora)
-            .Where(c => c.IdEstadoCita != 4 && c.IdEstadoCita != 5); // No canceladas ni completadas
+            .Where(c => c.Estado != "cancelada" && c.Estado != "Cancelada" && c.Estado != "atendida" && c.Estado != "Atendida" && c.Estado != "completada" && c.Estado != "Completada" && c.Estado != "no_asistida" && c.Estado != "No asistió");
 
         // Filtrar por profesional o paciente
         if (idProfesional.HasValue)
@@ -67,7 +67,7 @@ public class ProximaCitaWidgetViewComponent : ViewComponent
         {
             var ultimaCitaAtendida = await _context.Citas
                 .Where(c => c.IdPaciente == proximaCita.IdPaciente)
-                .Where(c => c.IdEstadoCita == 3) // Atendida
+                .Where(c => c.Estado == "atendida" || c.Estado == "Atendida" || c.Estado == "completada" || c.Estado == "Completada" || c.Estado == "realizada" || c.Estado == "Realizada")
                 .OrderByDescending(c => c.FechaHora)
                 .Select(c => c.FechaHora)
                 .FirstOrDefaultAsync();
@@ -81,7 +81,7 @@ public class ProximaCitaWidgetViewComponent : ViewComponent
         var viewModel = new ProximaCitaWidgetViewModel
         {
             IdCita = proximaCita.IdCita,
-            NombrePaciente = $"{proximaCita.Paciente?.Nombre} {proximaCita.Paciente?.Apellido}".Trim(),
+            NombrePaciente = $"{proximaCita.Paciente?.Nombres} {proximaCita.Paciente?.Apellidos}".Trim(),
             NombreServicio = proximaCita.Servicio?.Nombre ?? "Servicio sin nombre",
             FechaHora = proximaCita.FechaHora,
             NombreConsultorio = proximaCita.Consultorio?.Nombre ?? "Sin consultorio",

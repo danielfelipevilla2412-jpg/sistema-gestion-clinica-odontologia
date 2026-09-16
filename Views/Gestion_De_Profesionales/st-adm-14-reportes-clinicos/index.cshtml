@@ -5,13 +5,12 @@ Autor: Johan Santamaria
 Fecha: 29/07/2026
 
 DESCRIPCIÓN:
-Vista de administración de reportes clínicos que permite al administrador consultar, filtrar y paginar los reportes generados por los odontólogos, con acceso al detalle de cada procedimiento realizado.
+Vista de administración de reportes clínicos que permite al administrador consultar, filtrar y paginar los reportes generados por los odontólogos.
 
 FUNCIONALIDADES PRINCIPALES:
 - Tabla paginada de reportes clínicos renderizada server-side con Razor desde PagedResult
 - Filtros por profesional, rango de fechas y estado del reporte
-- Detalle del reporte expandible con datos del procedimiento, diagnóstico y observaciones
-- Exportación del listado de reportes a CSV desde el cliente
+- Diagnóstico y procedimiento provenientes de la nota clínica más reciente por paciente
 
 DEPENDENCIAS TÉCNICAS:
 - Controller: GestionProfesionalesController (ViewData: ProfesionalesReportes, ReportesClinicos, ReportesClinicosPage)
@@ -63,8 +62,8 @@ NOTAS DE MANTENIMIENTO:
                 <span class="stat-label" data-i18n="reportesclinicos_stat_consultas">Consultas Este Mes</span>
             </div>
             <div class="stat-card" data-color="purple">
-                <span class="stat-number" id="metricSatisfaction" data-target="@(ViewData["SatisfaccionPromedio"] ?? 0)" aria-live="polite">0</span>
-                <span class="stat-label" data-i18n="reportesclinicos_stat_satisfaccion">Satisfacción Pacientes</span>
+                <span class="stat-number" id="metricAttendanceRate" data-target="@(ViewData["TasaAsistencia"] ?? 0)" aria-live="polite">0</span>
+                <span class="stat-label" data-i18n="reportesclinicos_stat_asistencia">Tasa de asistencia</span>
             </div>
         </section>
 
@@ -117,6 +116,7 @@ NOTAS DE MANTENIMIENTO:
                             <th scope="col" data-i18n="reportesclinicos_th_paciente">PACIENTE</th>
                             <th scope="col" data-i18n="reportesclinicos_th_ultconsulta">ÚLTIMA CONSULTA</th>
                             <th scope="col" data-i18n="reportesclinicos_th_diagnostico">DIAGNÓSTICO</th>
+                            <th scope="col">PROCEDIMIENTO</th>
                             <th scope="col" data-i18n="reportesclinicos_th_profesional">PROFESIONAL</th>
                             <th scope="col" data-i18n="reportesclinicos_th_proxcita">PRÓXIMA CITA</th>
                             <th scope="col" data-i18n="reportesclinicos_th_alerta">ALERTA</th>
@@ -126,7 +126,7 @@ NOTAS DE MANTENIMIENTO:
                         @if (!reportes.Any())
                         {
                             <tr>
-                                <td colspan="6" style="text-align:center; padding:48px 24px; color:var(--text-muted);">
+                                <td colspan="7" style="text-align:center; padding:48px 24px; color:var(--text-muted);">
                                     <div style="font-size:2rem; margin-bottom:8px;">🩺</div>
                                     <strong data-i18n="reportesclinicos_empty_title">Sin resultados</strong>
                                     <br /><span style="font-size:0.875rem;" data-i18n-html="reportesclinicos_empty_desc">Ningún reporte coincide con los filtros aplicados. <a href="@Url.Action("Stadm14ReportesClinicos", "GestionProfesionales")">Limpiar filtros</a></span>
@@ -149,6 +149,7 @@ NOTAS DE MANTENIMIENTO:
                                 </td>
                                 <td>@reporte.UltimaConsulta.ToString("dd/MM/yyyy")</td>
                                 <td>@reporte.Diagnostico</td>
+                                <td>@reporte.Procedimiento</td>
                                 <td>@reporte.ProfesionalNombre</td>
                                 <td>
                                     @if (reporte.ProximaCita.HasValue)

@@ -27,6 +27,8 @@ NOTAS DE MANTENIMIENTO:
     Layout = "_Layout";
     ViewData["Title"] = "Agenda de Apoyo Clínico";
     var agendaApoyoDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["AgendaApoyoData"] ?? new object());
+    var fechaAgenda = Context.Request.Query["fecha"].FirstOrDefault() ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var inicioSemana = Context.Request.Query["weekStart"].FirstOrDefault() ?? fechaAgenda;
 }
 
 @section Styles {
@@ -46,6 +48,13 @@ NOTAS DE MANTENIMIENTO:
         </nav>
         <h1 class="page-title" data-i18n="nav.agenda">Agenda de Apoyo Clínico</h1>
         <p class="page-subtitle" id="phMeta" aria-live="polite" data-i18n="aux.agenda_apoyo_subtitle">Citas del d&#237;a que requieren asistencia</p>
+      </div>
+      <div class="header-actions" aria-label="Navegación de fecha">
+        @await Component.InvokeAsync("ToggleVistas", new { vistaActiva = Context.Request.Query.ContainsKey("weekStart") ? "semana" : "dia" })
+        <a class="btn-secondary" href="?fecha=@DateTime.Parse(fechaAgenda).AddDays(-1).ToString("yyyy-MM-dd")" aria-label="Día anterior">‹ Día</a>
+        <a class="btn-secondary" href="?fecha=@DateTime.Parse(fechaAgenda).AddDays(1).ToString("yyyy-MM-dd")" aria-label="Día siguiente">Día ›</a>
+        <a class="btn-secondary" href="?weekStart=@DateTime.Parse(inicioSemana).AddDays(-7).ToString("yyyy-MM-dd")" aria-label="Semana anterior">‹ Semana</a>
+        <a class="btn-secondary" href="?weekStart=@DateTime.Parse(inicioSemana).AddDays(7).ToString("yyyy-MM-dd")" aria-label="Semana siguiente">Semana ›</a>
       </div>
     </header>
 

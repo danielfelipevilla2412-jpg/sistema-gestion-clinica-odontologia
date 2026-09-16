@@ -643,3 +643,93 @@ img { max-width: 100%; height: auto; display: block; }
 .table-base tbody tr {
   animation: fadeInRow 0.35s ease forwards;
 }
+
+/* ═══ PESTAÑAS Y GESTIÓN DE HORARIOS EN MODAL ═══ */
+.modal-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 16px;
+  padding-bottom: 0;
+}
+.modal-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: color var(--tr), border-color var(--tr);
+  margin-bottom: -2px;
+}
+.modal-tab-btn:hover {
+  color: var(--primary);
+}
+.modal-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.modal-tab-pane {
+  display: none;
+}
+.modal-tab-pane.active {
+  display: block;
+}
+
+/* Filas de horario semanal */
+.schedule-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.schedule-row {
+  display: grid;
+  grid-template-columns: 140px 100px 1fr 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: background var(--tr), border-color var(--tr);
+}
+.schedule-row.inactive {
+  opacity: 0.6;
+  background: #f8fafc;
+}
+.schedule-row-day {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+.schedule-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  user-select: none;
+}
+.schedule-time-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.schedule-time-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+@media (max-width: 600px) {
+  .schedule-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .schedule-row-day {
+    grid-column: 1 / -1;
+  }
+}

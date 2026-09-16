@@ -220,14 +220,26 @@ function renderTableFromApi(result) {
                       onclick="editProfessional(${p.idProfesional})">
                 ✏️ <span class="btn-text">Editar</span>
               </button>
-              <button class="btn-icon toggle action-btn btn-delete"
-                      type="button"
-                      data-id="${p.idProfesional}"
-                      data-name="${name}"
-                      aria-label="Desactivar el profesional ${name}"
-                      title="Desactivar profesional ${name}">
-                ❌ <span class="btn-text">Eliminar</span>
-              </button>
+              ${(estadoText || '').toLowerCase() === 'activo'
+                ? `<button class="btn-icon toggle action-btn btn-delete"
+                        type="button"
+                        data-id="${p.idProfesional}"
+                        data-name="${name}"
+                        data-estado="${estadoText}"
+                        aria-label="Desactivar el profesional ${name}"
+                        title="Desactivar profesional ${name}">
+                    <span class="material-symbols-outlined action-icon" aria-hidden="true">block</span> <span class="btn-text">Desactivar</span>
+                  </button>`
+                : `<button class="btn-icon toggle action-btn btn-delete"
+                        type="button"
+                        data-id="${p.idProfesional}"
+                        data-name="${name}"
+                        data-estado="${estadoText || 'inactivo'}"
+                        aria-label="Reactivar el profesional ${name}"
+                        title="Reactivar profesional ${name}">
+                    <span class="material-symbols-outlined action-icon" aria-hidden="true">check_circle</span> <span class="btn-text">Reactivar</span>
+                  </button>`
+              }
             </div>
           </td>
         `;
@@ -270,10 +282,10 @@ function renderTableFromApi(result) {
             }
         });
 
-        // Enlazar el botón Eliminar al modal de confirmación
+        // Enlazar el botón Desactivar/Reactivar al modal de confirmación
         const deleteBtn = tr.querySelector('.btn-delete');
         deleteBtn?.addEventListener('click', () => {
-            openConfirmDeleteModal(p.idProfesional, name);
+            openConfirmToggleEstadoModal(p.idProfesional, name, deleteBtn.dataset.estado || 'activo');
         });
 
         tbody.appendChild(tr);
@@ -340,6 +352,218 @@ const renderAbsences = () => {
     item.append(details, actions);
     list.appendChild(item);
   });
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  PESTAÑAS DEL MODAL DETALLE
+// ═══════════════════════════════════════════════════════════════════
+
+const initModalTabs = () => {
+  const tabs = [
+    { btn: 'tabBtnGeneral', pane: 'tabPaneGeneral' },
+    { btn: 'tabBtnHorarios', pane: 'tabPaneHorarios' },
+    { btn: 'tabBtnAusencias', pane: 'tabPaneAusencias' },
+  ];
+
+  tabs.forEach(t => {
+    const btnEl = safeGetElement(t.btn);
+    btnEl?.addEventListener('click', () => {
+      tabs.forEach(other => {
+        safeGetElement(other.btn)?.classList.remove('active');
+        safeGetElement(other.btn)?.setAttribute('aria-selected', 'false');
+        safeGetElement(other.pane)?.classList.remove('active');
+      });
+      btnEl.classList.add('active');
+      btnEl.setAttribute('aria-selected', 'true');
+      safeGetElement(t.pane)?.classList.add('active');
+    });
+  });
+};
+
+const resetModalTabs = () => {
+  safeGetElement('tabBtnGeneral')?.click();
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  GESTIÓN DE HORARIOS DEL PROFESIONAL
+// ═══════════════════════════════════════════════════════════════════
+
+const DAYS_OF_WEEK = [
+  { key: 'Lunes', label: 'Lunes', short: 'Lun' },
+  { key: 'Martes', label: 'Martes', short: 'Mar' },
+  { key: 'Miercoles', label: 'Miércoles', short: 'Mié' },
+  { key: 'Jueves', label: 'Jueves', short: 'Jue' },
+  { key: 'Viernes', label: 'Viernes', short: 'Vie' },
+  { key: 'Sabado', label: 'Sábado', short: 'Sáb' },
+  { key: 'Domingo', label: 'Domingo', short: 'Dom' },
+];
+
+let professionalSchedules = [];
+
+const renderScheduleDays = () => {
+  const container = safeGetElement('scheduleDaysContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  DAYS_OF_WEEK.forEach((d) => {
+    const existing = professionalSchedules.find(
+      (s) => (s.diaSemana || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
+             d.key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    );
+
+    const isActive = existing ? existing.activo : (d.key !== 'Sabado' && d.key !== 'Domingo');
+    const startTime = existing?.horaInicio ? existing.horaInicio.substring(0, 5) : '08:00';
+    const endTime = existing?.horaFin ? existing.horaFin.substring(0, 5) : '17:00';
+
+    const row = document.createElement('div');
+    row.className = `schedule-row ${isActive ? '' : 'inactive'}`;
+    row.dataset.day = d.key;
+
+    row.innerHTML = `
+      <div class="schedule-row-day">${d.label}</div>
+      <label class="schedule-toggle">
+        <input type="checkbox" class="schedule-day-active" ${isActive ? 'checked' : ''} data-day="${d.key}">
+        <span>${isActive ? 'Atiende' : 'No atiende'}</span>
+      </label>
+      <div class="schedule-time-group">
+        <span class="schedule-time-label">Inicio:</span>
+        <input type="time" class="form-input schedule-time-start" value="${startTime}" ${isActive ? '' : 'disabled'} style="padding:4px 8px;font-size:0.85rem;" required>
+      </div>
+      <div class="schedule-time-group">
+        <span class="schedule-time-label">Fin:</span>
+        <input type="time" class="form-input schedule-time-end" value="${endTime}" ${isActive ? '' : 'disabled'} style="padding:4px 8px;font-size:0.85rem;" required>
+      </div>
+    `;
+
+    const checkbox = row.querySelector('.schedule-day-active');
+    const labelSpan = row.querySelector('.schedule-toggle span');
+    const startInput = row.querySelector('.schedule-time-start');
+    const endInput = row.querySelector('.schedule-time-end');
+
+    checkbox.addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      row.classList.toggle('inactive', !checked);
+      labelSpan.textContent = checked ? 'Atiende' : 'No atiende';
+      startInput.disabled = !checked;
+      endInput.disabled = !checked;
+    });
+
+    container.appendChild(row);
+  });
+};
+
+const applyDefaultSchedule = () => {
+  const rows = document.querySelectorAll('#scheduleDaysContainer .schedule-row');
+  rows.forEach(row => {
+    const day = row.dataset.day;
+    const isWeekday = day !== 'Sabado' && day !== 'Domingo';
+    const checkbox = row.querySelector('.schedule-day-active');
+    const labelSpan = row.querySelector('.schedule-toggle span');
+    const startInput = row.querySelector('.schedule-time-start');
+    const endInput = row.querySelector('.schedule-time-end');
+
+    if (checkbox) checkbox.checked = isWeekday;
+    if (labelSpan) labelSpan.textContent = isWeekday ? 'Atiende' : 'No atiende';
+    row.classList.toggle('inactive', !isWeekday);
+    if (startInput) {
+      startInput.value = '08:00';
+      startInput.disabled = !isWeekday;
+    }
+    if (endInput) {
+      endInput.value = '17:00';
+      endInput.disabled = !isWeekday;
+    }
+  });
+  window.ToastService?.info?.('Horario estándar (Lun-Vie 08:00 - 17:00) cargado en el formulario. Recuerda guardar cambios.');
+};
+
+const loadProfessionalSchedule = async (id) => {
+  detailProfessionalId = Number(id);
+  const loading = safeGetElement('scheduleLoading');
+  const statusMsg = safeGetElement('scheduleStatusMsg');
+  if (statusMsg) statusMsg.textContent = '';
+  if (loading) loading.textContent = 'Cargando horarios de atención...';
+
+  try {
+    const result = await apiRequest(`${API_BASE}/${detailProfessionalId}/horarios`);
+    professionalSchedules = result?.data || [];
+    renderScheduleDays();
+  } catch (error) {
+    professionalSchedules = [];
+    renderScheduleDays();
+    if (statusMsg) {
+      statusMsg.style.color = 'var(--text-muted)';
+      statusMsg.textContent = 'ℹ️ Sin horario personalizado (aplica horario general de la clínica).';
+    }
+  } finally {
+    if (loading) loading.textContent = '';
+  }
+};
+
+const saveSchedule = async (event) => {
+  event.preventDefault();
+  if (!detailProfessionalId) return;
+
+  const rows = document.querySelectorAll('#scheduleDaysContainer .schedule-row');
+  const payload = [];
+
+  for (const row of rows) {
+    const dayKey = row.dataset.day;
+    const active = row.querySelector('.schedule-day-active').checked;
+    const start = row.querySelector('.schedule-time-start').value;
+    const end = row.querySelector('.schedule-time-end').value;
+
+    if (active) {
+      if (!start || !end) {
+        window.ToastService?.warning?.(`Debes especificar hora de inicio y fin para el ${dayKey}.`);
+        return;
+      }
+      if (end <= start) {
+        window.ToastService?.warning?.(`La hora de fin debe ser posterior a la hora de inicio para el ${dayKey}.`);
+        return;
+      }
+    }
+
+    payload.push({
+      day: dayKey.substring(0, 3),
+      diaSemana: dayKey,
+      dayFull: dayKey,
+      active: active,
+      start: start,
+      end: end
+    });
+  }
+
+  const saveBtn = safeGetElement('scheduleSaveButton');
+  const statusMsg = safeGetElement('scheduleStatusMsg');
+  if (saveBtn) saveBtn.disabled = true;
+  if (statusMsg) {
+    statusMsg.style.color = 'var(--primary)';
+    statusMsg.textContent = '⏳ Guardando horarios en base de datos...';
+  }
+
+  try {
+    const result = await apiRequest(`${API_BASE}/${detailProfessionalId}/horarios`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    window.ToastService?.success?.(result?.message || 'Horarios actualizados correctamente.');
+    if (statusMsg) {
+      statusMsg.style.color = 'var(--green, #166534)';
+      statusMsg.textContent = '✅ Horarios guardados en base de datos.';
+    }
+    await loadProfessionalSchedule(detailProfessionalId);
+  } catch (error) {
+    window.ToastService?.error?.(`No se pudieron guardar los horarios: ${error.message}`);
+    if (statusMsg) {
+      statusMsg.style.color = 'var(--red, #b91c1c)';
+      statusMsg.textContent = `❌ Error: ${error.message}`;
+    }
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
 };
 
 const loadProfessionalAbsences = async (id) => {
@@ -588,7 +812,8 @@ const updateProfessionalPasswordRules = () => {
   Object.entries(rules).forEach(([key, ok]) => {
     const row = document.querySelector(`#professionalPasswordRules [data-rule="${key}"]`);
     if (!row) return;
-    row.textContent = `${ok ? '✓' : '✗'} ${row.textContent.slice(2)}`;
+    const icon = row.querySelector('.rule-icon');
+    if (icon) icon.textContent = ok ? '✓' : '✗';
     row.style.color = ok ? '#15803d' : '#b91c1c';
   });
 
@@ -968,29 +1193,54 @@ const initFiltersAPI = () => {
 // Variables for delete modal
 let lastModalOpener = null;
 
-const openConfirmDeleteModal = (id, name) => {
+const openConfirmToggleEstadoModal = (id, name, estadoActual) => {
   lastModalOpener = document.activeElement;
   const modal = safeGetElement('modalConfirmDelete');
+  const titleEl = safeGetElement('modalConfirmDeleteTitle');
   const message = safeGetElement('modalConfirmDeleteMessage');
+  const warning = document.getElementById('modalConfirmDeleteWarning') || null;
   const deleteIdInput = safeGetElement('deleteProfesionalId');
-  
+  const estadoInput = safeGetElement('deleteProfesionalEstado');
+  const confirmBtn = safeGetElement('modalConfirmDeleteConfirm');
+  const cancelBtn = safeGetElement('modalConfirmDeleteCancel');
+
+  const esActivo = (estadoActual || 'activo').toLowerCase() === 'activo';
+
+  if (titleEl) {
+    titleEl.textContent = esActivo
+      ? 'Desactivar profesional'
+      : 'Reactivar profesional';
+  }
   if (message) {
-    message.textContent = `¿Estás seguro de desactivar a ${name}? El profesional quedará inactivo y no podrá recibir nuevas citas.`;
+    message.textContent = esActivo
+      ? `¿Estás seguro de desactivar a ${name}? El profesional quedará inactivo y no podrá recibir nuevas citas.`
+      : `¿Estás seguro de reactivar a ${name}? El profesional pasará a estado activo y volverá a recibir citas.`;
   }
-  if (deleteIdInput) {
-    deleteIdInput.value = id;
+  if (warning) {
+    warning.innerHTML = esActivo
+      ? '⚠️ El profesional pasará a estado <strong>inactivo</strong> y no podrá recibir nuevas citas. Esta operación es reversible: puedes reactivarlo desde la misma columna acciones. No es posible desactivar profesionales con citas activas pendientes.'
+      : '✅ El profesional volverá a estado <strong>activo</strong> y estará disponible para agendar nuevas citas. Esta operación es reversible: puedes desactivarlo desde la misma columna acciones.';
   }
+  if (cancelBtn) {
+    cancelBtn.textContent = esActivo ? 'Cancelar — no desactivar' : 'Cancelar — no reactivar';
+  }
+  if (confirmBtn) {
+    confirmBtn.textContent = esActivo ? 'Confirmar desactivación' : 'Confirmar reactivación';
+    confirmBtn.style.backgroundColor = esActivo ? 'var(--red)' : 'var(--primary)';
+    confirmBtn.style.borderColor = esActivo ? 'var(--red)' : 'var(--primary)';
+    confirmBtn.dataset.loadingText = esActivo ? '⏳ Desactivando...' : '⏳ Reactivando...';
+  }
+  if (deleteIdInput) deleteIdInput.value = id;
+  if (estadoInput) estadoInput.value = estadoActual || 'activo';
+
   if (modal) {
     modal.classList.add('open');
-    // CORRECCIÓN: usar setAttribute con string 'false' en lugar de removeAttribute
-    // para que lectores de pantalla detecten correctamente el cambio de estado ARIA
     modal.setAttribute('aria-hidden', 'false');
     modal.removeAttribute('inert');
     document.body.style.overflow = 'hidden';
-    // Focus en botón Cancelar: previene confirmación accidental (WCAG 2.4.3)
     setTimeout(() => {
-      const cancelBtn = safeGetElement('modalConfirmDeleteCancel');
-      if (cancelBtn) cancelBtn.focus();
+      const cancelBtnEl = safeGetElement('modalConfirmDeleteCancel');
+      if (cancelBtnEl) cancelBtnEl.focus();
     }, 50);
   }
 };
@@ -1045,6 +1295,8 @@ const initModals = () => {
   
   // Submit del formulario (POST / PUT via API)
   form?.addEventListener('submit', saveProfessional);
+  scheduleForm?.addEventListener('submit', saveSchedule);
+  safeGetElement('btnApplyDefaultSchedule')?.addEventListener('click', applyDefaultSchedule);
   absenceForm?.addEventListener('submit', saveAbsence);
   safeGetElement('absenceCancelEdit')?.addEventListener('click', resetAbsenceForm);
 
@@ -1057,7 +1309,8 @@ const initModals = () => {
     if (btn) {
       const id = btn.getAttribute('data-id');
       const name = btn.getAttribute('data-name') || 'este profesional';
-      if (id) openConfirmDeleteModal(id, name);
+      const estado = btn.getAttribute('data-estado') || 'activo';
+      if (id) openConfirmToggleEstadoModal(id, name, estado);
     }
   });
 
@@ -1097,35 +1350,54 @@ const initModals = () => {
         modal.removeAttribute('inert');
         document.body.style.overflow = 'hidden';
         detailProfessionalId = Number(btn.dataset.id);
+        resetModalTabs();
         resetAbsenceForm();
+        loadProfessionalSchedule(detailProfessionalId);
         loadProfessionalAbsences(detailProfessionalId);
         safeGetElement('modalDetailClose')?.focus();
       }
     }
   });
 
-  // Botón de confirmación del DELETE lógico
-  // Fase 2D — 2D.2: DELETE /api/profesionales/{id} en lugar de form.submit() al MVC.
+  // Botón de confirmación del toggle de estado (Desactivar/Reactivar)
+  // Activo -> DELETE /api/profesionales/{id} (baja lógica)
+  // Inactivo/Vacaciones -> PATCH /api/profesionales/{id}/estado {estado:"activo"}
   const btnConfirmDelete = safeGetElement('modalConfirmDeleteConfirm');
   btnConfirmDelete?.addEventListener('click', async () => {
     const deleteIdInput = safeGetElement('deleteProfesionalId');
+    const estadoInput = safeGetElement('deleteProfesionalEstado');
     const id = Number(deleteIdInput?.value);
     if (!id) return;
 
+    const estadoActual = (estadoInput?.value || 'activo').toLowerCase();
+    const esActivo = estadoActual === 'activo';
+
     const confirmBtn = btnConfirmDelete;
     confirmBtn.disabled = true;
-    confirmBtn.textContent = '⏳ Desactivando...';
+    confirmBtn.textContent = confirmBtn.dataset.loadingText || (esActivo ? '⏳ Desactivando...' : '⏳ Reactivando...');
 
     try {
-      const result = await apiRequest(`${API_BASE}/${id}`, { method: 'DELETE' });
-      window.ToastService?.success(`✅ ${result.message || 'Profesional desactivado correctamente.'}`);
+      let result;
+      if (esActivo) {
+        result = await apiRequest(`${API_BASE}/${id}`, { method: 'DELETE' });
+        window.ToastService?.success(`✅ ${result.message || 'Profesional desactivado correctamente.'}`);
+      } else {
+        result = await apiRequest(`${API_BASE}/${id}/estado`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: 'activo' })
+        });
+        window.ToastService?.success(`✅ ${result.message || 'Profesional reactivado correctamente.'}`);
+      }
       closeConfirmDeleteModal();
-      await loadProfessionals();
+      // La tabla inicial se renderiza con Razor y el render API tiene una
+      // estructura visual distinta; recargar conserva la paridad SSR.
+      window.location.reload();
     } catch (err) {
       window.ToastService?.error(`❌ ${err.message}`);
     } finally {
       confirmBtn.disabled = false;
-      confirmBtn.textContent = '🗑️ Confirmar desactivación';
+      confirmBtn.textContent = esActivo ? 'Confirmar desactivación' : 'Confirmar reactivación';
     }
   });
   
@@ -1190,6 +1462,7 @@ const initServerStats = () => {
 const init = async () => {
   initSidebar();
   initModals();
+  initModalTabs();
   bindProfessionalFieldValidation();
   initProfessionalPassword();
 

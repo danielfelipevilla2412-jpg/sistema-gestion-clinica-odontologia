@@ -22,9 +22,8 @@ namespace SmileTrack_MVC.Models.ViewModels
         [Range(1, int.MaxValue, ErrorMessage = "Seleccione un servicio válido")]
         public int IdServicio { get; set; }
 
-        [Required(ErrorMessage = "El estado es obligatorio")]
         [Range(1, int.MaxValue, ErrorMessage = "Seleccione un estado válido")]
-        public int IdEstado { get; set; }
+        public int? IdEstado { get; set; }
 
         [Required(ErrorMessage = "La fecha es obligatoria")]
         [DataType(DataType.Date, ErrorMessage = "Formato de fecha inválido")]

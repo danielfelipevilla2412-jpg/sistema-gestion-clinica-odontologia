@@ -114,6 +114,9 @@ const renderAppointments = (data) => {
                estado === 'cancelada' ? 'cancelada' : 'no-asistio';
     const row = document.createElement('tr');
     row.setAttribute('role', 'row');
+    const horaVisible = apt.esHoy === false && apt.fecha
+      ? `${apt.fecha} ${apt.hora || ''}`.trim()
+      : (apt.hora || '');
     const cell = (className, value) => {
       const element = document.createElement('td');
       element.className = className;
@@ -127,7 +130,7 @@ const renderAppointments = (data) => {
     badge.setAttribute('aria-label', `Estado: ${apt.estado}`);
     badge.textContent = apt.estado || 'Sin estado';
     statusCell.appendChild(badge);
-    row.append(cell('td-hora', apt.hora), cell('td-paciente', apt.paciente),
+    row.append(cell('td-hora', horaVisible), cell('td-paciente', apt.paciente),
       cell('td-profesional', apt.profesional), cell('td-servicio', apt.servicio), statusCell);
     return row;
   }));

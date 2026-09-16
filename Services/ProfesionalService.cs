@@ -628,6 +628,36 @@ public partial class ProfesionalService : IProfesionalService
                     if (profesional.Usuario != null)
                         profesional.Usuario.Estado = estadoNorm == "inactivo" ? "inactivo" : "activo";
 
+                    // Sincronizar bloqueo en Bloqueo_Profesional según el estado
+                    if (estadoNorm == "inactivo")
+                    {
+                        bool yaBloqueado = await _context.BloqueosProfesional
+                            .AnyAsync(b => b.IdProfesional == id && b.FechaFin > DateTime.Now && b.Motivo == "Profesional inactivo / desactivado", ct);
+
+                        if (!yaBloqueado)
+                        {
+                            _context.BloqueosProfesional.Add(new BloqueoProfesional
+                            {
+                                IdProfesional = id,
+                                FechaInicio = DateTime.Now,
+                                FechaFin = DateTime.Now.AddYears(5),
+                                Motivo = "Profesional inactivo / desactivado",
+                                AprobadoPor = operadorId
+                            });
+                        }
+                    }
+                    else if (estadoNorm == "activo")
+                    {
+                        var bloqueosInactivo = await _context.BloqueosProfesional
+                            .Where(b => b.IdProfesional == id && b.Motivo == "Profesional inactivo / desactivado")
+                            .ToListAsync(ct);
+
+                        if (bloqueosInactivo.Count > 0)
+                        {
+                            _context.BloqueosProfesional.RemoveRange(bloqueosInactivo);
+                        }
+                    }
+
                     _context.Auditorias.Add(new Auditoria
                     {
                         IdUsuario = operadorId,
@@ -711,6 +741,22 @@ public partial class ProfesionalService : IProfesionalService
 
                     if (profesional.Usuario != null)
                         profesional.Usuario.Estado = "inactivo";
+
+                    // Registrar bloqueo en Bloqueo_Profesional
+                    bool yaBloqueado = await _context.BloqueosProfesional
+                        .AnyAsync(b => b.IdProfesional == id && b.FechaFin > DateTime.Now && b.Motivo == "Profesional inactivo / desactivado", ct);
+
+                    if (!yaBloqueado)
+                    {
+                        _context.BloqueosProfesional.Add(new BloqueoProfesional
+                        {
+                            IdProfesional = id,
+                            FechaInicio = DateTime.Now,
+                            FechaFin = DateTime.Now.AddYears(5),
+                            Motivo = "Profesional inactivo / desactivado",
+                            AprobadoPor = operadorId
+                        });
+                    }
 
                     _context.Auditorias.Add(new Auditoria
                     {

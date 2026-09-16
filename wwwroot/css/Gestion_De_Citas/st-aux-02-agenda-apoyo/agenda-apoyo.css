@@ -194,6 +194,7 @@ img { max-width: 100%; height: auto; display: block; }
 .badge-atendida { background: var(--badge-atendida); color: var(--badge-atendida-text); }
 .badge-pendiente { background: var(--badge-pendiente); color: var(--badge-pendiente-text); }
 .badge-cancelada { background: var(--badge-cancelada); color: var(--badge-cancelada-text); }
+.badge-no-asistio { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
 
 /* Estado de tabla vacía */
 .table-empty { padding: 28px 20px; text-align: center; font-size: .85rem; color: var(--text-muted); font-style: italic; }

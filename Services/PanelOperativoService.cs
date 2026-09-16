@@ -50,6 +50,34 @@ public sealed class PanelOperativoService : IPanelOperativoService
             .AsNoTracking()
             .CountAsync(c => c.Estado == "disponible" || c.Estado == "activo", ct);
 
+        var inicioMes = new DateTime(ahora.Year, ahora.Month, 1);
+        var finMes = inicioMes.AddMonths(1);
+        var topProfesionales = await _context.Citas
+            .AsNoTracking()
+            .Where(c => c.FechaHora >= inicioMes && c.FechaHora < finMes && c.IdProfesional.HasValue)
+            .GroupBy(c => c.IdProfesional!.Value)
+            .Select(g => new
+            {
+                IdProfesional = g.Key,
+                TotalCitas = g.Count()
+            })
+            .OrderByDescending(g => g.TotalCitas)
+            .ThenBy(g => g.IdProfesional)
+            .Take(3)
+            .Join(
+                _context.Profesionales.AsNoTracking(),
+                item => item.IdProfesional,
+                profesional => profesional.IdProfesional,
+                (item, profesional) => new PanelOperativoTopProfesionalViewModel
+                {
+                    Nombre = $"{profesional.Nombres} {profesional.Apellidos}".Trim(),
+                    Especialidad = string.IsNullOrWhiteSpace(profesional.Categoria)
+                        ? "Sin especialidad"
+                        : profesional.Categoria,
+                    TotalCitas = item.TotalCitas
+                })
+            .ToListAsync(ct);
+
         var estados = citas
             .Select(c => MapEstadoLabel(c.Estado))
             .ToList();
@@ -126,7 +154,8 @@ public sealed class PanelOperativoService : IPanelOperativoService
             },
             ProximaCita = proxima,
             Citas = citasViewModel,
-            Alertas = alertas
+            Alertas = alertas,
+            TopProfesionales = topProfesionales
         };
     }
 

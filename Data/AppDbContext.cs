@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Models.Views;
 
 namespace SmileTrack_MVC.Data;
 
@@ -67,6 +68,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AusenciaProfesional> AusenciasProfesional => Set<AusenciaProfesional>();
     public DbSet<BloqueoProfesional>  BloqueosProfesional  => Set<BloqueoProfesional>();
     public DbSet<ProfesionalServicio> ProfesionalServicios => Set<ProfesionalServicio>();
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // VISTAS SQL DE OPTIMIZACIÓN
+    // ══════════════════════════════════════════════════════════════════════════
+    // Las siguientes vistas pre-calculan JOINs y agregaciones frecuentes para
+    // mejorar el rendimiento en consultas de dashboard y listados paginados.
+    // Son vistas de SOLO LECTURA: no usar para INSERT, UPDATE o DELETE.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Vista optimizada para dashboard de citas.
+    /// Pre-calcula JOINs con Paciente, Profesional, Servicio, Consultorio.
+    /// BENEFICIO: Reduce de 6 JOINs a 1 SELECT simple.
+    /// USO: CitaService.ObtenerAsync(), listados paginados.
+    /// </summary>
+    public DbSet<VwCitasDashboard> VwCitasDashboard => Set<VwCitasDashboard>();
+
+    /// <summary>
+    /// Vista optimizada para listados de profesionales.
+    /// Pre-calcula contadores de horarios, ausencias, citas y disponibilidad.
+    /// BENEFICIO: Evita subconsultas COUNT() repetidas.
+    /// USO: ProfesionalService.ObtenerAsync(), dashboard de profesionales.
+    /// </summary>
+    public DbSet<VwProfesionalesCompleto> VwProfesionalesCompleto => Set<VwProfesionalesCompleto>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -816,6 +841,33 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(ps => ps.IdServicio)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // CONFIGURACIÓN DE VISTAS SQL
+        // ══════════════════════════════════════════════════════════════════════════
+        // Las vistas son entidades de solo lectura. EF Core las trata como
+        // tablas sin clave (Keyless) pero usamos [Key] en las propiedades para
+        // facilitar consultas LINQ. No generan migraciones ni cambios en BD.
+        // ══════════════════════════════════════════════════════════════════════════
+
+        // Vista: vw_Citas_Dashboard
+        // No requiere configuración adicional porque usa [Table] y [Column] en la entidad.
+        // EF Core la mapea automáticamente a la vista SQL.
+        modelBuilder.Entity<VwCitasDashboard>(entity =>
+        {
+            entity.ToView("vw_Citas_Dashboard");
+            entity.HasNoKey(); // Las vistas no tienen clave en el sentido de EF Core
+            entity.HasKey(v => v.IdCita); // Pero definimos una para LINQ
+        });
+
+        // Vista: vw_Profesionales_Completo
+        // Pre-calcula contadores y relaciones para optimizar listados.
+        modelBuilder.Entity<VwProfesionalesCompleto>(entity =>
+        {
+            entity.ToView("vw_Profesionales_Completo");
+            entity.HasNoKey();
+            entity.HasKey(v => v.IdProfesional);
         });
     }
 }

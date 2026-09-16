@@ -547,6 +547,7 @@ const inicializarDragAndDrop = () => {
             const citaId = draggedAppointment.dataset.id;
             const fechaOriginal = draggedAppointment.dataset.date;
             const paciente = draggedAppointment.dataset.patientName;
+            const horaOriginal = draggedAppointment.dataset.startTime || '09:00';
             
             if (nuevaFecha === fechaOriginal) {
                 mostrarToast('La cita ya está en esa fecha', 'info');
@@ -558,7 +559,7 @@ const inicializarDragAndDrop = () => {
             );
             
             if (confirmar) {
-                await reagendarCita(citaId, nuevaFecha);
+                await reagendarCita(citaId, `${nuevaFecha}T${horaOriginal}:00`);
             }
         });
     });
@@ -567,17 +568,17 @@ const inicializarDragAndDrop = () => {
 /**
  * Reagendar Cita (API Call)
  */
-const reagendarCita = async (citaId, nuevaFecha) => {
+const reagendarCita = async (citaId, fechaHora) => {
     try {
         mostrarLoading(true);
         
         const response = await fetch(`/api/citas/${citaId}/reagendar`, {
-            method: 'PATCH',
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'RequestVerificationToken': obtenerAntiForgeryToken()
             },
-            body: JSON.stringify({ nuevaFecha })
+            body: JSON.stringify({ fechaHora })
         });
         
         if (!response.ok) {

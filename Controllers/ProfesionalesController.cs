@@ -383,6 +383,41 @@ public partial class GestionProfesionalesController(
                 .OrderByDescending(c => c.FechaHora)
                 .ToList();
 
+            // ── Cargar últimas notas clínicas por paciente (fuente real: tabla Nota_Clinica) ──
+            var idsPacientes = citasUnicasPorPaciente.Select(c => c.IdPaciente).Distinct().ToList();
+            Dictionary<int, (string? Diagnostico, string? Procedimiento, string? ProfesionalNombre)> ultimasNotas = new();
+
+            if (idsPacientes.Count > 0)
+            {
+                var notasQuery = await _context.NotasClinicas
+                    .AsNoTracking()
+                    .Include(n => n.HistoriaClinica)
+                    .Include(n => n.Profesional)
+                    .ThenInclude(p => p!.Usuario)
+                    .Where(n => idsPacientes.Contains(n.HistoriaClinica!.IdPaciente))
+                    .OrderByDescending(n => n.Fecha)
+                    .ToListAsync(ct);
+
+                ultimasNotas = notasQuery
+                    .Where(n => n.HistoriaClinica != null)
+                    .GroupBy(n => n.HistoriaClinica!.IdPaciente)
+                    .ToDictionary(
+                        g => g.Key,
+                        g =>
+                        {
+                            var nota = g.First();
+                            var profesionalNota = nota.Profesional;
+                            var profesionalNombre = profesionalNota == null
+                                ? null
+                                : profesionalNota.Usuario != null
+                                    ? $"{profesionalNota.Usuario.Nombre} {profesionalNota.Usuario.Apellidos}".Trim()
+                                    : $"{profesionalNota.Nombres} {profesionalNota.Apellidos}".Trim();
+
+                            return (nota.Diagnostico, nota.Procedimiento, ProfesionalNombre: profesionalNombre);
+                        }
+                    );
+            }
+
             var totalReales = citasUnicasPorPaciente.Count;
             var pagedCitas = new PagedResult<Cita>
             {
@@ -418,6 +453,14 @@ public partial class GestionProfesionalesController(
                     .OrderBy(c => c.FechaHora)
                     .FirstOrDefault();
 
+                ultimasNotas.TryGetValue(cita.IdPaciente, out var nota);
+                string diagnostico = !string.IsNullOrWhiteSpace(nota.Diagnostico)
+                    ? nota.Diagnostico!
+                    : "Sin notas clínicas registradas";
+                string procedimiento = !string.IsNullOrWhiteSpace(nota.Procedimiento)
+                    ? nota.Procedimiento!
+                    : "—";
+
                 string? alerta = string.IsNullOrWhiteSpace(cita.Notas) ? null : "observacion";
 
                 return new ReporteClinicoViewModel
@@ -427,9 +470,10 @@ public partial class GestionProfesionalesController(
                     Documento = cita.Paciente?.Documento ?? string.Empty,
                     Edad = edad,
                     UltimaConsulta = cita.FechaHora,
-                    Diagnostico = cita.MotivoConsulta ?? "Consulta general",
-                    ProfesionalNombre = cita.Profesional?.Usuario != null
-                        ? $"{cita.Profesional.Usuario.Nombre} {cita.Profesional.Usuario.Apellidos}".Trim()
+                    Diagnostico = diagnostico,
+                    Procedimiento = procedimiento,
+                    ProfesionalNombre = !string.IsNullOrWhiteSpace(nota.ProfesionalNombre)
+                        ? nota.ProfesionalNombre!
                         : "Sin profesional",
                     ProximaCita = proximaCita?.FechaHora,
                     Alerta = alerta,
@@ -468,15 +512,17 @@ public partial class GestionProfesionalesController(
 
             ViewData["ConsultasMes"] = await consultasQuery.CountAsync(c => c.FechaHora >= inicioMes && c.FechaHora < finMes, ct);
 
-            // Calcular SatisfaccionPromedio como % de citas atendidas sobre el total del mes
-            // (opción (a) acordada: dato real calculado desde BD, no hardcoded)
+            // Tasa de asistencia = % citas atendidas sobre total del mes
+            // (antes llamado SatisfaccionPromedio, renombrado por alineación funcional)
             int totalCitasMes = await consultasQuery.CountAsync(c => c.FechaHora >= inicioMes && c.FechaHora < finMes, ct);
             int citasAtendidasMes = await consultasQuery.CountAsync(
                 c => c.FechaHora >= inicioMes && c.FechaHora < finMes
                   && (c.Estado == "Atendida" || c.Estado == "atendida"), ct);
-            ViewData["SatisfaccionPromedio"] = totalCitasMes > 0
+            int tasaAsistencia = totalCitasMes > 0
                 ? (int)Math.Round(citasAtendidasMes * 100.0 / totalCitasMes, 0)
                 : 0;
+            ViewData["TasaAsistencia"] = tasaAsistencia;
+            ViewData["SatisfaccionPromedio"] = tasaAsistencia; // backward compat
 
             ViewData["SearchFilter"] = search;
             ViewData["ProfesionalFilter"] = profesional;
@@ -501,7 +547,8 @@ public partial class GestionProfesionalesController(
         ViewData["ProfesionalesReportes"] = new List<string>();
         ViewData["TotalPacientesReportes"] = 0;
         ViewData["ConsultasMes"] = 0;
-        ViewData["SatisfaccionPromedio"] = 0;
+        ViewData["TasaAsistencia"] = 0;
+        ViewData["SatisfaccionPromedio"] = 0; // backward compat
         ViewData["SearchFilter"] = string.Empty;
         ViewData["ProfesionalFilter"] = string.Empty;
         ViewData["MesFilter"] = string.Empty;

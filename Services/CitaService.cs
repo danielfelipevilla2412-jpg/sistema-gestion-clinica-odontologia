@@ -1191,7 +1191,14 @@ public class CitaService : ICitaService
             .ToListAsync(ct);
 
         if (horarios.Count == 0)
-            return (false, "El profesional no tiene un horario de atención configurado.");
+        {
+            // Fallback: si el profesional no tiene horario específico configurado,
+            // se valida contra el horario general de atención de la clínica.
+            var (horarioClinicaValido, mensajeClinica) = await ValidarHorarioClinicaAsync(fechaHora, duracionMinutos, ct);
+            return horarioClinicaValido
+                ? (true, null)
+                : (false, mensajeClinica ?? "La cita está fuera del horario de atención de la clínica.");
+        }
 
         string dia = NombreDia(fechaHora.DayOfWeek);
         TimeOnly inicio = TimeOnly.FromDateTime(fechaHora);

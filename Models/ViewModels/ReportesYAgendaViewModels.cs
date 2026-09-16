@@ -8,6 +8,7 @@ namespace SmileTrack_MVC.Models.ViewModels
         public int Edad { get; set; }
         public DateTime UltimaConsulta { get; set; }
         public string Diagnostico { get; set; } = string.Empty;
+        public string Procedimiento { get; set; } = string.Empty;
         public string ProfesionalNombre { get; set; } = string.Empty;
         public DateTime? ProximaCita { get; set; }
         public string? Alerta { get; set; }

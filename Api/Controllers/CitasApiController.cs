@@ -462,6 +462,72 @@ public sealed class CitasApiController : ControllerBase
 
     public sealed class CambiarEstadoCitaDto { public string? Estado { get; set; } }
 
+    public sealed class CitaReagendarDto
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public DateTime FechaHora { get; set; }
+
+        public int? IdConsultorio { get; set; }
+    }
+
+    [HttpPut]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional", Policy = "ApiOrCookie")]
+    [Route("api/citas/{id:int}/reagendar")]
+    public async Task<IActionResult> Reagendar(int id, [FromBody] CitaReagendarDto dto, CancellationToken ct = default)
+    {
+        if (id <= 0 || dto is null || !ModelState.IsValid || dto.FechaHora == default)
+            return BadRequest(new { success = false, message = "La nueva fecha y hora son obligatorias." });
+
+        var cita = await _citaService.ObtenerPorIdAsync(id, ct);
+        if (cita is null)
+            return NotFound(new { success = false, message = "Cita no encontrada." });
+        if (!TieneOwnership(cita))
+            return Forbid();
+
+        if (dto.FechaHora < DateTime.Now.AddMinutes(-5))
+            return BadRequest(new { success = false, message = "La nueva fecha y hora no pueden estar en el pasado." });
+
+        try
+        {
+            var actualizada = await _citaService.ActualizarAsync(id, new CitaApiUpdateDto
+            {
+                IdCita = cita.IdCita,
+                IdPaciente = cita.IdPaciente,
+                IdProfesional = cita.IdProfesional,
+                IdServicio = cita.IdServicio,
+                IdConsultorio = dto.IdConsultorio ?? cita.IdConsultorio,
+                FechaHora = dto.FechaHora,
+                Estado = cita.Estado,
+                Notas = cita.Notas,
+                IdEstado = cita.IdEstado
+            }, ct);
+
+            if (actualizada is null)
+                return NotFound(new { success = false, message = "Cita no encontrada." });
+
+            _context.CitasHistorialEstado.Add(new CitaHistorialEstado
+            {
+                IdCita = actualizada.IdCita,
+                IdEstado = actualizada.IdEstado,
+                EstadoTexto = actualizada.Estado,
+                IdUsuario = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ? idUsuario : null,
+                Motivo = "Cita reagendada desde la agenda.",
+                FechaCambio = DateTime.Now
+            });
+            await _context.SaveChangesAsync(ct);
+
+            await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita reagendada desde la agenda.", ct);
+            return Ok(new { success = true, id = actualizada.IdCita, fechaHora = actualizada.FechaHora });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return EsConflicto(ex.Message)
+                ? Conflict(new { success = false, message = ex.Message })
+                : BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpPut]
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Roles = "Profesional", Policy = "ApiOrCookie")]
