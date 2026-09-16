@@ -7,7 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════
 //  CONFIGURACIÓN API
 // ═══════════════════════════════════════════════════════════════════
-const API_BASE = '/api';
+const API_BASE = '/api/facturas';
 
 // ═══════════════════════════════════════════════════════════════════
 //  UTILIDADES GLOBALES
@@ -247,13 +247,6 @@ const closeDrawer = () => {
     document.body.style.overflow = '';
   }
 };
-// Enviar recordatorio de pago (funcionalidad de notificación, no persiste
-// estado de negocio; el envío real de correo se apoya en el EmailService
-// del backend cuando esté disponible para este flujo).
-   const sendReminder = (id) => {
-   const invoice = invoicesStorage.getInvoice(id);
-   if (!invoice) return;
-
 const closePaymentSuccess = () => {
   const modal = safeGetElement('paymentSuccessOverlay');
   if (modal) {
@@ -324,7 +317,7 @@ const sendReminder = (id) => {
   
 };
 
-// Registrar pago — llama a la API real (PUT /facturacion-y-pagos/api/facturas/{id}/pago)
+// Registrar pago — llama a la API real (POST /api/facturas/{id}/pagos)
 // que persiste el pago en SQL Server (tabla Factura: monto_pagado, estado, fecha_pago).
 const registerPayment = async (id) => {
   const invoice = invoicesStorage.getInvoice(id);
@@ -341,8 +334,8 @@ const registerPayment = async (id) => {
   
   
       try {
-      const result = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${id}/pago`, {
-      method: 'PUT',
+      const result = await window.apiRequest(`/api/facturas/${id}/pagos`, {
+      method: 'POST',
       body: { montoPagado: paymentAmount }
     });
     if (!result || result.success !== true) {
@@ -354,14 +347,14 @@ const registerPayment = async (id) => {
   renderInvoices();
   updateStats();
   closeDrawer();
-  showToast(`✅ Pago de ${fmtCurrency(paymentAmount)} registrado para ${invoice.patient}`);
+  showPaymentSuccess(paymentAmount, invoice.patient);
 } catch (error) {
     console.error('Error registrando pago:', error);
     showToast('Error de conexión al registrar el pago.', 'error');
   }
 };
 
-// Anular factura — llama a la API real (POST /facturacion-y-pagos/api/facturas/{id}/anular).
+// Anular factura — llama a la API real (POST /api/facturas/{id}/anulacion).
   const cancelInvoice = async (id) => {
   const invoice = invoicesStorage.getInvoice(id);
   if (!invoice) return;
@@ -376,7 +369,7 @@ const registerPayment = async (id) => {
   }
 
   try {
-    const result = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${id}/anular`, {
+    const result = await window.apiRequest(`/api/facturas/${id}/anulacion`, {
       method: 'POST',
       body: { motivo: 'Anulada desde el panel administrativo' }
     });
@@ -395,6 +388,7 @@ const registerPayment = async (id) => {
     console.error('Error anulando factura:', error);
     showToast('Error de conexión al anular la factura.', 'error');
   }
+};
 
 // ═══════════════════════════════════════════════════════════════════
 //  PAGINACIÓN Y CONTADORES
@@ -580,65 +574,10 @@ const initNewInvoice = () => {
   const dateInput = safeGetElement('invoiceDate');
 
   // La creación real de facturas ocurre en el flujo de Recepción
-  // (POST /facturacion-y-pagos/api/facturas), que sí persiste en SQL Server.
+  // (POST /api/facturas), que sí persiste en SQL Server.
   btn?.addEventListener('click', () => {
     window.location.href = '/facturacion-y-pagos/st-rec-04-generar-factura';
   });
-  const closeModal = () => {
-    if (!overlay) return;
-    overlay.classList.remove('open');
-    overlay.setAttribute('aria-hidden', 'true');
-    overlay.setAttribute('inert', '');
-    document.body.style.overflow = '';
-  };
-
-  const openModal = () => {
-    if (!overlay) return;
-    if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().split('T')[0];
-    overlay.classList.add('open');
-    overlay.setAttribute('aria-hidden', 'false');
-    overlay.removeAttribute('inert');
-    document.body.style.overflow = 'hidden';
-    safeGetElement('invoicePatient')?.focus();
-  };
-
-  btn?.addEventListener('click', openModal);
-  closeBtn?.addEventListener('click', closeModal);
-  cancelBtn?.addEventListener('click', closeModal);
-  overlay?.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-
-  form?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const formData = new FormData(form);
-    const patient = String(formData.get('patient') || '').trim();
-    const doc = String(formData.get('document') || '').trim();
-    const date = String(formData.get('date') || '');
-    const service = String(formData.get('service') || '').trim();
-    const total = Number(formData.get('total'));
-    if (!patient || !doc || !date || !service || !Number.isFinite(total) || total <= 0) return;
-
-    const year = date.slice(0, 4);
-    const nextNumber = invoices.reduce((highest, invoice) => {
-      const match = String(invoice.number).match(/(\d+)$/);
-      return Math.max(highest, match ? Number(match[1]) : 0);
-    }, 0) + 1;
-    const initials = patient.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
-    const newInvoice = {
-      number: `FAC-${year}-${String(nextNumber).padStart(3, '0')}`,
-      patient, doc, date, service, total, pending: total, status: 'pendiente',
-      avatar: initials || 'P', color: 'blue', history: []
-    };
-
-    const createdInvoice = invoicesStorage.addInvoice(newInvoice);
-    invoices = invoicesStorage.load();
-    currentPage = 1;
-    form.reset();
-    closeModal();
-    renderInvoices();
-    updateStats();
-    showToast(`Factura ${createdInvoice.number} generada correctamente`);
-  });
-
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && overlay?.classList.contains('open')) {
       e.preventDefault();
@@ -661,11 +600,24 @@ const init = async () => {
   initDrawer();
   
   
-  invoices = invoicesStorage.load();
+  try {
+    const response = await window.apiRequest('/api/facturas');
+    if (response?.success && Array.isArray(response.data)) {
+      invoices = response.data.map((f, idx) => ({
+        id: f.id, number: f.numero, patient: f.paciente, doc: f.documento,
+        date: String(f.fecha).slice(0, 10), total: f.total, pending: f.pendiente,
+        status: f.estado, color: ['blue','green','purple','orange','red'][idx % 5],
+        service: f.notas || 'Servicio Odontológico', history: []
+      }));
+    }
+  } catch (error) {
+    console.error('No fue posible cargar las facturas desde la API.', error);
+    showToast('No fue posible cargar las facturas.', 'error');
+  }
   updateStats();
   renderInvoices();
   
   window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
 };
 
-document.addEventListener('DOMContentLoaded', init)};}
+document.addEventListener('DOMContentLoaded', init);
