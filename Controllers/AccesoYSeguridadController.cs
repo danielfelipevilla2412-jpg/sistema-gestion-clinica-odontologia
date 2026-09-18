@@ -33,6 +33,10 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         Response.Cookies.Delete("SmileTrack-JWT");
 
+        // Vacía el usuario de ESTA petición, para que el token antiforgery se emita
+        // como anónimo y coincida con el POST posterior.
+        HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+
         ViewData["ReturnUrl"] = returnUrl;
         return View("~/Views/Acceso_Y_Seguridad/login/index.cshtml");
     }
