@@ -193,7 +193,7 @@ NOTAS DE MANTENIMIENTO:
           }
           <div class="actions-cell">
             <!-- Ver detalles: abrir modal con data desde atributos -->
-            <button class="btn-icon action-btn btn-view view" type="button"
+            <button class="btn-secondary btn-view view" type="button"
                     data-id="@profesional.IdProfesional"
                     data-name="@Html.Encode(profNombreCompleto)"
                     data-initials="@Html.Encode(profIniciales)"
@@ -208,7 +208,7 @@ NOTAS DE MANTENIMIENTO:
                     data-i18n-title="gestionprofesionales_btn_ver_title">
               <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_ver">Ver</span>
             </button>
-            <button class="btn-icon action-btn edit" type="button"
+            <button class="btn-secondary edit" type="button"
                     onclick="editProfessional(@profesional.IdProfesional)"
                     aria-label="Editar el profesional @profesional.Nombres @profesional.Apellidos"
                     title="Editar profesional @Html.Encode(profNombreCompleto)"
@@ -218,7 +218,7 @@ NOTAS DE MANTENIMIENTO:
             @if (String.Equals(profesional.Estado, "activo", StringComparison.OrdinalIgnoreCase))
             {
               <!-- Activo: acción Desactivar -->
-              <button class="btn-icon action-btn btn-delete toggle" type="button"
+              <button class="btn-danger btn-delete toggle" type="button"
                       data-id="@profesional.IdProfesional"
                       data-name="@profesional.Nombres @profesional.Apellidos"
                       data-estado="activo"
@@ -231,7 +231,7 @@ NOTAS DE MANTENIMIENTO:
             else
             {
               <!-- Inactivo/Vacaciones: acción Reactivar -->
-              <button class="btn-icon action-btn btn-delete toggle" type="button"
+              <button class="btn-danger btn-delete toggle" type="button"
                       data-id="@profesional.IdProfesional"
                       data-name="@profesional.Nombres @profesional.Apellidos"
                       data-estado="@(profesional.Estado ?? "inactivo")"

@@ -22,6 +22,7 @@ public class HistorialPacienteViewModel
     public OdontogramaViewModel Odontograma { get; set; } = new();
     public string GrupoSanguineo { get; set; } = "N/D";
     public List<string> Alergias { get; set; } = [];
+    public List<string> Medicamentos { get; set; } = [];
     public string AntecedentesMedicos { get; set; } = "Sin antecedentes registrados";
     public DateTime? ProximaCitaFecha { get; set; }
     public string? ProximaCitaProfesional { get; set; }

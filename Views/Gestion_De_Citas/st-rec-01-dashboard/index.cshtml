@@ -62,18 +62,22 @@ NOTAS DE MANTENIMIENTO:
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="statCitasHoy">—</span>
         <span class="stat-label" data-i18n="rec01.stat_today">Citas hoy</span>
+        <span class="stat-sub">Hoy</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="statConfirmadas">—</span>
         <span class="stat-label" data-i18n="status.confirmed">Confirmadas</span>
+        <span class="stat-sub">Este turno</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="stat-number" id="statPendientes">—</span>
         <span class="stat-label" data-i18n="status.pending">Pendientes</span>
+        <span class="stat-sub">Por atender</span>
       </div>
       <div class="stat-card" data-color="purple">
         <span class="stat-number" id="statFacturasPendientes">—</span>
         <span class="stat-label" data-i18n="rec01.stat_invoices_pending">Facturas pendientes</span>
+        <span class="stat-sub">Sin pagar</span>
       </div>
     </section>
 
@@ -81,10 +85,10 @@ NOTAS DE MANTENIMIENTO:
     <!-- [MEJORA]: role="group" para botones relacionados -->
     <div class="action-buttons-row" role="group" aria-label="Acciones rápidas" data-i18n-aria-label="rec01.quick_actions_aria">
       <!-- [MEJORA]: aria-label descriptivo para cada botón -->
-      <button class="btn-action btn-green" id="btnNuevoPaciente" aria-label="Registrar nuevo paciente en el sistema" data-i18n-aria-label="rec01.btn_new_patient_aria">
+      <button class="btn-primary" id="btnNuevoPaciente" aria-label="Registrar nuevo paciente en el sistema" data-i18n-aria-label="rec01.btn_new_patient_aria">
         <span class="material-symbols-outlined" aria-hidden="true">person_add</span> <span data-i18n="patients.new">Nuevo paciente</span>
       </button>
-      <button class="btn-action btn-blue" id="btnGenerarFactura" aria-label="Generar nueva factura para paciente" data-i18n-aria-label="rec01.btn_generate_invoice_aria">
+      <button class="btn-secondary" id="btnGenerarFactura" aria-label="Generar nueva factura para paciente" data-i18n-aria-label="rec01.btn_generate_invoice_aria">
         <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span> <span data-i18n="rec01.btn_generate_invoice">Generar factura</span>
       </button>
     </div>

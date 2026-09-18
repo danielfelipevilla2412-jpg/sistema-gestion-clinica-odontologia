@@ -322,11 +322,26 @@ const init = async () => {
     window.location.search = params.toString();
   });
   
-  // Actualiza metadatos del header
+  // Actualiza metadatos del header según la vista activa (día o semana)
   const metaEl = safeGetElement('phMeta');
   if (metaEl) {
-    metaEl.textContent = `Citas del día que requieren asistencia · ${agendaCtrl.getFechaHoy()}`;
-    metaEl.setAttribute('aria-label', `Información: ${metaEl.textContent}`);
+    const params = new URLSearchParams(window.location.search);
+    const fecha = params.get('fecha') || agendaCtrl.getFechaHoy();
+    const weekStart = params.get('weekStart');
+
+    const formatoFecha = (value) => {
+      if (!value) return '—';
+      const d = new Date(value + 'T00:00:00');
+      return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const metaText = weekStart
+      ? `Semana del ${formatoFecha(weekStart)} al ${formatoFecha(new Date(new Date(weekStart + 'T00:00:00').getTime() + 6 * 86400000).toISOString().slice(0, 10))}`
+      : `Citas del día ${formatoFecha(fecha)}`;
+
+    metaEl.textContent = metaText;
+    metaEl.setAttribute('data-meta-text', metaText);
+    metaEl.setAttribute('aria-label', `Información: ${metaText}`);
   }
   
   // WHY: Dispara la primera carga de datos al iniciar el módulo

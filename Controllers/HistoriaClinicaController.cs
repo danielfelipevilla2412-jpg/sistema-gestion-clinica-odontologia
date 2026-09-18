@@ -747,6 +747,9 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
     vm.Alergias = string.IsNullOrWhiteSpace(paciente.Alergias)
         ? []
         : paciente.Alergias.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    vm.Medicamentos = string.IsNullOrWhiteSpace(paciente.Medicamentos)
+        ? []
+        : paciente.Medicamentos.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
     vm.AntecedentesMedicos = string.IsNullOrWhiteSpace(paciente.AntecedentesMedicos)
         ? "Sin antecedentes registrados"
         : paciente.AntecedentesMedicos;

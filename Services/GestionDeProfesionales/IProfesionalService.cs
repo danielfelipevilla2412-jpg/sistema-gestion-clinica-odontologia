@@ -96,4 +96,18 @@ public interface IProfesionalService
     Task<ProfesionalApiCollectionResult<ServicioProfesionalApiDto>> ObtenerServiciosAsync(
         int id,
         CancellationToken ct = default);
+
+    Task<SmileTrack_MVC.Models.DTOs.ReporteComisionProfesionalDto> CalcularComisionesAsync(
+        int idProfesional,
+        DateTime fechaInicio,
+        DateTime fechaFin,
+        decimal porcentajeComision = 40,
+        CancellationToken ct = default);
+
+    Task<SmileTrack_MVC.Models.DTOs.ResultadoReasignacionAusenciaDto> RegistrarAusenciaConReasignacionAsync(
+        int idProfesional,
+        DateTime fechaInicio,
+        DateTime fechaFin,
+        string motivo,
+        CancellationToken ct = default);
 }

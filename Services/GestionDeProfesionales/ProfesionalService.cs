@@ -1167,6 +1167,246 @@ public partial class ProfesionalService : IProfesionalService
         return sqlEx?.Number is 547 or 515;
     }
 
+    // ── Métodos Avanzados de Comisiones y Reasignación por Ausencia ──────────
+
+    public async Task<SmileTrack_MVC.Models.DTOs.ReporteComisionProfesionalDto> CalcularComisionesAsync(
+        int idProfesional,
+        DateTime fechaInicio,
+        DateTime fechaFin,
+        decimal porcentajeComision = 40,
+        CancellationToken ct = default)
+    {
+        var profesional = await _context.Profesionales.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdProfesional == idProfesional, ct);
+
+        if (profesional is null)
+            throw new InvalidOperationException("El profesional especificado no existe.");
+
+        var citasAtendidas = await _context.Citas
+            .AsNoTracking()
+            .Include(c => c.Servicio)
+            .Where(c => c.IdProfesional == idProfesional
+                     && c.FechaHora >= fechaInicio
+                     && c.FechaHora <= fechaFin
+                     && c.Estado.ToLower() == "atendida")
+            .ToListAsync(ct);
+
+        var gruposServicio = citasAtendidas
+            .GroupBy(c => c.IdServicio)
+            .Select(g =>
+            {
+                var primerServicio = g.First().Servicio;
+                string nombreServicio = primerServicio?.Nombre ?? "Servicio Odontológico";
+                decimal precioUnitario = primerServicio?.Precio ?? 0m;
+                int cantidad = g.Count();
+                decimal subtotal = cantidad * precioUnitario;
+                decimal honorarios = subtotal * (porcentajeComision / 100m);
+
+                return new SmileTrack_MVC.Models.DTOs.ReporteComisionServicioDto
+                {
+                    IdServicio = g.Key ?? 0,
+                    NombreServicio = nombreServicio,
+                    CantidadAtendida = cantidad,
+                    PrecioUnitario = precioUnitario,
+                    SubtotalFacturado = subtotal,
+                    HonorariosGenerados = honorarios
+                };
+            })
+            .ToList();
+
+        decimal montoTotalFacturado = gruposServicio.Sum(g => g.SubtotalFacturado);
+        decimal montoTotalHonorarios = gruposServicio.Sum(g => g.HonorariosGenerados);
+
+        return new SmileTrack_MVC.Models.DTOs.ReporteComisionProfesionalDto
+        {
+            IdProfesional = idProfesional,
+            NombreProfesional = $"{profesional.Nombres} {profesional.Apellidos}".Trim(),
+            FechaInicio = fechaInicio,
+            FechaFin = fechaFin,
+            TotalCitasAtendidas = citasAtendidas.Count,
+            MontoTotalFacturado = montoTotalFacturado,
+            PorcentajeComision = porcentajeComision,
+            MontoTotalHonorarios = montoTotalHonorarios,
+            DetalleServicios = gruposServicio
+        };
+    }
+
+    public async Task<SmileTrack_MVC.Models.DTOs.ResultadoReasignacionAusenciaDto> RegistrarAusenciaConReasignacionAsync(
+        int idProfesional,
+        DateTime fechaInicio,
+        DateTime fechaFin,
+        string motivo,
+        CancellationToken ct = default)
+    {
+        var profesional = await _context.Profesionales.FirstOrDefaultAsync(p => p.IdProfesional == idProfesional, ct);
+        if (profesional is null)
+            throw new InvalidOperationException("El profesional especificado no existe.");
+
+        var dateInicio = DateOnly.FromDateTime(fechaInicio);
+        var dateFin = DateOnly.FromDateTime(fechaFin);
+
+        // 1. Registrar la ausencia del profesional
+        var ausencia = new AusenciaProfesional
+        {
+            IdProfesional = idProfesional,
+            FechaInicio = dateInicio,
+            FechaFin = dateFin,
+            Tipo = string.IsNullOrWhiteSpace(motivo) ? "incapacidad" : motivo.Trim(),
+            Observaciones = "Registrado dinámicamente con motor de reasignación masiva."
+        };
+        _context.AusenciasProfesional.Add(ausencia);
+
+        // 2. Buscar citas afectadas no canceladas
+        var citasAfectadas = await _context.Citas
+            .Where(c => c.IdProfesional == idProfesional
+                     && c.FechaHora >= fechaInicio
+                     && c.FechaHora <= fechaFin
+                     && c.Estado.ToLower() != "cancelada")
+            .ToListAsync(ct);
+
+        var resultado = new SmileTrack_MVC.Models.DTOs.ResultadoReasignacionAusenciaDto
+        {
+            IdProfesional = idProfesional,
+            FechaInicio = fechaInicio,
+            FechaFin = fechaFin,
+            TotalCitasAfectadas = citasAfectadas.Count
+        };
+
+        var profesionalesActivos = await _context.Profesionales
+            .Where(p => p.IdProfesional != idProfesional && p.Estado == "activo")
+            .ToListAsync(ct);
+
+        int reasignadas = 0;
+        int canceladas = 0;
+
+        foreach (var cita in citasAfectadas)
+        {
+            int duracion = cita.DuracionMinutos > 0 ? cita.DuracionMinutos : 30;
+            DateTime finCita = cita.FechaHora.AddMinutes(duracion);
+            DateOnly dateCita = DateOnly.FromDateTime(cita.FechaHora);
+
+            Profesional? candidatoElegido = null;
+
+            foreach (var candidato in profesionalesActivos)
+            {
+                // Verificar si ofrece el servicio si hay especificación de servicios
+                bool ofreceServicio = !await _context.ProfesionalServicios.AnyAsync(ps => ps.IdProfesional == candidato.IdProfesional, ct)
+                                   || await _context.ProfesionalServicios.AnyAsync(ps => ps.IdProfesional == candidato.IdProfesional && ps.IdServicio == cita.IdServicio && ps.Activo, ct);
+
+                if (!ofreceServicio) continue;
+
+                // Verificar ausencias del candidato
+                bool candidatoConAusencia = await _context.AusenciasProfesional
+                    .AnyAsync(a => a.IdProfesional == candidato.IdProfesional && a.FechaInicio <= dateCita && a.FechaFin >= dateCita, ct);
+
+                if (candidatoConAusencia) continue;
+
+                // Verificar solapamiento de citas del candidato
+                bool candidatoConConflicto = await _context.Citas
+                    .AnyAsync(c => c.IdProfesional == candidato.IdProfesional
+                                && c.Estado.ToLower() != "cancelada"
+                                && c.FechaHora < finCita
+                                && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > cita.FechaHora, ct);
+
+                if (candidatoConConflicto) continue;
+
+                candidatoElegido = candidato;
+                break;
+            }
+
+            if (candidatoElegido is not null)
+            {
+                int idAnterior = cita.IdProfesional ?? 0;
+                cita.IdProfesional = candidatoElegido.IdProfesional;
+
+                // Historial de reasignación
+                _context.CitasHistorialEstado.Add(new CitaHistorialEstado
+                {
+                    IdCita = cita.IdCita,
+                    IdEstado = cita.IdEstado,
+                    EstadoTexto = cita.Estado,
+                    Motivo = $"Reasignada automáticamente por ausencia del profesional #{idAnterior} a #{candidatoElegido.IdProfesional}",
+                    FechaCambio = DateTime.UtcNow
+                });
+
+                // Notificación al paciente
+                _context.Notificaciones.Add(new Notificacion
+                {
+                    IdPaciente = cita.IdPaciente,
+                    IdCita = cita.IdCita,
+                    Tipo = "cambio_profesional",
+                    Titulo = "Reasignación de profesional",
+                    Contenido = $"Tu cita del {cita.FechaHora:dd/MM/yyyy HH:mm} ha sido asignada a {candidatoElegido.Nombres} {candidatoElegido.Apellidos} por ausencia médica.",
+                    CreadaEn = DateTime.UtcNow
+                });
+
+                reasignadas++;
+                resultado.DetallesCitas.Add(new SmileTrack_MVC.Models.DTOs.CitaReasignadaInfo
+                {
+                    IdCita = cita.IdCita,
+                    IdPaciente = cita.IdPaciente,
+                    FechaHora = cita.FechaHora,
+                    Reasignada = true,
+                    IdNuevoProfesional = candidatoElegido.IdProfesional,
+                    NombreNuevoProfesional = $"{candidatoElegido.Nombres} {candidatoElegido.Apellidos}".Trim(),
+                    Mensaje = "Reasignación exitosa"
+                });
+            }
+            else
+            {
+                string estadoAnterior = cita.Estado;
+                var estadoCancelada = await _context.EstadosCita.FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "cancelada", ct);
+                if (estadoCancelada is not null)
+                {
+                    cita.IdEstado = estadoCancelada.IdEstado;
+                    cita.Estado = estadoCancelada.NombreEstado;
+                }
+                else
+                {
+                    cita.Estado = "Cancelada";
+                }
+
+                // Historial de cancelación
+                _context.CitasHistorialEstado.Add(new CitaHistorialEstado
+                {
+                    IdCita = cita.IdCita,
+                    IdEstado = cita.IdEstado,
+                    EstadoTexto = cita.Estado,
+                    Motivo = "Cancelación automática por ausencia médica del profesional sin disponibilidad de reemplazo.",
+                    FechaCambio = DateTime.UtcNow
+                });
+
+                // Notificación al paciente
+                _context.Notificaciones.Add(new Notificacion
+                {
+                    IdPaciente = cita.IdPaciente,
+                    IdCita = cita.IdCita,
+                    Tipo = "cancelacion_emergencia",
+                    Titulo = "Cita cancelada por fuerza mayor",
+                    Contenido = $"Tu cita del {cita.FechaHora:dd/MM/yyyy HH:mm} fue cancelada por incapacidad del profesional. Por favor contacta a recepción para reprogramar.",
+                    CreadaEn = DateTime.UtcNow
+                });
+
+                canceladas++;
+                resultado.DetallesCitas.Add(new SmileTrack_MVC.Models.DTOs.CitaReasignadaInfo
+                {
+                    IdCita = cita.IdCita,
+                    IdPaciente = cita.IdPaciente,
+                    FechaHora = cita.FechaHora,
+                    Reasignada = false,
+                    Mensaje = "Cancelada por falta de profesional sustituto disponible"
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync(ct);
+
+        resultado.TotalReasignadas = reasignadas;
+        resultado.TotalCanceladas = canceladas;
+
+        return resultado;
+    }
+
     // ── Excepciones internas ──────────────────────────────────────────────────
 
     private sealed class CorreoDuplicadoException : Exception { }

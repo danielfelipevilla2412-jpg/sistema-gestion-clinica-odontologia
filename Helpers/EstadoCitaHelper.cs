@@ -18,7 +18,8 @@ public static class EstadoCitaHelper
             "solicitado" => "solicitada",
             "agendada" or "programado" => "programada",
             "confirmado" => "confirmada",
-            "en_consulta" => "en_proceso",
+            "en_consulta" or "en_proceso" => "en_proceso",
+            "en_espera" or "sala_de_espera" or "en_sala_espera" or "en_sala_de_espera" => "en_sala_de_espera",
             "realizada" or "completada" or "finalizada" => "atendida",
             "cancelado" => "cancelada",
             "no_asistio" or "no_show" => "no_asistida",
@@ -38,11 +39,31 @@ public static class EstadoCitaHelper
             "solicitada" => "Solicitada",
             "programada" => "Programada",
             "confirmada" => "Confirmada",
+            "en_sala_de_espera" => "En sala de espera",
             "en_proceso" => "En consulta",
             "atendida" => "Atendida",
             "cancelada" => "Cancelada",
             "no_asistida" => "No asistió",
             _ => string.IsNullOrEmpty(estado) ? string.Empty : char.ToUpperInvariant(estado.Trim()[0]) + estado.Trim()[1..].ToLowerInvariant()
+        };
+    }
+
+    public static bool IsTransitionAllowed(string? estadoActual, string? nuevoEstado)
+    {
+        string actual = Normalize(estadoActual);
+        string siguiente = Normalize(nuevoEstado);
+
+        if (string.IsNullOrWhiteSpace(actual) || string.IsNullOrWhiteSpace(siguiente))
+            return false;
+
+        return (actual, siguiente) switch
+        {
+            ("solicitada", "programada") => true,
+            ("programada", "confirmada" or "en_sala_de_espera") => true,
+            ("confirmada", "en_sala_de_espera" or "en_proceso") => true,
+            ("en_sala_de_espera", "en_proceso") => true,
+            ("en_proceso", "atendida") => true,
+            _ => false
         };
     }
 }

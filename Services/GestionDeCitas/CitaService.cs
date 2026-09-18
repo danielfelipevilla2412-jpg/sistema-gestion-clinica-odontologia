@@ -564,6 +564,25 @@ public class CitaService : ICitaService
 
             _context.Citas.Add(cita);
             await _context.SaveChangesAsync(ct);
+
+            // ── Historial de estado inicial ───────────────────────────────────
+            await RegistrarHistorialEstadoAsync(
+                idCita:       cita.IdCita,
+                idEstado:     cita.IdEstado,
+                estadoTexto:  cita.Estado,
+                idUsuario:    null,
+                motivo:       "Cita creada",
+                ct:           ct);
+
+            // ── Notificación interna al paciente ─────────────────────────────
+            await CrearNotificacionInternaCitaAsync(
+                idCita:     cita.IdCita,
+                idPaciente: cita.IdPaciente,
+                tipo:       "confirmacion",
+                titulo:     "Cita agendada",
+                contenido:  $"Tu cita fue agendada para el {cita.FechaHora:dd/MM/yyyy} a las {cita.FechaHora:HH:mm}.",
+                ct:         ct);
+
             return cita;
         }, ct);
     }
@@ -697,7 +716,7 @@ public class CitaService : ICitaService
             return null;
 
         string estadoActual = NormalizarEstado(cita.Estado);
-        string estadoNuevo = NormalizarEstado(nuevoEstado);
+        string estadoNuevo  = NormalizarEstado(nuevoEstado);
 
         if (string.IsNullOrWhiteSpace(estadoNuevo) || !EsTransicionEstadoPermitida(estadoActual, estadoNuevo))
             throw new InvalidOperationException(ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
@@ -711,9 +730,43 @@ public class CitaService : ICitaService
         if (estadoDestino is null)
             throw new InvalidOperationException("El estado seleccionado no existe en el catálogo de estados de citas.");
 
+        // Guardar estado anterior ANTES del UPDATE
+        string estadoAnteriorTexto = cita.Estado;
+
         cita.IdEstado = estadoDestino.IdEstado;
-        cita.Estado = estadoDestino.NombreEstado;
+        cita.Estado   = estadoDestino.NombreEstado;
         await _context.SaveChangesAsync(ct);
+
+        // ── Historial de cambio de estado ────────────────────────────────────
+        await RegistrarHistorialEstadoAsync(
+            idCita:      cita.IdCita,
+            idEstado:    cita.IdEstado,
+            estadoTexto: cita.Estado,
+            idUsuario:   null,
+            motivo:      $"Estado cambiado de '{estadoAnteriorTexto}' a '{cita.Estado}'",
+            ct:          ct);
+
+        // ── Notificación interna al paciente (solo estados relevantes) ───────
+        string estadoNormalizado = NormalizarEstado(cita.Estado);
+        if (estadoNormalizado is "confirmada" or "cancelada" or "atendida" or "no_asistida")
+        {
+            string tituloNotif = estadoNormalizado switch
+            {
+                "confirmada"  => "Cita confirmada",
+                "cancelada"   => "Cita cancelada",
+                "atendida"    => "Cita completada",
+                "no_asistida" => "Inasistencia registrada",
+                _             => "Actualización de tu cita"
+            };
+            await CrearNotificacionInternaCitaAsync(
+                idCita:     cita.IdCita,
+                idPaciente: cita.IdPaciente,
+                tipo:       "cambio_estado",
+                titulo:     tituloNotif,
+                contenido:  $"El estado de tu cita del {cita.FechaHora:dd/MM/yyyy} a las {cita.FechaHora:HH:mm} cambió a '{cita.Estado}'.",
+                ct:         ct);
+        }
+
         return cita;
     }
 
@@ -745,6 +798,15 @@ public class CitaService : ICitaService
         TimeSpan? anticipacionMinima = null,
         CancellationToken ct = default)
     {
+        return await CancelarAsync(id, motivo: null, anticipacionMinima: anticipacionMinima, ct: ct);
+    }
+
+    public async Task<bool> CancelarAsync(
+        int id,
+        string? motivo,
+        TimeSpan? anticipacionMinima = null,
+        CancellationToken ct = default)
+    {
         var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == id, ct);
         if (cita is null)
             return false;
@@ -752,15 +814,29 @@ public class CitaService : ICitaService
         if (EsEstadoCancelado(cita.Estado))
             throw new InvalidOperationException("La cita ya está cancelada.");
 
+        if (cita.FechaHora <= DateTime.Now)
+            throw new InvalidOperationException("La cita no puede cancelarse porque su fecha y hora anterior ya ha vencido.");
+
         if (anticipacionMinima.HasValue && cita.FechaHora - DateTime.Now < anticipacionMinima.Value)
             throw new InvalidOperationException(
                 $"No es posible cancelar citas con menos de {anticipacionMinima.Value.TotalHours:0} horas de anticipación.");
+
+        // Guardar estado anterior ANTES de la cancelación
+        string estadoAnteriorCancelar = cita.Estado;
+        int    idPacienteCancelar     = cita.IdPaciente;
+        DateTime fechaHoraCancelar    = cita.FechaHora;
+
+        var motivoCancelacion = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim();
+        if (!string.IsNullOrWhiteSpace(motivoCancelacion) && motivoCancelacion.Length > 500)
+            throw new InvalidOperationException("El motivo de cancelación no puede superar 500 caracteres.");
+
+        cita.MotivoCancelacion = motivoCancelacion;
 
         var estadoCancelada = await _context.EstadosCita.FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "cancelada", ct);
         if (estadoCancelada is not null)
         {
             cita.IdEstado = estadoCancelada.IdEstado;
-            cita.Estado = estadoCancelada.NombreEstado;
+            cita.Estado   = estadoCancelada.NombreEstado;
         }
         else
         {
@@ -768,6 +844,36 @@ public class CitaService : ICitaService
         }
 
         await _context.SaveChangesAsync(ct);
+
+        // ── Historial de cancelación ─────────────────────────────────────────
+        var motivoHistorial = string.IsNullOrWhiteSpace(motivoCancelacion)
+            ? $"Cita cancelada (estado anterior: '{estadoAnteriorCancelar}')"
+            : $"Cita cancelada (estado anterior: '{estadoAnteriorCancelar}', motivo: '{motivoCancelacion}')";
+
+        await RegistrarHistorialEstadoAsync(
+            idCita:      cita.IdCita,
+            idEstado:    cita.IdEstado,
+            estadoTexto: cita.Estado,
+            idUsuario:   null,
+            motivo:      motivoHistorial,
+            ct:          ct);
+
+        // ── Notificación interna de cancelación al paciente ──────────────────
+        await CrearNotificacionInternaCitaAsync(
+            idCita:     cita.IdCita,
+            idPaciente: idPacienteCancelar,
+            tipo:       "cancelacion",
+            titulo:     "Cita cancelada",
+            contenido:  $"Tu cita del {fechaHoraCancelar:dd/MM/yyyy} a las {fechaHoraCancelar:HH:mm} ha sido cancelada.{(string.IsNullOrWhiteSpace(motivoCancelacion) ? string.Empty : $" Motivo: {motivoCancelacion}")}",
+            ct:         ct);
+
+        // ── Notificación a pacientes en Lista de Espera ──────────────────────
+        await NotificarListaEsperaFranjaLiberadaAsync(
+            idServicio: cita.IdServicio,
+            idProfesional: cita.IdProfesional,
+            fechaHoraLiberada: fechaHoraCancelar,
+            ct: ct);
+
         return true;
     }
 
@@ -1268,22 +1374,16 @@ public class CitaService : ICitaService
 
     private static bool EsTransicionEstadoPermitida(string estadoActual, string nuevoEstado)
     {
-        return estadoActual switch
-        {
-            "programada" => nuevoEstado is "confirmada" or "cancelada" or "no_asistida",
-            "confirmada" => nuevoEstado is "en_proceso" or "cancelada" or "no_asistida",
-            "en_proceso" => nuevoEstado == "atendida",
-            "atendida" or "finalizada" or "cancelada" or "no_asistida" => false,
-            _ => false
-        };
+        return EstadoCitaHelper.IsTransitionAllowed(estadoActual, nuevoEstado);
     }
 
     private static string ConstruirMensajeTransicionNoPermitida(string estadoActual, string nuevoEstado)
     {
         return estadoActual switch
         {
-            "programada" => "Una cita agendada solo puede pasar a Confirmada, Cancelada o No asistió.",
-            "confirmada" => "Una cita confirmada solo puede pasar a En consulta, Cancelada o No asistió.",
+            "programada" => "Una cita programada solo puede pasar a Confirmada o En sala de espera. Para cancelar la cita use la función de cancelación.",
+            "confirmada" => "Una cita confirmada solo puede pasar a En sala de espera o En consulta. Para cancelar la cita use la función de cancelación.",
+            "en_sala_de_espera" => "Una cita en sala de espera solo puede pasar a En consulta. Para cancelar la cita use la función de cancelación.",
             "en_proceso" => "Una cita en consulta solo puede pasar a Atendida.",
             "atendida" or "finalizada" => "Una cita atendida ya está finalizada y no puede regresar a otro estado.",
             "cancelada" => "Una cita cancelada es definitiva y no puede reactivarse desde la agenda del profesional.",
@@ -1299,5 +1399,137 @@ public class CitaService : ICitaService
     internal static bool EsEstadoCancelado(string? estado)
     {
         return NormalizarEstado(estado) is "cancelada" or "cancelado";
+    }
+
+    // =========================================================================
+    // TRAZABILIDAD — HISTORIAL DE ESTADOS (implementa Cita_Historial_Estado)
+    // =========================================================================
+
+    /// <summary>
+    /// Registra un cambio de estado en <c>Cita_Historial_Estado</c>.
+    /// Best-effort: si falla, solo se loguea y la operación principal continúa.
+    /// </summary>
+    /// <param name="idUsuario">
+    /// Id del usuario que realizó el cambio. Puede ser <c>null</c> cuando
+    /// la operación fue iniciada por el sistema (tareas programadas, etc.).
+    /// El controlador debe pasar este valor cuando lo obtiene de los claims.
+    /// </param>
+    private async Task RegistrarHistorialEstadoAsync(
+        int        idCita,
+        int?       idEstado,
+        string     estadoTexto,
+        int?       idUsuario,
+        string?    motivo,
+        CancellationToken ct)
+    {
+        try
+        {
+            _context.CitasHistorialEstado.Add(new CitaHistorialEstado
+            {
+                IdCita      = idCita,
+                IdEstado    = idEstado,
+                EstadoTexto = estadoTexto,
+                IdUsuario   = idUsuario,
+                Motivo      = motivo,
+                FechaCambio = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            // El historial es trazabilidad, no debe deshacer la operación principal.
+            _logger.LogWarning(ex,
+                "No se pudo registrar historial de estado. IdCita={IdCita}, EstadoTexto={Estado}",
+                idCita, estadoTexto);
+        }
+    }
+
+    // =========================================================================
+    // NOTIFICACIONES INTERNAS (implementa tabla Notificacion)
+    // =========================================================================
+
+    /// <summary>
+    /// Crea una notificación interna en la tabla <c>Notificacion</c>.
+    /// Estas notificaciones son visibles para el paciente en <c>st-pac-03-notificaciones</c>.
+    /// Best-effort: si falla, solo se loguea.
+    /// </summary>
+    private async Task CrearNotificacionInternaCitaAsync(
+        int        idCita,
+        int        idPaciente,
+        string     tipo,
+        string     titulo,
+        string     contenido,
+        CancellationToken ct)
+    {
+        try
+        {
+            _context.Notificaciones.Add(new Notificacion
+            {
+                IdCita          = idCita,
+                IdPaciente      = idPaciente,
+                Tipo            = tipo,
+                Titulo          = titulo,
+                Contenido       = contenido,
+                Canal           = "interno",
+                Estado          = "pendiente",
+                FechaProgramada = DateTime.UtcNow,
+                CreadaEn        = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            // La notificación no debe deshacer la operación principal.
+            _logger.LogWarning(ex,
+                "No se pudo crear notificación interna. IdCita={IdCita}, Tipo={Tipo}",
+                idCita, tipo);
+        }
+    }
+
+    /// <summary>
+    /// Escanea la lista de espera para notificar a pacientes interesados cuando se libera una franja horaria.
+    /// </summary>
+    private async Task NotificarListaEsperaFranjaLiberadaAsync(
+        int? idServicio,
+        int? idProfesional,
+        DateTime fechaHoraLiberada,
+        CancellationToken ct)
+    {
+        try
+        {
+            var candidatosEspera = await _context.ListaEsperaCitas
+                .Where(l => l.Estado == "pendiente"
+                         && l.FechaDeseadaInicio <= fechaHoraLiberada
+                         && l.FechaDeseadaFin >= fechaHoraLiberada
+                         && (l.IdServicio == null || l.IdServicio == idServicio)
+                         && (l.IdProfesionalPreferido == null || l.IdProfesionalPreferido == idProfesional))
+                .ToListAsync(ct);
+
+            foreach (var candidato in candidatosEspera)
+            {
+                candidato.Estado = "notificado";
+
+                _context.Notificaciones.Add(new Notificacion
+                {
+                    IdPaciente = candidato.IdPaciente,
+                    Tipo = "lista_espera_liberada",
+                    Titulo = "Franja horaria disponible",
+                    Contenido = $"Se ha liberado un turno el {fechaHoraLiberada:dd/MM/yyyy} a las {fechaHoraLiberada:HH:mm}. ¡Ingresa ahora para agendar tu cita!",
+                    Canal = "interno",
+                    Estado = "pendiente",
+                    FechaProgramada = DateTime.UtcNow,
+                    CreadaEn = DateTime.UtcNow
+                });
+            }
+
+            if (candidatosEspera.Count > 0)
+            {
+                await _context.SaveChangesAsync(ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error al escanear lista de espera para franja liberada {FechaHora}", fechaHoraLiberada);
+        }
     }
 }
