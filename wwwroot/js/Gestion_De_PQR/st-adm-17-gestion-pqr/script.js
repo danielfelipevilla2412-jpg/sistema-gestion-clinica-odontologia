@@ -29,6 +29,9 @@ const initSidebar = () => {
 
 // ===== CLIENTE API LOCAL (autocontenido, sin depender de wwwroot/js/lib/apiRequest.js) =====
 function getPqrAntiforgeryToken() {
+  const hidden = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  if (hidden) return hidden;
+
   const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
   return match ? decodeURIComponent(match[2]) : null;
 }
@@ -424,13 +427,14 @@ async function changeStatus(btn, estado) {
       return;
     }
 
-    pqrsData[currentId].estado = estado;
+    pqrsData[currentId].estado = result.data?.estado || estado;
     document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     updateBadgeColors(pqrsData[currentId]);
     renderTable();
     renderStats();
     showToast('Estado actualizado correctamente.');
+    await refreshPqrsFromServer();
   } catch (error) {
     console.error('Error cambiando estado:', error);
     showToast('Error de conexión al actualizar el estado.', 'error');
@@ -476,6 +480,7 @@ function initResponseForm() {
       renderStats();
       textarea.value = '';
       showToast('Respuesta enviada correctamente.');
+      await refreshPqrsFromServer();
     } catch (error) {
       console.error('Error enviando respuesta:', error);
       showToast('Error de conexión al enviar la respuesta.', 'error');

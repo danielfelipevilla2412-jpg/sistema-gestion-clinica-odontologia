@@ -54,7 +54,7 @@
                     <i class="fas fa-inbox"></i>
                 </div>
                 <div class="stat-info">
-                    <h3>6</h3>
+                    <h3 id="statTotal">0</h3>
                     <p>Total PQR</p>
                 </div>
             </div>
@@ -63,7 +63,7 @@
                     <i class="fas fa-clock"></i>
                 </div>
                 <div class="stat-info">
-                    <h3>1</h3>
+                    <h3 id="statSinResponder">0</h3>
                     <p>Sin responder</p>
                 </div>
             </div>
@@ -72,7 +72,7 @@
                     <i class="fas fa-tasks"></i>
                 </div>
                 <div class="stat-info">
-                    <h3>1</h3>
+                    <h3 id="statEnGestion">0</h3>
                     <p>En gestión</p>
                 </div>
             </div>
@@ -81,7 +81,7 @@
                     <i class="fas fa-exclamation-triangle"></i>
                 </div>
                 <div class="stat-info">
-                    <h3>2</h3>
+                    <h3 id="statVencidas">0</h3>
                     <p>Vencidas</p>
                 </div>
             </div>
@@ -248,6 +248,7 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
+    @Html.AntiForgeryToken()
     <script>
         window.RAZOR_PQRS = @Html.Raw(ViewData["PqrsJson"] ?? "[]");
         window.RAZOR_PQR_STATS = @Html.Raw(ViewData["PqrStatsJson"] ?? "null");
