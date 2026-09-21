@@ -124,7 +124,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.FechaRegistro).HasColumnName("fecha_registro");
             entity.Property(p => p.Estado).HasColumnName("estado");
             entity.Property(p => p.ArchivoAdjunto).HasColumnName("archivo_adjunto");
-        });
+            entity.Property(p => p.EstadoCivil).HasColumnName("estado_civil");
+            entity.Property(p => p.Departamento).HasColumnName("departamento");
+            entity.Property(p => p.ParentescoEmergencia).HasColumnName("parentesco_emergencia");
+            entity.Property(p => p.EpsAseguradora).HasColumnName("eps_aseguradora");
+            entity.Property(p => p.NumeroPoliza).HasColumnName("numero_poliza");
+            entity.Property(p => p.TipoAfiliacion).HasColumnName("tipo_afiliacion");
+            entity.Property(p => p.MedicamentosActuales).HasColumnName("medicamentos_actuales");
+            entity.Property(p => p.AntecedentesFamiliares).HasColumnName("antecedentes_familiares");
+            entity.Property(p => p.IdProfesionalAsignado).HasColumnName("id_profesional_asignado");
+
+            entity.HasOne(p => p.ProfesionalAsignado)
+                  .WithMany()
+                  .HasForeignKey(p => p.IdProfesionalAsignado)
+                  .OnDelete(DeleteBehavior.SetNull);
+            });
 
         modelBuilder.Entity<Profesional>(entity =>
         {

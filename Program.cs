@@ -97,6 +97,7 @@ if (ejecutandoEnContenedor)
             new DirectoryInfo("/root/.aspnet/DataProtection-Keys"));
 }
 
+
 // -----------------------------------------------------------------------------
 // RATE LIMITING
 // -----------------------------------------------------------------------------
@@ -501,8 +502,7 @@ if (ejecutandoEnContenedor)
     selectedUrl =
         "http://0.0.0.0:80";
 
-    builder.WebHost.UseUrls(
-        selectedUrl);
+    builder.WebHost.UseUrls(selectedUrl);
 }
 else
 {
