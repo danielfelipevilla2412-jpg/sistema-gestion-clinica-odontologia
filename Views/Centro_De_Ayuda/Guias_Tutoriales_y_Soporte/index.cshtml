@@ -7,6 +7,23 @@
     var nameParts = userName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     var initials = string.Join("", nameParts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
     if (string.IsNullOrWhiteSpace(initials)) initials = "ST";
+    var role = User?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
+    var roleLabel = role switch
+    {
+        "profesional" or "odontologo" or "odontólogo" or "doctor" => "Panel Profesional",
+        "paciente" => "Panel Paciente",
+        "recepcionista" => "Panel Recepcionista",
+        "auxiliar" => "Panel Auxiliar",
+        _ => "Panel Administrador"
+    };
+    var roleKey = role switch
+    {
+        "profesional" or "odontologo" or "odontólogo" or "doctor" => "role.panel_profesional",
+        "paciente" => "role.panel_paciente",
+        "recepcionista" => "role.panel_recepcionista",
+        "auxiliar" => "role.panel_auxiliar",
+        _ => "role.panel_administrador"
+    };
 
     var categories = Model.Articles
         .GroupBy(a => a.Categoria)
@@ -44,14 +61,14 @@
     <meta name="description" content="Guías, tutoriales y soporte del centro de ayuda de SmileTrack" />
     <title>@ViewData["Title"]</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css?v=20260923")" />
     <link rel="stylesheet" href="@Url.Content("~/css/footer.css")" />
     <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/styles.css")" />
 </head>
 <body>
-    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+    <a href="#main-content" class="skip-link" data-i18n="help.skip_to_content">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+    @{ await Html.RenderPartialAsync("_SidebarDynamic"); }
 
     <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
         <span aria-hidden="true"></span>
@@ -60,46 +77,57 @@
     </button>
     <div class="overlay" id="overlay" aria-hidden="true"></div>
 
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
     <main class="main" id="main-content">
         <header class="page-header">
             <div class="header-left">
                 <nav class="breadcrumb" aria-label="Ruta de navegación">
-                    <span>Administración</span>
+                    <span data-i18n="@roleKey">@roleLabel</span>
                     <span class="bc-sep" aria-hidden="true">→</span>
-                    <span class="bc-active">Centro de Ayuda</span>
+                    <span class="bc-active" data-i18n="help.title">Centro de Ayuda</span>
                 </nav>
-                <h1 class="page-title">Centro de Ayuda</h1>
-                <p class="page-subtitle">Busca guías, tutoriales y soporte para tu clínica</p>
+                <h1 class="page-title" data-i18n="help.title">Centro de Ayuda</h1>
+                <p class="page-subtitle" data-i18n="help.subtitle">Busca guías, tutoriales y soporte para tu clínica</p>
             </div>
             <button class="btn-support" type="button" aria-expanded="false" onclick="window.location.href='/centro-de-ayuda/soporte'">
                 <i class="fas fa-headset"></i>
-                <span>+ Soporte Directo</span>
+                <span data-i18n="help.direct_support">+ Soporte Directo</span>
             </button>
         </header>
 
-        <section class="support-banner">
+        <section class="support-banner" aria-label="Canales de soporte" data-i18n-aria-label="help.support_channels">
             <div class="support-card">
                 <div class="support-card__header">
                     <div class="support-card__icon"><i class="fas fa-circle-info"></i></div>
-                    <h2>Canales de soporte</h2>
+                    <h2 data-i18n="help.support_channels">Canales de soporte</h2>
                 </div>
                 <ul class="support-list">
-                    <li><i class="fas fa-comment-dots"></i> @Model.Support.ChatHours</li>
-                    <li><i class="fas fa-envelope"></i> @Model.Support.Email</li>
-                    <li><i class="fas fa-phone"></i> @Model.Support.Phone</li>
+                    <li><i class="fas fa-comment-dots"></i> <span data-i18n="help.chat_hours">@Model.Support.ChatHours</span></li>
+                    <li><i class="fas fa-envelope"></i> <span data-i18n="help.email">@Model.Support.Email</span></li>
+                    <li><i class="fas fa-phone"></i> <span data-i18n="help.phone">@Model.Support.Phone</span></li>
                 </ul>
             </div>
         </section>
 
-        <section class="category-grid" aria-label="Categorías del centro de ayuda">
+        <section class="category-grid" aria-label="Categorías del centro de ayuda" data-i18n-aria-label="help.categories_label">
             @foreach (var category in categories)
             {
+                var categoryKey = category.Title switch
+                {
+                    "Citas" => "citas",
+                    "Pacientes" => "pacientes",
+                    "Facturación" => "facturacion",
+                    "Profesionales" => "profesionales",
+                    "Soporte" => "soporte",
+                    _ => "general"
+                };
                 <article class="category-card border-@category.ColorKey" data-category="@category.Title">
                     <div class="category-icon">
                         <i class="fas @category.IconClass text-@category.ColorKey"></i>
                     </div>
-                    <h3 class="text-@category.ColorKey">@category.Title</h3>
-                    <span>@category.Description</span>
+                    <h3 class="text-@category.ColorKey" data-i18n="help.category_@categoryKey">@category.Title</h3>
+                    <span data-i18n="help.category_desc_@categoryKey">@category.Description</span>
                 </article>
             }
         </section>
@@ -108,29 +136,47 @@
             <div class="search-container">
                 <div class="search-input-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="search-input" placeholder="¿Cómo programar una cita?..." />
+                    <input type="text" class="search-input" placeholder="¿Cómo programar una cita?..." data-i18n-ph="help.search_placeholder" />
                 </div>
             </div>
 
             <div class="articles-section">
                 <div class="articles-header">
-                    <h3>Artículos recomendados</h3>
-                    <a href="/centro-de-ayuda/guias-tutoriales" class="view-all">Ver todo</a>
+                    <h3 data-i18n="help.recommended">Artículos recomendados</h3>
+                    <a href="/centro-de-ayuda/guias-tutoriales" class="view-all" data-i18n="help.view_all">Ver todo</a>
                 </div>
 
                 <div class="article-list">
                     @foreach (var article in Model.Articles)
                     {
+                        var articleCategoryKey = article.Categoria switch
+                        {
+                            "Citas" => "citas",
+                            "Pacientes" => "pacientes",
+                            "Facturación" => "facturacion",
+                            "Profesionales" => "profesionales",
+                            "Soporte" => "soporte",
+                            _ => "general"
+                        };
+                        var articleKey = article.Titulo switch
+                        {
+                            "Cómo programar una cita" => "cita",
+                            "Gestión de pacientes" => "pacientes",
+                            "Facturación y pagos" => "facturacion",
+                            "Gestión de profesionales" => "profesionales",
+                            "Soporte técnico" => "soporte",
+                            _ => "general"
+                        };
                         <article class="article-item" data-category="@article.Categoria" onclick="if ('@article.Url' !== '#') window.location.href='@article.Url';">
                             <div class="article-icon icon-@article.Categoria">
                                 <i class="fas @article.Icono"></i>
                             </div>
                             <div class="article-content">
-                                <h4>@article.Titulo</h4>
-                                <p>@article.Descripcion</p>
+                                <h4 data-i18n="help.article_title_@articleKey">@article.Titulo</h4>
+                                <p data-i18n="help.article_desc_@articleKey">@article.Descripcion</p>
                             </div>
                             <div class="article-meta">
-                                <span class="article-badge badge-@article.Categoria">@article.Categoria</span>
+                                <span class="article-badge badge-@article.Categoria" data-i18n="help.category_@articleCategoryKey">@article.Categoria</span>
                                 <i class="fas fa-chevron-right article-arrow"></i>
                             </div>
                         </article>
@@ -141,6 +187,11 @@
     </main>
 
     <script src="@Url.Content("~/js/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/app.js")"></script>
+    <script src="@Url.Content("~/js/i18n-core.js?v=20260923")"></script>
+    <script src="@Url.Content("~/js/i18n.config.js?v=20260923")"></script>
+    <script>
+        if (window.I18N) window.I18N.apply(document);
+    </script>
     <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
 </body>
 </html>

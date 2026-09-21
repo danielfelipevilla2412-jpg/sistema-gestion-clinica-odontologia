@@ -1,6 +1,15 @@
-﻿@* Vista con sidebar unificado (igual que st-adm-01 dashboard) usando _SidebarAdmin parcial *@
+﻿@* Vista con el sidebar correspondiente al rol autenticado. *@
 @{
     Layout = null;
+    var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
+    var roleLabel = role switch
+    {
+      "profesional" or "odontologo" or "odontólogo" or "doctor" => "Panel Profesional",
+      "paciente" => "Panel Paciente",
+      "recepcionista" => "Panel Recepcionista",
+      "auxiliar" => "Panel Auxiliar",
+      _ => "Panel Administrador"
+    };
 
     // Contenido estático del artículo
     var articleTitle = "Cómo programar una cita";
@@ -107,7 +116,7 @@
   <!-- ============================================================= -->
   <!--  SIDEBAR UNIFICADO (MISMA ESTRUCTURA QUE st-adm-01)          -->
   <!-- ============================================================= -->
-  @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+  @{ await Html.RenderPartialAsync("_SidebarDynamic"); }
 
   <!-- ============================================================= -->
   <!--  HAMBURGER + OVERLAY (MÓVIL) — IGUAL QUE st-adm-01           -->
@@ -128,6 +137,8 @@
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>@roleLabel</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
           <span>Centro de Ayuda</span>
           <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active">@articleTitle</span>

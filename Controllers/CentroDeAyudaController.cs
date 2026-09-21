@@ -14,8 +14,8 @@ namespace SmileTrack_MVC.Controllers;
 ///
 /// RUTAS ACTIVAS (referenciadas desde los sidebars de Admin, Profesional, Auxiliar y Recepcionista):
 ///   GET /centro-de-ayuda/guias-tutoriales   → vista Guías, Tutoriales y Soporte (Admin + todos los roles autenticados)
-///   GET /centro-de-ayuda/como-programar-cita → vista Cómo programar una cita (Admin)
-///   GET /centro-de-ayuda/soporte             → vista de Soporte / Ticket (Admin)
+///   GET /centro-de-ayuda/como-programar-cita → vista Cómo programar una cita (todos los roles autenticados)
+///   GET /centro-de-ayuda/soporte             → vista de Soporte / Ticket (todos los roles autenticados)
 ///
 /// RUTAS LEGACY (redirigen a la principal para no romper enlaces existentes):
 ///   GET /centro-de-ayuda/st-rec-01-preguntas-frecuentes
@@ -49,7 +49,6 @@ public class CentroDeAyudaController : Controller
 
     // ─── Cómo programar una cita ──────────────────────────────────────────────
     [HttpGet]
-    [Authorize(Roles = "Administrador")]
     [Route("centro-de-ayuda/como-programar-cita")]
     public IActionResult ComoProgramarCita()
     {
