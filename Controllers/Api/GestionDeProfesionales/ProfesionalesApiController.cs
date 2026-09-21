@@ -473,4 +473,67 @@ public sealed class ProfesionalesApiController : ControllerBase
             ? Ok(new { success = true, data = result.Data })
             : NotFound(new { success = false, message = result.Message });
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/profesionales/{id}/comisiones
+    // Calcula la liquidación de honorarios y comisiones por citas atendidas
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/comisiones")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    public async Task<IActionResult> GetComisiones(
+        int id,
+        [FromQuery] DateTime? fechaInicio,
+        [FromQuery] DateTime? fechaFin,
+        [FromQuery] decimal porcentajeComision = 40,
+        CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        var inicio = fechaInicio ?? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        var fin = fechaFin ?? DateTime.UtcNow;
+
+        try
+        {
+            var comisiones = await _service.CalcularComisionesAsync(id, inicio, fin, porcentajeComision, ct);
+            return Ok(new { success = true, data = comisiones });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al calcular comisiones para el profesional {Id}", id);
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/profesionales/{id}/ausencias-reasignar
+    // Registra ausencia y ejecuta el motor de reasignación/cancelación de citas
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpPost("{id:int}/ausencias-reasignar")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [CookieAwareValidateAntiforgeryToken]
+    public async Task<IActionResult> PostAusenciaConReasignacion(
+        int id,
+        [FromBody] AusenciaProfesionalApiRequest request,
+        CancellationToken ct = default)
+    {
+        if (id <= 0 || request is null)
+            return BadRequest(new { success = false, message = "Datos de ausencia inválidos." });
+
+        var inicio = request.FechaInicio.ToDateTime(TimeOnly.MinValue);
+        var fin = request.FechaFin.ToDateTime(TimeOnly.MaxValue);
+
+        try
+        {
+            var resultado = await _service.RegistrarAusenciaConReasignacionAsync(id, inicio, fin, request.Tipo ?? "incapacidad", ct);
+            return Ok(new { success = true, message = "Ausencia registrada y citas procesadas exitosamente.", data = resultado });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al procesar ausencia con reasignación para profesional {Id}", id);
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
 }

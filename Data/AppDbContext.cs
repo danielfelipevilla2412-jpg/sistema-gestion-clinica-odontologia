@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             public DbSet<CitaHistorialEstado> CitasHistorialEstado => Set<CitaHistorialEstado>();
             public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
             public DbSet<RecordatorioCita> RecordatoriosCita => Set<RecordatorioCita>();
+            public DbSet<ListaEsperaCita> ListaEsperaCitas => Set<ListaEsperaCita>();
             public DbSet<ConsultorioHistorial> ConsultoriosHistorial => Set<ConsultorioHistorial>();
             public DbSet<AsistenciaProcedimiento> AsistenciasProcedimiento => Set<AsistenciaProcedimiento>();
             public DbSet<ConsultorioEstadoOperativo> EstadosOperativosConsultorio => Set<ConsultorioEstadoOperativo>();
@@ -145,6 +146,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.Ciudad).HasColumnName("ciudad");
             entity.Property(p => p.GrupoSanguineo).HasColumnName("grupo_sanguineo");
             entity.Property(p => p.Alergias).HasColumnName("alergias");
+            entity.Property(p => p.Medicamentos).HasColumnName("medicamentos");
             entity.Property(p => p.AntecedentesMedicos).HasColumnName("antecedentes_medicos");
             entity.Property(p => p.ContactoEmergencia).HasColumnName("contacto_emergencia");
             entity.Property(p => p.TelefonoEmergencia).HasColumnName("telefono_emergencia");
@@ -256,6 +258,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(c => c.Estado).HasColumnName("estado");
             entity.Property(c => c.Notas).HasColumnName("notas");
             entity.Property(c => c.MotivoConsulta).HasColumnName("motivo_consulta");
+            entity.Property(c => c.MotivoCancelacion).HasColumnName("motivo_cancelacion");
             entity.Property(c => c.NotasPrevias).HasColumnName("notas_previas");
             entity.Property(c => c.TipoCita).HasColumnName("tipo_cita");
             entity.Property(c => c.FechaCreacion).HasColumnName("fecha_creacion");
@@ -841,6 +844,95 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(ps => ps.IdServicio)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── CitaHistorialEstado ───────────────────────────────────────────────────
+        // Trazabilidad de cada cambio de estado de una cita (quién lo hizo, cuándo,
+        // estado anterior y nuevo). Se inserta en CitaService en CrearAsync,
+        // CambiarEstadoAsync y CancelarAsync.
+        modelBuilder.Entity<CitaHistorialEstado>(entity =>
+        {
+            entity.ToTable("Cita_Historial_Estado");
+            entity.HasKey(h => h.IdHistorial);
+            entity.Property(h => h.IdHistorial).HasColumnName("id_historial");
+            entity.Property(h => h.IdCita).HasColumnName("id_cita");
+            entity.Property(h => h.IdEstado).HasColumnName("id_estado");
+            entity.Property(h => h.EstadoTexto).HasColumnName("estado_texto").HasMaxLength(50);
+            entity.Property(h => h.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(h => h.Motivo).HasColumnName("motivo").HasMaxLength(255);
+            entity.Property(h => h.FechaCambio).HasColumnName("fecha_cambio");
+
+            entity.HasOne(h => h.Cita)
+                  .WithMany()
+                  .HasForeignKey(h => h.IdCita)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(h => h.Estado)
+                  .WithMany()
+                  .HasForeignKey(h => h.IdEstado)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(h => h.Usuario)
+                  .WithMany()
+                  .HasForeignKey(h => h.IdUsuario)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── Notificacion ──────────────────────────────────────────────────────────
+        // Registro interno de notificaciones enviadas/pendientes a pacientes.
+        // Se inserta desde CitaService al crear, cancelar o cambiar estado de cita.
+        // La vista st-pac-03-notificaciones consume esta tabla para mostrar al paciente
+        // sus notificaciones del sistema.
+        modelBuilder.Entity<Notificacion>(entity =>
+        {
+            entity.ToTable("Notificacion");
+            entity.HasKey(n => n.IdNotificacion);
+            entity.Property(n => n.IdNotificacion).HasColumnName("id_notificacion");
+            entity.Property(n => n.IdPaciente).HasColumnName("id_paciente");
+            entity.Property(n => n.IdCita).HasColumnName("id_cita");
+            entity.Property(n => n.Tipo).HasColumnName("tipo").HasMaxLength(20);
+            entity.Property(n => n.Titulo).HasColumnName("titulo").HasMaxLength(150);
+            entity.Property(n => n.Contenido).HasColumnName("contenido");
+            entity.Property(n => n.Canal).HasColumnName("canal").HasMaxLength(20);
+            entity.Property(n => n.Estado).HasColumnName("estado").HasMaxLength(20);
+            entity.Property(n => n.FechaProgramada).HasColumnName("fecha_programada");
+            entity.Property(n => n.FechaEnvio).HasColumnName("fecha_envio");
+            entity.Property(n => n.FechaLectura).HasColumnName("fecha_lectura");
+            entity.Property(n => n.Intentos).HasColumnName("intentos");
+            entity.Property(n => n.UltimoError).HasColumnName("ultimo_error");
+            entity.Property(n => n.CreadaEn).HasColumnName("creada_en");
+
+            entity.HasOne(n => n.Paciente)
+                  .WithMany()
+                  .HasForeignKey(n => n.IdPaciente)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(n => n.Cita)
+                  .WithMany()
+                  .HasForeignKey(n => n.IdCita)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── RecordatorioCita ──────────────────────────────────────────────────────
+        // Registro de recordatorios enviados para citas próximas.
+        modelBuilder.Entity<RecordatorioCita>(entity =>
+        {
+            entity.ToTable("Recordatorio_Cita");
+            entity.HasKey(r => r.IdRecordatorio);
+            entity.Property(r => r.IdRecordatorio).HasColumnName("id_recordatorio");
+            entity.Property(r => r.IdCita).HasColumnName("id_cita");
+            entity.Property(r => r.Canal).HasColumnName("canal").HasMaxLength(20);
+            entity.Property(r => r.Estado).HasColumnName("estado").HasMaxLength(20);
+            entity.Property(r => r.ProgramadoPara).HasColumnName("programado_para");
+            entity.Property(r => r.EnviadoEn).HasColumnName("enviado_en");
+            entity.Property(r => r.Intentos).HasColumnName("intentos");
+            entity.Property(r => r.UltimoError).HasColumnName("ultimo_error");
+            entity.Property(r => r.CreadoEn).HasColumnName("creado_en");
+
+            entity.HasOne(r => r.Cita)
+                  .WithMany()
+                  .HasForeignKey(r => r.IdCita)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ══════════════════════════════════════════════════════════════════════════

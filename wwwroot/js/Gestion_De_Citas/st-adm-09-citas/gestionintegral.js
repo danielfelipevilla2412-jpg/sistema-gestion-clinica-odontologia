@@ -526,7 +526,7 @@ const renderAppointments = () => {
 
     // Mostrar estado vacío si no hay resultados
     if (!filteredAppointments.length) {
-        tableBody.innerHTML = '<div class="empty-state" role="status">No se encontraron citas con los criterios de búsqueda.</div>';
+        tableBody.innerHTML = '<div class="empty-state" role="status">No hay citas para los filtros actuales</div>';
         updatePagination(0);
         return;
     }
@@ -1082,9 +1082,40 @@ const initNewAppointment = () => {
  * @returns {Promise<Array>} Array de citas mapeadas
  */
 async function fetchAppointments() {
-    // La vista usa la colección en memoria cargada en init(); si no hay datos reales
-    // disponibles, se devuelve la colección actual para evitar falsos negativos.
-    return Array.isArray(appointments) ? appointments : [];
+    try {
+        const params = new URLSearchParams({ page: '1', pageSize: '100' });
+
+        if (searchQuery) params.set('search', searchQuery);
+        if (filterStatus) params.set('estado', filterStatus);
+        if (filterProfessional) params.set('profesional', filterProfessional);
+        if (filterDate) params.set('fecha', filterDate);
+
+        const response = await fetch(`${API_BASE}/citas?${params.toString()}`, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                ...getAuthHeaders(),
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`status ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const data = Array.isArray(payload?.data) ? payload.data.map(mapServerToClient) : [];
+        appointments = data;
+        return data;
+    } catch (error) {
+        console.warn('[SmileTrack] No se pudo cargar citas desde /api/citas:', error);
+        appointments = [];
+        const tableBody = safeGetElement('citasBody');
+        if (tableBody) {
+            tableBody.innerHTML = '<div class="empty-state" role="status">No hay citas para los filtros actuales</div>';
+        }
+        return [];
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════

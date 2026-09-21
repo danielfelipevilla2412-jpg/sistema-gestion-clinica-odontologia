@@ -22,6 +22,7 @@ public sealed class PacienteApiDto
     public string? Ciudad { get; set; }
     public string? GrupoSanguineo { get; set; }
     public List<string> Alergias { get; set; } = [];
+    public List<string> Medicamentos { get; set; } = [];
     public string? AntecedentesMedicos { get; set; }
     public string? ContactoEmergencia { get; set; }
     public string? TelefonoEmergencia { get; set; }
@@ -79,6 +80,8 @@ public sealed class PacienteApiCreateDto
 
     public string? Alergias { get; set; }
 
+    public string? Medicamentos { get; set; }
+
     public string? AntecedentesMedicos { get; set; }
 
     [StringLength(100)]
@@ -117,6 +120,8 @@ public sealed class PacienteApiUpdateDto
     public string? GrupoSanguineo { get; set; }
 
     public string? Alergias { get; set; }
+
+    public string? Medicamentos { get; set; }
 
     public string? AntecedentesMedicos { get; set; }
 

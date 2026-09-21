@@ -203,6 +203,7 @@ BEGIN
         ciudad VARCHAR(100) NULL,
         grupo_sanguineo VARCHAR(5) NULL,
         alergias VARCHAR(MAX) NULL,
+        medicamentos VARCHAR(MAX) NULL,
         antecedentes_medicos VARCHAR(MAX) NULL,
         contacto_emergencia VARCHAR(100) NULL,
         telefono_emergencia VARCHAR(20) NULL,
@@ -212,6 +213,10 @@ BEGIN
         CONSTRAINT FK_Paciente_Usuario FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario)
     );
 END
+GO
+
+IF COL_LENGTH(N'dbo.Paciente', N'medicamentos') IS NULL
+    ALTER TABLE Paciente ADD medicamentos VARCHAR(MAX) NULL;
 GO
 
 -- ============================================================

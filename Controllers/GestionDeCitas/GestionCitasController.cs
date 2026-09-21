@@ -1264,6 +1264,55 @@ public sealed class CambiarEstadoCitaDto
     }
 
     // ================================================================
+    // HISTORIAL DE ESTADOS DE UNA CITA (API interna para modal)
+    // ================================================================
+
+    /// <summary>
+    /// Devuelve el historial de cambios de estado de una cita ordenado
+    /// cronológicamente. Consumido por AJAX desde la pestaña "Historial"
+    /// del modal de detalles en st-adm-09-citas.
+    /// </summary>
+    [HttpGet]
+    [Route("gestion-de-citas/historial-estados/{id:int}")]
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional")]
+    public async Task<IActionResult> HistorialEstadosCita(
+        int id, CancellationToken ct = default)
+    {
+        if (id <= 0)
+            return BadRequest(new { error = "Identificador de cita inválido." });
+
+        try
+        {
+            var historial = await _context.CitasHistorialEstado
+                .AsNoTracking()
+                .Where(h => h.IdCita == id)
+                .Include(h => h.Estado)
+                .Include(h => h.Usuario)
+                .OrderBy(h => h.FechaCambio)
+                .Select(h => new
+                {
+                    h.IdHistorial,
+                    Estado       = h.EstadoTexto,
+                    h.Motivo,
+                    FechaCambio  = h.FechaCambio.ToString("dd/MM/yyyy HH:mm:ss"),
+                    NombreUsuario = h.Usuario != null
+                        ? (h.Usuario.Nombre + " " + (h.Usuario.Apellidos ?? "")).Trim()
+                        : "Sistema"
+                })
+                .ToListAsync(ct);
+
+            return Json(historial);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Error al obtener historial de estados. IdCita={IdCita}", id);
+
+            return StatusCode(500, new { error = "Error al cargar el historial." });
+        }
+    }
+
+    // ================================================================
     // PANEL AUXILIAR
     // ================================================================
 
@@ -1591,7 +1640,14 @@ public sealed class CambiarEstadoCitaDto
                             StringSplitOptions.RemoveEmptyEntries |
                             StringSplitOptions.TrimEntries),
 
-                medicamentos = Array.Empty<string>(),
+                medicamentos =
+                    string.IsNullOrWhiteSpace(
+                        paciente.Medicamentos)
+                        ? Array.Empty<string>()
+                        : paciente.Medicamentos.Split(
+                            ',',
+                            StringSplitOptions.RemoveEmptyEntries |
+                            StringSplitOptions.TrimEntries),
 
                 grupoSanguineo =
                     string.IsNullOrWhiteSpace(

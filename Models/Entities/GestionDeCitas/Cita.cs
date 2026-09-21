@@ -35,6 +35,10 @@ namespace SmileTrack_MVC.Models.Entities
         [Column("motivo_consulta")]
         public string? MotivoConsulta { get; set; }
 
+        [Column("motivo_cancelacion")]
+        [StringLength(500)]
+        public string? MotivoCancelacion { get; set; }
+
         [Column("notas_previas")]
         public string? NotasPrevias { get; set; }
 

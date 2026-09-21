@@ -53,6 +53,12 @@ public interface ICitaService
         TimeSpan? anticipacionMinima = null,
         CancellationToken ct = default);
 
+    Task<bool> CancelarAsync(
+        int id,
+        string? motivo,
+        TimeSpan? anticipacionMinima = null,
+        CancellationToken ct = default);
+
     /// <summary>
     /// Registra una nueva solicitud de cita enviada directamente por un paciente.
     /// Queda en estado 'Solicitada' y no requiere profesional ni consultorio inmediato,

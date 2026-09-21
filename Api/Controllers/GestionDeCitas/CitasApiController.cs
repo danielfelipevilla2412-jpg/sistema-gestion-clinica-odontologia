@@ -626,7 +626,10 @@ public sealed class CitasApiController : ControllerBase
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Policy = "ApiOrCookie")]
     [Route("api/citas/{id:int}")]
-    public async Task<IActionResult> Cancelar(int id, CancellationToken ct = default)
+    public async Task<IActionResult> Cancelar(
+        int id,
+        [FromBody] CitaCancelacionDto? dto = null,
+        CancellationToken ct = default)
     {
         if (id <= 0) return BadRequest(new { success = false, message = "Identificador de cita inválido." });
         var cita = await _citaService.ObtenerPorIdAsync(id, ct);
@@ -637,8 +640,9 @@ public sealed class CitasApiController : ControllerBase
         try
         {
             TimeSpan? anticipacionMinima = User.IsInRole("Paciente") ? TimeSpan.FromHours(2) : null;
-            if (!await _citaService.CancelarAsync(id, anticipacionMinima, ct)) return NotFound(new { success = false, message = "Cita no encontrada." });
-            await RegistrarAuditoriaAsync("UPDATE", id, "Cita cancelada mediante API.", ct);
+            string? motivo = dto is null ? null : dto.Motivo;
+            if (!await _citaService.CancelarAsync(id, motivo, anticipacionMinima, ct)) return NotFound(new { success = false, message = "Cita no encontrada." });
+            await RegistrarAuditoriaAsync("UPDATE", id, "Cita cancelada mediante API." + (string.IsNullOrWhiteSpace(motivo) ? string.Empty : $" Motivo: {motivo.Trim()}"), ct);
             return Ok(new { success = true, message = "Cita cancelada exitosamente.", id });
         }
         catch (InvalidOperationException ex) { return BadRequest(new { success = false, message = ex.Message }); }
