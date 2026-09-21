@@ -702,14 +702,35 @@ public class HistoriaClinicaController(
 [Route("historia-clinica/st-pac-02-historial")]
 public async Task<IActionResult> Stpac02Historial()
 {
-        string? userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    // Yeray - Defensa específica para el rol Paciente.
+    // Motivo: la ruta debe permitir el acceso solo a usuarios autenticados con
+    // un paciente asociado; si no existe esa relación de BD, la vista anterior
+    // caía en un estado ambiguo y el usuario no entendía qué estaba fallando.
+    // Con esta validación solo se bloquea el acceso a la historia de pacientes
+    // sin ficha vinculada, sin tocar otras rutas ni módulos externos.
+    string? idPacienteClaim = User.FindFirst("IdPaciente")?.Value;
+    int? idPacienteDesdeClaim = int.TryParse(idPacienteClaim, out var idPacienteClaimInt)
+        ? idPacienteClaimInt
+        : null;
+
+    string? userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     int? idUsuario = int.TryParse(userIdStr, out int uid) ? uid : null;
 
-    var pacientePropio = idUsuario.HasValue
+    Paciente? pacientePropio = idPacienteDesdeClaim is not null
+        ? await _context.Pacientes.FirstOrDefaultAsync(p => p.IdPaciente == idPacienteDesdeClaim)
+        : null;
+
+    pacientePropio ??= idUsuario.HasValue
         ? await _context.Pacientes.FirstOrDefaultAsync(p => p.IdUsuario == idUsuario)
         : null;
 
-    var vm = await BuildHistorialPacienteViewModelAsync(pacientePropio?.IdPaciente, null);
+    if (pacientePropio is null)
+    {
+        TempData["InfoMessage"] = "Tu cuenta no tiene una ficha de paciente asociada. Contacta con recepción para vincular tu historial clínico.";
+        return Redirect("/gestion-de-citas/st-pac-01-mis-citas");
+    }
+
+    var vm = await BuildHistorialPacienteViewModelAsync(pacientePropio.IdPaciente, null);
 
     return View("~/Views/Historia_Clinica/st-pac-02-historial/index.cshtml", vm);
 }
@@ -972,7 +993,8 @@ private static string InferirTipoServicio(string? nombreServicio)
             FechaNacimiento = paciente.FechaNacimiento.ToString("yyyy-MM-dd"),
             ProfesionalNombre = profesionalNombre,
             ProfesionalCorreo = profesionalCorreo,
-            ObservacionesGenerales = historia.ObservacionesGenerales
+            ObservacionesGenerales = historia.ObservacionesGenerales,
+            EstadoPersistido = historia.ObservacionesGenerales
         };
     }
 

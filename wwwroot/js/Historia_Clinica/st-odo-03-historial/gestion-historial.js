@@ -301,6 +301,95 @@ const renderResumenPaciente = (paciente) => {
     : 'Sin cita programada');
 };
 
+//  — Rellena el formulario de historial con los datos reales del paciente y la
+// última nota clínica guardada. Cuando no existe paciente seleccionado, conserva
+// el estado en blanco para que el profesional pueda completar la historia desde 0.
+const poblarFormularioHistoria = (datosHistoria = window.smiletrackHistoriaData || {}) => {
+  const listaNotas = Array.isArray(datosHistoria.notasClinicas) ? datosHistoria.notasClinicas : [];
+  const ultimaNota = listaNotas[0] || {};
+  const setValue = (id, value) => {
+    const input = document.getElementById(id);
+    if (input) input.value = value ?? '';
+  };
+
+  const alergias = Array.isArray(datosHistoria.alergias) ? datosHistoria.alergias : [];
+  const observacionesOdontograma = datosHistoria.observaciones || {};
+  const textoObservacionesOdonto = Object.values(observacionesOdontograma)
+    .filter(Boolean)
+    .join(' • ');
+
+  const origenEvolucion = [ultimaNota.diagnostico, ultimaNota.procedimiento]
+    .filter(Boolean)
+    .join(' · ');
+
+  setValue('motivo_consulta', datosHistoria.motivoConsulta || '');
+  setValue('enfermedad_actual', datosHistoria.enfermedadActual || origenEvolucion || '');
+  setValue('antecedentes_medicos', datosHistoria.antecedentesMedicos || '');
+  setValue('habitos', datosHistoria.habitos || '');
+  setValue('alergias', alergias.length ? alergias.join(', ') : datosHistoria.alergiasTexto || '');
+  setValue('hallazgos', datosHistoria.hallazgos || '');
+  setValue('odontograma_observaciones', datosHistoria.odontogramaObservaciones || textoObservacionesOdonto || '');
+  setValue('examenes_complementarios', datosHistoria.examenesComplementarios || '');
+  setValue('diagnostico_principal', datosHistoria.diagnosticoPrincipal || '');
+  setValue('diagnostico_secundario', datosHistoria.diagnosticoSecundario || '');
+  setValue('evolucion_clinica', datosHistoria.evolucionClinica || origenEvolucion || '');
+  setValue('prescripcion', datosHistoria.prescripcion || '');
+};
+
+const renderPacienteInfoShell = (paciente) => {
+  const card = document.querySelector('.patient-summary-card');
+  if (!card) return;
+
+  if (!paciente || !paciente.id) {
+    card.classList.add('empty-patient-card');
+    card.innerHTML = `
+      <div class="patient-summary-inner">
+        <div class="patient-info-block empty-state-block">
+          <div class="patient-avatar empty-avatar">—</div>
+          <div class="patient-meta">
+            <div class="patient-title-row empty-title-row">
+              <h2>Paciente no seleccionado</h2>
+            </div>
+            <div class="patient-details-row empty-details-row">
+              <span><strong>Documento:</strong> <span class="mono placeholder-line">&nbsp;</span></span>
+              <span><strong>Edad:</strong> <span class="placeholder-line">&nbsp;</span></span>
+              <span><strong>Sexo:</strong> <span class="placeholder-line">&nbsp;</span></span>
+              <span><strong>Grupo:</strong> <span class="placeholder-line">&nbsp;</span></span>
+              <span><strong>Teléfono:</strong> <span class="placeholder-line">&nbsp;</span></span>
+              <span><strong>Email:</strong> <span class="placeholder-line">&nbsp;</span></span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const fechaNacimiento = paciente.fechaNacimiento ? new Date(paciente.fechaNacimiento) : null;
+  const edad = fechaNacimiento && !Number.isNaN(fechaNacimiento.getTime()) ? `${calcEdad(paciente.fechaNacimiento)} años` : 'No registrada';
+
+  card.classList.remove('empty-patient-card');
+  card.innerHTML = `
+    <div class="patient-summary-inner">
+      <div class="patient-info-block">
+        <div class="patient-avatar">${escaparHtml((paciente.nombre || 'P').charAt(0).toUpperCase())}</div>
+        <div class="patient-meta">
+          <div class="patient-title-row">
+            <h2>${escaparHtml(paciente.nombre || 'Paciente')}</h2>
+            <span class="status-pill">${escaparHtml(paciente.grupoSanguineo || 'N/D')}</span>
+          </div>
+          <div class="patient-details-row">
+            <span><strong>Documento:</strong> ${escaparHtml([paciente.tipoDoc, paciente.documento].filter(Boolean).join(' ') || 'No registrado')}</span>
+            <span><strong>Edad:</strong> ${escaparHtml(edad)}</span>
+            <span><strong>Sexo:</strong> ${escaparHtml(paciente.genero || 'No registrado')}</span>
+            <span><strong>Grupo:</strong> ${escaparHtml(paciente.grupoSanguineo || 'N/D')}</span>
+            <span><strong>Teléfono:</strong> ${escaparHtml(paciente.telefono || 'No registrado')}</span>
+            <span><strong>Email:</strong> ${escaparHtml(paciente.correo || 'No registrado')}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+};
+
 //  — Activa filtros locales para consulta rápida de notas, citas,
 // odontograma y documentos, sin recargar ni alterar el historial guardado.
 const initFiltrosLineaDeTiempo = () => {
@@ -754,12 +843,10 @@ const iniciarOdontograma3DIntegrado = (datosHistoria) => {
 
   host.innerHTML = `
     <div style="height:360px;position:relative;overflow:hidden;border-radius:12px;background:#030d1a">
-      <div id="odo3dFallbackLoading" style="position:absolute;inset:0;display:grid;place-items:center;color:#b9dbea;z-index:1">Cargando odontograma 3D…</div>
       <iframe id="odo3dFallbackFrame" title="Odontograma 3D de solo lectura" style="width:100%;height:360px;border:0;display:block" allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
     </div>`;
 
   const iframe = safeGetElement('odo3dFallbackFrame');
-  const loading = safeGetElement('odo3dFallbackLoading');
   let estado = {};
   try { estado = JSON.parse(datosHistoria?.estadoPersistido || '{}'); } catch { estado = {}; }
   const mapeoFDI = estado?.mapeoFDI || {};
@@ -768,30 +855,41 @@ const iniciarOdontograma3DIntegrado = (datosHistoria) => {
     const tooltip = safeGetElement('holo-tooltip-historial');
     if (tooltip) tooltip.style.display = 'none';
   };
+  // CORRECCIÓN FASE 3 — No se muestra una capa permanente de “Cargando”. Si
+  // Sketchfab falla, se reemplaza únicamente por un mensaje de error; si carga,
+  // el modelo queda visible de inmediato, igual que en Odontograma Digital.
+  const mostrarError = mensaje => {
+    host.innerHTML = `<div style="height:360px;display:grid;place-items:center;border-radius:12px;background:#030d1a;color:#ff9cac">${mensaje}</div>`;
+  };
 
   const iniciar = () => {
     if (!window.Sketchfab) {
-      if (loading) loading.textContent = 'No fue posible cargar la biblioteca del visor 3D.';
+      mostrarError('No fue posible cargar la biblioteca del visor 3D.');
       return;
     }
     try {
       const cliente = new window.Sketchfab('1.12.1', iframe);
       cliente.init('7f5b381c66674e0a969e8db04d139666', {
-        autostart: 1,
-        ui_infos: 0, ui_watermark: 0, ui_help: 0, ui_settings: 0,
+        // Yeray - Se quitó "autostart: 1" (mismo motivo que en
+        // odontograma-3d-readonly.js: doble arranque del visor dejaba el
+        // canvas en negro). api.start() queda como único disparador.
+        // CORRECCIÓN FASE 3 — Replica la apariencia navegable del visor
+        // editable, sin agregar eventos de clic ni modificaciones clínicas.
+        ui_infos: 0, ui_watermark: 0, ui_controls: 1, ui_help: 0, ui_settings: 0,
         ui_vr: 0, ui_fullscreen: 0, ui_annotations: 0, ui_stop: 0,
         success(api) {
           api.start();
           api.addEventListener('viewerready', () => {
-            if (loading) loading.style.display = 'none';
             api.addEventListener('nodeMouseEnter', nodo => {
               const id = nodo?.instanceID;
               const fdi = id == null ? null : mapeoFDI[id];
               const tooltip = safeGetElement('holo-tooltip-historial');
-              if (!fdi || !tooltip) return;
+              if (id == null || !tooltip) return;
               const tratamientos = registros?.[id]?.tratamientos || [];
               const ultimo = tratamientos[tratamientos.length - 1];
-              tooltip.innerHTML = `<strong>${fdi} · Pieza dental</strong><br>${ultimo?.key || 'Sin tratamiento registrado'}`;
+              // CORRECCIÓN FASE 3 — Mantiene respuesta visual al hover aunque
+              // la pieza aún no tenga FDI; con FDI se muestra su dato clínico.
+              tooltip.innerHTML = `<strong>${fdi ? `${fdi} · Pieza dental` : 'Pieza sin FDI asignado'}</strong><br>${ultimo?.key || 'Sin tratamiento registrado'}`;
               const cuadro = iframe.getBoundingClientRect();
               tooltip.style.cssText += `;display:block;left:${Math.max(12, cuadro.right - 260)}px;top:${cuadro.top + 12}px`;
             }, { pick: 'fast' });
@@ -799,10 +897,10 @@ const iniciarOdontograma3DIntegrado = (datosHistoria) => {
             iframe.addEventListener('mouseleave', ocultar);
           });
         },
-        error() { if (loading) loading.textContent = 'No fue posible cargar el modelo 3D.'; }
+        error() { mostrarError('No fue posible cargar el modelo 3D.'); }
       });
     } catch {
-      if (loading) loading.textContent = 'No fue posible iniciar el visor 3D.';
+      mostrarError('No fue posible iniciar el visor 3D.');
     }
   };
 
@@ -813,7 +911,7 @@ const iniciarOdontograma3DIntegrado = (datosHistoria) => {
   const apiScript = document.createElement('script');
   apiScript.src = 'https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js';
   apiScript.onload = iniciar;
-  apiScript.onerror = () => { if (loading) loading.textContent = 'No se pudo descargar el visor 3D.'; };
+  apiScript.onerror = () => mostrarError('No se pudo descargar el visor 3D.');
   document.head.appendChild(apiScript);
 };
 
@@ -841,6 +939,11 @@ const init = async () => {
   // Actualizar botón de código HC
   const hcBtn = safeGetElement('hcBtn');
   if (hcBtn) hcBtn.textContent = `🗂 ${p.codigoHC}`;
+
+  //  — Si existe paciente activo, se rellena la plantilla editable con la última
+  // información clínica real disponible; si no hay paciente, se deja en blanco.
+  renderPacienteInfoShell(p);
+  poblarFormularioHistoria(window.smiletrackHistoriaData || {});
   
   // Renderizar componentes con datos cargados
   renderAlertas({

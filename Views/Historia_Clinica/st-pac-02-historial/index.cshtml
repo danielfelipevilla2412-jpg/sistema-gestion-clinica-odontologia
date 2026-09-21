@@ -11,7 +11,7 @@
         pacienteNombre = odonto.PacienteNombre,
         codigoHC = odonto.CodigoHC,
         fechaNacimiento = odonto.FechaNacimiento,
-        estadoPersistido = odonto.ObservacionesGenerales
+        estadoPersistido = odonto.EstadoPersistido ?? odonto.ObservacionesGenerales
     });
     var registrosJson = JsonSerializer.Serialize(Model.Registros.Select(r => new
     {
@@ -22,6 +22,22 @@
         doctor = r.Doctor,
         estado = r.Estado
     }));
+
+    // Yeray - FIX: se calcula aqui como variable simple en vez de dejar el
+    // ternario anidado directamente dentro de @Html.Raw(...) mas abajo.
+    // Una expresion C# multilinea con ternarios anidados embebida en un
+    // @Html.Raw(...) dentro de un <script> puede confundir al parser de
+    // Razor y generar una cascada de errores de compilacion sin relacion
+    // aparente (__tagHelperRunner, __tagHelperExecutionContext, etc.).
+    // Ademas se sigue corrigiendo el bug original: ObservacionesGenerales
+    // se crea como string.Empty (no null) en cada Historia_Clinica nueva,
+    // asi que se usa IsNullOrWhiteSpace en vez de ?? para no dejar pasar
+    // una cadena vacia que rompa el JSON de salida.
+    var estadoPersistidoJs = !string.IsNullOrWhiteSpace(odonto.EstadoPersistido)
+        ? odonto.EstadoPersistido
+        : (!string.IsNullOrWhiteSpace(odonto.ObservacionesGenerales)
+            ? odonto.ObservacionesGenerales
+            : "null");
 }
 
 <!DOCTYPE html>
@@ -37,6 +53,11 @@
     rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-pac-02-historial/styles.css")" />
+  @* Yeray - CSS compartido del componente readonly del odontograma 3D. Esta
+     vista nunca lo tuvo — por eso el iframe se veía encogido al tamaño por
+     defecto del navegador en vez de llenar su contenedor (~360px, igual que
+     en la vista del profesional). *@
+  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/components/odontograma-3d-readonly.css")" asp-append-version="true" />
   <style>
     @@keyframes scan {
       0% {
@@ -184,41 +205,12 @@
                   <div id="sub" style="font-size:9px;color:rgba(0,212,255,0.45);margin-top:2px">Paciente: @Model.Odontograma.PacienteNombre —
     @Model.Odontograma.CodigoHC</div>
                 </div>
-                <!-- [MEJORA]: role="radiogroup" para toggles de dentición -->
-                <div style="display:flex;gap:5px" role="radiogroup" aria-label="Tipo de dentición">
-                  <button class="tb active" onclick="setTipo('adulto',this)" role="radio" aria-checked="true"
-                    aria-label="Dentición permanente (Adulto)">Adulto</button>
-                  <button class="tb" onclick="setTipo('nino',this)" role="radio" aria-checked="false"
-                    aria-label="Dentición temporal (Niño)">Niño</button>
-                </div>
               </div>
 
-              <!-- [MEJORA]: Contenedor con role y aria-label para accesibilidad -->
-              <div id="odonto" style="position:relative;z-index:2" role="grid"
-                aria-label="Representación visual de piezas dentales"></div>
+              <div id="holo-tooltip-historial" role="status" aria-live="polite" style="display:none"></div>
 
-              <!-- Leyenda -->
-              <div
-                style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0 0;position:relative;z-index:2"
-                role="list" aria-label="Leyenda de estados dentales">
-                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
-                  role="listitem"><span style="width:7px;height:7px;border-radius:50%;background:#ff4d6d;flex-shrink:0"
-                    aria-hidden="true"></span>Caries</div>
-                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
-                  role="listitem"><span style="width:12px;height:3px;border-radius:2px;background:#378ADD;flex-shrink:0"
-                    aria-hidden="true"></span>Endodoncia</div>
-                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
-                  role="listitem"><span style="width:7px;height:7px;border-radius:50%;background:#f4a62a;flex-shrink:0"
-                    aria-hidden="true"></span>Sellante</div>
-                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
-                  role="listitem"><span class="material-symbols-outlined" style="font-size:10px;color:#888" aria-hidden="true">circle</span>&nbsp;Ausente</div>
-                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
-                  role="listitem"><span style="width:12px;height:3px;border-radius:2px;background:#1D9E75;flex-shrink:0"
-                    aria-hidden="true"></span>Placa</div>
-                <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:rgba(180,220,255,0.55)"
-                  role="listitem"><span style="width:7px;height:7px;border-radius:50%;background:#00d4ff;flex-shrink:0"
-                    aria-hidden="true"></span>Sano</div>
-              </div>
+              <div id="odontogramaHost" style="position:relative;z-index:2;min-height:320px;" role="img"
+                aria-label="Odontograma del paciente: vista gráfica de dientes con tratamientos"></div>
 
               <!-- Panel solo lectura -->
               <div id="panel"
@@ -343,369 +335,35 @@
 
   <!-- Scripts -->
   <script>
+    // Yeray - Vista del paciente: se evita cualquier carga de visor 3D/Sketchfab.
+    // La pantalla de historial debe ser estable y no depender de permisos del
+    // navegador ni de modelos externos. Esto elimina la pantalla negra, el error
+    // de aceleración del navegador y la carga innecesaria del motor 3D.
     window.smiletrackOdontogramaConfig = @Html.Raw(odontoConfigJson);
     window.smiletrackHistorialRegistros = @Html.Raw(registrosJson);
-</script>
-
-  <!-- --- ODONTOGRAMA JS COMPLETO (OPTIMIZADO) --- -->
-  <script>
-    // [MEJORA]: Utilidad safeGetElement reutilizable (consistente con st-pac-01)
-    const safeGetElement = (id) => {
-      const el = document.getElementById(id);
-      if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-      return el;
+    window.smiletrackHistoriaData = {
+      pacienteId: @Html.Raw(odonto.PacienteId is null ? "null" : odonto.PacienteId.ToString()),
+      historiaId: @Html.Raw(odonto.HistoriaId is null ? "null" : odonto.HistoriaId.ToString()),
+      estadoPersistido: @Html.Raw(estadoPersistidoJs),
+      pacienteNombre: @Html.Raw(JsonSerializer.Serialize(odonto.PacienteNombre ?? "Paciente")),
+      codigoHC: @Html.Raw(JsonSerializer.Serialize(odonto.CodigoHC ?? ""))
     };
 
-    // [MEJORA]: Animación de contador con requestAnimationFrame (mejor performance)
-    const animateCounterRAF = (el, target) => {
-      if (!el) return;
-      let cur = 0;
-      const duration = 900;
-      const startTime = performance.now();
-      const animate = (currentTime) => {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        cur = Math.floor(eased * target);
-        el.textContent = cur;
-        if (progress < 1) requestAnimationFrame(animate);
-        else el.textContent = target;
-      };
-      requestAnimationFrame(animate);
-    };
+    (function () {
+      const host = document.getElementById('odontogramaHost');
+      if (!host) return;
 
-    // --- DATOS Y CONFIGURACIÓN DEL ODONTOGRAMA ---
-    const ODONTO_ESTADOS = [
-      { key: 'caries', label: 'Caries', color: '#ff4d6d', tipo: 'dot' },
-      { key: 'endodoncia', label: 'Endodoncia', color: '#378ADD', tipo: 'bar' },
-      { key: 'sellante', label: 'Sellante', color: '#f4a62a', tipo: 'dot' },
-      { key: 'ausente', label: 'Ausente', color: '#888780', tipo: 'x' },
-      { key: 'placa', label: 'Placa', color: '#1D9E75', tipo: 'bar' },
-      { key: 'sano', label: 'Sano', color: '#00d4ff', tipo: 'dot' },
-    ];
-
-    const ODONTO_CONFIG = {
-      adulto: {
-        TW: 30, TH: 38,
-        groups: [
-          {
-            label: 'MAXILAR SUPERIOR', rows: [
-              { label: 'SUPERIOR IZQUIERDO (18 al 11)', nums: [18, 17, 16, 15, 14, 13, 12, 11] },
-              { label: 'SUPERIOR DERECHO (21 al 28)', nums: [21, 22, 23, 24, 25, 26, 27, 28] },
-            ]
-          },
-          {
-            label: 'MAXILAR INFERIOR', rows: [
-              { label: 'INFERIOR IZQUIERDO (38 al 31)', nums: [38, 37, 36, 35, 34, 33, 32, 31] },
-              { label: 'INFERIOR DERECHO (41 al 48)', nums: [41, 42, 43, 44, 45, 46, 47, 48] },
-            ]
-          },
-        ]
-      },
-      nino: {
-        TW: 34, TH: 42,
-        groups: [
-          {
-            label: 'MAXILAR SUPERIOR', rows: [
-              { label: 'SUPERIOR IZQUIERDO (55 al 51)', nums: [55, 54, 53, 52, 51] },
-              { label: 'SUPERIOR DERECHO (61 al 65)', nums: [61, 62, 63, 64, 65] },
-            ]
-          },
-          {
-            label: 'MAXILAR INFERIOR', rows: [
-              { label: 'INFERIOR IZQUIERDO (85 al 81)', nums: [85, 84, 83, 82, 81] },
-              { label: 'INFERIOR DERECHO (71 al 75)', nums: [71, 72, 73, 74, 75] },
-            ]
-          },
-        ]
-      }
-    };
-
-    const buildEstadoInicial = () => {
-      const cfg = window.smiletrackOdontogramaConfig || {};
-      const estados = {};
-      const obsD = {};
-      try {
-        if (cfg.estadoPersistido) {
-          const persistido = typeof cfg.estadoPersistido === 'string'
-            ? JSON.parse(cfg.estadoPersistido)
-            : cfg.estadoPersistido;
-          const registros = persistido?.registros || {};
-          Object.entries(registros).forEach(([numDiente, registro]) => {
-            const tratamientos = registro?.tratamientos || registro?.Tratamientos || [];
-            if (!tratamientos.length) return;
-            const ultimo = tratamientos[tratamientos.length - 1];
-            const key = ultimo?.key || ultimo?.Key;
-            const obs = ultimo?.obs || ultimo?.Obs;
-            if (key) estados[numDiente] = key;
-            if (obs) obsD[numDiente] = obs;
-          });
-        }
-      } catch (e) {
-        console.warn('[SmileTrack] No se pudo leer el odontograma guardado:', e);
-      }
-      return { estados, obsD };
-    };
-
-    const estadoInicial = buildEstadoInicial();
-    let odontogramState = {
-      tipo: 'adulto',
-      estados: estadoInicial.estados,
-      obsD: estadoInicial.obsD,
-      sel: null
-    };
-
-    // --- FUNCIONES DE DIBUJO (VISUAL PRESERVADO) ---
-    const isMolar = (n) => { const d = n % 10; return d >= 6 && d <= 8; };
-    const isPremolar = (n) => { const d = n % 10; return d === 4 || d === 5; };
-    const isCanine = (n) => n % 10 === 3;
-
-    const rr = (ctx, x, y, w, h, r) => {
-      ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
-    };
-
-    const applyStyle = (ctx, fill, border, glow, isSel, lw) => {
-      ctx.fillStyle = fill;
-      if (isSel) { ctx.shadowColor = glow; ctx.shadowBlur = 6; }
-      ctx.fill(); ctx.shadowBlur = 0;
-      ctx.strokeStyle = border; ctx.lineWidth = lw; ctx.stroke();
-    };
-
-    const drawMolar = (ctx, ox, oy, tw, th, fill, border, glow, isSel, lw) => {
-      rr(ctx, ox, oy, tw, th, 4); applyStyle(ctx, fill, border, glow, isSel, lw);
-      ctx.strokeStyle = 'rgba(0,180,255,0.2)'; ctx.lineWidth = 0.5;
-      const cx = ox + tw / 2, cy = oy + th / 2 - 2;
-      ctx.beginPath(); ctx.moveTo(cx - 5, cy - 2); ctx.lineTo(cx + 5, cy - 2); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(cx, cy - 6); ctx.lineTo(cx, cy + 3); ctx.stroke();
-    };
-    const drawPremolar = (ctx, ox, oy, tw, th, fill, border, glow, isSel, lw) => {
-      rr(ctx, ox, oy, tw, th, 4); applyStyle(ctx, fill, border, glow, isSel, lw);
-      ctx.strokeStyle = 'rgba(0,180,255,0.18)'; ctx.lineWidth = 0.5;
-      const cx = ox + tw / 2, cy = oy + th / 2 - 2;
-      ctx.beginPath(); ctx.moveTo(cx, cy - 5); ctx.lineTo(cx, cy + 3); ctx.stroke();
-    };
-    const drawCanine = (ctx, ox, oy, tw, th, fill, border, glow, isSel, lw) => {
-      const cx = ox + tw / 2;
-      ctx.beginPath(); ctx.moveTo(ox + 3, oy); ctx.lineTo(ox + tw - 3, oy);
-      ctx.quadraticCurveTo(ox + tw, oy, ox + tw, oy + 3);
-      ctx.lineTo(ox + tw, oy + th - 8);
-      ctx.quadraticCurveTo(ox + tw - 1, oy + th + 2, cx, oy + th + 2);
-      ctx.quadraticCurveTo(ox + 1, oy + th + 2, ox, oy + th - 8);
-      ctx.lineTo(ox, oy + 3); ctx.quadraticCurveTo(ox, oy, ox + 3, oy); ctx.closePath();
-      applyStyle(ctx, fill, border, glow, isSel, lw);
-    };
-    const drawIncisor = (ctx, ox, oy, tw, th, fill, border, glow, isSel, lw) => {
-      const cx = ox + tw / 2;
-      ctx.beginPath(); ctx.moveTo(ox + 2, oy); ctx.lineTo(ox + tw - 2, oy);
-      ctx.quadraticCurveTo(ox + tw, oy, ox + tw, oy + 2);
-      ctx.lineTo(ox + tw, oy + th - 4);
-      ctx.quadraticCurveTo(ox + tw - 0.5, oy + th, cx, oy + th);
-      ctx.quadraticCurveTo(ox + 0.5, oy + th, ox, oy + th - 4);
-      ctx.lineTo(ox, oy + 2); ctx.quadraticCurveTo(ox, oy, ox + 2, oy); ctx.closePath();
-      applyStyle(ctx, fill, border, glow, isSel, lw);
-    };
-
-    const drawToothCanvas = (canvas, num, isSel) => {
-      const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
-      const borderC = isSel ? '#00d4ff' : 'rgba(0,160,220,0.65)',
-        fillC = isSel ? 'rgba(0,45,88,0.97)' : 'rgba(0,18,42,0.9)',
-        glowC = 'rgba(0,212,255,0.9)', lw = isSel ? 1.8 : 1;
-      const pad = 3, tw = W - pad * 2, th = H - pad * 2 - 8, ox = pad, oy = pad + 2;
-
-      if (isMolar(num)) drawMolar(ctx, ox, oy, tw, th, fillC, borderC, glowC, isSel, lw);
-      else if (isPremolar(num)) drawPremolar(ctx, ox, oy, tw, th, fillC, borderC, glowC, isSel, lw);
-      else if (isCanine(num)) drawCanine(ctx, ox, oy, tw, th, fillC, borderC, glowC, isSel, lw);
-      else drawIncisor(ctx, ox, oy, tw, th, fillC, borderC, glowC, isSel, lw);
-
-      const e = ODONTO_ESTADOS.find(x => x.key === odontogramState.estados[num]);
-      if (e) {
-        const cx = W / 2, cy = oy + 6;
-        if (e.tipo === 'dot') {
-          ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, 2 * Math.PI);
-          ctx.fillStyle = e.color; ctx.shadowColor = e.color; ctx.shadowBlur = 8; ctx.fill(); ctx.shadowBlur = 0;
-        } else if (e.tipo === 'bar') {
-          ctx.fillStyle = e.color; ctx.shadowColor = e.color; ctx.shadowBlur = 5;
-          ctx.beginPath(); ctx.roundRect?.(cx - 5, cy - 2, 10, 3, 1.5) || ctx.fillRect(cx - 5, cy - 2, 10, 3);
-          ctx.fill(); ctx.shadowBlur = 0;
-        } else {
-          ctx.strokeStyle = e.color; ctx.lineWidth = 1.5; ctx.shadowColor = e.color; ctx.shadowBlur = 5;
-          ctx.beginPath(); ctx.moveTo(cx - 4, cy - 4); ctx.lineTo(cx + 4, cy + 4);
-          ctx.moveTo(cx + 4, cy - 4); ctx.lineTo(cx - 4, cy + 4); ctx.stroke(); ctx.shadowBlur = 0;
-        }
-      }
-      ctx.font = 'bold 7px sans-serif'; ctx.fillStyle = isSel ? '#00eeff' : 'rgba(0,200,255,0.75)';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(num, W / 2, oy + th - 4);
-    };
-
-    const getAllNums = () => ODONTO_CONFIG[odontogramState.tipo].groups.flatMap(g => g.rows.flatMap(r => r.nums));
-
-    const rebuildCanvases = () => {
-      const nums = getAllNums();
-      const container = safeGetElement('odonto');
-      if (!container) return;
-      // [MEJORA]: Usar requestAnimationFrame para agrupar repaints
-      requestAnimationFrame(() => {
-        container.querySelectorAll('canvas').forEach((cv, i) => {
-          if (i < nums.length) drawToothCanvas(cv, nums[i], odontogramState.sel === nums[i]);
-        });
-      });
-    };
-
-    const buildOdonto = () => {
-      const container = safeGetElement('odonto');
-      if (!container) return;
-      container.innerHTML = '';
-      const cfg = ODONTO_CONFIG[odontogramState.tipo];
-
-      cfg.groups.forEach((g, gi) => {
-        const lw = document.createElement('div');
-        lw.style.cssText = 'display:flex;justify-content:center;gap:4px;margin-bottom:3px';
-        g.rows.forEach(r => {
-          const sp = document.createElement('span');
-          sp.style.cssText = 'font-size:7.5px;color:rgba(0,212,255,0.38);letter-spacing:0.04em;text-transform:uppercase;flex:1;text-align:center';
-          sp.textContent = r.label; lw.appendChild(sp);
-        });
-        container.appendChild(lw);
-
-        const rowDiv = document.createElement('div');
-        rowDiv.style.cssText = 'display:flex;justify-content:center;align-items:stretch;gap:2px;position:relative;z-index:2;margin-bottom:8px';
-
-        g.rows.forEach((r, ri) => {
-          const half = document.createElement('div'); half.style.cssText = 'display:flex;gap:2px';
-          r.nums.forEach(num => {
-            const cv = document.createElement('canvas');
-            cv.width = cfg.TW; cv.height = cfg.TH;
-            cv.style.cssText = 'display:block;cursor:pointer;border-radius:3px';
-            // [MEJORA]: Atributos ARIA para cada diente interactivo
-            cv.setAttribute('role', 'gridcell');
-            cv.setAttribute('aria-label', `Pieza dental ${num}, seleccionar para ver detalle`);
-            cv.setAttribute('tabindex', '0');
-            drawToothCanvas(cv, num, odontogramState.sel === num);
-
-            // [MEJORA]: Evento click con validación
-            cv.addEventListener('click', () => {
-              odontogramState.sel = num;
-              rebuildCanvases();
-              showPanel(num);
-            });
-            // [MEJORA]: Soporte para teclado (Enter/Space)
-            cv.addEventListener('keydown', (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                cv.click();
-              }
-            });
-            half.appendChild(cv);
-          });
-          rowDiv.appendChild(half);
-          if (ri === 0) {
-            const mid = document.createElement('div');
-            mid.style.cssText = 'width:1px;background:rgba(0,212,255,0.22);align-self:stretch;flex-shrink:0;margin:0 3px;border-radius:1px';
-            rowDiv.appendChild(mid);
-          }
-        });
-        container.appendChild(rowDiv);
-        if (gi === 0) {
-          const sep = document.createElement('div');
-          sep.style.cssText = 'height:8px;border-top:1px dashed rgba(0,212,255,0.12);margin:0 0 10px';
-          container.appendChild(sep);
-        }
-      });
-    };
-
-    const showPanel = (num) => {
-      const p = safeGetElement('panel');
-      if (!p) return;
-      p.style.display = 'block';
-      const ptit = safeGetElement('ptit');
-      if (ptit) ptit.textContent = `Diente ${num}`;
-
-      const estadoEl = safeGetElement('panel-estado');
-      const e = ODONTO_ESTADOS.find(x => x.key === odontogramState.estados[num]);
-      if (estadoEl) {
-        if (e) {
-          const ind = e.tipo === 'dot'
-            ? `<span style="width:8px;height:8px;border-radius:50%;background:${e.color};display:inline-block;box-shadow:0 0 5px ${e.color}" aria-hidden="true"></span>`
-            : `<span style="width:13px;height:3px;border-radius:2px;background:${e.color};display:inline-block;box-shadow:0 0 5px ${e.color}" aria-hidden="true"></span>`;
-          estadoEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:rgba(180,220,255,0.85)">${ind}<span>${e.label}</span></div>`;
-        } else {
-          estadoEl.innerHTML = `<div style="font-size:10px;color:rgba(0,212,255,0.4)">Sin diagnóstico registrado</div>`;
-        }
-      }
-
-      const obsEl = safeGetElement('panel-obs');
-      if (obsEl) obsEl.textContent = odontogramState.obsD[num] ? `${odontogramState.obsD[num]}` : '';
-    };
-
-    // [MEJORA]: Función global para cerrar panel (compatible con onclick en HTML)
-    window.cerrarPanel = () => {
-      const p = safeGetElement('panel');
-      if (p) p.style.display = 'none';
-      odontogramState.sel = null;
-      rebuildCanvases();
-    };
-
-    const updateHist = () => {
-      const items = safeGetElement('hitems');
-      if (!items) return;
-      const entries = Object.entries(odontogramState.estados);
-      if (!entries.length) {
-        items.innerHTML = '<div style="font-size:9px;color:rgba(0,212,255,0.3);padding:3px 0">Sin registros</div>';
-        return;
-      }
-      items.innerHTML = entries.map(([num, key]) => {
-        const e = ODONTO_ESTADOS.find(x => x.key === key);
-        if (!e) return '';
-        const ind = e.tipo === 'dot'
-          ? `<span style="width:8px;height:8px;border-radius:50%;background:${e.color};flex-shrink:0;display:inline-block;box-shadow:0 0 4px ${e.color}" aria-hidden="true"></span>`
-          : `<span style="width:13px;height:3px;border-radius:2px;background:${e.color};flex-shrink:0;display:inline-block;box-shadow:0 0 4px ${e.color}" aria-hidden="true"></span>`;
-        const obs = odontogramState.obsD[num] ? `<span style="color:rgba(0,212,255,0.3);font-size:8px;margin-left:4px">— ${odontogramState.obsD[num]}</span>` : '';
-        return `<div style="display:flex;align-items:center;gap:6px;font-size:9px;color:rgba(180,220,255,0.85);padding:3px 0;border-bottom:1px solid rgba(0,212,255,0.07)" role="listitem">${ind}<span>${e.label}</span><span style="color:rgba(0,212,255,0.35);font-size:8px">Diente ${num}</span>${obs}</div>`;
-      }).join('');
-    };
-
-    // [MEJORA]: Función global para cambiar tipo de dentición (compatible con onclick)
-    window.setTipo = (t, btn) => {
-      odontogramState.tipo = t;
-      odontogramState.estados = {};
-      odontogramState.obsD = {};
-      odontogramState.sel = null;
-
-      // [MEJORA]: Actualizar aria-checked en toggles
-      document.querySelectorAll('.tb').forEach(b => {
-        b.classList.remove('active');
-        b.setAttribute('aria-checked', 'false');
-        b.style.cssText = 'font-size:10px;padding:4px 13px;border-radius:20px;border:1px solid rgba(0,212,255,0.25);background:transparent;color:rgba(0,212,255,0.5);cursor:pointer;letter-spacing:0.03em;';
-      });
-      if (btn) {
-        btn.classList.add('active');
-        btn.setAttribute('aria-checked', 'true');
-        btn.style.cssText = 'font-size:10px;padding:4px 13px;border-radius:20px;border:1px solid rgba(0,212,255,0.7);background:rgba(0,212,255,0.15);color:#00d4ff;cursor:pointer;letter-spacing:0.03em;box-shadow:0 0 8px rgba(0,212,255,0.2);';
-      }
-
-      const panel = safeGetElement('panel');
-      if (panel) panel.style.display = 'none';
-      const sub = safeGetElement('sub');
-      const cfgNombre = (window.smiletrackOdontogramaConfig || {}).pacienteNombre || 'Paciente';
-      const cfgCodigo = (window.smiletrackOdontogramaConfig || {}).codigoHC || '';
-      if (sub) sub.textContent = t === 'adulto'
-        ? `Paciente: ${cfgNombre} — ${cfgCodigo} — Dentición permanente`
-        : `Paciente: ${cfgNombre} — ${cfgCodigo} — Dentición temporal`;
-
-      buildOdonto();
-      updateHist();
-    };
-
-    // Inicializar odontograma al cargar DOM
-    document.addEventListener('DOMContentLoaded', () => {
-      buildOdonto();
-      updateHist();
-    });
+      host.innerHTML = `
+        <div style="display:grid;place-items:center;height:320px;border-radius:12px;background:linear-gradient(180deg, rgba(3,13,26,0.98), rgba(10,30,50,0.9));border:1px solid rgba(0,212,255,0.18);color:#dff7ff;">
+          <div style="text-align:center;padding:18px;max-width:420px;">
+            <div style="font-size:11px;letter-spacing:.12em;color:#00d4ff;text-transform:uppercase;margin-bottom:12px;">Odontograma</div>
+            <div style="font-size:14px;line-height:1.6;opacity:.9;">
+              La información clínica del odontograma queda disponible en la historia clínica del profesional.
+            </div>
+          </div>
+        </div>
+      `;
+    })();
   </script>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">

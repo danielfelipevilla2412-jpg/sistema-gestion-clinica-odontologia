@@ -1,0 +1,120 @@
+/* Yeray - CSS compartido del componente readonly del odontograma 3D
+   (odontograma-3d-readonly.js). Antes estas reglas solo existían en el
+   <style> en línea de gestion-historial.cshtml (vista del profesional);
+   la vista del paciente (st-pac-02-historial) nunca las tuvo, por eso el
+   iframe ahí se veía "encogido" al tamaño por defecto del navegador
+   (~300px) en vez de llenar su contenedor. Se centralizan aquí para que
+   ambas vistas usen exactamente el mismo tamaño y estilo, y no se
+   vuelvan a desincronizar. */
+
+.odo3d-readonly-wrap {
+  min-height: 360px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #030d1a;
+  border: 1px solid rgba(0, 212, 255, .22);
+}
+
+.odo3d-readonly-wrap iframe {
+  width: 100%;
+  height: 360px;
+  border: 0;
+  display: block;
+}
+
+.odo3d-readonly-label {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 10px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0, 10, 25, .84);
+  color: #00d4ff;
+  font-size: .72rem;
+  pointer-events: none;
+}
+
+/* Yeray - Requiere pointer-events:none. Este overlay cubre todo el iframe
+   (inset:0) con un fondo semitransparente mientras carga; sin
+   pointer-events:none bloquearía TODOS los clics y el hover hacia el
+   modelo 3D de abajo, impidiendo rotar el diente y activar el tooltip
+   aunque el visor ya esté listo. */
+.odo3d-readonly-loading,
+.odo3d-readonly-error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #b9dbea;
+  font-size: .86rem;
+  background: rgba(3, 13, 26, .78);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.odo3d-readonly-error {
+  color: #ff9cac;
+}
+
+/* Yeray - Fuerza que el panel de error permanezca oculto hasta un fallo
+   real. Sin esta regla, su display:grid puede prevalecer sobre el
+   atributo hidden y tapar por completo el iframe 3D. */
+.odo3d-readonly-error[hidden] {
+  display: none !important;
+}
+
+/* ── Tooltip del odontograma readonly (hover sobre un diente) ── */
+#holo-tooltip-historial {
+  display: none;
+  position: fixed;
+  max-width: 300px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #00d4ff;
+  border-radius: 9px;
+  background: rgba(0, 10, 25, .97);
+  color: #fff;
+  font-size: .78rem;
+  line-height: 1.45;
+  box-shadow: 0 8px 28px rgba(0, 212, 255, .28);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.odo3d-tooltip-title {
+  color: #00d4ff;
+  font-weight: 700;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.odo3d-tooltip-state {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.odo3d-tooltip-observation {
+  color: #d6e8f5;
+  margin-top: 4px;
+}
+
+.odo3d-tooltip-loading,
+.odo3d-tooltip-empty {
+  color: #9eb6c9;
+  margin-top: 8px;
+}
+
+.odo3d-tooltip-item {
+  border-top: 1px solid rgba(0, 212, 255, .18);
+  margin-top: 7px;
+  padding-top: 7px;
+  display: grid;
+  gap: 2px;
+}
+
+.odo3d-tooltip-item small {
+  color: #9eb6c9;
+}

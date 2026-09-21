@@ -110,6 +110,26 @@
       </div>`).join('');
   };
 
+  const ocultarNodosNoDentales = (api, nodes) => {
+    const idsOcultos = new Set();
+    Object.values(nodes || {}).forEach(node => {
+      if (node?.instanceID == null) return;
+      const nombre = String(node.name || '').toLowerCase();
+      const esNodoNoDental = /screw|implant|metal|post|prost|denture|goma|encia|mucosa|material|tooth root|root|retainer/i.test(nombre);
+      if (esNodoNoDental) {
+        idsOcultos.add(node.instanceID);
+      }
+    });
+
+    idsOcultos.forEach(instanceID => {
+      try {
+        api.hide(instanceID);
+      } catch (_err) {
+        // El visor puede fallar si el nodo ya estaba oculto o no existe.
+      }
+    });
+  };
+
   window.inicializarOdontograma3DReadonly = function (datosHistoria) {
     const host = document.getElementById('odontogramaHost');
     if (!host) return;
@@ -124,23 +144,25 @@
     // pantalla (línea de tiempo y formulario de notas) conserva su funcionalidad.
     host.innerHTML = `
       <div class="odo3d-readonly-wrap">
-        <div class="odo3d-readonly-label">Vista 3D de solo lectura</div>
-        <div class="odo3d-readonly-loading" id="odo3dReadonlyLoading">Cargando odontograma 3D…</div>
         <div class="odo3d-readonly-error" id="odo3dReadonlyError" hidden>No fue posible cargar el modelo 3D.</div>
         <iframe id="odo3dReadonlyFrame" title="Odontograma 3D de solo lectura" allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
       </div>`;
 
     const iframe = document.getElementById('odo3dReadonlyFrame');
-    const loading = document.getElementById('odo3dReadonlyLoading');
     const error = document.getElementById('odo3dReadonlyError');
     const tooltip = document.getElementById('holo-tooltip-historial');
     const { registros, mapeoFDI } = leerEstadoOdontograma(datosHistoria?.estadoPersistido);
     const pacienteId = datosHistoria?.pacienteId;
 
     const mostrarError = mensaje => {
-      loading.hidden = true;
       error.hidden = false;
       error.textContent = mensaje;
+      if (iframe) {
+        iframe.style.display = 'none';
+      }
+      if (host) {
+        host.style.background = 'rgba(3, 13, 26, 0.9)';
+      }
     };
 
     // CORRECCIÓN FASE 2 — La creación del cliente se hace solo cuando la API
@@ -149,30 +171,67 @@
     obtenerApiSketchfab().then(SketchfabApi => {
       const client = new SketchfabApi(VERSION_SKETCHFAB, iframe);
       client.init(MODELO_ADULTO, {
-        autostart: 1,
-        ui_infos: 0, ui_watermark: 0, ui_help: 0, ui_settings: 0,
+        // Yeray - Se quitó "autostart: 1". Provocaba un doble arranque del
+        // visor junto con el api.start() manual de abajo, dejando el canvas
+        // en negro (nunca terminaba de pintar). api.start() queda como único
+        // disparador, igual que en odontograma-digital.js (que sí funciona).
+        // CORRECCIÓN FASE 3 — Misma configuración visual que el odontograma
+        // editable: conserva los controles de cámara, pero no los controles de
+        // edición. Se elimina el overlay de carga que tapaba el modelo.
+        ui_infos: 0, ui_watermark: 0, ui_controls: 1, ui_help: 0, ui_settings: 0,
         ui_vr: 0, ui_fullscreen: 0, ui_annotations: 0, ui_stop: 0,
         success(api) {
           api.start();
           api.addEventListener('viewerready', () => {
-            loading.hidden = true;
+            // MODULO HISTORIA CLINICA: ocultamos los nodos del modelo que no representan
+            // piezas dentales (tornillos, implantes, metal, etc.) para que la vista de
+            // solo lectura reproduzca exactamente el mismo odontograma que la edición.
+            // Esta regla se aplica solo en este visor de historial/paciente y no altera
+            // otras pantallas ni funcionalidades externas al módulo clínico.
+            api.getNodeMap((err, nodes) => {
+              if (err) {
+                console.warn('[SmileTrack] No se pudo leer el mapa de nodos del modelo 3D.', err);
+                return;
+              }
+
+              Object.values(nodes || {}).forEach(node => {
+                if (node?.instanceID == null) return;
+                const nombre = String(node.name || '').toLowerCase();
+                const esNodoNoDental = /screw|implant|metal|post|prost|denture|goma|encia|mucosa|material|tooth root|root|retainer/i.test(nombre);
+                if (esNodoNoDental) {
+                  try {
+                    api.hide(node.instanceID);
+                  } catch (_e) {
+                    // Ignoramos errores de ocultado del nodo porque el modelo puede
+                    // tener nodos ya ocultos o nombres distintos del esperado.
+                  }
+                }
+              });
+            });
 
           //  — Solo hover. No se registra evento click, asignación FDI,
           // guardado, panel diagnóstico ni mutación de datos desde esta pantalla.
           api.addEventListener('nodeMouseEnter', node => {
             const instanceID = node?.instanceID;
             const fdi = instanceID == null ? null : mapeoFDI[instanceID];
-            if (!tooltip || !fdi) return;
+            if (!tooltip || instanceID == null) return;
 
             const ultimo = obtenerUltimoTratamiento(registros, instanceID);
+            // CORRECCIÓN FASE 3 — El tooltip se muestra también antes de que
+            // exista un FDI guardado. De ese modo el usuario recibe respuesta
+            // al pasar por una pieza; cuando está mapeada, se completa con FDI
+            // e historial clínico real.
+            const titulo = fdi
+              ? `${escaparHtml(fdi)} · ${escaparHtml(NOMBRES_FDI[fdi] || 'Pieza dental')}`
+              : 'Pieza sin FDI asignado';
             tooltip.innerHTML = `
-              <div class="odo3d-tooltip-title">${escaparHtml(fdi)} · ${escaparHtml(NOMBRES_FDI[fdi] || 'Pieza dental')}</div>
+              <div class="odo3d-tooltip-title">${titulo}</div>
               <div class="odo3d-tooltip-state">${ultimo ? escaparHtml(ultimo.key || 'Registrado') : 'Sin tratamiento local'}</div>
               ${ultimo?.obs ? `<div class="odo3d-tooltip-observation">${escaparHtml(ultimo.obs)}</div>` : ''}
-              <div class="odo3d-tooltip-loading">Consultando historial…</div>`;
+              ${fdi ? '<div class="odo3d-tooltip-loading">Consultando historial…</div>' : ''}`;
             colocarTooltip(tooltip, iframe);
 
-            if (!pacienteId) return;
+            if (!pacienteId || !fdi) return;
             cargarInfoDiente(pacienteId, fdi).then(datos => {
               if (tooltip.style.display === 'none') return;
               const cargando = tooltip.querySelector('.odo3d-tooltip-loading');
@@ -188,10 +247,10 @@
           });
         },
         error() {
-          mostrarError('No fue posible cargar el modelo 3D de Sketchfab.');
+          mostrarError('No fue posible cargar el modelo 3D de Sketchfab. El historial clínico seguirá disponible en modo lectura.');
         }
       });
-    }).catch(() => mostrarError('No se pudo cargar la biblioteca del visor 3D.'));
+    }).catch(() => mostrarError('No se pudo cargar la biblioteca del visor 3D. El historial clínico seguirá disponible en modo lectura.'));
   };
 
   // CORRECCIÓN FASE 2 — Inicia el visor al estar disponible el DOM, sin
