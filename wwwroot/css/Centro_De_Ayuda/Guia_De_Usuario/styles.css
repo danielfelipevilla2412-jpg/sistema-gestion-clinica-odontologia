@@ -5,24 +5,24 @@
 }
 body {
   margin: 0;
-  font-family: 'Inter', 'Montserrat', sans-serif;
-  background: #f4f7fb;
-  color: #181c1e;
+  font-family: 'Montserrat', sans-serif;
+  background: #f4f6fb;
+  color: #1e293b;
 }
 
 .main {
   margin-left: var(--sidebar-w, 220px);
   min-height: 100vh;
-  padding: 26px 28px 40px;
+  padding: 28px 32px 48px;
 }
 
 .page-header {
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  box-shadow: 0 10px 24px rgba(15, 32, 87, 0.08);
-  padding: 18px 22px;
-  margin-bottom: 18px;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+  padding: 20px 24px;
+  margin-bottom: 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -54,16 +54,17 @@ body {
 
 .page-title {
   margin: 0;
-  color: #0f172a;
-  font-size: clamp(1.7rem, 2vw, 2.2rem);
+  color: #1e293b;
+  font-family: 'Syne', sans-serif;
+  font-size: 1.45rem;
   line-height: 1.2;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .page-subtitle {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #64748b;
-  font-size: 0.94rem;
+  font-size: 0.85rem;
 }
 
 .header-actions {

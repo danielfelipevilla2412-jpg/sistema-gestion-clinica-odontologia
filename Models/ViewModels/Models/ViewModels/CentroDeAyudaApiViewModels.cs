@@ -15,10 +15,10 @@ public sealed class CrearTicketSoporteRequest
     public string Subject { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La categoría es obligatoria.")]
-    public TicketCategory Category { get; set; }
+    public TicketCategory? Category { get; set; }
 
     [Required(ErrorMessage = "El módulo afectado es obligatorio.")]
-    public AffectedModule Module { get; set; }
+    public AffectedModule? Module { get; set; }
 
     [Required(ErrorMessage = "Selecciona una severidad (Baja, Media o Alta).")]
     public string Severity { get; set; } = string.Empty;

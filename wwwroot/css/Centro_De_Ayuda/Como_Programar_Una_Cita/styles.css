@@ -8,7 +8,49 @@
 /* Base font family */
 body { 
     font-family: 'Montserrat', sans-serif;
+    background: #f4f7fb;
+    color: #181c1e;
     min-height: max(884px, 100dvh);
+}
+
+.main {
+    min-height: 100vh;
+    padding: 26px 28px 40px;
+}
+
+.page-header {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(15, 32, 87, 0.08);
+    padding: 18px 22px;
+    margin-bottom: 18px;
+}
+
+.page-title {
+    color: #0f172a;
+}
+
+.page-subtitle {
+    color: #64748b;
+}
+
+.guide-content {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.guide-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(15, 32, 87, 0.08);
+}
+
+@media (max-width: 680px) {
+    .main {
+        margin-left: 0;
+        padding: 72px 16px 32px;
+    }
 }
 
 /* Bento Grid Layout */

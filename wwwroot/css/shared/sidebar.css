@@ -297,9 +297,24 @@
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
   transition: max-height 0.3s ease;
   max-height: 0;
   /* Colapsado por defecto; sidebar.js expande el grupo activo */
+}
+
+/* Respaldo sin JavaScript: la sección de la vista actual siempre queda visible. */
+.nav-group-items:has(> .nav-item.active) {
+  max-height: 500px !important;
+  overflow: visible !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.nav-group-items.is-expanded {
+  visibility: visible;
+  pointer-events: auto;
 }
 
 /* Sangría visual para distinguir sub-ítems del grupo padre */
@@ -638,6 +653,7 @@
   .nav-group-header,
   .hamburger span {
     transition: none !important;
+
     animation: none !important;
   }
 }

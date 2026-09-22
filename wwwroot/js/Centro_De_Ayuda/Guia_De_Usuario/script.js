@@ -8,6 +8,7 @@ document.querySelectorAll('input, textarea, select').forEach((element) => {
 
 const supportForm = document.getElementById('support-form');
 const screenshotInput = document.getElementById('screenshot-input');
+const chooseFileButton = document.getElementById('choose-file-btn');
 const uploadButton = document.getElementById('upload-screenshot-btn');
 const uploadPreview = document.getElementById('upload-preview');
 const uploadPreviewImage = document.getElementById('upload-preview-image');
@@ -30,18 +31,8 @@ const scheduleCard = document.getElementById('schedule-card');
 const schedulePanel = document.getElementById('schedule-detail-panel');
 const faqCard = document.getElementById('faq-card');
 const faqPanel = document.getElementById('faq-detail-panel');
-const chatbotModal = document.getElementById('chatbotModal');
-const chatbotClose = document.getElementById('chatbotClose');
-const openChatbotButton = document.getElementById('open-chatbot-btn');
-const openChatInlineButton = document.getElementById('open-chat-inline-btn');
 const guidesToggle = document.getElementById('guides-toggle');
 const guidesMenu = document.getElementById('guides-menu');
-const chatbotMessages = document.getElementById('chatbotMessages');
-const chatbotForm = document.getElementById('chatbotForm');
-const chatbotInput = document.getElementById('chatbotInput');
-const typingIndicator = document.getElementById('typingIndicator');
-const chatInput = chatbotInput;
-const chatForm = chatbotForm;
 let submitTimer = null;
 let resetTimer = null;
 
@@ -94,12 +85,13 @@ function showAttachmentError(message) {
 function showSelectedAttachment(file) {
   if (!file || !screenshotInput || !uploadPreview || !uploadFileName) return;
 
-  if (file.size > 5 * 1024 * 1024) {
-    showAttachmentError('El archivo no puede superar 5 MB.');
+  if (file.size > 10 * 1024 * 1024) {
+    showAttachmentError('El archivo no puede superar 10 MB.');
     return;
   }
 
-  uploadFileName.textContent = file.name;
+  const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+  uploadFileName.textContent = `${file.name} (${sizeMB} MB)`;
   uploadPreview.classList.remove('hidden');
   uploadPreviewImage?.classList.add('hidden');
 
@@ -112,17 +104,21 @@ function showSelectedAttachment(file) {
     reader.readAsDataURL(file);
   }
 
-  const transfer = new DataTransfer();
-  transfer.items.add(file);
-  screenshotInput.files = transfer.files;
-  uploadButton.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Archivo seleccionado';
-  uploadButton.classList.remove('border-dashed', 'text-[#424750]');
-  uploadButton.classList.add('border-[#22c55e]', 'bg-[#ecfdf3]', 'text-[#166534]');
+  if (uploadButton) {
+    uploadButton.innerHTML = `<span class="material-symbols-outlined text-[#166534]">check_circle</span> <span class="truncate max-w-[200px]">${file.name}</span>`;
+    uploadButton.classList.remove('border-dashed', 'text-[#424750]');
+    uploadButton.classList.add('border-[#22c55e]', 'bg-[#ecfdf3]', 'text-[#166534]');
+  }
+
   closeAttachmentModal();
 }
 
 if (uploadButton && screenshotInput) {
-  uploadButton.addEventListener('click', () => attachmentModal?.classList.remove('hidden'));
+  uploadButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    attachmentModal?.classList.remove('hidden');
+  });
 
   attachmentModalClose?.addEventListener('click', closeAttachmentModal);
   attachmentModal?.addEventListener('click', (event) => {
@@ -134,7 +130,9 @@ if (uploadButton && screenshotInput) {
 
   screenshotInput.addEventListener('change', (event) => {
     const file = event.target.files?.[0];
-    showSelectedAttachment(file);
+    if (file) {
+      showSelectedAttachment(file);
+    }
   });
 }
 
@@ -178,41 +176,6 @@ if (faqCard && faqPanel) {
   });
 }
 
-function showChatbotMessage(message, sender = 'bot') {
-  if (!chatbotMessages) return;
-
-  const wrapper = document.createElement('div');
-  wrapper.className = `st-message ${sender}`;
-  wrapper.innerHTML = `
-    <div class="st-message-avatar">${sender === 'user' ? 'T' : '🤖'}</div>
-    <div class="st-message-bubble">
-      <div class="st-message-content">${message}</div>
-      <div class="st-message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-    </div>
-  `;
-
-  chatbotMessages.appendChild(wrapper);
-  chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
-}
-
-function openChatbot() {
-  if (chatbotModal) {
-    chatbotModal.hidden = false;
-    chatbotModal.classList.add('is-open');
-  }
-  if (chatbotInput) chatbotInput.focus();
-  if (!chatbotMessages?.children.length) {
-    showChatbotMessage('Hola, ¿en qué puedo ayudarte hoy?');
-  }
-}
-
-function closeChatbot() {
-  if (chatbotModal) {
-    chatbotModal.hidden = true;
-    chatbotModal.classList.remove('is-open');
-  }
-}
-
 if (guidesToggle && guidesMenu) {
   guidesToggle.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -247,61 +210,6 @@ document.addEventListener('click', (event) => {
   }
 });
 
-if (openChatbotButton) {
-  openChatbotButton.addEventListener('click', openChatbot);
-}
-
-if (openChatInlineButton) {
-  openChatInlineButton.addEventListener('click', openChatbot);
-}
-
-if (chatbotClose) {
-  chatbotClose.addEventListener('click', closeChatbot);
-}
-
-if (chatbotModal) {
-  chatbotModal.addEventListener('click', (event) => {
-    if (event.target === chatbotModal) closeChatbot();
-  });
-}
-
-// Botones rápidos del chatbot
-document.querySelectorAll('.quick-reply').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const q = btn.dataset.question || btn.dataset.q;
-    if (q && chatInput && chatForm) {
-      chatInput.value = q;
-      chatForm.requestSubmit();
-    }
-  });
-});
-
-if (chatbotForm) {
-  chatbotForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const value = chatbotInput?.value?.trim();
-    if (!value) return;
-
-    showChatbotMessage(value, 'user');
-    if (chatbotInput) chatbotInput.value = '';
-    if (typingIndicator) typingIndicator.hidden = false;
-
-    setTimeout(() => {
-      if (typingIndicator) typingIndicator.hidden = true;
-      const respuesta = value.toLowerCase().includes('cita')
-        ? 'Puedes agendar una cita desde la sección de Citas del panel principal.'
-        : value.toLowerCase().includes('pago')
-          ? 'Aceptamos pagos por transferencia, tarjeta y efectivo en sucursal.'
-          : value.toLowerCase().includes('servicio')
-            ? 'Ofrecemos servicios odontológicos preventivos, restaurativos y de especialidad.'
-            : value.toLowerCase().includes('ubic')
-              ? 'Estamos ubicados en la ciudad principal y también atendemos por videollamada.'
-              : 'Gracias por contactarnos. Un especialista te ayudará a resolver tu consulta.';
-      showChatbotMessage(respuesta, 'bot');
-    }, 700);
-  });
-}
-
 if (cancelButton) {
   cancelButton.addEventListener('click', () => {
     resetSubmitState();
@@ -310,39 +218,4 @@ if (cancelButton) {
   });
 }
 
-// Mobile menu toggle functionality
-const sidebar = document.getElementById('sidebar');
-const overlay = document.getElementById('sidebar-overlay');
-const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-const closeSidebarBtn = document.getElementById('close-sidebar-btn');
-
-function openSidebar() {
-  sidebar.classList.remove('-translate-x-full');
-  overlay.classList.remove('hidden');
-  setTimeout(() => {
-    overlay.classList.remove('opacity-0');
-    overlay.classList.add('opacity-100');
-  }, 10);
-}
-
-function closeSidebar() {
-  sidebar.classList.add('-translate-x-full');
-  overlay.classList.remove('opacity-100');
-  overlay.classList.add('opacity-0');
-  setTimeout(() => {
-    overlay.classList.add('hidden');
-  }, 300);
-}
-
-if (mobileMenuBtn) {
-  mobileMenuBtn.addEventListener('click', openSidebar);
-}
-
-if (closeSidebarBtn) {
-  closeSidebarBtn.addEventListener('click', closeSidebar);
-}
-
-if (overlay) {
-  overlay.addEventListener('click', closeSidebar);
-}
 

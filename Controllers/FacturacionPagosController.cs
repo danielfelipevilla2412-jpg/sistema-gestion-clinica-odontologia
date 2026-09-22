@@ -21,7 +21,7 @@
         }
 
         [HttpGet]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Recepcionista")]
         [Route("facturacion-y-pagos/st-adm-12-facturacion")]
         public async Task<IActionResult> Stadm12Facturacion()
         {
@@ -29,6 +29,11 @@
                 .Include(f => f.Paciente)
                 .OrderByDescending(f => f.FechaFactura)
                 .ToListAsync();
+
+            var pacientes = await _context.Pacientes.Where(p => p.Estado == "activo").OrderBy(p => p.Nombres).ToListAsync();
+            var servicios = await _context.Servicios.Where(s => s.Estado == "activo").OrderBy(s => s.Nombre).ToListAsync();
+            ViewData["Pacientes"] = pacientes;
+            ViewData["Servicios"] = servicios;
 
             string[] colores = new[] { "blue", "green", "purple", "orange", "red" };
             var facturas = facturasDb.Select((f, idx) => new
@@ -51,7 +56,7 @@
         }
 
         [HttpGet]
-        [Authorize(Roles = "Recepcionista")]
+        [Authorize(Roles = "Administrador,Recepcionista")]
         [Route("facturacion-y-pagos/st-rec-04-generar-factura")]
         public async Task<IActionResult> Strec04GenerarFactura()
         {
