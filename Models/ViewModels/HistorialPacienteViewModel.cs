@@ -30,6 +30,7 @@ public class HistorialPacienteViewModel
     public string AntecedentesMedicos { get; set; } = "Sin antecedentes registrados";
     public DateTime? ProximaCitaFecha { get; set; }
     public string? ProximaCitaProfesional { get; set; }
+    public HistoriaFormularioViewModel Formulario { get; set; } = new();
 
     /// <summary>
     /// Registros de consultas pasadas derivados de la tabla Cita.
@@ -47,6 +48,25 @@ public class HistorialPacienteViewModel
     /// No reemplaza las entidades de origen: solo las presenta en orden clínico.
     /// </summary>
     public List<EventoHistoriaClinicaItem> LineaDeTiempo { get; set; } = [];
+}
+
+public class HistoriaFormularioViewModel
+{
+    public string MotivoConsulta { get; set; } = "";
+    public string EnfermedadActual { get; set; } = "";
+    public string Habitos { get; set; } = "";
+    public string Hallazgos { get; set; } = "";
+    public string OdontogramaObservaciones { get; set; } = "";
+    public string ExamenesComplementarios { get; set; } = "";
+    public string DiagnosticoPrincipal { get; set; } = "";
+    public string DiagnosticoSecundario { get; set; } = "";
+    public string EvolucionClinica { get; set; } = "";
+    public string Prescripcion { get; set; } = "";
+}
+
+public class HistoriaFormularioGuardarRequest : HistoriaFormularioViewModel
+{
+    public int? PacienteId { get; set; }
 }
 
 // FASE 1 — DTO de solo lectura para no exponer la entidad Paciente directamente

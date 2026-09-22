@@ -7,6 +7,7 @@
     // la lógica real del historial clínico del proyecto. Además, se deja en estado vacío
     // cuando no existe paciente seleccionado para permitir crear el registro desde cero.
     Layout = "_Layout";
+    ViewData["SidebarPartial"] = "_SidebarProfesional";
     ViewData["Title"] = "Formulario de Historia Clínica";
 
     var odonto = Model.Odontograma;
@@ -32,6 +33,16 @@
         alergias = Model.Alergias,
         medicamentos = Array.Empty<string>(),
         antecedentesMedicos = Model.AntecedentesMedicos,
+        motivoConsulta = Model.Formulario.MotivoConsulta,
+        enfermedadActual = Model.Formulario.EnfermedadActual,
+        habitos = Model.Formulario.Habitos,
+        hallazgos = Model.Formulario.Hallazgos,
+        odontogramaObservaciones = Model.Formulario.OdontogramaObservaciones,
+        examenesComplementarios = Model.Formulario.ExamenesComplementarios,
+        diagnosticoPrincipal = Model.Formulario.DiagnosticoPrincipal,
+        diagnosticoSecundario = Model.Formulario.DiagnosticoSecundario,
+        evolucionClinica = Model.Formulario.EvolucionClinica,
+        prescripcion = Model.Formulario.Prescripcion,
         paciente = new
         {
             tipoDocumento = Model.Paciente.TipoDocumento,
@@ -85,8 +96,6 @@
 
 @section Styles {
     <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-03-historial/gestion-historial.css")" asp-append-version="true" />
-    <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/components/odontograma-3d-readonly.css")" asp-append-version="true" />
-    <script id="sketchfab-viewer-api-historial" src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
 }
 
 <main class="main clinical-main" id="main-content">
@@ -149,6 +158,7 @@
         </nav>
 
         <form class="clinical-form" id="historia-clinica-form" onsubmit="event.preventDefault();">
+            @Html.AntiForgeryToken()
             <section class="form-card" id="sec-anamnesis">
                 <div class="card-header">
                     <div class="card-head-left">
@@ -328,6 +338,5 @@
 </script>
 
 @section Scripts {
-    <script src="@Url.Content("~/js/Historia_Clinica/components/odontograma-3d-readonly.js")" asp-append-version="true"></script>
     <script src="@Url.Content("~/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js")" asp-append-version="true"></script>
 }

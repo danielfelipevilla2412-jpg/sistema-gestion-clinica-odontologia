@@ -761,7 +761,7 @@ const initForm = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'RequestVerificationToken': token } : {})
+          ...(token ? { 'X-CSRF-TOKEN': token } : {})
         },
         body: JSON.stringify({
           pacienteId,
@@ -828,98 +828,66 @@ const initForm = () => {
   });
 };
 
+const initFormularioClinico = () => {
+  const form = safeGetElement('historia-clinica-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+    if (!pacienteId) {
+      showToast('Selecciona un paciente antes de guardar la historia', 'warning');
+      return;
+    }
+
+    const value = id => safeGetElement(id)?.value?.trim() || '';
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+
+    try {
+      const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+      const response = await fetch('/historia-clinica/st-odo-03-historial/guardar-formulario', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'RequestVerificationToken': token } : {})
+        },
+        body: JSON.stringify({
+          pacienteId,
+          motivoConsulta: value('motivo_consulta'),
+          enfermedadActual: value('enfermedad_actual'),
+          habitos: value('habitos'),
+          hallazgos: value('hallazgos'),
+          odontogramaObservaciones: value('odontograma_observaciones'),
+          examenesComplementarios: value('examenes_complementarios'),
+          diagnosticoPrincipal: value('diagnostico_principal'),
+          diagnosticoSecundario: value('diagnostico_secundario'),
+          evolucionClinica: value('evolucion_clinica'),
+          prescripcion: value('prescripcion')
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo guardar la historia');
+      showToast('Historia clínica guardada correctamente', 'success');
+    } catch (error) {
+      console.error('Error al guardar la historia clínica:', error);
+      showToast(error.message || 'No se pudo guardar la historia clínica', 'error');
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+};
+
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
-
-// CORRECCIÓN FASE 2 — Respaldo 3D integrado en el archivo que ya carga la
-// pantalla. Motivo: si el archivo nuevo components/odontograma-3d-readonly.js
-// no se copia o no se sirve desde wwwroot, antes se ejecutaba el odontograma
-// canvas 2D sin avisar. Este código conserva una vista 3D solo lectura, no
-// registra clics ni hace POST, y muestra el tooltip de las piezas mapeadas.
-const iniciarOdontograma3DIntegrado = (datosHistoria) => {
-  const host = safeGetElement('odontogramaHost');
-  if (!host) return;
-
-  host.innerHTML = `
-    <div style="height:360px;position:relative;overflow:hidden;border-radius:12px;background:#030d1a">
-      <iframe id="odo3dFallbackFrame" title="Odontograma 3D de solo lectura" style="width:100%;height:360px;border:0;display:block" allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
-    </div>`;
-
-  const iframe = safeGetElement('odo3dFallbackFrame');
-  let estado = {};
-  try { estado = JSON.parse(datosHistoria?.estadoPersistido || '{}'); } catch { estado = {}; }
-  const mapeoFDI = estado?.mapeoFDI || {};
-  const registros = estado?.registros || {};
-  const ocultar = () => {
-    const tooltip = safeGetElement('holo-tooltip-historial');
-    if (tooltip) tooltip.style.display = 'none';
-  };
-  // CORRECCIÓN FASE 3 — No se muestra una capa permanente de “Cargando”. Si
-  // Sketchfab falla, se reemplaza únicamente por un mensaje de error; si carga,
-  // el modelo queda visible de inmediato, igual que en Odontograma Digital.
-  const mostrarError = mensaje => {
-    host.innerHTML = `<div style="height:360px;display:grid;place-items:center;border-radius:12px;background:#030d1a;color:#ff9cac">${mensaje}</div>`;
-  };
-
-  const iniciar = () => {
-    if (!window.Sketchfab) {
-      mostrarError('No fue posible cargar la biblioteca del visor 3D.');
-      return;
-    }
-    try {
-      const cliente = new window.Sketchfab('1.12.1', iframe);
-      cliente.init('7f5b381c66674e0a969e8db04d139666', {
-        // Yeray - Se quitó "autostart: 1" (mismo motivo que en
-        // odontograma-3d-readonly.js: doble arranque del visor dejaba el
-        // canvas en negro). api.start() queda como único disparador.
-        // CORRECCIÓN FASE 3 — Replica la apariencia navegable del visor
-        // editable, sin agregar eventos de clic ni modificaciones clínicas.
-        ui_infos: 0, ui_watermark: 0, ui_controls: 1, ui_help: 0, ui_settings: 0,
-        ui_vr: 0, ui_fullscreen: 0, ui_annotations: 0, ui_stop: 0,
-        success(api) {
-          api.start();
-          api.addEventListener('viewerready', () => {
-            api.addEventListener('nodeMouseEnter', nodo => {
-              const id = nodo?.instanceID;
-              const fdi = id == null ? null : mapeoFDI[id];
-              const tooltip = safeGetElement('holo-tooltip-historial');
-              if (id == null || !tooltip) return;
-              const tratamientos = registros?.[id]?.tratamientos || [];
-              const ultimo = tratamientos[tratamientos.length - 1];
-              // CORRECCIÓN FASE 3 — Mantiene respuesta visual al hover aunque
-              // la pieza aún no tenga FDI; con FDI se muestra su dato clínico.
-              tooltip.innerHTML = `<strong>${fdi ? `${fdi} · Pieza dental` : 'Pieza sin FDI asignado'}</strong><br>${ultimo?.key || 'Sin tratamiento registrado'}`;
-              const cuadro = iframe.getBoundingClientRect();
-              tooltip.style.cssText += `;display:block;left:${Math.max(12, cuadro.right - 260)}px;top:${cuadro.top + 12}px`;
-            }, { pick: 'fast' });
-            api.addEventListener('nodeMouseLeave', ocultar, { pick: 'fast' });
-            iframe.addEventListener('mouseleave', ocultar);
-          });
-        },
-        error() { mostrarError('No fue posible cargar el modelo 3D.'); }
-      });
-    } catch {
-      mostrarError('No fue posible iniciar el visor 3D.');
-    }
-  };
-
-  if (window.Sketchfab) {
-    iniciar();
-    return;
-  }
-  const apiScript = document.createElement('script');
-  apiScript.src = 'https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js';
-  apiScript.onload = iniciar;
-  apiScript.onerror = () => mostrarError('No se pudo descargar el visor 3D.');
-  document.head.appendChild(apiScript);
-};
 
 const init = async () => {
   // Inicializar componentes de UI
   initSidebar();
   initScrollToForm();
   initForm();
+  initFormularioClinico();
   //  — Registrar los filtros antes de renderizar los datos clínicos.
   initFiltrosLineaDeTiempo();
   
@@ -951,17 +919,8 @@ const init = async () => {
     medicamentos: [...p.medicamentos],
     grupoSanguineo: p.grupoSanguineo
   });
-  //  — Mostrar ficha completa antes del odontograma y la línea de tiempo.
+  // Mostrar ficha completa antes del odontograma y la línea de tiempo.
   renderResumenPaciente(p);
-  
-  //  — Preferir el visor 3D de solo lectura. El componente consulta el
-  // estado persistido y muestra tooltips, pero no registra acciones de edición.
-  // Se conserva el render 2D como respaldo si Sketchfab no pudo cargarse.
-  if (typeof window.inicializarOdontograma3DReadonly === 'function') {
-    window.inicializarOdontograma3DReadonly(window.smiletrackHistoriaData || {});
-  } else {
-    iniciarOdontograma3DIntegrado(window.smiletrackHistoriaData || {});
-  }
   
   renderHistorial([...p.historial].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)));
   

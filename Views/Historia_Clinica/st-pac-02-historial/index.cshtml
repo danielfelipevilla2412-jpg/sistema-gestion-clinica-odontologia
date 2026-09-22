@@ -3,41 +3,19 @@
 @model HistorialPacienteViewModel
 @{
     Layout = null;
-    var odonto = Model.Odontograma;
-    var odontoConfigJson = JsonSerializer.Serialize(new
-    {
-        pacienteId = odonto.PacienteId,
-        historiaId = odonto.HistoriaId,
-        pacienteNombre = odonto.PacienteNombre,
-        codigoHC = odonto.CodigoHC,
-        fechaNacimiento = odonto.FechaNacimiento,
-        estadoPersistido = odonto.EstadoPersistido ?? odonto.ObservacionesGenerales
-    });
-    var registrosJson = JsonSerializer.Serialize(Model.Registros.Select(r => new
-    {
-        fecha = r.Fecha.ToString("yyyy-MM-dd"),
-        fechaTexto = r.Fecha.ToString("dd MMM yyyy"),
-        tipo = r.Tipo,
-        descripcion = r.Descripcion,
-        doctor = r.Doctor,
-        estado = r.Estado
-    }));
-
-    // Yeray - FIX: se calcula aqui como variable simple en vez de dejar el
-    // ternario anidado directamente dentro de @Html.Raw(...) mas abajo.
-    // Una expresion C# multilinea con ternarios anidados embebida en un
-    // @Html.Raw(...) dentro de un <script> puede confundir al parser de
-    // Razor y generar una cascada de errores de compilacion sin relacion
-    // aparente (__tagHelperRunner, __tagHelperExecutionContext, etc.).
-    // Ademas se sigue corrigiendo el bug original: ObservacionesGenerales
-    // se crea como string.Empty (no null) en cada Historia_Clinica nueva,
-    // asi que se usa IsNullOrWhiteSpace en vez de ?? para no dejar pasar
-    // una cadena vacia que rompa el JSON de salida.
-    var estadoPersistidoJs = !string.IsNullOrWhiteSpace(odonto.EstadoPersistido)
-        ? odonto.EstadoPersistido
-        : (!string.IsNullOrWhiteSpace(odonto.ObservacionesGenerales)
-            ? odonto.ObservacionesGenerales
-            : "null");
+    var pacienteAsignado = Model.Odontograma.PacienteId.HasValue;
+    var ultimaNota = pacienteAsignado ? Model.NotasClinicas.FirstOrDefault() : null;
+    var formulario = pacienteAsignado ? Model.Formulario : new HistoriaFormularioViewModel();
+    var hallazgosRegistrados = pacienteAsignado
+      ? string.Join("\n", Model.LineaDeTiempo
+        .Where(e => e.Categoria.Equals("odontograma", StringComparison.OrdinalIgnoreCase))
+        .Select(e => $"{e.Titulo}: {e.Descripcion}"))
+      : "";
+    var documentosRegistrados = pacienteAsignado
+      ? string.Join("\n", Model.LineaDeTiempo
+        .Where(e => e.Categoria.Equals("documento", StringComparison.OrdinalIgnoreCase))
+        .Select(e => e.Titulo))
+      : "";
 }
 
 <!DOCTYPE html>
@@ -53,11 +31,6 @@
     rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-pac-02-historial/styles.css")" />
-  @* Yeray - CSS compartido del componente readonly del odontograma 3D. Esta
-     vista nunca lo tuvo — por eso el iframe se veía encogido al tamaño por
-     defecto del navegador en vez de llenar su contenedor (~360px, igual que
-     en la vista del profesional). *@
-  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/components/odontograma-3d-readonly.css")" asp-append-version="true" />
   <style>
     @@keyframes scan {
       0% {
@@ -119,186 +92,112 @@
       <div class="header-left">
         <div class="breadcrumb"><span data-i18n="common_role_patient">Paciente</span> › <span data-i18n="historia.title">Mi historial</span></div>
         <h1 class="page-title" data-i18n="historia.title">Mi Historial Clínico</h1>
-        <p class="page-subtitle" data-i18n="historia.evolution">Consulta tus registros, tratamientos y odontograma</p>
+        <p class="page-subtitle" data-i18n="historia.evolution">Consulta la información registrada por tus profesionales de salud</p>
       </div>
       <!-- [MEJORA]: aria-label para botón de acción principal -->
       <button class="btn-primary" id="btnDescargar" aria-label="Descargar informe clínico completo" data-i18n-aria-label="table.export"><span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar
         informe</button>
     </header>
 
-    <!-- Stats -->
-    <!-- [MEJORA]: aria-label para sección de estadÍdsticas -->
-    <section class="stats-grid" aria-label="Resumen de historial clínico" data-i18n-aria-label="historia.title">
-      <div class="stat-card" data-color="blue"><span class="stat-number" id="cnt-total">0</span><span
-          class="stat-label" data-i18n="table.total_records">Total registros</span></div>
-      <div class="stat-card" data-color="green"><span class="stat-number" id="cnt-atendidas">0</span><span
-          class="stat-label" data-i18n="status.attended">Atendidas</span><span class="stat-sub" id="stat-sub-atendidas"></span></div>
-      <div class="stat-card" data-color="orange"><span class="stat-number" id="cnt-pendientes">0</span><span
-          class="stat-label" data-i18n="status.pending">Pendientes</span></div>
-      <div class="stat-card" data-color="purple"><span class="stat-number" id="cnt-alertas">0</span><span
-          class="stat-label" data-i18n="common.warning">Alertas médicas</span></div>
-    </section>
-
     <!-- Sección principal -->
     <section class="agenda-section" aria-label="Contenido de historial">
 
-      <!-- Toolbar -->
-      <div class="toolbar" role="toolbar" aria-label="Filtros de historial" data-i18n-aria-label="table.filter">
-        <div class="search-wrap">
-          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
-          <!-- [MEJORA]: aria-label para input de búsqueda (consistente con st-pac-01) -->
-          <input type="search" id="searchInput" class="search-input" placeholder="Buscar en historial\…"
-            autocomplete="off" aria-label="Buscar en historial clínico" data-i18n-ph="table.search" data-i18n-aria-label="historia.title" />
+      <!-- Formulario clínico profesional en modo estrictamente informativo -->
+      <section class="clinical-form-readonly" aria-labelledby="formularioClinicoTitle">
+        <div class="readonly-form-heading">
+          <div>
+            <span class="readonly-eyebrow">Historia clínica</span>
+            <h2 id="formularioClinicoTitle">Formulario de historia clínica</h2>
+          </div>
+          <span class="readonly-badge">Solo lectura</span>
         </div>
-        <!-- [MEJORA]: aria-label para select de filtro -->
-        <select id="filterTipo" class="status-select" aria-label="Filtrar por tipo de registro" data-i18n-aria-label="historia.diagnosis">
-          <option value="" data-i18n="table.filter">Todos los tipos</option>
-          <option value="consulta">Consulta</option>
-          <option value="limpieza">Limpieza</option>
-          <option value="tratamiento">Tratamiento</option>
-          <option value="radiografia">Radiografía</option>
-        </select>
-        <span class="count-label" id="countLabel" aria-live="polite"></span>
-      </div>
 
-      <!-- Grid: Odontograma + Sidebar cards -->
+        <section class="readonly-form-card" id="sec-anamnesis-paciente">
+          <div class="readonly-card-header"><span class="readonly-step">1</span><div><h3>Anamnesis y motivo de consulta</h3><p>Información registrada por el profesional</p></div></div>
+          <div class="readonly-fields">
+            <div><label>Motivo de la consulta</label><textarea readonly rows="2">@formulario.MotivoConsulta</textarea></div>
+            <div><label>Enfermedad o padecimiento actual</label><textarea readonly rows="3">@formulario.EnfermedadActual</textarea></div>
+          </div>
+        </section>
+
+        <section class="readonly-form-card" id="sec-antecedentes-paciente">
+          <div class="readonly-card-header"><span class="readonly-step step-blue">2</span><div><h3>Antecedentes sistémicos</h3><p>Antecedentes médicos y alertas registrados</p></div></div>
+          <div class="readonly-fields">
+            <div><label>Antecedentes médicos</label><textarea readonly rows="3">@(pacienteAsignado ? Model.AntecedentesMedicos : "")</textarea></div>
+            <div><label>Hábitos y estilo de vida</label><textarea readonly rows="2">@formulario.Habitos</textarea></div>
+            <div><label>Alergias / medicamentos</label><textarea readonly rows="2">@(pacienteAsignado ? string.Join(", ", Model.Alergias) : "")</textarea></div>
+          </div>
+        </section>
+
+        <section class="readonly-form-card" id="sec-examen-paciente">
+          <div class="readonly-card-header"><span class="readonly-step step-purple">3</span><div><h3>Examen clínico y hallazgos odontológicos</h3><p>Hallazgos registrados durante la atención</p></div></div>
+          <div class="readonly-fields">
+            <div><label>Hallazgos de examen</label><textarea readonly rows="3">@formulario.Hallazgos</textarea></div>
+            <div><label>Observaciones clínicas</label><textarea readonly rows="3">@formulario.OdontogramaObservaciones</textarea></div>
+            <div><label>Exámenes complementarios</label><textarea readonly rows="3">@formulario.ExamenesComplementarios@(string.IsNullOrWhiteSpace(formulario.ExamenesComplementarios) ? documentosRegistrados : "")</textarea></div>
+          </div>
+        </section>
+
+        <section class="readonly-form-card" id="sec-diagnostico-paciente">
+          <div class="readonly-card-header"><span class="readonly-step step-indigo">4</span><div><h3>Diagnósticos y evolución clínica</h3><p>Notas clínicas y procedimientos registrados</p></div></div>
+          <div class="readonly-fields">
+            <div><label>Diagnóstico principal</label><textarea readonly rows="2">@formulario.DiagnosticoPrincipal@(string.IsNullOrWhiteSpace(formulario.DiagnosticoPrincipal) ? (ultimaNota?.Diagnostico ?? "") : "")</textarea></div>
+            <div><label>Diagnósticos secundarios</label><textarea readonly rows="2">@formulario.DiagnosticoSecundario</textarea></div>
+            <div><label>Procedimiento realizado</label><textarea readonly rows="2">@(string.IsNullOrWhiteSpace(formulario.EvolucionClinica) ? (ultimaNota?.Procedimiento ?? "") : formulario.EvolucionClinica)</textarea></div>
+            <div class="readonly-field-wide"><label>Nota de evolución clínica</label><textarea readonly rows="3">@formulario.EvolucionClinica</textarea></div>
+            <div class="readonly-field-wide"><label>Prescripción e instrucciones</label><textarea readonly rows="2">@formulario.Prescripcion</textarea></div>
+          </div>
+        </section>
+
+        <section class="readonly-form-card" id="sec-adjuntos-paciente">
+          <div class="readonly-card-header"><span class="readonly-step step-green">5</span><div><h3>Documentación diagnóstica y consentimiento</h3><p>Documentos disponibles en la historia clínica</p></div></div>
+          <div class="readonly-document-list">@(pacienteAsignado ? (string.IsNullOrWhiteSpace(documentosRegistrados) ? "No hay documentos registrados." : documentosRegistrados) : "")</div>
+        </section>
+      </section>
+
+      <!-- Grid: Historial clínico en solo lectura + Sidebar cards -->
       <div class="content-grid">
 
         <!-- Columna principal -->
         <div class="col-main">
 
-          <!-- --- ODONTOGRAMA INTERACTIVO COMPLETO --- -->
-          <div class="odontogram-widget">
-            <div class="odontogram-header">
-              <h3 id="odontogramTitle" data-i18n="historia.teeth_chart"><span class="material-symbols-outlined" aria-hidden="true">medical_information</span> Mi odontograma</h3>
-              <span class="odontogram-badge" aria-label="Modo de visualización" data-i18n-aria-label="historia.title" data-i18n="common.read_only">Solo lectura</span>
-            </div>
-
-            <!-- Widget odontograma original (ESTRUCTURA VISUAL PRESERVADA) -->
-            <div class="hw"
-              style="background:#030d1a;border-radius:12px;padding:14px;font-family:sans-serif;position:relative;overflow:hidden;"
-              role="region" aria-labelledby="odontogramTitle">
-              <div class="sl"
-                style="position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,200,255,0.22),transparent);animation:scan 3s linear infinite;pointer-events:none;z-index:1;top:0"
-                aria-hidden="true"></div>
-
-              <!-- Corner decorations (decorativos, aria-hidden) -->
-              <div
-                style="position:absolute;top:7px;left:7px;width:10px;height:10px;border-top:1px solid rgba(0,212,255,0.4);border-left:1px solid rgba(0,212,255,0.4)"
-                aria-hidden="true"></div>
-              <div
-                style="position:absolute;top:7px;right:7px;width:10px;height:10px;border-top:1px solid rgba(0,212,255,0.4);border-right:1px solid rgba(0,212,255,0.4)"
-                aria-hidden="true"></div>
-              <div
-                style="position:absolute;bottom:7px;left:7px;width:10px;height:10px;border-bottom:1px solid rgba(0,212,255,0.4);border-left:1px solid rgba(0,212,255,0.4)"
-                aria-hidden="true"></div>
-              <div
-                style="position:absolute;bottom:7px;right:7px;width:10px;height:10px;border-bottom:1px solid rgba(0,212,255,0.4);border-right:1px solid rgba(0,212,255,0.4)"
-                aria-hidden="true"></div>
-
-              <div
-                style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;position:relative;z-index:2">
-                <div>
-                  <div
-                    style="font-size:12px;font-weight:600;color:#00d4ff;letter-spacing:0.08em;text-transform:uppercase">
-                    SmileTrack — Odontograma</div>
-                  <div id="sub" style="font-size:9px;color:rgba(0,212,255,0.45);margin-top:2px">Paciente: @Model.Odontograma.PacienteNombre —
-    @Model.Odontograma.CodigoHC</div>
-                </div>
-              </div>
-
-              <div id="holo-tooltip-historial" role="status" aria-live="polite" style="display:none"></div>
-
-              <div id="odontogramaHost" style="position:relative;z-index:2;min-height:320px;" role="img"
-                aria-label="Odontograma del paciente: vista gráfica de dientes con tratamientos"></div>
-
-              <!-- Panel solo lectura -->
-              <div id="panel"
-                style="margin-top:10px;background:rgba(0,25,50,0.9);border:1px solid rgba(0,212,255,0.25);border-radius:10px;padding:10px 14px;display:none;position:relative;z-index:2"
-                role="region" aria-live="polite" aria-label="Detalle de pieza dental seleccionada">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                  <div id="ptit" style="font-size:11px;font-weight:600;color:#00d4ff">Diente —</div>
-                  <!-- [MEJORA]: aria-label para botón de cerrar panel -->
-                  <button onclick="cerrarPanel()"
-                    style="font-size:9px;color:rgba(0,212,255,0.5);background:none;border:none;cursor:pointer;padding:0"
-                    aria-label="Cerrar panel de detalle"><span class="material-symbols-outlined" aria-hidden="true">close</span> cerrar</button>
-                </div>
-                <div id="panel-estado" style="margin-bottom:6px"></div>
-                <div id="panel-obs" style="font-size:9px;color:rgba(180,220,255,0.6);font-style:italic"></div>
-              </div>
-
-              <!-- Historial clínico del odontograma -->
-              <div
-                style="background:rgba(0,30,60,0.7);border:1px solid rgba(0,212,255,0.18);border-radius:10px;padding:10px 12px;margin-top:10px;position:relative;z-index:2">
-                <div
-                  style="font-size:10px;font-weight:600;color:#00d4ff;margin-bottom:6px;display:flex;align-items:center;gap:4px;">
-                  <span class="material-symbols-outlined" aria-hidden="true" style="opacity:0.5">diagnosis</span> Diagnósticos registrados por tu odontólogo
-                </div>
-                <div id="hitems" role="list" aria-label="Lista de diagnósticos"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Lista de registros -->
-          <!-- [MEJORA]: role="list" explÍcito para lectores de pantalla -->
-          <div class="records-list" id="recordsList" role="list" aria-label="Lista de registros clínicos"></div>
-
-        </div>
-
-        <!-- Columna derecha -->
-        <aside class="col-sidebar" aria-label="Información complementaria">
-
-          <div class="sidebar-card">
-            <h4 class="sidebar-card-title"><span class="material-symbols-outlined" aria-hidden="true">medical_services</span> Antecedentes</h4>
-            <div class="antecedentes-content">
-              <!-- [MEJORA]: role="alert" para alerta crítica de alergias -->
-              @if (Model.Alergias.Any())
-              {
-                  <div class="allergy-alert" role="alert" aria-live="assertive">
-                      <span class="material-symbols-outlined allergy-icon" aria-hidden="true">warning</span>
-                      <div><strong>Alergias</strong>
-                          <p>@string.Join(", ", Model.Alergias)</p>
-                      </div>
-                  </div>
-              }
-              else
-              {
-                  <div class="info-row"><span>Alergias</span><strong>Sin alergias registradas</strong></div>
-              }
-              <div class="info-row"><span>Grupo sanguíneo</span><strong>@Model.GrupoSanguineo</strong></div>
-              <div class="info-row"><span>Antecedentes</span><strong>@Model.AntecedentesMedicos</strong></div>
-            </div>
-          </div>
-
-          <div class="appointment-card-mini">
-            <h4><span class="material-symbols-outlined" aria-hidden="true">event_upcoming</span> Próxima cita</h4>
-            @if (Model.ProximaCitaFecha.HasValue)
+          <!-- Historial escrito por el equipo profesional. No contiene controles de edición. -->
+          <div class="records-list clinical-history-readonly" id="recordsList" role="list" aria-label="Historial clínico registrado por profesionales">
+            @if (Model.LineaDeTiempo.Any())
             {
-                <p class="appointment-date">@Model.ProximaCitaFecha.Value.ToString("dd 'de' MMMM yyyy")</p>
-                <p class="appointment-doctor">@(Model.ProximaCitaProfesional ?? "Por asignar")</p>
-                <button class="btn-small" id="btnAgendarSugerida"
-                  aria-label="Ver detalle de la próxima cita">Ver detalle</button>
+                foreach (var evento in Model.LineaDeTiempo)
+                {
+                    <article class="record-card" role="listitem">
+                        <div class="record-card-header">
+                            <div>
+                                <span class="record-type">@evento.Categoria</span>
+
+                                <h3>@evento.Titulo</h3>
+                            </div>
+                            <time datetime="@evento.Fecha.ToString("yyyy-MM-ddTHH:mm:ss")">@evento.Fecha.ToString("dd MMM yyyy")</time>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(evento.Descripcion))
+                        {
+                            <p class="record-description">@evento.Descripcion</p>
+                        }
+                        <div class="record-card-meta">
+                            <span><strong>Profesional:</strong> @evento.Profesional</span>
+                            <span><strong>Estado:</strong> @evento.Estado</span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(evento.EnlaceDocumento))
+                        {
+                            <a class="record-document-link" href="@evento.EnlaceDocumento" target="_blank" rel="noopener">Ver documento clínico</a>
+                        }
+                    </article>
+                }
             }
             else
             {
-                <p class="appointment-date">Sin citas próximas</p>
-                <button class="btn-small" id="btnAgendarSugerida"
-                  aria-label="Agendar una nueva cita">Agendar</button>
+                <div class="empty-history">Aún no hay registros clínicos disponibles.</div>
             }
           </div>
 
-          <div class="sidebar-card">
-            <h4 class="sidebar-card-title"><span class="material-symbols-outlined" aria-hidden="true">download_for_offline</span> Descargas</h4>
-            <!-- [MEJORA]: aria-label para botones de descarga -->
-            <button class="download-btn" id="btnDescargaPDF"
-              aria-label="Descargar historial clínico completo en formato PDF"><span class="material-symbols-outlined" aria-hidden="true">download</span>
-              Historial completo (PDF)</button>
-            <button class="download-btn" id="btnDescargaZIP"
-              aria-label="Descargar paquete de radiografías en formato ZIP"><span class="material-symbols-outlined" aria-hidden="true">download</span>
-              Radiografías (ZIP)</button>
-          </div>
-
-        </aside>
+        </div>
 
       </div>
     </section>
@@ -321,7 +220,7 @@
     aria-hidden="true" inert>
     <div class="modal modal--sm">
       <h2 class="modal-title" id="descargarTitle">¿Descargar historial?</h2>
-      <p class="modal-desc">Se generarÁ un PDF con todos tus registros clínicos, odontograma y radiografías.</p>
+      <p class="modal-desc">Se generará un PDF con todos tus registros clínicos y documentos disponibles.</p>
       <div class="modal-footer">
         <button class="btn-secondary" id="cancelarDescarga">Volver</button>
         <button class="btn-primary" id="confirmarDescarga">Sí, descargar</button>
@@ -332,39 +231,6 @@
   <!-- Toast -->
   <!-- [MEJORA]: aria-atomic="true" para que lectores anuncien mensaje completo -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Scripts -->
-  <script>
-    // Yeray - Vista del paciente: se evita cualquier carga de visor 3D/Sketchfab.
-    // La pantalla de historial debe ser estable y no depender de permisos del
-    // navegador ni de modelos externos. Esto elimina la pantalla negra, el error
-    // de aceleración del navegador y la carga innecesaria del motor 3D.
-    window.smiletrackOdontogramaConfig = @Html.Raw(odontoConfigJson);
-    window.smiletrackHistorialRegistros = @Html.Raw(registrosJson);
-    window.smiletrackHistoriaData = {
-      pacienteId: @Html.Raw(odonto.PacienteId is null ? "null" : odonto.PacienteId.ToString()),
-      historiaId: @Html.Raw(odonto.HistoriaId is null ? "null" : odonto.HistoriaId.ToString()),
-      estadoPersistido: @Html.Raw(estadoPersistidoJs),
-      pacienteNombre: @Html.Raw(JsonSerializer.Serialize(odonto.PacienteNombre ?? "Paciente")),
-      codigoHC: @Html.Raw(JsonSerializer.Serialize(odonto.CodigoHC ?? ""))
-    };
-
-    (function () {
-      const host = document.getElementById('odontogramaHost');
-      if (!host) return;
-
-      host.innerHTML = `
-        <div style="display:grid;place-items:center;height:320px;border-radius:12px;background:linear-gradient(180deg, rgba(3,13,26,0.98), rgba(10,30,50,0.9));border:1px solid rgba(0,212,255,0.18);color:#dff7ff;">
-          <div style="text-align:center;padding:18px;max-width:420px;">
-            <div style="font-size:11px;letter-spacing:.12em;color:#00d4ff;text-transform:uppercase;margin-bottom:12px;">Odontograma</div>
-            <div style="font-size:14px;line-height:1.6;opacity:.9;">
-              La información clínica del odontograma queda disponible en la historia clínica del profesional.
-            </div>
-          </div>
-        </div>
-      `;
-    })();
-  </script>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">

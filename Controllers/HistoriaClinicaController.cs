@@ -534,6 +534,50 @@ public class HistoriaClinicaController(
         });
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/guardar-formulario")]
+    public async Task<IActionResult> GuardarFormularioHistoria([FromBody] HistoriaFormularioGuardarRequest request)
+    {
+        if (request is null || request.PacienteId is null)
+            return Json(new { success = false, message = "No hay un paciente seleccionado para guardar la historia." });
+
+        var historia = await _context.HistoriasClinicas
+            .FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId.Value && h.Activa);
+
+        historia ??= await _historiaService.CrearHistoriaClinicaAsync(request.PacienteId.Value);
+
+        JsonObject raiz;
+        try
+        {
+            raiz = JsonNode.Parse(historia.ObservacionesGenerales ?? "{}") as JsonObject ?? new JsonObject();
+        }
+        catch (JsonException)
+        {
+            raiz = new JsonObject();
+        }
+
+        raiz["formularioHistoria"] = JsonSerializer.SerializeToNode(new HistoriaFormularioViewModel
+        {
+            MotivoConsulta = request.MotivoConsulta?.Trim() ?? "",
+            EnfermedadActual = request.EnfermedadActual?.Trim() ?? "",
+            Habitos = request.Habitos?.Trim() ?? "",
+            Hallazgos = request.Hallazgos?.Trim() ?? "",
+            OdontogramaObservaciones = request.OdontogramaObservaciones?.Trim() ?? "",
+            ExamenesComplementarios = request.ExamenesComplementarios?.Trim() ?? "",
+            DiagnosticoPrincipal = request.DiagnosticoPrincipal?.Trim() ?? "",
+            DiagnosticoSecundario = request.DiagnosticoSecundario?.Trim() ?? "",
+            EvolucionClinica = request.EvolucionClinica?.Trim() ?? "",
+            Prescripcion = request.Prescripcion?.Trim() ?? ""
+        });
+
+        historia.ObservacionesGenerales = raiz.ToJsonString();
+        await _context.SaveChangesAsync();
+
+        return Json(new { success = true, message = "Historia clínica guardada correctamente." });
+    }
+
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("historia-clinica/st-odo-06-pacientes")]
@@ -724,13 +768,9 @@ public async Task<IActionResult> Stpac02Historial()
         ? await _context.Pacientes.FirstOrDefaultAsync(p => p.IdUsuario == idUsuario)
         : null;
 
-    if (pacientePropio is null)
-    {
-        TempData["InfoMessage"] = "Tu cuenta no tiene una ficha de paciente asociada. Contacta con recepción para vincular tu historial clínico.";
-        return Redirect("/gestion-de-citas/st-pac-01-mis-citas");
-    }
-
-    var vm = await BuildHistorialPacienteViewModelAsync(pacientePropio.IdPaciente, null);
+    // Sin ficha asociada se conserva la vista para mostrar el formulario vacío.
+    // Cuando recepción vincula al paciente, la misma ruta carga la información clínica real.
+    var vm = await BuildHistorialPacienteViewModelAsync(pacientePropio?.IdPaciente, null);
 
     return View("~/Views/Historia_Clinica/st-pac-02-historial/index.cshtml", vm);
 }
@@ -759,6 +799,23 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
     };
 
     var idPacienteResuelto = vm.Odontograma.PacienteId;
+    if (!string.IsNullOrWhiteSpace(vm.Odontograma.ObservacionesGenerales))
+    {
+        try
+        {
+            var raiz = JsonNode.Parse(vm.Odontograma.ObservacionesGenerales) as JsonObject;
+            var formulario = raiz?["formularioHistoria"] as JsonObject;
+            if (formulario is not null)
+            {
+                vm.Formulario = formulario.Deserialize<HistoriaFormularioViewModel>() ?? new();
+            }
+        }
+        catch (JsonException)
+        {
+            // Historias antiguas pueden contener solo el JSON del odontograma.
+        }
+    }
+
     if (idPacienteResuelto is null) return vm;
 
     var paciente = await _context.Pacientes.FirstOrDefaultAsync(p => p.IdPaciente == idPacienteResuelto);
