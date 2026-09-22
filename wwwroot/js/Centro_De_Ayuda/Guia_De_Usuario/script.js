@@ -8,6 +8,7 @@ document.querySelectorAll('input, textarea, select').forEach((element) => {
 
 const supportForm = document.getElementById('support-form');
 const screenshotInput = document.getElementById('screenshot-input');
+const chooseFileButton = document.getElementById('choose-file-btn');
 const uploadButton = document.getElementById('upload-screenshot-btn');
 const uploadPreview = document.getElementById('upload-preview');
 const uploadPreviewImage = document.getElementById('upload-preview-image');
@@ -94,12 +95,13 @@ function showAttachmentError(message) {
 function showSelectedAttachment(file) {
   if (!file || !screenshotInput || !uploadPreview || !uploadFileName) return;
 
-  if (file.size > 5 * 1024 * 1024) {
-    showAttachmentError('El archivo no puede superar 5 MB.');
+  if (file.size > 10 * 1024 * 1024) {
+    showAttachmentError('El archivo no puede superar 10 MB.');
     return;
   }
 
-  uploadFileName.textContent = file.name;
+  const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+  uploadFileName.textContent = `${file.name} (${sizeMB} MB)`;
   uploadPreview.classList.remove('hidden');
   uploadPreviewImage?.classList.add('hidden');
 
@@ -112,17 +114,21 @@ function showSelectedAttachment(file) {
     reader.readAsDataURL(file);
   }
 
-  const transfer = new DataTransfer();
-  transfer.items.add(file);
-  screenshotInput.files = transfer.files;
-  uploadButton.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Archivo seleccionado';
-  uploadButton.classList.remove('border-dashed', 'text-[#424750]');
-  uploadButton.classList.add('border-[#22c55e]', 'bg-[#ecfdf3]', 'text-[#166534]');
+  if (uploadButton) {
+    uploadButton.innerHTML = `<span class="material-symbols-outlined text-[#166534]">check_circle</span> <span class="truncate max-w-[200px]">${file.name}</span>`;
+    uploadButton.classList.remove('border-dashed', 'text-[#424750]');
+    uploadButton.classList.add('border-[#22c55e]', 'bg-[#ecfdf3]', 'text-[#166534]');
+  }
+
   closeAttachmentModal();
 }
 
 if (uploadButton && screenshotInput) {
-  uploadButton.addEventListener('click', () => attachmentModal?.classList.remove('hidden'));
+  uploadButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    attachmentModal?.classList.remove('hidden');
+  });
 
   attachmentModalClose?.addEventListener('click', closeAttachmentModal);
   attachmentModal?.addEventListener('click', (event) => {
@@ -134,7 +140,9 @@ if (uploadButton && screenshotInput) {
 
   screenshotInput.addEventListener('change', (event) => {
     const file = event.target.files?.[0];
-    showSelectedAttachment(file);
+    if (file) {
+      showSelectedAttachment(file);
+    }
   });
 }
 
@@ -310,39 +318,4 @@ if (cancelButton) {
   });
 }
 
-// Mobile menu toggle functionality
-const sidebar = document.getElementById('sidebar');
-const overlay = document.getElementById('sidebar-overlay');
-const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-const closeSidebarBtn = document.getElementById('close-sidebar-btn');
-
-function openSidebar() {
-  sidebar.classList.remove('-translate-x-full');
-  overlay.classList.remove('hidden');
-  setTimeout(() => {
-    overlay.classList.remove('opacity-0');
-    overlay.classList.add('opacity-100');
-  }, 10);
-}
-
-function closeSidebar() {
-  sidebar.classList.add('-translate-x-full');
-  overlay.classList.remove('opacity-100');
-  overlay.classList.add('opacity-0');
-  setTimeout(() => {
-    overlay.classList.add('hidden');
-  }, 300);
-}
-
-if (mobileMenuBtn) {
-  mobileMenuBtn.addEventListener('click', openSidebar);
-}
-
-if (closeSidebarBtn) {
-  closeSidebarBtn.addEventListener('click', closeSidebar);
-}
-
-if (overlay) {
-  overlay.addEventListener('click', closeSidebar);
-}
 

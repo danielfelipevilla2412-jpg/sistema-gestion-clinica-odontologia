@@ -8,6 +8,15 @@
     var nameParts = userName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     var initials = string.Join("", nameParts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
     if (string.IsNullOrWhiteSpace(initials)) initials = "ST";
+    var role = User?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
+    var roleLabel = role switch
+    {
+      "profesional" or "odontologo" or "odontólogo" or "doctor" => "Panel Profesional",
+      "paciente" => "Panel Paciente",
+      "recepcionista" => "Panel Recepcionista",
+      "auxiliar" => "Panel Auxiliar",
+      _ => "Panel Administrador"
+    };
 }
 
 <!DOCTYPE html>
@@ -25,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css?v=20260923")" />
     <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Guia_De_Usuario/styles.css")" />
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script id="tailwind-config">
@@ -153,7 +162,7 @@
   <body class="text-on-surface overflow-x-hidden">
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+    @{ await Html.RenderPartialAsync("_SidebarDynamic"); }
 
     <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
         <span aria-hidden="true"></span>
@@ -162,11 +171,13 @@
     </button>
     <div class="overlay" id="overlay" aria-hidden="true"></div>
 
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
     <main class="main" id="main-content">
       <header class="page-header">
         <div class="header-left">
           <nav class="breadcrumb" aria-label="Ruta de navegación">
-            <span>Administración</span>
+            <span>@roleLabel</span>
             <span class="bc-sep" aria-hidden="true">›</span>
             <span class="bc-active">Centro de Ayuda</span>
           </nav>
@@ -210,6 +221,14 @@
       </header>
 
       <section class="support-shell">
+        @if (TempData["SupportTicketMessage"] is string ticketMessage)
+        {
+          <div class="mb-6 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-4 text-sm font-semibold text-[#166534]" role="status">
+            <span class="material-symbols-outlined mr-1">check_circle</span>
+            @ticketMessage
+          </div>
+        }
+
         <nav class="flex items-center gap-2 text-xs text-on-surface-variant mb-4">
           <span>Support</span>
           <span class="material-symbols-outlined text-[12px]">chevron_right</span>
@@ -241,12 +260,32 @@
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="flex flex-col gap-1.5">
                       <label asp-for="Category" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
-                      <select asp-for="Category" asp-items="Html.GetEnumSelectList<TicketCategory>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <select asp-for="Category" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white">
+                        <option value="" disabled selected>-- Seleccione Tipo de Incidente --</option>
+                        <option value="ErrorTecnico">Error técnico / Falla del sistema</option>
+                        <option value="ProblemaAcceso">Problema de acceso o inicio de sesión</option>
+                        <option value="SolicitudCambio">Solicitud de cambio o mejora</option>
+                        <option value="DudaConsulta">Duda o consulta general</option>
+                        <option value="ProblemaReporteDato">Problema con reporte o dato incorrecto</option>
+                      </select>
                       <span asp-validation-for="Category" class="text-error text-xs"></span>
                     </div>
                     <div class="flex flex-col gap-1.5">
                       <label asp-for="Module" class="font-label-bold text-label-bold text-[#424750] px-1"></label>
-                      <select asp-for="Module" asp-items="Html.GetEnumSelectList<AffectedModule>()" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white"></select>
+                      <select asp-for="Module" class="w-full px-4 py-3 rounded-lg border border-[#c3c6d2] focus:border-[#0060a8] focus:ring-1 focus:ring-[#0060a8] transition-all font-body-md text-body-md bg-white">
+                        <option value="" disabled selected>-- Seleccione Módulo / Vista --</option>
+                        <option value="Inicio">Inicio</option>
+                        <option value="ReportesAnalitica">Reportes y Analítica</option>
+                        <option value="AccesoSeguridad">Acceso y Seguridad</option>
+                        <option value="GestionPacientes">Gestión de Pacientes</option>
+                        <option value="HistoriaClinica">Historia Clínica</option>
+                        <option value="GestionProfesionales">Gestión de Profesionales</option>
+                        <option value="GestionCitas">Gestión de Citas</option>
+                        <option value="FacturacionPagos">Facturación y Pagos</option>
+                        <option value="ServiciosRecursos">Servicios y Recursos</option>
+                        <option value="GestionPQR">Gestión de PQR</option>
+                        <option value="OtroNoEstoySeguro">Otro / No estoy seguro</option>
+                      </select>
                       <span asp-validation-for="Module" class="text-error text-xs"></span>
                     </div>
                   </div>
@@ -339,11 +378,11 @@
               </button>
             </div>
             <div class="mt-6">
-              <label id="choose-file-btn" class="relative flex min-h-32 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-[#c3c6d2] p-4 text-center text-[#002a58] hover:border-[#0060a8] hover:bg-[#f8fbff]">
+              <label id="choose-file-btn" for="screenshot-input" class="relative flex min-h-36 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed border-[#c3c6d2] p-6 text-center text-[#002a58] hover:border-[#0060a8] hover:bg-[#f8fbff] transition-all">
                 <input asp-for="Screenshot" id="screenshot-input" form="support-form" accept="image/*,.pdf,.doc,.docx,.txt" class="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
-                <span class="material-symbols-outlined text-3xl text-[#0060a8]">upload_file</span>
-                <span class="font-label-bold text-label-bold">Elegir un archivo</span>
-                <span class="text-xs text-[#424750]">Imagen, PDF, Word o texto</span>
+                <span class="material-symbols-outlined text-4xl text-[#0060a8]">upload_file</span>
+                <span class="font-headline-sm text-headline-sm font-semibold">Elegir un archivo</span>
+                <span class="text-xs text-[#424750]">Imagen, PDF, Word o texto (máx. 10 MB)</span>
               </label>
             </div>
             <p id="attachment-modal-error" class="mt-4 hidden text-sm text-[#ba1a1a]" role="alert"></p>
@@ -475,8 +514,8 @@
       <div class="st-modal-content">
         <header class="st-modal-header">
           <div class="st-modal-brand">
-            <div class="st-modal-avatar overflow-hidden">
-              <img src="~/images/logo.jpg" alt="SmileTrack" class="w-full h-full object-cover" />
+            <div class="st-modal-avatar overflow-hidden bg-white">
+              <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="Logo de SmileTrack" class="w-full h-full object-contain" />
             </div>
             <div>
               <h2 class="st-modal-title">Asistente SmileTrack</h2>
@@ -506,7 +545,7 @@
     <script src="@Url.Content("~/js/Centro_De_Ayuda/Guia_De_Usuario/script.js")"></script>
     <script src="@Url.Content("~/js/i18n-core.js")"></script>
     <script src="@Url.Content("~/js/i18n.config.js")"></script>
-    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+    <script src="@Url.Content("~/js/shared/sidebar.js?v=20260921")"></script>
   </body>
 </html>
 
