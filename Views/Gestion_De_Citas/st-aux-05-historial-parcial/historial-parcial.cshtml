@@ -36,6 +36,11 @@ NOTAS DE MANTENIMIENTO:
     Layout = "_Layout";
     ViewData["Title"] = "Historial Clínico Parcial";
     var historialParcialDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["HistorialParcialData"] ?? new object());
+    var pacientes = ViewData["Pacientes"] as List<SmileTrack_MVC.Models.Entities.Paciente> ?? new();
+    var pacienteSeleccionado = System.Text.Json.JsonDocument.Parse(historialParcialDataJson).RootElement;
+    var pacienteSeleccionadoId = pacienteSeleccionado.TryGetProperty("paciente", out var pacienteJson) && pacienteJson.TryGetProperty("id", out var idJson)
+      ? idJson.GetInt32()
+      : 0;
 }
 
 @section Styles {
@@ -55,6 +60,16 @@ NOTAS DE MANTENIMIENTO:
         </nav>
         <h1 class="page-title" data-i18n="historia.title">Historial Clínico — Solo Lectura</h1>
         <p class="page-subtitle" id="patientMeta" aria-live="polite" data-i18n="common.loading">Cargando...</p>
+      </div>
+      <div class="header-actions">
+        <label for="pacienteSelect" class="visually-hidden">Seleccionar paciente</label>
+        <select id="pacienteSelect" class="status-select" aria-label="Seleccionar paciente">
+          <option value="">Seleccionar paciente</option>
+          @foreach (var paciente in pacientes.Where(p => p.Estado == "activo"))
+          {
+            <option value="@paciente.IdPaciente" selected="@(paciente.IdPaciente == pacienteSeleccionadoId ? "selected" : null)">@paciente.NombresCompleto</option>
+          }
+        </select>
       </div>
     </header>
 
@@ -102,6 +117,11 @@ NOTAS DE MANTENIMIENTO:
   </footer>
   <script>
     window.smiletrackHistorialParcialData = @Html.Raw(historialParcialDataJson);
+    document.getElementById('pacienteSelect')?.addEventListener('change', function () {
+      const params = new URLSearchParams(window.location.search);
+      if (this.value) params.set('pacienteId', this.value); else params.delete('pacienteId');
+      window.location.search = params.toString();
+    });
   </script>
 @section Scripts {
     <script src="~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js" asp-append-version="true" defer></script>

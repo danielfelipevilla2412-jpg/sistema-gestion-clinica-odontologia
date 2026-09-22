@@ -590,14 +590,31 @@ img {
 .filter-select,
 .filter-date,
 .status-select {
+    appearance: none;
+    -webkit-appearance: none;
+    appearance: none;
     border: 1.5px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 9px 12px;
+    border-radius: 10px;
+    padding: 10px 38px 10px 12px;
     font-family: var(--font);
     font-size: 0.84rem;
-    background: var(--white);
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
     color: var(--text);
     cursor: pointer;
+    min-height: 42px;
+    min-width: 175px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    transition: border-color var(--tr), box-shadow var(--tr), transform var(--tr);
+}
+
+.filter-select:hover,
+.filter-date:hover,
+.status-select:hover {
+    border-color: #94a3b8;
 }
 
 .filter-select:focus,
@@ -606,6 +623,44 @@ img {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--input-focus-ring);
     outline: none;
+}
+
+.table-appointments {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    min-width: 980px;
+}
+
+.table-appointments thead th {
+    background: linear-gradient(90deg, #f8fbff, #f3f7ff);
+    color: var(--text-muted);
+    font-size: 0.69rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 12px;
+    border-bottom: 2px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.table-appointments tbody td {
+    padding: 12px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    background: var(--white);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.table-appointments tbody tr:hover td {
+    background: #f8fafc;
+}
+
+.table-appointments tbody tr:last-child td {
+    border-bottom: none;
 }
 
 /* Filtros: layout estandarizado */
@@ -773,35 +828,23 @@ img {
 }
 
 .table-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 16px;
-    padding: 14px 16px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
     background: var(--white);
     transition: background var(--tr), box-shadow var(--tr), transform var(--tr);
-    cursor: default;
 }
 
 .table-row:hover {
     background: #f8fafc;
     box-shadow: var(--shadow);
-    transform: translateY(-1px);
 }
 
-.table-row:last-child {
+.table-row:last-child td {
     border-bottom: none;
 }
 
 .table-col {
-    flex: 1;
     min-width: 120px;
     padding: 0 8px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    vertical-align: middle;
 }
 
 .col-servicio {
@@ -955,28 +998,49 @@ select.status-select-inline option {
 .action-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
     padding: 6px 10px;
     border-radius: var(--radius-sm);
     font-size: 0.8rem;
+    font-weight: 600;
     background: var(--white);
     border: 1px solid var(--border);
     cursor: pointer;
     color: var(--text-muted);
-    transition: background var(--tr), color var(--tr), transform var(--tr);
+    transition: background var(--tr), color var(--tr), transform var(--tr), border-color var(--tr);
     line-height: 1;
     box-shadow: 0 4px 10px rgba(15, 32, 87, 0.05);
+    text-decoration: none;
 }
 
 .action-btn:hover {
     background: var(--primary-light);
+    border-color: var(--primary);
     color: var(--primary);
     transform: translateY(-1px);
 }
 
 .action-btn.btn-delete:hover {
     background: #fee2e2;
+    border-color: #fecaca;
     color: var(--danger);
+}
+
+.action-btn.btn-secondary {
+    background: var(--white);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+.action-btn.btn-danger {
+    background: #fff5f5;
+    color: var(--danger);
+    border-color: #fecaca;
+}
+
+.action-btn .btn-text {
+    display: inline;
 }
 
 /* Paginación */

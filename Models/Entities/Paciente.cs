@@ -65,6 +65,9 @@ namespace SmileTrack_MVC.Models.Entities
         [Column("alergias")]
         public string? Alergias { get; set; }
 
+        [Column("medicamentos")]
+        public string? Medicamentos { get; set; }
+
         [Column("antecedentes_medicos")]
         public string? AntecedentesMedicos { get; set; }
 

@@ -955,7 +955,8 @@ public class GestionPacientesController : Controller
         [FromForm] string? correo,
         [FromForm] string? grupoSanguineo,
         [FromForm] string? ciudad,
-        [FromForm] string? alergias)
+        [FromForm] string? alergias,
+        [FromForm] string? medicamentos)
     {
         try
         {
@@ -1056,6 +1057,11 @@ public class GestionPacientesController : Controller
                             ? null
                             : alergias.Trim(),
 
+                    Medicamentos =
+                        string.IsNullOrWhiteSpace(medicamentos)
+                            ? null
+                            : medicamentos.Trim(),
+
                     Estado =
                         "activo",
 
@@ -1125,6 +1131,7 @@ public class GestionPacientesController : Controller
         [FromForm] string? correo,
         [FromForm] string? ciudad,
         [FromForm] string? alergias,
+        [FromForm] string? medicamentos,
         [FromForm] string? estado,
         [FromForm] string? genero,
         // Yeray (2025) - campos nuevos que antes solo actualizaba la API REST
@@ -1203,6 +1210,11 @@ public class GestionPacientesController : Controller
                 string.IsNullOrWhiteSpace(alergias)
                     ? null
                     : alergias.Trim();
+
+            if (medicamentos is not null)
+                paciente.Medicamentos = string.IsNullOrWhiteSpace(medicamentos)
+                    ? null
+                    : medicamentos.Trim();
 
             // Yeray (2025) - campos nuevos: antes solo actualizables vía API REST.
             // Se aplica la misma lógica null-safe que los demás campos:

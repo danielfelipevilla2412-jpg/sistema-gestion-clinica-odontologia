@@ -33,6 +33,7 @@ public class PacienteViewModel
     public string? Direccion { get; set; }
     public string? GrupoSanguineo { get; set; }
     public string? AlergiasTexto { get; set; }
+    public string? MedicamentosTexto { get; set; }
     public string Estado { get; set; } = "activo";
 
     // Yeray (2025) - Campos médicos adicionales para vista de detalle

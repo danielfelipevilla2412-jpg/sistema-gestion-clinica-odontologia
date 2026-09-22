@@ -75,6 +75,22 @@ public sealed class AusenciaProfesionalApiDto
     public string? Observaciones { get; set; }
 }
 
+public sealed class AusenciaProfesionalApiRequest
+{
+    [Required(ErrorMessage = "El tipo de ausencia es obligatorio.")]
+    [StringLength(30, MinimumLength = 2, ErrorMessage = "El tipo de ausencia no es válido.")]
+    public string Tipo { get; set; } = "vacaciones";
+
+    [Required(ErrorMessage = "La fecha de inicio es obligatoria.")]
+    public DateOnly FechaInicio { get; set; }
+
+    [Required(ErrorMessage = "La fecha de fin es obligatoria.")]
+    public DateOnly FechaFin { get; set; }
+
+    [StringLength(500, ErrorMessage = "Las observaciones no pueden superar 500 caracteres.")]
+    public string? Observaciones { get; set; }
+}
+
 public sealed class ServicioProfesionalApiDto
 {
     public int IdProfesional { get; set; }

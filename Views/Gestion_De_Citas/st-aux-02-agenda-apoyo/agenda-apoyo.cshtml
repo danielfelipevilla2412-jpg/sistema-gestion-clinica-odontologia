@@ -27,6 +27,14 @@ NOTAS DE MANTENIMIENTO:
     Layout = "_Layout";
     ViewData["Title"] = "Agenda de Apoyo Clínico";
     var agendaApoyoDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["AgendaApoyoData"] ?? new object());
+    var fechaAgenda = Context.Request.Query["fecha"].FirstOrDefault() ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var inicioSemana = Context.Request.Query["weekStart"].FirstOrDefault() ?? fechaAgenda;
+    var fechaActual = DateTime.Parse(fechaAgenda);
+    var inicioSemanaActual = DateTime.Parse(inicioSemana);
+    var esVistaSemana = Context.Request.Query.ContainsKey("weekStart");
+    var metaTexto = esVistaSemana
+        ? $"Semana del {inicioSemanaActual:dd MMM yyyy} al {inicioSemanaActual.AddDays(6):dd MMM yyyy}"
+        : $"Citas del día {fechaActual:dd MMM yyyy}";
 }
 
 @section Styles {
@@ -45,9 +53,17 @@ NOTAS DE MANTENIMIENTO:
           <span class="bc-active" data-i18n="nav.agenda">Agenda</span>
         </nav>
         <h1 class="page-title" data-i18n="nav.agenda">Agenda de Apoyo Clínico</h1>
-        <p class="page-subtitle" id="phMeta" aria-live="polite" data-i18n="aux.agenda_apoyo_subtitle">Citas del d&#237;a que requieren asistencia</p>
+        <p class="page-subtitle" id="phMeta" aria-live="polite" data-meta-text="@metaTexto">@metaTexto</p>
       </div>
     </header>
+
+    <div class="filtros-bar" role="toolbar" aria-label="Navegación y filtros de agenda">
+      @await Component.InvokeAsync("ToggleVistas", new { vistaActiva = Context.Request.Query.ContainsKey("weekStart") ? "semana" : "dia" })
+      <a class="btn-secondary" href="?fecha=@DateTime.Parse(fechaAgenda).AddDays(-1).ToString("yyyy-MM-dd")" aria-label="Día anterior">‹ Día</a>
+      <a class="btn-secondary" href="?fecha=@DateTime.Parse(fechaAgenda).AddDays(1).ToString("yyyy-MM-dd")" aria-label="Día siguiente">Día ›</a>
+      <a class="btn-secondary" href="?weekStart=@DateTime.Parse(inicioSemana).AddDays(-7).ToString("yyyy-MM-dd")" aria-label="Semana anterior">‹ Semana</a>
+      <a class="btn-secondary" href="?weekStart=@DateTime.Parse(inicioSemana).AddDays(7).ToString("yyyy-MM-dd")" aria-label="Semana siguiente">Semana ›</a>
+    </div>
 
     <!-- Contenido principal -->
     <div class="content">
@@ -107,6 +123,7 @@ NOTAS DE MANTENIMIENTO:
           <table class="table-base agenda-table" aria-label="Agenda de citas que requieren asistencia" data-i18n-aria-label="citas.title">
             <thead>
               <tr>
+                <th scope="col">DÍA</th>
                 <th scope="col" data-i18n="citas.time">HORA</th>
                 <th scope="col" data-i18n="citas.patient">PACIENTE</th>
                 <th scope="col" data-i18n="citas.professional">PROFESIONAL</th>
@@ -117,6 +134,7 @@ NOTAS DE MANTENIMIENTO:
             </thead>
             <tbody id="agendaBody" aria-live="polite">
               <tr class="skeleton-row" aria-hidden="true">
+                <td><div class="skeleton-cell" style="width:65px"></div></td>
                 <td><div class="skeleton-cell" style="width:50px"></div></td>
                 <td><div class="skeleton-cell" style="width:140px"></div></td>
                 <td><div class="skeleton-cell" style="width:120px"></div></td>
@@ -125,6 +143,7 @@ NOTAS DE MANTENIMIENTO:
                 <td><div class="skeleton-cell" style="width:70px"></div></td>
               </tr>
               <tr class="skeleton-row" aria-hidden="true">
+                <td><div class="skeleton-cell" style="width:65px"></div></td>
                 <td><div class="skeleton-cell" style="width:50px"></div></td>
                 <td><div class="skeleton-cell" style="width:160px"></div></td>
                 <td><div class="skeleton-cell" style="width:100px"></div></td>

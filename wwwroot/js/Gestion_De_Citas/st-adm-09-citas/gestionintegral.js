@@ -368,11 +368,7 @@ const mapServerToClient = (serverData) => {
  * @returns {string} Estado normalizado para el cliente
  */
 const mapEstadoServerToClient = (estado) => {
-    if (window.AppointmentUtils) {
-        return window.AppointmentUtils.mapEstadoServerToClient(estado);
-    }
-    if (!estado) return 'programada';
-    return estado.toLowerCase().trim();
+    return window.CommonUtils.mapEstadoServerToClient(estado);
 };
 
 /**
@@ -382,9 +378,7 @@ const mapEstadoServerToClient = (estado) => {
  * @returns {string} Estado normalizado para el servidor
  */
 const mapEstadoClientToServer = (estado) => {
-    if (estado === 'atendida') return 'finalizada';
-    if (estado === 'no-show') return 'no_asistida';
-    return estado || 'programada';
+    return window.CommonUtils.mapEstadoClienteToServer(estado);
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -428,7 +422,7 @@ const avatarColorMap = {
  */
 const shouldUseServerRenderedList = () => {
     const tbody = document.getElementById('citasBody');
-    return !!(tbody && tbody.children.length > 0 && tbody.querySelector('.table-row'));
+    return !!(tbody && tbody.children.length > 0 && tbody.querySelector('tr.table-row, div.table-row'));
 };
 
 /**
@@ -437,10 +431,8 @@ const shouldUseServerRenderedList = () => {
  */
 const statusLabels = new Proxy({}, {
     get: function (target, prop) {
-        if (window.AppointmentUtils) {
-            return window.AppointmentUtils.getStatusLabelAndClass(prop);
-        }
-        return { label: prop, class: 'programada' };
+        const info = window.CommonUtils.getStatusInfo(prop);
+        return { label: info.label, class: info.cls };
     }
 });
 
@@ -534,7 +526,7 @@ const renderAppointments = () => {
 
     // Mostrar estado vacío si no hay resultados
     if (!filteredAppointments.length) {
-        tableBody.innerHTML = '<div class="empty-state" role="status">No se encontraron citas con los criterios de búsqueda.</div>';
+        tableBody.innerHTML = '<div class="empty-state" role="status">No hay citas para los filtros actuales</div>';
         updatePagination(0);
         return;
     }
@@ -548,14 +540,14 @@ const renderAppointments = () => {
         const status = statusLabels[appointment.status] || statusLabels.programada;
 
         return `
-            <div class="table-row" role="row" tabindex="0" aria-label="Cita de ${escapeHtml(appointment.patient)} el ${escapeHtml(fmtDate(appointment.date))}">
-                <div class="table-col col-fecha" role="cell" data-label="Fecha">
+            <tr class="table-row" role="row" tabindex="0" aria-label="Cita de ${escapeHtml(appointment.patient)} el ${escapeHtml(fmtDate(appointment.date))}">
+                <td class="col-fecha" role="cell" data-label="Fecha">
                     <time datetime="${escapeHtml(appointment.date)}">${escapeHtml(fmtDate(appointment.date))}</time>
-                </div>
-                <div class="table-col col-hora" role="cell" data-label="Hora">
+                </td>
+                <td class="col-hora" role="cell" data-label="Hora">
                     <time datetime="${escapeHtml(appointment.date)}T${escapeHtml(appointment.time)}:00">${escapeHtml(fmtTime(appointment.time))}</time>
-                </div>
-                <div class="table-col col-paciente" role="cell" data-label="Paciente">
+                </td>
+                <td class="col-paciente" role="cell" data-label="Paciente">
                     <div class="patient-info">
                         <div class="patient-avatar" style="background:${avatarColorMap[appointment.color] || avatarColorMap.blue}; color:#fff;" aria-hidden="true">
                             ${escapeHtml(appointment.avatar)}
@@ -565,19 +557,19 @@ const renderAppointments = () => {
                             <span class="patient-id">ID: ${escapeHtml(appointment.doc)}</span>
                         </div>
                     </div>
-                </div>
-                <div class="table-col col-profesional" role="cell" data-label="Profesional">
+                </td>
+                <td class="col-profesional" role="cell" data-label="Profesional">
                     ${escapeHtml(appointment.professionalName)}
-                </div>
-                <div class="table-col col-servicio" role="cell" data-label="Servicio">
+                </td>
+                <td class="col-servicio" role="cell" data-label="Servicio">
                     ${escapeHtml(appointment.service)}
-                </div>
-                <div class="table-col col-estado text-center" role="cell" data-label="Estado">
+                </td>
+                <td class="col-estado text-center" role="cell" data-label="Estado">
                     <span class="status-badge ${status.class}" role="status" aria-label="Estado: ${escapeHtml(status.label)}">
                         ${escapeHtml(status.label)}
                     </span>
-                </div>
-                <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
+                </td>
+                <td class="col-acciones text-right" role="cell" data-label="Acciones">
                     <div class="actions-cell">
                         <button class="action-btn btn-view" aria-label="Ver detalle de cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Ver detalle">
                           👁️ <span class="btn-text">Ver</span>
@@ -589,8 +581,8 @@ const renderAppointments = () => {
                           ❌ <span class="btn-text">Cancelar</span>
                         </button>
                     </div>
-                </div>
-            </div>
+                </td>
+            </tr>
         `;
     }).join('');
 
@@ -1090,9 +1082,40 @@ const initNewAppointment = () => {
  * @returns {Promise<Array>} Array de citas mapeadas
  */
 async function fetchAppointments() {
-    // La vista usa la colección en memoria cargada en init(); si no hay datos reales
-    // disponibles, se devuelve la colección actual para evitar falsos negativos.
-    return Array.isArray(appointments) ? appointments : [];
+    try {
+        const params = new URLSearchParams({ page: '1', pageSize: '100' });
+
+        if (searchQuery) params.set('search', searchQuery);
+        if (filterStatus) params.set('estado', filterStatus);
+        if (filterProfessional) params.set('profesional', filterProfessional);
+        if (filterDate) params.set('fecha', filterDate);
+
+        const response = await fetch(`${API_BASE}/citas?${params.toString()}`, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                ...getAuthHeaders(),
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`status ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const data = Array.isArray(payload?.data) ? payload.data.map(mapServerToClient) : [];
+        appointments = data;
+        return data;
+    } catch (error) {
+        console.warn('[SmileTrack] No se pudo cargar citas desde /api/citas:', error);
+        appointments = [];
+        const tableBody = safeGetElement('citasBody');
+        if (tableBody) {
+            tableBody.innerHTML = '<div class="empty-state" role="status">No hay citas para los filtros actuales</div>';
+        }
+        return [];
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════

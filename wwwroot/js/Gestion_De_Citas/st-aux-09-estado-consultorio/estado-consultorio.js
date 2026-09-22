@@ -49,8 +49,14 @@ const debounce = (fn, delay) => {
 
 // WHY: La clave incluye consultorio y fecha para evitar colisiones entre sesiones de distintos consultorios en el mismo dispositivo
 const consultorioData = window.smiletrackEstadoConsultorioData || {};
+let consultorioSyncTimer = null;
+let consultorioServerState = null;
 const consultorioStorage = {
-  key: `smiletrack_consultorio_${consultorioData.consultorioId || 'sin_consultorio'}_${new Date().toISOString().slice(0, 10)}`,
+  // WHY: Se calcula dinámicamente para usar el consultorio actual en todo momento
+  get key() {
+    const currentData = window.smiletrackEstadoConsultorioData || {};
+    return `smiletrack_consultorio_${currentData.consultorioId || 'sin_consultorio'}_${new Date().toISOString().slice(0, 10)}`;
+  },
   
   // WHY: Carga desde LocalStorage para continuar el estado entre refrescos de página sin perder el avance del checklist
   load: () => {
@@ -95,6 +101,7 @@ const consultorioStorage = {
     if (state.checklist[index]) {
       state.checklist[index].checked = checked;
       consultorioStorage.save(state);
+      scheduleConsultorioSync();
     }
   },
   
@@ -103,6 +110,7 @@ const consultorioStorage = {
     const state = consultorioStorage.load();
     state.checklist.push({ text, checked: false });
     consultorioStorage.save(state);
+    scheduleConsultorioSync();
   },
   
   // WHY: Registra el estado seleccionado para sintonizar la UI con el estado persistido al recargar la vista
@@ -110,6 +118,7 @@ const consultorioStorage = {
     const state = consultorioStorage.load();
     state.status = status;
     consultorioStorage.save(state);
+    scheduleConsultorioSync();
   },
   
   // WHY: Guarda las observaciones del auxiliar para que no se pierdan al navegar entre vistas
@@ -117,6 +126,7 @@ const consultorioStorage = {
     const state = consultorioStorage.load();
     state.observations = text;
     consultorioStorage.save(state);
+    scheduleConsultorioSync();
   },
   
   // WHY: Limita el historial a 10 entradas para no saturar LocalStorage con datos indefinidos
@@ -130,8 +140,36 @@ const consultorioStorage = {
     // WHY: Limita el historial a máximo 10 entradas para evitar el crecimiento indefinido del objeto en LocalStorage
     if (state.history.length > 10) state.history.pop();
     consultorioStorage.save(state);
+    scheduleConsultorioSync();
   }
 };
+
+const scheduleConsultorioSync = () => {
+  clearTimeout(consultorioSyncTimer);
+  consultorioSyncTimer = setTimeout(saveConsultorioState, 400);
+};
+
+async function saveConsultorioState() {
+  const serverData = window.smiletrackEstadoConsultorioData || {};
+  if (!serverData.consultorioId) return;
+  
+  const state = consultorioStorage.load();
+  try {
+    const response = await fetch(`/api/consultorios/${serverData.consultorioId}/estado-operativo`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: getRequestHeaders(),
+      body: JSON.stringify({ 
+        estado: state.status, 
+        checklist: state.checklist, 
+        observaciones: state.observations 
+      })
+    });
+    if (!response.ok) throw new Error(`status ${response.status}`);
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudo sincronizar el estado del consultorio:', error);
+  }
+}
 
 // WHY: Calcula el progreso en tiempo real para actualizar tanto la barra visual como la etiqueta ARIA accesible
 const calculateProgress = () => {
@@ -159,8 +197,20 @@ const initChecklist = () => {
   
   if (!checklist) return;
   
-  // Carga estado guardado
-  const state = consultorioStorage.load();
+  // Carga estado guardado o usa checklist del servidor si está disponible
+  const serverData = window.smiletrackEstadoConsultorioData || {};
+  const serverChecklist = serverData.checklist;
+  let state = consultorioStorage.load();
+  
+  // WHY: Si el servidor tiene un checklist guardado, usarlo en lugar del localStorage
+  // Esto asegura que al cambiar de consultorio, se cargue el checklist correcto
+  if (serverChecklist && Array.isArray(serverChecklist) && serverChecklist.length > 0) {
+    state.checklist = serverChecklist.map(item => ({
+      text: item.text || item.Text || String(item),
+      checked: Boolean(item.checked || item.Checked)
+    }));
+    consultorioStorage.save(state);
+  }
   
   // WHY: Re-renderiza la lista completa desde el estado guardado en lugar de confiar en el HTML estático del servidor
   checklist.replaceChildren();
@@ -302,8 +352,19 @@ const initAddItem = () => {
 const initStatusSelector = () => {
   const options = document.querySelectorAll('.status-option');
   
-  // Carga estado guardado
-  const savedStatus = consultorioStorage.load().status;
+  // Priorizar estado del servidor si existe
+  const serverData = window.smiletrackEstadoConsultorioData || {};
+  const serverStatus = serverData.estadoActual;
+  
+  let savedStatus = consultorioStorage.load().status;
+  
+  // Si hay estado del servidor, usarlo y guardarlo
+  if (serverStatus) {
+    // Normalizar el estado del servidor para que coincida con los valores del selector
+    const normalizedStatus = serverStatus.toLowerCase().replace(/_/g, '-');
+    savedStatus = normalizedStatus;
+    consultorioStorage.updateStatus(normalizedStatus);
+  }
   
   options.forEach(option => {
     // Aplica estado guardado
@@ -382,9 +443,20 @@ const initObservations = () => {
   const textarea = safeGetElement('obsTextarea');
   if (!textarea) return;
   
-  // Carga observaciones guardadas
-  const saved = consultorioStorage.load().observations;
-  if (saved) textarea.value = saved;
+  // Priorizar observaciones del servidor si existen
+  const serverData = window.smiletrackEstadoConsultorioData || {};
+  const serverObs = serverData.observaciones;
+  
+  if (serverObs && serverObs.trim()) {
+    // Usar observaciones del servidor
+    textarea.value = serverObs;
+    // Guardar en localStorage para mantener consistencia
+    consultorioStorage.updateObservations(serverObs);
+  } else {
+    // Cargar observaciones guardadas localmente
+    const saved = consultorioStorage.load().observations;
+    if (saved) textarea.value = saved;
+  }
   
   // Auto-guarda mientras el usuario escribe (con debounce)
   const debouncedSave = debounce(() => {
@@ -548,8 +620,11 @@ const initHistoryList = () => {
 };
 
 // Función principal de inicialización
-const init = () => {
-    // Inicializar componentes de UI
+const init = async () => {
+    // Cargar lista de consultorios
+    await loadConsultorios();
+    
+    // Inicializar componentes de UI (ahora cada uno carga del servidor si está disponible)
     initMobileMenu();
     initChecklist();
     initAddItem();
@@ -569,19 +644,6 @@ const init = () => {
             subtitle.textContent = partes.join(' · ');
         }
 
-        // Cargar historial del servidor en localStorage si el localStorage local está vacío
-        const stored = localStorage.getItem(consultorioStorage.key);
-        const localData = stored ? JSON.parse(stored) : null;
-        if (!localData || !localData.history || localData.history.length === 0) {
-            const state = consultorioStorage.load();
-            state.history = (serverData.historial || []).map(h => ({
-                time: h.time,
-                user: h.user,
-                detail: h.detail
-            }));
-            consultorioStorage.save(state);
-        }
-
         // Re-renderizar historial con datos del servidor
         initHistoryList();
     }
@@ -591,6 +653,97 @@ const init = () => {
       // Remover listeners en implementación SPA real
     });
 };
+
+// Carga la lista de consultorios disponibles y permite al auxiliar cambiar de consultorio
+async function loadConsultorios() {
+  const select = safeGetElement('selectConsultorio');
+  if (!select) return;
+
+  try {
+    const response = await fetch('/api/consultorios', {
+      credentials: 'same-origin',
+      headers: getRequestHeaders()
+    });
+
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+
+    const result = await response.json();
+    const consultorios = result.data || [];
+
+    // Limpiar opciones actuales
+    select.replaceChildren();
+
+    // Agregar opciones de consultorios
+    consultorios.forEach(c => {
+      const option = document.createElement('option');
+      option.value = c.id;
+      option.textContent = `${c.nombre}${c.ubicacion ? ` - ${c.ubicacion}` : ''}`;
+      select.appendChild(option);
+    });
+
+    // Seleccionar el consultorio actual
+    const currentId = window.smiletrackEstadoConsultorioData?.consultorioId;
+    if (currentId) {
+      select.value = currentId;
+    }
+
+    // Event listener para cambio de consultorio
+    select.addEventListener('change', handleConsultorioChange);
+
+  } catch (error) {
+    console.error('[SmileTrack] Error al cargar consultorios:', error);
+    window.ToastService?.error('Error', 'No se pudo cargar la lista de consultorios');
+    
+    // Fallback: mostrar consultorio actual si está disponible
+    if (window.smiletrackEstadoConsultorioData?.consultorioId) {
+      const option = document.createElement('option');
+      option.value = window.smiletrackEstadoConsultorioData.consultorioId;
+      option.textContent = window.smiletrackEstadoConsultorioData.nombre || 'Consultorio actual';
+      select.replaceChildren(option);
+    }
+  }
+}
+
+// Maneja el cambio de consultorio seleccionado
+async function handleConsultorioChange(event) {
+  const select = event.target;
+  const newConsultorioId = parseInt(select.value);
+  
+  if (!newConsultorioId || isNaN(newConsultorioId)) return;
+
+  // Mostrar indicador de carga
+  const originalText = select.options[select.selectedIndex]?.text || '';
+  select.disabled = true;
+
+  try {
+    // Guardar preferencia en el backend
+    const response = await fetch('/api/consultorios/guardar-preferencia', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: getRequestHeaders(),
+      body: JSON.stringify({ consultorioId: newConsultorioId })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al guardar preferencia');
+    }
+
+    // Recargar la página con el nuevo consultorio
+    window.location.href = `/gestion-de-citas/st-aux-09-estado-consultorio?consultorioId=${newConsultorioId}`;
+
+  } catch (error) {
+    console.error('[SmileTrack] Error al cambiar consultorio:', error);
+    window.ToastService?.error('Error', error.message || 'No se pudo cambiar de consultorio');
+    
+    // Revertir selección
+    const currentId = window.smiletrackEstadoConsultorioData?.consultorioId;
+    if (currentId) {
+      select.value = currentId;
+    }
+    select.disabled = false;
+  }
+}
 
 // Ejecutar al cargar DOM
 document.addEventListener('DOMContentLoaded', init);

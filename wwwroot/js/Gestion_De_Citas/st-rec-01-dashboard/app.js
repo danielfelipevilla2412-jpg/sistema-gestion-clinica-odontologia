@@ -62,11 +62,11 @@ const appointments = window.smiletrackDashboardRecData?.appointments || [];
  */
 const getActionMeta = (action) => {
   const map = {
-    'pencil':       { icon: '✏️', label: 'Editar',   cls: 'btn-icon action-btn edit',     danger: false },
-    'file-invoice': { icon: '🧾', label: 'Facturar', cls: 'btn-icon action-btn btn-facturar', danger: false },
-    'eye':          { icon: '👁️', label: 'Ver',      cls: 'btn-icon action-btn btn-view',  danger: false }
+    'pencil':       { icon: '✏️', label: 'Editar',   cls: 'btn-secondary edit',     danger: false },
+    'file-invoice': { icon: '🧾', label: 'Facturar', cls: 'btn-secondary btn-facturar', danger: false },
+    'eye':          { icon: '👁️', label: 'Ver',      cls: 'btn-secondary btn-view',  danger: false }
   };
-  return map[action] || { icon: '👁️', label: 'Ver', cls: 'btn-icon action-btn btn-view', danger: false };
+  return map[action] || { icon: '👁️', label: 'Ver', cls: 'btn-secondary btn-view', danger: false };
 };
 
 /**
@@ -231,6 +231,24 @@ const initAlertButtons = () => {
 // Renderiza los datos reales inyectados por el servidor: fecha/hora del encabezado,
 // estadísticas del día y banner de próximas citas (ver ConstruirDashboardRecepcionAsync
 // en GestionCitasController.cs).
+const renderProximasCitas = (proximas) => {
+  const banner = safeGetElement('alertBannerProximas');
+  const desc = safeGetElement('alertBannerDesc');
+  if (!banner || !desc) return;
+
+  desc.replaceChildren(...proximas.map(p => {
+    const paragraph = document.createElement('p');
+    const time = document.createElement('time');
+    time.dateTime = p.fechaIso || '';
+    const strong = document.createElement('strong');
+    strong.textContent = p.hora || '';
+    time.appendChild(strong);
+    paragraph.append(time, document.createTextNode(` ${p.texto || ''}`));
+    return paragraph;
+  }));
+  banner.style.display = proximas.length > 0 ? '' : 'none';
+};
+
 const renderResumenServidor = () => {
   const d = window.smiletrackDashboardRecData || {};
 
@@ -250,22 +268,44 @@ const renderResumenServidor = () => {
   set('statPendientes', stats.pendientes);
   set('statFacturasPendientes', stats.facturasPendientes);
 
-  const banner = safeGetElement('alertBannerProximas');
-  const desc = safeGetElement('alertBannerDesc');
   const proximas = d.proximasCitas || [];
-  if (banner && desc && proximas.length > 0) {
-    desc.replaceChildren(...proximas.map(p => {
-      const paragraph = document.createElement('p');
-      const time = document.createElement('time');
-      time.dateTime = p.fechaIso || '';
-      const strong = document.createElement('strong');
-      strong.textContent = p.hora || '';
-      time.appendChild(strong);
-      paragraph.append(time, document.createTextNode(` ${p.texto || ''}`));
-      return paragraph;
-    }));
-    banner.style.display = '';
+  renderProximasCitas(proximas);
+};
+
+let proximasCitasTimer = null;
+
+const refreshProximasCitas = async () => {
+  if (document.hidden) return;
+  try {
+    const response = await fetch('/api/citas/proximas?ventanaMinutos=30', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) throw new Error(`status ${response.status}`);
+    const payload = await response.json();
+    renderProximasCitas(Array.isArray(payload.proximasCitas) ? payload.proximasCitas : []);
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudieron actualizar las próximas citas:', error);
   }
+};
+
+const initProximasPolling = () => {
+  const stop = () => {
+    if (proximasCitasTimer) {
+      clearInterval(proximasCitasTimer);
+      proximasCitasTimer = null;
+    }
+  };
+  const resume = () => {
+    stop();
+    if (!document.hidden) {
+      refreshProximasCitas();
+      proximasCitasTimer = setInterval(refreshProximasCitas, 30000);
+    }
+  };
+  document.addEventListener('visibilitychange', resume);
+  window.addEventListener('pagehide', stop, { once: true });
+  resume();
 };
 
 const init = () => {
@@ -279,6 +319,7 @@ const init = () => {
   // Inicializar interacciones
   initActionButtons();
   initAlertButtons();
+  initProximasPolling();
   
   // [MEJORA]: Event delegation para tabla de citas (performance)
   const tableBody = safeGetElement('appointmentsTable');

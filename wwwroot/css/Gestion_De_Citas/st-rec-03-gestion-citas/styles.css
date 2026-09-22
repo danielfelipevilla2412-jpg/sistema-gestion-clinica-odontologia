@@ -48,6 +48,7 @@ NOTAS DE MANTENIMIENTO:
   --status-atendida: #dcfce7;
   --status-consulta: #dbeafe;
   --status-agendada: #ffedd5;
+  --status-cancelada: #e2e8f0;
   --status-no-asistio: #fee2e2;
   --alert-bg: #dcfce7;
   --alert-border: #86efac;
@@ -78,6 +79,11 @@ button { font-family: inherit; cursor: pointer; }
   transition: top var(--tr);
 }
 .skip-link:focus { top: 0; }
+
+.status-badge.status-cancelada {
+  background: var(--status-cancelada);
+  color: #334155;
+}
 
 /* ═══ SIDEBAR (IDÉNTICO A st-rec-01) ═══ */
 .sidebar {

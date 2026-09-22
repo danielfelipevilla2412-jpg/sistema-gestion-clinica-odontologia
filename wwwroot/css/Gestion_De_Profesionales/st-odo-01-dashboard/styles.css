@@ -500,3 +500,435 @@ img { max-width: 100%; height: auto; display: block; }
 }
 .nav-group-items .nav-item { padding-left: 24px; }
 .nav-group[aria-expanded="true"] .nav-group-items { max-height: 300px; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MEJORAS 2026-09-15: NUEVOS COMPONENTES DASHBOARD PROFESIONAL
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ═══ BANNER DE PRÓXIMA CITA URGENTE ═══ */
+.next-appointment-banner {
+    margin: 1.5rem 0;
+}
+
+.next-appt-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.2rem 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    transition: transform var(--tr), box-shadow var(--tr);
+}
+
+.next-appt-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+}
+
+.next-appt-card.urgent {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    animation: pulse-urgent 2s ease-in-out infinite;
+}
+
+.next-appt-card.empty {
+    background: #f0fdf4;
+    color: #166534;
+    border: 2px solid #86efac;
+    justify-content: center;
+}
+
+@keyframes pulse-urgent {
+    0%, 100% { box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3); }
+    50% { box-shadow: 0 4px 20px rgba(245, 87, 108, 0.6); }
+}
+
+.next-appt-icon {
+    font-size: 2.5rem;
+    opacity: 0.95;
+    flex-shrink: 0;
+}
+
+.next-appt-icon .material-symbols-outlined {
+    font-size: 2.5rem;
+}
+
+.next-appt-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.next-appt-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    opacity: 0.85;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.next-appt-patient {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.next-appt-time {
+    font-size: 0.9rem;
+    opacity: 0.92;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.next-appt-countdown {
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: rgba(255,255,255,0.25);
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    display: inline-block;
+    margin-top: 0.25rem;
+}
+
+.next-appt-context {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    font-style: italic;
+    margin-top: 0.1rem;
+}
+
+.btn-sm {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.btn-sm .material-symbols-outlined {
+    font-size: 1.1rem;
+}
+
+/* ═══ ACCESOS RÁPIDOS ═══ */
+.section-subtitle {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 1.5rem 0 1rem;
+    font-family: var(--font-display);
+}
+
+.quick-actions {
+    margin-bottom: 2rem;
+}
+
+.quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.quick-action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.5rem 1rem;
+    background: var(--white);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--text);
+    transition: all 0.2s ease;
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+
+.quick-action-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(26, 86, 204, 0.15);
+    transform: translateY(-3px);
+}
+
+.quick-action-card:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.quick-action-card .material-symbols-outlined {
+    font-size: 2rem;
+    color: var(--primary);
+}
+
+.quick-action-card strong {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.quick-action-card span:last-child {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* ═══ PANEL DE RENDIMIENTO DEL DÍA ═══ */
+.performance-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 0;
+}
+
+.score-circle {
+    position: relative;
+    width: 120px;
+    height: 120px;
+}
+
+.score-circle svg {
+    transform: rotate(0deg);
+}
+
+.score-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.score-emoji {
+    font-size: 1.5rem;
+    margin-bottom: 0.1rem;
+}
+
+.score-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+    color: var(--primary);
+    line-height: 1;
+}
+
+.score-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.performance-message {
+    text-align: center;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
+.performance-message strong {
+    display: block;
+    margin-bottom: 0.2rem;
+}
+
+/* ═══ PANEL DE NOTIFICACIONES ═══ */
+.notifications-card .card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.notifications-card .card-title .material-symbols-outlined {
+    font-size: 1.2rem;
+}
+
+.notifications-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.notif-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.9rem;
+    border-radius: var(--radius-sm);
+    border-left: 3px solid transparent;
+    background: var(--bg);
+    transition: all var(--tr);
+}
+
+.notif-item:hover {
+    transform: translateX(2px);
+    box-shadow: var(--shadow);
+}
+
+.notif-item .material-symbols-outlined {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+}
+
+.notif-item div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    flex: 1;
+}
+
+.notif-item strong {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.notif-item span:last-child {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.notif-item.warning {
+    background: #fff7ed;
+    border-left-color: var(--orange);
+}
+
+.notif-item.warning .material-symbols-outlined {
+    color: var(--orange);
+}
+
+.notif-item.urgent {
+    background: #fef2f2;
+    border-left-color: var(--danger);
+}
+
+.notif-item.urgent .material-symbols-outlined {
+    color: var(--danger);
+}
+
+.notif-item.info {
+    background: #eff6ff;
+    border-left-color: var(--primary);
+}
+
+.notif-item.info .material-symbols-outlined {
+    color: var(--primary);
+}
+
+.notif-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1.5rem 1rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.notif-empty .material-symbols-outlined {
+    font-size: 2.5rem;
+    color: var(--green);
+}
+
+.notif-empty span {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* ═══ BOTÓN SECUNDARIO ═══ */
+.btn-secondary {
+    background: var(--white);
+    color: var(--primary);
+    border: 2px solid var(--primary);
+    padding: 9px 18px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.83rem;
+    cursor: pointer;
+    transition: all var(--tr);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.btn-secondary:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-secondary:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.btn-secondary .material-symbols-outlined {
+    font-size: 1.1rem;
+}
+
+/* ═══ RESPONSIVE PARA NUEVOS COMPONENTES ═══ */
+@media (max-width: 768px) {
+    .next-appt-card {
+        flex-direction: column;
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .next-appt-icon {
+        font-size: 2rem;
+    }
+
+    .next-appt-patient {
+        font-size: 1rem;
+    }
+
+    .quick-actions-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .performance-score {
+        padding: 0.5rem 0;
+    }
+
+    .score-circle {
+        width: 100px;
+        height: 100px;
+    }
+
+    .score-circle svg {
+        width: 100px;
+        height: 100px;
+    }
+
+    .score-value {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .quick-actions-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .next-appt-card {
+        gap: 0.75rem;
+    }
+}
+
+/* ═══ DARK MODE SUPPORT (OPCIONAL) ═══ */
+@media (prefers-color-scheme: dark) {
+    /* Si en el futuro se implementa modo oscuro */
+    .next-appt-card.empty {
+        background: #14532d;
+        color: #86efac;
+        border-color: #166534;
+    }
+}

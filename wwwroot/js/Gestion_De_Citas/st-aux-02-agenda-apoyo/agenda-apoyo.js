@@ -132,8 +132,14 @@ const renderTabla = (citas) => {
   };
 
   const badgeEstado = (e) => {
-    const map = { 'Atendida':'badge-atendida', 'Pendiente':'badge-pendiente', 'Cancelada':'badge-cancelada' };
-    return crearBadge(`badge-estado ${map[e] || 'badge-pendiente'}`, `● ${e}`, `Estado: ${e}`);
+    const estado = CommonUtils.normalizeAppointmentStatus(e);
+    const map = {
+      atendida: 'badge-atendida',
+      pendiente: 'badge-pendiente',
+      cancelada: 'badge-cancelada',
+      no_asistida: 'badge-no-asistio'
+    };
+    return crearBadge(`badge-estado ${map[estado] || 'badge-pendiente'}`, `● ${e}`, `Estado: ${e}`);
   };
 
   const crearCelda = (className, text) => {
@@ -147,9 +153,10 @@ const renderTabla = (citas) => {
     const row = document.createElement('tr');
     row.setAttribute('role', 'row');
     row.append(
-      crearCelda('td-hora', c.hora),
-      crearCelda('td-paciente', c.paciente),
-      crearCelda('td-profesional', c.profesional)
+      crearCelda('td-fecha', c.fecha || '—'),
+      crearCelda('td-hora', c.hora || '—'),
+      crearCelda('td-paciente', c.paciente || 'Paciente sin datos'),
+      crearCelda('td-profesional', c.profesional || 'Sin asignar')
     );
     const tipoCell = document.createElement('td');
     tipoCell.appendChild(badgeTipo(c.tipo));
@@ -299,12 +306,43 @@ const init = async () => {
   initMobileMenu();
   initTipoFiltros();
   initProfesionalDropdown();
+
+  document.querySelector('.toggle-vistas')?.addEventListener('viewchange', (event) => {
+    const params = new URLSearchParams(window.location.search);
+    const current = params.get('fecha') || new Date().toISOString().slice(0, 10);
+    if (event.detail.view === 'semana') {
+      params.delete('fecha');
+      params.set('weekStart', params.get('weekStart') || current);
+    } else if (event.detail.view === 'dia') {
+      params.delete('weekStart');
+      params.set('fecha', current);
+    } else {
+      params.delete('weekStart');
+      params.set('fecha', current);
+    }
+    window.location.search = params.toString();
+  });
   
-  // Actualiza metadatos del header
+  // Actualiza metadatos del header según la vista activa (día o semana)
   const metaEl = safeGetElement('phMeta');
   if (metaEl) {
-    metaEl.textContent = `Citas del día que requieren asistencia · ${agendaCtrl.getFechaHoy()}`;
-    metaEl.setAttribute('aria-label', `Información: ${metaEl.textContent}`);
+    const params = new URLSearchParams(window.location.search);
+    const fecha = params.get('fecha') || agendaCtrl.getFechaHoy();
+    const weekStart = params.get('weekStart');
+
+    const formatoFecha = (value) => {
+      if (!value) return '—';
+      const d = new Date(value + 'T00:00:00');
+      return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const metaText = weekStart
+      ? `Semana del ${formatoFecha(weekStart)} al ${formatoFecha(new Date(new Date(weekStart + 'T00:00:00').getTime() + 6 * 86400000).toISOString().slice(0, 10))}`
+      : `Citas del día ${formatoFecha(fecha)}`;
+
+    metaEl.textContent = metaText;
+    metaEl.setAttribute('data-meta-text', metaText);
+    metaEl.setAttribute('aria-label', `Información: ${metaText}`);
   }
   
   // WHY: Dispara la primera carga de datos al iniciar el módulo

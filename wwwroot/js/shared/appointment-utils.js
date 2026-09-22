@@ -15,21 +15,16 @@ window.AppointmentUtils = (() => {
     // ════════════════════════════════════════════════════════════════════
     //  MAPEO DE ESTADOS
     // ════════════════════════════════════════════════════════════════════
-    const statusLabels = {
-        programada: { label: 'Programada', class: 'programada' },
-        confirmada: { label: 'Confirmada', class: 'confirmada' },
-        atendida: { label: 'Atendida', class: 'atendida' },
-        cancelada: { label: 'Cancelada', class: 'cancelada' },
-        'no-show': { label: 'No asistió', class: 'cancelada' }
-    };
+    const shared = window.CommonUtils;
+    const statusLabels = Object.fromEntries(
+        Object.entries(shared.STATUS_MAP_SERVER).map(([key, value]) => [key, {
+            label: value.label,
+            class: value.cls
+        }])
+    );
 
     const mapEstadoServerToClient = (estado) => {
-        if (!estado) return 'programada';
-        const estadoNormalized = estado.toLowerCase().trim();
-        if (estadoNormalized === 'atendida' || estadoNormalized === 'finalizada' || estadoNormalized === 'en_proceso') return 'atendida';
-        if (estadoNormalized === 'no_asistida') return 'no-show';
-        if (['programada', 'confirmada', 'cancelada'].includes(estadoNormalized)) return estadoNormalized;
-        return 'programada';
+        return shared.mapEstadoServerToClient(estado);
     };
 
     const getStatusLabelAndClass = (statusKey) => statusLabels[statusKey] || statusLabels.programada;

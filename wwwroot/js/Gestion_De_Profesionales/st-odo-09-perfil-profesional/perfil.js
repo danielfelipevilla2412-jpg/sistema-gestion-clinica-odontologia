@@ -74,6 +74,7 @@ const SAMPLE_PROFILE = { horario: [] };
 let profileData = { ...SAMPLE_PROFILE };
 let currentEditingDay = null;
 let lastFocusedScheduleElement = null;
+let scheduleLoadedFromApi = false;
 
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIONES DE RENDERIZADO
@@ -274,10 +275,31 @@ const updatePreview = () => {
   }
 };
 
+const setSaveScheduleButtonState = (enabled) => {
+  const saveButton = safeGetElement('modalSave');
+  if (!saveButton) return;
+  saveButton.disabled = !enabled;
+  if (enabled) {
+    saveButton.removeAttribute('aria-disabled');
+    saveButton.removeAttribute('title');
+  } else {
+    saveButton.setAttribute('aria-disabled', 'true');
+    saveButton.setAttribute('title', 'Debes cargar el horario real del servidor para poder guardar cambios.');
+  }
+};
+
 // Guarda cambios del horario
 const saveSchedule = async () => {
   if (currentEditingDay === null) return;
-  
+
+  if (!scheduleLoadedFromApi) {
+    window.ToastService?.error(
+      '❌ No se puede guardar',
+      'El horario no se cargó correctamente desde el servidor. Refresca la página e inténtalo de nuevo.'
+    );
+    return;
+  }
+
   const dayData = profileData.horario[currentEditingDay];
   const isActive = safeGetElement('modalDayActive')?.checked;
   const startEl = safeGetElement('modalStartTime');
@@ -550,7 +572,11 @@ async function fetchProfile() {
   const profesionalId = getProfesionalId();
   if (!profesionalId) {
     console.warn('[SmileTrack] No se encontró el ID del profesional en el DOM; se omite la carga del horario.');
-    return { horario: [] };
+    window.ToastService?.error(
+      '❌ No se pudo cargar el horario',
+      'No se identificó el profesional. Refresca la página e inténtalo de nuevo.'
+    );
+    return { horario: [], success: false };
   }
 
   try {
@@ -562,15 +588,23 @@ async function fetchProfile() {
 
     if (!response.ok) {
       console.warn(`[SmileTrack] Error al cargar horarios: ${response.status}. Se deja el horario vacío.`);
-      return { horario: [] };
+      window.ToastService?.error(
+        '❌ Error al cargar el horario',
+        `El servidor respondió con código ${response.status}. No se podrá guardar el horario hasta que se carguen los datos reales.`
+      );
+      return { horario: [], success: false };
     }
 
     const json = await response.json();
     const horario = mapApiHorariosToProfileData(json.data ?? []);
-    return { horario };
+    return { horario, success: true };
   } catch (err) {
     console.warn('[SmileTrack] Error de red al cargar horarios:', err);
-    return { horario: [] };
+    window.ToastService?.error(
+      '❌ Error de conexión',
+      'No se pudo contactar con el servidor para cargar el horario. Verifica la conexión y actualiza la página.'
+    );
+    return { horario: [], success: false };
   }
 }
 
@@ -741,13 +775,21 @@ const init = async () => {
   initSidebar();
   initPasswordForm();
   initScheduleModal();
-  
+
+  // Deshabilitar Guardar horario hasta confirmar carga real desde API
+  setSaveScheduleButtonState(false);
+
   // Cargar datos del perfil
-  profileData = await fetchProfile();
-  
+  const fetchResult = await fetchProfile();
+  profileData = { horario: fetchResult.horario };
+  scheduleLoadedFromApi = fetchResult.success === true;
+
+  // Habilitar/deshabilitar botón según resultado de carga
+  setSaveScheduleButtonState(scheduleLoadedFromApi);
+
   // Renderizar horario
   renderSchedule();
-  
+
   // Limpieza al unload para evitar memory leaks
   window.addEventListener('beforeunload', () => {
     // Remover listeners en implementación SPA real
