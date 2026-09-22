@@ -30,6 +30,7 @@
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
     rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/variables.css")" />
   <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-pac-02-historial/styles.css")" />
   <style>
     @@keyframes scan {
@@ -68,7 +69,7 @@
 </head>
 
 <body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+  <!-- El selector de idioma ya se renderiza desde el layout compartido del sistema. -->
 
   <!-- [MEJORA]: Skip link para accesibilidad keyboard-first (consistente con st-pac-01) -->
   <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>

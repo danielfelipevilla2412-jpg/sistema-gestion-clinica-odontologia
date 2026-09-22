@@ -10,17 +10,19 @@
     ViewData["SidebarPartial"] = "_SidebarProfesional";
     ViewData["Title"] = "Formulario de Historia Clínica";
 
-    var odonto = Model.Odontograma;
-    var nombrePaciente = string.IsNullOrWhiteSpace(odonto.PacienteNombre) ? "Paciente sin nombre" : odonto.PacienteNombre;
-    var codigoHC = string.IsNullOrWhiteSpace(odonto.CodigoHC) ? "HC-2024-0894" : odonto.CodigoHC;
-    var documentoPaciente = string.IsNullOrWhiteSpace(Model.Paciente.Documento)
-        ? "CC 1.037.629.418"
-        : $"{Model.Paciente.TipoDocumento} {Model.Paciente.Documento}";
-    var fechaNacimiento = DateTime.TryParse(odonto.FechaNacimiento, out var fechaNac)
+    var odonto = Model.Odontograma ?? new OdontogramaViewModel();
+    var pacienteResumen = Model.Paciente ?? new PacienteResumenClinicoViewModel();
+    var nombrePaciente = string.IsNullOrWhiteSpace(odonto.PacienteNombre) ? "" : odonto.PacienteNombre;
+    var codigoHC = string.IsNullOrWhiteSpace(odonto.CodigoHC) ? "" : odonto.CodigoHC;
+    var documentoPaciente = !string.IsNullOrWhiteSpace(pacienteResumen.Documento)
+        ? $"{pacienteResumen.TipoDocumento} {pacienteResumen.Documento}"
+        : string.Empty;
+    var fechaNacimiento = !string.IsNullOrWhiteSpace(odonto.FechaNacimiento) && DateTime.TryParse(odonto.FechaNacimiento, out var fechaNac)
         ? fechaNac
-        : new DateTime(1995, 4, 8);
-    var edadPaciente = DateTime.Today.Year - fechaNacimiento.Year;
-    if (fechaNacimiento.Date > DateTime.Today.AddYears(-edadPaciente)) edadPaciente--;
+        : (DateTime?)null;
+    var edadPaciente = fechaNacimiento is DateTime fechaNacValue
+        ? DateTime.Today.Year - fechaNacValue.Year - (fechaNacValue.Date > DateTime.Today.AddYears(-(DateTime.Today.Year - fechaNacValue.Year)) ? 1 : 0)
+        : 0;
 
     var historiaDataJson = JsonSerializer.Serialize(new
     {
@@ -45,15 +47,15 @@
         prescripcion = Model.Formulario.Prescripcion,
         paciente = new
         {
-            tipoDocumento = Model.Paciente.TipoDocumento,
-            documento = Model.Paciente.Documento,
-            genero = Model.Paciente.Genero,
-            telefono = Model.Paciente.Telefono,
-            correo = Model.Paciente.Correo,
-            direccion = Model.Paciente.Direccion,
-            ciudad = Model.Paciente.Ciudad,
-            contactoEmergencia = Model.Paciente.ContactoEmergencia,
-            telefonoEmergencia = Model.Paciente.TelefonoEmergencia
+            tipoDocumento = pacienteResumen.TipoDocumento,
+            documento = pacienteResumen.Documento,
+            genero = pacienteResumen.Genero,
+            telefono = pacienteResumen.Telefono,
+            correo = pacienteResumen.Correo,
+            direccion = pacienteResumen.Direccion,
+            ciudad = pacienteResumen.Ciudad,
+            contactoEmergencia = pacienteResumen.ContactoEmergencia,
+            telefonoEmergencia = pacienteResumen.TelefonoEmergencia
         },
         proximaCita = Model.ProximaCitaFecha is null ? null : new
         {
@@ -122,8 +124,15 @@
     <div class="clinical-content-shell">
         <section class="page-hero">
             <div class="page-hero-copy">
+                <div class="eyebrow-row">
+                    <span class="hero-kicker">Sistema de atención</span>
+                </div>
                 <h1>Historial Clínico</h1>
                 <p>Consulta y registra la información clínica del paciente</p>
+            </div>
+            <div class="page-hero-actions">
+                <button type="button" class="soft-btn">Exportar</button>
+                <button type="button" class="primary-btn">Guardar</button>
             </div>
         </section>
 
@@ -134,6 +143,7 @@
                     <div class="patient-meta">
                         <div class="patient-title-row empty-title-row">
                             <h2>Paciente no seleccionado</h2>
+                            <span class="status-pill status-pill--neutral"><span class="status-dot"></span>Sin registro activo</span>
                         </div>
                         <div class="patient-details-row empty-details-row">
                             <span><strong>Documento:</strong> <span class="mono placeholder-line">&nbsp;</span></span>
@@ -144,6 +154,10 @@
                             <span><strong>Email:</strong> <span class="placeholder-line">&nbsp;</span></span>
                         </div>
                     </div>
+                </div>
+                <div class="patient-summary-actions">
+                    <button type="button" class="soft-btn subtle">Buscar paciente</button>
+                    <button type="button" class="mini-btn">Nueva historia</button>
                 </div>
             </div>
         </section>

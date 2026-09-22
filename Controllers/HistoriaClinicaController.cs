@@ -1026,7 +1026,7 @@ private static string InferirTipoServicio(string? nombreServicio)
                 PacienteId = null,
                 HistoriaId = null,
                 PacienteNombre = "Sin paciente asignado",
-                CodigoHC = "HC-SIN-ASIGNAR",
+                CodigoHC = string.Empty,
                 FechaNacimiento = string.Empty,
                 ProfesionalNombre = User.FindFirst(ClaimTypes.Name)?.Value ?? "Profesional",
                 ProfesionalCorreo = User.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty,
