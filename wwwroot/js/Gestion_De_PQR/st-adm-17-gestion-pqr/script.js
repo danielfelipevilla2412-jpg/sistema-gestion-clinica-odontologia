@@ -29,11 +29,12 @@ const initSidebar = () => {
 
 // ===== CLIENTE API LOCAL (autocontenido, sin depender de wwwroot/js/lib/apiRequest.js) =====
 function getPqrAntiforgeryToken() {
-  const hidden = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-  if (hidden) return hidden;
+  const meta = document.querySelector('meta[name="csrf-request-token"]');
+  const metaToken = meta?.getAttribute('content');
+  if (metaToken) return metaToken;
 
-  const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
-  return match ? decodeURIComponent(match[2]) : null;
+  const hidden = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  return hidden || null;
 }
 
 async function pqrApiRequest(path, options = {}) {
@@ -196,7 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ===== NOTIFICACIONES Y ACTUALIZACIÓN AUTOMÁTICA =====
-let pqrPollingTimer = null;
 let pqrFirstRefresh = true;
 
 function updateNotificationBadge(stats) {
@@ -249,8 +249,27 @@ function applyPqrPayload(payload, { showNewToast = false } = {}) {
   updateNotificationBadge(payload.stats);
   filterTable();
 
+  // Si el detalle ya está abierto, actualizamos únicamente la información
+  // visible de la PQR. No reconstruimos el panel ni tocamos el textarea.
   if (currentId && pqrsData[currentId]) {
-    showDetail(currentId);
+    const data = pqrsData[currentId];
+    const responseTextarea = safeGetElement('responseTextarea');
+
+    safeGetElement('detailTitle').textContent = data.titulo;
+    safeGetElement('detailRadicado').textContent = data.radicado;
+    safeGetElement('infoRadicado').textContent = data.fecha;
+    safeGetElement('infoTiempo').textContent = formatTiempoAbierto(data.fechaCreacionIso);
+    safeGetElement('infoPaciente').textContent = data.paciente;
+    safeGetElement('infoDocumento').textContent = data.documento;
+    safeGetElement('infoEmail').textContent = data.email;
+    safeGetElement('detailDescripcion').textContent = data.descripcion;
+
+    renderResponseThread(data);
+    updateBadgeColors(data);
+    updateStatusButtons(data.estado);
+
+    // Nunca modificamos el contenido que el administrador esté escribiendo.
+    if (responseTextarea) responseTextarea.focus({ preventScroll: true });
   } else if (currentId) {
     closeDetail();
   }
@@ -301,9 +320,9 @@ function initPqrNotifications() {
 
   updateNotificationBadge(window.RAZOR_PQR_STATS);
 
-  // Consulta periódica para que las nuevas PQR aparezcan sin recargar la página.
-  refreshPqrsFromServer();
-  pqrPollingTimer = window.setInterval(refreshPqrsFromServer, 5000);
+  // La vista ya llega cargada con los datos de Razor.
+  // No hacemos una consulta automática al entrar ni al abrir una PQR.
+  // La sincronización con el servidor se realiza después de enviar una respuesta.
 }
 
 // Show Management (la vista actual ya es la bandeja de gestión)
@@ -434,7 +453,6 @@ async function changeStatus(btn, estado) {
     renderTable();
     renderStats();
     showToast('Estado actualizado correctamente.');
-    await refreshPqrsFromServer();
   } catch (error) {
     console.error('Error cambiando estado:', error);
     showToast('Error de conexión al actualizar el estado.', 'error');

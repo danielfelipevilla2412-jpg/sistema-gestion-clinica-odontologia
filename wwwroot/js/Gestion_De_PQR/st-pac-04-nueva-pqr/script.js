@@ -182,10 +182,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Lee el token CSRF de la cookie XSRF-TOKEN (config: Program.cs -> AddAntiforgery)
+// Lee el RequestToken antiforgery generado por Razor en la vista.
 function getPqrAntiforgeryToken() {
-    const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[2]) : null;
+    const meta = document.querySelector('meta[name="csrf-request-token"]');
+    return meta?.getAttribute('content') || null;
 }
 
 // Form Submission — envía la PQR real al backend (PqrController.CrearPqr)
