@@ -153,9 +153,10 @@ const renderTabla = (citas) => {
     const row = document.createElement('tr');
     row.setAttribute('role', 'row');
     row.append(
-      crearCelda('td-hora', c.hora),
-      crearCelda('td-paciente', c.paciente),
-      crearCelda('td-profesional', c.profesional)
+      crearCelda('td-fecha', c.fecha || '—'),
+      crearCelda('td-hora', c.hora || '—'),
+      crearCelda('td-paciente', c.paciente || 'Paciente sin datos'),
+      crearCelda('td-profesional', c.profesional || 'Sin asignar')
     );
     const tipoCell = document.createElement('td');
     tipoCell.appendChild(badgeTipo(c.tipo));

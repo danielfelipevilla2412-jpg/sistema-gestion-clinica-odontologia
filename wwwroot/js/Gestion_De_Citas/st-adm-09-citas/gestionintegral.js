@@ -422,7 +422,7 @@ const avatarColorMap = {
  */
 const shouldUseServerRenderedList = () => {
     const tbody = document.getElementById('citasBody');
-    return !!(tbody && tbody.children.length > 0 && tbody.querySelector('.table-row'));
+    return !!(tbody && tbody.children.length > 0 && tbody.querySelector('tr.table-row, div.table-row'));
 };
 
 /**
@@ -540,14 +540,14 @@ const renderAppointments = () => {
         const status = statusLabels[appointment.status] || statusLabels.programada;
 
         return `
-            <div class="table-row" role="row" tabindex="0" aria-label="Cita de ${escapeHtml(appointment.patient)} el ${escapeHtml(fmtDate(appointment.date))}">
-                <div class="table-col col-fecha" role="cell" data-label="Fecha">
+            <tr class="table-row" role="row" tabindex="0" aria-label="Cita de ${escapeHtml(appointment.patient)} el ${escapeHtml(fmtDate(appointment.date))}">
+                <td class="col-fecha" role="cell" data-label="Fecha">
                     <time datetime="${escapeHtml(appointment.date)}">${escapeHtml(fmtDate(appointment.date))}</time>
-                </div>
-                <div class="table-col col-hora" role="cell" data-label="Hora">
+                </td>
+                <td class="col-hora" role="cell" data-label="Hora">
                     <time datetime="${escapeHtml(appointment.date)}T${escapeHtml(appointment.time)}:00">${escapeHtml(fmtTime(appointment.time))}</time>
-                </div>
-                <div class="table-col col-paciente" role="cell" data-label="Paciente">
+                </td>
+                <td class="col-paciente" role="cell" data-label="Paciente">
                     <div class="patient-info">
                         <div class="patient-avatar" style="background:${avatarColorMap[appointment.color] || avatarColorMap.blue}; color:#fff;" aria-hidden="true">
                             ${escapeHtml(appointment.avatar)}
@@ -557,19 +557,19 @@ const renderAppointments = () => {
                             <span class="patient-id">ID: ${escapeHtml(appointment.doc)}</span>
                         </div>
                     </div>
-                </div>
-                <div class="table-col col-profesional" role="cell" data-label="Profesional">
+                </td>
+                <td class="col-profesional" role="cell" data-label="Profesional">
                     ${escapeHtml(appointment.professionalName)}
-                </div>
-                <div class="table-col col-servicio" role="cell" data-label="Servicio">
+                </td>
+                <td class="col-servicio" role="cell" data-label="Servicio">
                     ${escapeHtml(appointment.service)}
-                </div>
-                <div class="table-col col-estado text-center" role="cell" data-label="Estado">
+                </td>
+                <td class="col-estado text-center" role="cell" data-label="Estado">
                     <span class="status-badge ${status.class}" role="status" aria-label="Estado: ${escapeHtml(status.label)}">
                         ${escapeHtml(status.label)}
                     </span>
-                </div>
-                <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
+                </td>
+                <td class="col-acciones text-right" role="cell" data-label="Acciones">
                     <div class="actions-cell">
                         <button class="action-btn btn-view" aria-label="Ver detalle de cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Ver detalle">
                           👁️ <span class="btn-text">Ver</span>
@@ -581,8 +581,8 @@ const renderAppointments = () => {
                           ❌ <span class="btn-text">Cancelar</span>
                         </button>
                     </div>
-                </div>
-            </div>
+                </td>
+            </tr>
         `;
     }).join('');
 

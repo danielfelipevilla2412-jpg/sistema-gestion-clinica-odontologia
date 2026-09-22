@@ -1453,6 +1453,7 @@ public sealed class CambiarEstadoCitaDto
             c => new
             {
                 id = c.IdCita,
+                fecha = c.FechaHora.ToString("ddd dd/MM", new System.Globalization.CultureInfo("es-CO")),
                 hora = c.FechaHora.ToString("HH:mm"),
                 paciente =
                     c.Paciente?.NombresCompleto ??
@@ -1835,6 +1836,26 @@ public sealed class CambiarEstadoCitaDto
     {
         try
         {
+            // Si no se pasa consultorioId, buscar la preferencia del usuario
+            if (!consultorioId.HasValue)
+            {
+                int? userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsedUserId)
+                    ? parsedUserId
+                    : null;
+
+                if (userId.HasValue)
+                {
+                    var preferencia = await _context.UsuariosPreferenciasConsultorio
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(p => p.IdUsuario == userId.Value, ct);
+
+                    if (preferencia != null)
+                    {
+                        consultorioId = preferencia.IdConsultorio;
+                    }
+                }
+            }
+
             var data = await ConstruirEstadoConsultorioAsync(consultorioId, ct);
             ViewData["EstadoConsultorioData"] = data;
 

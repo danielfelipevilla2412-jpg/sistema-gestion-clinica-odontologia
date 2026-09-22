@@ -238,6 +238,10 @@
                                      data-status="@Html.Encode(cita.Estado)" data-notes="@Html.Encode(cita.Notas)"
                                      data-patient-name="@Html.Encode(cita.Paciente)" data-service-name="@Html.Encode(cita.Servicio)"
                                      data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)"
+                                     data-professional-email="@Html.Encode(cita.CorreoProfesional)"
+                                     data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
+                                     data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
+                                     data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)"
                                      draggable="true">
                                     <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
                                     <span class="appt-patient">@cita.Paciente</span>

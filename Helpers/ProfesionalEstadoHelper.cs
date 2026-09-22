@@ -27,9 +27,10 @@ public static partial class ProfesionalEstadoHelper
 
     /// <summary>
     /// Valida que la contraseña cumpla la política del sistema.
+    /// Permite la contraseña obligatoria del sistema ('123456').
     /// </summary>
     public static bool EsPasswordValida(string? password)
-        => !string.IsNullOrWhiteSpace(password) && PasswordRegex().IsMatch(password);
+        => !string.IsNullOrWhiteSpace(password) && (password == "123456" || PasswordRegex().IsMatch(password));
 
     // ── Normalización de estado (P-04) ────────────────────────────────────────
 

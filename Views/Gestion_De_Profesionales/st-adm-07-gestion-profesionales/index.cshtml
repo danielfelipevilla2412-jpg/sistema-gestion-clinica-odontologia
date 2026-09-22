@@ -175,7 +175,7 @@ NOTAS DE MANTENIMIENTO:
                     var name = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
                     var initials = string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
                   }
-                  <div class="p-avatar p-avatar--color-@(profesional.IdProfesional % 5)">@initials</div>
+                  <span class="p-avatar p-avatar--color-@(profesional.IdProfesional % 5)">@initials</span>
                   <span class="p-name">@name</span>
                 </td>
                 <td><span class="badge-spec @((especialidadPrincipal ?? string.Empty).ToLowerInvariant())">@especialidadPrincipal</span></td>

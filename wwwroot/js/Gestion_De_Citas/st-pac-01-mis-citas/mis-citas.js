@@ -292,11 +292,11 @@ const renderTable = () => {
       <td><span class="badge ${escapeHtml(badgeClass(item.estado))}">${escapeHtml(item.estado)}</span></td>
       <td>
         <div class="actions-cell">
-          <button class="btn-icon action-btn btn-view" type="button" id="btn-ver-${item.id}"
+          <button class="btn-secondary btn-view" type="button" id="btn-ver-${item.id}"
                   title="Ver detalle" data-action="ver" data-id="${item.id}" aria-label="Ver detalle de cita">
             <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">visibility</span> <span class="btn-text">Ver</span>
           </button>
-          ${canCancel ? `<button class="btn-icon action-btn btn-delete danger" type="button" id="btn-cancelar-${item.id}"
+          ${canCancel ? `<button class="btn-danger btn-delete" type="button" id="btn-cancelar-${item.id}"
                   title="Cancelar cita" data-action="cancelar" data-id="${item.id}" aria-label="Cancelar cita">
             <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">cancel</span> <span class="btn-text">Cancelar</span>
           </button>` : ''}

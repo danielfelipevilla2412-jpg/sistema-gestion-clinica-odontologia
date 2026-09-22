@@ -70,6 +70,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<BloqueoProfesional>  BloqueosProfesional  => Set<BloqueoProfesional>();
     public DbSet<ProfesionalServicio> ProfesionalServicios => Set<ProfesionalServicio>();
 
+    // ── Preferencias de Consultorio por Usuario ──────────────────────────────
+    // Permite a cada auxiliar guardar el consultorio que está gestionando actualmente.
+    // Se usa en st-aux-09-estado-consultorio para recordar el consultorio seleccionado.
+    public DbSet<UsuarioPreferenciaConsultorio> UsuariosPreferenciasConsultorio => Set<UsuarioPreferenciaConsultorio>();
+
     // ══════════════════════════════════════════════════════════════════════════
     // VISTAS SQL DE OPTIMIZACIÓN
     // ══════════════════════════════════════════════════════════════════════════

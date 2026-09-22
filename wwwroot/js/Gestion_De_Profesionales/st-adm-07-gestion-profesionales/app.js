@@ -198,7 +198,7 @@ function renderTableFromApi(result) {
           <td><span class="badge-status ${statusClass}" role="status" aria-label="Estado: ${estadoText}">${estadoText}</span></td>
           <td>
             <div class="actions-cell">
-              <button class="btn-icon action-btn btn-view"
+              <button class="btn-secondary btn-view view"
                       type="button"
                       data-id="${p.idProfesional}"
                       data-name="${name}"
@@ -211,17 +211,17 @@ function renderTableFromApi(result) {
                       data-status-class="${statusClass}"
                       aria-label="Ver detalles del profesional ${name}"
                       title="Ver detalles del profesional ${name}">
-                👁️ <span class="btn-text">Ver</span>
+                <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
               </button>
-              <button class="btn-icon edit action-btn"
+              <button class="btn-secondary edit"
                       type="button"
                       aria-label="Editar el profesional ${name}"
                       title="Editar profesional ${name}"
                       onclick="editProfessional(${p.idProfesional})">
-                ✏️ <span class="btn-text">Editar</span>
+                <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
               </button>
               ${(estadoText || '').toLowerCase() === 'activo'
-                ? `<button class="btn-icon toggle action-btn btn-delete"
+                ? `<button class="btn-danger btn-delete toggle"
                         type="button"
                         data-id="${p.idProfesional}"
                         data-name="${name}"
@@ -230,7 +230,7 @@ function renderTableFromApi(result) {
                         title="Desactivar profesional ${name}">
                     <span class="material-symbols-outlined action-icon" aria-hidden="true">block</span> <span class="btn-text">Desactivar</span>
                   </button>`
-                : `<button class="btn-icon toggle action-btn btn-delete"
+                : `<button class="btn-danger btn-delete toggle"
                         type="button"
                         data-id="${p.idProfesional}"
                         data-name="${name}"

@@ -106,6 +106,23 @@ function initAppointmentModals() {
             const endTime = card.getAttribute('data-end-time') || '';
             const status = card.getAttribute('data-status') || 'Agendada';
             const notes = card.getAttribute('data-notes') || 'Sin observaciones.';
+            const professionalName = card.getAttribute('data-professional-name') || '';
+            const professionalEmail = card.getAttribute('data-professional-email') || '';
+            const professionalPhone = card.getAttribute('data-professional-phone') || '';
+            const professionalRegistry = card.getAttribute('data-professional-registry') || '';
+            const professionalUserStatus = card.getAttribute('data-professional-user-status') || '';
+
+            const extraProfesional = [];
+            if (professionalEmail) extraProfesional.push(`<div><strong>Correo:</strong> ${escapeHtml(professionalEmail)}</div>`);
+            if (professionalPhone) extraProfesional.push(`<div><strong>Teléfono:</strong> ${escapeHtml(professionalPhone)}</div>`);
+            if (professionalRegistry) extraProfesional.push(`<div><strong>Registro médico:</strong> ${escapeHtml(professionalRegistry)}</div>`);
+            if (professionalUserStatus) extraProfesional.push(`<div><strong>Estado cuenta:</strong> ${escapeHtml(professionalUserStatus)}</div>`);
+            const bloqueProfesional = (professionalName || extraProfesional.length > 0)
+                ? `<div style="padding:10px; background:var(--bg); border-radius:var(--radius-sm); font-size:0.85rem;">
+                       ${professionalName ? `<div><strong>Profesional:</strong> ${escapeHtml(professionalName)}</div>` : ''}
+                       ${extraProfesional.join('')}
+                   </div>`
+                : '';
 
             modalContent.innerHTML = `
                 <div style="display:flex; flex-direction:column; gap:12px;">
@@ -115,6 +132,7 @@ function initAppointmentModals() {
                             📅 ${escapeHtml(dateStr)} | ⏰ ${escapeHtml(startTime)} - ${escapeHtml(endTime)}
                         </p>
                     </div>
+                    ${bloqueProfesional}
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.85rem;">
                         <div><strong>Servicio:</strong> ${escapeHtml(serviceName)}</div>
                         <div><strong>Consultorio:</strong> ${escapeHtml(officeName)}</div>

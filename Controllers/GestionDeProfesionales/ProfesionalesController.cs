@@ -454,14 +454,34 @@ public partial class GestionProfesionalesController(
                     .FirstOrDefault();
 
                 ultimasNotas.TryGetValue(cita.IdPaciente, out var nota);
+
+                var profesionalCitaNombre = cita.Profesional is null
+                    ? null
+                    : !string.IsNullOrWhiteSpace(cita.Profesional.Usuario?.Nombre) || !string.IsNullOrWhiteSpace(cita.Profesional.Usuario?.Apellidos)
+                        ? $"{cita.Profesional.Usuario?.Nombre} {cita.Profesional.Usuario?.Apellidos}".Trim()
+                        : $"{cita.Profesional.Nombres} {cita.Profesional.Apellidos}".Trim();
+
                 string diagnostico = !string.IsNullOrWhiteSpace(nota.Diagnostico)
                     ? nota.Diagnostico!
-                    : "Sin notas clínicas registradas";
+                    : !string.IsNullOrWhiteSpace(cita.Notas)
+                        ? cita.Notas.Trim()
+                        : !string.IsNullOrWhiteSpace(cita.MotivoConsulta)
+                            ? cita.MotivoConsulta.Trim()
+                            : "Sin diagnóstico registrado";
+
                 string procedimiento = !string.IsNullOrWhiteSpace(nota.Procedimiento)
                     ? nota.Procedimiento!
-                    : "—";
+                    : !string.IsNullOrWhiteSpace(cita.Servicio?.Nombre)
+                        ? cita.Servicio.Nombre
+                        : !string.IsNullOrWhiteSpace(cita.MotivoConsulta)
+                            ? cita.MotivoConsulta.Trim()
+                            : "—";
 
-                string? alerta = string.IsNullOrWhiteSpace(cita.Notas) ? null : "observacion";
+                string? alerta = !string.IsNullOrWhiteSpace(cita.Notas)
+                    ? cita.Notas.Trim()
+                    : !string.IsNullOrWhiteSpace(cita.MotivoConsulta)
+                        ? $"Motivo de consulta: {cita.MotivoConsulta.Trim()}"
+                        : null;
 
                 return new ReporteClinicoViewModel
                 {
@@ -474,7 +494,9 @@ public partial class GestionProfesionalesController(
                     Procedimiento = procedimiento,
                     ProfesionalNombre = !string.IsNullOrWhiteSpace(nota.ProfesionalNombre)
                         ? nota.ProfesionalNombre!
-                        : "Sin profesional",
+                        : !string.IsNullOrWhiteSpace(profesionalCitaNombre)
+                            ? profesionalCitaNombre
+                            : "Sin profesional",
                     ProximaCita = proximaCita?.FechaHora,
                     Alerta = alerta,
                     Avatar = string.Concat((cita.Paciente?.Nombres ?? "P").Take(2).Select(ch => char.ToUpperInvariant(ch))),

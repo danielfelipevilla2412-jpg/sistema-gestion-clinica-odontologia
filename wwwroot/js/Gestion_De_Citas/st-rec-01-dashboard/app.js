@@ -62,11 +62,11 @@ const appointments = window.smiletrackDashboardRecData?.appointments || [];
  */
 const getActionMeta = (action) => {
   const map = {
-    'pencil':       { icon: '✏️', label: 'Editar',   cls: 'btn-icon action-btn edit',     danger: false },
-    'file-invoice': { icon: '🧾', label: 'Facturar', cls: 'btn-icon action-btn btn-facturar', danger: false },
-    'eye':          { icon: '👁️', label: 'Ver',      cls: 'btn-icon action-btn btn-view',  danger: false }
+    'pencil':       { icon: '✏️', label: 'Editar',   cls: 'btn-secondary edit',     danger: false },
+    'file-invoice': { icon: '🧾', label: 'Facturar', cls: 'btn-secondary btn-facturar', danger: false },
+    'eye':          { icon: '👁️', label: 'Ver',      cls: 'btn-secondary btn-view',  danger: false }
   };
-  return map[action] || { icon: '👁️', label: 'Ver', cls: 'btn-icon action-btn btn-view', danger: false };
+  return map[action] || { icon: '👁️', label: 'Ver', cls: 'btn-secondary btn-view', danger: false };
 };
 
 /**

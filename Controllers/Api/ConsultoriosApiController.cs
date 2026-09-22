@@ -39,6 +39,86 @@ public sealed class ConsultoriosApiController : ControllerBase
     }
 
     /// <summary>
+    /// GET /api/consultorios
+    /// Obtiene la lista de consultorios activos disponibles.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> ObtenerConsultorios(CancellationToken ct = default)
+    {
+        var consultorios = await _context.Consultorios
+            .AsNoTracking()
+            .OrderBy(c => c.IdConsultorio)
+            .Select(c => new
+            {
+                id = c.IdConsultorio,
+                nombre = c.Nombre ?? $"Consultorio {c.IdConsultorio}",
+                ubicacion = c.Ubicacion ?? string.Empty,
+                estado = c.Estado ?? "disponible"
+            })
+            .ToListAsync(ct);
+
+        return Ok(new { success = true, data = consultorios });
+    }
+
+    /// <summary>
+    /// POST /api/consultorios/guardar-preferencia
+    /// Guarda la preferencia del auxiliar sobre el consultorio seleccionado.
+    /// </summary>
+    [HttpPost("guardar-preferencia")]
+    [CookieAwareValidateAntiforgeryToken]
+    public async Task<IActionResult> GuardarPreferencia(
+        [FromBody] GuardarPreferenciaRequest request,
+        CancellationToken ct = default)
+    {
+        if (request?.ConsultorioId is null || request.ConsultorioId <= 0)
+            return BadRequest(new { success = false, message = "ID de consultorio inválido." });
+
+        // Verificar que el consultorio existe
+        var existe = await _context.Consultorios
+            .AnyAsync(c => c.IdConsultorio == request.ConsultorioId.Value, ct);
+
+        if (!existe)
+            return NotFound(new { success = false, message = "Consultorio no encontrado." });
+
+        // Obtener usuario actual
+        int? userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsedUserId) 
+            ? parsedUserId 
+            : null;
+
+        if (userId is null)
+            return Unauthorized(new { success = false, message = "Usuario no autenticado." });
+
+        // Buscar o crear preferencia del usuario
+        var preferencia = await _context.UsuariosPreferenciasConsultorio
+            .FirstOrDefaultAsync(p => p.IdUsuario == userId.Value, ct);
+
+        if (preferencia is null)
+        {
+            preferencia = new UsuarioPreferenciaConsultorio
+            {
+                IdUsuario = userId.Value,
+                IdConsultorio = request.ConsultorioId.Value,
+                ActualizadoEn = DateTime.UtcNow
+            };
+            _context.UsuariosPreferenciasConsultorio.Add(preferencia);
+        }
+        else
+        {
+            preferencia.IdConsultorio = request.ConsultorioId.Value;
+            preferencia.ActualizadoEn = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Usuario {UserId} guardó preferencia de consultorio: {ConsultorioId}",
+            userId,
+            request.ConsultorioId);
+
+        return Ok(new { success = true, message = "Preferencia guardada correctamente." });
+    }
+
+    /// <summary>
     /// POST /api/consultorios/{id}/confirmar-estado
     /// Registra el estado operativo del consultorio confirmado por el auxiliar.
     /// </summary>
@@ -167,4 +247,10 @@ public sealed class ConfirmarEstadoRequest
 {
     public string? Estado { get; set; }
     public string? Observaciones { get; set; }
+}
+
+/// <summary>Request body para POST /api/consultorios/guardar-preferencia.</summary>
+public sealed class GuardarPreferenciaRequest
+{
+    public int? ConsultorioId { get; set; }
 }

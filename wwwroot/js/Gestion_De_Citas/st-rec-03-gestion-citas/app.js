@@ -295,19 +295,19 @@ const createAppointmentRow = (appt) => {
     <td><span class="status-badge ${appt.statusClass}" role="status" aria-label="Estado: ${escapeHtml(appt.status)}">${escapeHtml(appt.status)}</span></td>
     <td>
       <div class="actions-cell" role="group" aria-label="Acciones para ${escapeHtml(appt.patient)}">
-        <button class="btn-icon action-btn btn-view" type="button"
+        <button class="btn-secondary btn-view" type="button"
                 data-action="view" data-id="${appt.id}"
                 aria-label="Ver detalles de ${escapeHtml(appt.patient)}"
                 title="Ver detalles de ${escapeHtml(appt.patient)}">
           👁️ <span class="btn-text">Ver</span>
         </button>
-        <button class="btn-icon action-btn edit" type="button"
+        <button class="btn-secondary edit" type="button"
                 data-action="edit" data-id="${appt.id}"
                 aria-label="Editar cita de ${escapeHtml(appt.patient)}"
                 title="Editar cita de ${escapeHtml(appt.patient)}">
           ✏️ <span class="btn-text">Editar</span>
         </button>
-        <button class="btn-icon action-btn btn-delete" type="button"
+        <button class="btn-danger btn-delete" type="button"
                 data-action="cancel" data-id="${appt.id}"
                 aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
                 title="Cancelar cita de ${escapeHtml(appt.patient)}">

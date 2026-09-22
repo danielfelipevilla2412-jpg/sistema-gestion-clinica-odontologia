@@ -25,6 +25,22 @@ public sealed class AgendaService(
         var diasAtencion = await ObtenerDiasAtencionAsync(cancellationToken);
         var horario = await ObtenerHorarioClinicaAsync(cancellationToken);
 
+        // Si no se especificó un filtro de profesional (carga inicial al iniciar sesión),
+        // se establece por defecto el profesional correspondiente a prof@smiletrack.co.
+        if (!professionalId.HasValue)
+        {
+            var defaultProfId = await _context.Profesionales
+                .AsNoTracking()
+                .Where(p => p.Usuario != null && p.Usuario.Correo == "prof@smiletrack.co")
+                .Select(p => (int?)p.IdProfesional)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (defaultProfId.HasValue && defaultProfId.Value > 0)
+            {
+                professionalId = defaultProfId;
+            }
+        }
+
         var query = _context.Citas
             .AsNoTracking()
             .Where(c => c.FechaHora >= inicioSemana && c.FechaHora < finSemana);
@@ -91,9 +107,19 @@ public sealed class AgendaService(
     private static AgendaCitaViewModel MapearCita(Cita cita, int duracion)
     {
         var nombrePaciente = $"{cita.Paciente?.Nombres} {cita.Paciente?.Apellidos}".Trim();
-        var nombreProfesional = $"{cita.Profesional?.Nombres} {cita.Profesional?.Apellidos}".Trim();
-        if (string.IsNullOrWhiteSpace(nombreProfesional) && cita.Profesional?.Usuario is not null)
-            nombreProfesional = $"{cita.Profesional.Usuario.Nombre} {cita.Profesional.Usuario.Apellidos}".Trim();
+
+        var nombresProf = cita.Profesional?.Usuario?.Nombre?.Trim();
+        var apellidosProf = cita.Profesional?.Usuario?.Apellidos?.Trim();
+        if (string.IsNullOrWhiteSpace(nombresProf)) nombresProf = cita.Profesional?.Nombres?.Trim();
+        if (string.IsNullOrWhiteSpace(apellidosProf)) apellidosProf = cita.Profesional?.Apellidos?.Trim();
+        var nombreProfesional = $"{nombresProf} {apellidosProf}".Trim();
+
+        var correoProfesional = cita.Profesional?.Usuario?.Correo ?? string.Empty;
+        var telefonoProfesional = cita.Profesional?.Telefono ?? string.Empty;
+        var registroMedicoProfesional = cita.Profesional?.RegistroMedico ?? string.Empty;
+        var estadoUsuarioProfesional = cita.Profesional?.Usuario?.Estado
+                                      ?? cita.Profesional?.Estado
+                                      ?? string.Empty;
 
         var estado = cita.EstadoCita?.NombreEstado ?? cita.Estado;
         return new AgendaCitaViewModel
@@ -109,6 +135,10 @@ public sealed class AgendaService(
             HoraFin = cita.FechaHora.AddMinutes(duracion).ToString("HH:mm"),
             Paciente = string.IsNullOrWhiteSpace(nombrePaciente) ? "Paciente sin datos" : nombrePaciente,
             NombreProfesional = string.IsNullOrWhiteSpace(nombreProfesional) ? "Sin profesional" : nombreProfesional,
+            CorreoProfesional = correoProfesional,
+            TelefonoProfesional = telefonoProfesional,
+            RegistroMedicoProfesional = registroMedicoProfesional,
+            EstadoUsuarioProfesional = estadoUsuarioProfesional,
             Servicio = cita.Servicio?.Nombre ?? "Consulta",
             Consultorio = cita.Consultorio?.Nombre ?? "Sin asignar",
             Estado = estado,
@@ -124,12 +154,30 @@ public sealed class AgendaService(
             .Select(p => new SelectOptionViewModel { Id = p.IdPaciente, Text = $"{p.Apellidos}, {p.Nombres}" })
             .ToListAsync(ct);
 
-    private async Task<IReadOnlyList<SelectOptionViewModel>> ObtenerProfesionalesAsync(CancellationToken ct) =>
-        await _context.Profesionales.AsNoTracking()
+    private async Task<IReadOnlyList<SelectOptionViewModel>> ObtenerProfesionalesAsync(CancellationToken ct)
+    {
+        var profesionales = await _context.Profesionales.AsNoTracking()
             .Where(p => p.Estado == "activo")
+            .Select(p => new
+            {
+                p.IdProfesional,
+                p.Nombres,
+                p.Apellidos,
+                NombreUsuario = p.Usuario != null ? p.Usuario.Nombre : null,
+                ApellidosUsuario = p.Usuario != null ? p.Usuario.Apellidos : null
+            })
             .OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres)
-            .Select(p => new SelectOptionViewModel { Id = p.IdProfesional, Text = $"{p.Nombres} {p.Apellidos}".Trim() })
             .ToListAsync(ct);
+
+        return profesionales.Select(p => new SelectOptionViewModel
+        {
+            Id = p.IdProfesional,
+            Text = (
+                (string.IsNullOrWhiteSpace(p.NombreUsuario) ? p.Nombres : p.NombreUsuario) + " " +
+                (string.IsNullOrWhiteSpace(p.ApellidosUsuario) ? p.Apellidos : p.ApellidosUsuario)
+            ).Trim()
+        }).ToList();
+    }
 
     private async Task<IReadOnlyList<SelectOptionViewModel>> ObtenerConsultoriosAsync(CancellationToken ct) =>
         await _context.Consultorios.AsNoTracking()

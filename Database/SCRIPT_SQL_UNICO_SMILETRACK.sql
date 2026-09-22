@@ -275,6 +275,34 @@ IF COL_LENGTH(N'dbo.Profesional', N'fecha_ingreso') IS NULL
     ALTER TABLE Profesional ADD fecha_ingreso DATE NULL;
 GO
 
+-- ── Parche idempotente: columna id_usuario + FK a Usuario ──────────────────────
+-- Garantiza que BDs creadas antes del CREATE TABLE original también tengan la
+-- relación Profesional → Usuario. Se usa ON DELETE NO ACTION para alinear con
+-- DeleteBehavior.Restrict configurado en AppDbContext OnModelCreating.
+IF COL_LENGTH(N'dbo.Profesional', N'id_usuario') IS NULL
+BEGIN
+    ALTER TABLE Profesional ADD id_usuario INT NULL;
+
+    IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Profesional_Usuario')
+        ALTER TABLE Profesional ADD CONSTRAINT FK_Profesional_Usuario
+            FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario) ON DELETE NO ACTION;
+END
+GO
+
+-- Armoniza ON DELETE del FK para coincidir con EF Core (Restrict → NO ACTION).
+-- El CREATE TABLE original usaba SET NULL, que se desalineaba del DbContext.
+IF EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'FK_Profesional_Usuario'
+      AND delete_referential_action <> 3
+)
+BEGIN
+    ALTER TABLE Profesional DROP CONSTRAINT FK_Profesional_Usuario;
+    ALTER TABLE Profesional ADD CONSTRAINT FK_Profesional_Usuario
+        FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario) ON DELETE NO ACTION;
+END
+GO
+
 -- ── Corrección: agregar 'vacaciones' al CHECK constraint de Profesional.estado ─────
 -- El CHECK original solo permitía 'activo' e 'inactivo', pero el sistema admite
 -- 'vacaciones' como tercer estado válido (ProfesionalService.CambiarEstadoAsync).
@@ -898,7 +926,101 @@ BEGIN
 END
 GO
 
-PRINT 'SCRIPT_SQL_UNICO_SMILETRACK ejecutado: esquema y catalogos base listos, sin datos ficticios de negocio.';
+IF NOT EXISTS (SELECT 1 FROM Usuario WHERE correo='prof@smiletrack.co')
+BEGIN
+    INSERT INTO Usuario (nombre, apellidos, correo, contrasena, id_rol, estado, fecha_creacion)
+    VALUES (
+        'Prof',
+        'SmileTrack',
+        'prof@smiletrack.co',
+        '$2a$11$u.Lp05p02n3H8i1j/3CgkuM9Vl8y7D2pXfG7zT66.qG4q/3.X9G1a',
+        (SELECT id_rol FROM Rol WHERE nombre_rol='Profesional'),
+        'activo',
+        GETDATE()
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Profesional WHERE id_usuario = (SELECT id_usuario FROM Usuario WHERE correo='prof@smiletrack.co'))
+BEGIN
+    INSERT INTO Profesional (id_usuario, nombres, apellidos, registro_medico, descripcion, categoria, telefono, estado, fecha_ingreso)
+    VALUES (
+        (SELECT id_usuario FROM Usuario WHERE correo='prof@smiletrack.co'),
+        'Prof',
+        'SmileTrack',
+        'PROF-001',
+        'Perfil profesional generado automáticamente al iniciar sesión.',
+        'Odontología General',
+        '3000000000',
+        'activo',
+        GETDATE()
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Usuario WHERE correo='recep@smiletrack.co')
+BEGIN
+    INSERT INTO Usuario (nombre, apellidos, correo, contrasena, id_rol, estado, fecha_creacion)
+    VALUES (
+        'Recepcion',
+        'SmileTrack',
+        'recep@smiletrack.co',
+        '$2a$11$u.Lp05p02n3H8i1j/3CgkuM9Vl8y7D2pXfG7zT66.qG4q/3.X9G1a',
+        (SELECT id_rol FROM Rol WHERE nombre_rol='Recepcionista'),
+        'activo',
+        GETDATE()
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Usuario WHERE correo='aux@smiletrack.co')
+BEGIN
+    INSERT INTO Usuario (nombre, apellidos, correo, contrasena, id_rol, estado, fecha_creacion)
+    VALUES (
+        'Aux',
+        'SmileTrack',
+        'aux@smiletrack.co',
+        '$2a$11$u.Lp05p02n3H8i1j/3CgkuM9Vl8y7D2pXfG7zT66.qG4q/3.X9G1a',
+        (SELECT id_rol FROM Rol WHERE nombre_rol='Auxiliar'),
+        'activo',
+        GETDATE()
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Usuario WHERE correo='pac@smiletrack.co')
+BEGIN
+    INSERT INTO Usuario (nombre, apellidos, correo, contrasena, id_rol, estado, fecha_creacion)
+    VALUES (
+        'Paciente',
+        'SmileTrack',
+        'pac@smiletrack.co',
+        '$2a$11$u.Lp05p02n3H8i1j/3CgkuM9Vl8y7D2pXfG7zT66.qG4q/3.X9G1a',
+        (SELECT id_rol FROM Rol WHERE nombre_rol='Paciente'),
+        'activo',
+        GETDATE()
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Paciente WHERE id_usuario = (SELECT id_usuario FROM Usuario WHERE correo='pac@smiletrack.co'))
+BEGIN
+    INSERT INTO Paciente (id_usuario, tipo_documento, documento, nombres, apellidos, fecha_nacimiento, correo, fecha_registro, estado)
+    VALUES (
+        (SELECT id_usuario FROM Usuario WHERE correo='pac@smiletrack.co'),
+        'CC',
+        '1000000000',
+        'Paciente',
+        'SmileTrack',
+        DATEADD(YEAR, -25, GETDATE()),
+        'pac@smiletrack.co',
+        GETDATE(),
+        'activo'
+    );
+END
+GO
+
+PRINT 'SCRIPT_SQL_UNICO_SMILETRACK ejecutado: esquema y catalogos base listos, con usuarios basicos del sistema y perfiles asociados.';
 GO
 
 -- ============================================================
