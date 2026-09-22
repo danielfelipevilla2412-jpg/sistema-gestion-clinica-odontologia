@@ -303,6 +303,39 @@ BEGIN
 END
 GO
 
+-- ── Perfil completo del paciente: columnas adicionales ─────────────────────
+IF COL_LENGTH(N'dbo.Paciente', N'estado_civil') IS NULL
+    ALTER TABLE Paciente ADD estado_civil VARCHAR(20) NULL;
+GO
+IF COL_LENGTH(N'dbo.Paciente', N'departamento') IS NULL
+    ALTER TABLE Paciente ADD departamento VARCHAR(100) NULL;
+GO
+IF COL_LENGTH(N'dbo.Paciente', N'parentesco_emergencia') IS NULL
+    ALTER TABLE Paciente ADD parentesco_emergencia VARCHAR(50) NULL;
+GO
+IF COL_LENGTH(N'dbo.Paciente', N'eps_aseguradora') IS NULL
+    ALTER TABLE Paciente ADD eps_aseguradora VARCHAR(150) NULL;
+GO
+IF COL_LENGTH(N'dbo.Paciente', N'numero_poliza') IS NULL
+    ALTER TABLE Paciente ADD numero_poliza VARCHAR(50) NULL;
+GO
+IF COL_LENGTH(N'dbo.Paciente', N'tipo_afiliacion') IS NULL
+    ALTER TABLE Paciente ADD tipo_afiliacion VARCHAR(20) NULL;
+GO
+IF COL_LENGTH(N'dbo.Paciente', N'medicamentos_actuales') IS NULL
+    ALTER TABLE Paciente ADD medicamentos_actuales VARCHAR(MAX) NULL;
+GO
+IF COL_LENGTH(N'dbo.Paciente', N'antecedentes_familiares') IS NULL
+    ALTER TABLE Paciente ADD antecedentes_familiares VARCHAR(MAX) NULL;
+GO
+IF COL_LENGTH(N'dbo.Paciente', N'id_profesional_asignado') IS NULL
+BEGIN
+    ALTER TABLE Paciente ADD id_profesional_asignado INT NULL;
+    ALTER TABLE Paciente ADD CONSTRAINT FK_Paciente_ProfesionalAsignado
+        FOREIGN KEY (id_profesional_asignado) REFERENCES Profesional(id_profesional);
+END
+GO
+
 -- ── Corrección: agregar 'vacaciones' al CHECK constraint de Profesional.estado ─────
 -- El CHECK original solo permitía 'activo' e 'inactivo', pero el sistema admite
 -- 'vacaciones' como tercer estado válido (ProfesionalService.CambiarEstadoAsync).

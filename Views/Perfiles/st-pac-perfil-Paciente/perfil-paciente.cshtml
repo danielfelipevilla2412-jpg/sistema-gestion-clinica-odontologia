@@ -1,3 +1,4 @@
+@model SmileTrack_MVC.Models.Entities.Paciente
 @{ Layout = null; }
 
 <!DOCTYPE html>
@@ -39,15 +40,20 @@
     </div>
 
     <!-- Profile Header -->
-    <header class="profile-header">
-      <div class="header-avatar-wrap">
-        <div class="header-avatar" id="headerAvatar">PG</div>
-        <div>
-          <h1 class="header-name" id="headerNombre">Pedro García</h1>
-          <p class="header-sub">
-            Paciente activo · Odontólogo: <span>Dr. Carlos Méndez</span>
-          </p>
-        </div>
+    @{
+    var iniciales = $"{(string.IsNullOrEmpty(Model.Nombres) ? "" : Model.Nombres[0].ToString())}{(string.IsNullOrEmpty(Model.Apellidos) ? "" : Model.Apellidos[0].ToString())}".ToUpperInvariant();
+    var estadoTexto = Model.Estado == "activo" ? "Paciente activo" : "Paciente inactivo";
+    var odontologoTexto = Model.ProfesionalAsignado != null
+        ? $"Dr(a). {Model.ProfesionalAsignado.Nombres} {Model.ProfesionalAsignado.Apellidos}"
+        : "Sin asignar";
+      }
+      <div class="header-avatar" id="headerAvatar">@iniciales</div>
+      <div>
+        <h1 class="header-name" id="headerNombre">@Model.Nombres @Model.Apellidos</h1>
+        <p class="header-sub">
+          @estadoTexto · Odontólogo: <span>@odontologoTexto</span>
+        </p>
+      </div>
       </div>
       <div class="header-actions">
         <button class="btn-editar" id="btnEditar" aria-label="Activar modo edición" data-i18n-aria-label="profile.edit"><span data-i18n="profile.edit">✏️ Editar perfil</span></button>
@@ -81,50 +87,51 @@
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label" for="nombre">Nombre completo</label>
-              <input class="form-input" id="nombre" type="text" value="Pedro García" disabled />
+              <input class="form-input" id="nombre" type="text" value="@Model.Nombres @Model.Apellidos" disabled disabled />
             </div>
             <div class="form-group">
               <label class="form-label" for="cedula">Número de cédula</label>
-              <input class="form-input locked" id="cedula" type="text" value="1020345678" disabled />
+              <input class="form-input locked" id="cedula" type="text" value="@Model.Documento" disabled disabled />
               <span class="field-note">🔒 No editable</span>
             </div>
             <div class="form-group">
               <label class="form-label" for="fechaNac">Fecha de nacimiento</label>
-              <input class="form-input locked" id="fechaNac" type="text" value="12/03/1985" disabled />
+              <input class="form-input locked" id="fechaNac" type="text" value="@Model.FechaNacimiento.ToString("dd/MM/yyyy")" disabled disabled />
               <span class="field-note">🔒 No editable</span>
             </div>
             <div class="form-group">
               <label class="form-label" for="genero">Género</label>
               <select class="form-input" id="genero" disabled>
-                <option value="masculino" selected>Masculino</option>
-                <option value="femenino">Femenino</option>
-                <option value="otro">Otro</option>
-                <option value="no-responde">Prefiero no decir</option>
-              </select>
+              <option value="M" selected="@(Model.Genero == "M")">Masculino</option>
+              <option value="F" selected="@(Model.Genero == "F")">Femenino</option>
+              <option value="O" selected="@(Model.Genero == "O")">Otro</option>
+            </select>
             </div>
             <div class="form-group">
               <label class="form-label" for="tipoSangre">Tipo de sangre</label>
+              @{ var tiposSangre = new[] { "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-" }; }
               <select class="form-input locked" id="tipoSangre" disabled>
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="O+" selected>O+</option>
-                <option value="O-">O-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
+                @foreach (var tipo in tiposSangre)
+                {
+                    <option value="@tipo" selected="@(Model.GrupoSanguineo == tipo)">@tipo</option>
+                }
               </select>
               <span class="field-note">🔒 No editable</span>
             </div>
             <div class="form-group">
               <label class="form-label" for="estadoCivil">Estado civil</label>
-              <select class="form-input" id="estadoCivil" disabled>
-                <option value="soltero" selected>Soltero/a</option>
-                <option value="casado">Casado/a</option>
-                <option value="union-libre">Unión libre</option>
-                <option value="divorciado">Divorciado/a</option>
-                <option value="viudo">Viudo/a</option>
-              </select>
+              @{
+                var estadosCiviles = new (string valor, string texto)[] {
+                    ("soltero", "Soltero/a"), ("casado", "Casado/a"), ("union-libre", "Unión libre"),
+                    ("divorciado", "Divorciado/a"), ("viudo", "Viudo/a")
+                };
+            }
+            <select class="form-input" id="estadoCivil" disabled>
+              @foreach (var (valor, texto) in estadosCiviles)
+              {
+                  <option value="@valor" selected="@(Model.EstadoCivil == valor)">@texto</option>
+              }
+            </select>
             </div>
           </div>
         </div>
@@ -135,23 +142,23 @@
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label" for="email">Correo electrónico</label>
-              <input class="form-input" id="email" type="email" value="pedro.garcia@email.com" disabled />
+              <input class="form-input" id="email" type="email" @Model.Correo disabled />
             </div>
             <div class="form-group">
               <label class="form-label" for="telefono">Teléfono</label>
-              <input class="form-input" id="telefono" type="tel" value="310 234 5678" disabled />
+              <input class="form-input" id="telefono" type="tel" 	@Model.Telefono disabled />
             </div>
             <div class="form-group">
               <label class="form-label" for="direccion">Dirección</label>
-              <input class="form-input" id="direccion" type="text" value="Calle 45 #23-67" disabled />
+              <input class="form-input" id="direccion" type="text" @Model.Direccion disabled />
             </div>
             <div class="form-group">
               <label class="form-label" for="ciudad">Ciudad</label>
-              <input class="form-input" id="ciudad" type="text" value="Bogotá" disabled />
+              <input class="form-input" id="ciudad" type="text" @Model.Ciudad disabled />
             </div>
             <div class="form-group">
               <label class="form-label" for="departamento">Departamento</label>
-              <input class="form-input" id="departamento" type="text" value="Cundinamarca" disabled />
+              <input class="form-input" id="departamento" type="text" @Model.Departamento disabled />
             </div>
           </div>
         </div>
@@ -162,15 +169,15 @@
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label" for="emergNombre">Nombre</label>
-              <input class="form-input" id="emergNombre" type="text" value="María García" disabled />
+              <input class="form-input" id="emergNombre" type="text" 	@Model.ContactoEmergencia disabled />
             </div>
             <div class="form-group">
               <label class="form-label" for="emergParentesco">Parentesco</label>
-              <input class="form-input" id="emergParentesco" type="text" value="Madre" disabled />
+              <input class="form-input" id="emergParentesco" type="text" @Model.ParentescoEmergencia disabled />
             </div>
             <div class="form-group">
               <label class="form-label" for="emergTelefono">Teléfono</label>
-              <input class="form-input" id="emergTelefono" type="tel" value="310 987 6543" disabled />
+              <input class="form-input" id="emergTelefono" type="tel" @Model.TelefonoEmergencia disabled />
             </div>
           </div>
         </div>
@@ -187,57 +194,69 @@
             🔒 Esta información solo puede ser modificada por tu odontólogo
           </div>
 
-          <div class="med-section">
-            <div class="med-label">Alergias</div>
-            <div class="tags-wrap">
-              <span class="tag alerta">⚠️ Penicilina</span>
-              <span class="tag alerta">⚠️ Látex</span>
-            </div>
-          </div>
+          @{
+            var alergias = (Model.Alergias ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var condiciones = (Model.AntecedentesMedicos ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var medicamentos = (Model.MedicamentosActuales ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var antecedentesFam = (Model.AntecedentesFamiliares ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        }
 
-          <div class="med-section">
-            <div class="med-label">Enfermedades o condiciones</div>
-            <div class="tags-wrap">
-              <span class="tag info">Hipertensión leve</span>
-            </div>
-          </div>
-
-          <div class="med-section">
-            <div class="med-label">Medicamentos actuales</div>
-            <div class="tags-wrap">
-              <span class="tag neutral">Losartán 50mg</span>
-              <span class="tag neutral">Ácido acetilsalicílico 100mg</span>
-            </div>
-          </div>
-
-          <div class="med-section">
-            <div class="med-label">Antecedentes familiares</div>
-            <div class="tags-wrap">
-              <span class="tag neutral">Diabetes tipo 2 (padre)</span>
-              <span class="tag neutral">Hipertensión (madre)</span>
-            </div>
+        <div class="med-section">
+          <div class="med-label">Alergias</div>
+          <div class="tags-wrap">
+            @if (alergias.Length == 0) { <span class="tag neutral">Sin alergias registradas</span> }
+            @foreach (var a in alergias) { <span class="tag alerta">⚠️ @a</span> }
           </div>
         </div>
 
+        <div class="med-section">
+          <div class="med-label">Enfermedades o condiciones</div>
+          <div class="tags-wrap">
+            @if (condiciones.Length == 0) { <span class="tag neutral">Ninguna registrada</span> }
+            @foreach (var c in condiciones) { <span class="tag info">@c</span> }
+          </div>
+        </div>
+
+        <div class="med-section">
+          <div class="med-label">Medicamentos actuales</div>
+          <div class="tags-wrap">
+            @if (medicamentos.Length == 0) { <span class="tag neutral">Ninguno registrado</span> }
+            @foreach (var m in medicamentos) { <span class="tag neutral">@m</span> }
+          </div>
+        </div>
+
+        <div class="med-section">
+          <div class="med-label">Antecedentes familiares</div>
+          <div class="tags-wrap">
+            @if (antecedentesFam.Length == 0) { <span class="tag neutral">Ninguno registrado</span> }
+            @foreach (var af in antecedentesFam) { <span class="tag neutral">@af</span> }
+          </div>
+        </div>
         <!-- Card: Seguro / EPS -->
         <div class="card" id="cardSeguro">
           <h2 class="card-title"><span class="card-icon" aria-hidden="true">🏦</span> Seguro / EPS</h2>
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label" for="eps">EPS / Aseguradora</label>
-              <input class="form-input" id="eps" type="text" value="Sura EPS" disabled />
+              <input class="form-input" id="eps" type="text" value="@Model.EpsAseguradora" disabled />
             </div>
             <div class="form-group">
               <label class="form-label" for="poliza">Número de póliza</label>
-              <input class="form-input" id="poliza" type="text" value="POL-2024-789456" disabled />
+              <input class="form-input" id="poliza" type="text" value="@Model.NumeroPoliza" disabled />
             </div>
             <div class="form-group">
               <label class="form-label" for="afiliacion">Tipo de afiliación</label>
-              <select class="form-input" id="afiliacion" disabled>
-                <option value="contributivo" selected>Régimen contributivo</option>
-                <option value="subsidiado">Régimen subsidiado</option>
-                <option value="particular">Particular</option>
-              </select>
+              @{
+                var afiliaciones = new (string valor, string texto)[] {
+                    ("contributivo", "Régimen contributivo"), ("subsidiado", "Régimen subsidiado"), ("particular", "Particular")
+                };
+            }
+            <select class="form-input" id="afiliacion" disabled>
+              @foreach (var (valor, texto) in afiliaciones)
+              {
+                  <option value="@valor" selected="@(Model.TipoAfiliacion == valor)">@texto</option>
+              }
+            </select>
             </div>
           </div>
         </div>

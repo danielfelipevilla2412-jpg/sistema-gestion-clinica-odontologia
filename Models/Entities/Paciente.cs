@@ -93,6 +93,16 @@ namespace SmileTrack_MVC.Models.Entities
 
         [ForeignKey("IdUsuario")]
         public Usuario? Usuario { get; set; }
+        public string? EstadoCivil { get; set; }
+        public string? Departamento { get; set; }
+        public string? ParentescoEmergencia { get; set; }
+        public string? EpsAseguradora { get; set; }
+        public string? NumeroPoliza { get; set; }
+        public string? TipoAfiliacion { get; set; }
+        public string? MedicamentosActuales { get; set; }
+        public string? AntecedentesFamiliares { get; set; }
+        public int? IdProfesionalAsignado { get; set; }
+        public Profesional? ProfesionalAsignado { get; set; }
 
         [NotMapped]
         public string NombresCompleto => $"{Nombres} {Apellidos}".Trim();
