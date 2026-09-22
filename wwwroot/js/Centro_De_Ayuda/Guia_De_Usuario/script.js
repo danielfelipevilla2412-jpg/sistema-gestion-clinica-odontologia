@@ -31,18 +31,8 @@ const scheduleCard = document.getElementById('schedule-card');
 const schedulePanel = document.getElementById('schedule-detail-panel');
 const faqCard = document.getElementById('faq-card');
 const faqPanel = document.getElementById('faq-detail-panel');
-const chatbotModal = document.getElementById('chatbotModal');
-const chatbotClose = document.getElementById('chatbotClose');
-const openChatbotButton = document.getElementById('open-chatbot-btn');
-const openChatInlineButton = document.getElementById('open-chat-inline-btn');
 const guidesToggle = document.getElementById('guides-toggle');
 const guidesMenu = document.getElementById('guides-menu');
-const chatbotMessages = document.getElementById('chatbotMessages');
-const chatbotForm = document.getElementById('chatbotForm');
-const chatbotInput = document.getElementById('chatbotInput');
-const typingIndicator = document.getElementById('typingIndicator');
-const chatInput = chatbotInput;
-const chatForm = chatbotForm;
 let submitTimer = null;
 let resetTimer = null;
 
@@ -186,41 +176,6 @@ if (faqCard && faqPanel) {
   });
 }
 
-function showChatbotMessage(message, sender = 'bot') {
-  if (!chatbotMessages) return;
-
-  const wrapper = document.createElement('div');
-  wrapper.className = `st-message ${sender}`;
-  wrapper.innerHTML = `
-    <div class="st-message-avatar">${sender === 'user' ? 'T' : '🤖'}</div>
-    <div class="st-message-bubble">
-      <div class="st-message-content">${message}</div>
-      <div class="st-message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-    </div>
-  `;
-
-  chatbotMessages.appendChild(wrapper);
-  chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
-}
-
-function openChatbot() {
-  if (chatbotModal) {
-    chatbotModal.hidden = false;
-    chatbotModal.classList.add('is-open');
-  }
-  if (chatbotInput) chatbotInput.focus();
-  if (!chatbotMessages?.children.length) {
-    showChatbotMessage('Hola, ¿en qué puedo ayudarte hoy?');
-  }
-}
-
-function closeChatbot() {
-  if (chatbotModal) {
-    chatbotModal.hidden = true;
-    chatbotModal.classList.remove('is-open');
-  }
-}
-
 if (guidesToggle && guidesMenu) {
   guidesToggle.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -254,61 +209,6 @@ document.addEventListener('click', (event) => {
     guidesMenu.classList.add('hidden');
   }
 });
-
-if (openChatbotButton) {
-  openChatbotButton.addEventListener('click', openChatbot);
-}
-
-if (openChatInlineButton) {
-  openChatInlineButton.addEventListener('click', openChatbot);
-}
-
-if (chatbotClose) {
-  chatbotClose.addEventListener('click', closeChatbot);
-}
-
-if (chatbotModal) {
-  chatbotModal.addEventListener('click', (event) => {
-    if (event.target === chatbotModal) closeChatbot();
-  });
-}
-
-// Botones rápidos del chatbot
-document.querySelectorAll('.quick-reply').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const q = btn.dataset.question || btn.dataset.q;
-    if (q && chatInput && chatForm) {
-      chatInput.value = q;
-      chatForm.requestSubmit();
-    }
-  });
-});
-
-if (chatbotForm) {
-  chatbotForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const value = chatbotInput?.value?.trim();
-    if (!value) return;
-
-    showChatbotMessage(value, 'user');
-    if (chatbotInput) chatbotInput.value = '';
-    if (typingIndicator) typingIndicator.hidden = false;
-
-    setTimeout(() => {
-      if (typingIndicator) typingIndicator.hidden = true;
-      const respuesta = value.toLowerCase().includes('cita')
-        ? 'Puedes agendar una cita desde la sección de Citas del panel principal.'
-        : value.toLowerCase().includes('pago')
-          ? 'Aceptamos pagos por transferencia, tarjeta y efectivo en sucursal.'
-          : value.toLowerCase().includes('servicio')
-            ? 'Ofrecemos servicios odontológicos preventivos, restaurativos y de especialidad.'
-            : value.toLowerCase().includes('ubic')
-              ? 'Estamos ubicados en la ciudad principal y también atendemos por videollamada.'
-              : 'Gracias por contactarnos. Un especialista te ayudará a resolver tu consulta.';
-      showChatbotMessage(respuesta, 'bot');
-    }, 700);
-  });
-}
 
 if (cancelButton) {
   cancelButton.addEventListener('click', () => {

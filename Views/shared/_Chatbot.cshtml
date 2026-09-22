@@ -1,0 +1,41 @@
+@using Microsoft.AspNetCore.Antiforgery
+@inject IAntiforgery Antiforgery
+@{
+    var chatbotToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+    var chatbotName = User.Identity?.Name ?? "Usuario";
+}
+
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <link rel="stylesheet" href="~/css/shared/chatbot.css" asp-append-version="true" />
+    <section class="chatbot" id="smiletrack-chatbot" data-chatbot-token="@chatbotToken" data-chatbot-path="@Context.Request.Path" aria-label="Asistente virtual de SmileTrack" data-i18n-aria-label="chatbot.aria_label">
+        <button class="chatbot__launcher" type="button" aria-expanded="false" aria-controls="chatbot-panel" title="Abrir asistente" data-i18n-title="chatbot.open_title">
+            <span class="material-symbols-outlined" aria-hidden="true">support_agent</span>
+            <span class="chatbot__launcher-label" data-i18n="chatbot.launcher">Asistente</span>
+        </button>
+        <div class="chatbot__panel" id="chatbot-panel" hidden>
+            <header class="chatbot__header">
+                <div class="chatbot__brand">
+                    <div class="chatbot__avatar" aria-hidden="true">
+                        <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="" />
+                    </div>
+                    <div>
+                        <h2 data-chatbot-title>Asistencia SmileTrack</h2>
+                        <p class="chatbot__status"><span aria-hidden="true"></span> En línea</p>
+                        <p class="chatbot__role" data-chatbot-role>Orientación para @chatbotName</p>
+                    </div>
+                </div>
+                <button class="chatbot__close" type="button" aria-label="Cerrar asistente" data-i18n-aria-label="chatbot.close">&times;</button>
+            </header>
+            <div class="chatbot__messages" data-chatbot-messages aria-live="polite"></div>
+            <div class="chatbot__suggestions" data-chatbot-suggestions></div>
+            <form class="chatbot__form" data-chatbot-form>
+                <label class="sr-only" for="chatbot-message">Escribe tu consulta</label>
+                <input id="chatbot-message" name="message" maxlength="500" autocomplete="off" placeholder="¿En qué puedo ayudarte?" data-i18n-placeholder="chatbot.placeholder" />
+                <button type="submit" aria-label="Enviar consulta" data-i18n-aria-label="chatbot.send"><span class="material-symbols-outlined" aria-hidden="true">send</span></button>
+            </form>
+            <p class="chatbot__notice" data-i18n="chatbot.notice">No compartas contraseñas ni datos clínicos innecesarios.</p>
+        </div>
+    </section>
+    <script src="~/js/shared/chatbot.js" asp-append-version="true"></script>
+}

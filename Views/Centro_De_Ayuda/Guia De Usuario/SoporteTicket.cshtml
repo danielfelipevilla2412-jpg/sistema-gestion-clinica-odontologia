@@ -213,10 +213,6 @@
               }
             </div>
           </div>
-          <button id="open-chatbot-btn" class="topbar-pill flex items-center gap-2 text-on-surface-variant hover:bg-surface-container-high transition-colors px-3 py-1.5 rounded-lg cursor-pointer" type="button">
-            <span class="material-symbols-outlined text-base">smart_toy</span>
-            <span class="font-label-bold text-label-bold">Asistente</span>
-          </button>
         </div>
       </header>
 
@@ -355,7 +351,7 @@
                 </div>
               </div>
 
-              <button class="w-full bg-[#0060a8] text-white py-5 rounded-xl font-headline-md text-headline-md shadow-lg shadow-[#0060a8]/30 hover:bg-[#004080] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3" type="submit">
+              <button class="w-full bg-[#1a56cc] text-white py-5 rounded-xl font-headline-md text-headline-md shadow-lg shadow-[#1a56cc]/30 hover:bg-[#0f3da0] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3" type="submit">
                 <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">send</span>
                 Enviar Ticket
               </button>
@@ -488,9 +484,6 @@
               <div class="flex-1">
                 <h5 class="font-headline-md text-headline-md text-primary mb-2">¿Necesita ayuda urgente?</h5>
                 <p class="font-body-md text-body-md text-on-surface-variant mb-4">Nuestro chat en vivo está disponible de 8:00 AM a 8:00 PM para emergencias de bloqueo de sistema.</p>
-                <button id="open-chat-inline-btn" class="inline-flex items-center justify-center text-white font-label-bold text-label-bold group bg-[#16a34a] px-4 py-3 rounded-lg border border-[#16a34a] hover:bg-[#15803d] transition-colors shadow-md shadow-green-200" type="button">
-                  Iniciar Chat en Vivo
-                </button>
               </div>
               <div class="hidden sm:block w-32 h-32 opacity-20 flex items-center justify-center">
                 <span class="material-symbols-outlined text-[128px] text-primary">contact_support</span>
@@ -509,36 +502,6 @@
       </section>
     </main>
 
-    <!-- Chatbot Modal -->
-    <div id="chatbotModal" class="st-modal-overlay" role="dialog" aria-modal="true" hidden>
-      <div class="st-modal-content">
-        <header class="st-modal-header">
-          <div class="st-modal-brand">
-            <div class="st-modal-avatar overflow-hidden bg-white">
-              <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="Logo de SmileTrack" class="w-full h-full object-contain" />
-            </div>
-            <div>
-              <h2 class="st-modal-title">Asistente SmileTrack</h2>
-              <p class="st-modal-status"><span class="st-status-dot"></span> En línea</p>
-            </div>
-          </div>
-          <button class="st-modal-close" id="chatbotClose" aria-label="Cerrar" type="button">×</button>
-        </header>
-        <main id="chatbotMessages" class="st-modal-messages modal-messages" role="log" aria-live="polite"></main>
-        <div id="typingIndicator" class="st-typing" hidden><span></span><span></span><span></span></div>
-        <div class="st-quick-replies">
-          <button class="st-quick-btn quick-reply" data-q="¿Cómo agendo una cita?" data-question="¿Cómo agendo una cita?" type="button">📅 Agendar</button>
-          <button class="st-quick-btn quick-reply" data-q="¿Qué métodos de pago aceptan?" data-question="¿Qué métodos de pago aceptan?" type="button">💳 Pagos</button>
-          <button class="st-quick-btn quick-reply" data-q="¿Qué servicios ofrecen?" data-question="¿Qué servicios ofrecen?" type="button">🦷 Servicios</button>
-          <button class="st-quick-btn quick-reply" data-q="¿Dónde están ubicados?" data-question="¿Dónde están ubicados?" type="button">📍 Ubicación</button>
-        </div>
-        <form id="chatbotForm" class="st-modal-input">
-          <input type="text" id="chatbotInput" class="st-input" placeholder="Escribe tu pregunta..." autocomplete="off" />
-          <button type="submit" class="st-send" aria-label="Enviar">➤</button>
-        </form>
-      </div>
-    </div>
-
     <script src="@Url.Content("~/lib/jquery/dist/jquery.min.js")"></script>
     <script src="@Url.Content("~/lib/jquery-validation/dist/jquery.validate.min.js")"></script>
     <script src="@Url.Content("~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js")"></script>
@@ -546,6 +509,7 @@
     <script src="@Url.Content("~/js/i18n-core.js")"></script>
     <script src="@Url.Content("~/js/i18n.config.js")"></script>
     <script src="@Url.Content("~/js/shared/sidebar.js?v=20260921")"></script>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
   </body>
 </html>
 

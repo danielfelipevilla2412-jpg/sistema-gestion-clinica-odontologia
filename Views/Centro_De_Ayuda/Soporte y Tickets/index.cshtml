@@ -151,6 +151,7 @@
 
     <script src="@Url.Content("~/js/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/app.js")"></script>
     <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
 </body>
 </html>
 
