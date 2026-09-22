@@ -422,7 +422,7 @@ const avatarColorMap = {
  */
 const shouldUseServerRenderedList = () => {
     const tbody = document.getElementById('citasBody');
-    return !!(tbody && tbody.children.length > 0 && tbody.querySelector('tr.table-row, div.table-row'));
+    return !!(tbody && tbody.children.length > 0 && tbody.querySelector('tr'));
 };
 
 /**
@@ -571,14 +571,14 @@ const renderAppointments = () => {
                 </td>
                 <td class="col-acciones text-right" role="cell" data-label="Acciones">
                     <div class="actions-cell">
-                        <button class="action-btn btn-view" aria-label="Ver detalle de cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Ver detalle">
-                          👁️ <span class="btn-text">Ver</span>
+                        <button class="action-btn btn-secondary btn-view" aria-label="Ver detalle de cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Ver detalle">
+                          <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
                         </button>
-                        <button class="action-btn btn-edit" aria-label="Editar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Editar cita">
-                          ✏️ <span class="btn-text">Editar</span>
-                        </button>
-                        <button class="action-btn btn-delete" aria-label="Cancelar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Cancelar cita">
-                          ❌ <span class="btn-text">Cancelar</span>
+                        <a href="/gestion-de-citas/st-adm-09-citas?editId=${appointment.id}" class="action-btn btn-secondary btn-edit" aria-label="Editar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Editar cita">
+                          <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
+                        </a>
+                        <button class="action-btn btn-danger btn-delete" aria-label="Cancelar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Cancelar cita" onclick="openConfirmDeleteCita(${appointment.id}, '${escapeHtml(appointment.patient)}')">
+                          <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span> <span class="btn-text">Eliminar</span>
                         </button>
                     </div>
                 </td>

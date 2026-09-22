@@ -35,31 +35,31 @@ NOTAS DE MANTENIMIENTO:
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="common.breadcrumb_nav">
           <span data-i18n="common_role_patient">Paciente</span>
-          <span class="bc-sep material-symbols-outlined" aria-hidden="true">chevron_right</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
           <span class="bc-active" data-i18n="citas.title">Mis citas</span>
         </nav>
         <h1 class="page-title" data-i18n="citas.title">Mis Citas</h1>
         <p class="page-subtitle" data-i18n="citas.pac_subtitle">Gestiona y consulta tus citas odontológicas personales</p>
       </div>
-      <button class="btn-primary" id="btnNuevaCita" data-i18n="citas.new">+ Solicitar cita</button>
+      <button class="btn-primary" id="btnNuevaCita" aria-label="Solicitar nueva cita" data-i18n="citas.new">+ Solicitar cita</button>
     </header>
 
-    <!-- Stats Grid (usando clases unificadas + IDs para animación) -->
-    <section class="stats-grid" aria-label="Resumen de actividad del día" data-i18n-aria-label="citas.title">
+    <!-- Stats Grid: estadísticas animadas del paciente -->
+    <section class="stats-grid" aria-label="Resumen de mis citas" data-i18n-aria-label="citas.stats_aria">
       <div class="stat-card" data-color="blue">
-        <span class="stat-number" id="cnt-total">0</span>
+        <span class="stat-number" id="cnt-total" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="citas.stat_total">Total citas</span>
       </div>
       <div class="stat-card" data-color="green">
-        <span class="stat-number" id="cnt-completadas">0</span>
+        <span class="stat-number" id="cnt-completadas" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.completed">Completadas</span>
       </div>
       <div class="stat-card" data-color="orange">
-        <span class="stat-number" id="cnt-pendientes">0</span>
+        <span class="stat-number" id="cnt-pendientes" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.pending">Pendientes</span>
       </div>
       <div class="stat-card" data-color="red">
-        <span class="stat-number" id="cnt-canceladas">0</span>
+        <span class="stat-number" id="cnt-canceladas" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
       </div>
     </section>
@@ -77,36 +77,39 @@ NOTAS DE MANTENIMIENTO:
       <!-- Barra de herramientas con campo de búsqueda por texto y filtro por estado -->
       <div class="toolbar" role="toolbar" aria-label="Filtros de citas" data-i18n-aria-label="table.filter">
         <div class="search-wrap">
-          <span class="search-icon material-symbols-outlined" aria-hidden="true">search</span>
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
           <!-- Campo de búsqueda para filtrar citas por doctor, servicio o fecha -->
-          <input type="search" id="searchInput" class="search-input" placeholder="Buscar por doctor, servicio o fecha..." data-i18n-ph="table.search"
-            autocomplete="off" />
+          <input type="search" id="searchInput" class="search-input" 
+                 placeholder="Buscar por doctor, servicio o fecha..." 
+                 data-i18n-ph="table.search"
+                 aria-label="Buscar citas por doctor, servicio o fecha"
+                 autocomplete="off" />
         </div>
         <!-- Selector para filtrar citas por estado (Agendada, Confirmada, Completada, Cancelada) -->
-        <select id="filterEstado" class="status-select">
-          <option value="">Todos los estados</option>
-          <option value="Agendada">Agendada</option>
-          <option value="Confirmada">Confirmada</option>
-          <option value="Completada">Completada</option>
-          <option value="Cancelada">Cancelada</option>
+        <select id="filterEstado" class="status-select" aria-label="Filtrar citas por estado">
+          <option value="" data-i18n="table.filter_all_states">Todos los estados</option>
+          <option value="Agendada" data-i18n="status.scheduled">Agendada</option>
+          <option value="Confirmada" data-i18n="status.confirmed">Confirmada</option>
+          <option value="Completada" data-i18n="status.completed">Completada</option>
+          <option value="Cancelada" data-i18n="status.cancelled">Cancelada</option>
         </select>
-        <span class="count-label" id="countLabel"></span>
+        <span class="count-label" id="countLabel" aria-live="polite"></span>
       </div>
 
       <!-- Tabla de citas con columnas: fecha, hora, doctor, servicio, estado y acciones -->
       <div class="table-wrap">
-        <table id="citasTable" class="table-base">
+        <table id="citasTable" class="table-base" aria-label="Tabla de mis citas odontológicas" data-i18n-aria-label="citas.table_aria">
           <thead>
             <tr>
-              <th scope="col" data-i18n="citas.date">Fecha</th>
-              <th scope="col" data-i18n="citas.time">Hora</th>
-              <th scope="col" data-i18n="citas.professional">Doctor</th>
-              <th scope="col" data-i18n="citas.service">Servicio</th>
-              <th scope="col" data-i18n="citas.status">Estado</th>
-              <th scope="col" data-i18n="table.actions">Acciones</th>
+              <th scope="col" data-i18n="citas.date">FECHA</th>
+              <th scope="col" data-i18n="citas.time">HORA</th>
+              <th scope="col" data-i18n="citas.professional">PROFESIONAL</th>
+              <th scope="col" data-i18n="citas.service">SERVICIO</th>
+              <th scope="col" data-i18n="citas.status">ESTADO</th>
+              <th scope="col" data-i18n="table.actions">ACCIONES</th>
             </tr>
           </thead>
-          <tbody id="citasTbody"></tbody>
+          <tbody id="citasTbody" aria-live="polite"></tbody>
         </table>
       </div>
     </section>
@@ -174,25 +177,6 @@ NOTAS DE MANTENIMIENTO:
 
   <!-- TOAST: notificación flotante temporal para confirmar acciones al usuario -->
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-  <!-- Script principal con toda la lógica de la página de citas -->
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js")" defer></script>
-
-  <!-- Mobile bottom nav — Paciente -->
-  <nav class="mobile-nav" aria-label="Navegación móvil" data-i18n-aria-label="common_mobile_nav">
-    <a href="/gestion-de-citas/st-pac-01-mis-citas" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
-      <span data-i18n="citas.title">Mis citas</span>
-    </a>
-    <a href="/gestion-de-citas/st-pac-03-notificaciones" class="mobile-nav-item">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">notifications</span></span>
-      <span data-i18n="notifications.tab_notices">Avisos</span>
-    </a>
-    <a href="/perfiles/st-pac-04-perfil-paciente" class="mobile-nav-item">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
-      <span data-i18n="profile.title">Perfil</span>
-    </a>
-  </nav>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">

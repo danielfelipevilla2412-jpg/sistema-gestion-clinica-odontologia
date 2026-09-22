@@ -2282,44 +2282,32 @@ public sealed class CambiarEstadoCitaDto
     private async Task<object> ConstruirNotificacionesPacienteAsync(
         CancellationToken ct)
     {
-        string? userIdStr =
-            User.FindFirst(
-                ClaimTypes.NameIdentifier)?.Value;
+        string? userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int? idUsuario = int.TryParse(userIdStr, out int uid) ? uid : null;
 
-        int? idUsuario =
-            int.TryParse(
-                userIdStr,
-                out int uid)
-                ? uid
-                : null;
-
-        var paciente =
-            idUsuario is not null
-                ? await _context.Pacientes
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(
-                        p => p.IdUsuario == idUsuario,
-                        ct)
-                : null;
+        var paciente = idUsuario is not null
+            ? await _context.Pacientes.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.IdUsuario == idUsuario, ct)
+            : null;
 
         if (paciente == null)
         {
-            return new
-            {
-                notificaciones =
-                    Array.Empty<object>()
-            };
+            return new { notificaciones = Array.Empty<object>(), unreadCount = 0 };
         }
 
-        var citas = await _context.Citas
-            .AsNoTracking()
+        // 1. Notificaciones reales persistidas en tabla Notificacion
+        var dbNotifs = await _context.Notificaciones.AsNoTracking()
+            .Where(n => n.IdPaciente == paciente.IdPaciente && n.Estado != "eliminada")
+            .OrderByDescending(n => n.CreadaEn)
+            .Take(30)
+            .ToListAsync(ct);
+
+        // 2. Citas reales para derivar notificaciones sintéticas
+        var citas = await _context.Citas.AsNoTracking()
             .Include(c => c.Profesional)
             .Include(c => c.Servicio)
             .Include(c => c.Consultorio)
-            .Where(
-                c =>
-                    c.IdPaciente ==
-                    paciente.IdPaciente)
+            .Where(c => c.IdPaciente == paciente.IdPaciente)
             .OrderByDescending(c => c.FechaHora)
             .Take(20)
             .ToListAsync(ct);
@@ -2327,112 +2315,168 @@ public sealed class CambiarEstadoCitaDto
         var citasIds = citas.Select(c => c.IdCita).ToList();
         var leidas = citasIds.Count == 0
             ? new HashSet<int>()
-            : (await _context.NotificacionesLeidas
-                .AsNoTracking()
+            : (await _context.NotificacionesLeidas.AsNoTracking()
                 .Where(n => n.IdPaciente == paciente.IdPaciente && citasIds.Contains(n.IdCita))
                 .Select(n => n.IdCita)
                 .ToListAsync(ct))
                 .ToHashSet();
 
         var ahora = DateTime.Now;
+        var list = new List<(object Notif, DateTime Time)>();
+        var addedIds = new HashSet<int>();
 
-        var notificaciones =
-            new List<(object Notif, DateTime Time)>();
+        // Mapear notificaciones registradas en la tabla Notificacion
+        foreach (var n in dbNotifs)
+        {
+            addedIds.Add(n.IdNotificacion);
+            if (n.IdCita.HasValue) addedIds.Add(n.IdCita.Value);
 
+            string mappedTipo = n.Tipo?.ToLowerInvariant() switch
+            {
+                "lista_espera_liberada" => "waitlist",
+                "cancelada" => "cancelled",
+                "reprogramada" => "rescheduled",
+                "factura" => "invoice",
+                "recordatorio" => "reminder",
+                "confirmada" => "confirmed",
+                _ => "message"
+            };
+
+            bool isRead = n.FechaLectura.HasValue || n.Estado == "leida";
+
+            list.Add((
+                new
+                {
+                    id = n.IdNotificacion,
+                    idNotificacion = n.IdNotificacion,
+                    idCita = n.IdCita,
+                    tipo = mappedTipo,
+                    titulo = n.Titulo ?? "Notificación de la clínica",
+                    desc = n.Contenido ?? "",
+                    time = n.CreadaEn != default ? n.CreadaEn : (n.FechaProgramada ?? ahora),
+                    leida = isRead,
+                    badge = isRead ? "read" : "new",
+                    canal = n.Canal ?? "interno",
+                    urlAccion = n.IdCita.HasValue ? $"/gestion-de-citas/st-pac-01-mis-citas?editId={n.IdCita}" : ""
+                },
+                n.CreadaEn != default ? n.CreadaEn : (n.FechaProgramada ?? ahora)
+            ));
+        }
+
+        // Mapear notificaciones derivadas de Citas (si no fueron ya agregadas)
         foreach (var c in citas)
         {
-            string profesional =
-                c.Profesional is not null
-                    ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}"
-                    : "tu profesional asignado";
+            if (addedIds.Contains(c.IdCita)) continue;
 
-            string estado =
-                NormalizarEstado(c.Estado);
+            string profesional = c.Profesional is not null
+                ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}"
+                : "tu profesional asignado";
+            string estado = NormalizarEstado(c.Estado);
+            bool isRead = leidas.Contains(c.IdCita);
 
-            if (c.FechaHora > ahora &&
-                (estado == "programada" ||
-                 estado == "confirmada"))
+            if (c.FechaHora > ahora && (estado == "programada" || estado == "confirmada"))
             {
-                notificaciones.Add(
-                    (
-                        new
-                        {
-                            id = c.IdCita,
-                            tipo = "reminder",
-                            titulo = "Recordatorio de cita",
-
-                            desc =
-                                $"Tu cita con {profesional} es el " +
-                                $"{c.FechaHora:dd 'de' MMMM} " +
-                                $"a las {c.FechaHora:hh:mm tt}" +
-                                $"{(
-                                    c.Consultorio != null
-                                        ? " - " + c.Consultorio.Nombre
-                                        : ""
-                                )}",
-
-                            time = c.FechaHora,
-                            leida = leidas.Contains(c.IdCita),
-                            badge = leidas.Contains(c.IdCita) ? "read" : "pending"
-                        },
-
-                        c.FechaHora
-                    ));
+                list.Add((
+                    new
+                    {
+                        id = c.IdCita,
+                        idNotificacion = (int?)null,
+                        idCita = (int?)c.IdCita,
+                        tipo = "reminder",
+                        titulo = "Recordatorio de cita",
+                        desc = $"Tu cita con {profesional} es el {c.FechaHora:dd 'de' MMMM} a las {c.FechaHora:hh:mm tt}{(c.Consultorio != null ? " - " + c.Consultorio.Nombre : "")}",
+                        time = c.FechaHora,
+                        leida = isRead,
+                        badge = isRead ? "read" : "pending",
+                        canal = "interno",
+                        urlAccion = $"/gestion-de-citas/st-pac-01-mis-citas?editId={c.IdCita}"
+                    },
+                    c.FechaHora
+                ));
             }
             else if (estado == "confirmada")
             {
-                notificaciones.Add(
-                    (
-                        new
-                        {
-                            id = c.IdCita,
-                            tipo = "confirmed",
-                            titulo = "Cita confirmada",
-
-                            desc =
-                                $"Tu cita del {c.FechaHora:dd 'de' MMMM} " +
-                                "fue confirmada exitosamente.",
-
-                            time = c.FechaHora,
-                            leida = leidas.Contains(c.IdCita),
-                            badge = leidas.Contains(c.IdCita) ? "read" : "new"
-                        },
-
-                        c.FechaHora
-                    ));
+                list.Add((
+                    new
+                    {
+                        id = c.IdCita,
+                        idNotificacion = (int?)null,
+                        idCita = (int?)c.IdCita,
+                        tipo = "confirmed",
+                        titulo = "Cita confirmada",
+                        desc = $"Tu cita del {c.FechaHora:dd 'de' MMMM} fue confirmada exitosamente.",
+                        time = c.FechaHora,
+                        leida = isRead,
+                        badge = isRead ? "read" : "new",
+                        canal = "interno",
+                        urlAccion = $"/gestion-de-citas/st-pac-01-mis-citas?editId={c.IdCita}"
+                    },
+                    c.FechaHora
+                ));
             }
             else if (estado == "cancelada")
             {
-                notificaciones.Add(
-                    (
-                        new
-                        {
-                            id = c.IdCita,
-                            tipo = "cancelled",
-                            titulo = "Cita cancelada",
-
-                            desc =
-                                $"Tu cita del {c.FechaHora:dd 'de' MMMM} " +
-                                "fue cancelada.",
-
-                            time = c.FechaHora,
-                            leida = true,
-                            badge = "read"
-                        },
-
-                        c.FechaHora
-                    ));
+                list.Add((
+                    new
+                    {
+                        id = c.IdCita,
+                        idNotificacion = (int?)null,
+                        idCita = (int?)c.IdCita,
+                        tipo = "cancelled",
+                        titulo = "Cita cancelada",
+                        desc = $"Tu cita del {c.FechaHora:dd 'de' MMMM} fue cancelada.",
+                        time = c.FechaHora,
+                        leida = true,
+                        badge = "read",
+                        canal = "interno",
+                        urlAccion = ""
+                    },
+                    c.FechaHora
+                ));
             }
         }
 
+        var resultList = list.OrderByDescending(n => n.Time).Select(n => n.Notif).ToList();
+        int unreadCount = list.Count(n => !((dynamic)n.Notif).leida);
+
         return new
         {
-            notificaciones =
-                notificaciones
-                    .OrderByDescending(n => n.Time)
-                    .Select(n => n.Notif)
-                    .ToList()
+            notificaciones = resultList,
+            unreadCount = unreadCount
         };
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Paciente,Administrador")]
+    [Route("api/notificaciones")]
+    public async Task<IActionResult> ObtenerNotificacionesApi(CancellationToken ct = default)
+    {
+        var data = await ConstruirNotificacionesPacienteAsync(ct);
+        return Ok(new { success = true, data });
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Paciente,Administrador")]
+    [Route("api/notificaciones/unread-count")]
+    public async Task<IActionResult> ObtenerConteoNoLeidasApi(CancellationToken ct = default)
+    {
+        string? claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(claim, out int idUsuario)) return Unauthorized(new { success = false, message = "Usuario no autenticado." });
+
+        int? idPaciente = await _context.Pacientes.AsNoTracking()
+            .Where(p => p.IdUsuario == idUsuario)
+            .Select(p => (int?)p.IdPaciente)
+            .FirstOrDefaultAsync(ct);
+        if (!idPaciente.HasValue) return Ok(new { success = true, unreadCount = 0 });
+
+        int unreadDb = await _context.Notificaciones.AsNoTracking()
+            .CountAsync(n => n.IdPaciente == idPaciente.Value && n.FechaLectura == null && n.Estado != "eliminada", ct);
+
+        int totalCitasNoLeidas = await _context.Citas.AsNoTracking()
+            .Where(c => c.IdPaciente == idPaciente.Value && (c.Estado == "Programada" || c.Estado == "Confirmada"))
+            .CountAsync(c => !_context.NotificacionesLeidas.Any(n => n.IdPaciente == idPaciente.Value && n.IdCita == c.IdCita), ct);
+
+        return Ok(new { success = true, unreadCount = Math.Max(unreadDb, totalCitasNoLeidas) });
     }
 
     [HttpPut]
@@ -2451,10 +2495,16 @@ public sealed class CambiarEstadoCitaDto
             .FirstOrDefaultAsync(ct);
         if (!idPaciente.HasValue) return Forbid();
 
-        bool pertenece = await _context.Citas.AsNoTracking()
-            .AnyAsync(c => c.IdCita == id && c.IdPaciente == idPaciente.Value, ct);
-        if (!pertenece) return NotFound(new { success = false, message = "Notificación no encontrada." });
+        // 1. Buscar en Notificacion por IdNotificacion
+        var notif = await _context.Notificaciones
+            .FirstOrDefaultAsync(n => n.IdNotificacion == id && n.IdPaciente == idPaciente.Value, ct);
+        if (notif != null)
+        {
+            notif.FechaLectura = DateTime.UtcNow;
+            notif.Estado = "leida";
+        }
 
+        // 2. Buscar/Insertar en NotificacionesLeidas por IdCita
         var lectura = await _context.NotificacionesLeidas
             .FirstOrDefaultAsync(n => n.IdPaciente == idPaciente.Value && n.IdCita == id, ct);
         if (lectura is null)
@@ -2470,6 +2520,7 @@ public sealed class CambiarEstadoCitaDto
         {
             lectura.FechaLectura = DateTime.UtcNow;
         }
+
         await _context.SaveChangesAsync(ct);
         return Ok(new { success = true, id, leida = true });
     }
@@ -2488,6 +2539,17 @@ public sealed class CambiarEstadoCitaDto
             .FirstOrDefaultAsync(ct);
         if (!idPaciente.HasValue) return Forbid();
 
+        // Marcar en tabla Notificacion
+        var dbNotifs = await _context.Notificaciones
+            .Where(n => n.IdPaciente == idPaciente.Value && (ids == null || ids.Contains(n.IdNotificacion)))
+            .ToListAsync(ct);
+        foreach (var n in dbNotifs)
+        {
+            n.FechaLectura = DateTime.UtcNow;
+            n.Estado = "leida";
+        }
+
+        // Marcar en tabla NotificacionesLeidas por IdCita
         var permitidos = await _context.Citas.AsNoTracking()
             .Where(c => c.IdPaciente == idPaciente.Value && (ids == null || ids.Contains(c.IdCita)))
             .Select(c => c.IdCita)
@@ -2497,14 +2559,55 @@ public sealed class CambiarEstadoCitaDto
             .ToListAsync(ct);
         var existentesIds = existentes.Select(n => n.IdCita).ToHashSet();
         foreach (var lectura in existentes) lectura.FechaLectura = DateTime.UtcNow;
-        _context.NotificacionesLeidas.AddRange(permitidos.Where(id => !existentesIds.Contains(id)).Select(id => new NotificacionLeida
+        _context.NotificacionesLeidas.AddRange(permitidos.Where(i => !existentesIds.Contains(i)).Select(i => new NotificacionLeida
         {
             IdPaciente = idPaciente.Value,
-            IdCita = id,
+            IdCita = i,
             FechaLectura = DateTime.UtcNow
         }));
+
         await _context.SaveChangesAsync(ct);
-        return Ok(new { success = true, count = permitidos.Count });
+        return Ok(new { success = true, count = dbNotifs.Count + permitidos.Count });
+    }
+
+    [HttpDelete]
+    [Authorize(Roles = "Paciente")]
+    [Route("api/notificaciones/{id:int}")]
+    public async Task<IActionResult> EliminarNotificacion(int id, CancellationToken ct = default)
+    {
+        if (id <= 0) return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        string? claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(claim, out int idUsuario)) return Unauthorized(new { success = false, message = "Usuario no autenticado." });
+
+        int? idPaciente = await _context.Pacientes.AsNoTracking()
+            .Where(p => p.IdUsuario == idUsuario)
+            .Select(p => (int?)p.IdPaciente)
+            .FirstOrDefaultAsync(ct);
+        if (!idPaciente.HasValue) return Forbid();
+
+        var notif = await _context.Notificaciones
+            .FirstOrDefaultAsync(n => n.IdNotificacion == id && n.IdPaciente == idPaciente.Value, ct);
+        if (notif != null)
+        {
+            notif.Estado = "eliminada";
+            await _context.SaveChangesAsync(ct);
+        }
+
+        var lectura = await _context.NotificacionesLeidas
+            .FirstOrDefaultAsync(n => n.IdPaciente == idPaciente.Value && n.IdCita == id, ct);
+        if (lectura is null)
+        {
+            _context.NotificacionesLeidas.Add(new NotificacionLeida
+            {
+                IdPaciente = idPaciente.Value,
+                IdCita = id,
+                FechaLectura = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+
+        return Ok(new { success = true, id });
     }
 
     // ================================================================

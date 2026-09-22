@@ -60,8 +60,9 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                 <h1 class="page-title" data-i18n="adm09_title">Gestión Integral de Citas</h1>
                 <p class="page-subtitle" data-i18n="adm09_subtitle">Supervisión y control</p>
             </div>
-            <button class="btn-primary" id="citas-btn-nueva" aria-label="Programar nueva cita" onclick="openModalCita(this)" data-i18n-aria-label="adm09_nueva_cita_aria" data-i18n="adm09_btn_nueva_cita">
-                + Nueva Cita
+            <button type="button" class="btn-primary" id="citas-btn-nueva" aria-label="Programar nueva cita" onclick="openModalCita(this)" data-i18n-aria-label="adm09_nueva_cita_aria">
+                <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                <span data-i18n="adm09_btn_nueva_cita">Nueva Cita</span>
             </button>
         </header>
 
@@ -167,8 +168,14 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             </div>
 
                             <input type="hidden" name="page" value="1" />
-                            <button class="btn-primary" type="submit" data-i18n="form.search">Aplicar</button>
-                            <a class="btn-secondary" href="@Url.Action("Stadm09Citas", "GestionCitas")" data-i18n="form.clear">Limpiar</a>
+                            <button class="btn-primary" type="submit" aria-label="Aplicar filtros">
+                                <span class="material-symbols-outlined" aria-hidden="true">filter_alt</span>
+                                <span data-i18n="form.search">Aplicar</span>
+                            </button>
+                            <a class="btn-secondary" href="@Url.Action("Stadm09Citas", "GestionCitas")" aria-label="Limpiar filtros">
+                                <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+                                <span data-i18n="form.clear">Limpiar</span>
+                            </a>
                         </form>
                     </section>
 
@@ -240,7 +247,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 var cNotas = cita.NotasPrevias ?? "";
 
 
-                                <tr role="row">
+                                <tr role="row" class="table-row">
                                     <td role="cell" data-label="Fecha" class="col-fecha">
                                         @cita.Fecha.ToString("dd/MM/yyyy")
                                     </td>
@@ -269,8 +276,15 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                             </div>
                                             <div style="display:flex; flex-direction:column; align-items:flex-start;">
                                                 <span class="patient-name">
-                                                    @(string.IsNullOrEmpty(profesionalNombre) ? "<span data-i18n=\"adm09_no_profesional\">Sin asignar</span>" : profesionalNombre)
-                                                </span>
+                                                     @if (string.IsNullOrEmpty(profesionalNombre))
+                                                     {
+                                                         <span data-i18n="adm09_no_profesional">Sin asignar</span>
+                                                     }
+                                                     else
+                                                     {
+                                                         @profesionalNombre
+                                                     }
+                                                 </span>
                                                 @if (!string.IsNullOrEmpty(profesionalNombre))
                                                 {
                                                     <span class="badge-spec @especialidadPrincipal.ToLowerInvariant()"
@@ -312,7 +326,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                     <!-- Acciones -->
                                     <td role="cell" data-label="Acciones" class="col-acciones text-right">
                                         <div class="actions-cell">
-                                            <button type="button" class="action-btn btn-secondary btn-view view"
+                                            <button type="button" class="action-btn btn-secondary btn-view"
                                                     aria-label="@Html.Encode($"Ver detalles de la cita de {cPaciente}")"
                                                     title="Ver detalles de la cita de @Html.Encode(cPaciente)" data-id="@cita.IdCita"
                                                     data-fecha="@Html.Encode(cFecha)" data-hora="@Html.Encode(cHora)"
@@ -322,14 +336,14 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                 <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
                                                 <span class="btn-text">Ver</span>
                                             </button>
-                                            <a class="action-btn btn-secondary edit"
+                                            <a class="action-btn btn-secondary btn-edit"
                                                href="@Url.Action("Stadm09Citas", "GestionCitas", new { editId = cita.IdCita })"
                                                aria-label="Editar la cita de @cPaciente"
                                                title="Editar la cita de @Html.Encode(cPaciente)">
                                                 <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
                                                 <span class="btn-text">Editar</span>
                                             </a>
-                                            <button type="button" class="action-btn btn-danger btn-delete toggle"
+                                            <button type="button" class="action-btn btn-danger btn-delete"
                                                     aria-label="Eliminar la cita de @cPaciente"
                                                     title="Eliminar la cita de @Html.Encode(cPaciente)"
                                                     onclick="openConfirmDeleteCita(@cita.IdCita, '@cPaciente.Replace("'", "\\'")', this)">
@@ -423,10 +437,14 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                     <h2 class="modal-title" id="modalAppointmentTitle">Detalle de Cita</h2>
                     <div id="modalAppointmentContent" class="modal-content" role="document"></div>
                     <div class="modal-footer">
-                        <button class="btn-secondary" id="modalAppointmentCancel"
-                                aria-label="Cerrar detalles de la cita actual">Cerrar</button>
-                        <button class="btn-primary" id="modalAppointmentEdit"
-                                aria-label="Abrir formulario de edición de la cita actual">Editar</button>
+                        <button type="button" class="btn-secondary" id="modalAppointmentCancel"
+                                aria-label="Cerrar detalles de la cita actual">
+                            <span class="material-symbols-outlined" aria-hidden="true">close</span> Cerrar
+                        </button>
+                        <button type="button" class="btn-primary" id="modalAppointmentEdit"
+                                aria-label="Abrir formulario de edición de la cita actual">
+                            <span class="material-symbols-outlined" aria-hidden="true">edit</span> Editar
+                        </button>
                     </div>
                 </div>
             </div>

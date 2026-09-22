@@ -5,23 +5,9 @@ Autor: Johan Santamaria
 Fecha: 29/07/2026
 
 DESCRIPCIÓN:
-Controla la carga de notificaciones del paciente, acciones de marcar como leídas y filtrado de alertas.
-
-FUNCIONALIDADES PRINCIPALES:
-- Carga reactiva de la lista de notificaciones vía API fetch
-- Toggle interactivo de estados leído/no leído e inserción de contadores dinámicos
-
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y NotificacionesPaciente
-- CSS: ~/css/Gestion_De_Citas/st-pac-03-notificaciones/styles.css
-- JS: ~/js/Gestion_De_Citas/st-pac-03-notificaciones/notificaciones.js
-- Partial / Otros: index.cshtml
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
+Controla la carga de notificaciones del paciente, acciones de marcar como leídas, visualización de detalle en modal, archivado/eliminación y filtrado omnicanal de alertas.
 ============================================ */
 
-// WHY: safeGetElement evita excepciones fatales en tiempo de ejecución si un id no se encuentra en el DOM
 const safeGetElement = (id) => {
   const el = document.getElementById(id);
   if (!el) {
@@ -30,7 +16,6 @@ const safeGetElement = (id) => {
   return el;
 };
 
-// WHY: Debounce evita la sobrecarga del hilo principal ante eventos repetitivos como tecleos de búsqueda o redimensiones
 const debounce = (fn, delay) => {
   let timeoutId;
   return (...args) => {
@@ -47,19 +32,13 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character
   '"': '&quot;'
 }[character]));
 
-// WHY: Muestra retroalimentación temporal autolimpiable para no interrumpir el flujo visual de la lista de alertas
-
-// —— DATOS REALES (derivados de las citas del paciente) ——
-// Ver ConstruirNotificacionesPacienteAsync en GestionCitasController.cs: no existe una
-// tabla de notificaciones en el esquema, así que se generan a partir de citas reales.
 const formatTiempoRelativo = (iso) => {
   if (!iso) return '';
   const fecha = new Date(iso);
-  if (Number.isNaN(fecha.getTime())) return '';
+  if (Number.isNaN(fecha.getTime())) return String(iso);
   const diffMs = Date.now() - fecha.getTime();
   const diffHoras = diffMs / (1000 * 60 * 60);
   if (diffHoras < 0) {
-    // Fecha futura (recordatorio de cita próxima)
     const horasFuturas = Math.abs(diffHoras);
     if (horasFuturas < 24) return `En ${Math.round(horasFuturas)} horas`;
     return `En ${Math.round(horasFuturas / 24)} días`;
@@ -72,78 +51,59 @@ const formatTiempoRelativo = (iso) => {
   return `Hace ${Math.round(diffDias / 7)} semanas`;
 };
 
-const SAMPLE_NOTIFICACIONES = (window.smiletrackNotificacionesData?.notificaciones || [])
-  .map(n => ({ ...n, time: formatTiempoRelativo(n.time) }));
+const rawData = window.smiletrackNotificacionesData?.notificaciones || [];
+let notificaciones = rawData.map(n => ({
+  ...n,
+  displayTime: formatTiempoRelativo(n.time)
+}));
 
-let notificaciones = [...SAMPLE_NOTIFICACIONES];
 let currentFilter = 'all';
+let showOnlyUnread = false;
 
-// ── Badge class por estado ──
-/**
- * Retorna la clase CSS para el badge según el estado
- * @param {string} badge - Estado del badge
- * @returns {string} Clase CSS del badge
- */
 const badgeClass = (badge) => {
-  const map = { 'pending':'badge-agendada', 'new':'badge-completada', 'read':'badge-cancelada' };
-  return map[badge] || 'badge-cancelada'; // [MEJORA]: Fallback seguro
+  const map = { 'pending': 'badge-agendada', 'new': 'badge-completada', 'read': 'badge-cancelada' };
+  return map[badge] || 'badge-cancelada';
 };
 
-/**
- * Retorna la etiqueta legible para el badge
- * @param {string} badge - Estado del badge
- * @returns {string} Label del badge
- */
 const badgeLabel = (badge) => {
   const map = { 'pending': 'Pendiente', 'new': 'Nueva', 'read': 'Leída' };
-  return map[badge] || 'Leída'; // [MEJORA]: Fallback seguro
+  return map[badge] || 'Leída';
 };
 
-// ── Icono por tipo de notificación ──
-/**
- * Retorna el emoji/icono según el tipo de notificación
- * @param {string} tipo - Tipo de notificación
- * @returns {string} Emoji representativo
- */
 const getIconByType = (tipo) => {
-  const map = { 'reminder':'📅', 'confirmed':'✅', 'cancelled':'❌', 'message':'💬' };
-  return map[tipo] || '🔔'; // [MEJORA]: Fallback seguro
+  const map = {
+    'reminder': 'notifications',
+    'confirmed': 'check_circle',
+    'cancelled': 'cancel',
+    'rescheduled': 'event_repeat',
+    'waitlist': 'hourglass_top',
+    'invoice': 'payments',
+    'message': 'message'
+  };
+  return map[tipo] || 'notifications';
 };
 
-// ── Obtener notificaciones filtradas ──
-/**
- * Filtra notificaciones según búsqueda y filtro activo
- * @returns {Array} Array de notificaciones filtradas
- */
 const getFiltered = () => {
-  // [MEJORA]: Uso de safeGetElement para validación segura
   const searchInput = safeGetElement('searchInput');
   const q = searchInput?.value.toLowerCase().trim() || '';
   
   return notificaciones.filter(n => {
     const matchQ = !q || (
-      n.titulo.toLowerCase().includes(q) ||
-      n.desc.toLowerCase().includes(q) ||
-      n.time.toLowerCase().includes(q)
+      (n.titulo || '').toLowerCase().includes(q) ||
+      (n.desc || '').toLowerCase().includes(q)
     );
     const matchFilter = currentFilter === 'all' || n.tipo === currentFilter;
-    return matchQ && matchFilter;
+    const matchUnread = !showOnlyUnread || !n.leida;
+    return matchQ && matchFilter && matchUnread;
   });
 };
 
-// ── Crear elemento de notificación (separado para mantenibilidad) ──
-/**
- * Crea el elemento DOM para una notificación individual
- * @param {Object} item - Datos de la notificación
- * @returns {HTMLLIElement} Elemento li con la notificación
- */
 const createNotificationItem = (item) => {
   const li = document.createElement('li');
   li.className = `notification-card${item.leida ? ' notification-card--read' : ''}`;
   li.dataset.type = item.tipo;
   li.dataset.id = item.id;
   
-  // [MEJORA]: Atributos ARIA para accesibilidad de item interactivo
   if (!item.leida) {
     li.setAttribute('role', 'article');
     li.setAttribute('aria-label', `Notificación sin leer: ${item.titulo}`);
@@ -151,14 +111,30 @@ const createNotificationItem = (item) => {
   }
   
   li.innerHTML = `
-    <div class="notification-card__icon" aria-hidden="true">${escapeHtml(getIconByType(item.tipo))}</div>
+    <div class="notification-card__icon" aria-hidden="true">
+      <span class="material-symbols-outlined">${escapeHtml(getIconByType(item.tipo))}</span>
+    </div>
     <div class="notification-card__body">
       <div class="notification-card__header">
         <h3 class="notification-card__title">${escapeHtml(item.titulo)}</h3>
         <span class="badge ${escapeHtml(badgeClass(item.badge))}" aria-label="Estado: ${escapeHtml(badgeLabel(item.badge))}">${escapeHtml(badgeLabel(item.badge))}</span>
       </div>
       <p class="notification-card__desc">${escapeHtml(item.desc)}</p>
-      <time class="notification-card__time" datetime="${escapeHtml(item.time)}">${escapeHtml(item.time)}</time>
+      <div class="notification-card__footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+        <time class="notification-card__time" datetime="${escapeHtml(item.time)}">${escapeHtml(item.displayTime)}</time>
+        <div class="card-actions" style="display:flex; gap:6px;">
+          <button type="button" class="btn-icon btn-view-detail" data-id="${item.id}" title="Ver detalle" aria-label="Ver detalle de la notificación">
+            <span class="material-symbols-outlined" style="font-size:1.1rem;">visibility</span>
+          </button>
+          ${!item.leida ? `
+          <button type="button" class="btn-icon btn-mark-read" data-id="${item.id}" title="Marcar como leída" aria-label="Marcar como leída">
+            <span class="material-symbols-outlined" style="font-size:1.1rem;">done</span>
+          </button>` : ''}
+          <button type="button" class="btn-icon btn-delete-notif" data-id="${item.id}" title="Eliminar" aria-label="Eliminar notificación">
+            <span class="material-symbols-outlined" style="font-size:1.1rem; color:var(--danger, #ef4444);">delete</span>
+          </button>
+        </div>
+      </div>
     </div>
     ${!item.leida ? '<span class="notification-card__dot" aria-label="No leída" role="status"></span>' : ''}
   `;
@@ -166,17 +142,11 @@ const createNotificationItem = (item) => {
   return li;
 };
 
-// ── Render lista de notificaciones ──
-/**
- * Renderiza la lista de notificaciones con los datos filtrados
- * [MEJORA]: Event delegation centralizado para mejor performance
- */
 const renderNotifications = () => {
   const data = getFiltered();
   const container = safeGetElement('notificationsList');
   const emptyState = safeGetElement('emptyState');
   
-  // [MEJORA]: Validaciones de seguridad para elementos del DOM
   if (!container) return;
   
   container.replaceChildren();
@@ -184,7 +154,6 @@ const renderNotifications = () => {
   const countLabel = safeGetElement('countLabel');
   if (countLabel) countLabel.textContent = `${data.length} resultado${data.length !== 1 ? 's' : ''}`;
   
-  // Manejo de empty state con accesibilidad
   if (!data.length) {
     if (emptyState) {
       emptyState.style.display = 'flex';
@@ -219,68 +188,143 @@ const markReadOnServer = async (ids) => {
   }
 };
 
-// ── Manejador centralizado de clicks en notificaciones ──
-/**
- * [MEJORA]: Event delegation para manejar clicks en lista dinámica
- * Evita attach de listeners individuales por item (mejor performance)
- * @param {Event} e - Evento de click
- */
+const deleteOnServer = async (id) => {
+  const response = await fetch(`/api/notificaciones/${id}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+    headers: { 'Accept': 'application/json' }
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.success === false) {
+    throw new Error(payload.message || 'No fue posible eliminar la notificación.');
+  }
+};
+
+let lastActiveTrigger = null;
+
+const openModalDetail = (notif, triggerEl) => {
+  lastActiveTrigger = triggerEl || document.activeElement;
+  const modal = safeGetElement('modalNotifDetail');
+  if (!modal) return;
+
+  safeGetElement('modalNotifTitle').textContent = notif.titulo || 'Detalle de Notificación';
+  safeGetElement('modalNotifDesc').textContent = notif.desc || '';
+  safeGetElement('modalNotifTime').textContent = `${formatTiempoRelativo(notif.time)} (${new Date(notif.time).toLocaleString()})`;
+  safeGetElement('modalNotifCanal').textContent = notif.canal || 'Interno (In-App)';
+  
+  const iconBadge = safeGetElement('modalNotifIcon');
+  if (iconBadge) iconBadge.textContent = getIconByType(notif.tipo);
+
+  const badgeEl = safeGetElement('modalNotifBadge');
+  if (badgeEl) {
+    badgeEl.className = `badge ${badgeClass(notif.badge)}`;
+    badgeEl.textContent = badgeLabel(notif.badge);
+  }
+
+  const actionBtn = safeGetElement('btnModalAction');
+  if (actionBtn) {
+    if (notif.urlAccion) {
+      actionBtn.href = notif.urlAccion;
+      actionBtn.style.display = 'inline-flex';
+    } else {
+      actionBtn.style.display = 'none';
+    }
+  }
+
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+  document.body.style.overflow = 'hidden';
+
+  const closeBtn = safeGetElement('btnModalClose');
+  if (closeBtn) closeBtn.focus();
+};
+
+const closeModalDetail = () => {
+  const modal = safeGetElement('modalNotifDetail');
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  modal.setAttribute('inert', '');
+  document.body.style.overflow = '';
+  if (lastActiveTrigger && typeof lastActiveTrigger.focus === 'function' && document.contains(lastActiveTrigger)) {
+    lastActiveTrigger.focus();
+  }
+  lastActiveTrigger = null;
+};
+
 const handleNotificationClick = async (e) => {
-  // [MEJORA]: Encontrar el card más cercano (soporta clicks en hijos)
+  const viewBtn = e.target.closest('.btn-view-detail');
+  const markBtn = e.target.closest('.btn-mark-read');
+  const deleteBtn = e.target.closest('.btn-delete-notif');
   const card = e.target.closest('.notification-card');
   if (!card) return;
-  
+
   const id = parseInt(card.dataset.id, 10);
-  // [MEJORA]: Validar que id sea número válido
   if (isNaN(id)) return;
-  
-  // [MEJORA]: Ignorar si ya está leída o si se hizo click en botón
-  if (card.classList.contains('notification-card--read') || e.target.closest('button')) {
+  const notif = notificaciones.find(n => n.id === id);
+  if (!notif) return;
+
+  if (viewBtn || (!markBtn && !deleteBtn)) {
+    openModalDetail(notif, viewBtn || card);
+    if (!notif.leida) {
+      try {
+        await markReadOnServer([id]);
+        notif.leida = true;
+        notif.badge = 'read';
+        renderNotifications();
+      } catch (err) {
+        console.warn('Error al marcar leída:', err);
+      }
+    }
     return;
   }
-  
-  const notif = notificaciones.find(n => n.id === id);
-  if (notif) {
+
+  if (markBtn) {
+    e.stopPropagation();
     try {
       await markReadOnServer([id]);
       notif.leida = true;
       notif.badge = 'read';
       renderNotifications();
-      window.ToastService.success('Notificación marcada como leída');
+      if (window.ToastService) window.ToastService.success('Notificación marcada como leída');
     } catch (error) {
-      window.ToastService.error(error.message);
+      if (window.ToastService) window.ToastService.error(error.message);
+    }
+    return;
+  }
+
+  if (deleteBtn) {
+    e.stopPropagation();
+    try {
+      await deleteOnServer(id);
+      notificaciones = notificaciones.filter(n => n.id !== id);
+      renderNotifications();
+      if (window.ToastService) window.ToastService.success('Notificación eliminada');
+    } catch (error) {
+      if (window.ToastService) window.ToastService.error(error.message);
     }
   }
 };
 
-// ── Marcar todas como leídas ──
-/**
- * Marca todas las notificaciones como leídas y actualiza UI
- */
 const markAllAsRead = async () => {
-  const hayNoLeidas = notificaciones.some(n => !n.leida);
-  if (!hayNoLeidas) {
-    window.ToastService.success('No hay notificaciones sin leer');
+  const unreadList = notificaciones.filter(n => !n.leida);
+  if (!unreadList.length) {
+    if (window.ToastService) window.ToastService.success('No hay notificaciones sin leer');
     return;
   }
   
   try {
-    await markReadOnServer(notificaciones.filter(n => !n.leida).map(n => n.id));
+    await markReadOnServer(unreadList.map(n => n.id));
     notificaciones.forEach(n => { n.leida = true; n.badge = 'read'; });
     renderNotifications();
-    window.ToastService.success('Todas las notificaciones marcadas como leídas');
+    if (window.ToastService) window.ToastService.success('Todas las notificaciones marcadas como leídas');
   } catch (error) {
-    window.ToastService.error(error.message);
+    if (window.ToastService) window.ToastService.error(error.message);
   }
 };
 
-// ── Manejo de chips de filtro ──
-/**
- * Actualiza el filtro activo y actualiza la UI
- * @param {HTMLElement} chip - Elemento chip clickeado
- */
 const handleChipClick = (chip) => {
-  // [MEJORA]: Actualizar aria-pressed para accesibilidad
   document.querySelectorAll('.chip').forEach(c => {
     c.classList.remove('chip--active');
     c.setAttribute('aria-pressed', 'false');
@@ -293,27 +337,61 @@ const handleChipClick = (chip) => {
   renderNotifications();
 };
 
-// ── Manejo de menú móvil (hamburger) ──
-/**
- * Inicializa eventos del menú móvil con gestión de accesibilidad
- */
-const initMobileMenu = () => {
-  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
+const toggleOnlyUnread = () => {
+  showOnlyUnread = !showOnlyUnread;
+  const btn = safeGetElement('btnToggleUnread');
+  const lbl = safeGetElement('lblToggleUnread');
+  if (btn) {
+    btn.setAttribute('aria-pressed', String(showOnlyUnread));
+    btn.classList.toggle('btn-primary', showOnlyUnread);
+    btn.classList.toggle('btn-secondary', !showOnlyUnread);
+  }
+  if (lbl) lbl.textContent = showOnlyUnread ? 'Ver todas' : 'Solo no leídas';
+  renderNotifications();
 };
 
-// ── Init principal ──
-/**
- * Función principal de inicialización de la página
- */
+const fetchNotificationsApi = async () => {
+  try {
+    const res = await fetch('/api/notificaciones', {
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin'
+    });
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (payload.success && payload.data && Array.isArray(payload.data.notificaciones)) {
+      notificaciones = payload.data.notificaciones.map(n => ({
+        ...n,
+        displayTime: formatTiempoRelativo(n.time)
+      }));
+      renderNotifications();
+    }
+  } catch (err) {
+    console.warn('[SmileTrack] Fallback a datos SSR:', err);
+  }
+};
+
+const initModalEvents = () => {
+  const modal = safeGetElement('modalNotifDetail');
+  safeGetElement('modalNotifClose')?.addEventListener('click', closeModalDetail);
+  safeGetElement('btnModalClose')?.addEventListener('click', closeModalDetail);
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) closeModalDetail();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('open')) {
+      e.preventDefault();
+      closeModalDetail();
+    }
+  });
+};
+
 const init = () => {
-  // Renderizado inicial
   renderNotifications();
+  initModalEvents();
   
-  // [MEJORA]: Event delegation para lista de notificaciones (performance)
   const notificationsList = safeGetElement('notificationsList');
   if (notificationsList) {
     notificationsList.addEventListener('click', handleNotificationClick);
-    // [MEJORA]: Soporte para activación con teclado (Enter/Space)
     notificationsList.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -322,30 +400,20 @@ const init = () => {
     });
   }
   
-  // Inicializar chips de filtro
   document.querySelectorAll('.chip').forEach(chip => {
     chip.addEventListener('click', () => handleChipClick(chip));
   });
   
-  // [MEJORA]: Búsqueda con debounce extraído como utilidad (consistente con st-pac-01)
   const searchEl = safeGetElement('searchInput');
   if (searchEl) {
     const debouncedRender = debounce(renderNotifications, 180);
     searchEl.addEventListener('input', debouncedRender);
   }
   
-  // Botón "Marcar todas como leídas"
-  const btnMarkAll = safeGetElement('btnMarkAllRead');
-  if (btnMarkAll) btnMarkAll.addEventListener('click', markAllAsRead);
-  
-  // Inicializar menú móvil con accesibilidad
-  initMobileMenu();
-  
-  // [MEJORA]: Limpieza de listeners al unload (buena práctica para SPAs)
-  window.addEventListener('beforeunload', () => {
-    // En una SPA real, aquí se removerían listeners para evitar memory leaks
-  });
+  safeGetElement('btnMarkAllRead')?.addEventListener('click', markAllAsRead);
+  safeGetElement('btnToggleUnread')?.addEventListener('click', toggleOnlyUnread);
+
+  fetchNotificationsApi();
 };
 
-// Ejecutar al cargar DOM
 document.addEventListener('DOMContentLoaded', init);

@@ -1,25 +1,24 @@
-﻿@* ============================================
+@* ============================================
 SmileTrack — Notificaciones Paciente (st-pac-03-notificaciones)
 ============================================
 Autor: Johan Santamaria
 Fecha: 29/07/2026
 
 DESCRIPCIÓN:
-Vista que permite al paciente consultar y gestionar sus notificaciones del sistema (recordatorios de citas, avisos de reprogramación y alertas generales de la clínica).
+Vista que permite al paciente consultar y gestionar sus notificaciones del sistema (recordatorios de citas, avisos de reprogramación, lista de espera, facturas y alertas generales de la clínica).
 
 FUNCIONALIDADES PRINCIPALES:
-- Visualización de la lista de notificaciones pendientes y leÍdas
-- Marcar notificaciones individuales como leÍdas o eliminarlas
-- Filtros rápidos para clasificar las alertas (Todas, Recordatorios, Alertas)
+- Visualización de la lista de notificaciones pendientes y leídas
+- Marcar notificaciones individuales como leídas, eliminarlas o ver su detalle
+- Filtros rápidos por tipo (Todas, Recordatorios, Confirmaciones, Cancelaciones, Mensajes, Lista de Espera, Facturación)
+- Toggle de filtro rápido "Solo no leídas"
+- Modal accesible de detalle de notificación con acciones dinámicas
 
 DEPENDENCIAS TÉCNICAS:
 - Controller: GestionCitasController y NotificacionesPaciente
 - CSS: ~/css/Gestion_De_Citas/st-pac-03-notificaciones/styles.css
 - JS: ~/js/Gestion_De_Citas/st-pac-03-notificaciones/notificaciones.js
 - Partial / Otros: Menú del paciente
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 ============================================ *@
 @{
     Layout = "_Layout";
@@ -39,17 +38,23 @@ NOTAS DE MANTENIMIENTO:
       <div class="header-left">
         <div class="breadcrumb"><span data-i18n="common_role_patient">Paciente</span> › <span data-i18n="common.notifications">Notificaciones</span></div>
         <h1 class="page-title" data-i18n="notifications.page_title">Notificaciones</h1>
-        <p class="page-subtitle" data-i18n="notifications.subtitle">Recordatorios, confirmaciones y mensajes de la clínica</p>
+        <p class="page-subtitle" data-i18n="notifications.subtitle">Recordatorios, confirmaciones, facturas y mensajes de la clínica</p>
       </div>
-      <!-- [MEJORA]: aria-label para botón de acción principal -->
-      <button class="btn-primary" id="btnMarkAllRead" aria-label="Marcar todas las notificaciones como leídas" data-i18n-aria-label="notifications.mark_all_aria" data-i18n="notifications.mark_all">Marcar todas como leídas</button>
+      <div class="header-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button class="btn-secondary" id="btnToggleUnread" aria-label="Mostrar solo notificaciones no leídas" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">mark_chat_unread</span>
+          <span id="lblToggleUnread">Solo no leídas</span>
+        </button>
+        <button class="btn-primary" id="btnMarkAllRead" aria-label="Marcar todas las notificaciones como leídas" data-i18n-aria-label="notifications.mark_all_aria" data-i18n="notifications.mark_all">
+          <span class="material-symbols-outlined" aria-hidden="true">done_all</span> Marcar todas como leídas
+        </button>
+      </div>
     </header>
 
     <!-- Toolbar de filtros -->
     <div class="toolbar" role="toolbar" aria-label="Filtros de notificaciones" data-i18n-aria-label="notifications.filter_aria">
       <div class="search-wrap">
         <span class="search-icon material-symbols-outlined" aria-hidden="true">search</span>
-        <!-- [MEJORA]: aria-label para input de búsqueda (consistente con st-pac-01) -->
         <input type="search" id="searchInput" class="search-input" placeholder="Buscar notificaciones…" data-i18n-ph="notifications.search_ph"
           autocomplete="off" aria-label="Buscar notificaciones" data-i18n-aria-label="notifications.search_aria" />
       </div>
@@ -58,20 +63,20 @@ NOTAS DE MANTENIMIENTO:
         <button class="chip" data-filter="reminder" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">notifications</span> <span data-i18n="notifications.filter_reminders">Recordatorios</span></button>
         <button class="chip" data-filter="confirmed" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">check_circle</span> <span data-i18n="notifications.filter_confirmed">Confirmaciones</span></button>
         <button class="chip" data-filter="cancelled" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">cancel</span> <span data-i18n="notifications.filter_cancelled">Cancelaciones</span></button>
+        <button class="chip" data-filter="waitlist" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">hourglass_top</span> <span>Lista de Espera</span></button>
+        <button class="chip" data-filter="invoice" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">payments</span> <span>Facturación</span></button>
         <button class="chip" data-filter="message" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">message</span> <span data-i18n="notifications.filter_messages">Mensajes</span></button>
       </div>
       <span class="count-label" id="countLabel" aria-live="polite"></span>
     </div>
 
     <!-- Lista de notificaciones -->
-    <!-- [MEJORA]: role="list" explícito para lectores de pantalla -->
     <ul class="notifications-list" id="notificationsList" role="list" aria-live="polite"
       aria-label="Lista de notificaciones" data-i18n-aria-label="notifications.list_aria">
       <!-- Items inyectados por JS -->
     </ul>
 
     <!-- Empty state -->
-    <!-- [MEJORA]: aria-hidden gestionado por JS, texto más accesible -->
     <div class="empty-state" id="emptyState" aria-live="polite" aria-hidden="true" style="display:none;">
       <span class="empty-icon material-symbols-outlined" aria-hidden="true">notifications_off</span>
       <p class="empty-state-text" data-i18n="common.no_notifications">No hay notificaciones en esta categoría.</p>
@@ -79,29 +84,35 @@ NOTAS DE MANTENIMIENTO:
 
   </main>
 
-  <!-- Toast -->
-  <!-- [MEJORA]: aria-atomic="true" para que lectores anuncien mensaje completo -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-  <script>
-    window.smiletrackNotificacionesData = @Html.Raw(notificacionesDataJson);
-  </script>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-pac-03-notificaciones/notificaciones.js")" defer></script>
+  <!-- Modal: Detalle de Notificación -->
+  <div class="modal-overlay" id="modalNotifDetail" role="dialog" aria-modal="true" aria-labelledby="modalNotifTitle" aria-hidden="true" inert>
+    <div class="modal modal--sm">
+      <button class="modal-close" id="modalNotifClose" aria-label="Cerrar detalles">×</button>
+      <div class="modal-header-icon" style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+        <span class="modal-icon-badge material-symbols-outlined" id="modalNotifIcon" style="font-size:2rem; color:var(--primary);">notifications</span>
+        <div>
+          <h2 class="modal-title" id="modalNotifTitle">Detalle de Notificación</h2>
+          <span class="badge" id="modalNotifBadge">Nueva</span>
+        </div>
+      </div>
+      <div class="modal-body" style="margin-bottom:20px;">
+        <p class="modal-desc" id="modalNotifDesc" style="font-size:0.95rem; line-height:1.6; color:var(--text); margin-bottom:12px;"></p>
+        <div style="font-size:0.8rem; color:var(--text-muted); display:flex; flex-direction:column; gap:4px;">
+          <div><strong>Fecha / Hora:</strong> <span id="modalNotifTime">—</span></div>
+          <div><strong>Canal:</strong> <span id="modalNotifCanal">Interno (In-App)</span></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
+        <a href="#" class="btn-primary" id="btnModalAction" style="display:none; text-decoration:none;">
+          <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span> Ir a la sección
+        </a>
+        <button type="button" class="btn-secondary" id="btnModalClose">Cerrar</button>
+      </div>
+    </div>
+  </div>
 
-  <!-- Mobile bottom nav — Paciente -->
-  <nav class="mobile-nav" aria-label="Navegación móvil" data-i18n-aria-label="common_mobile_nav">
-    <a href="/gestion-de-citas/st-pac-01-mis-citas" class="mobile-nav-item">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
-      <span data-i18n="citas.title">Mis citas</span>
-    </a>
-    <a href="/gestion-de-citas/st-pac-03-notificaciones" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">notifications</span></span>
-      <span data-i18n="notifications.tab_notices">Avisos</span>
-    </a>
-    <a href="/perfiles/st-pac-04-perfil-paciente" class="mobile-nav-item">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
-      <span data-i18n="profile.title">Perfil</span>
-    </a>
-  </nav>
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -110,7 +121,12 @@ NOTAS DE MANTENIMIENTO:
     </div>
     <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
   </footer>
+
+  <script>
+    window.smiletrackNotificacionesData = @Html.Raw(notificacionesDataJson);
+  </script>
 @section Scripts {
+    <script src="~/js/Gestion_De_Citas/st-pac-03-notificaciones/notificaciones.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
 }

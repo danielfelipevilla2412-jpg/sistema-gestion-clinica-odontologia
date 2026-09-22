@@ -704,7 +704,8 @@ img {
    BOTONES
    ═══════════════════════════════════════════════════════════════ */
 .btn-primary,
-.btn-secondary {
+.btn-secondary,
+.btn-danger {
     padding: 9px 18px;
     border-radius: var(--radius-sm);
     font-weight: 600;
@@ -714,6 +715,7 @@ img {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    text-decoration: none;
 }
 
 .btn-primary {
@@ -750,6 +752,22 @@ img {
 .btn-secondary:active {
     transform: translateY(1px);
     background: #e2e8f0;
+}
+
+.btn-danger {
+    background: var(--danger, #ef4444);
+    color: #fff;
+    border: 1.5px solid var(--danger, #ef4444);
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+.btn-danger:active {
+    transform: translateY(1px);
+    background: #b91c1c;
 }
 
 /* Cabecera de tabla */
@@ -807,9 +825,11 @@ img {
 }
 
 .col-acciones {
-    flex: 0.7;
-    min-width: 100px;
+    flex: 1.2;
+    min-width: 230px;
+    width: 230px;
     text-align: right;
+    white-space: nowrap;
 }
 
 .text-center {
@@ -854,9 +874,11 @@ img {
 }
 
 .col-acciones {
-    flex: 0.9;
-    min-width: 140px;
+    flex: 1.2;
+    min-width: 230px;
+    width: 230px;
     text-align: right;
+    white-space: nowrap;
 }
 
 .actions-cell {
@@ -989,10 +1011,12 @@ select.status-select-inline option {
    ═══════════════════════════════════════════════════════════════ */
 .actions-cell {
     display: flex;
+    flex-direction: row;
     align-items: center;
     justify-content: flex-end;
     gap: 6px;
     flex-wrap: nowrap;
+    white-space: nowrap;
 }
 
 .action-btn {

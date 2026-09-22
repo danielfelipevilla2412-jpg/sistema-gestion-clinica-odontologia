@@ -628,7 +628,7 @@ public sealed class CitasApiController : ControllerBase
     [Route("api/citas/{id:int}")]
     public async Task<IActionResult> Cancelar(
         int id,
-        [FromBody] CitaCancelacionDto? dto = null,
+        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] CitaCancelacionDto? dto = null,
         CancellationToken ct = default)
     {
         if (id <= 0) return BadRequest(new { success = false, message = "Identificador de cita inválido." });

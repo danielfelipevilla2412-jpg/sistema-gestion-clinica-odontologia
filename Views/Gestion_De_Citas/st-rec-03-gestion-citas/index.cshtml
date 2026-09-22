@@ -256,14 +256,18 @@ NOTAS DE MANTENIMIENTO:
                             role="button">
                       ✏️ <span class="btn-text">Editar</span>
                     </button>
-                    <button type="button"
-                            class="btn-danger btn-delete"
-                            data-action="cancel"
-                            data-id="@cita.IdCita"
-                            aria-label="Cancelar cita de @Html.Encode(citaPaciente)"
-                            title="Cancelar cita de @Html.Encode(citaPaciente)">
-                      ✕ <span class="btn-text">Cancelar</span>
-                    </button>
+                    @if (estadoLower != "cancelada" && estadoLower != "cancelado")
+                    {
+                      <button type="button"
+                              class="btn-danger btn-delete"
+                              data-action="cancel"
+                              data-id="@cita.IdCita"
+                              data-paciente="@Html.Encode(citaPaciente)"
+                              aria-label="Cancelar cita de @Html.Encode(citaPaciente)"
+                              title="Cancelar cita de @Html.Encode(citaPaciente)">
+                        ✕ <span class="btn-text">Cancelar</span>
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>
