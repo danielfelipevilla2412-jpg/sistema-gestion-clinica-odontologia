@@ -5,13 +5,12 @@ Autor: Johan Santamaria
 Fecha: 29/07/2026
 
 DESCRIPCIÓN:
-Vista de administración de reportes clínicos que permite al administrador consultar, filtrar y paginar los reportes generados por los odontólogos, con acceso al detalle de cada procedimiento realizado.
+Vista de administración de reportes clínicos que permite al administrador consultar, filtrar y paginar los reportes generados por los odontólogos.
 
 FUNCIONALIDADES PRINCIPALES:
 - Tabla paginada de reportes clínicos renderizada server-side con Razor desde PagedResult
 - Filtros por profesional, rango de fechas y estado del reporte
-- Detalle del reporte expandible con datos del procedimiento, diagnóstico y observaciones
-- Exportación del listado de reportes a CSV desde el cliente
+- Diagnóstico y procedimiento provenientes de la nota clínica más reciente por paciente
 
 DEPENDENCIAS TÉCNICAS:
 - Controller: GestionProfesionalesController (ViewData: ProfesionalesReportes, ReportesClinicos, ReportesClinicosPage)
@@ -63,8 +62,8 @@ NOTAS DE MANTENIMIENTO:
                 <span class="stat-label" data-i18n="reportesclinicos_stat_consultas">Consultas Este Mes</span>
             </div>
             <div class="stat-card" data-color="purple">
-                <span class="stat-number" id="metricSatisfaction" data-target="@(ViewData["SatisfaccionPromedio"] ?? 0)" aria-live="polite">0</span>
-                <span class="stat-label" data-i18n="reportesclinicos_stat_satisfaccion">Satisfacción Pacientes</span>
+                <span class="stat-number" id="metricAttendanceRate" data-target="@(ViewData["TasaAsistencia"] ?? 0)" aria-live="polite">0</span>
+                <span class="stat-label" data-i18n="reportesclinicos_stat_asistencia">Tasa de asistencia</span>
             </div>
         </section>
 
@@ -117,6 +116,7 @@ NOTAS DE MANTENIMIENTO:
                             <th scope="col" data-i18n="reportesclinicos_th_paciente">PACIENTE</th>
                             <th scope="col" data-i18n="reportesclinicos_th_ultconsulta">ÚLTIMA CONSULTA</th>
                             <th scope="col" data-i18n="reportesclinicos_th_diagnostico">DIAGNÓSTICO</th>
+                            <th scope="col">PROCEDIMIENTO</th>
                             <th scope="col" data-i18n="reportesclinicos_th_profesional">PROFESIONAL</th>
                             <th scope="col" data-i18n="reportesclinicos_th_proxcita">PRÓXIMA CITA</th>
                             <th scope="col" data-i18n="reportesclinicos_th_alerta">ALERTA</th>
@@ -126,7 +126,7 @@ NOTAS DE MANTENIMIENTO:
                         @if (!reportes.Any())
                         {
                             <tr>
-                                <td colspan="6" style="text-align:center; padding:48px 24px; color:var(--text-muted);">
+                                <td colspan="7" style="text-align:center; padding:48px 24px; color:var(--text-muted);">
                                     <div style="font-size:2rem; margin-bottom:8px;">🩺</div>
                                     <strong data-i18n="reportesclinicos_empty_title">Sin resultados</strong>
                                     <br /><span style="font-size:0.875rem;" data-i18n-html="reportesclinicos_empty_desc">Ningún reporte coincide con los filtros aplicados. <a href="@Url.Action("Stadm14ReportesClinicos", "GestionProfesionales")">Limpiar filtros</a></span>
@@ -149,6 +149,7 @@ NOTAS DE MANTENIMIENTO:
                                 </td>
                                 <td>@reporte.UltimaConsulta.ToString("dd/MM/yyyy")</td>
                                 <td>@reporte.Diagnostico</td>
+                                <td>@reporte.Procedimiento</td>
                                 <td>@reporte.ProfesionalNombre</td>
                                 <td>
                                     @if (reporte.ProximaCita.HasValue)
@@ -163,7 +164,15 @@ NOTAS DE MANTENIMIENTO:
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(reporte.Alerta))
                                     {
-                                        <span class="badge-status badge-inactivo">⚠️ @reporte.Alerta</span>
+                                        var alertText = reporte.Alerta.Trim();
+                                        var alertLabel = alertText.Length > 26 ? alertText[..23] + "..." : alertText;
+                                        <button type="button"
+                                                class="alert-trigger"
+                                                data-alert="@Html.Encode(alertText)"
+                                                aria-label="Ver observación clínica de @reporte.NombrePaciente">
+                                            <span aria-hidden="true">⚠️</span>
+                                            @alertLabel
+                                        </button>
                                     }
                                     else
                                     {
@@ -223,6 +232,20 @@ NOTAS DE MANTENIMIENTO:
         </a>
     </nav>
 
+    <div id="reportAlertModal" class="report-alert-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="reportAlertTitle">
+        <div class="report-alert-backdrop" data-close-modal="true"></div>
+        <div class="report-alert-panel" tabindex="-1">
+            <div class="report-alert-header">
+                <div>
+                    <p class="report-alert-kicker">Observación</p>
+                    <h3 id="reportAlertTitle">Detalle clínico</h3>
+                </div>
+                <button type="button" class="report-alert-close" aria-label="Cerrar observación">×</button>
+            </div>
+            <div class="report-alert-body" id="reportAlertBody">Sin observación registrada.</div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -255,6 +278,92 @@ NOTAS DE MANTENIMIENTO:
             clip: rect(0, 0, 0, 0);
             white-space: nowrap;
             border: 0;
+        }
+
+        .alert-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #f6c453;
+            background: rgba(246, 196, 83, 0.12);
+            color: #7a4d00;
+            border-radius: 999px;
+            padding: 0.42rem 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .alert-trigger:hover,
+        .alert-trigger:focus-visible {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(122, 77, 0, 0.18);
+        }
+
+        .report-alert-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            place-items: center;
+            z-index: 1200;
+        }
+
+        .report-alert-modal.is-open {
+            display: grid;
+        }
+
+        .report-alert-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+        }
+
+        .report-alert-panel {
+            position: relative;
+            width: min(520px, calc(100% - 2rem));
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 24px 60px rgba(15,23,42,0.2);
+            padding: 1.2rem 1.2rem 1rem;
+            z-index: 1;
+        }
+
+        .report-alert-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .report-alert-kicker {
+            margin: 0 0 0.25rem;
+            font-size: 0.7rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted-color, #67748e);
+        }
+
+        .report-alert-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .report-alert-close {
+            background: #f3f6fb;
+            border: none;
+            border-radius: 50%;
+            width: 2rem;
+            height: 2rem;
+            font-size: 1.3rem;
+            cursor: pointer;
+        }
+
+        .report-alert-body {
+            color: #334155;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
     </style>
 

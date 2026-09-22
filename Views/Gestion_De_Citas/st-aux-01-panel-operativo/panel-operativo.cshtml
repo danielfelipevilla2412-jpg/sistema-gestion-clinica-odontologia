@@ -67,6 +67,12 @@ DEPENDENCIAS: panel-operativo.css / panel-operativo.js
         <span class="progress-label">@(ViewData["PctOcupacion"] ?? 0)% de uso estimado</span>
     </section>
 
+    @await Component.InvokeAsync("PanelRendimiento", new
+    {
+        porcentaje = Convert.ToInt32(ViewData["PctAtendidas"] ?? 0),
+        etiqueta = "Rendimiento de atención"
+    })
+
     <section class="content-grid" aria-label="Contenido principal del dashboard">
         <div class="content-left">
             <section class="card" aria-labelledby="statusTitle">
@@ -121,7 +127,7 @@ DEPENDENCIAS: panel-operativo.css / panel-operativo.js
                             </tr>
                         </thead>
                         <tbody>
-                            @{ var topProfesionales = ViewData["TopProfesionales"] as IEnumerable<dynamic> ?? Enumerable.Empty<dynamic>(); }
+                            @{ var topProfesionales = ViewData["TopProfesionales"] as IEnumerable<SmileTrack_MVC.Models.ViewModels.PanelOperativoTopProfesionalViewModel> ?? Enumerable.Empty<SmileTrack_MVC.Models.ViewModels.PanelOperativoTopProfesionalViewModel>(); }
                             @if (topProfesionales.Any())
                             {
                                 foreach (var prof in topProfesionales)

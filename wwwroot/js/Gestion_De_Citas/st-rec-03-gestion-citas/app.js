@@ -21,7 +21,7 @@ DEPENDENCIAS TÉCNICAS:
 - Partial / Otros: index.cshtml
 
 NOTAS DE MANTENIMIENTO:
-- Los formatos de estado servidor↔UI están centralizados en STATUS_MAP_SERVER / STATUS_MAP_CLIENTE.
+- Los formatos de estado servidor↔UI se consumen desde CommonUtils.
   (Cambiar la etiqueta visible al usuario = solo tocar esos 2 objetos).
 - appointmentStorage mantiene únicamente la respuesta API actual en memoria.
 ============================================ */
@@ -43,44 +43,6 @@ const getAuthHeaders = () => {
   } catch (e) { /* sessionStorage deshabilitado (modo privado) */ }
   return headers;
 };
-
-// Mapeos de estado (estándar en TODOS módulos citas)
-const normalizeEstadoKey = (value) => {
-  return String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[áàäâ]/g, 'a')
-    .replace(/[éèëê]/g, 'e')
-    .replace(/[íìïî]/g, 'i')
-    .replace(/[óòöô]/g, 'o')
-    .replace(/[úùüû]/g, 'u')
-    .replace(/[_\-\s]+/g, '_')
-    .replace(/[^a-z0-9_]/g, '');
-};
-
-const STATUS_MAP_SERVER = {
-  programada:  { label: 'Agendada',    cls: 'status-agendada' },
-  agendada:    { label: 'Agendada',    cls: 'status-agendada' },
-  confirmada:  { label: 'Confirmada',  cls: 'status-agendada' },
-  en_proceso:  { label: 'En consulta', cls: 'status-consulta' },
-  'en_proceso_': { label: 'En consulta', cls: 'status-consulta' },
-  'en_proceso_1': { label: 'En consulta', cls: 'status-consulta' },
-  finalizada:  { label: 'Atendida',    cls: 'status-atendida' },
-  atendida:    { label: 'Atendida',    cls: 'status-atendida' },
-  cancelada:   { label: 'Cancelada',   cls: 'status-no-asistio' },
-  no_asistida: { label: 'No asistió',  cls: 'status-no-asistio' },
-  'no_asistio': { label: 'No asistió', cls: 'status-no-asistio' }
-};
-const STATUS_MAP_CLIENTE = {
-  'Agendada':    'programada',
-  'Confirmada':  'confirmada',
-  'En consulta': 'en_proceso',
-  'Atendida':    'finalizada',
-  'Cancelada':   'cancelada',
-  'No asistió':  'no_asistida',
-  'No asistio':  'no_asistida'
-};
-const STATUS_OPTIONS = Object.keys(STATUS_MAP_CLIENTE);
 
 function mostrarErrorUsuario(mensaje) {
   let div = document.getElementById('smiletrack-error-bar');
@@ -190,8 +152,8 @@ const mapServerToClient = (srv) => {
   const profesionalRaw = srv.Profesional || srv.profesional;
   const servicioRaw = srv.Servicio || srv.servicio;
   const consultorioRaw = srv.Consultorio || srv.consultorio;
-  const srvEstado = normalizeEstadoKey(estadoRaw);
-  const info = STATUS_MAP_SERVER[srvEstado] || STATUS_MAP_SERVER.programada;
+  const srvEstado = CommonUtils.mapEstadoServerToClient(estadoRaw);
+  const info = CommonUtils.getStatusInfo(srvEstado);
   const doctor = profesionalRaw?.NombreCompleto || profesionalRaw?.nombreCompleto || '—';
   const patient = pacienteRaw?.NombreCompleto || pacienteRaw?.nombreCompleto || '—';
   const service = servicioRaw?.Nombre || servicioRaw?.nombre || '—';
@@ -318,6 +280,16 @@ const createAppointmentRow = (appt) => {
   for (let i = 0; i < initials.length; i++) hash = ((hash << 5) - hash) + initials.charCodeAt(i);
   const avatarColor = PALETTE[Math.abs(hash) % PALETTE.length];
 
+  const isCancelada = (appt.status || '').toLowerCase() === 'cancelada' || (appt.status || '').toLowerCase() === 'cancelado';
+  const cancelBtnHtml = isCancelada ? '' : `
+        <button class="btn-danger btn-delete" type="button"
+                data-action="cancel" data-id="${appt.id}"
+                data-paciente="${escapeHtml(appt.patient)}"
+                aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
+                title="Cancelar cita de ${escapeHtml(appt.patient)}">
+          ✕ <span class="btn-text">Cancelar</span>
+        </button>`;
+
   tr.innerHTML = `
     <td class="col-fecha">${escapeHtml(appt.date)}</td>
     <td class="col-hora"><span class="pill-hora" aria-label="Hora: ${escapeHtml(appt.time)}">${escapeHtml(appt.time)}</span></td>
@@ -333,24 +305,18 @@ const createAppointmentRow = (appt) => {
     <td><span class="status-badge ${appt.statusClass}" role="status" aria-label="Estado: ${escapeHtml(appt.status)}">${escapeHtml(appt.status)}</span></td>
     <td>
       <div class="actions-cell" role="group" aria-label="Acciones para ${escapeHtml(appt.patient)}">
-        <button class="btn-icon action-btn btn-view" type="button"
+        <button class="btn-secondary btn-view" type="button"
                 data-action="view" data-id="${appt.id}"
                 aria-label="Ver detalles de ${escapeHtml(appt.patient)}"
                 title="Ver detalles de ${escapeHtml(appt.patient)}">
           👁️ <span class="btn-text">Ver</span>
         </button>
-        <button class="btn-icon action-btn edit" type="button"
+        <button class="btn-secondary edit" type="button"
                 data-action="edit" data-id="${appt.id}"
                 aria-label="Editar cita de ${escapeHtml(appt.patient)}"
                 title="Editar cita de ${escapeHtml(appt.patient)}">
           ✏️ <span class="btn-text">Editar</span>
-        </button>
-        <button class="btn-icon action-btn btn-delete" type="button"
-                data-action="cancel" data-id="${appt.id}"
-                aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
-                title="Cancelar cita de ${escapeHtml(appt.patient)}">
-          ✕ <span class="btn-text">Cancelar</span>
-        </button>
+        </button>${cancelBtnHtml}
       </div>
     </td>
   `;
@@ -447,8 +413,7 @@ const buildServerBody = (appt, overrides = {}) => {
     ? `${overrides.dateISO || appt.dateISO}T${overrides.timeISO || appt.timeISO}:00`
     : raw.FechaHora || new Date().toISOString();
   const estadoUI = overrides.status || appt.status;
-  const estadoServidor = STATUS_MAP_CLIENTE[estadoUI] ||
-    (normalizeEstadoKey(estadoUI) === 'en_consulta' ? 'en_proceso' : normalizeEstadoKey(estadoUI) || 'programada');
+  const estadoServidor = CommonUtils.mapEstadoClienteToServer(estadoUI);
   return {
     IdCita: appt.id,
     IdPaciente: raw.IdPaciente ?? raw.idPaciente ?? appt.patientId ?? 0,
@@ -468,9 +433,10 @@ let _cancelTargetId = null;
 
 const getCancelHeaders = () => {
   const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-  // CSRF token desde cookie XSRF-TOKEN
-  const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
-  if (match) headers['X-CSRF-TOKEN'] = decodeURIComponent(match[2]);
+  const token = typeof CommonUtils !== 'undefined' && CommonUtils.getCsrfToken
+    ? CommonUtils.getCsrfToken()
+    : (document.querySelector('input[name="__RequestVerificationToken"]')?.value || (document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2] ? decodeURIComponent(document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)[2]) : ''));
+  if (token) headers['X-CSRF-TOKEN'] = token;
   try {
     const jwt = sessionStorage.getItem('st_jwt');
     if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
@@ -478,10 +444,10 @@ const getCancelHeaders = () => {
   return headers;
 };
 
-const openCancelModal = (id) => {
+const openCancelModal = (id, dataset) => {
   _cancelTargetId = parseInt(id, 10);
   const appt = appointmentStorage.findById(id);
-  const patient = appt?.patient || `ID ${id}`;
+  const patient = dataset?.paciente || appt?.patient || `ID ${id}`;
   // Reutilizar el modal de confirmación genérico _ConfirmModal.cshtml si existe
   const modal = document.getElementById('confirmModal');
   if (modal) {
@@ -562,7 +528,8 @@ const executeCancelCita = async () => {
     const res = await fetch(`${API_BASE}/citas/${id}`, {
       method: 'DELETE',
       credentials: 'same-origin',
-      headers: getCancelHeaders()
+      headers: getCancelHeaders(),
+      body: JSON.stringify({ motivo: 'Cancelada por recepción' })
     });
     let payload;
     try { payload = await res.json(); } catch { payload = { success: res.ok }; }
@@ -590,7 +557,7 @@ const handleTableAction = async (e) => {
 
   if (action === 'view')   return openViewModal(id);
   if (action === 'edit')   return openEditModal(id, btn.dataset);
-  if (action === 'cancel') return openCancelModal(id);
+  if (action === 'cancel') return openCancelModal(id, btn.dataset);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -626,22 +593,42 @@ const openViewModal = (id) => {
 //  MODAL EDITAR CITA (con PUT API)
 // ═══════════════════════════════════════════════════════════════════
 
-const openEditModal = (id) => {
+const openEditModal = (id, dataset) => {
   const a = appointmentStorage.findById(id);
-  if (!a) return;
 
-  const fields = {
-    editAppointmentId: a.id,
-    editPatient: a.patient,
-    editDate: a.dateISO,
-    editTime: a.timeISO,
-    editDoctor: a.doctor,
-    editService: a.service,
-    editOffice: a.office,
-    editStatus: a.status,
-    editNotes: a.notes || ''
+  const pacienteVal = dataset?.pacienteId || a?.patientId || a?.patient || '';
+  const profesionalVal = dataset?.profesionalId || a?.professionalId || a?.doctor || '';
+  const servicioVal = dataset?.servicioId || a?.serviceId || a?.service || '';
+  const consultorioVal = dataset?.consultorioId || a?.officeId || a?.office || '';
+  const estadoVal = dataset?.estadoId || a?.status || '';
+  const fechaVal = dataset?.fecha || a?.dateISO || '';
+  const horaVal = dataset?.hora || a?.timeISO || '';
+  const notasVal = dataset?.notas ?? a?.notes ?? dataset?.motivo ?? '';
+
+  const idEl = safeGetElement('editAppointmentId');
+  if (idEl) idEl.value = id;
+
+  const selects = {
+    editPatient: pacienteVal,
+    editDoctor: profesionalVal,
+    editService: servicioVal,
+    editOffice: consultorioVal,
+    editStatus: estadoVal
   };
-  Object.entries(fields).forEach(([k, v]) => { const el = safeGetElement(k); if (el) el.value = v; });
+  Object.entries(selects).forEach(([k, v]) => {
+    const el = safeGetElement(k);
+    if (el && v !== undefined && v !== null && v !== '') {
+      el.value = String(v);
+    }
+  });
+
+  const dateEl = safeGetElement('editDate');
+  if (dateEl && fechaVal) dateEl.value = fechaVal;
+  const timeEl = safeGetElement('editTime');
+  if (timeEl && horaVal) timeEl.value = horaVal;
+  const notesEl = safeGetElement('editNotes');
+  if (notesEl) notesEl.value = notasVal;
+
   document.querySelectorAll('#modalEditAppointment .error').forEach(x => x.classList.remove('error'));
   document.querySelectorAll('#modalEditAppointment .error-message.visible').forEach(x => x.classList.remove('visible'));
   modalManager.open('modalEditAppointment');

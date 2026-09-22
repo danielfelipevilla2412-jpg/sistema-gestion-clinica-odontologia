@@ -27,6 +27,11 @@ NOTAS DE MANTENIMIENTO:
     Layout = "_Layout";
     ViewData["Title"] = "Asistencia en Procedimiento";
     var asistenciaProcedDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["AsistenciaProcedData"] ?? new object());
+    var citasSelector = ViewData["CitasAsistenciaSelector"] as List<SmileTrack_MVC.Models.Entities.Cita> ?? new();
+    var asistenciaJson = System.Text.Json.JsonDocument.Parse(asistenciaProcedDataJson).RootElement;
+    var citaSeleccionadaId = asistenciaJson.TryGetProperty("citaId", out var citaIdJson) && citaIdJson.ValueKind == System.Text.Json.JsonValueKind.Number
+      ? citaIdJson.GetInt32()
+      : 0;
 }
 
 @section Styles {
@@ -46,6 +51,18 @@ NOTAS DE MANTENIMIENTO:
         </nav>
         <h1 class="page-title" data-i18n="citas.procedure_assistance">Asistencia en Procedimiento</h1>
         <p class="page-subtitle" id="apSubtitle" data-i18n="common.loading">Cargando…</p>
+      </div>
+      <div class="header-actions">
+        <label for="citaSelect" class="visually-hidden">Seleccionar cita</label>
+        <select id="citaSelect" class="status-select" aria-label="Seleccionar cita del día">
+          <option value="">Seleccionar cita del día</option>
+          @foreach (var cita in citasSelector)
+          {
+            <option value="@cita.IdCita" selected="@(cita.IdCita == citaSeleccionadaId ? "selected" : null)">
+              @cita.FechaHora.ToString("HH:mm") - @(cita.Paciente?.NombresCompleto ?? "Paciente")
+            </option>
+          }
+        </select>
       </div>
     </header>
 
@@ -182,6 +199,12 @@ NOTAS DE MANTENIMIENTO:
 
   <script>
     window.smiletrackAsistenciaProcedData = @Html.Raw(asistenciaProcedDataJson);
+    document.getElementById('citaSelect')?.addEventListener('change', function () {
+      if (!this.value) return;
+      const params = new URLSearchParams(window.location.search);
+      params.set('citaId', this.value);
+      window.location.search = params.toString();
+    });
   </script>
 @section Scripts {
     <script src="~/js/Gestion_De_Citas/st-aux-06-asistencia-procedi/asistencia-proc.js" asp-append-version="true" defer></script>

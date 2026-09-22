@@ -562,6 +562,54 @@ public class CitaServiceTests
     }
 
     [Fact]
+    public async Task CambiarEstadoAsync_RechazaCancelacionPorFlujoNormal()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = DateTime.Today.AddDays(2).AddHours(9),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CambiarEstadoAsync(cita.IdCita, "Cancelada"));
+
+        Assert.Contains("función de cancelación", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelarAsync_RechazaCitaVencidaAntesDeGuardar()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = DateTime.Now.AddMinutes(-5),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CancelarAsync(cita.IdCita));
+
+        Assert.Contains("fecha y hora anterior", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+        var citaSinCambios = await db.Citas.FindAsync(cita.IdCita);
+        Assert.Equal("Programada", citaSinCambios?.Estado);
+    }
+
+    [Fact]
     public async Task CancelarAsync_RechazaPacienteConMenosDeDosHoras()
     {
         await using var db = CrearDb();

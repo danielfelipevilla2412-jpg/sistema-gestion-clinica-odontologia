@@ -356,17 +356,28 @@ img {
 }
 
 .status-select {
+    appearance: none;
+    -webkit-appearance: none;
     border: 1.5px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 8px 12px;
+    border-radius: 10px;
+    padding: 9px 38px 9px 12px;
     font-family: var(--font);
-    font-size: 0.8rem;
-    background: var(--white);
+    font-size: 0.82rem;
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
     color: var(--text);
     cursor: pointer;
     outline: none;
-    transition: border-color var(--tr);
-    min-width: 160px;
+    transition: border-color var(--tr), box-shadow var(--tr), transform var(--tr);
+    min-width: 170px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.status-select:hover {
+    border-color: #94a3b8;
 }
 
 .status-select:focus {

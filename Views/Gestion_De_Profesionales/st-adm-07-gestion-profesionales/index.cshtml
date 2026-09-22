@@ -175,7 +175,7 @@ NOTAS DE MANTENIMIENTO:
                     var name = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
                     var initials = string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
                   }
-                  <div class="p-avatar p-avatar--color-@(profesional.IdProfesional % 5)">@initials</div>
+                  <span class="p-avatar p-avatar--color-@(profesional.IdProfesional % 5)">@initials</span>
                   <span class="p-name">@name</span>
                 </td>
                 <td><span class="badge-spec @((especialidadPrincipal ?? string.Empty).ToLowerInvariant())">@especialidadPrincipal</span></td>
@@ -193,7 +193,7 @@ NOTAS DE MANTENIMIENTO:
           }
           <div class="actions-cell">
             <!-- Ver detalles: abrir modal con data desde atributos -->
-            <button class="btn-icon action-btn btn-view view" type="button"
+            <button class="btn-secondary btn-view view" type="button"
                     data-id="@profesional.IdProfesional"
                     data-name="@Html.Encode(profNombreCompleto)"
                     data-initials="@Html.Encode(profIniciales)"
@@ -208,22 +208,39 @@ NOTAS DE MANTENIMIENTO:
                     data-i18n-title="gestionprofesionales_btn_ver_title">
               <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_ver">Ver</span>
             </button>
-            <button class="btn-icon action-btn edit" type="button"
+            <button class="btn-secondary edit" type="button"
                     onclick="editProfessional(@profesional.IdProfesional)"
                     aria-label="Editar el profesional @profesional.Nombres @profesional.Apellidos"
                     title="Editar profesional @Html.Encode(profNombreCompleto)"
                     data-i18n-title="gestionprofesionales_btn_editar_title">
               <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_editar">Editar</span>
             </button>
-            <!-- Eliminar: abrir modal de confirmación -->
-            <button class="btn-icon action-btn btn-delete toggle" type="button" 
-                    data-id="@profesional.IdProfesional" 
-                    data-name="@profesional.Nombres @profesional.Apellidos"
-                    aria-label="Eliminar el profesional @profesional.Nombres @profesional.Apellidos"
-                    title="Eliminar profesional @Html.Encode(profNombreCompleto)"
-                    data-i18n-title="gestionprofesionales_btn_eliminar_title">
-              <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_eliminar">Eliminar</span>
-            </button>
+            @if (String.Equals(profesional.Estado, "activo", StringComparison.OrdinalIgnoreCase))
+            {
+              <!-- Activo: acción Desactivar -->
+              <button class="btn-danger btn-delete toggle" type="button"
+                      data-id="@profesional.IdProfesional"
+                      data-name="@profesional.Nombres @profesional.Apellidos"
+                      data-estado="activo"
+                      aria-label="Desactivar el profesional @profesional.Nombres @profesional.Apellidos"
+                      title="Desactivar profesional @Html.Encode(profNombreCompleto)"
+                      data-i18n-title="gestionprofesionales_btn_desactivar_title">
+                <span class="material-symbols-outlined action-icon" aria-hidden="true">block</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_desactivar">Desactivar</span>
+              </button>
+            }
+            else
+            {
+              <!-- Inactivo/Vacaciones: acción Reactivar -->
+              <button class="btn-danger btn-delete toggle" type="button"
+                      data-id="@profesional.IdProfesional"
+                      data-name="@profesional.Nombres @profesional.Apellidos"
+                      data-estado="@(profesional.Estado ?? "inactivo")"
+                      aria-label="Reactivar el profesional @profesional.Nombres @profesional.Apellidos"
+                      title="Reactivar profesional @Html.Encode(profNombreCompleto)"
+                      data-i18n-title="gestionprofesionales_btn_reactivar_title">
+                <span class="material-symbols-outlined action-icon" aria-hidden="true">check_circle</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_reactivar">Reactivar</span>
+              </button>
+            }
           </div>
         </td>
               </tr>
@@ -330,11 +347,11 @@ NOTAS DE MANTENIMIENTO:
         <div class="form-group" id="professionalPasswordRules">
           <div style="font-size:12px;line-height:1.6;">
             <div style="font-weight:600;margin-bottom:4px;" data-i18n="gestionprofesionales_form_password_rules_title">La contraseña debe cumplir:</div>
-            <div data-rule="length" data-i18n="gestionprofesionales_form_password_rule_length">✗ Mínimo 8 caracteres</div>
-            <div data-rule="upper" data-i18n="gestionprofesionales_form_password_rule_upper">✗ Una letra mayúscula</div>
-            <div data-rule="lower" data-i18n="gestionprofesionales_form_password_rule_lower">✗ Una letra minúscula</div>
-            <div data-rule="number" data-i18n="gestionprofesionales_form_password_rule_number">✗ Un número</div>
-            <div data-rule="symbol" data-i18n="gestionprofesionales_form_password_rule_symbol">✗ Un símbolo especial</div>
+            <div data-rule="length"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_length">Mínimo 8 caracteres</span></div>
+            <div data-rule="upper"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_upper">Una letra mayúscula</span></div>
+            <div data-rule="lower"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_lower">Una letra minúscula</span></div>
+            <div data-rule="number"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_number">Un número</span></div>
+            <div data-rule="symbol"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_symbol">Un símbolo especial</span></div>
           </div>
         </div>
         <div class="form-group" id="statusGroup">
@@ -357,30 +374,108 @@ NOTAS DE MANTENIMIENTO:
   <!-- Modal: Ver Detalle -->
   <div class="modal-overlay" id="modalDetail" role="dialog" aria-modal="true" aria-labelledby="modalDetailTitle"
     aria-hidden="true" inert>
-    <div class="modal">
+    <div class="modal" style="max-width: 680px;">
       <button class="modal-close" id="modalDetailClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria">×</button>
       <h2 class="modal-title" id="modalDetailTitle" data-i18n="gestionprofesionales_modal_detail_title">Ficha de Profesional</h2>
-      <div class="modal-detail">
-        <div class="detail-avatar-wrap">
-          <div class="detail-avatar" id="detailAvatar" aria-hidden="true">--</div>
-        </div>
-        <h3 class="detail-name" id="detailName">--</h3>
-        <p class="detail-specialty" id="detailSpecialty">--</p>
-        <div class="detail-grid">
-          <div class="detail-item">
-            <span class="detail-key" data-i18n="gestionprofesionales_detail_registro">Registro Médico</span>
-            <span class="detail-value" id="detailRegistry">--</span>
+
+      <!-- Pestañas de navegación interna del modal -->
+      <div class="modal-tabs" role="tablist" aria-label="Secciones del profesional">
+        <button type="button" class="modal-tab-btn active" id="tabBtnGeneral" role="tab" aria-selected="true" aria-controls="tabPaneGeneral">
+          📋 Ficha General
+        </button>
+        <button type="button" class="modal-tab-btn" id="tabBtnHorarios" role="tab" aria-selected="false" aria-controls="tabPaneHorarios">
+          ⏰ Horarios de Atención
+        </button>
+        <button type="button" class="modal-tab-btn" id="tabBtnAusencias" role="tab" aria-selected="false" aria-controls="tabPaneAusencias">
+          🏖️ Ausencias y Permisos
+        </button>
+      </div>
+
+      <!-- Tab 1: Ficha General -->
+      <div class="modal-tab-pane active" id="tabPaneGeneral" role="tabpanel" aria-labelledby="tabBtnGeneral">
+        <div class="modal-detail">
+          <div class="detail-avatar-wrap">
+            <div class="detail-avatar" id="detailAvatar" aria-hidden="true">--</div>
           </div>
-          <div class="detail-item">
-            <span class="detail-key" data-i18n="gestionprofesionales_detail_telefono">Teléfono</span>
-            <span class="detail-value" id="detailPhone">--</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-key" data-i18n="gestionprofesionales_detail_estado">Estado</span>
-            <span class="detail-value"><span class="badge-status" id="detailStatus">--</span></span>
+          <h3 class="detail-name" id="detailName">--</h3>
+          <p class="detail-specialty" id="detailSpecialty">--</p>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-key" data-i18n="gestionprofesionales_detail_registro">Registro Médico</span>
+              <span class="detail-value" id="detailRegistry">--</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-key" data-i18n="gestionprofesionales_detail_telefono">Teléfono</span>
+              <span class="detail-value" id="detailPhone">--</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-key" data-i18n="gestionprofesionales_detail_estado">Estado</span>
+              <span class="detail-value"><span class="badge-status" id="detailStatus">--</span></span>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Tab 2: Horarios de Atención -->
+      <div class="modal-tab-pane" id="tabPaneHorarios" role="tabpanel" aria-labelledby="tabBtnHorarios">
+        <section id="professionalSchedule" aria-labelledby="professionalScheduleTitle">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <h3 id="professionalScheduleTitle" style="margin:0;font-size:1rem;font-weight:700;">Horario Semanal de Atención</h3>
+            <button type="button" class="btn-secondary" id="btnApplyDefaultSchedule" style="font-size:0.8rem;padding:4px 10px;">
+              ⚡ Aplicar Horario Estándar (Lun-Vie 08:00 - 17:00)
+            </button>
+          </div>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 12px;line-height:1.4;">
+            💡 <em>Configura los días y franjas horarias en las que este profesional atiende citas. Si no tiene días configurados, el sistema usará el horario general de la clínica por defecto.</em>
+          </p>
+          <form id="scheduleForm">
+            <div class="schedule-grid" id="scheduleDaysContainer">
+              <!-- Renderizado dinámico desde app.js -->
+            </div>
+            <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <span id="scheduleStatusMsg" style="font-size:0.82rem;font-weight:600;"></span>
+              <button type="submit" class="btn-primary" id="scheduleSaveButton">
+                💾 Guardar Horarios
+              </button>
+            </div>
+          </form>
+          <p id="scheduleLoading" aria-live="polite" style="margin:10px 0 0;font-size:0.85rem;color:var(--text-muted);"></p>
+        </section>
+      </div>
+
+      <!-- Tab 3: Ausencias -->
+      <div class="modal-tab-pane" id="tabPaneAusencias" role="tabpanel" aria-labelledby="tabBtnAusencias">
+        <section id="professionalAbsences" aria-labelledby="professionalAbsencesTitle">
+          <h3 id="professionalAbsencesTitle" style="margin:0 0 12px;font-size:1rem;font-weight:700;">Registro de Ausencias</h3>
+          <form id="absenceForm" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+            <input type="hidden" id="absenceId" value="">
+            <label class="form-label">Tipo
+              <select id="absenceTipo" class="form-input" required>
+                <option value="vacaciones">Vacaciones</option>
+                <option value="incapacidad">Incapacidad</option>
+                <option value="permiso">Permiso</option>
+                <option value="otro">Otro</option>
+              </select>
+            </label>
+            <label class="form-label">Inicio
+              <input type="date" id="absenceFechaInicio" class="form-input" required>
+            </label>
+            <label class="form-label">Fin
+              <input type="date" id="absenceFechaFin" class="form-input" required>
+            </label>
+            <label class="form-label" style="grid-column:1/-1;">Observaciones
+              <input type="text" id="absenceObservaciones" class="form-input" maxlength="500">
+            </label>
+            <div style="grid-column:1/-1;display:flex;gap:8px;">
+              <button type="submit" class="btn-primary" id="absenceSaveButton">Registrar ausencia</button>
+              <button type="button" class="btn-secondary" id="absenceCancelEdit" hidden>Cancelar edición</button>
+            </div>
+          </form>
+          <p id="absenceLoading" aria-live="polite" style="margin:12px 0 0;">Cargando ausencias...</p>
+          <div id="absenceList" style="display:grid;gap:8px;margin-top:10px;"></div>
+        </section>
+      </div>
+
       <div class="modal-footer">
         <button type="button" class="btn-secondary" id="modalDetailCloseBtn" data-i18n="common.close">Cerrar</button>
       </div>
@@ -394,16 +489,11 @@ NOTAS DE MANTENIMIENTO:
       <button class="modal-close" id="modalConfirmDeleteClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria">×</button>
       <h2 class="modal-title" id="modalConfirmDeleteTitle" data-i18n="gestionprofesionales_modal_delete_title">Desactivar profesional</h2>
       <p id="modalConfirmDeleteMessage" style="margin-bottom: 8px;" data-i18n="gestionprofesionales_modal_delete_question">¿Estás seguro de desactivar a este profesional?</p>
-      <p style="margin-bottom: 20px; font-size: 0.875rem; color: var(--text-muted);" data-i18n="gestionprofesionales_modal_delete_warning">
+      <p id="modalConfirmDeleteWarning" style="margin-bottom: 20px; font-size: 0.875rem; color: var(--text-muted);" data-i18n="gestionprofesionales_modal_delete_warning">
         ⚠️ El profesional pasará a estado <strong>inactivo</strong> y no podrá recibir nuevas citas. Esta operación es reversible: puedes reactivarlo editando su perfil. No es posible desactivar profesionales con citas activas pendientes.
       </p>
-      <!--
-        El endpoint MVC /eliminar-profesional fue eliminado en la Fase 2E.
-        La desactivación va por DELETE /api/profesionales/{id} interceptado
-        por el listener de #modalConfirmDeleteConfirm en app.js.
-        deleteProfesionalId almacena el id del profesional seleccionado.
-      -->
       <input type="hidden" id="deleteProfesionalId" value="" />
+      <input type="hidden" id="deleteProfesionalEstado" value="activo" />
       <div class="modal-footer">
         <button type="button" class="btn-secondary" id="modalConfirmDeleteCancel"
                 aria-label="Cancelar eliminación del profesional" data-i18n-aria-label="gestionprofesionales_modal_delete_cancel_aria" data-i18n="gestionprofesionales_modal_delete_cancel">

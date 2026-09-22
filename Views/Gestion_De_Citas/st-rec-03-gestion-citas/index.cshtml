@@ -207,6 +207,8 @@ NOTAS DE MANTENIMIENTO:
                 "atendida" or "finalizada" => "status-atendida",
                 "en consulta" or "en_proceso" or "en proceso" => "status-consulta",
                 "agendada" or "programada" or "confirmada" => "status-agendada",
+                "cancelada" or "cancelado" => "status-cancelada",
+                "no asistida" or "no_asistida" or "no-show" or "no asistió" => "status-no-asistio",
                 _ => "status-no-asistio"
               };
 
@@ -230,7 +232,7 @@ NOTAS DE MANTENIMIENTO:
                 <td>
                   <div class="actions-cell" role="group" aria-label="Acciones para @Html.Encode(citaPaciente)">
                     <button type="button"
-                            class="btn-icon action-btn btn-view"
+                            class="btn-secondary btn-view"
                             data-action="view"
                             data-id="@cita.IdCita"
                             aria-label="Ver detalles de la cita de @Html.Encode(citaPaciente)"
@@ -246,7 +248,7 @@ NOTAS DE MANTENIMIENTO:
                       👁️ <span class="btn-text">Ver</span>
                     </button>
                     <button type="button"
-                            class="btn-icon action-btn edit"
+                            class="btn-secondary edit"
                             data-action="edit"
                             data-id="@cita.IdCita"
                             aria-label="Editar la cita de @Html.Encode(citaPaciente)"
@@ -254,14 +256,18 @@ NOTAS DE MANTENIMIENTO:
                             role="button">
                       ✏️ <span class="btn-text">Editar</span>
                     </button>
-                    <button type="button"
-                            class="btn-icon action-btn btn-delete"
-                            data-action="cancel"
-                            data-id="@cita.IdCita"
-                            aria-label="Cancelar cita de @Html.Encode(citaPaciente)"
-                            title="Cancelar cita de @Html.Encode(citaPaciente)">
-                      ✕ <span class="btn-text">Cancelar</span>
-                    </button>
+                    @if (estadoLower != "cancelada" && estadoLower != "cancelado")
+                    {
+                      <button type="button"
+                              class="btn-danger btn-delete"
+                              data-action="cancel"
+                              data-id="@cita.IdCita"
+                              data-paciente="@Html.Encode(citaPaciente)"
+                              aria-label="Cancelar cita de @Html.Encode(citaPaciente)"
+                              title="Cancelar cita de @Html.Encode(citaPaciente)">
+                        ✕ <span class="btn-text">Cancelar</span>
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>

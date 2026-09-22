@@ -508,6 +508,7 @@
 
     /** Mapa Label UI → Clave Server (para selects/filters cliente → server) */
     const STATUS_MAP_CLIENTE = Object.freeze({
+        'Solicitada':  'solicitada',
         'Agendada':   APPOINTMENT_STATUS.PROGRAMADA,
         'Confirmada': APPOINTMENT_STATUS.CONFIRMADA,
         'En curso':   APPOINTMENT_STATUS.EN_PROCESO,
@@ -516,16 +517,38 @@
         'No asistió': APPOINTMENT_STATUS.NO_ASISTIDA
     });
 
+    /** Normaliza alias del servidor al token canónico de la cita. */
+    function normalizeAppointmentStatus(estado) {
+        const normalized = String(estado ?? '').toLowerCase().trim()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[-\s]+/g, '_');
+
+        return {
+            solicitado: 'solicitada',
+            agendada: APPOINTMENT_STATUS.PROGRAMADA,
+            programado: APPOINTMENT_STATUS.PROGRAMADA,
+            confirmado: APPOINTMENT_STATUS.CONFIRMADA,
+            en_consulta: APPOINTMENT_STATUS.EN_PROCESO,
+            finalizada: APPOINTMENT_STATUS.FINALIZADA,
+            atendida: APPOINTMENT_STATUS.ATENDIDA,
+            realizada: APPOINTMENT_STATUS.ATENDIDA,
+            completada: APPOINTMENT_STATUS.ATENDIDA,
+            cancelado: APPOINTMENT_STATUS.CANCELADA,
+            no_asistio: APPOINTMENT_STATUS.NO_ASISTIDA,
+            no_show: APPOINTMENT_STATUS.NO_ASISTIDA
+        }[normalized] || normalized || APPOINTMENT_STATUS.PROGRAMADA;
+    }
+
     /** Normaliza valor de estado server al key canónico. */
     function mapEstadoServerToClient(estado) {
-        if (!estado) return APPOINTMENT_STATUS.PROGRAMADA;
-        const normalized = String(estado).toLowerCase().trim();
-        // Normalizar variantes conocidas
-        if (normalized === 'finalizada' || normalized === 'en_proceso') return APPOINTMENT_STATUS.FINALIZADA;
-        if (normalized === 'atendida') return APPOINTMENT_STATUS.FINALIZADA;
-        if (normalized === 'no_show' || normalized === 'no-show') return APPOINTMENT_STATUS.NO_ASISTIDA;
+        const normalized = normalizeAppointmentStatus(estado);
+        if (normalized === APPOINTMENT_STATUS.FINALIZADA || normalized === APPOINTMENT_STATUS.ATENDIDA || normalized === APPOINTMENT_STATUS.EN_PROCESO) return APPOINTMENT_STATUS.FINALIZADA;
         if (STATUS_MAP_SERVER[normalized]) return normalized;
         return APPOINTMENT_STATUS.PROGRAMADA;
+    }
+
+    function mapEstadoClienteToServer(estado) {
+        return STATUS_MAP_CLIENTE[estado] || normalizeAppointmentStatus(estado);
     }
 
     /** Retorna {label, cls} dado un valor de estado server/cliente. Nunca retorna undefined. */
@@ -636,7 +659,9 @@
         APPOINTMENT_STATUS,
         STATUS_MAP_SERVER,
         STATUS_MAP_CLIENTE,
+        normalizeAppointmentStatus,
         mapEstadoServerToClient,
+        mapEstadoClienteToServer,
         getStatusInfo,
         getStatusBadgeClass
     });
@@ -661,7 +686,9 @@
     global.buildQuery = buildQuery;
     global.STATUS_MAP_SERVER = STATUS_MAP_SERVER;
     global.STATUS_MAP_CLIENTE = STATUS_MAP_CLIENTE;
+    global.normalizeAppointmentStatus = normalizeAppointmentStatus;
     global.mapEstadoServerToClient = mapEstadoServerToClient;
+    global.mapEstadoClienteToServer = mapEstadoClienteToServer;
     global.fetchWithAuth = fetchWithAuth;
     global.API_BASE_COMMON = DEFAULT_API_BASE;
 

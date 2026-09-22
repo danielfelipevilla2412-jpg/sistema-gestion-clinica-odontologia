@@ -106,6 +106,23 @@ function initAppointmentModals() {
             const endTime = card.getAttribute('data-end-time') || '';
             const status = card.getAttribute('data-status') || 'Agendada';
             const notes = card.getAttribute('data-notes') || 'Sin observaciones.';
+            const professionalName = card.getAttribute('data-professional-name') || '';
+            const professionalEmail = card.getAttribute('data-professional-email') || '';
+            const professionalPhone = card.getAttribute('data-professional-phone') || '';
+            const professionalRegistry = card.getAttribute('data-professional-registry') || '';
+            const professionalUserStatus = card.getAttribute('data-professional-user-status') || '';
+
+            const extraProfesional = [];
+            if (professionalEmail) extraProfesional.push(`<div><strong>Correo:</strong> ${escapeHtml(professionalEmail)}</div>`);
+            if (professionalPhone) extraProfesional.push(`<div><strong>Teléfono:</strong> ${escapeHtml(professionalPhone)}</div>`);
+            if (professionalRegistry) extraProfesional.push(`<div><strong>Registro médico:</strong> ${escapeHtml(professionalRegistry)}</div>`);
+            if (professionalUserStatus) extraProfesional.push(`<div><strong>Estado cuenta:</strong> ${escapeHtml(professionalUserStatus)}</div>`);
+            const bloqueProfesional = (professionalName || extraProfesional.length > 0)
+                ? `<div style="padding:10px; background:var(--bg); border-radius:var(--radius-sm); font-size:0.85rem;">
+                       ${professionalName ? `<div><strong>Profesional:</strong> ${escapeHtml(professionalName)}</div>` : ''}
+                       ${extraProfesional.join('')}
+                   </div>`
+                : '';
 
             modalContent.innerHTML = `
                 <div style="display:flex; flex-direction:column; gap:12px;">
@@ -115,6 +132,7 @@ function initAppointmentModals() {
                             📅 ${escapeHtml(dateStr)} | ⏰ ${escapeHtml(startTime)} - ${escapeHtml(endTime)}
                         </p>
                     </div>
+                    ${bloqueProfesional}
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.85rem;">
                         <div><strong>Servicio:</strong> ${escapeHtml(serviceName)}</div>
                         <div><strong>Consultorio:</strong> ${escapeHtml(officeName)}</div>
@@ -299,3 +317,559 @@ function showToast(message, type = 'success') {
         toast.classList.remove('show');
     }, 3500);
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MEJORAS 2026-09-15: FUNCIONALIDADES AVANZADAS AGENDA
+   ═══════════════════════════════════════════════════════════════ */
+
+/**
+ * Sistema de Toggle de Vistas (Semana/Día/Lista)
+ */
+const inicializarToggleVistas = () => {
+    const viewButtons = document.querySelectorAll('.view-btn');
+    const calendarWrapper = document.querySelector('.calendar-scroll-wrapper');
+    
+    if (!viewButtons.length || !calendarWrapper) return;
+
+    viewButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+            
+            // Actualizar botones activos
+            viewButtons.forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-pressed', 'false');
+            });
+            btn.classList.add('active');
+            btn.setAttribute('aria-pressed', 'true');
+            
+            // Cambiar vista del calendario
+            calendarWrapper.dataset.view = view;
+            
+            // Guardar preferencia en localStorage
+            localStorage.setItem('agendaView', view);
+            
+            // Anunciar cambio para lectores de pantalla
+            anunciarCambio(`Vista cambiada a ${btn.textContent.trim()}`);
+            
+            console.log(`📅 Vista cambiada a: ${view}`);
+        });
+    });
+
+    // Restaurar vista guardada
+    const savedView = localStorage.getItem('agendaView');
+    if (savedView) {
+        const savedBtn = document.querySelector(`.view-btn[data-view="${savedView}"]`);
+        if (savedBtn) {
+            savedBtn.click();
+        }
+    }
+};
+
+/**
+ * Búsqueda en Tiempo Real de Pacientes
+ */
+const inicializarBusquedaPacientes = () => {
+    const searchInput = document.getElementById('searchPatient');
+    if (!searchInput) return;
+
+    let searchTimeout;
+
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        
+        searchTimeout = setTimeout(() => {
+            const query = e.target.value.toLowerCase().trim();
+            const appointments = document.querySelectorAll('.appointment:not(.available)');
+            let matchCount = 0;
+            
+            appointments.forEach(appt => {
+                const paciente = (appt.dataset.patientName || '').toLowerCase();
+                const servicio = (appt.dataset.serviceName || '').toLowerCase();
+                const notas = (appt.dataset.notes || '').toLowerCase();
+                
+                const matches = !query || 
+                    paciente.includes(query) || 
+                    servicio.includes(query) ||
+                    notas.includes(query);
+                
+                if (matches) {
+                    appt.classList.remove('search-hidden');
+                    if (query) {
+                        appt.classList.add('search-match');
+                        matchCount++;
+                    } else {
+                        appt.classList.remove('search-match');
+                    }
+                } else {
+                    appt.classList.add('search-hidden');
+                    appt.classList.remove('search-match');
+                }
+            });
+            
+            // Mostrar resultado de búsqueda
+            if (query && matchCount === 0) {
+                mostrarToast('No se encontraron citas con ese criterio', 'info');
+            } else if (query) {
+                anunciarCambio(`${matchCount} cita${matchCount !== 1 ? 's' : ''} encontrada${matchCount !== 1 ? 's' : ''}`);
+            }
+            
+            console.log(`🔍 Búsqueda: "${query}" - ${matchCount} resultados`);
+        }, 300);
+    });
+
+    // Limpiar búsqueda con Escape
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            searchInput.value = '';
+            searchInput.dispatchEvent(new Event('input'));
+            searchInput.blur();
+        }
+    });
+};
+
+/**
+ * Filtro por Estado de Cita
+ */
+const inicializarFiltroEstado = () => {
+    const filterStatus = document.getElementById('filterStatus');
+    if (!filterStatus) return;
+
+    filterStatus.addEventListener('change', (e) => {
+        const estado = e.target.value.toLowerCase();
+        const appointments = document.querySelectorAll('.appointment:not(.available)');
+        let visibleCount = 0;
+        
+        appointments.forEach(appt => {
+            const apptStatus = (appt.dataset.status || '').toLowerCase();
+            
+            if (!estado || apptStatus.includes(estado)) {
+                appt.style.display = '';
+                visibleCount++;
+            } else {
+                appt.style.display = 'none';
+            }
+        });
+        
+        // Anunciar filtrado
+        const estadoTexto = estado || 'todos los estados';
+        anunciarCambio(`Mostrando ${visibleCount} citas con estado: ${estadoTexto}`);
+        
+        console.log(`🎯 Filtro de estado: ${estadoTexto} - ${visibleCount} citas`);
+    });
+};
+
+/**
+ * Indicadores de Tiempo Real en Citas
+ */
+const actualizarIndicadoresTiempo = () => {
+    const ahora = new Date();
+    const appointments = document.querySelectorAll('.appointment[data-start-time]');
+    let citasActualizadas = 0;
+    
+    appointments.forEach(appt => {
+        const fecha = appt.dataset.date;
+        const horaInicio = appt.dataset.startTime;
+        const horaFin = appt.dataset.endTime;
+        const estado = appt.dataset.status;
+        
+        if (!fecha || !horaInicio || !horaFin) return;
+        
+        const inicio = new Date(`${fecha}T${horaInicio}`);
+        const fin = new Date(`${fecha}T${horaFin}`);
+        
+        // Remover clases anteriores
+        appt.classList.remove('in-progress', 'upcoming', 'overdue');
+        
+        const indicator = appt.querySelector('.appt-status-indicator');
+        if (!indicator) return;
+        
+        // EN CURSO
+        if (ahora >= inicio && ahora <= fin) {
+            appt.classList.add('in-progress');
+            indicator.textContent = 'EN CURSO';
+            indicator.setAttribute('aria-label', 'Cita en curso');
+            citasActualizadas++;
+        }
+        // PRÓXIMA (menos de 15 minutos)
+        else if (ahora < inicio) {
+            const minutos = Math.floor((inicio - ahora) / 60000);
+            if (minutos <= 15) {
+                appt.classList.add('upcoming');
+                indicator.textContent = `En ${minutos} min`;
+                indicator.setAttribute('aria-label', `Cita en ${minutos} minutos`);
+                citasActualizadas++;
+            }
+        }
+        // RETRASADA (pasó la hora y no está atendida)
+        else if (ahora > fin && !['atendida', 'cancelada', 'completada'].includes(estado.toLowerCase())) {
+            appt.classList.add('overdue');
+            indicator.textContent = 'RETRASADA';
+            indicator.setAttribute('aria-label', 'Cita retrasada');
+            citasActualizadas++;
+        }
+    });
+    
+    if (citasActualizadas > 0) {
+        console.log(`⏰ ${citasActualizadas} indicadores de tiempo actualizados`);
+    }
+};
+
+/**
+ * Drag & Drop para Reagendar Citas
+ */
+const inicializarDragAndDrop = () => {
+    let draggedAppointment = null;
+
+    // Hacer citas arrastrables
+    const appointments = document.querySelectorAll('.appointment[draggable="true"]');
+    appointments.forEach(appt => {
+        appt.addEventListener('dragstart', (e) => {
+            draggedAppointment = e.target;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', e.target.dataset.id);
+            
+            console.log(`🔄 Arrastrando cita ID: ${e.target.dataset.id}`);
+        });
+        
+        appt.addEventListener('dragend', (e) => {
+            e.target.classList.remove('dragging');
+            draggedAppointment = null;
+        });
+    });
+
+    // Hacer días como drop targets
+    const days = document.querySelectorAll('.calendar-day:not(.closed)');
+    days.forEach(day => {
+        day.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            day.classList.add('drag-over');
+        });
+        
+        day.addEventListener('dragleave', (e) => {
+            if (e.target === day) {
+                day.classList.remove('drag-over');
+            }
+        });
+        
+        day.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            day.classList.remove('drag-over');
+            
+            if (!draggedAppointment) return;
+            
+            const nuevaFecha = day.dataset.date;
+            const citaId = draggedAppointment.dataset.id;
+            const fechaOriginal = draggedAppointment.dataset.date;
+            const paciente = draggedAppointment.dataset.patientName;
+            const horaOriginal = draggedAppointment.dataset.startTime || '09:00';
+            
+            if (nuevaFecha === fechaOriginal) {
+                mostrarToast('La cita ya está en esa fecha', 'info');
+                return;
+            }
+            
+            const confirmar = confirm(
+                `¿Reagendar cita de ${paciente} para el ${formatearFecha(nuevaFecha)}?`
+            );
+            
+            if (confirmar) {
+                await reagendarCita(citaId, `${nuevaFecha}T${horaOriginal}:00`);
+            }
+        });
+    });
+};
+
+/**
+ * Reagendar Cita (API Call)
+ */
+const reagendarCita = async (citaId, fechaHora) => {
+    try {
+        mostrarLoading(true);
+        
+        const response = await fetch(`/api/citas/${citaId}/reagendar`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': obtenerAntiForgeryToken()
+            },
+            body: JSON.stringify({ fechaHora })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        mostrarToast('✅ Cita reagendada exitosamente', 'success');
+        
+        // Recargar la página después de un delay
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+        
+        console.log('✅ Cita reagendada:', result);
+        
+    } catch (error) {
+        console.error('❌ Error reagendando cita:', error);
+        mostrarToast('Error al reagendar la cita. Intente nuevamente.', 'error');
+    } finally {
+        mostrarLoading(false);
+    }
+};
+
+/**
+ * Actualizar Estadísticas Dinámicamente
+ */
+const actualizarEstadisticas = () => {
+    const appointments = document.querySelectorAll('.appointment:not(.available)');
+    const stats = {
+        total: 0,
+        programada: 0,
+        confirmada: 0,
+        atendida: 0,
+        cancelada: 0
+    };
+    
+    appointments.forEach(appt => {
+        if (appt.style.display === 'none') return; // No contar ocultos por filtros
+        
+        stats.total++;
+        const estado = (appt.dataset.status || '').toLowerCase();
+        
+        if (estado.includes('programada') || estado.includes('agendada')) {
+            stats.programada++;
+        } else if (estado.includes('confirmada')) {
+            stats.confirmada++;
+        } else if (estado.includes('atendida')) {
+            stats.atendida++;
+        } else if (estado.includes('cancelada')) {
+            stats.cancelada++;
+        }
+    });
+    
+    // Actualizar valores en el DOM si existen paneles de stats
+    const updateStatValue = (selector, value) => {
+        const el = document.querySelector(selector);
+        if (el) el.textContent = value;
+    };
+    
+    updateStatValue('.quick-stat-item[data-status="total"] strong', stats.total);
+    updateStatValue('.quick-stat-item[data-status="programada"] strong', stats.programada);
+    updateStatValue('.quick-stat-item[data-status="confirmada"] strong', stats.confirmada);
+    updateStatValue('.quick-stat-item[data-status="atendida"] strong', stats.atendida);
+    
+    console.log('📊 Estadísticas actualizadas:', stats);
+};
+
+/**
+ * Exportar Agenda a PDF
+ */
+const configurarExportacionPDF = () => {
+    const btnExportPDF = document.getElementById('btnExportPDF');
+    if (!btnExportPDF) return;
+    
+    btnExportPDF.addEventListener('click', async () => {
+        const weekLabel = document.getElementById('weekLabel');
+        const weekStart = weekLabel ? weekLabel.dataset.weekStart : null;
+        
+        if (!weekStart) {
+            mostrarToast('Error obteniendo fecha de la semana', 'error');
+            return;
+        }
+        
+        const url = `/api/agenda/exportar-pdf?weekStart=${weekStart}`;
+        window.open(url, '_blank');
+        
+        console.log('📄 Exportando agenda a PDF');
+    });
+};
+
+/**
+ * Atajos de Teclado
+ */
+const configurarAtajosTeclado = () => {
+    document.addEventListener('keydown', (e) => {
+        // Solo si no está en un input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        
+        // Ctrl/Cmd + F: Enfocar búsqueda
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            const searchInput = document.getElementById('searchPatient');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+        }
+        
+        // V: Cambiar vista
+        if (e.key === 'v' || e.key === 'V') {
+            const viewButtons = document.querySelectorAll('.view-btn');
+            const activeBtn = document.querySelector('.view-btn.active');
+            if (activeBtn && viewButtons.length > 0) {
+                const currentIndex = Array.from(viewButtons).indexOf(activeBtn);
+                const nextIndex = (currentIndex + 1) % viewButtons.length;
+                viewButtons[nextIndex].click();
+            }
+        }
+        
+        // H: Ir a hoy
+        if (e.key === 'h' || e.key === 'H') {
+            const btnToday = document.getElementById('btnToday');
+            if (btnToday) btnToday.click();
+        }
+        
+        // Flecha izquierda: Semana anterior
+        if (e.key === 'ArrowLeft' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            const btnPrev = document.getElementById('btnPrev');
+            if (btnPrev) btnPrev.click();
+        }
+        
+        // Flecha derecha: Semana siguiente
+        if (e.key === 'ArrowRight' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            const btnNext = document.getElementById('btnNext');
+            if (btnNext) btnNext.click();
+        }
+    });
+    
+    console.log('⌨️  Atajos de teclado configurados: Ctrl+F (buscar), V (cambiar vista), H (hoy), Ctrl+← → (navegar semanas)');
+};
+
+/**
+ * Funciones Auxiliares
+ */
+const formatearFecha = (fechaISO) => {
+    const fecha = new Date(fechaISO + 'T00:00:00');
+    return fecha.toLocaleDateString('es-CO', { 
+        weekday: 'long', 
+        day: 'numeric', 
+        month: 'long' 
+    });
+};
+
+const obtenerAntiForgeryToken = () => {
+    const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+    return tokenInput ? tokenInput.value : '';
+};
+
+const mostrarLoading = (show) => {
+    const calendarBody = document.querySelector('.calendar-body');
+    if (calendarBody) {
+        calendarBody.classList.toggle('loading', show);
+    }
+};
+
+const anunciarCambio = (mensaje) => {
+    // Crear anuncio para lectores de pantalla
+    let announcer = document.getElementById('live-announcer');
+    if (!announcer) {
+        announcer = document.createElement('div');
+        announcer.id = 'live-announcer';
+        announcer.setAttribute('role', 'status');
+        announcer.setAttribute('aria-live', 'polite');
+        announcer.setAttribute('aria-atomic', 'true');
+        announcer.style.cssText = 'position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;';
+        document.body.appendChild(announcer);
+    }
+    announcer.textContent = mensaje;
+};
+
+const mostrarToast = (mensaje, tipo = 'info') => {
+    // Usar ToastService si está disponible
+    if (window.ToastService) {
+        window.ToastService[tipo](mensaje);
+        return;
+    }
+    
+    // Fallback: crear toast simple
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = mensaje;
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${tipo === 'success' ? '#22c55e' : tipo === 'error' ? '#ef4444' : '#3b82f6'};
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+};
+
+/**
+ * Inicialización de Todas las Mejoras
+ */
+const inicializarMejorasAgenda = () => {
+    console.log('🚀 Inicializando mejoras de la agenda...');
+    
+    // Inicializar componentes
+    inicializarToggleVistas();
+    inicializarBusquedaPacientes();
+    inicializarFiltroEstado();
+    inicializarDragAndDrop();
+    configurarExportacionPDF();
+    configurarAtajosTeclado();
+    
+    // Actualizar indicadores de tiempo
+    actualizarIndicadoresTiempo();
+    setInterval(actualizarIndicadoresTiempo, 60000); // Cada minuto
+    
+    // Actualizar estadísticas
+    actualizarEstadisticas();
+    
+    // Agregar estilos de animación si no existen
+    if (!document.getElementById('agenda-animations')) {
+        const style = document.createElement('style');
+        style.id = 'agenda-animations';
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    console.log('✅ Agenda mejorada iniciada correctamente');
+    console.log('📋 Funcionalidades disponibles:');
+    console.log('   • Toggle de vistas (Semana/Día/Lista)');
+    console.log('   • Búsqueda en tiempo real');
+    console.log('   • Filtro por estado');
+    console.log('   • Indicadores de tiempo real');
+    console.log('   • Drag & Drop para reagendar');
+    console.log('   • Atajos de teclado');
+};
+
+// Ejecutar mejoras después de la inicialización principal
+document.addEventListener('DOMContentLoaded', () => {
+    // Esperar a que termine la inicialización original
+    setTimeout(inicializarMejorasAgenda, 1000);
+});
+
+// Limpiar al salir (para mejor rendimiento)
+window.addEventListener('beforeunload', () => {
+    document.querySelectorAll('[style*="animation"]').forEach(el => {
+        el.style.animation = 'none';
+    });
+});

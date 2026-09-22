@@ -25,7 +25,7 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - SEGURIDAD IMPORTANTE: El filtro por IdPaciente se aplica EN EL CONTROLLER, no en cliente.
   (Si se hace solo en JS, paciente podría ver otras citas; el backend lo impide siempre).
-- STATUS_MAP_SERVER / STATUS_MAP_CLIENTE = mismas constantes que los otros 3 módulos citas.
+- Los estados de cita se consumen desde CommonUtils.
 ============================================ */
 
 // ═══════════════════════════════════════════════════════════════════
@@ -50,25 +50,6 @@ const getAuthHeaders = () => {
     if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
   } catch (e) { /* navegación privada */ }
   return headers;
-};
-
-// Estados (mismo mapeo que agenda.js / app.js)
-const STATUS_MAP_SERVER = {
-  programada:  { label: 'Agendada',   cls: 'badge-agendada'   },
-  confirmada:  { label: 'Confirmada', cls: 'badge-confirmada' },
-  en_proceso:  { label: 'En curso',   cls: 'badge-confirmada' },
-  finalizada:  { label: 'Completada', cls: 'badge-completada' },
-  atendida:    { label: 'Completada', cls: 'badge-completada' },
-  cancelada:   { label: 'Cancelada',  cls: 'badge-cancelada'  },
-  no_asistida: { label: 'No asistió', cls: 'badge-cancelada'  }
-};
-const STATUS_MAP_CLIENTE = {
-  'Agendada':   'programada',
-  'Confirmada': 'confirmada',
-  'En curso':   'en_proceso',
-  'Completada': 'finalizada',
-  'Cancelada':  'cancelada',
-  'No asistió': 'no_asistida'
 };
 
 function mostrarErrorUsuario(mensaje) {
@@ -153,8 +134,8 @@ const fmtHora = (fh) => {
 // ═══════════════════════════════════════════════════════════════════
 
 const mapServerToClient = (srv) => {
-  const est = (srv.Estado || 'programada').toLowerCase();
-  const info = STATUS_MAP_SERVER[est] || STATUS_MAP_SERVER['programada'];
+  const est = CommonUtils.mapEstadoServerToClient(srv.Estado);
+  const info = CommonUtils.getStatusInfo(est);
   const fhISO = srv.FechaHora ? new Date(srv.FechaHora).toISOString() : null;
   const proximaFutura = info.label === 'Agendada' || info.label === 'Confirmada';
   const todayISO = new Date().toISOString().split('T')[0];
@@ -208,8 +189,8 @@ let cancelId = null;
 // ═══════════════════════════════════════════════════════════════════
 
 const badgeClass = (estado) => {
-  const serverKey = (STATUS_MAP_CLIENTE[estado] || estado).toLowerCase();
-  return STATUS_MAP_SERVER[serverKey]?.cls || 'badge-agendada';
+  const serverKey = CommonUtils.mapEstadoClienteToServer(estado);
+  return CommonUtils.getStatusInfo(serverKey).cls || 'badge-agendada';
 };
 
 const getFiltered = () => {
@@ -311,11 +292,11 @@ const renderTable = () => {
       <td><span class="badge ${escapeHtml(badgeClass(item.estado))}">${escapeHtml(item.estado)}</span></td>
       <td>
         <div class="actions-cell">
-          <button class="btn-icon action-btn btn-view" type="button" id="btn-ver-${item.id}"
+          <button class="btn-secondary btn-view" type="button" id="btn-ver-${item.id}"
                   title="Ver detalle" data-action="ver" data-id="${item.id}" aria-label="Ver detalle de cita">
             <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">visibility</span> <span class="btn-text">Ver</span>
           </button>
-          ${canCancel ? `<button class="btn-icon action-btn btn-delete danger" type="button" id="btn-cancelar-${item.id}"
+          ${canCancel ? `<button class="btn-danger btn-delete" type="button" id="btn-cancelar-${item.id}"
                   title="Cancelar cita" data-action="cancelar" data-id="${item.id}" aria-label="Cancelar cita">
             <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">cancel</span> <span class="btn-text">Cancelar</span>
           </button>` : ''}

@@ -1,0 +1,12 @@
+@model SmileTrack_MVC.Models.ViewModels.Components.ToggleVistasViewModel
+<link rel="stylesheet" href="~/css/shared/components/toggle-vistas.css" asp-append-version="true" />
+<div class="toggle-vistas" role="tablist" aria-label="Cambiar vista">
+@foreach (var vista in Model.Vistas)
+{
+    var activa = string.Equals(vista.Id, Model.VistaActiva, StringComparison.OrdinalIgnoreCase);
+    <button type="button" class="toggle-vista @(activa ? "active" : "")" data-view="@vista.Id" role="tab" aria-selected="@(activa ? "true" : "false")">
+        <span class="material-symbols-outlined" aria-hidden="true">@vista.Icono</span><span>@vista.Etiqueta</span>
+    </button>
+}
+</div>
+<script src="~/js/shared/components/ToggleVistas.js" asp-append-version="true"></script>

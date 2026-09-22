@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.ViewModels;
 
 namespace SmileTrack_MVC.Services;
@@ -48,6 +49,34 @@ public sealed class PanelOperativoService : IPanelOperativoService
         var consultoriosDisponibles = await _context.Consultorios
             .AsNoTracking()
             .CountAsync(c => c.Estado == "disponible" || c.Estado == "activo", ct);
+
+        var inicioMes = new DateTime(ahora.Year, ahora.Month, 1);
+        var finMes = inicioMes.AddMonths(1);
+        var topProfesionales = await _context.Citas
+            .AsNoTracking()
+            .Where(c => c.FechaHora >= inicioMes && c.FechaHora < finMes && c.IdProfesional.HasValue)
+            .GroupBy(c => c.IdProfesional!.Value)
+            .Select(g => new
+            {
+                IdProfesional = g.Key,
+                TotalCitas = g.Count()
+            })
+            .OrderByDescending(g => g.TotalCitas)
+            .ThenBy(g => g.IdProfesional)
+            .Take(3)
+            .Join(
+                _context.Profesionales.AsNoTracking(),
+                item => item.IdProfesional,
+                profesional => profesional.IdProfesional,
+                (item, profesional) => new PanelOperativoTopProfesionalViewModel
+                {
+                    Nombre = $"{profesional.Nombres} {profesional.Apellidos}".Trim(),
+                    Especialidad = string.IsNullOrWhiteSpace(profesional.Categoria)
+                        ? "Sin especialidad"
+                        : profesional.Categoria,
+                    TotalCitas = item.TotalCitas
+                })
+            .ToListAsync(ct);
 
         var estados = citas
             .Select(c => MapEstadoLabel(c.Estado))
@@ -125,17 +154,17 @@ public sealed class PanelOperativoService : IPanelOperativoService
             },
             ProximaCita = proxima,
             Citas = citasViewModel,
-            Alertas = alertas
+            Alertas = alertas,
+            TopProfesionales = topProfesionales
         };
     }
 
     private static string MapEstadoLabel(string? estado)
     {
-        var normalizado = (estado ?? string.Empty).Trim().ToLowerInvariant();
-        return normalizado switch
+        return EstadoCitaHelper.Normalize(estado) switch
         {
-            "atendida" or "completada" or "realizada" => "Atendida",
-            "cancelada" or "cancelado" or "no_asistida" or "no asistio" or "no asistió" or "no-show" => "Cancelada",
+            "atendida" => "Atendida",
+            "cancelada" or "no_asistida" => "Cancelada",
             _ => "Pendiente"
         };
     }

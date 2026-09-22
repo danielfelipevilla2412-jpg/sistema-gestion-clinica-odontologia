@@ -296,7 +296,7 @@ const initWeekNavigation = () => {
             const search = new URLSearchParams(window.location.search);
             search.set('weekStart', weekStartIso);
             if (filterProfessional?.value) search.set('professionalId', filterProfessional.value);
-            else search.delete('professionalId');
+            else search.set('professionalId', '0');
             if (filterOffice?.value) search.set('officeId', filterOffice.value);
             else search.delete('officeId');
             const url = `/gestion-de-citas/st-adm-08-agenda?${search.toString()}`;
@@ -539,35 +539,18 @@ const initNewAppointmentModal = () => {
      * Mapea el estado de la cita a la clase CSS correspondiente
      */
     const getStatusClass = (status) => {
-        if (window.AppointmentUtils) {
-            const normalized = String(status ?? '').trim().toLowerCase();
-            const statusMap = {
-                'programada': 'reserved',
-                'agendada': 'reserved',
-                'pendiente': 'reserved',
-                'confirmada': 'confirmed',
-                'atendida': 'attended',
-                'cancelada': 'cancelled',
-                'cancelado': 'cancelled',
-                'no_asistida': 'cancelled',
-                'no-show': 'cancelled',
-                'disponible': 'available'
-            };
+        const normalized = String(status ?? '').trim().toLowerCase();
+        if (normalized === 'disponible') return 'available';
+        if (normalized === 'pendiente') return 'reserved';
 
-            return statusMap[normalized] ?? window.AppointmentUtils.getStatusLabelAndClass(normalized).class;
-        }
-
-        const statusMap = {
-            'Agendada': 'reserved',
-            'Programada': 'reserved',
-            'Pendiente': 'reserved',
-            'Confirmada': 'confirmed',
-            'Asistida': 'attended',
-            'Cancelada': 'cancelled',
-            'Disponible': 'available'
-        };
-
-        return statusMap[String(status ?? '')] || 'reserved';
+        return {
+            programada: 'reserved',
+            confirmada: 'confirmed',
+            en_proceso: 'confirmed',
+            atendida: 'attended',
+            cancelada: 'cancelled',
+            no_asistida: 'cancelled'
+        }[CommonUtils.normalizeAppointmentStatus(status)] || 'reserved';
     };
 
     /**
@@ -949,20 +932,35 @@ const initAppointmentDetailModal = () => {
             notes: element.dataset.notes || '',
             patientName: element.dataset.patientName || 'Sin paciente',
             professionalName: element.dataset.professionalName || 'Sin profesional',
+            professionalEmail: element.dataset.professionalEmail || '',
+            professionalPhone: element.dataset.professionalPhone || '',
+            professionalRegistry: element.dataset.professionalRegistry || '',
+            professionalUserStatus: element.dataset.professionalUserStatus || '',
             officeName: element.dataset.officeName || 'Sin consultorio',
             serviceName: element.dataset.serviceName || 'Sin servicio'
         };
         content.innerHTML = '';
-        [
+        const rows = [
             ['Paciente', selectedAppointment.patientName],
-            ['Profesional', selectedAppointment.professionalName],
+            ['Profesional', selectedAppointment.professionalName]
+        ];
+        if (selectedAppointment.professionalEmail)
+            rows.push(['Correo profesional', selectedAppointment.professionalEmail]);
+        if (selectedAppointment.professionalPhone)
+            rows.push(['Teléfono profesional', selectedAppointment.professionalPhone]);
+        if (selectedAppointment.professionalRegistry)
+            rows.push(['Registro médico', selectedAppointment.professionalRegistry]);
+        if (selectedAppointment.professionalUserStatus)
+            rows.push(['Estado cuenta', selectedAppointment.professionalUserStatus]);
+        rows.push(
             ['Fecha', selectedAppointment.date],
             ['Horario', `${selectedAppointment.startTime} - ${selectedAppointment.endTime}`],
             ['Servicio', selectedAppointment.serviceName],
             ['Consultorio', selectedAppointment.officeName],
             ['Estado', selectedAppointment.status],
             ['Observaciones', selectedAppointment.notes || 'Sin observaciones']
-        ].forEach(([label, value]) => {
+        );
+        rows.forEach(([label, value]) => {
             const row = document.createElement('p');
             const strong = document.createElement('strong');
             strong.textContent = `${label}: `;
