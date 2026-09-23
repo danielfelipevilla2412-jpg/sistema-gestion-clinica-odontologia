@@ -534,6 +534,50 @@ public class HistoriaClinicaController(
         });
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/guardar-formulario")]
+    public async Task<IActionResult> GuardarFormularioHistoria([FromBody] HistoriaFormularioGuardarRequest request)
+    {
+        if (request is null || request.PacienteId is null)
+            return Json(new { success = false, message = "No hay un paciente seleccionado para guardar la historia." });
+
+        var historia = await _context.HistoriasClinicas
+            .FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId.Value && h.Activa);
+
+        historia ??= await _historiaService.CrearHistoriaClinicaAsync(request.PacienteId.Value);
+
+        JsonObject raiz;
+        try
+        {
+            raiz = JsonNode.Parse(historia.ObservacionesGenerales ?? "{}") as JsonObject ?? new JsonObject();
+        }
+        catch (JsonException)
+        {
+            raiz = new JsonObject();
+        }
+
+        raiz["formularioHistoria"] = JsonSerializer.SerializeToNode(new HistoriaFormularioViewModel
+        {
+            MotivoConsulta = request.MotivoConsulta?.Trim() ?? "",
+            EnfermedadActual = request.EnfermedadActual?.Trim() ?? "",
+            Habitos = request.Habitos?.Trim() ?? "",
+            Hallazgos = request.Hallazgos?.Trim() ?? "",
+            OdontogramaObservaciones = request.OdontogramaObservaciones?.Trim() ?? "",
+            ExamenesComplementarios = request.ExamenesComplementarios?.Trim() ?? "",
+            DiagnosticoPrincipal = request.DiagnosticoPrincipal?.Trim() ?? "",
+            DiagnosticoSecundario = request.DiagnosticoSecundario?.Trim() ?? "",
+            EvolucionClinica = request.EvolucionClinica?.Trim() ?? "",
+            Prescripcion = request.Prescripcion?.Trim() ?? ""
+        });
+
+        historia.ObservacionesGenerales = raiz.ToJsonString();
+        await _context.SaveChangesAsync();
+
+        return Json(new { success = true, message = "Historia clínica guardada correctamente." });
+    }
+
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("historia-clinica/st-odo-06-pacientes")]
@@ -702,13 +746,30 @@ public class HistoriaClinicaController(
 [Route("historia-clinica/st-pac-02-historial")]
 public async Task<IActionResult> Stpac02Historial()
 {
-        string? userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    // Yeray - Defensa específica para el rol Paciente.
+    // Motivo: la ruta debe permitir el acceso solo a usuarios autenticados con
+    // un paciente asociado; si no existe esa relación de BD, la vista anterior
+    // caía en un estado ambiguo y el usuario no entendía qué estaba fallando.
+    // Con esta validación solo se bloquea el acceso a la historia de pacientes
+    // sin ficha vinculada, sin tocar otras rutas ni módulos externos.
+    string? idPacienteClaim = User.FindFirst("IdPaciente")?.Value;
+    int? idPacienteDesdeClaim = int.TryParse(idPacienteClaim, out var idPacienteClaimInt)
+        ? idPacienteClaimInt
+        : null;
+
+    string? userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     int? idUsuario = int.TryParse(userIdStr, out int uid) ? uid : null;
 
-    var pacientePropio = idUsuario.HasValue
+    Paciente? pacientePropio = idPacienteDesdeClaim is not null
+        ? await _context.Pacientes.FirstOrDefaultAsync(p => p.IdPaciente == idPacienteDesdeClaim)
+        : null;
+
+    pacientePropio ??= idUsuario.HasValue
         ? await _context.Pacientes.FirstOrDefaultAsync(p => p.IdUsuario == idUsuario)
         : null;
 
+    // Sin ficha asociada se conserva la vista para mostrar el formulario vacío.
+    // Cuando recepción vincula al paciente, la misma ruta carga la información clínica real.
     var vm = await BuildHistorialPacienteViewModelAsync(pacientePropio?.IdPaciente, null);
 
     return View("~/Views/Historia_Clinica/st-pac-02-historial/index.cshtml", vm);
@@ -738,6 +799,23 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
     };
 
     var idPacienteResuelto = vm.Odontograma.PacienteId;
+    if (!string.IsNullOrWhiteSpace(vm.Odontograma.ObservacionesGenerales))
+    {
+        try
+        {
+            var raiz = JsonNode.Parse(vm.Odontograma.ObservacionesGenerales) as JsonObject;
+            var formulario = raiz?["formularioHistoria"] as JsonObject;
+            if (formulario is not null)
+            {
+                vm.Formulario = formulario.Deserialize<HistoriaFormularioViewModel>() ?? new();
+            }
+        }
+        catch (JsonException)
+        {
+            // Historias antiguas pueden contener solo el JSON del odontograma.
+        }
+    }
+
     if (idPacienteResuelto is null) return vm;
 
     var paciente = await _context.Pacientes.FirstOrDefaultAsync(p => p.IdPaciente == idPacienteResuelto);
@@ -753,6 +831,21 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
     vm.AntecedentesMedicos = string.IsNullOrWhiteSpace(paciente.AntecedentesMedicos)
         ? "Sin antecedentes registrados"
         : paciente.AntecedentesMedicos;
+    // FASE 1 — Construir ficha clínica de solo lectura desde Paciente.
+    // Motivo: los campos ya estaban en BD pero nunca se serializaban hacia
+    // st-odo-03; ahora la vista puede mostrar identidad, contacto y emergencia.
+    vm.Paciente = new PacienteResumenClinicoViewModel
+    {
+        TipoDocumento = paciente.TipoDocumento,
+        Documento = paciente.Documento,
+        Genero = string.IsNullOrWhiteSpace(paciente.Genero) ? "No registrado" : paciente.Genero,
+        Telefono = string.IsNullOrWhiteSpace(paciente.Telefono) ? "No registrado" : paciente.Telefono,
+        Correo = string.IsNullOrWhiteSpace(paciente.Correo) ? "No registrado" : paciente.Correo,
+        Direccion = string.IsNullOrWhiteSpace(paciente.Direccion) ? "No registrada" : paciente.Direccion,
+        Ciudad = string.IsNullOrWhiteSpace(paciente.Ciudad) ? "No registrada" : paciente.Ciudad,
+        ContactoEmergencia = string.IsNullOrWhiteSpace(paciente.ContactoEmergencia) ? "No registrado" : paciente.ContactoEmergencia,
+        TelefonoEmergencia = string.IsNullOrWhiteSpace(paciente.TelefonoEmergencia) ? "No registrado" : paciente.TelefonoEmergencia
+    };
 
     var citas = await _context.Citas
         .Include(c => c.Servicio)
@@ -813,7 +906,88 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
                 Estado       = n.Estado
             })
             .ToListAsync();
+
+        // FASE 1 — Línea de tiempo clínica unificada: cada elemento conserva su origen
+        // para que la UI pueda filtrarlo y no confunda una nota, un documento
+        // o el estado de una pieza dental.
+        vm.LineaDeTiempo.AddRange(vm.NotasClinicas.Select(n => new EventoHistoriaClinicaItem
+        {
+            Fecha = DateTime.TryParse(n.Fecha, out var fechaNota) ? fechaNota : DateTime.MinValue,
+            Categoria = "nota",
+            Titulo = n.Titulo,
+            Descripcion = string.Join(" · ", new[] { n.Diagnostico, n.Procedimiento }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            Profesional = n.Doctor,
+            Estado = n.Estado
+        }));
+
+        var registrosOdontograma = await _context.RegistrosOdontograma
+            .AsNoTracking()
+            .Include(r => r.Profesional)
+            .Where(r => r.IdHistoria == vm.Odontograma.HistoriaId.Value)
+            .OrderByDescending(r => r.FechaRegistro)
+            .ToListAsync();
+
+        vm.LineaDeTiempo.AddRange(registrosOdontograma.Select(r => new EventoHistoriaClinicaItem
+        {
+            Fecha = r.FechaRegistro,
+            Categoria = "odontograma",
+            Titulo = $"Pieza {r.NumeroFdi}: {r.NombrePieza ?? "registro odontológico"}",
+            Descripcion = string.Join(" · ", new[] { r.Estado, r.Observacion }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            Profesional = r.Profesional is null ? "Profesional no registrado" : $"Dr(a). {r.Profesional.Nombres} {r.Profesional.Apellidos}",
+            Estado = r.Estado
+        }));
+
+        var documentos = await _context.DocumentosClinicos
+            .AsNoTracking()
+            .Where(d => d.IdHistoria == vm.Odontograma.HistoriaId.Value)
+            .OrderByDescending(d => d.FechaSubida)
+            .ToListAsync();
+
+        vm.LineaDeTiempo.AddRange(documentos.Select(d => new EventoHistoriaClinicaItem
+        {
+            Fecha = d.FechaSubida,
+            Categoria = "documento",
+            Titulo = d.Tipo,
+            Descripcion = string.IsNullOrWhiteSpace(d.Observacion) ? d.NombreOriginal : $"{d.NombreOriginal} · {d.Observacion}",
+            Profesional = "Documento clínico",
+            Estado = "Disponible",
+            EnlaceDocumento = "/" + d.RutaRelativa.TrimStart('/')
+        }));
     }
+
+    // FASE 1 — Incluir citas ya realizadas en la misma línea de tiempo.
+    // Así el historial reúne entradas clínicas y atención programada en orden real.
+    vm.LineaDeTiempo.AddRange(vm.Registros.Select(r => new EventoHistoriaClinicaItem
+    {
+        Fecha = r.Fecha,
+        Categoria = "consulta",
+        Titulo = r.Descripcion,
+        Descripcion = r.Estado,
+        Profesional = r.Doctor,
+        Estado = r.Estado
+    }));
+
+    // FASE 1 — Consultar controles postoperatorios asociados al paciente.
+    // Antes existían en Control_Postoperatorio pero no se veían desde la historia.
+    var controles = await _context.ControlesPostoperatorios
+        .AsNoTracking()
+        .Include(c => c.Cita)
+        .Where(c => c.Cita != null && c.Cita.IdPaciente == paciente.IdPaciente)
+        .OrderByDescending(c => c.FechaRegistro)
+        .ToListAsync();
+
+    vm.LineaDeTiempo.AddRange(controles.Select(c => new EventoHistoriaClinicaItem
+    {
+        Fecha = c.FechaRegistro,
+        Categoria = "control",
+        Titulo = "Control postoperatorio",
+        Descripcion = c.Observaciones ?? "Sin observaciones registradas",
+        Profesional = "Seguimiento clínico",
+        Estado = c.Status
+    }));
+
+    // FASE 1 — Orden cronológico único, más reciente primero, para toda la vista.
+    vm.LineaDeTiempo = vm.LineaDeTiempo.OrderByDescending(e => e.Fecha).ToList();
 
     return vm;
 }
@@ -829,8 +1003,23 @@ private static string InferirTipoServicio(string? nombreServicio)
 }
     private async Task<OdontogramaViewModel> BuildOdontogramaViewModelAsync(int? pacienteId, int? historiaId)
     {
-        var paciente = await _context.Pacientes.FirstOrDefaultAsync(p => p.IdPaciente == pacienteId)
-            ?? await _context.Pacientes.OrderBy(p => p.IdPaciente).FirstOrDefaultAsync();
+        // FASE 1 — Nunca usar "el primer paciente" como respaldo: en una historia clínica
+        // eso podría exponer datos de otra persona. La historia indicada puede
+        // resolver al paciente; de lo contrario la vista queda en estado vacío.
+        Paciente? paciente = null;
+        if (pacienteId is not null)
+        {
+            paciente = await _context.Pacientes.FirstOrDefaultAsync(p => p.IdPaciente == pacienteId);
+        }
+        else if (historiaId is not null)
+        {
+            paciente = await _context.HistoriasClinicas
+                .AsNoTracking()
+                .Include(h => h.Paciente)
+                .Where(h => h.IdHistoria == historiaId.Value)
+                .Select(h => h.Paciente)
+                .FirstOrDefaultAsync();
+        }
 
         // Si no hay pacientes aún (seed en background puede estar en progreso), retornar ViewModel seguro
         if (paciente is null)
@@ -840,7 +1029,7 @@ private static string InferirTipoServicio(string? nombreServicio)
                 PacienteId = null,
                 HistoriaId = null,
                 PacienteNombre = "Sin paciente asignado",
-                CodigoHC = "HC-SIN-ASIGNAR",
+                CodigoHC = string.Empty,
                 FechaNacimiento = string.Empty,
                 ProfesionalNombre = User.FindFirst(ClaimTypes.Name)?.Value ?? "Profesional",
                 ProfesionalCorreo = User.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty,
@@ -864,7 +1053,8 @@ private static string InferirTipoServicio(string? nombreServicio)
             FechaNacimiento = paciente.FechaNacimiento.ToString("yyyy-MM-dd"),
             ProfesionalNombre = profesionalNombre,
             ProfesionalCorreo = profesionalCorreo,
-            ObservacionesGenerales = historia.ObservacionesGenerales
+            ObservacionesGenerales = historia.ObservacionesGenerales,
+            EstadoPersistido = historia.ObservacionesGenerales
         };
     }
 
