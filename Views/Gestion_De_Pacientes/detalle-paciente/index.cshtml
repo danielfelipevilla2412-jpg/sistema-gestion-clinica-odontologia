@@ -182,7 +182,18 @@
     <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
   </button>
   <div class="overlay" id="overlay" aria-hidden="true"></div>
-  @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+  @{
+      var currentSidebar = ViewData["SidebarPartial"] as string;
+      if (string.IsNullOrWhiteSpace(currentSidebar))
+      {
+          currentSidebar = User.IsInRole("Recepcionista") ? "_SidebarRecepcionista"
+                        : User.IsInRole("Auxiliar") ? "_SidebarAuxiliar"
+                        : User.IsInRole("Profesional") ? "_SidebarProfesional"
+                        : User.IsInRole("Paciente") ? "_SidebarPaciente"
+                        : "_SidebarAdmin";
+      }
+  }
+  @{ await Html.RenderPartialAsync(currentSidebar); }
 
   @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
   <main class="main" id="main-content">

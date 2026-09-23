@@ -167,6 +167,7 @@ const mapServerToClient = (srv) => {
     professionalId: get('IdProfesional'),
     serviceId: get('IdServicio'),
     officeId: get('IdConsultorio'),
+    statusId: get('IdEstado') ?? srv.EstadoCita?.IdEstado ?? '',
     date: fmtFechaCorta(fechaHora),
     dateISO,
     time: fmtHora12(fechaHora),
@@ -591,18 +592,25 @@ const openEditModal = (id) => {
   const a = appointmentStorage.findById(id);
   if (!a) return;
 
+  const raw = a._raw || {};
   const fields = {
-    editAppointmentId: a.id,
-    editPatient: a.patient,
-    editDate: a.dateISO,
-    editTime: a.timeISO,
-    editDoctor: a.doctor,
-    editService: a.service,
-    editOffice: a.office,
-    editStatus: a.status,
-    editNotes: a.notes || ''
+    editAppointmentId: a.id ?? raw.IdCita ?? '',
+    editPatient: a.patientId ?? raw.IdPaciente ?? '',
+    editDate: a.dateISO || raw.Fecha || '',
+    editTime: a.timeISO || raw.HoraInicio || '',
+    editDoctor: a.professionalId ?? raw.IdProfesional ?? '',
+    editService: a.serviceId ?? raw.IdServicio ?? '',
+    editOffice: a.officeId ?? raw.IdConsultorio ?? '',
+    editStatus: a.statusId ?? raw.IdEstado ?? '',
+    editNotes: a.notes ?? raw.Notas ?? ''
   };
-  Object.entries(fields).forEach(([k, v]) => { const el = safeGetElement(k); if (el) el.value = v; });
+
+  Object.entries(fields).forEach(([k, v]) => {
+    const el = safeGetElement(k);
+    if (!el) return;
+    el.value = v ?? '';
+  });
+
   document.querySelectorAll('#modalEditAppointment .error').forEach(x => x.classList.remove('error'));
   document.querySelectorAll('#modalEditAppointment .error-message.visible').forEach(x => x.classList.remove('visible'));
   modalManager.open('modalEditAppointment');

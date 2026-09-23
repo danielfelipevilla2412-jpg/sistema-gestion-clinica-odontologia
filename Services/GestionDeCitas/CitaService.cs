@@ -721,6 +721,12 @@ public class CitaService : ICitaService
         if (string.IsNullOrWhiteSpace(estadoNuevo) || !EsTransicionEstadoPermitida(estadoActual, estadoNuevo))
             throw new InvalidOperationException(ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
 
+        if (estadoNuevo is "en_proceso" && cita.FechaHora.Date < DateTime.Today)
+            throw new InvalidOperationException("No se puede iniciar la atención antes del día programado de la cita.");
+
+        if (estadoNuevo is "atendida" or "no_asistida" && cita.FechaHora.Date < DateTime.Today)
+            throw new InvalidOperationException("Solo se puede marcar la cita como atendida o no asistida desde el día programado o después.");
+
         var estadosCatalogo = await _context.EstadosCita
             .AsNoTracking()
             .ToListAsync(ct);
