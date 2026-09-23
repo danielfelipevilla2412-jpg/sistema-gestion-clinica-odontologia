@@ -33,13 +33,16 @@
         <!-- Top Bar -->
         <div class="top-bar">
             <div class="page-header">
-                <h1 data-i18n="pqr.title">Peticiones, Quejas y Reclamos</h1>
-                <p data-i18n="pqr.response_time">Módulo PQR - SmileTrack</p>
+                <h1>Gestión de PQR</h1>
+                <p>Administra, consulta y responde las solicitudes de los pacientes.</p>
             </div>
             <div class="action-buttons">
-                <button class="btn btn-primary active" onclick="showManagement()">
-                    <i class="fas fa-list"></i>
-                    <span data-i18n="pqr.management">Gestión de PQR</span>
+                <button class="notification-btn" id="pqrNotificationBtn"
+                        type="button"
+                        title="Nuevas solicitudes PQR"
+                        aria-label="Nuevas solicitudes PQR">
+                    <i class="fas fa-bell" aria-hidden="true"></i>
+                    <span class="notification-badge" id="pqrNotificationBadge" aria-live="polite">0</span>
                 </button>
             </div>
         </div>
@@ -51,7 +54,7 @@
                     <i class="fas fa-inbox"></i>
                 </div>
                 <div class="stat-info">
-                    <h3>6</h3>
+                    <h3 id="statTotal">0</h3>
                     <p>Total PQR</p>
                 </div>
             </div>
@@ -60,7 +63,7 @@
                     <i class="fas fa-clock"></i>
                 </div>
                 <div class="stat-info">
-                    <h3>1</h3>
+                    <h3 id="statSinResponder">0</h3>
                     <p>Sin responder</p>
                 </div>
             </div>
@@ -69,7 +72,7 @@
                     <i class="fas fa-tasks"></i>
                 </div>
                 <div class="stat-info">
-                    <h3>1</h3>
+                    <h3 id="statEnGestion">0</h3>
                     <p>En gestión</p>
                 </div>
             </div>
@@ -78,7 +81,7 @@
                     <i class="fas fa-exclamation-triangle"></i>
                 </div>
                 <div class="stat-info">
-                    <h3>2</h3>
+                    <h3 id="statVencidas">0</h3>
                     <p>Vencidas</p>
                 </div>
             </div>
@@ -245,6 +248,7 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
+    @Html.AntiForgeryToken()
     <script>
         window.RAZOR_PQRS = @Html.Raw(ViewData["PqrsJson"] ?? "[]");
         window.RAZOR_PQR_STATS = @Html.Raw(ViewData["PqrStatsJson"] ?? "null");

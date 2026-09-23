@@ -1242,7 +1242,7 @@
       "nav.item_gestion_facturacion": "Gestión de Facturación",
       "nav.item_catalogo_servicios": "Catálogo de Servicios",
       "nav.item_configuracion_general": "Configuración General",
-      "nav.item_peticiones_quejas_reclamos": "Peticiones, Quejas y Reclamos",
+      "nav.item_peticiones_quejas_reclamos": "Gestión de PQR",
       "nav.item_nueva_solicitud": "Nueva Solicitud",
       "nav.item_como_programar_cita": "Cómo programar una cita",
       "nav.item_guias_tutoriales": "Guías y Tutoriales",
@@ -2291,6 +2291,7 @@
       "home.pqrs_cancel_confirm": "Cancel this request?",
       "home.pqrs_unavailable_warning": "PQRS is not available from this page. Sign in to register it.",
       "home.pqrs_send_error": "❌ Error sending. Please try again.",
+      
 
       // Home: WhatsApp default message
       "home.whatsapp_message": "Hi! I want to book a dental appointment at Smile Track.",
@@ -2602,7 +2603,7 @@
       "nav.item_gestion_facturacion": "Billing Management",
       "nav.item_catalogo_servicios": "Service Catalog",
       "nav.item_configuracion_general": "General Settings",
-      "nav.item_peticiones_quejas_reclamos": "Requests, Complaints and Claims",
+      "nav.item_peticiones_quejas_reclamos": "PQR management",
       "nav.item_nueva_solicitud": "New Request",
       "nav.item_como_programar_cita": "How to schedule an appointment",
       "nav.item_guias_tutoriales": "Guides and Tutorials",

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@{ Layout = null; }
+﻿﻿﻿@{ Layout = null; }
 
 <!DOCTYPE html>
 <html lang="es">
@@ -60,20 +60,11 @@
                     <a href="/" data-i18n="nav.homepage">Inicio</a> › <span data-i18n="pqr.title">Peticiones, Quejas y Reclamos</span>
                 </div>
                 <div class="page-title">
-                    <h1 data-i18n="pqr.title">Peticiones, Quejas y Reclamos</h1>
+                    <h1>Nueva PQR</h1>
                     <p data-i18n="pqr.response_time">MÓdulo PQR - SmileTrack</p>
                 </div>
             </div>
-            <div class="top-actions">
-                <button class="icon-btn" data-i18n-title="home.chat_title" title="Notificaciones">
-                    <i class="fas fa-bell"></i>
-                    <span class="notification-badge">3</span>
-                </button>
-                <button class="btn-primary">
-                    <i class="fas fa-plus"></i>
-                    <span data-i18n="pqr.new">Nueva Solicitud PQR</span>
-                </button>
-            </div>
+
         </div>
 
         <!-- Content Grid -->
@@ -272,6 +263,34 @@
             </div>
         </div>
     </main>
+
+    <!-- Detalle de una PQR para el paciente -->
+    <div class="pqr-detail-overlay" id="pqrDetailOverlay" hidden>
+        <div class="pqr-detail-modal" role="dialog" aria-modal="true" aria-labelledby="pqrDetailTitle">
+            <button type="button" class="pqr-detail-close" id="pqrDetailClose" aria-label="Cerrar">&times;</button>
+            <div class="pqr-detail-header">
+                <div>
+                    <span class="pqr-detail-ticket" id="pqrDetailTicket"></span>
+                    <h2 id="pqrDetailTitle">Detalle de la PQR</h2>
+                </div>
+                <span class="badge process" id="pqrDetailStatus"></span>
+            </div>
+            <div class="pqr-detail-meta" id="pqrDetailMeta"></div>
+            <div class="pqr-detail-block">
+                <h3>Asunto</h3>
+                <p id="pqrDetailSubject"></p>
+            </div>
+            <div class="pqr-detail-block">
+                <h3>Descripción</h3>
+                <p id="pqrDetailDescription"></p>
+            </div>
+            <div class="pqr-detail-response">
+                <h3>Respuesta de SmileTrack</h3>
+                <p id="pqrDetailResponse"></p>
+                <small id="pqrDetailResponseDate"></small>
+            </div>
+        </div>
+    </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script>

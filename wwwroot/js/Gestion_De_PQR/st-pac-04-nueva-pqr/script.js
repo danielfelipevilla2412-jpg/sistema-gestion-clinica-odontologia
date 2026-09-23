@@ -57,30 +57,130 @@ function renderRecentPqrs() {
     if (!container) return;
 
     const pqrs = Array.isArray(window.RAZOR_MIS_PQRS) ? window.RAZOR_MIS_PQRS : [];
-    if (pqrs.length === 0) return; // conserva los ejemplos estáticos si el paciente aún no tiene PQR
+    if (pqrs.length === 0) {
+        container.innerHTML = '<div class="pqr-empty-state">Aún no tienes solicitudes radicadas.</div>';
+        return;
+    }
 
     const badgeByStatus = {
         recibida: { label: 'Recibido', cls: 'process' },
         en_proceso: { label: 'En proceso', cls: 'process' },
         resuelta: { label: 'Resuelto', cls: 'resolved' },
-        cerrada: { label: 'Cerrado', cls: 'closed' }
+        cerrada: { label: 'Cerrado', cls: 'closed' },
+        rechazada: { label: 'Rechazado', cls: 'closed' }
     };
 
     container.innerHTML = pqrs.slice(0, 5).map(p => {
-        const badge = badgeByStatus[p.Estado] || { label: p.Estado, cls: 'process' };
-        const tipoLabel = PQR_TYPE_LABEL[p.Tipo] || p.Tipo;
-        const fecha = p.FechaCreacion ? new Date(p.FechaCreacion).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+        const badge = badgeByStatus[p.Estado] || { label: p.Estado || 'Sin estado', cls: 'process' };
+        const tipoLabel = PQR_TYPE_LABEL[p.Tipo] || p.Tipo || '';
+        const fecha = p.FechaCreacion
+            ? new Date(p.FechaCreacion).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+            : '';
+        const tieneRespuesta = Boolean(p.Respuesta && p.Respuesta.trim());
         return `
-            <div class="recent-item">
+            <div class="recent-item pqr-clickable" data-pqr-id="${p.IdPqr}">
                 <div class="recent-code">PQR-${String(p.IdPqr).padStart(4, '0')}</div>
-                <div class="recent-title">${p.Asunto || ''}</div>
-                <div class="recent-date">${tipoLabel} · ${fecha}</div>
-                <span class="badge ${badge.cls}">${badge.label}</span>
+                <div class="recent-title">${escapeHtml(p.Asunto || '')}</div>
+                <div class="recent-date">${escapeHtml(tipoLabel)} · ${fecha}</div>
+                <span class="badge ${badge.cls}">${escapeHtml(badge.label)}</span>
+                <div class="recent-response-status ${tieneRespuesta ? 'answered' : ''}">
+                    <i class="fas ${tieneRespuesta ? 'fa-check-circle' : 'fa-clock'}"></i>
+                    ${tieneRespuesta ? 'Tiene respuesta' : 'Pendiente de respuesta'}
+                </div>
+                <button type="button" class="btn-view-pqr" data-pqr-id="${p.IdPqr}">Ver detalle</button>
             </div>`;
     }).join('');
+
+    container.querySelectorAll('.btn-view-pqr').forEach(button => {
+        button.addEventListener('click', event => {
+            event.stopPropagation();
+            const pqr = pqrs.find(item => String(item.IdPqr) === button.dataset.pqrId);
+            if (pqr) openPqrDetail(pqr);
+        });
+    });
+
+    container.querySelectorAll('.pqr-clickable').forEach(item => {
+        item.addEventListener('click', () => {
+            const pqr = pqrs.find(entry => String(entry.IdPqr) === item.dataset.pqrId);
+            if (pqr) openPqrDetail(pqr);
+        });
+    });
 }
 
-document.addEventListener('DOMContentLoaded', renderRecentPqrs);
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function openPqrDetail(pqr) {
+    const overlay = document.getElementById('pqrDetailOverlay');
+    if (!overlay) return;
+
+    const statusMap = {
+        recibida: { label: 'Recibido', cls: 'process' },
+        en_proceso: { label: 'En proceso', cls: 'process' },
+        resuelta: { label: 'Resuelto', cls: 'resolved' },
+        cerrada: { label: 'Cerrado', cls: 'closed' },
+        rechazada: { label: 'Rechazado', cls: 'closed' }
+    };
+    const status = statusMap[pqr.Estado] || { label: pqr.Estado || 'Sin estado', cls: 'process' };
+
+    document.getElementById('pqrDetailTicket').textContent = `PQR-${String(pqr.IdPqr).padStart(4, '0')}`;
+    document.getElementById('pqrDetailTitle').textContent = pqr.Asunto || 'Detalle de la PQR';
+    const statusElement = document.getElementById('pqrDetailStatus');
+    statusElement.textContent = status.label;
+    statusElement.className = `badge ${status.cls}`;
+    document.getElementById('pqrDetailMeta').textContent = `${PQR_TYPE_LABEL[pqr.Tipo] || pqr.Tipo || ''} · Radicada ${formatPqrDate(pqr.FechaCreacion)}`;
+    document.getElementById('pqrDetailSubject').textContent = pqr.Asunto || 'Sin asunto';
+    document.getElementById('pqrDetailDescription').textContent = pqr.Descripcion || 'Sin descripción.';
+
+    const responseElement = document.getElementById('pqrDetailResponse');
+    const responseDate = document.getElementById('pqrDetailResponseDate');
+    if (pqr.Respuesta && pqr.Respuesta.trim()) {
+        responseElement.textContent = pqr.Respuesta;
+        responseDate.textContent = pqr.FechaRespuesta
+            ? `Respondida el ${formatPqrDate(pqr.FechaRespuesta)}`
+            : 'Respuesta registrada';
+    } else {
+        responseElement.textContent = 'Esta solicitud aún no tiene una respuesta registrada.';
+        responseDate.textContent = '';
+    }
+
+    overlay.hidden = false;
+    document.body.classList.add('pqr-modal-open');
+}
+
+function closePqrDetail() {
+    const overlay = document.getElementById('pqrDetailOverlay');
+    if (!overlay) return;
+    overlay.hidden = true;
+    document.body.classList.remove('pqr-modal-open');
+}
+
+function formatPqrDate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('es-CO', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    renderRecentPqrs();
+    document.getElementById('pqrDetailClose')?.addEventListener('click', closePqrDetail);
+    document.getElementById('pqrDetailOverlay')?.addEventListener('click', event => {
+        if (event.target.id === 'pqrDetailOverlay') closePqrDetail();
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closePqrDetail();
+    });
+});
 
 // Lee el token CSRF de la cookie XSRF-TOKEN (config: Program.cs -> AddAntiforgery)
 function getPqrAntiforgeryToken() {
@@ -121,9 +221,24 @@ document.getElementById('pqrForm').addEventListener('submit', async function (e)
         const result = await response.json();
 
         if (response.ok && result.success) {
-            alert(`¡Solicitud radicada exitosamente!\n\nNúmero de radicado: PQR-${String(result.id).padStart(4, '0')}`);
+            showToast(`Solicitud radicada exitosamente. Radicado: PQR-${String(result.id).padStart(4, '0')}`);
             this.reset();
             resetFileUpload();
+
+            // Reflejar inmediatamente la nueva solicitud en "Radicados recientes".
+            const recentList = document.getElementById('recentPqrList');
+            if (recentList) {
+                const tipoLabel = PQR_TYPE_LABEL[tipo] || tipo;
+                const nuevoItem = document.createElement('div');
+                nuevoItem.className = 'recent-item';
+                nuevoItem.innerHTML = `
+                    <div class="recent-code">PQR-${String(result.id).padStart(4, '0')}</div>
+                    <div class="recent-title">${asunto}</div>
+                    <div class="recent-date">${tipoLabel} · Hoy</div>
+                    <span class="badge process">Recibido</span>
+                `;
+                recentList.prepend(nuevoItem);
+            }
             document.querySelectorAll('.request-card').forEach(card => card.classList.remove('selected'));
             document.querySelector('.request-card.petition')?.classList.add('selected');
             selectedPqrType = 'petition';

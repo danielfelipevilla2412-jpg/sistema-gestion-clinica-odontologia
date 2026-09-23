@@ -29,6 +29,9 @@ const initSidebar = () => {
 
 // ===== CLIENTE API LOCAL (autocontenido, sin depender de wwwroot/js/lib/apiRequest.js) =====
 function getPqrAntiforgeryToken() {
+  const hidden = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  if (hidden) return hidden;
+
   const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
   return match ? decodeURIComponent(match[2]) : null;
 }
@@ -189,9 +192,121 @@ document.addEventListener('DOMContentLoaded', () => {
   renderTable();
   renderStats();
   initResponseForm();
+  initPqrNotifications();
 });
 
-// Show Management (placeholder — ya estamos en la única vista de gestión)
+// ===== NOTIFICACIONES Y ACTUALIZACIÓN AUTOMÁTICA =====
+let pqrPollingTimer = null;
+let pqrFirstRefresh = true;
+
+function updateNotificationBadge(stats) {
+  const badge = safeGetElement('pqrNotificationBadge');
+  if (!badge) return;
+
+  const count = Number(stats?.sinResponder || 0);
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.classList.toggle('is-hidden', count === 0);
+
+  const button = safeGetElement('pqrNotificationBtn');
+  if (button) {
+    const label = count > 0
+      ? `Nuevas solicitudes PQR: ${count}`
+      : 'No hay nuevas solicitudes PQR';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+  }
+}
+
+function applyPqrPayload(payload, { showNewToast = false } = {}) {
+  if (!payload || payload.success !== true || !Array.isArray(payload.pqrs)) return;
+
+  const previousIds = new Set(Object.keys(pqrsData));
+
+  pqrsData = {};
+  payload.pqrs.forEach(p => {
+    pqrsData[p.id] = {
+      radicado: p.ticket,
+      titulo: p.subject,
+      tipo: p.type,
+      estado: p.status,
+      prioridad: p.priority,
+      paciente: p.patient,
+      documento: p.documento,
+      email: p.email,
+      fecha: p.date,
+      fechaCreacionIso: p.fechaCreacionIso,
+      descripcion: p.description,
+      respuesta: p.respuesta,
+      fechaRespuesta: p.fechaRespuesta,
+      atendidaPor: p.atendidaPor,
+      evidenciaAdjunto: p.evidenciaAdjunto
+    };
+  });
+
+  window.RAZOR_PQR_STATS = payload.stats;
+  renderTable();
+  renderStats();
+  updateNotificationBadge(payload.stats);
+  filterTable();
+
+  if (currentId && pqrsData[currentId]) {
+    showDetail(currentId);
+  } else if (currentId) {
+    closeDetail();
+  }
+
+  if (showNewToast) {
+    const newPqrs = payload.pqrs.filter(p => !previousIds.has(String(p.id)));
+    if (newPqrs.length > 0) {
+      const newest = newPqrs[0];
+      showToast(`Nueva PQR recibida: ${newest.ticket}`, 'warning');
+    }
+  }
+}
+
+async function refreshPqrsFromServer() {
+  try {
+    const response = await fetch('/gestion-de-pqr/api/pqr', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (response.status === 401) {
+      window.location.href = '/acceso-y-seguridad/login';
+      return;
+    }
+
+    if (!response.ok) return;
+
+    const payload = await response.json();
+    applyPqrPayload(payload, { showNewToast: !pqrFirstRefresh });
+    pqrFirstRefresh = false;
+  } catch (error) {
+    console.error('Error actualizando la bandeja de PQR:', error);
+  }
+}
+
+function initPqrNotifications() {
+  const button = safeGetElement('pqrNotificationBtn');
+  button?.addEventListener('click', () => {
+    const select = safeGetElement('filterEstado');
+    if (select) {
+      select.value = 'recibido';
+      filterTable();
+    }
+
+    safeGetElement('pqrsTable')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  updateNotificationBadge(window.RAZOR_PQR_STATS);
+
+  // Consulta periódica para que las nuevas PQR aparezcan sin recargar la página.
+  refreshPqrsFromServer();
+  pqrPollingTimer = window.setInterval(refreshPqrsFromServer, 5000);
+}
+
+// Show Management (la vista actual ya es la bandeja de gestión)
 function showManagement() {}
 
 // Show Detail Panel
@@ -312,13 +427,14 @@ async function changeStatus(btn, estado) {
       return;
     }
 
-    pqrsData[currentId].estado = estado;
+    pqrsData[currentId].estado = result.data?.estado || estado;
     document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     updateBadgeColors(pqrsData[currentId]);
     renderTable();
     renderStats();
     showToast('Estado actualizado correctamente.');
+    await refreshPqrsFromServer();
   } catch (error) {
     console.error('Error cambiando estado:', error);
     showToast('Error de conexión al actualizar el estado.', 'error');
@@ -364,6 +480,7 @@ function initResponseForm() {
       renderStats();
       textarea.value = '';
       showToast('Respuesta enviada correctamente.');
+      await refreshPqrsFromServer();
     } catch (error) {
       console.error('Error enviando respuesta:', error);
       showToast('Error de conexión al enviar la respuesta.', 'error');
