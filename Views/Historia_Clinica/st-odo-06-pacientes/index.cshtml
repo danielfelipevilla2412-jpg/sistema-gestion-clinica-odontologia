@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿@{ Layout = null; }
+﻿@{ Layout = null; }
 
 <!DOCTYPE html>
 <html lang="es">
@@ -19,9 +19,10 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
 
@@ -39,25 +40,25 @@
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Odontólogo</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_profesional">Odontólogo</span>
           <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active">Mis Pacientes</span>
+          <span class="bc-active" data-i18n="nav.patients">Mis Pacientes</span>
         </nav>
-        <h1 class="page-title">Mis Pacientes</h1>
-        <p class="page-subtitle">Consulta y gestiona la información de tus pacientes atendidos</p>
+        <h1 class="page-title" data-i18n="nav.patients">Mis Pacientes</h1>
+        <p class="page-subtitle" data-i18n="historia.odo_patients_subtitle">Consulta y gestiona la informaci&#243;n de tus pacientes atendidos</p>
       </div>
     </header>
 
     <!-- Stats Grid -->
-    <section class="stats-grid" aria-label="Resumen de pacientes">
+    <section class="stats-grid" aria-label="Resumen de pacientes" data-i18n-aria-label="nav.patients">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="statTotal" data-target="42" aria-live="polite">0</span>
-        <span class="stat-label">Total pacientes</span>
+        <span class="stat-label" data-i18n="nav.patients">Total pacientes</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="statActivos" data-target="28" aria-live="polite">0</span>
-        <span class="stat-label">Activos</span>
+        <span class="stat-label" data-i18n="status.active">Activos</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="stat-number" id="statSeguimiento" data-target="9" aria-live="polite">0</span>
@@ -75,7 +76,7 @@
         <div class="search-wrap">
           <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
           <input type="search" id="searchInput" class="search-input" placeholder="Buscar por nombre, cédula o servicio..."
-            aria-label="Buscar paciente por nombre, cédula o servicio">
+            aria-label="Buscar paciente por nombre, cédula o servicio" data-i18n-ph="table.search" data-i18n-aria-label="nav.patients">
         </div>
         <div class="filter-wrap">
           <label for="filterEstado" class="filter-label">Estado</label>
@@ -218,6 +219,8 @@
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 
 </html>

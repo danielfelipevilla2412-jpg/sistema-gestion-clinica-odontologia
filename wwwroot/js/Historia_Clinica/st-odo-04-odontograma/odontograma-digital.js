@@ -34,6 +34,7 @@ const ESTADOS = [
 ];
 
 const MODELO_ADULTO = '7f5b381c66674e0a969e8db04d139666';
+const SKETCHFAB_API_VERSION = '1.12.1';
 
 const MAPEO_FDI = {
     '11': 'Incisivo Central Superior Derecho',   '12': 'Incisivo Lateral Superior Derecho',
@@ -101,12 +102,34 @@ function cargarDatos() {
             if (persistido?.mapeoFDI) mapeoFDI = persistido.mapeoFDI;
         }
 
+        // Las versiones anteriores podían guardar una pieza sin el arreglo
+        // tratamientos. Se normaliza al cargar para que un dato histórico
+        // incompleto no detenga todo el script ni bloquee el botón de mapeo.
+        baseDatosTratamientos = normalizarRegistros(baseDatosTratamientos);
+        if (!mapeoFDI || typeof mapeoFDI !== 'object' || Array.isArray(mapeoFDI)) {
+            mapeoFDI = {};
+        }
+
         console.log('✅ Datos cargados:', Object.keys(baseDatosTratamientos).length, 'piezas,', Object.keys(mapeoFDI).length, 'mapeos');
     } catch (e) {
         console.error('❌ Error al cargar datos:', e);
         baseDatosTratamientos = {};
         mapeoFDI = {};
     }
+}
+
+function normalizarRegistros(registros) {
+    if (!registros || typeof registros !== 'object' || Array.isArray(registros)) {
+        return {};
+    }
+
+    return Object.fromEntries(Object.entries(registros).map(([instanceID, datos]) => {
+        const pieza = datos && typeof datos === 'object' && !Array.isArray(datos) ? datos : {};
+        return [instanceID, {
+            ...pieza,
+            tratamientos: Array.isArray(pieza.tratamientos) ? pieza.tratamientos : []
+        }];
+    }));
 }
 
 function guardarDatos() {
@@ -185,12 +208,13 @@ function generarTooltipContent(hoverName, instanceID) {
         const actual = tratamientos[tratamientos.length - 1];
         const est = ESTADOS.find(x => x.key === actual.key);
 
-        content += `
+                content += `
             <div class="tooltip-section">
                 <div class="tooltip-label">Estado Actual</div>
                 <div class="tooltip-current">
                     <div class="tooltip-current-status" style="color:${est.color};">● ${est.label.toUpperCase()}</div>
                     ${actual.obs ? `<div class="tooltip-current-obs">"${actual.obs}"</div>` : ''}
+                    ${actual.profesional ? `<div class="tooltip-current-doctor">👨‍⚕️ ${actual.profesional}</div>` : ''}
                 </div>
             </div>
         `;
@@ -201,10 +225,11 @@ function generarTooltipContent(hoverName, instanceID) {
                 const t = tratamientos[i];
                 const e = ESTADOS.find(x => x.key === t.key);
                 const f = new Date(t.fecha).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                content += `
+             content += `
                     <div class="tooltip-history-item">
                         <div class="tooltip-history-status" style="color:${e.color};">● ${e.label}</div>
                         ${t.obs ? `<div class="tooltip-history-obs">"${t.obs}"</div>` : ''}
+                        ${t.profesional ? `<div class="tooltip-history-doctor">👨‍⚕️ ${t.profesional}</div>` : ''}
                         <div class="tooltip-history-date">${f}</div>
                     </div>
                 `;
@@ -226,7 +251,37 @@ function actualizarPosicionTooltip(e) {
     if (y + rect.height > window.innerHeight) y = e.clientY - rect.height - 20;
     tooltip.style.left = x + 'px';
     tooltip.style.top = y + 'px';
+
+    // Yeray - Flecha guía: línea desde el diente (posición del cursor) hasta el
+    // borde más cercano del tooltip, para que sea evidente a qué pieza corresponde.
+    actualizarFlechaTooltip(e.clientX, e.clientY);
 }
+
+// Yeray - Dibuja la flecha guía. El punto de destino se calcula como el punto del
+// rectángulo del tooltip más cercano al cursor (funciona igual sin importar si el
+// tooltip terminó a la derecha, izquierda, arriba o abajo del cursor).
+function actualizarFlechaTooltip(cursorX, cursorY) {
+    const svg = safeGetElement('tooltip-arrow-svg');
+    const linea = safeGetElement('tooltip-arrow-line');
+    const tooltip = safeGetElement('holo-tooltip');
+    if (!svg || !linea || !tooltip) return;
+
+    const rect = tooltip.getBoundingClientRect();
+    const destinoX = Math.max(rect.left, Math.min(cursorX, rect.right));
+    const destinoY = Math.max(rect.top, Math.min(cursorY, rect.bottom));
+
+    linea.setAttribute('x1', cursorX);
+    linea.setAttribute('y1', cursorY);
+    linea.setAttribute('x2', destinoX);
+    linea.setAttribute('y2', destinoY);
+    svg.style.display = 'block';
+}
+
+function ocultarFlechaTooltip() {
+    const svg = safeGetElement('tooltip-arrow-svg');
+    if (svg) svg.style.display = 'none';
+}
+
 
 // ═══════════════════════════════════════════════════════════════════
 //  MAPEO FDI
@@ -309,13 +364,11 @@ function inicializarVisor() {
     const error = safeGetElement('viewerError');
     const tooltip = safeGetElement('holo-tooltip');
 
-    // Asignar la URL correcta al iframe
-    const modelURL = `https://sketchfab.com/models/${MODELO_ADULTO}/embed`;
-    iframe.src = modelURL;
-
-    console.log('🔄 Cargando modelo desde:', modelURL);
-
-    const client = new Sketchfab(iframe);
+    // La API debe crear y enlazar el embed. Asignar iframe.src manualmente
+    // antes de init puede abrir un visor sin el canal de eventos de la API.
+    // Sketchfab 1.12.1 recibe primero la versión y luego el iframe.
+    console.log('🔄 Cargando modelo de Sketchfab:', MODELO_ADULTO);
+    const client = new Sketchfab(SKETCHFAB_API_VERSION, iframe);
 
     client.init(MODELO_ADULTO, {
         ui_infos: 0, ui_watermark: 0, ui_controls: 1, ui_help: 0,
@@ -335,26 +388,37 @@ function inicializarVisor() {
                 apiListo = true;
 
                 api.getNodeMap(function(err, nodes) {
-                    if (!err) {
-                        mapaNodos = {};
-                        Object.keys(nodes).forEach(nodeId => {
-                            const node = nodes[nodeId];
-                            if (node.name) mapaNodos[nodeId] = node.name;
-                            if (node.name && (
-                                node.name.toLowerCase().includes('screw') ||
-                                node.name.toLowerCase().includes('implant') ||
-                                node.name.toLowerCase().includes('metal')
-                            )) {
-                                api.hide(nodeId);
-                            }
-                        });
-                        console.log('🦷 Nodos detectados:', Object.keys(mapaNodos).length);
+                    if (err) {
+                        console.error('❌ No se pudo obtener el mapa de nodos:', err);
+                        return;
                     }
+
+                    mapaNodos = {};
+                    // getNodeMap devuelve una lista de nodos. El índice del array
+                    // no es el instanceID que reciben click/nodeMouseEnter.
+                    Object.values(nodes || {}).forEach(node => {
+                        if (node?.instanceID == null) return;
+
+                        if (node.name) mapaNodos[node.instanceID] = node.name;
+
+                        const nombre = (node.name || '').toLowerCase();
+                        if (
+                            nombre.includes('screw') ||
+                            nombre.includes('implant') ||
+                            nombre.includes('metal')
+                        ) {
+                            api.hide(node.instanceID);
+                        }
+                    });
+
+                    console.log('🦷 Nodos detectados:', Object.keys(mapaNodos).length);
                 });
 
                 // CLICK en diente
                 api.addEventListener('click', function(info) {
-                    if (!info || !info.instanceID) return;
+                    // instanceID puede ser 0; solo null/undefined significa que
+                    // el clic fue en el fondo y no sobre un nodo del modelo.
+                    if (!info || info.instanceID == null) return;
                     const instanceID = info.instanceID;
                     const nombreNodo = obtenerNombreNodo(instanceID);
 
@@ -369,25 +433,34 @@ function inicializarVisor() {
                     seleccionadoNodeId = instanceID;
                     seleccionadoNombre = obtenerNombrePieza(nombreNodo, instanceID);
                     abrirPanelDiagnostico();
-                });
+                }, { pick: 'fast' });
 
-                // HOVER sobre diente
-                api.addEventListener('hover', function(info) {
-                    if (!tooltip) return;
-                    if (info && info.instanceID) {
-                        const hoverName = obtenerNombrePieza(null, info.instanceID);
-                        if (ultimoInstanceId !== info.instanceID) {
-                            ultimoInstanceId = info.instanceID;
-                            tooltip.innerHTML = generarTooltipContent(hoverName, info.instanceID);
-                        }
-                        tooltip.style.display = 'block';
-                        tooltipVisible = true;
-                    } else {
-                        tooltip.style.display = 'none';
-                        tooltipVisible = false;
-                        ultimoInstanceId = null;
+                 api.addEventListener('nodeMouseEnter', function(node) {
+                    if (!tooltip || !node || node.instanceID == null) return;
+
+                    // Yeray - Filtro anti-falsos-positivos: solo se muestra el tooltip para
+                    // piezas realmente mapeadas a un número FDI. La encía, la lengua u otras
+                    // partes del modelo 3D reciben instanceID igual que los dientes, pero
+                    // nunca se mapean a un FDI real — si el nodo no está en mapeoFDI, se
+                    // ignora en vez de mostrar un "diente 64" o "362" que no existe.
+                    if (!mapeoFDI[node.instanceID]) return;
+
+                    const hoverName = obtenerNombrePieza(null, node.instanceID);
+                    if (ultimoInstanceId !== node.instanceID) {
+                        ultimoInstanceId = node.instanceID;
+                        tooltip.innerHTML = generarTooltipContent(hoverName, node.instanceID);
                     }
-                });
+                    tooltip.style.display = 'block';
+                    tooltipVisible = true;
+                }, { pick: 'fast' });
+
+                api.addEventListener('nodeMouseLeave', function() {
+                    if (!tooltip) return;
+                    tooltip.style.display = 'none';
+                    tooltipVisible = false;
+                    ultimoInstanceId = null;
+                    ocultarFlechaTooltip(); // Yeray - oculta también la flecha guía
+                }, { pick: 'fast' });
 
                 document.addEventListener('mousemove', function(e) {
                     if (tooltipVisible) actualizarPosicionTooltip(e);
@@ -513,7 +586,10 @@ async function guardarRegistro() {
         return;
     }
 
-    const nuevo = { key: estadoKey, obs: observacion, fecha: new Date().toISOString() };
+      // Yeray - Se agrega el nombre del profesional actual a cada registro.
+    // config.profesionalNombre ya venía inyectado desde el backend (Model.ProfesionalNombre)
+    // pero no se estaba guardando junto al tratamiento; ahora queda persistido con la fecha y el estado.
+    const nuevo = { key: estadoKey, obs: observacion, fecha: new Date().toISOString(), profesional: config.profesionalNombre || null };  
 
     if (!baseDatosTratamientos[seleccionadoNodeId]) {
         baseDatosTratamientos[seleccionadoNodeId] = {
@@ -540,9 +616,18 @@ function renderUltimasMods() {
     if (!el) return;
 
     const todos = [];
-    Object.entries(baseDatosTratamientos).forEach(([id, datos]) => {
-        datos.tratamientos.forEach(t => {
-            todos.push({ instanceID: id, nombrePieza: datos.nombrePieza, ...t });
+
+    Object.entries(baseDatosTratamientos || {}).forEach(([id, datos]) => {
+        const tratamientos = Array.isArray(datos?.tratamientos)
+            ? datos.tratamientos
+            : [];
+
+        tratamientos.forEach(t => {
+            todos.push({
+                instanceID: id,
+                nombrePieza: datos?.nombrePieza || `PIEZA ${id}`,
+                ...t
+            });
         });
     });
 
@@ -550,15 +635,21 @@ function renderUltimasMods() {
     const recientes = todos.slice(0, 8);
 
     if (recientes.length === 0) {
-        el.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:6px 0;">Sin modificaciones.</div>';
+        el.innerHTML =
+            '<div style="font-size:.8rem;color:var(--text-muted);padding:6px 0;">Sin modificaciones.</div>';
         return;
     }
 
     el.innerHTML = recientes.map(m => {
-        const est = ESTADOS.find(x => x.key === m.key);
+        const est = ESTADOS.find(x => x.key === m.key) || ESTADOS[0];
         const fecha = new Date(m.fecha).toLocaleString('es-ES', {
-            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
         });
+
         return `
             <div class="mod-item" role="listitem">
                 <span class="mod-num">${m.nombrePieza}</span> →
@@ -568,6 +659,7 @@ function renderUltimasMods() {
         `;
     }).join('');
 }
+
 
 // ═══════════════════════════════════════════════════════════════════
 //  CONTADORES / STATS
@@ -799,16 +891,23 @@ function init() {
     // Cargar datos
     cargarDatos();
 
-    // Visor 3D
-    inicializarVisor();
+    // Botones
+    safeGetElement('btnGuardar')?.addEventListener('click', guardarCambios);
 
     // UI
     renderUltimasMods();
     updateCounts();
 
-    // Botones
-    safeGetElement('btnMapeo')?.addEventListener('click', toggleMapeoFDI);
-    safeGetElement('btnGuardar')?.addEventListener('click', guardarCambios);
+    // Visor 3D. Los controles se registran antes: si Sketchfab no carga o
+    // falla, el botón Mapear FDI continúa abriendo el panel e informa el fallo.
+    try {
+        inicializarVisor();
+    } catch (err) {
+        console.error('❌ Error al inicializar el visor 3D:', err);
+        safeGetElement('viewerLoading')?.style.setProperty('display', 'none');
+        safeGetElement('viewerError')?.style.setProperty('display', 'block');
+        showToast('No se pudo inicializar el visor 3D', 'error');
+    }
 
     // Modal
     safeGetElement('modalGuardarClose')?.addEventListener('click', () => closeModal(safeGetElement('modalGuardar')));

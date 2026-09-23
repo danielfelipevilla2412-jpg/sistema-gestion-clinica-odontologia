@@ -26,19 +26,19 @@
     padding: 16px;
     gap: 12px;
     pointer-events: auto; /* Restaura eventos para el toast individual */
-    transform: translateX(120%);
+    transform: translateY(8px);
     opacity: 0;
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
     border-left: 5px solid transparent;
 }
 
 .toast.show {
-    transform: translateX(0);
+    transform: translateY(0);
     opacity: 1;
 }
 
 .toast.hide {
-    transform: translateX(120%);
+    transform: translateY(8px);
     opacity: 0;
 }
 

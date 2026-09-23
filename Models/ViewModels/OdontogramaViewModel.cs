@@ -59,8 +59,12 @@ public class OdontogramaTratamientoPayload
     public string? Key { get; set; }
     public string? Obs { get; set; }
     public string? Fecha { get; set; }
-}
 
+    // Yeray - Nombre del profesional que hizo este cambio puntual del diente.
+    // Antes no se guardaba, así que el tooltip no podía mostrar "quién" hizo
+    // cada tratamiento (blanqueamiento por Dr. X, ortodoncia por Dr. Y, etc.)
+    public string? Profesional { get; set; }
+}
 public class NotaClinicaGuardarRequest
 {
     public int? PacienteId { get; set; }

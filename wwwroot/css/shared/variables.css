@@ -1,0 +1,585 @@
+/* ============================================================
+   SmileTrack — Tokens de diseño globales (variables.css)
+   ============================================================
+   Autor: Johan Santamaria
+   Fecha: 2026-09-02
+
+   PROPÓSITO:
+   Fuente única de verdad para todos los tokens de diseño del
+   sistema. Importar este archivo en cada hoja de estilos de
+   módulo para eliminar la duplicación de variables :root.
+
+   USO:
+     <link rel="stylesheet" href="~/css/shared/variables.css" />
+   Debe cargarse ANTES que cualquier CSS de módulo.
+
+   MANTENIMIENTO:
+   Cambiar un valor aquí lo propaga automáticamente a todas
+   las vistas que incluyan este archivo. No repetir estos
+   tokens en los archivos de módulo.
+   ============================================================ */
+
+:root {
+  /* ── Dimensiones y layout ───────────────────────────────── */
+  --sidebar-w: 220px;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-full: 9999px;
+
+  /* ── Colores base ───────────────────────────────────────── */
+  --bg: #f4f6fb;
+  --white: #ffffff;
+  --text: #1e293b;
+  /* WCAG AA: #5f6b7a sobre #f4f6fb = 5.02:1 */
+  --text-muted: #5f6b7a;
+  --border: #e2e8f0;
+
+  /* ── Paleta principal ───────────────────────────────────── */
+  --primary: #1a56cc;
+  --primary-light: #eef2ff;
+  --primary-dark: #0f3da0;
+
+  /* ── Paleta semántica ───────────────────────────────────── */
+  --success: #22c55e;
+  /* atendida, activo           */
+  --warning: #f59e0b;
+  /* vacaciones, programada     */
+  --info: #9333ea;
+  /* métricas / canciones       */
+  --danger: #ef4444;
+  /* cancelada, inactivo, error */
+
+  /* Aliases de compatibilidad — apuntan a los tokens semánticos */
+  --green: var(--success);
+  --orange: var(--warning);
+  --purple: var(--info);
+  --red: var(--danger);
+
+  /* ── Sombras ────────────────────────────────────────────── */
+  --shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-sm: 0 2px 8px rgba(15, 32, 87, 0.08);
+  --shadow-lg: 0 16px 32px rgba(15, 32, 87, 0.16);
+
+  /* Escala espacial: unidad base de 4px. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* ── Tipografía ─────────────────────────────────────────── */
+  --font: 'DM Sans', sans-serif;
+  --font-display: 'Syne', sans-serif;
+  --type-title: 2rem;
+  --type-heading: 1.25rem;
+  --type-body: 0.95rem;
+  --type-caption: 0.75rem;
+  --weight-title: 700;
+  --weight-heading: 600;
+  --weight-body: 400;
+  --weight-caption: 500;
+
+  /* ── Transiciones ───────────────────────────────────────── */
+  --tr: 0.18s ease;
+
+  /* ── Accesibilidad / Focus ──────────────────────────────── */
+  --input-focus-ring: rgba(26, 86, 204, 0.15);
+
+  /* ── Estados de cita — sistema canónico ────────────────── */
+  /* Programada / Agendada */
+  --cita-programada-bg: #dbeafe;
+  --cita-programada-text: #1d4ed8;
+  --cita-programada-border: #3b82f6;
+
+  /* Confirmada */
+  --cita-confirmada-bg: #dbeafe;
+  --cita-confirmada-text: #1d4ed8;
+  --cita-confirmada-border: #3b82f6;
+
+  /* En proceso / En consulta */
+  --cita-enproceso-bg: #ede9fe;
+  --cita-enproceso-text: #6d28d9;
+  --cita-enproceso-border: #8b5cf6;
+
+  /* Atendida / Finalizada  →  SIEMPRE VERDE */
+  --cita-atendida-bg: #dcfce7;
+  --cita-atendida-text: #166534;
+  --cita-atendida-border: #22c55e;
+
+  /* Cancelada */
+  --cita-cancelada-bg: #fee2e2;
+  --cita-cancelada-text: #991b1b;
+  --cita-cancelada-border: #ef4444;
+
+  /* No asistida */
+  --cita-noasistida-bg: #fff7ed;
+  --cita-noasistida-text: #92400e;
+  --cita-noasistida-border: #f97316;
+
+  /* Disponible (slot vacío) */
+  --cita-disponible-bg: #f8fafc;
+  --cita-disponible-text: #64748b;
+  --cita-disponible-border: #94a3b8;
+
+  /* ── Estados de profesional ─────────────────────────────── */
+  --prof-activo-bg: #dcfce7;
+  --prof-activo-text: #166534;
+  --prof-vacaciones-bg: #fef9c3;
+  --prof-vacaciones-text: #92400e;
+  --prof-inactivo-bg: #f1f5f9;
+  --prof-inactivo-text: #475569;
+
+  /* ── KPI stat-card — colores del borde izquierdo ─────────── */
+  --stat-blue: #3b82f6;
+  --stat-green: var(--success);
+  --stat-orange: var(--warning);
+  --stat-red: var(--danger);
+  --stat-purple: var(--info);
+
+  /* ── Banner / gradiente de cabecera ──────────────────────── */
+  --banner-bg: linear-gradient(135deg, #1a3a6b, #2563eb);
+}
+
+/* ── Breadcrumbs ─────────────────────────────────────────────── */
+.breadcrumb {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bc-sep {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  user-select: none;
+}
+
+.bc-active {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ── Botones base compartidos ────────────────────────────────── */
+/* Canónico adoptado por 18/19 vistas (Paso 2 — regla 7).
+   Las vistas que carguen variables.css heredan estos estilos.
+   Los CSS de módulo no deben redeclarar padding, font-size ni
+   colores de hover para btn-primary/secondary — solo sobrescribir
+   si tienen una necesidad funcional documentada. */
+
+.btn-primary,
+.btn-secondary {
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.83rem;
+  cursor: pointer;
+  transition: all var(--tr);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+}
+
+.btn-primary:active,
+.btn-secondary:active,
+.btn-danger:active {
+  transform: translateY(1px) scale(0.98);
+  filter: brightness(0.96);
+}
+
+.is-loading {
+  position: relative;
+  pointer-events: none;
+  cursor: wait;
+}
+
+.is-loading::after {
+  content: '';
+  width: 1em;
+  height: 1em;
+  margin-left: var(--space-2);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: smiletrack-spin 0.7s linear infinite;
+}
+
+@keyframes smiletrack-spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-primary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--white);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.btn-secondary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.83rem;
+  cursor: pointer;
+  transition: background var(--tr);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}
+
+.btn-danger:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── visually-hidden compartido ──────────────────────────────── */
+/* Definido aquí para eliminar los bloques <style> inline en vistas. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Footer canónico ─────────────────────────────────────────── */
+.site-footer {
+  text-align: center;
+  padding: 20px 16px 16px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+.footer-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 15px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  min-height: 100vh;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ── Accesibilidad global ───────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--primary);
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 1000;
+  transition: top var(--tr);
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 0;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Componentes base canónicos ──────────────────────────────── */
+/* stat-number: 2.2rem canónico (13/19 vistas con KPIs lo usan). */
+.stat-number {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: var(--weight-title);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+/* stat-card: estructura base compartida por 19/19 vistas con KPIs. */
+.stat-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--shadow-sm);
+  border-left: 4px solid transparent;
+  transition: transform var(--tr), box-shadow var(--tr);
+  cursor: default;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.stat-card[data-color="blue"] {
+  border-left-color: #3b82f6;
+}
+
+.stat-card[data-color="green"] {
+  border-left-color: var(--green);
+}
+
+.stat-card[data-color="orange"] {
+  border-left-color: var(--orange);
+}
+
+.stat-card[data-color="red"] {
+  border-left-color: var(--danger);
+}
+
+.stat-card[data-color="purple"] {
+  border-left-color: var(--purple);
+}
+
+.stat-card[data-color="blue"] .stat-number {
+  color: #3b82f6;
+}
+
+.stat-card[data-color="green"] .stat-number {
+  color: var(--green);
+}
+
+.stat-card[data-color="orange"] .stat-number {
+  color: var(--orange);
+}
+
+.stat-card[data-color="red"] .stat-number {
+  color: var(--danger);
+}
+
+.stat-card[data-color="purple"] .stat-number {
+  color: var(--purple);
+}
+
+.stat-label {
+  font-size: var(--type-caption);
+  color: var(--text-muted);
+  font-weight: var(--weight-caption);
+}
+
+.stat-sub {
+  font-size: 0.71rem;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+}
+
+/* ── page-header canónico ────────────────────────────────────── */
+.page-header {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: var(--type-heading);
+  font-weight: var(--weight-heading);
+  color: var(--primary);
+}
+
+.page-subtitle {
+  font-size: var(--type-body);
+  font-weight: var(--weight-body);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Estado vacío compartido para tablas renderizadas por Razor o JavaScript. */
+.empty-state-row {
+  border: none;
+  background: transparent;
+}
+
+.empty-state-cell {
+  padding: var(--space-6) var(--space-5) !important;
+  border: none;
+  background: var(--bg);
+  text-align: center;
+}
+
+.empty-state-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.empty-state-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  opacity: 0.72;
+}
+
+.empty-state-message {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-body);
+  font-weight: var(--weight-heading);
+}
+
+/* ── table-base canónica ─────────────────────────────────────── */
+/* Patrón adoptado por 14/19 vistas con tabla. */
+.table-base {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.table-base thead tr {
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+}
+
+.table-base th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 0.69rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.table-base td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.table-base tbody tr {
+  transition: background var(--tr);
+}
+
+.table-base tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-base tbody tr:hover {
+  background: #f8fafc;
+}

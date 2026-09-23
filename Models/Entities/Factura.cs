@@ -11,12 +11,17 @@ public class Factura
     public decimal Total { get; set; }
     public string Estado { get; set; } = "pendiente"; // pendiente, parcial, pagada, anulada
     public int IdPaciente { get; set; }
+    public int? IdCita { get; set; }
+    public int? IdProfesional { get; set; }
     public string? Notas { get; set; }
     public int GeneradaPor { get; set; }
      public decimal MontoPagado { get; set; }
      public DateTime? FechaPago { get; set; }
  
     public Paciente? Paciente { get; set; }
+    public Cita? Cita { get; set; }
+    public Profesional? Profesional { get; set; }
     public Usuario? GeneradaPorUsuario { get; set; }
     public List<DetalleFactura> Detalles { get; set; } = new();
+    public List<Pago> Pagos { get; set; } = new();
 }

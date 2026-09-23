@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Citas - SmileTrack</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 { color: #2563eb; margin-top: 0; }
+        h2 { color: #374151; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; }
+        .btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .btn:hover { background: #1d4ed8; }
+        .btn-danger { background: #dc2626; }
+        .btn-danger:hover { background: #b91c1c; }
+        pre {
+            background: #1f2937;
+            color: #d1d5db;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+        .status { padding: 8px 16px; border-radius: 4px; display: inline-block; font-weight: 600; }
+        .status.success { background: #dcfce7; color: #166534; }
+        .status.error { background: #fee2e2; color: #991b1b; }
+        .status.warning { background: #fef3c7; color: #92400e; }
+        input, select {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .form-group { margin-bottom: 15px; }
+        label { display: inline-block; width: 150px; font-weight: 600; }
+        .info-box {
+            background: #eff6ff;
+            border-left: 4px solid #2563eb;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🦷 SmileTrack - Test API Citas (st-pac-01)</h1>
+    
+    <div class="card">
+        <h2>📊 Estado del Sistema</h2>
+        <div class="form-group">
+            <label>URL Base:</label>
+            <input type="text" id="baseUrl" value="http://localhost:5000" style="width: 300px;">
+        </div>
+        <div id="systemStatus"></div>
+    </div>
+
+    <div class="card">
+        <h2>🔐 Autenticación</h2>
+        <div class="form-group">
+            <label>Email:</label>
+            <input type="email" id="email" value="pac@smiletrack.co" placeholder="correo@ejemplo.com">
+        </div>
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" id="password" value="123456" placeholder="contraseña">
+        </div>
+        <button class="btn" onclick="login()">🔑 Iniciar Sesión</button>
+        <button class="btn btn-danger" onclick="logout()">🚪 Cerrar Sesión</button>
+        <div id="authStatus" style="margin-top: 15px;"></div>
+    </div>
+
+    <div class="card">
+        <h2>📅 Test GET /api/citas</h2>
+        <div class="info-box">
+            <strong>🔍 Diagnóstico:</strong> Este endpoint debe devolver las citas del paciente autenticado.
+            El backend filtra automáticamente por el claim "IdPaciente".
+        </div>
+        <div class="form-group">
+            <label>Page:</label>
+            <input type="number" id="page" value="1" min="1" style="width: 80px;">
+            <label>Page Size:</label>
+            <input type="number" id="pageSize" value="200" min="1" max="500" style="width: 80px;">
+        </div>
+        <button class="btn" onclick="fetchCitas()">📥 Obtener Citas</button>
+        <button class="btn" onclick="checkAuth()">🔍 Verificar Claims</button>
+        <div id="citasResult" style="margin-top: 15px;"></div>
+    </div>
+
+    <div class="card">
+        <h2>🔍 Diagnóstico del Navegador</h2>
+        <button class="btn" onclick="checkBrowserState()">🖥️ Revisar Estado del Navegador</button>
+        <div id="browserState" style="margin-top: 15px;"></div>
+    </div>
+
+    <div class="card">
+        <h2>📝 Console Log</h2>
+        <pre id="consoleLog"></pre>
+    </div>
+
+    <script>
+        const log = (message, type = 'info') => {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEl = document.getElementById('consoleLog');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            logEl.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        };
+
+        const getBaseUrl = () => document.getElementById('baseUrl').value;
+
+        const getCsrfToken = () => {
+            const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
+            return match ? decodeURIComponent(match[2]) : null;
+        };
+
+        const getAuthHeaders = () => {
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            };
+            const csrfToken = getCsrfToken();
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+                log(`CSRF Token encontrado: ${csrfToken.substring(0, 20)}...`, 'info');
+            } else {
+                log('⚠️ No se encontró CSRF Token en cookies', 'warning');
+            }
+            try {
+                const jwt = sessionStorage.getItem('st_jwt');
+                if (jwt) {
+                    headers['Authorization'] = `Bearer ${jwt}`;
+                    log(`JWT Token encontrado: ${jwt.substring(0, 30)}...`, 'info');
+                }
+            } catch (e) {
+                log('Error accediendo a sessionStorage: ' + e.message, 'warning');
+            }
+            return headers;
+        };
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                log('Email y password son requeridos', 'error');
+                return;
+            }
+
+            log(`Intentando login como: ${email}`, 'info');
+            
+            try {
+                const response = await fetch(`${getBaseUrl()}/acceso-y-seguridad/login`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json'
+                    },
+                    body: new URLSearchParams({
+                        email: email,
+                        password: password,
+                        rol: 'Paciente'
+                    })
+                });
+
+                log(`Response status: ${response.status} ${response.statusText}`, 'info');
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    log('✅ Login exitoso', 'success');
+                    if (data.token) {
+                        sessionStorage.setItem('st_jwt', data.token);
+                        log('JWT guardado en sessionStorage', 'success');
+                    }
+                    document.getElementById('authStatus').innerHTML = 
+                        `<div class="status success">✅ Autenticado como: ${email}</div>`;
+                    
+                    // Verificar cookies inmediatamente
+                    setTimeout(() => {
+                        log('Cookies actuales: ' + document.cookie, 'info');
+                        checkAuth();
+                    }, 500);
+                } else {
+                    log('❌ Login fallido: ' + (data.message || 'Error desconocido'), 'error');
+                    document.getElementById('authStatus').innerHTML = 
+                        `<div class="status error">❌ Error: ${data.message || 'Login fallido'}</div>`;
+                }
+            } catch (error) {
+                log('❌ Error en login: ' + error.message, 'error');
+                document.getElementById('authStatus').innerHTML = 
+                    `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function logout() {
+            log('Cerrando sesión...', 'info');
+            try {
+                sessionStorage.removeItem('st_jwt');
+                document.cookie.split(";").forEach(c => {
+                    document.cookie = c.trim().split("=")[0] + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/';
+                });
+                document.getElementById('authStatus').innerHTML = 
+                    `<div class="status warning">⚠️ Sesión cerrada</div>`;
+                log('✅ Sesión cerrada', 'success');
+            } catch (error) {
+                log('❌ Error cerrando sesión: ' + error.message, 'error');
+            }
+        }
+
+        async function checkAuth() {
+            log('Verificando autenticación y claims...', 'info');
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/citas?page=1&pageSize=1`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: getAuthHeaders()
+                });
+
+                log(`Response status: ${response.status} ${response.statusText}`, 'info');
+                log(`Response headers: ${JSON.stringify([...response.headers.entries()])}`, 'info');
+
+                if (response.status === 401 || response.status === 403) {
+                    log('❌ No autenticado o sin permisos', 'error');
+                    document.getElementById('authStatus').innerHTML = 
+                        `<div class="status error">❌ No autenticado (${response.status})</div>`;
+                    return;
+                }
+
+                const data = await response.json();
+                
+                document.getElementById('authStatus').innerHTML = `
+                    <div class="status success">✅ Autenticado</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                log('✅ Claims verificados correctamente', 'success');
+            } catch (error) {
+                log('❌ Error verificando auth: ' + error.message, 'error');
+            }
+        }
+
+        async function fetchCitas() {
+            const page = document.getElementById('page').value;
+            const pageSize = document.getElementById('pageSize').value;
+            
+            log(`Obteniendo citas (page=${page}, pageSize=${pageSize})...`, 'info');
+            
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/citas?page=${page}&pageSize=${pageSize}`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: getAuthHeaders()
+                });
+
+                log(`Response status: ${response.status} ${response.statusText}`, 'info');
+                
+                const data = await response.json();
+                
+                document.getElementById('citasResult').innerHTML = `
+                    <div class="status ${data.success ? 'success' : 'error'}">
+                        ${data.success ? '✅' : '❌'} Response: ${data.success ? 'OK' : 'FAILED'}
+                    </div>
+                    <h3>📊 Resultado:</h3>
+                    <p><strong>Total de citas:</strong> ${data.total || 0}</p>
+                    <p><strong>Citas devueltas:</strong> ${data.data ? data.data.length : 0}</p>
+                    <h3>📄 Datos Completos:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+                if (data.success && data.data) {
+                    log(`✅ ${data.data.length} citas obtenidas de un total de ${data.total}`, 'success');
+                } else {
+                    log('⚠️ No se obtuvieron citas o hubo un error', 'warning');
+                }
+            } catch (error) {
+                log('❌ Error obteniendo citas: ' + error.message, 'error');
+                document.getElementById('citasResult').innerHTML = 
+                    `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        function checkBrowserState() {
+            log('Revisando estado del navegador...', 'info');
+            
+            const info = {
+                cookies: document.cookie || 'No hay cookies',
+                sessionStorage: {},
+                localStorage: {},
+                userAgent: navigator.userAgent,
+                online: navigator.onLine
+            };
+            
+            try {
+                info.sessionStorage = {
+                    st_jwt: sessionStorage.getItem('st_jwt') ? 'Presente' : 'Ausente',
+                    length: sessionStorage.length
+                };
+            } catch (e) {
+                info.sessionStorage = 'Error: ' + e.message;
+            }
+            
+            try {
+                info.localStorage = {
+                    length: localStorage.length,
+                    keys: Object.keys(localStorage)
+                };
+            } catch (e) {
+                info.localStorage = 'Error: ' + e.message;
+            }
+            
+            document.getElementById('browserState').innerHTML = `
+                <pre>${JSON.stringify(info, null, 2)}</pre>
+            `;
+            
+            log('✅ Estado del navegador revisado', 'success');
+        }
+
+        // Auto-check al cargar
+        window.addEventListener('load', () => {
+            log('🚀 Test de diagnóstico cargado', 'success');
+            log('Sistema: SmileTrack st-pac-01', 'info');
+            checkBrowserState();
+        });
+    </script>
+</body>
+</html>

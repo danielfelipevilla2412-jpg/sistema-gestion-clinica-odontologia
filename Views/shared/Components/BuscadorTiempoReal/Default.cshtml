@@ -1,0 +1,28 @@
+@* ============================================
+   Componente: BuscadorTiempoReal
+   Búsqueda con debounce y highlight de resultados
+============================================ *@
+
+<link rel="stylesheet" href="~/css/shared/components/buscador-tiempo-real.css" asp-append-version="true" />
+
+<div class="search-wrapper" role="search">
+    <label for="@ViewBag.InputId" class="visually-hidden">@ViewBag.Placeholder</label>
+    <span class="search-icon material-symbols-outlined" aria-hidden="true">search</span>
+    <input type="search" 
+           id="@ViewBag.InputId" 
+           class="search-input" 
+           placeholder="@ViewBag.Placeholder"
+           data-target="@ViewBag.TargetSelector"
+           autocomplete="off"
+           aria-label="@ViewBag.Placeholder">
+    <span class="search-count" id="@(ViewBag.InputId)Count" aria-live="polite"></span>
+    <button type="button" 
+            class="search-clear" 
+            id="@(ViewBag.InputId)Clear"
+            aria-label="Limpiar búsqueda"
+            style="display: none;">
+        <span class="material-symbols-outlined">close</span>
+    </button>
+</div>
+
+<script src="~/js/shared/components/BuscadorTiempoReal.js" asp-append-version="true"></script>

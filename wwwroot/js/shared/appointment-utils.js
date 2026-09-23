@@ -15,21 +15,16 @@ window.AppointmentUtils = (() => {
     // ════════════════════════════════════════════════════════════════════
     //  MAPEO DE ESTADOS
     // ════════════════════════════════════════════════════════════════════
-    const statusLabels = {
-        programada: { label: 'Programada', class: 'programada' },
-        confirmada: { label: 'Confirmada', class: 'confirmada' },
-        atendida: { label: 'Atendida', class: 'atendida' },
-        cancelada: { label: 'Cancelada', class: 'cancelada' },
-        'no-show': { label: 'No asistió', class: 'cancelada' }
-    };
+    const shared = window.CommonUtils;
+    const statusLabels = Object.fromEntries(
+        Object.entries(shared.STATUS_MAP_SERVER).map(([key, value]) => [key, {
+            label: value.label,
+            class: value.cls
+        }])
+    );
 
     const mapEstadoServerToClient = (estado) => {
-        if (!estado) return 'programada';
-        const estadoNormalized = estado.toLowerCase().trim();
-        if (estadoNormalized === 'atendida' || estadoNormalized === 'finalizada' || estadoNormalized === 'en_proceso') return 'atendida';
-        if (estadoNormalized === 'no_asistida') return 'no-show';
-        if (['programada', 'confirmada', 'cancelada'].includes(estadoNormalized)) return estadoNormalized;
-        return 'programada';
+        return shared.mapEstadoServerToClient(estado);
     };
 
     const getStatusLabelAndClass = (statusKey) => statusLabels[statusKey] || statusLabels.programada;
@@ -232,9 +227,17 @@ window.AppointmentUtils = (() => {
             isDirty = checkDirty();
             if (!isDirty) { closeFn(); return; }
 
-            // Intentar usar _ConfirmModal si está disponible en la página
-            const confirmModal = document.getElementById('confirmModal');
-            if (confirmModal && window.ConfirmModalService) {
+            // Intentar usar ModalService canónico primero, luego ConfirmModalService si existe
+            if (window.ModalService && typeof window.ModalService.confirm === 'function') {
+                window.ModalService.confirm({
+                    title: '¿Descartar cambios?',
+                    message: 'Tienes cambios sin guardar. Si cierras ahora perderás la información ingresada.',
+                    confirmText: 'Sí, descartar',
+                    cancelText: 'Seguir editando',
+                    isDanger: true,
+                    onConfirm: () => { snapshot = null; closeFn(); }
+                });
+            } else if (confirmModal && window.ConfirmModalService) {
                 window.ConfirmModalService.show({
                     title: '¿Descartar cambios?',
                     message: 'Tienes cambios sin guardar. Si cierras ahora perderás la información ingresada.',
@@ -244,7 +247,7 @@ window.AppointmentUtils = (() => {
                     onConfirm: () => { snapshot = null; closeFn(); }
                 });
             } else {
-                // Fallback: confirm nativo del navegador
+                // Fallback final: confirm nativo del navegador
                 if (window.confirm('Tienes cambios sin guardar. ¿Deseas descartarlos?')) {
                     snapshot = null;
                     closeFn();

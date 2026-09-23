@@ -1,0 +1,65 @@
+@* ============================================
+   Componente: ProximaCitaWidget
+   Muestra la próxima cita con countdown y contexto
+============================================ *@
+@model SmileTrack_MVC.Models.ViewModels.Components.ProximaCitaWidgetViewModel
+
+<link rel="stylesheet" href="~/css/shared/components/proxima-cita.css" asp-append-version="true" />
+
+@if (Model.TieneCita)
+{
+    <section class="proxima-cita-banner @(Model.EsUrgente ? "urgent" : "upcoming")" 
+             data-fecha="@Model.FechaHora.ToString("o")"
+             role="region"
+             aria-label="Próxima cita programada">
+        <div class="banner-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">schedule</span>
+        </div>
+        <div class="banner-content">
+            <h3 class="banner-title">
+                @if (Model.EsUrgente)
+                {
+                    <span class="urgent-badge">¡URGENTE!</span>
+                }
+                Próxima cita
+            </h3>
+            <p class="banner-paciente">
+                <strong>@Model.NombrePaciente</strong>
+            </p>
+            <p class="banner-servicio">@Model.NombreServicio</p>
+            <p class="banner-meta">
+                <span class="meta-item">
+                    <span class="material-symbols-outlined meta-icon">schedule</span>
+                    @Model.FechaHora.ToString("HH:mm")
+                </span>
+                <span class="meta-separator">•</span>
+                <span class="meta-item">
+                    <span class="material-symbols-outlined meta-icon">location_on</span>
+                    @Model.NombreConsultorio
+                </span>
+            </p>
+            @if (!string.IsNullOrEmpty(Model.UltimaAtencion))
+            {
+                <p class="banner-ultima">@Model.UltimaAtencion</p>
+            }
+        </div>
+        <div class="banner-countdown">
+            <span class="countdown-value" id="countdownMinutes" aria-live="polite">@Model.MinutosHasta</span>
+            <span class="countdown-label">minutos</span>
+        </div>
+    </section>
+}
+else
+{
+    <section class="proxima-cita-banner empty" role="region" aria-label="Sin citas programadas">
+        <div class="banner-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">event_available</span>
+        </div>
+        <div class="banner-content">
+            <h3 class="banner-title">No tienes citas programadas</h3>
+            <p class="banner-subtitle">Tu agenda está despejada</p>
+        </div>
+    </section>
+}
+
+<script src="~/js/shared/components/ProximaCitaWidget.js" asp-append-version="true"></script>

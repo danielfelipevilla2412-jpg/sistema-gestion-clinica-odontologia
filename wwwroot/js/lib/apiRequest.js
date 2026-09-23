@@ -4,7 +4,7 @@ function getAntiforgeryToken() {
   return match ? decodeURIComponent(match[2]) : null;
 }
 
-  +async function apiRequest(path, options = {}) {
+async function apiRequest(path, options = {}) {
   const url = (window.APP_CONFIG && window.APP_CONFIG.ApiBase ? window.APP_CONFIG.ApiBase : '') + path;
   const opts = { method: options.method || 'GET', headers: options.headers || {}, body: options.body, credentials: options.credentials || 'same-origin' };
 

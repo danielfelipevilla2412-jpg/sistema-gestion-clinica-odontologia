@@ -1,284 +1,211 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿@* ============================================
-SmileTrack — Panel Operativo (st-aux-01-panel-operativo)
+@* ============================================
+SmileTrack — Dashboard General Administrativo (st-aux-01-panel-operativo)
 ============================================
 Autor: Johan Santamaria
-Fecha: 29/07/2026
-
-DESCRIPCIÓN:
-Vista principal del panel operativo del auxiliar odontológico que muestra un resumen en tiempo real de las citas del día, alertas relevantes y detalles de pacientes.
-
-FUNCIONALIDADES PRINCIPALES:
-- Barra de alerta de próxima cita con temporizador integrado
-- Grilla de métricas clave (KPIs) en tiempo real
-- Barra de progreso interactiva del volumen de citas atendidas
-- Listado tabular de citas del día con detalle de alergias y estados
-- Visualización modal de la información médica detallada del paciente
-
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y Stadm09Citas
-- CSS: ~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css
-- JS: ~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js
-- Partial / Otros: _SidebarAuxiliar.cshtml
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- Se incorporan roles de accesibilidad (role status, progressbar) para soporte a lectores de pantalla (WCAG).
+Fecha: 29/07/2026 · Rediseño visual
+DEPENDENCIAS: panel-operativo.css / panel-operativo.js
 ============================================ *@
-@{ Layout = null; }
-@using System.Text.Json
-@{ var panelDataJson = JsonSerializer.Serialize(ViewData["PanelOperativoData"]); }
+@{ Layout = "_Layout"; ViewData["Title"] = "Dashboard General"; }
 
-<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Panel Operativo</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
-
-  <!-- Botón hamburguesa para menú mÓvil, con atributos ARIA para accesibilidad -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
-
-    <!-- Page header -->
+<main class="main" id="main-content">
     <header class="page-header">
-      <div class="header-left">
-        <div class="breadcrumb">Auxiliar › Panel operativo</div>
-        <h1 class="page-title">Panel operativo</h1>
-        <p class="page-subtitle" id="pageMeta">Resumen en tiempo real</p>
-      </div>
-      <button class="btn-primary" id="btnDescargar" aria-label="Descargar resumen del panel"><span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar
-        resumen</button>
+        <div class="header-left">
+            <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+                <span data-i18n="common_bc_administracion">Administración</span>
+                <span class="bc-sep" aria-hidden="true">›</span>
+                <span class="bc-active" data-i18n="nav.dashboard_general">Dashboard General</span>
+            </nav>
+            <h1 class="page-title" data-i18n="nav.dashboard_general">Dashboard General</h1>
+            <p class="page-subtitle" data-i18n="dashboard.subtitle_metrics">Resumen operativo y métricas clave del centro odontológico</p>
+        </div>
+        <button class="btn-primary" id="btnExport" aria-label="Exportar reporte en PDF" data-i18n-aria-label="table.export">
+            <span class="material-symbols-outlined btn-icon-symbol" id="btnExportIcon" aria-hidden="true">download</span>
+            <span id="btnExportLabel">Exportar PDF</span>
+        </button>
     </header>
 
-    <!-- Alerta próxima cita con role status para anuncio dinámico -->
-    <div class="alerta-proxima" role="status" aria-live="polite">
-      <span class="alerta-proxima-icon" aria-hidden="true"><span class="material-symbols-outlined">event_upcoming</span></span>
-      <div class="alerta-proxima-content">
-        <p class="alerta-proxima-title" id="apTitulo"></p>
-        <p class="alerta-proxima-desc" id="apDetalle"></p>
-      </div>
-    </div>
-
-    <!-- KPIs con aria-label para sección de métricas -->
-    <div class="kpi-grid" id="kpiGrid" aria-label="M—tricas clave del panel"></div>
-
-    <!-- Barra de progreso con aria-valuenow para accesibilidad -->
-    <div class="progreso-wrap">
-      <div class="progreso-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
-        aria-label="Progreso de citas completadas">
-        <div class="progreso-bar-fill" id="progresoBarra"></div>
-      </div>
-      <span class="progreso-label" id="progresoLabel"></span>
-    </div>
-
-    <!-- Grid inferior: Tabla + Alertas -->
-    <div class="grid-bottom">
-
-      <!-- Tabla de citas con aria-label y scope en headers -->
-      <div class="table-wrap">
-        <table class="table-base" aria-label="Listado de citas del día">
-          <thead>
-            <tr>
-              <th scope="col">Hora</th>
-              <th scope="col">Paciente</th>
-              <th scope="col">Profesional</th>
-              <th scope="col">Alergias</th>
-              <th scope="col">Consultorio</th>
-              <th scope="col">Estado</th>
-              <th scope="col">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="citasBody" aria-live="polite"></tbody>
-        </table>
-      </div>
-
-      <!-- Panel de alertas con role list -->
-      <aside class="alertas-card" aria-labelledby="alertasTitle">
-        <h3 class="alertas-title" id="alertasTitle"><span class="material-symbols-outlined" aria-hidden="true">warning_amber</span> Alertas del día</h3>
-        <div class="alertas-list" id="alertasList" role="list" aria-label="Lista de alertas importantes"></div>
-      </aside>
-
-    </div>
-
-  </main>
-
-  <!-- --- MODAL PACIENTE --- -->
-  <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
-    aria-hidden="true" inert>
-    <div class="modal" id="modalPaciente">
-      <div class="modal-header">
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div class="modal-avatar" id="modalAvatar" aria-hidden="true"></div>
-          <div>
-            <h2 class="modal-name" id="modalTitle"></h2>
-            <p class="modal-role" id="modalRole"></p>
-          </div>
+    <!-- KPIs principales: la primera tarjeta lleva más peso visual (jerarquía) -->
+    <section class="stats-grid" aria-label="Métricas principales" data-i18n-aria-label="facturacion.title">
+        <div class="stat-card stat-card--primary" data-color="blue">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">group</span>
+            <span class="stat-number" id="statTotal" data-target="@(ViewData["TotalPacientes"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-label" data-i18n="patients.active">Pacientes activos</span>
+            <span class="stat-sub">Total registrados</span>
         </div>
-        <button class="modal-close" id="modalCloseBtn" aria-label="Cerrar modal">—</button>
-      </div>
+        <div class="stat-card" data-color="green">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
+            <span class="stat-number" id="statScheduled" data-target="@(ViewData["CitasHoy"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
+            <span class="stat-sub">Programadas</span>
+        </div>
+        <div class="stat-card" data-color="orange">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">stethoscope</span>
+            <span class="stat-number" id="statAttended" data-target="@(ViewData["ProfesionalesActivos"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-label" data-i18n="professionals.active">Profesionales activos</span>
+            <span class="stat-sub">En servicio</span>
+        </div>
+        <div class="stat-card" data-color="purple">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
+            <span class="stat-number" id="statIncome" data-format="currency-cop" data-target="@(ViewData["IngresosDelMes"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-label">Ingresos del mes</span>
+            <span class="stat-sub">Solo citas atendidas</span>
+        </div>
+    </section>
 
-      <div class="modal-body">
-        <!-- Info básica -->
-        <div class="modal-info-grid">
-          <div class="modal-info-item">
-            <span class="material-symbols-outlined modal-info-icon" aria-hidden="true">call</span>
-            <div>
-              <p class="modal-info-label">TelÉfono</p>
-              <p class="modal-info-value" id="modalTelefono"></p>
-            </div>
-          </div>
-          <div class="modal-info-item">
-            <span class="material-symbols-outlined modal-info-icon" aria-hidden="true">mail</span>
-            <div>
-              <p class="modal-info-label">Email</p>
-              <p class="modal-info-value" id="modalEmail"></p>
-            </div>
-          </div>
-          <div class="modal-info-item">
-            <span class="material-symbols-outlined modal-info-icon" aria-hidden="true">bloodtype</span>
-            <div>
-              <p class="modal-info-label">Grupo sanguíneo</p>
-              <p class="modal-info-value" id="modalSangre"></p>
-            </div>
-          </div>
-          <div class="modal-info-item">
-            <span class="material-symbols-outlined modal-info-icon" aria-hidden="true">person</span>
-            <div>
-              <p class="modal-info-label">Edad</p>
-              <p class="modal-info-value" id="modalEdad"></p>
-            </div>
-          </div>
+    <section class="progress-row" role="region" aria-label="Ocupación de agenda mensual" data-i18n-aria-label="citas.dashboard_title">
+        <div>
+            <h2 class="section-title">Ocupación de agenda</h2>
+            <p class="page-subtitle" data-i18n="dashboard.subtitle_occupancy">Porcentaje estimado de citas utilizadas este mes</p>
+        </div>
+        <div class="progress-bar-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@(ViewData["PctOcupacion"] ?? 0)" aria-label="Ocupación de agenda mensual">
+            <div class="progress-bar" id="dashboardOccupancyBar" data-width="@(ViewData["PctOcupacion"] ?? 0)"></div>
+        </div>
+        <span class="progress-label">@(ViewData["PctOcupacion"] ?? 0)% de uso estimado</span>
+    </section>
+
+    @await Component.InvokeAsync("PanelRendimiento", new
+    {
+        porcentaje = Convert.ToInt32(ViewData["PctAtendidas"] ?? 0),
+        etiqueta = "Rendimiento de atención"
+    })
+
+    <section class="content-grid" aria-label="Contenido principal del dashboard">
+        <div class="content-left">
+            <section class="card" aria-labelledby="statusTitle">
+                <h2 class="card-title" id="statusTitle" data-i18n="citas.status">Distribución de estados de cita — este mes</h2>
+                <div class="status-chart" id="statusChart" role="img" aria-label="Distribución de citas por estado este mes">
+                    <div class="status-row">
+                        <span class="status-label">Atendidas</span>
+                        <div class="status-bar-bg">
+                            <div class="status-bar-fill green" data-width="@(ViewData["PctAtendidas"] ?? 0)"></div>
+                        </div>
+                        <span class="status-val">@(ViewData["CitasAtendidas"] ?? 0)</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Confirmadas</span>
+                        <div class="status-bar-bg">
+                            <div class="status-bar-fill blue" data-width="@(ViewData["PctConfirmadas"] ?? 0)"></div>
+                        </div>
+                        <span class="status-val">@(ViewData["CitasConfirmadas"] ?? 0)</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Programadas</span>
+                        <div class="status-bar-bg">
+                            <div class="status-bar-fill orange" data-width="@(ViewData["PctProgramadas"] ?? 0)"></div>
+                        </div>
+                        <span class="status-val">@(ViewData["CitasProgramadas"] ?? 0)</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Canceladas</span>
+                        <div class="status-bar-bg">
+                            <div class="status-bar-fill red" data-width="@(ViewData["PctCanceladas"] ?? 0)"></div>
+                        </div>
+                        <span class="status-val">@(ViewData["CitasCanceladas"] ?? 0)</span>
+                    </div>
+                </div>
+                @{
+                    var diferenciaAtendidas = Convert.ToInt32(ViewData["StatKpiDifSemana"] ?? 0);
+                }
+                <p class="chart-summary" aria-live="polite">
+                    Atendidas @(diferenciaAtendidas >= 0 ? "↑" : "↓") @Math.Abs(diferenciaAtendidas)% respecto a la semana anterior
+                </p>
+            </section>
+
+            <section class="card" aria-labelledby="topProfessionalsTitle">
+                <h2 class="card-title" id="topProfessionalsTitle">Top 3 profesionales del mes</h2>
+                <div class="table-wrap">
+                    <table class="table-base" aria-label="Top 3 profesionales por citas">
+                        <thead>
+                            <tr>
+                                <th scope="col">Profesional</th>
+                                <th scope="col">Especialidad</th>
+                                <th scope="col">Total citas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{ var topProfesionales = ViewData["TopProfesionales"] as IEnumerable<SmileTrack_MVC.Models.ViewModels.PanelOperativoTopProfesionalViewModel> ?? Enumerable.Empty<SmileTrack_MVC.Models.ViewModels.PanelOperativoTopProfesionalViewModel>(); }
+                            @if (topProfesionales.Any())
+                            {
+                                foreach (var prof in topProfesionales)
+                                {
+                                    <tr>
+                                        <td>@prof.Nombre</td>
+                                        <td>@prof.Especialidad</td>
+                                        <td>@prof.TotalCitas</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="3" class="table-empty">No hay datos suficientes para mostrar los top profesionales.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
 
-        <!-- Alergias -->
-        <div class="modal-section">
-          <p class="modal-section-title"><span class="material-symbols-outlined" aria-hidden="true">warning</span> Alergias</p>
-          <span class="modal-alergia-tag" id="modalAlergias" role="status"></span>
-        </div>
+        <aside class="content-right" aria-label="Información complementaria">
+            <section class="card" aria-labelledby="quickActionsTitle">
+                <h2 class="card-title" id="quickActionsTitle">Acciones rápidas</h2>
+                <div class="quick-actions">
+                    <a href="/gestion-de-citas/st-adm-09-citas" class="quick-action" aria-label="Ir a la gestión integral de citas">
+                        <span class="material-symbols-outlined quick-action-icon" aria-hidden="true">event_note</span>
+                        <span class="quick-action-text">
+                            <span class="quick-action-title">Gestión de citas</span>
+                            <span class="quick-action-desc">Ver, editar y filtrar todas las citas</span>
+                        </span>
+                        <span class="material-symbols-outlined quick-action-arrow" aria-hidden="true">chevron_right</span>
+                    </a>
+                    <a href="/gestion-de-citas/st-adm-08-agenda" class="quick-action" aria-label="Ir a la agenda general">
+                        <span class="material-symbols-outlined quick-action-icon" aria-hidden="true">calendar_month</span>
+                        <span class="quick-action-text">
+                            <span class="quick-action-title">Agenda general</span>
+                            <span class="quick-action-desc">Vista semanal por consultorio</span>
+                        </span>
+                        <span class="material-symbols-outlined quick-action-arrow" aria-hidden="true">chevron_right</span>
+                    </a>
+                </div>
+            </section>
+            <section class="card" aria-labelledby="notesTitle">
+                <h2 class="card-title" id="notesTitle">Notas del sistema</h2>
+                <p class="notes-text">Este panel presenta métricas resumidas. Para modificar una cita o verificar disponibilidad, utiliza la agenda general o la gestión de citas.</p>
+            </section>
+        </aside>
+    </section>
+</main>
 
-        <!-- Medicamentos -->
-        <div class="modal-section">
-          <p class="modal-section-title"><span class="material-symbols-outlined" aria-hidden="true">medication</span> Medicamentos actuales</p>
-          <div class="modal-medicamentos" id="modalMedicamentos" role="list" aria-label="Lista de medicamentos"></div>
-        </div>
+<!-- Mobile bottom nav — Administrador -->
+<nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item active" aria-current="page">
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">bar_chart</span></span>
+        <span>Dashboard</span>
+    </a>
+    <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+        <span>Agenda</span>
+    </a>
+    <a href="/gestion-de-citas/st-adm-09-citas" class="mobile-nav-item">
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
+        <span>Citas</span>
+    </a>
+</nav>
 
-        <!-- Antecedentes -->
-        <div class="modal-section">
-          <p class="modal-section-title"><span class="material-symbols-outlined" aria-hidden="true">medical_services</span> Antecedentes</p>
-          <p class="modal-antecedentes" id="modalAntecedentes"></p>
-        </div>
-
-        <!-- Cita actual -->
-        <div class="modal-section modal-cita-actual">
-          <p class="modal-section-title"><span class="material-symbols-outlined" aria-hidden="true">event</span> Cita actual</p>
-          <div class="modal-cita-info">
-            <div class="modal-cita-row">
-              <span class="modal-cita-label">Servicio:</span>
-              <span class="modal-cita-value" id="modalServicio"></span>
-            </div>
-            <div class="modal-cita-row">
-              <span class="modal-cita-label">Profesional:</span>
-              <span class="modal-cita-value" id="modalProfesional"></span>
-            </div>
-            <div class="modal-cita-row">
-              <span class="modal-cita-label">Consultorio:</span>
-              <span class="modal-cita-value" id="modalConsultorio"></span>
-            </div>
-            <div class="modal-cita-row">
-              <span class="modal-cita-label">Hora:</span>
-              <span class="modal-cita-value" id="modalHora"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="modal-btn modal-btn-secondary" id="modalCloseBtn2">Cerrar</button>
-        <button class="modal-btn modal-btn-primary" id="modalVerHistoria">Ver historia clínica</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Estilos para contenido solo accesible por screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
+<!-- Footer -->
+<footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
+        <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+        <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
     <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-  <script>
-    window.smiletrackPanelData = @Html.Raw(panelDataJson);
-  </script>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js")"></script>
+</footer>
 
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
-</body>
-
-</html>
-
-
-
-
-
+@section Scripts {
+    <script src="~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js" asp-append-version="true" defer></script>
+}

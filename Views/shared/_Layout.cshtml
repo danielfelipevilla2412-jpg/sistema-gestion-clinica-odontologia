@@ -1,0 +1,139 @@
+@*
+  SmileTrack — Layout Master (_Layout.cshtml)
+  ═══════════════════════════════════════════
+  Layout base compartido por los módulos:
+    · Gestión de Citas (15 vistas)
+    · Gestión de Profesionales (4 vistas)
+
+  Qué carga este layout UNA SOLA VEZ:
+    1. Meta tags, charset, viewport, robots
+    2. Google Fonts: DM Sans + Syne
+    3. variables.css  → tokens canónicos + componentes base
+    4. CSS propio de la vista via @section Styles
+    5. shared/sidebar.css
+    6. footer.css
+    7. shared/print.css  (solo en impresión)
+    8. skip-link + hamburger + overlay
+    9. _SidebarDynamic  → despacha por rol
+   10. @RenderBody()
+   11. _Toasts.cshtml   → toasts + Material Symbols (carga la fuente)
+   12. _ConfirmModal    → modals.css + modals.js
+   13. Scripts canónicos: sidebar.js → footer.js → @section Scripts
+
+  NOTAS DE MANTENIMIENTO:
+  - Material Symbols Outlined se carga dentro de _Toasts.cshtml,
+    NO duplicar aquí ni en las vistas individuales.
+  - Las secciones @section Styles y @section Scripts son opcionales.
+  - El sidebar se elige automáticamente por rol en _SidebarDynamic.
+*@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>@(ViewData["Title"] != null ? ViewData["Title"] + " — SmileTrack" : "SmileTrack")</title>
+
+    @* Fuentes: preconnect + DM Sans + Syne — una sola carga para todas las vistas *@
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700&display=swap"
+          rel="stylesheet" />
+
+    @* Tokens canónicos + reset + componentes base (variables.css) *@
+    <link rel="stylesheet" href="~/css/shared/variables.css" asp-append-version="true" />
+
+    @* Componentes UI estandarizados (tabs, filtros, stat-cards, action-btns, breakpoints) —
+       patrón canónico extraído de st-adm-09. Cargado ANTES del CSS específico de la vista para
+       que este último pueda sobreescribirlo si necesita ajustes locales. *@
+    <link rel="stylesheet" href="~/css/shared/ui-components.css" asp-append-version="true" />
+
+    @* CSS propio de la vista (nombre del módulo + vista) *@
+    @await RenderSectionAsync("Styles", required: false)
+
+    @* Sidebar y layout compartidos *@
+    <link rel="stylesheet" href="~/css/shared/sidebar.css" asp-append-version="true" />
+
+    @* Footer con compensación de sidebar *@
+    <link rel="stylesheet" href="~/css/footer.css" asp-append-version="true" />
+
+    @* Estilos de impresión: solo se aplican al imprimir *@
+    <link rel="stylesheet" href="~/css/shared/print.css" media="print" asp-append-version="true" />
+</head>
+
+<body>
+    @* Accesibilidad: saltar al contenido principal *@
+    <a href="#main-content" class="skip-link" data-i18n="layout_skip_to_content">Saltar al contenido principal</a>
+
+    @* Sidebar dinámico o sidebar fijado por la vista *@
+    @await Html.PartialAsync(ViewData["SidebarPartial"] as string ?? "_SidebarDynamic")
+
+    @* Hamburger para móvil — sidebar.js lo inicializa *@
+    <button class="hamburger" id="hamburger" type="button"
+            aria-label="Abrir menú" data-i18n-aria-label="layout_hamburger_open_menu" aria-expanded="false" aria-controls="sidebar">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+    </button>
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+    @* Conmutador de idioma (ES / EN) — visible en todas las vistas del layout *@
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
+    @* Contenido de la vista *@
+    @RenderBody()
+
+    @*
+      Orden canónico de scripts al final del body:
+        1. _Toasts.cshtml     → toasts.css + toasts.js + Material Symbols Outlined
+        2. _ConfirmModal      → modals.css + modals.js
+        3. @section Scripts   → JS propio de la vista (app.js, utils, etc.)
+        4. sidebar.js         → accordion + hamburger + mini-sidebar
+        5. footer.js          → año dinámico + ajuste de margin-left
+    *@
+    @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+    @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
+
+    @* Utilidades compartidas: una sola carga para todas las vistas. *@
+    <script src="~/js/shared/common.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/utils.js" asp-append-version="true" defer></script>
+
+    @* Inicialización SSR GLOBAL de animateCounter sobre [data-target] (patrón canónico st-adm-09).
+         Se ejecuta UNA sola vez aquí y automáticamente anima las stat-cards de TODAS las vistas
+         que tengan data-target, sin necesidad de repetir bloque por vista. *@
+    <script asp-append-version="true" defer>
+      (function () {
+        function runSsrAnimateCounters() {
+          var nodes = document.querySelectorAll('[data-target]:not([data-animated="1"])');
+          if (nodes.length === 0) return;
+          if (typeof window.animateCounter !== 'function') {
+            setTimeout(runSsrAnimateCounters, 60);
+            return;
+          }
+          nodes.forEach(function (el) {
+            if (el.getAttribute('data-animated') === '1') return;
+            var raw = el.getAttribute('data-target');
+            if (raw === null || raw === '') return;
+            var t = Number(raw);
+            if (!Number.isFinite(t)) return;
+            try { window.animateCounter(el, Math.round(t)); } catch (_) {}
+          });
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', runSsrAnimateCounters, { once: true });
+        } else {
+          runSsrAnimateCounters();
+        }
+      })();
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+
+    @* ── i18n ── Motor primero, configuración después ─────────────────────── *@
+    <script src="~/js/i18n-core.js" asp-append-version="true"></script>
+    <script src="~/js/i18n.config.js" asp-append-version="true"></script>
+
+    <script src="~/js/shared/sidebar.js" asp-append-version="true" defer></script>
+    <script src="~/js/footer.js" asp-append-version="true" defer></script>
+</body>
+</html>

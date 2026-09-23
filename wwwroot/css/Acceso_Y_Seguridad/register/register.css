@@ -1,8 +1,23 @@
-﻿/* ════════════════════════════════════════════════════════
-   SMILETRACK — ESTILOS PARA REGISTRO DE USUARIOS
-   Archivo: views/auth/register/register.css
-   Propósito: Estilos específicos del formulario de registro
-   ════════════════════════════════════════════════════════ */
+/* ============================================
+   SmileTrack — Estilos de Registro de Usuarios (register.css)
+   ============================================
+   Autor: Johan Santamaria / SmileTrack Team
+   Fecha: 29/07/2026 (Actualizado 2026-09-12)
+
+   DESCRIPCIÓN Y POR QUÉ DE DISEÑO VISUAL:
+   Define la estética visual del formulario de registro de pacientes. Implementa animaciones
+   de entrada (`@keyframes fadeInUp`), estilos de campos enfocados y colores de estado para la barra
+   de fortaleza de la contraseña (débil, media, fuerte).
+
+   ESTRUCTURA DE COMPONENTES:
+   - Reset y Box-Sizing global para prevenir desbordamientos.
+   - Configuración base de iconos Google Material Symbols.
+   - Animaciones suavizadas para la tarjeta de registro (`fadeInUp`).
+   - Medidor visual de contraseña con indicadores de color dinámicos.
+
+   DEPENDENCIAS:
+   - Vista: Views/Acceso_Y_Seguridad/register/index.cshtml
+============================================ */
 
 /* ── CONFIGURACIÓN BASE ───────────────────────────────── */
 /* Box-sizing border-box para que padding no afecte el ancho total de los elementos */

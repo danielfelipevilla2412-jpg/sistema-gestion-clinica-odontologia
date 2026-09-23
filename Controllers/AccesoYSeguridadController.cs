@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Antiforgery.Internal;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Email;
@@ -32,6 +33,10 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         // sesiones inconsistentes.
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         Response.Cookies.Delete("SmileTrack-JWT");
+
+        // Vacía el usuario de ESTA petición, para que el token antiforgery se emita
+        // como anónimo y coincida con el POST posterior.
+        HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
 
         ViewData["ReturnUrl"] = returnUrl;
         return View("~/Views/Acceso_Y_Seguridad/login/index.cshtml");
@@ -192,11 +197,7 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         // navegar entre las distintas vistas de un mismo rol.
         if (string.Equals(rolNombre, "Paciente", StringComparison.OrdinalIgnoreCase))
         {
-            int? idPaciente = await _context.Pacientes
-                .Where(p => p.IdUsuario == usuario.IdUsuario)
-                .Select(p => (int?)p.IdPaciente)
-                .FirstOrDefaultAsync();
-
+            int? idPaciente = await EnsureRelacionPerfilAsync(usuario, rolNombre);
             if (idPaciente.HasValue)
             {
                 claims.Add(new Claim("IdPaciente", idPaciente.Value.ToString()));
@@ -204,11 +205,7 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         }
         else if (string.Equals(rolNombre, "Profesional", StringComparison.OrdinalIgnoreCase))
         {
-            int? idProfesional = await _context.Profesionales
-                .Where(p => p.IdUsuario == usuario.IdUsuario)
-                .Select(p => (int?)p.IdProfesional)
-                .FirstOrDefaultAsync();
-
+            int? idProfesional = await EnsureRelacionPerfilAsync(usuario, rolNombre);
             if (idProfesional.HasValue)
             {
                 claims.Add(new Claim("IdProfesional", idProfesional.Value.ToString()));
@@ -237,7 +234,12 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
 
         string destino;
         string rr = returnUrl ?? string.Empty;
-        if (IsLocalUrl(rr) && !rr.StartsWith("/acceso-y-seguridad/login", StringComparison.OrdinalIgnoreCase))
+        bool administradorDebeAbrirDashboard =
+            string.Equals(rolNombre, "Administrador", StringComparison.OrdinalIgnoreCase);
+
+        if (!administradorDebeAbrirDashboard &&
+            IsLocalUrl(rr) &&
+            !rr.StartsWith("/acceso-y-seguridad/login", StringComparison.OrdinalIgnoreCase))
         {
             destino = rr;
         }
@@ -252,6 +254,71 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         }
 
         return LocalRedirect(destino);
+    }
+
+    private async Task<int?> EnsureRelacionPerfilAsync(Usuario usuario, string rolNombre)
+    {
+        if (string.Equals(rolNombre, "Paciente", StringComparison.OrdinalIgnoreCase))
+        {
+            int? idPaciente = await _context.Pacientes
+                .Where(p => p.IdUsuario == usuario.IdUsuario)
+                .Select(p => (int?)p.IdPaciente)
+                .FirstOrDefaultAsync();
+
+            if (idPaciente.HasValue)
+            {
+                return idPaciente.Value;
+            }
+
+            var paciente = new Paciente
+            {
+                IdUsuario = usuario.IdUsuario,
+                TipoDocumento = "CC",
+                Documento = $"USR-{usuario.IdUsuario:000000}",
+                Nombres = string.IsNullOrWhiteSpace(usuario.Nombre) ? "Paciente" : usuario.Nombre,
+                Apellidos = string.IsNullOrWhiteSpace(usuario.Apellidos) ? "SmileTrack" : usuario.Apellidos,
+                FechaNacimiento = DateTime.UtcNow.AddYears(-25),
+                Correo = usuario.Correo,
+                FechaRegistro = DateTime.UtcNow,
+                Estado = "activo"
+            };
+
+            _context.Pacientes.Add(paciente);
+            await _context.SaveChangesAsync();
+            return paciente.IdPaciente;
+        }
+
+        if (string.Equals(rolNombre, "Profesional", StringComparison.OrdinalIgnoreCase))
+        {
+            int? idProfesional = await _context.Profesionales
+                .Where(p => p.IdUsuario == usuario.IdUsuario)
+                .Select(p => (int?)p.IdProfesional)
+                .FirstOrDefaultAsync();
+
+            if (idProfesional.HasValue)
+            {
+                return idProfesional.Value;
+            }
+
+            var profesional = new Profesional
+            {
+                IdUsuario = usuario.IdUsuario,
+                Nombres = string.IsNullOrWhiteSpace(usuario.Nombre) ? "Prof" : usuario.Nombre,
+                Apellidos = string.IsNullOrWhiteSpace(usuario.Apellidos) ? "SmileTrack" : usuario.Apellidos,
+                RegistroMedico = $"SM-{usuario.IdUsuario:0000}",
+                Descripcion = "Perfil generado automáticamente al iniciar sesión.",
+                Categoria = "Odontología General",
+                Telefono = null,
+                Estado = "activo",
+                FechaIngreso = DateTime.UtcNow
+            };
+
+            _context.Profesionales.Add(profesional);
+            await _context.SaveChangesAsync();
+            return profesional.IdProfesional;
+        }
+
+        return null;
     }
 
     [HttpPost]
@@ -449,6 +516,23 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         TempData["SuccessMessage"] = response.Message;
         return RedirectToAction("Login");
+    }
+
+    [HttpPost]
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    [Route("acceso-y-seguridad/cambiar-contrasena/api")]
+    public async Task<IActionResult> ChangePasswordApi(
+        [FromBody] ChangePasswordRequest request,
+        CancellationToken ct = default)
+    {
+        var response = await _authService.ChangePasswordAsync(request, ct);
+        if (!response.Success)
+            return BadRequest(new { success = false, message = response.Message });
+
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        Response.Cookies.Delete("SmileTrack-JWT");
+        return Ok(new { success = true, message = response.Message, requiresLogin = true });
     }
 
     [HttpGet]

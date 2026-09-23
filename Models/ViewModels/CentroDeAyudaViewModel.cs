@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 
 namespace SmileTrack_MVC.Models.ViewModels;
@@ -69,19 +70,56 @@ public class UsuarioViewModel
 
 public enum TicketCategory
 {
-    Incidente,
-    Consulta,
-    Solicitud,
-    Otro
+    [Display(Name = "Error técnico / Falla del sistema")]
+    ErrorTecnico,
+
+    [Display(Name = "Problema de acceso o inicio de sesión")]
+    ProblemaAcceso,
+
+    [Display(Name = "Solicitud de cambio o mejora")]
+    SolicitudCambio,
+
+    [Display(Name = "Duda o consulta general")]
+    DudaConsulta,
+
+    [Display(Name = "Problema con reporte o dato incorrecto")]
+    ProblemaReporteDato
 }
 
 public enum AffectedModule
 {
-    Citas,
-    Pacientes,
-    Facturacion,
-    Reportes,
-    Sistema
+    [Display(Name = "Inicio")]
+    Inicio,
+
+    [Display(Name = "Reportes y Analítica")]
+    ReportesAnalitica,
+
+    [Display(Name = "Acceso y Seguridad")]
+    AccesoSeguridad,
+
+    [Display(Name = "Gestión de Pacientes")]
+    GestionPacientes,
+
+    [Display(Name = "Historia Clínica")]
+    HistoriaClinica,
+
+    [Display(Name = "Gestión de Profesionales")]
+    GestionProfesionales,
+
+    [Display(Name = "Gestión de Citas")]
+    GestionCitas,
+
+    [Display(Name = "Facturación y Pagos")]
+    FacturacionPagos,
+
+    [Display(Name = "Servicios y Recursos")]
+    ServiciosRecursos,
+
+    [Display(Name = "Gestión de PQR")]
+    GestionPQR,
+
+    [Display(Name = "Otro / No estoy seguro")]
+    OtroNoEstoySeguro
 }
 
 public class CentroAyudaGuidePanel
@@ -117,10 +155,26 @@ public class SupportTicketViewModel
     public CentroAyudaContactInfo Contact { get; set; } = new();
     public string SystemStatusMessage { get; set; } = "Todos los sistemas se encuentran operativos.";
     public string SystemStatusUpdatedAt { get; set; } = DateTime.UtcNow.ToString("dd MMM yyyy HH:mm");
+
+    [Required(ErrorMessage = "El asunto es obligatorio.")]
+    [Display(Name = "Asunto *")]
     public string Subject { get; set; } = string.Empty;
-    public TicketCategory Category { get; set; } = TicketCategory.Incidente;
-    public AffectedModule Module { get; set; } = AffectedModule.Citas;
+
+    [Required(ErrorMessage = "Seleccione el tipo de incidente.")]
+    [Display(Name = "Tipo de Incidente *")]
+    public TicketCategory? Category { get; set; }
+
+    [Required(ErrorMessage = "Seleccione el módulo o vista relacionada.")]
+    [Display(Name = "Módulo / Vista Relacionada *")]
+    public AffectedModule? Module { get; set; }
+
+    [Required(ErrorMessage = "Seleccione la severidad.")]
+    [Display(Name = "Severidad *")]
     public string Severity { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "La descripción es obligatoria.")]
+    [Display(Name = "Descripción *")]
     public string Description { get; set; } = string.Empty;
+
     public IFormFile? Screenshot { get; set; }
 }

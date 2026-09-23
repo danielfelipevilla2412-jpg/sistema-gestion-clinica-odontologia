@@ -200,8 +200,8 @@ const initPatientSelect = () => {
   const patientDocEl = safeGetElement('invoicePatientDoc');
 
   if (pacienteSelect && patientNameEl && patientDocEl) {
-    pacienteSelect.addEventListener('change', (e) => {
-      const option = e.target.options[e.target.selectedIndex];
+    const updatePatient = () => {
+      const option = pacienteSelect.options[pacienteSelect.selectedIndex];
       if (!option.value) {
         patientNameEl.textContent = 'Seleccione un paciente';
         patientDocEl.textContent = '—';
@@ -209,7 +209,10 @@ const initPatientSelect = () => {
       }
       patientNameEl.textContent = option.text;
       patientDocEl.textContent = option.dataset.doc || '—';
-    });
+    };
+
+    pacienteSelect.addEventListener('change', updatePatient);
+    updatePatient();
   }
 };
 
@@ -246,7 +249,7 @@ const initAmountValidation = () => {
   });
 };
 
-// Inicializa botón de impresión que usa window.print()
+// Abre el diálogo nativo de impresión con la factura actual visible.
 const initPrint = () => {
   const btnPrint = safeGetElement('btnPrint');
   if (btnPrint) {
@@ -279,7 +282,7 @@ const initPrint = () => {
   });
 };
 
-// Crea la factura en SQL Server (POST) y de inmediato registra el pago (PUT)
+// Crea la factura en SQL Server (POST) y de inmediato registra el pago (POST)
 // contra la API real de FacturacionPagosController — reemplaza la simulación
 // que antes solo marcaba una bandera window.isPaid sin persistir nada.
 const initPayment = () => { 
@@ -293,12 +296,14 @@ const initPayment = () => {
       return;
     }
     const pacienteSelect = safeGetElement('pacienteSelect');
+    const profesionalSelect = safeGetElement('profesionalSelect');
     const totalEl = safeGetElement('invoiceTotal');
     const amountReceived = safeGetElement('amountReceived');
     
     
     if (!totalEl || !amountReceived || !pacienteSelect) return;
     const idPaciente = parseInt(pacienteSelect.value, 10);
+    const idProfesional = profesionalSelect?.value ? parseInt(profesionalSelect.value, 10) : null;
     if (!idPaciente) {
       showToast('Seleccione un paciente antes de registrar el pago.', 'error');
       pacienteSelect.focus();
@@ -324,9 +329,9 @@ const initPayment = () => {
 
     try {
       // 1) Crear la factura real en SQL Server.
-      const creado = await window.apiRequest('/facturacion-y-pagos/api/facturas', {
+      const creado = await window.apiRequest('/api/facturas', {
         method: 'POST',
-        body: { idPaciente, notas: null, items }
+        body: { idPaciente, idProfesional, notas: null, detalles: items }
       });
 
       if (!creado || creado.success !== true) {
@@ -339,8 +344,8 @@ const initPayment = () => {
       const idFactura = creado.data.id;
 
       // 2) Registrar el pago recibido sobre esa factura.
-      const pago = await window.apiRequest(`/facturacion-y-pagos/api/facturas/${idFactura}/pago`, {
-        method: 'PUT',
+      const pago = await window.apiRequest(`/api/facturas/${idFactura}/pagos`, {
+        method: 'POST',
         body: { montoPagado: total }
       });
 

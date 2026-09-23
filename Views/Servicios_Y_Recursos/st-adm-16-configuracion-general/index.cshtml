@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@{ Layout = null; }
+﻿﻿@{ Layout = null; }
 
 <!DOCTYPE html>
 <html lang="es">
@@ -19,9 +19,10 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!-- ----- SIDEBAR UNIFICADO (Activo: Configuración) ----- -->
 
@@ -42,13 +43,13 @@
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Administración</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_bc_administracion">Administración</span>
           <span class="bc-sep material-symbols-outlined" aria-hidden="true">chevron_right</span>
-          <span class="bc-active">Configuración General</span>
+          <span class="bc-active" data-i18n="config.title">Configuración General</span>
         </nav>
-        <h1 class="page-title">Configuración General</h1>
-        <p class="page-subtitle">Gestión de parámetros del centro, citas e interactividad del sistema.</p>
+        <h1 class="page-title" data-i18n="config.title">Configuración General</h1>
+        <p class="page-subtitle" data-i18n="config.schedule">Gestión de parámetros del centro, citas e interactividad del sistema.</p>
       </div>
     </header>
 
@@ -56,7 +57,7 @@
     <div id="successAlert" class="success-banner" role="status" aria-live="polite" aria-hidden="true"
       style="display:none">
       <span class="success-icon material-symbols-outlined" aria-hidden="true">check_circle</span>
-      <span id="alertMessage">Cambios guardados correctamente</span>
+      <span id="alertMessage" data-i18n="config.saved">Cambios guardados correctamente</span>
       <button class="success-close" id="alertClose" aria-label="Cerrar notificación">—</button>
     </div>
 
@@ -68,25 +69,25 @@
 
         <!-- Tarjeta: Config de citas -->
         <section class="config-card" aria-labelledby="citasTitle">
-          <h2 class="card-title" id="citasTitle">Configuración de citas</h2>
+          <h2 class="card-title" id="citasTitle" data-i18n="citas.title">Configuración de citas</h2>
 
           <div class="config-list">
             <div class="config-item">
-              <span class="config-label">Duración predeterminada</span>
+              <span class="config-label" data-i18n="citas.duration">Duración predeterminada</span>
               <div class="config-value">
                 <span id="defaultDuration" class="value-text">30 min</span>
                 <button class="btn-edit" data-field="duration" aria-label="Editar duración predeterminada"><span class="material-symbols-outlined" aria-hidden="true">edit</span></button>
               </div>
             </div>
             <div class="config-item">
-              <span class="config-label">Horario apertura</span>
+              <span class="config-label" data-i18n="config.schedule">Horario apertura</span>
               <div class="config-value">
                 <span id="openTime" class="value-text">07:00 AM</span>
                 <button class="btn-edit" data-field="open" aria-label="Editar horario de apertura"><span class="material-symbols-outlined" aria-hidden="true">edit</span></button>
               </div>
             </div>
             <div class="config-item">
-              <span class="config-label">Horario cierre</span>
+              <span class="config-label" data-i18n="config.schedule">Horario cierre</span>
               <div class="config-value">
                 <span id="closeTime" class="value-text">06:00 PM</span>
                 <button class="btn-edit" data-field="close" aria-label="Editar horario de cierre"><span class="material-symbols-outlined" aria-hidden="true">edit</span></button>
@@ -97,12 +98,12 @@
 
         <!-- Tarjeta: Datos del centro -->
         <section class="config-card" aria-labelledby="centerTitle">
-          <h2 class="card-title" id="centerTitle">Datos del centro</h2>
-          <p class="card-subtitle">Información corporativa que aparece en las facturas e informes.</p>
+          <h2 class="card-title" id="centerTitle" data-i18n="config.clinic_name">Datos del centro</h2>
+          <p class="card-subtitle" data-i18n="common.info">Información corporativa que aparece en las facturas e informes.</p>
 
           <form id="centerForm" class="config-form" novalidate>
             <div class="form-group">
-              <label for="centerName" class="form-label">Nombre del Centro</label>
+              <label for="centerName" class="form-label" data-i18n="config.clinic_name">Nombre del Centro</label>
               <input type="text" id="centerName" class="form-input" value="SmileTrack Dental Clinic" required
                 pattern=".{3,}" aria-describedby="nameHelp">
               <small id="nameHelp" class="form-help">Mínimo 3 caracteres</small>
@@ -116,14 +117,14 @@
             </div>
 
             <div class="form-group">
-              <label for="centerAddress" class="form-label">Dirección Física</label>
+              <label for="centerAddress" class="form-label" data-i18n="config.address">Dirección Física</label>
               <input type="text" id="centerAddress" class="form-input" value="Avenida de la Salud #45-12, Piso 4"
                 required aria-describedby="addressHelp">
               <small id="addressHelp" class="form-help">Dirección completa para facturas</small>
             </div>
 
             <button type="submit" class="btn-primary btn-submit" id="btnSaveChanges">
-              <span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar cambios
+              <span class="material-symbols-outlined" aria-hidden="true">save</span> <span data-i18n="config.save">Guardar cambios</span>
             </button>
           </form>
         </section>
@@ -134,7 +135,7 @@
 
         <!-- Tarjeta: Notificaciones -->
         <section class="config-card" aria-labelledby="notifTitle">
-          <h2 class="card-title" id="notifTitle">Notificaciones</h2>
+          <h2 class="card-title" id="notifTitle" data-i18n="common.notifications">Notificaciones</h2>
 
           <div class="toggle-list">
             <div class="toggle-item">
@@ -174,7 +175,7 @@
 
         <!-- Tarjeta: Estado del sistema -->
         <section class="config-card" aria-labelledby="statusTitle">
-          <h2 class="card-title" id="statusTitle">Estado del sistema</h2>
+          <h2 class="card-title" id="statusTitle" data-i18n="facturacion.status">Estado del sistema</h2>
 
           <div class="status-list">
             <div class="status-item">
@@ -266,6 +267,8 @@
   </footer>
   <script src="@Url.Content("~/js/Servicios_Y_Recursos/st-adm-16-configuracion-general/script.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>

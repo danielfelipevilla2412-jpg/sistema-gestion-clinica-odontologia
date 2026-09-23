@@ -1,0 +1,50 @@
+@*
+  SmileTrack — Sidebar Dinámico (_SidebarDynamic.cshtml)
+  ═══════════════════════════════════════════════════════
+  Partial centralizado que despacha al sidebar correspondiente
+  según el rol del usuario autenticado.
+
+  Roles soportados (en orden de prioridad):
+    Recepcionista  → _SidebarRecepcionista
+    Auxiliar       → _SidebarAuxiliar
+    Profesional    → _SidebarProfesional
+    Paciente       → _SidebarPaciente
+      Administrador → _SidebarAdmin
+
+  USO en vistas/layouts:
+    @await Html.PartialAsync("_SidebarDynamic")
+
+  NOTAS:
+  - Reemplaza los ternarios User.IsInRole(...) inline que existían
+    en cada una de las 19 vistas del módulo Citas y Profesionales.
+  - El fallback es _SidebarAdmin para usuarios Administradores o
+    sesiones de depuración sin rol asignado.
+  - No modificar la lógica de los sidebars individuales aquí;
+    este archivo solo actúa como dispatcher.
+*@
+@{
+  var role = User.Claims
+    .FirstOrDefault(claim =>
+      claim.Type == System.Security.Claims.ClaimTypes.Role ||
+      claim.Type.EndsWith("/role", StringComparison.OrdinalIgnoreCase) ||
+      claim.Type.Contains("role", StringComparison.OrdinalIgnoreCase) ||
+      claim.Type.Equals("rol", StringComparison.OrdinalIgnoreCase) ||
+      claim.Type.Contains("rol", StringComparison.OrdinalIgnoreCase))?
+    .Value?
+    .Trim();
+  var normalizedRole = role?.ToLowerInvariant();
+
+  string sidebarPartial = normalizedRole switch
+  {
+    "recepcionista" => "_SidebarRecepcionista",
+    "auxiliar" => "_SidebarAuxiliar",
+    "profesional" or "odontologo" or "odontólogo" or "doctor" => "_SidebarProfesional",
+    "paciente" => "_SidebarPaciente",
+    _ when User.IsInRole("Recepcionista") => "_SidebarRecepcionista",
+    _ when User.IsInRole("Auxiliar") => "_SidebarAuxiliar",
+    _ when User.IsInRole("Profesional") => "_SidebarProfesional",
+    _ when User.IsInRole("Paciente") => "_SidebarPaciente",
+    _ => "_SidebarAdmin"
+  };
+}
+@{ await Html.RenderPartialAsync(sidebarPartial); }

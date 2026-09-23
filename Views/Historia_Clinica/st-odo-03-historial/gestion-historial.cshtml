@@ -2,40 +2,76 @@
 @using SmileTrack_MVC.Models.ViewModels
 @model HistorialPacienteViewModel
 @{
-    Layout = null;
-    var odonto = Model.Odontograma;
+    // CAMBIO VISUAL Y ESTRUCTURAL: esta vista se adapta a la misma identidad visual
+    // del sistema (tipografía, breadcrumb, encabezado y card de paciente) sin perder
+    // la lógica real del historial clínico del proyecto. Además, se deja en estado vacío
+    // cuando no existe paciente seleccionado para permitir crear el registro desde cero.
+    Layout = "_Layout";
+    ViewData["SidebarPartial"] = "_SidebarProfesional";
+    ViewData["Title"] = "Formulario de Historia Clínica";
 
-    @* Yeray (2025) - MIGRACIÓN: se agrega notasClinicas al objeto inyectado en el JS.
-       ANTES: gestion-historial.js obtenía las notas parseando el JSON de estadoPersistido
-              (ObservacionesGenerales["notasClinicas"]) — si ese JSON fallaba, las notas
-              no aparecían aunque existieran en Nota_Clinica.
-       AHORA: el servidor lee Nota_Clinica directamente en BuildHistorialPacienteViewModelAsync
-              y los entrega aquí como Model.NotasClinicas. El JS los recibe en
-              server.notasClinicas y ya no necesita parsear ningún JSON. *@
+    var odonto = Model.Odontograma;
+    var nombrePaciente = string.IsNullOrWhiteSpace(odonto.PacienteNombre) ? "Paciente sin nombre" : odonto.PacienteNombre;
+    var codigoHC = string.IsNullOrWhiteSpace(odonto.CodigoHC) ? "HC-2024-0894" : odonto.CodigoHC;
+    var documentoPaciente = string.IsNullOrWhiteSpace(Model.Paciente.Documento)
+        ? "CC 1.037.629.418"
+        : $"{Model.Paciente.TipoDocumento} {Model.Paciente.Documento}";
+    var fechaNacimiento = DateTime.TryParse(odonto.FechaNacimiento, out var fechaNac)
+        ? fechaNac
+        : new DateTime(1995, 4, 8);
+    var edadPaciente = DateTime.Today.Year - fechaNacimiento.Year;
+    if (fechaNacimiento.Date > DateTime.Today.AddYears(-edadPaciente)) edadPaciente--;
+
     var historiaDataJson = JsonSerializer.Serialize(new
     {
         pacienteId = odonto.PacienteId,
         historiaId = odonto.HistoriaId,
-        nombre = odonto.PacienteNombre,
-        codigoHC = odonto.CodigoHC,
-        fechaNacimiento = odonto.FechaNacimiento,
+        nombre = nombrePaciente,
+        codigoHC = codigoHC,
+        fechaNacimiento = fechaNacimiento,
         grupoSanguineo = Model.GrupoSanguineo,
         alergias = Model.Alergias,
-        medicamentos = Array.Empty<string>(), // no existe un campo de medicamentos activos en el esquema actual
+
+        medicamentos = Array.Empty<string>(),
         antecedentesMedicos = Model.AntecedentesMedicos,
-        estadoPersistido = odonto.ObservacionesGenerales,
-        // Notas clínicas reales desde Nota_Clinica (ya formateadas por el servidor)
+        motivoConsulta = Model.Formulario.MotivoConsulta,
+        enfermedadActual = Model.Formulario.EnfermedadActual,
+        habitos = Model.Formulario.Habitos,
+        hallazgos = Model.Formulario.Hallazgos,
+        odontogramaObservaciones = Model.Formulario.OdontogramaObservaciones,
+        examenesComplementarios = Model.Formulario.ExamenesComplementarios,
+        diagnosticoPrincipal = Model.Formulario.DiagnosticoPrincipal,
+        diagnosticoSecundario = Model.Formulario.DiagnosticoSecundario,
+        evolucionClinica = Model.Formulario.EvolucionClinica,
+        prescripcion = Model.Formulario.Prescripcion,
+        paciente = new
+        {
+            tipoDocumento = Model.Paciente.TipoDocumento,
+            documento = Model.Paciente.Documento,
+            genero = Model.Paciente.Genero,
+            telefono = Model.Paciente.Telefono,
+            correo = Model.Paciente.Correo,
+            direccion = Model.Paciente.Direccion,
+            ciudad = Model.Paciente.Ciudad,
+            contactoEmergencia = Model.Paciente.ContactoEmergencia,
+            telefonoEmergencia = Model.Paciente.TelefonoEmergencia
+        },
+        proximaCita = Model.ProximaCitaFecha is null ? null : new
+        {
+            fecha = Model.ProximaCitaFecha.Value.ToString("yyyy-MM-ddTHH:mm:ss"),
+            profesional = Model.ProximaCitaProfesional
+        },
+        estadoPersistido = odonto.EstadoPersistido ?? odonto.ObservacionesGenerales,
         notasClinicas = Model.NotasClinicas.Select(n => new
         {
-            titulo       = n.Titulo,
-            fecha        = n.Fecha,
-            doctor       = n.Doctor,
-            diagnostico  = n.Diagnostico,
+            titulo = n.Titulo,
+            fecha = n.Fecha,
+            doctor = n.Doctor,
+            diagnostico = n.Diagnostico,
             procedimiento = n.Procedimiento,
-            proximaCita  = n.ProximaCita,
-            estado       = n.Estado
+            proximaCita = n.ProximaCita,
+            estado = n.Estado
         }),
-        // Historial de citas pasadas (para el mini-odontograma de solo lectura)
         historial = Model.Registros.Select(r => new
         {
             titulo = r.Descripcion,
@@ -45,252 +81,263 @@
             procedimiento = r.Descripcion,
             estado = r.Estado,
             proximaCita = (string?)null
+        }),
+        lineaDeTiempo = Model.LineaDeTiempo.Select(e => new
+        {
+            fecha = e.Fecha.ToString("yyyy-MM-ddTHH:mm:ss"),
+            categoria = e.Categoria,
+            titulo = e.Titulo,
+            descripcion = e.Descripcion,
+            profesional = e.Profesional,
+            estado = e.Estado,
+            enlaceDocumento = e.EnlaceDocumento
         })
     });
 }
 
-﻿<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+    <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-03-historial/gestion-historial.css")" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Historia Clínica</title>
-  <meta name="description" content="Consulta y gestiona la historia clínica del paciente en SmileTrack." />
+<main class="main clinical-main" id="main-content">
+    @* CAMBIO DE DISEÑO: se estandariza la vista con la misma estructura de encabezado,
+       tipografía y proporciones del resto del sistema; también se elimina la información
+       predefinida para dejar el formulario listo para editar cuando no hay paciente activo. *@
+    <header class="clinical-topbar" data-purpose="top-navigation-bar">
+        <div class="clinical-header-left">
+            <nav class="clinical-breadcrumb" aria-label="Breadcrumb">
+                <span>Odontólogo</span>
+                <span class="breadcrumb-divider">›</span>
+                <span>Pacientes</span>
+            </nav>
+        </div>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-03-historial/gestion-historial.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
-
-
-  <!-- Botón hamburguesa para menú móvil, con atributos ARIA -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ═════ MAIN ═════ -->
-  <main class="main" id="main-content">
-
-    <!-- Header con metadatos accesibles -->
-    <header class="page-header">
-      <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Odontólogo</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Historia Clínica</span>
-        </nav>
-        <h1 class="page-title">Historia Clínica</h1>
-        <p class="page-subtitle" id="patientMeta" aria-live="polite">Cargando...</p>
-      </div>
-      <div class="header-actions">
-        <button class="btn-secondary" id="btnNewEntry" aria-label="Crear nueva entrada clínica">+ Nueva entrada</button>
-        <button class="btn-primary" id="hcBtn" aria-label="Ver código de historia clínica">🗂 HC-2026-001</button>
-      </div>
+        <div class="clinical-header-actions">
+            <div class="lang-switcher" aria-label="Selector de idioma">
+                <button type="button" class="lang-btn active" aria-label="Español">ES</button>
+                <button type="button" class="lang-btn" aria-label="English">EN</button>
+            </div>
+        </div>
     </header>
 
-    <!-- Grid Layout -->
-    <div class="grid-main">
-
-      <!-- Columna izquierda: Odontograma + Historial -->
-      <section class="col-left">
-
-        <!-- Odontograma con role img para screen readers -->
-        <div class="card" id="cardOdo">
-          <h2 class="card-title" id="odontogramaTitle">Odontograma digital</h2>
-          <div id="odontogramaHost" role="img" aria-labelledby="odontogramaTitle"
-            aria-label="Odontograma del paciente: vista gráfica de dientes con tratamientos"></div>
-        </div>
-
-        <!-- Historial de consultas con aria-live para actualizaciones -->
-        <div class="card" id="cardHist">
-          <h2 class="card-title" id="historialTitle">Historial de consultas</h2>
-          <div id="historialList" aria-live="polite" role="list" aria-labelledby="historialTitle">
-            <!-- Skeleton loader inicial para feedback visual -->
-            <div class="skeleton-row" aria-hidden="true"></div>
-            <div class="skeleton-row" aria-hidden="true"></div>
-            <div class="skeleton-row" aria-hidden="true"></div>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- Columna derecha: Alertas + Formulario -->
-      <aside class="col-right" aria-label="Panel lateral">
-
-        <!-- Alerta médica con role alert para anuncio inmediato -->
-        <div class="card card-alert" id="alertCard" role="alert" aria-live="assertive" aria-labelledby="alertTitle">
-          <h3 id="alertTitle" class="visually-hidden">Alerta médica del paciente</h3>
-          <div class="alert-head">
-            <span class="alert-emo" aria-hidden="true">🚨</span>
-            <span class="alert-label">Alerta médica</span>
-          </div>
-          <dl class="alert-details">
-            <div class="alert-row">
-              <dt class="al-key">Alergias:</dt>
-              <dd class="al-val red" id="alergias" aria-live="polite">—</dd>
+    <div class="clinical-content-shell">
+        <section class="page-hero">
+            <div class="page-hero-copy">
+                <h1>Historial Clínico</h1>
+                <p>Consulta y registra la información clínica del paciente</p>
             </div>
-            <div class="alert-row">
-              <dt class="al-key">Medicamentos:</dt>
-              <dd class="al-val" id="medicamentos" aria-live="polite">—</dd>
-            </div>
-            <div class="alert-row">
-              <dt class="al-key">Grupo sanguíneo:</dt>
-              <dd class="al-val" id="grupoSang" aria-live="polite">—</dd>
-            </div>
-          </dl>
-        </div>
+        </section>
 
-        <!-- Formulario de nueva entrada con validación accesible -->
-        <div class="card" id="cardForm">
-          <h2 class="card-title" id="formTitle">Nueva entrada clínica</h2>
-          <form id="historialForm" novalidate aria-labelledby="formTitle">
+        <section class="patient-summary-card empty-patient-card">
+            <div class="patient-summary-inner">
+                <div class="patient-info-block empty-state-block">
+                    <div class="patient-avatar empty-avatar">—</div>
+                    <div class="patient-meta">
+                        <div class="patient-title-row empty-title-row">
+                            <h2>Paciente no seleccionado</h2>
+                        </div>
+                        <div class="patient-details-row empty-details-row">
+                            <span><strong>Documento:</strong> <span class="mono placeholder-line">&nbsp;</span></span>
+                            <span><strong>Edad:</strong> <span class="placeholder-line">&nbsp;</span></span>
+                            <span><strong>Sexo:</strong> <span class="placeholder-line">&nbsp;</span></span>
+                            <span><strong>Grupo:</strong> <span class="placeholder-line">&nbsp;</span></span>
+                            <span><strong>Teléfono:</strong> <span class="placeholder-line">&nbsp;</span></span>
+                            <span><strong>Email:</strong> <span class="placeholder-line">&nbsp;</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <nav class="clinical-section-tabs" aria-label="Secciones del formulario">
+            <span class="tabs-label">Secciones:</span>
+            <a href="#sec-anamnesis" class="tab-item active">1. Anamnesis &amp; Motivo</a>
+            <a href="#sec-antecedentes" class="tab-item">2. Antecedentes Sistémicos</a>
+            <a href="#sec-examen" class="tab-item">3. Odontograma &amp; Hallazgos</a>
+            <a href="#sec-diagnostico" class="tab-item">4. Diagnósticos CIE-10 &amp; Evolución</a>
+            <a href="#sec-adjuntos" class="tab-item">5. Adjuntos &amp; Consentimiento</a>
+        </nav>
+
+        <form class="clinical-form" id="historia-clinica-form" onsubmit="event.preventDefault();">
             @Html.AntiForgeryToken()
+            <section class="form-card" id="sec-anamnesis">
+                <div class="card-header">
+                    <div class="card-head-left">
+                        <span class="card-step">1</span>
+                        <div>
+                            <h2>Anamnesis y Motivo de Consulta</h2>
+                            <p>Razón principal de la cita referida por el paciente y sintomatología</p>
+                        </div>
+                    </div>
+                    <span class="required-chip">Campos Obligatorios</span>
+                </div>
 
-            <div class="form-group">
-              <label class="form-lbl" for="fDiag">Diagnóstico <span class="required" aria-hidden="true">*</span></label>
-              <textarea class="form-ctrl" id="fDiag" name="diagnostico" rows="3"
-                placeholder="Caries en pieza 12, cara vestibular..." required aria-required="true"
-                aria-describedby="diagHelp"></textarea>
-              <small id="diagHelp" class="visually-hidden">Describe el diagnóstico clínico del paciente</small>
-              <span class="error-message" id="errorDiag" role="alert" aria-live="assertive"></span>
+                <div class="card-body">
+                    <div class="field-group">
+                        <label for="motivo_consulta">Motivo de la Consulta <span class="required-mark">*</span><small>(Expresado textualmente por el paciente)</small></label>
+                        <textarea id="motivo_consulta" rows="2" placeholder="Escribe el motivo principal de la consulta..."></textarea>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="enfermedad_actual">Enfermedad o Padecimiento Actual <span class="required-mark">*</span><small>(Cronología, intensidad de dolor, factores de alivio/agravantes)</small></label>
+                        <textarea id="enfermedad_actual" rows="3" placeholder="Describe la enfermedad o padecimiento actual del paciente..."></textarea>
+                    </div>
+
+                    <div class="field-group checkbox-group">
+                        <label>Síntomas y Signos Principales Referidos</label>
+                        <div class="checkbox-grid">
+                            <label class="check-option"><input type="checkbox" /> <span>Sensibilidad al frío</span></label>
+                            <label class="check-option"><input type="checkbox" /> <span>Dolor al masticar</span></label>
+                            <label class="check-option"><input type="checkbox" /> <span>Halitosis</span></label>
+                            <label class="check-option"><input type="checkbox" /> <span>Enrojecimiento de encía</span></label>
+                            <label class="check-option"><input type="checkbox" /> <span>Fiebre</span></label>
+                            <label class="check-option"><input type="checkbox" /> <span>Molestia al frío</span></label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-card" id="sec-antecedentes">
+                <div class="card-header">
+                    <div class="card-head-left">
+                        <span class="card-step" style="background:#0ea5e9;">2</span>
+                        <div>
+                            <h2>Antecedentes Sistémicos</h2>
+                            <p>Antecedentes médicos, hábitos y condiciones relevantes del paciente</p>
+                        </div>
+                    </div>
+                    <span class="required-chip">Revisión</span>
+                </div>
+
+                <div class="card-body">
+                    <div class="field-group">
+                        <label for="antecedentes_medicos">Antecedentes Médicos <small>(Enfermedades, cirugías, tratamientos previos)</small></label>
+                        <textarea id="antecedentes_medicos" rows="3" placeholder="Escribe aquí los antecedentes médicos relevantes..."></textarea>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="habitos">Hábitos y Estilo de Vida</label>
+                        <textarea id="habitos" rows="3" placeholder="Ej. tabaco, alcohol, bruxismo, higiene oral, dieta..."></textarea>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="alergias">Alergias / Medicamentos</label>
+                        <textarea id="alergias" rows="2" placeholder="Registra alergias, medicamentos actuales o intolerancias..."></textarea>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-card" id="sec-examen">
+                <div class="card-header">
+                    <div class="card-head-left">
+                        <span class="card-step" style="background:#8b5cf6;">3</span>
+                        <div>
+                            <h2>Examen Clínico y Hallazgos Odontológicos</h2>
+                            <p>Odontograma, observaciones, piezas afectadas y exámenes complementarios</p>
+                        </div>
+                    </div>
+                    <span class="required-chip">Examen</span>
+                </div>
+
+                <div class="card-body">
+                    <div class="field-group">
+                        <label for="hallazgos">Hallazgos de Examen</label>
+                        <textarea id="hallazgos" rows="3" placeholder="Describe hallazgos clínicos, estado de encías, cavidades, movilidad, mucosa, etc..."></textarea>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="odontograma_observaciones">Observaciones del Odontograma</label>
+                        <textarea id="odontograma_observaciones" rows="3" placeholder="Indica piezas afectadas, tratamiento recomendado, restauraciones o cambios observados..."></textarea>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="examenes_complementarios">Exámenes Complementarios</label>
+                        <textarea id="examenes_complementarios" rows="2" placeholder="Radiografías, fotos intraorales, estudios adicionales..."></textarea>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-card" id="sec-diagnostico">
+                <div class="card-header">
+                    <div class="card-head-left">
+                        <span class="card-step" style="background:#4f46e5;">4</span>
+                        <div>
+                            <h2>Diagnósticos Codificados (CIE-10) y Evolución Clínica</h2>
+                            <p>Diagnóstico clínico, evolución y prescripción farmacológica</p>
+                        </div>
+                    </div>
+                    <span class="required-chip">CIE-10 odontología</span>
+                </div>
+
+                <div class="card-body">
+                    <div class="diagnostic-grid">
+                        <div class="field-group">
+                            <label for="diagnostico_principal">Diagnóstico Principal (CIE-10) <span class="required-mark">*</span></label>
+                            <select id="diagnostico_principal">
+                                <option value="">Seleccione un diagnóstico</option>
+                                <option>K02.1 - Caries de la dentina</option>
+                                <option>K04.4 - Periodontitis apical</option>
+                                <option>K05.1 - Gingivitis marginal</option>
+                            </select>
+                        </div>
+                        <div class="field-group">
+                            <label for="diagnostico_secundario">Diagnósticos Secundarios / Comorbilidades</label>
+                            <input id="diagnostico_secundario" type="text" value="" placeholder="Ej. K05.1 Gingivitis marginal; F45.8 Bruxismo" />
+                        </div>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="evolucion_clinica">Nota de Evolución Clínica y Acto Odontológico Realizado <span class="required-mark">*</span></label>
+                        <textarea id="evolucion_clinica" rows="3" placeholder="Escribe la evolución clínica y el procedimiento realizado..."></textarea>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="prescripcion">Prescripción Farmacológica e Instrucciones al Paciente</label>
+                        <textarea id="prescripcion" rows="2" placeholder="Escribe la prescripción, indicaciones y plan de manejo..."></textarea>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-card" id="sec-adjuntos">
+                <div class="card-header">
+                    <div class="card-head-left">
+                        <span class="card-step" style="background:#10b981;">5</span>
+                        <div>
+                            <h2>Documentación Diagnóstica y Consentimiento Informado</h2>
+                            <p>Estudios imagenológicos, fotografías clínicas y validación legal</p>
+                        </div>
+                    </div>
+                    <button type="button" class="mini-btn">+ Adjuntar Nuevo Estudio</button>
+                </div>
+
+                <div class="card-body file-area">
+                    <div class="file-grid empty-file-grid">
+                        <div class="upload-box full-span">
+                            <div class="upload-ghost">⇪</div>
+                            <strong>Arrastra o selecciona estudios</strong>
+                            <span>Radiografías, fotos intraorales o documentos anexos</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="bottom-form-actions">
+                <label class="remember-toggle"><input type="checkbox" /> <span>Autoguardado automático habilitado</span></label>
+                <div class="bottom-actions-right">
+                    <button type="button" class="soft-btn subtle">Restablecer Valores</button>
+                    <button type="submit" class="primary-btn">Guardar Historia Clínica</button>
+                </div>
             </div>
-
-            <div class="form-group">
-              <label class="form-lbl" for="fProc">Procedimiento <span class="required"
-                  aria-hidden="true">*</span></label>
-              <input class="form-ctrl" id="fProc" name="procedimiento" type="text"
-                placeholder="Obturación con resina compuesta" required aria-required="true" />
-              <span class="error-message" id="errorProc" role="alert" aria-live="assertive"></span>
-            </div>
-
-            <div class="form-group">
-              <label class="form-lbl" for="fCita">Próxima cita sugerida</label>
-              <input class="form-ctrl" id="fCita" name="proximaCita" type="date" aria-describedby="citaHelp" />
-              <small id="citaHelp" class="form-help">Fecha opcional para seguimiento</small>
-            </div>
-
-            <button type="submit" class="btn-primary btn-full" id="btnGuardar"
-              aria-label="Guardar entrada clínica del paciente">Guardar entrada clínica</button>
-          </form>
-        </div>
-
-      </aside>
+        </form>
     </div>
 
-  </main>
+    <div id="holo-tooltip-historial" role="status" aria-live="polite"></div>
+</main>
 
-  <!-- Mobile bottom nav con aria-label -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">🏠</span>
-      <span>Dashboard</span>
-    </a>
-    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
-      <span>Agenda</span>
-    </a>
-    <a href="/historia-clinica/st-odo-06-pacientes" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">👥</span>
-      <span>Pacientes</span>
-    </a>
-    <a href="/historia-clinica/st-odo-03-historial" class="mobile-nav-item active"
-      aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
-      <span>Historial</span>
-    </a>
-    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional"
-      class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
-      <span>Perfil</span>
-    </a>
-  </nav>
-
-  <!-- Toast para notificaciones accesibles -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Estilos para contenido solo accesible por screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-
-    .error-message {
-      color: var(--danger);
-      font-size: .72rem;
-      margin-top: 4px;
-      display: none;
-    }
-
-    .error-message.visible {
-      display: block;
-    }
-
-    .form-ctrl.error {
-      border-color: var(--danger);
-      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
-    }
-  </style>
-
-  <script>
+<script>
     window.smiletrackHistoriaData = @Html.Raw(historiaDataJson);
-  </script>
-  <script src="@Url.Content("~/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js")"></script>
+</script>
 
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span style="font-size:1rem;">🦷</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-
-
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-</body>
-
-</html>
+@section Scripts {
+    <script src="@Url.Content("~/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js")" asp-append-version="true"></script>
+}

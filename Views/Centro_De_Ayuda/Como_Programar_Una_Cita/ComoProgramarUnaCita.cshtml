@@ -1,11 +1,20 @@
-﻿@* Vista con sidebar unificado (igual que st-adm-01 dashboard) usando _SidebarAdmin parcial *@
+﻿@* Vista con el sidebar correspondiente al rol autenticado. *@
 @{
     Layout = null;
+    var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
+    var roleLabel = role switch
+    {
+      "profesional" or "odontologo" or "odontólogo" or "doctor" => "Panel Profesional",
+      "paciente" => "Panel Paciente",
+      "recepcionista" => "Panel Recepcionista",
+      "auxiliar" => "Panel Auxiliar",
+      _ => "Panel Administrador"
+    };
 
     // Contenido estático del artículo
     var articleTitle = "Cómo programar una cita";
     var articleIntro = "Aprende paso a paso cómo agendar una nueva cita en SmileTrack de forma correcta, asignando paciente, profesional, consultorio y servicio en menos de 1 minuto.";
-    var videoThumb = Url.Content("~/images/logo.jpg");
+    var videoThumb = Url.Content("~/images/Imagenes/Logos/logo.jpg");
     var videoAlt = "Tutorial para programar una cita en SmileTrack";
 
     // Pasos de la guía
@@ -87,8 +96,11 @@
     }
   </script>
 
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
   <!-- ⭐ CSS PRINCIPAL: sidebar + layout (MISMO que st-adm-01) -->
   <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-adm-01-dashboard/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css?v=20260915")" />
 
   <!-- ⭐ CSS ESPECÍFICO DE ESTA GUÍA (bento grid, video, etc.) -->
   <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Como_Programar_Una_Cita/styles.css")" />
@@ -104,25 +116,7 @@
   <!-- ============================================================= -->
   <!--  SIDEBAR UNIFICADO (MISMA ESTRUCTURA QUE st-adm-01)          -->
   <!-- ============================================================= -->
-  <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
-    <div class="sidebar-logo">
-      <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
-    </div>
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
-    <div class="sidebar-user">
-      <div class="user-avatar" aria-hidden="true">
-        @(
-          User.Identity?.Name?.Length >= 2
-            ? User.Identity.Name.Substring(0, 2).ToUpperInvariant()
-            : (User.Identity?.Name?.ToUpperInvariant() ?? "U")
-        )
-      </div>
-      <div class="user-info">
-        <span class="user-role">@User.Identity?.Name</span>
-        <span class="user-email">@User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value</span>
-      </div>
-    </div>
-  </aside>
+  @{ await Html.RenderPartialAsync("_SidebarDynamic"); }
 
   <!-- ============================================================= -->
   <!--  HAMBURGER + OVERLAY (MÓVIL) — IGUAL QUE st-adm-01           -->
@@ -143,11 +137,13 @@
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <span>@roleLabel</span>
+          <span class="bc-sep" aria-hidden="true">→</span>
           <span>Centro de Ayuda</span>
           <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active">@articleTitle</span>
         </nav>
-        <h1 class="page-title">Guía: @articleTitle</h1>
+        <h1 class="page-title" data-i18n="help.recommended">Guía: @articleTitle</h1>
         <p class="page-subtitle">
           Tutorial paso a paso ·
           <time datetime="@DateTime.Now.ToString("yyyy-MM-dd")">Actualizado el @DateTime.Now.ToString("dddd d 'de' MMMM yyyy", new System.Globalization.CultureInfo("es-ES"))</time>
@@ -156,11 +152,11 @@
     </header>
 
     <!-- Contenido de la guía (Bento grid) -->
-    <section style="padding:0 var(--page-padding); max-width:1100px; margin:0 auto;" aria-label="Contenido de la guía">
+    <section class="guide-content" aria-label="Contenido de la guía">
       <div class="bento-grid">
         <!-- Main Article -->
         <div class="col-span-12 lg:col-span-8 space-y-gutter">
-          <article class="bg-white rounded-[24px] p-card-padding shadow-[0_10px_32px_rgba(15,39,71,0.08)] border border-slate-200">
+          <article class="guide-card bg-white rounded-[24px] p-card-padding shadow-[0_10px_32px_rgba(15,39,71,0.08)] border border-slate-200">
             <div class="flex items-center gap-3 mb-6">
               <div class="p-3 rounded-xl bg-secondary/10 text-secondary">
                 <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">calendar_add_on</span>
@@ -247,7 +243,7 @@
         <!-- Sidebar de la guía -->
         <div class="col-span-12 lg:col-span-4 space-y-gutter">
           <!-- Relacionados -->
-          <div class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(0,0,0,0.08)]">
+          <div class="guide-card bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(0,0,0,0.08)]">
             <h3 class="font-headline-md text-headline-md text-primary mb-4">Temas relacionados</h3>
             <div class="space-y-3" role="list">
               @foreach (var topic in relatedTopics)
@@ -275,7 +271,7 @@
           </div>
 
           <!-- Tags -->
-          <div class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(0,0,0,0.08)]">
+          <div class="guide-card bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(0,0,0,0.08)]">
             <h3 class="font-headline-md text-headline-md text-primary mb-4">Etiquetas</h3>
             <div class="flex flex-wrap gap-2">
               @foreach (var tag in tags)
@@ -329,11 +325,13 @@
   <script>
     window.APP_CONFIG = { ApiBase: '/api' };
   </script>
-  <!-- ⭐ JS UNIFICADO SIDEBAR: mismo que st-adm-01 para que funcione colapsado, hamburger, overlay, grupos -->
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-adm-01-dashboard/app.js")"></script>
+  <!-- Sidebar compartido: navegación, acordeón y menú móvil -->
+  <script src="@Url.Content("~/js/shared/sidebar.js?v=20260915")"></script>
 
   <!-- JS ESPECÍFICO DE LA GUÍA (rating, modal temas) -->
   <script src="@Url.Content("~/js/Centro_De_Ayuda/Como_Programar_Una_Cita/script.js")" defer></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
 </body>
 </html>
 

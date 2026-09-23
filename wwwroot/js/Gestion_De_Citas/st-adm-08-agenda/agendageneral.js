@@ -40,6 +40,8 @@ const activeAnimations = new Set();
 
 // Array de funciones de limpieza para remover event listeners
 const cleanupHandlers = [];
+let agendaEditRequestHandler = null;
+let agendaNewAppointmentHandler = null;
 
 // ════════════════════════════════════════════════════════════════════
 //  UTILIDADES GLOBALES
@@ -108,40 +110,16 @@ const trackedRAF = (callback) => {
 };
 
 // ════════════════════════════════════════════════════════════════════
-//  FUNCIONES DE ANIMACIÓN
+//  FUNCIONES DE ANIMACIÓN  (ahora usa window.animateCounter global)
 // ════════════════════════════════════════════════════════════════════
-
-/**
- * Anima un contador numérico desde 0 hasta el valor objetivo.
- */
-const animateCounter = (element, targetString) => {
-    if (!element) return;
-
-    const targetValue = parseInt(targetString, 10);
-    
-    // Validar que el target sea un número válido y positivo
-    if (isNaN(targetValue) || targetValue <= 0) return;
-
-    let currentValue = 0;
-    const step = Math.max(1, Math.ceil(targetValue / 30));
-
-    const animationInterval = setInterval(() => {
-        currentValue = Math.min(currentValue + step, targetValue);
-        element.textContent = currentValue;
-
-        if (currentValue >= targetValue) {
-            clearInterval(animationInterval);
-        }
-    }, 30);
-};
 
 /**
  * Inicializa todas las animaciones nativas del dashboard.
  */
 const initNativeAnimations = () => {
     // Animar contadores numéricos
-    document.querySelectorAll('.stat-number[data-target]').forEach(element => {
-        animateCounter(element, element.dataset.target);
+    document.querySelectorAll('.stat-number[data-target]:not([data-animated="1"])').forEach(element => {
+        window.animateCounter(element, Number(element.dataset.target) || 0);
     });
 
     // Animar barras de progreso usando requestAnimationFrame rastreado
@@ -151,39 +129,6 @@ const initNativeAnimations = () => {
         });
     });
 };
-
-// ════════════════════════════════════════════════════════════════════
-//  EXPORTACIÓN DE REPORTE PDF
-// ════════════════════════════════════════════════════════════════════
-
-/**
- * Genera y descarga un reporte PDF.
- * En producción, reemplazar con llamada real a la API.
- */
-async function exportReport() {
-    try {
-        // Simulación de delay de red
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Crear blob y generar descarga
-        const reportContent = 'Reporte de Dashboard SmileTrack';
-        const blob = new Blob([reportContent], { type: 'application/pdf' });
-        const downloadUrl = window.URL.createObjectURL(blob);
-
-        const downloadLink = document.createElement('a');
-        downloadLink.href = downloadUrl;
-        downloadLink.download = `reporte-dashboard-${new Date().toISOString().slice(0, 10)}.pdf`;
-        downloadLink.click();
-
-        // Liberar memoria del objeto URL
-        window.URL.revokeObjectURL(downloadUrl);
-
-        return true;
-    } catch (error) {
-        console.error('[SmileTrack][API] Error exportando reporte:', error);
-        throw error;
-    }
-}
 
 // ════════════════════════════════════════════════════════════════════
 //  INICIALIZACIÓN DE COMPONENTES
@@ -255,49 +200,6 @@ const initSidebar = () => {
     });
 };
 
-/**
- * Inicializa la funcionalidad de exportación de reportes.
- */
-const initExport = () => {
-    const exportButton = safeGetElement('btnExport');
-    const progressBar = safeGetElement('topProgressBar');
-
-    if (!exportButton || !progressBar) return;
-
-    const handleExportClick = async () => {
-        if (exportButton.disabled) return;
-
-        // Actualizar UI durante la exportación
-        exportButton.disabled = true;
-        exportButton.innerHTML = '⏳ Generando...';
-
-        progressBar.style.transition = 'width 1s cubic-bezier(.4,0,.2,1)';
-        progressBar.style.width = '100%';
-
-        try {
-            await exportReport();
-            window.ToastService.error('✅ Reporte PDF generado exitosamente');
-        } catch (error) {
-            window.ToastService.success('❌ Error al generar reporte');
-        } finally {
-            // Restaurar estado del botón después de un breve delay
-            setTimeout(() => {
-                exportButton.disabled = false;
-                exportButton.innerHTML = '📄 Exportar PDF';
-
-                const progressRow = progressBar.closest('.progress-row');
-                const originalWidth = progressRow?.getAttribute('aria-valuenow') || '75';
-                progressBar.style.width = `${originalWidth}%`;
-            }, 500);
-        }
-    };
-
-    exportButton.addEventListener('click', handleExportClick);
-    cleanupHandlers.push(() => {
-        exportButton.removeEventListener('click', handleExportClick);
-    });
-};
-
 // ════════════════════════════════════════════════════════════════════
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ════════════════════════════════════════════════════════════════════
@@ -311,6 +213,8 @@ const initWeekNavigation = () => {
     const btnPrev = safeGetElement('btnPrev');
     const btnNext = safeGetElement('btnNext');
     const btnToday = safeGetElement('btnToday');
+    const filterProfessional = safeGetElement('filterProfessional');
+    const filterOffice = safeGetElement('filterOffice');
 
     if (!weekLabelEl || !btnPrev || !btnNext || !btnToday) return;
 
@@ -353,6 +257,8 @@ const initWeekNavigation = () => {
                 weekLabelEl.textContent = newWeekLabel.textContent || weekLabelEl.textContent;
                 const ds = newWeekLabel.getAttribute('data-week-start');
                 if (ds) weekLabelEl.dataset.weekStart = ds;
+                const duration = newWeekLabel.getAttribute('data-duration-minutes');
+                if (duration) weekLabelEl.dataset.durationMinutes = duration;
             }
         } catch (err) {
             console.error('[SmileTrack][Agenda] Error reemplazando sección de calendario:', err);
@@ -360,9 +266,15 @@ const initWeekNavigation = () => {
     };
 
     const loadWeek = async (weekStartIso, push = true) => {
+        const calendarSection = document.querySelector('.calendar-section');
+        calendarSection?.classList.add('is-loading');
         try {
             const search = new URLSearchParams(window.location.search);
             search.set('weekStart', weekStartIso);
+            if (filterProfessional?.value) search.set('professionalId', filterProfessional.value);
+            else search.set('professionalId', '0');
+            if (filterOffice?.value) search.set('officeId', filterOffice.value);
+            else search.delete('officeId');
             const url = `/gestion-de-citas/st-adm-08-agenda?${search.toString()}`;
             const res = await fetch(url, { credentials: 'same-origin' });
             if (!res.ok) throw new Error('No se pudo cargar la semana');
@@ -376,36 +288,56 @@ const initWeekNavigation = () => {
         } catch (err) {
             console.error('[SmileTrack][Agenda] Error cargando semana:', err);
             window.ToastService.error('❌ No fue posible cargar la semana seleccionada');
+        } finally {
+            calendarSection?.classList.remove('is-loading');
         }
     };
 
-    btnPrev.addEventListener('click', () => {
+    // FASE-0 E-MEM-01: Los handlers se declaran con nombre para que removeEventListener
+    // reciba LA MISMA referencia de función. Antes se usaban arrow functions nuevas
+    // en removeEventListener que nunca hacían match → memory leak real.
+    const handlePrevWeek = () => {
         const monday = currentWeekStart();
         monday.setDate(monday.getDate() - 7);
         loadWeek(toIso(monday));
-    });
+    };
 
-    btnNext.addEventListener('click', () => {
+    const handleNextWeek = () => {
         const monday = currentWeekStart();
         monday.setDate(monday.getDate() + 7);
         loadWeek(toIso(monday));
-    });
+    };
 
-    btnToday.addEventListener('click', () => {
+    const handleToday = () => {
         const monday = getMonday(new Date());
         loadWeek(toIso(monday));
-    });
+    };
 
-    window.addEventListener('popstate', (e) => {
+    const handlePopstate = (e) => {
         const stateWeek = (e.state && e.state.weekStart) || (new URLSearchParams(window.location.search)).get('weekStart');
+        const search = new URLSearchParams(window.location.search);
+        if (filterProfessional) filterProfessional.value = search.get('professionalId') || '';
+        if (filterOffice) filterOffice.value = search.get('officeId') || '';
         if (stateWeek) loadWeek(stateWeek, false);
-    });
+    };
+
+    const handleProfessionalFilter = () => loadWeek(toIso(currentWeekStart()));
+    const handleOfficeFilter = () => loadWeek(toIso(currentWeekStart()));
+
+    btnPrev.addEventListener('click', handlePrevWeek);
+    btnNext.addEventListener('click', handleNextWeek);
+    btnToday.addEventListener('click', handleToday);
+    filterProfessional?.addEventListener('change', handleProfessionalFilter);
+    filterOffice?.addEventListener('change', handleOfficeFilter);
+    window.addEventListener('popstate', handlePopstate);
 
     cleanupHandlers.push(() => {
-        btnPrev.removeEventListener('click', () => {});
-        btnNext.removeEventListener('click', () => {});
-        btnToday.removeEventListener('click', () => {});
-        window.removeEventListener('popstate', () => {});
+        btnPrev.removeEventListener('click', handlePrevWeek);
+        btnNext.removeEventListener('click', handleNextWeek);
+        btnToday.removeEventListener('click', handleToday);
+        filterProfessional?.removeEventListener('change', handleProfessionalFilter);
+        filterOffice?.removeEventListener('change', handleOfficeFilter);
+        window.removeEventListener('popstate', handlePopstate);
     });
 };
 
@@ -419,7 +351,8 @@ const init = async () => {
         // Navigation between weeks: improves UX by loading week content via fetch
         initWeekNavigation();
         initNativeAnimations();
-        initNewAppointmentModal(); // ← AGREGAR ESTA LÍNEA
+        initNewAppointmentModal();
+        initAppointmentDetailModal();
 
         setTimeout(() => {
             window.ToastService.success('✅ Panel administrativo cargado');
@@ -463,13 +396,43 @@ const initNewAppointmentModal = () => {
         return;
     }
 
+    if (form.dataset.initialized === 'true') return;
+    form.dataset.initialized = 'true';
+    let lastFocusedElement = null;
+
+    const getConfiguredDuration = () => {
+        const duration = Number(safeGetElement('weekLabel')?.dataset.durationMinutes);
+        return Number.isFinite(duration) && duration > 0 ? duration : 60;
+    };
+
+    const calculateEndTime = (startTime) => {
+        if (!startTime) return '';
+        const [hours, minutes] = startTime.split(':').map(Number);
+        const totalMinutes = hours * 60 + minutes + getConfiguredDuration();
+        return `${String(Math.floor((totalMinutes % 1440) / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
+    };
+
+    const syncEndTime = () => {
+        const endInput = form.querySelector('#newApptEndTime');
+        const startInput = form.querySelector('#newApptStartTime');
+        if (endInput) endInput.value = calculateEndTime(startInput?.value);
+    };
+
     /**
      * Abre el modal de nueva cita
      */
     const openModal = () => {
+        const detailModal = safeGetElement('modalAppointment');
+        if (detailModal?.classList.contains('open')) {
+            detailModal.classList.remove('open');
+            detailModal.setAttribute('aria-hidden', 'true');
+            detailModal.setAttribute('inert', '');
+        }
+        lastFocusedElement = document.activeElement;
         modalOverlay.classList.add('open');
         modalOverlay.setAttribute('aria-hidden', 'false');
         modalOverlay.removeAttribute('inert');
+        document.body.classList.add('modal-open');
         
         // Establecer fecha mínima como hoy
         const today = new Date().toISOString().split('T')[0];
@@ -480,6 +443,7 @@ const initNewAppointmentModal = () => {
                 dateInput.value = today;
             }
         }
+        syncEndTime();
 
         // Focus en el primer campo
         setTimeout(() => {
@@ -495,25 +459,74 @@ const initNewAppointmentModal = () => {
         modalOverlay.classList.remove('open');
         modalOverlay.setAttribute('aria-hidden', 'true');
         modalOverlay.setAttribute('inert', '');
+        document.body.classList.remove('modal-open');
         form.reset();
-        fabButton.focus();
+        if (lastFocusedElement instanceof HTMLElement) {
+            lastFocusedElement.focus();
+        } else {
+            fabButton.focus();
+        }
+        lastFocusedElement = null;
     };
+
+    const editAppointment = (event) => {
+        const data = event.detail;
+        if (!data) return;
+
+        const values = {
+            appointmentId: data.id,
+            newApptDate: data.date,
+            newApptStatus: data.status,
+            newApptStartTime: data.startTime,
+            newApptEndTime: data.endTime,
+            newApptPatient: data.patientId,
+            newApptProfessional: data.professionalId,
+            newApptOffice: data.officeId,
+            newApptService: data.serviceId,
+            newApptNotes: data.notes
+        };
+
+        Object.entries(values).forEach(([id, value]) => {
+            const input = form.querySelector(`#${id}`);
+            if (input && value !== undefined && value !== null) input.value = value;
+        });
+        openModal();
+    };
+
+    if (agendaEditRequestHandler) {
+        document.removeEventListener('smiletrack:edit-appointment', agendaEditRequestHandler);
+    }
+    agendaEditRequestHandler = editAppointment;
+    document.addEventListener('smiletrack:edit-appointment', agendaEditRequestHandler);
+
+    const newAppointmentFromCalendar = (event) => {
+        const date = event.detail?.date;
+        openModal();
+        const dateInput = form.querySelector('#newApptDate');
+        if (dateInput && date) dateInput.value = date;
+    };
+    if (agendaNewAppointmentHandler) {
+        document.removeEventListener('smiletrack:new-appointment', agendaNewAppointmentHandler);
+    }
+    agendaNewAppointmentHandler = newAppointmentFromCalendar;
+    document.addEventListener('smiletrack:new-appointment', agendaNewAppointmentHandler);
 
     /**
      * Mapea el estado de la cita a la clase CSS correspondiente
      */
     const getStatusClass = (status) => {
-        if (window.AppointmentUtils) {
-            return window.AppointmentUtils.getStatusLabelAndClass(status?.toLowerCase()).class;
-        }
-        const statusMap = {
-            'Agendada': 'reserved',
-            'Confirmada': 'confirmed',
-            'Asistida': 'attended',
-            'Cancelada': 'cancelled',
-            'Disponible': 'available'
-        };
-        return statusMap[status] || 'reserved';
+        const normalized = String(status ?? '').trim().toLowerCase();
+        if (normalized === 'disponible') return 'available';
+        if (normalized === 'pendiente') return 'reserved';
+
+        return {
+            programada: 'reserved',
+            confirmada: 'confirmed',
+            en_proceso: 'confirmed',
+            atendida: 'attended',
+            cancelada: 'cancelled',
+            no_asistida: 'cancelled'
+        }[CommonUtils.normalizeAppointmentStatus(status)] || 'reserved';
     };
 
     /**
@@ -533,6 +546,26 @@ const initNewAppointmentModal = () => {
         appointmentDiv.className = `appointment ${appointmentData.statusClass}`;
         appointmentDiv.setAttribute('tabindex', '0');
         appointmentDiv.setAttribute('role', 'button');
+        Object.entries({
+            id: appointmentData.id,
+            date: appointmentData.date,
+            startTime: appointmentData.startTime,
+            endTime: appointmentData.endTime,
+            status: appointmentData.status,
+            patientId: appointmentData.patientId,
+            professionalId: appointmentData.professionalId,
+            officeId: appointmentData.officeId,
+            serviceId: appointmentData.serviceId,
+            notes: appointmentData.notes,
+            patientName: appointmentData.patientName,
+            professionalName: appointmentData.professionalName,
+            officeName: appointmentData.officeName,
+            serviceName: appointmentData.serviceName
+        }).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                appointmentDiv.dataset[key] = String(value);
+            }
+        });
         
         const ariaLabel = `Cita ${appointmentData.status}: ${appointmentData.patientName}, ${appointmentData.startTime}, ${appointmentData.serviceName}, ${appointmentData.officeName}`;
         appointmentDiv.setAttribute('aria-label', ariaLabel);
@@ -553,12 +586,6 @@ const initNewAppointmentModal = () => {
         appointmentDiv.appendChild(timeElement);
         appointmentDiv.appendChild(patientElement);
         appointmentDiv.appendChild(detailElement);
-
-        // Agregar evento de clic para abrir detalle (si existe el modal de detalle)
-        appointmentDiv.addEventListener('click', () => {
-            console.log('[SmileTrack][Agenda] Abrir detalle de cita:', appointmentData);
-            // Aquí puedes integrar con el modal de detalle existente si lo necesitas
-        });
 
         return appointmentDiv;
     };
@@ -620,29 +647,38 @@ const initNewAppointmentModal = () => {
      * Envía los datos del formulario al servidor
      */
     const submitAppointment = async (formData) => {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 15000);
         try {
             const tokenInput = form.querySelector('input[name="__RequestVerificationToken"]');
             const token = tokenInput?.value || '';
 
-            const response = await fetch(`${API_BASE}/appointments`, {
+            const response = await fetch(`${API_BASE}/citas/agenda`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
-                    'RequestVerificationToken': token
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token
                 },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(formData),
+                signal: controller.signal
             });
 
             if (!response.ok) {
                 const errorBody = await response.json().catch(() => null);
-                throw new Error(errorBody?.message || 'Error al crear la cita');
+                throw new Error(errorBody?.message || `El servidor respondió con ${response.status}.`);
             }
 
             return await response.json();
         } catch (error) {
             console.error('[SmileTrack][API] Error al crear cita:', error);
+            if (error.name === 'AbortError') {
+                throw new Error('La solicitud tardó demasiado. Verifica tu conexión e inténtalo de nuevo.');
+            }
             throw error;
+        } finally {
+            window.clearTimeout(timeoutId);
         }
     };
 
@@ -671,7 +707,6 @@ const initNewAppointmentModal = () => {
                 Fecha: form.querySelector('#newApptDate').value,
                 Estado: form.querySelector('#newApptStatus').value,
                 HoraInicio: form.querySelector('#newApptStartTime').value,
-                HoraFin: form.querySelector('#newApptEndTime').value,
                 IdPaciente: parseIntOrNull(form.querySelector('#newApptPatient').value),
                 IdProfesional: parseIntOrNull(form.querySelector('#newApptProfessional').value),
                 IdConsultorio: parseIntOrNull(form.querySelector('#newApptOffice').value),
@@ -680,7 +715,9 @@ const initNewAppointmentModal = () => {
             };
 
             // Validación básica de campos obligatorios antes de enviar
-            if (!formData.Fecha || !formData.HoraInicio || !formData.HoraFin || !formData.IdPaciente || !formData.IdProfesional || !formData.IdConsultorio || !formData.IdServicio) {
+            const horaFinDerivada = calculateEndTime(formData.HoraInicio);
+
+            if (!formData.Fecha || !formData.HoraInicio || !formData.IdPaciente || !formData.IdProfesional || !formData.IdConsultorio || !formData.IdServicio) {
                 window.ToastService.warning('⚠️ Completa todos los campos obligatorios antes de guardar la cita.');
                 saveButton.disabled = false;
                 saveButton.textContent = originalText;
@@ -692,7 +729,7 @@ const initNewAppointmentModal = () => {
                 // Clear previous errors
                 form.querySelectorAll('input, select').forEach(input => window.ValidationUtils.clearError(input));
 
-                const errors = window.AppointmentUtils.validateAppointmentTime(formData.fecha, formData.horaInicio, formData.horaFin);
+                const errors = window.AppointmentUtils.validateAppointmentTime(formData.Fecha, formData.HoraInicio, horaFinDerivada);
                 if (errors.length > 0) {
                     errors.forEach(err => {
                         if (err.field === 'general') {
@@ -721,50 +758,57 @@ const initNewAppointmentModal = () => {
                 }
             } else {
                 // Fallback validación básica
-                if (!formData.fecha || !formData.horaInicio || !formData.horaFin) {
+                if (!formData.Fecha || !formData.HoraInicio) {
                     window.ToastService.warning('⚠️ Por favor complete todos los campos obligatorios');
                     saveButton.disabled = false;
                     saveButton.textContent = originalText;
                     return;
                 }
 
-                if (formData.horaInicio >= formData.horaFin) {
-                    window.ToastService.warning('⚠️ La hora de inicio debe ser anterior a la hora de fin');
-                    saveButton.disabled = false;
-                    saveButton.textContent = originalText;
-                    return;
-                }
             }
 
             // Preparar datos para el calendario
             const appointmentData = {
-                date: formData.fecha,
-                startTime: formData.horaInicio,
-                endTime: formData.horaFin,
-                status: formData.estado,
-                statusClass: getStatusClass(formData.estado),
+                date: formData.Fecha,
+                startTime: formData.HoraInicio,
+                endTime: horaFinDerivada,
+                status: formData.Estado,
+                statusClass: getStatusClass(formData.Estado),
                 patientName: getSelectedText(form.querySelector('#newApptPatient')),
                 professionalName: getSelectedText(form.querySelector('#newApptProfessional')),
                 officeName: getSelectedText(form.querySelector('#newApptOffice')),
                 serviceName: getSelectedText(form.querySelector('#newApptService')),
-                notes: formData.notas
+                notes: formData.Notas,
+                patientId: formData.IdPaciente,
+                professionalId: formData.IdProfesional,
+                officeId: formData.IdConsultorio,
+                serviceId: formData.IdServicio
             };
 
             // Enviar al servidor
             const result = await submitAppointment(formData);
 
-            if (result.success) {
-                // Agregar al calendario
-                const added = addAppointmentToCalendar(appointmentData);
-                
-                if (added) {
-                    window.ToastService.success('✅ Cita creada exitosamente');
-                    closeModal();
-                }
+            if (!result.success) {
+                throw new Error(result.message || 'El servidor no confirmó el guardado de la cita.');
+            }
+
+            const isUpdate = Boolean(formData.IdCita);
+            const added = !isUpdate && addAppointmentToCalendar(appointmentData);
+
+            window.ToastService.success(
+                isUpdate
+                    ? '✅ Cita actualizada exitosamente'
+                    : added
+                        ? '✅ Cita creada exitosamente'
+                        : '✅ Cita guardada. Cambia a la semana seleccionada para verla.'
+            );
+            closeModal();
+            if (isUpdate) {
+                window.setTimeout(() => window.location.reload(), 250);
             }
         } catch (error) {
             console.error('[SmileTrack][Agenda] Error al guardar cita:', error);
-            window.ToastService.error('❌ Error al crear la cita. Intente nuevamente.');
+            window.ToastService.error(`❌ ${error.message || 'No fue posible guardar la cita. Intente nuevamente.'}`);
         } finally {
             // Restaurar estado del botón
             saveButton.disabled = false;
@@ -777,19 +821,37 @@ const initNewAppointmentModal = () => {
     closeButton?.addEventListener('click', closeModal);
     cancelButton?.addEventListener('click', closeModal);
     form.addEventListener('submit', handleFormSubmit);
+    form.querySelector('#newApptStartTime')?.addEventListener('input', syncEndTime);
+    form.querySelector('#newApptStartTime')?.addEventListener('change', syncEndTime);
 
     // Cerrar modal al hacer clic fuera del contenido
-    modalOverlay.addEventListener('click', (event) => {
+    const handleOverlayClick = (event) => {
         if (event.target === modalOverlay) {
             closeModal();
         }
-    });
+    };
+    modalOverlay.addEventListener('click', handleOverlayClick);
 
     // Cerrar modal con tecla Escape
     const handleEscapeKey = (event) => {
         if (event.key === 'Escape' && modalOverlay.classList.contains('open')) {
             event.preventDefault();
             closeModal();
+            return;
+        }
+        if (event.key === 'Tab' && modalOverlay.classList.contains('open')) {
+            const focusable = [...modalOverlay.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+                .filter(element => !element.disabled && element.offsetParent !== null);
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
         }
     };
     document.addEventListener('keydown', handleEscapeKey);
@@ -800,7 +862,169 @@ const initNewAppointmentModal = () => {
         closeButton?.removeEventListener('click', closeModal);
         cancelButton?.removeEventListener('click', closeModal);
         form.removeEventListener('submit', handleFormSubmit);
-        modalOverlay.removeEventListener('click', closeModal);
+        form.querySelector('#newApptStartTime')?.removeEventListener('input', syncEndTime);
+        form.querySelector('#newApptStartTime')?.removeEventListener('change', syncEndTime);
+        modalOverlay.removeEventListener('click', handleOverlayClick);
         document.removeEventListener('keydown', handleEscapeKey);
+        document.removeEventListener('smiletrack:edit-appointment', editAppointment);
+        document.removeEventListener('smiletrack:new-appointment', newAppointmentFromCalendar);
+    });
+};
+
+const initAppointmentDetailModal = () => {
+    const modal = safeGetElement('modalAppointment');
+    const content = safeGetElement('modalApptContent');
+    const closeButton = safeGetElement('modalApptClose');
+    const cancelButton = safeGetElement('modalApptCancel');
+    const editButton = safeGetElement('modalApptEdit');
+    if (!modal || !content || !closeButton || !cancelButton || !editButton) return;
+    if (modal.dataset.initialized === 'true') return;
+    modal.dataset.initialized = 'true';
+
+    let selectedAppointment = null;
+    let lastFocusedElement = null;
+
+    const close = () => {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.setAttribute('inert', '');
+        document.body.classList.remove('modal-open');
+        if (lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus();
+        lastFocusedElement = null;
+        selectedAppointment = null;
+    };
+
+    const open = (element) => {
+        selectedAppointment = {
+            id: element.dataset.id,
+            date: element.dataset.date,
+            startTime: element.dataset.startTime,
+            endTime: element.dataset.endTime,
+            status: element.dataset.status,
+            patientId: element.dataset.patientId,
+            professionalId: element.dataset.professionalId,
+            officeId: element.dataset.officeId,
+            serviceId: element.dataset.serviceId,
+            notes: element.dataset.notes || '',
+            patientName: element.dataset.patientName || 'Sin paciente',
+            professionalName: element.dataset.professionalName || 'Sin profesional',
+            professionalEmail: element.dataset.professionalEmail || '',
+            professionalPhone: element.dataset.professionalPhone || '',
+            professionalRegistry: element.dataset.professionalRegistry || '',
+            professionalUserStatus: element.dataset.professionalUserStatus || '',
+            officeName: element.dataset.officeName || 'Sin consultorio',
+            serviceName: element.dataset.serviceName || 'Sin servicio'
+        };
+        content.innerHTML = '';
+        const rows = [
+            ['Paciente', selectedAppointment.patientName],
+            ['Profesional', selectedAppointment.professionalName]
+        ];
+        if (selectedAppointment.professionalEmail)
+            rows.push(['Correo profesional', selectedAppointment.professionalEmail]);
+        if (selectedAppointment.professionalPhone)
+            rows.push(['Teléfono profesional', selectedAppointment.professionalPhone]);
+        if (selectedAppointment.professionalRegistry)
+            rows.push(['Registro médico', selectedAppointment.professionalRegistry]);
+        if (selectedAppointment.professionalUserStatus)
+            rows.push(['Estado cuenta', selectedAppointment.professionalUserStatus]);
+        rows.push(
+            ['Fecha', selectedAppointment.date],
+            ['Horario', `${selectedAppointment.startTime} - ${selectedAppointment.endTime}`],
+            ['Servicio', selectedAppointment.serviceName],
+            ['Consultorio', selectedAppointment.officeName],
+            ['Estado', selectedAppointment.status],
+            ['Observaciones', selectedAppointment.notes || 'Sin observaciones']
+        );
+        rows.forEach(([label, value]) => {
+            const row = document.createElement('p');
+            const strong = document.createElement('strong');
+            strong.textContent = `${label}: `;
+            row.append(strong, document.createTextNode(value));
+            content.appendChild(row);
+        });
+        lastFocusedElement = document.activeElement;
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+        modal.removeAttribute('inert');
+        document.body.classList.add('modal-open');
+        closeButton.focus();
+    };
+
+    const handleCalendarClick = (event) => {
+        const appointment = event.target.closest('.appointment:not(.available)');
+        if (appointment) {
+            open(appointment);
+            return;
+        }
+        const available = event.target.closest('.appointment.available');
+        if (available) {
+            document.dispatchEvent(new CustomEvent('smiletrack:new-appointment', {
+                detail: { date: available.dataset.date }
+            }));
+        }
+    };
+    const handleCalendarKeydown = (event) => {
+        const appointment = event.target.closest('.appointment:not(.available)');
+        const available = event.target.closest('.appointment.available');
+        if ((event.key === 'Enter' || event.key === ' ') && appointment) {
+            event.preventDefault();
+            open(appointment);
+        } else if ((event.key === 'Enter' || event.key === ' ') && available) {
+            event.preventDefault();
+            document.dispatchEvent(new CustomEvent('smiletrack:new-appointment', {
+                detail: { date: available.dataset.date }
+            }));
+        }
+    };
+    const handleEdit = () => {
+        if (!selectedAppointment) return;
+        const appointmentToEdit = selectedAppointment;
+        close();
+        document.dispatchEvent(new CustomEvent('smiletrack:edit-appointment', { detail: appointmentToEdit }));
+    };
+    const handleEscape = (event) => {
+        if (!modal.classList.contains('open')) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            close();
+            return;
+        }
+        if (event.key === 'Tab') {
+            const focusable = [...modal.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+                .filter(element => !element.disabled && element.offsetParent !== null);
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+    };
+
+    document.addEventListener('click', handleCalendarClick);
+    document.addEventListener('keydown', handleCalendarKeydown);
+    closeButton.addEventListener('click', close);
+    cancelButton.addEventListener('click', close);
+    editButton.addEventListener('click', handleEdit);
+    const handleOverlayClick = (event) => {
+        if (event.target === modal) close();
+    };
+    modal.addEventListener('click', handleOverlayClick);
+    document.addEventListener('keydown', handleEscape);
+
+    cleanupHandlers.push(() => {
+        document.removeEventListener('click', handleCalendarClick);
+        document.removeEventListener('keydown', handleCalendarKeydown);
+        closeButton.removeEventListener('click', close);
+        cancelButton.removeEventListener('click', close);
+        editButton.removeEventListener('click', handleEdit);
+        modal.removeEventListener('click', handleOverlayClick);
+        document.removeEventListener('keydown', handleEscape);
+        document.body.classList.remove('modal-open');
     });
 };

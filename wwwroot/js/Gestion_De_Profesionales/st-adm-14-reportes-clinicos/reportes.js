@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Reportes Clínicos (st-adm-14-reportes-clinicos)
 ============================================
 Autor: Johan Santamaria
@@ -43,19 +43,11 @@ const debounce = (fn, delay) => {
 
 
 // ═══════════════════════════════════════════════════════════════════
-// ANIMACIÓN DE CONTADORES (igual a st-adm-07)
+// ANIMACIÓN DE CONTADORES  →  window.animateCounter (shared/utils.js)
 // ═══════════════════════════════════════════════════════════════════
 
-const animateCounter = (el, target) => {
-    if (!el) return;
-    let cur = 0;
-    const step = Math.max(1, Math.ceil(target / 30));
-    const t = setInterval(() => {
-        cur = Math.min(cur + step, target);
-        el.textContent = cur;
-        if (cur >= target) clearInterval(t);
-    }, 30);
-};
+// animateCounter conserva nombre de llamada por backward-compat;
+// el binding dinámico resuelve window.animateCounter automáticamente.
 
 // ═══════════════════════════════════════════════════════════════════
 // INICIALIZACIÓN DE COMPONENTES (iguales a st-adm-07)
@@ -82,7 +74,7 @@ const initServerStats = () => {
     const statEls = [
         safeGetElement('metricTotal'),
         safeGetElement('metricActivos'),
-        safeGetElement('metricVacaciones'),
+            safeGetElement('metricAttendanceRate'),
     ];
 
     statEls.forEach(el => {
@@ -100,9 +92,53 @@ const initServerStats = () => {
 // FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
+const initAlertButtons = () => {
+    const modal = safeGetElement('reportAlertModal');
+    const modalBody = safeGetElement('reportAlertBody');
+    const closeBtn = document.querySelector('.report-alert-close');
+    if (!modal || !modalBody) return;
+
+    const openModal = (text) => {
+        modalBody.textContent = text || 'Sin observación registrada.';
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        const closeFocusTarget = document.querySelector('.report-alert-close');
+        if (closeFocusTarget) closeFocusTarget.focus();
+    };
+
+    const closeModal = () => {
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+    };
+
+    document.querySelectorAll('.alert-trigger').forEach((button) => {
+        button.addEventListener('click', () => {
+            openModal(button.dataset.alert || 'Sin observación registrada.');
+        });
+    });
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeModal);
+    }
+
+    modal.addEventListener('click', (event) => {
+        const closeTarget = event.target instanceof HTMLElement && event.target.dataset.closeModal === 'true';
+        if (closeTarget || event.target === modal) {
+            closeModal();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+            closeModal();
+        }
+    });
+};
+
 const init = async () => {
     initSidebar();
     initServerStats(); // Anima contadores desde data-target
+    initAlertButtons();
 };
 
 // Ejecutar al cargar DOM

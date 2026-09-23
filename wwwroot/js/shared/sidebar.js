@@ -86,10 +86,16 @@
        * @param {boolean} expand - true para expandir, false para colapsar
        */
       function setExpanded(expand) {
+        header.classList.toggle('is-expanded', expand);
+        items.classList.toggle('is-expanded', expand);
+        items.style.visibility = expand ? 'visible' : 'hidden';
+        items.style.pointerEvents = expand ? 'auto' : 'none';
+
         if (expand) {
-          // WHY scrollHeight: permite que la transición CSS muestre el
-          // contenido completo sin hardcodear una altura máxima
-          items.style.maxHeight = items.scrollHeight + 'px';
+          // WHY Math.max: scrollHeight might be 0 or small if fonts/styles aren't fully rendered.
+          // Setting Math.max(items.scrollHeight, 500) guarantees the group is never clipped or hidden.
+          var realHeight = items.scrollHeight || 0;
+          items.style.maxHeight = Math.max(realHeight, 500) + 'px';
           arrow.style.transform = 'rotate(0deg)';
         } else {
           items.style.maxHeight = '0px';
@@ -113,6 +119,21 @@
        */
       function toggle() {
         var isCurrentlyExpanded = header.getAttribute('aria-expanded') === 'true';
+
+        if (!isCurrentlyExpanded) {
+          headers.forEach(function (otherHeader) {
+            if (otherHeader === header) return;
+            var otherItems = otherHeader.nextElementSibling;
+            var otherArrow = otherHeader.querySelector('.nav-arrow');
+            if (!otherItems || !otherArrow) return;
+            otherItems.style.maxHeight = '0px';
+            otherItems.style.visibility = 'hidden';
+            otherItems.style.pointerEvents = 'none';
+            otherArrow.style.transform = 'rotate(-90deg)';
+            otherHeader.setAttribute('aria-expanded', 'false');
+          });
+        }
+
         setExpanded(!isCurrentlyExpanded);
       }
 
@@ -215,6 +236,43 @@
         }
       });
     });
+
+    // ── Yeray (2025) - Fallo 5: sidebar sin contexto de paciente ─────────
+    //
+    // PROBLEMA: los links de Historia Clínica y Odontograma del sidebar
+    // del profesional navegaban sin ?pacienteId=, así que el controlador
+    // cargaba siempre el primer paciente disponible en BD en vez del que
+    // el profesional acababa de seleccionar en "Mis Pacientes".
+    //
+    // SOLUCIÓN: cuando el profesional selecciona un paciente (btn-detalle,
+    // btn-historial o clic en fila de pacientes.js), se guarda el id en
+    // sessionStorage bajo la clave 'st_paciente_id'. Aquí interceptamos
+    // los clicks en los dos links afectados y añadimos ?pacienteId=X solo
+    // si el valor existe en sessionStorage. Si no hay contexto guardado,
+    // la navegación ocurre sin parámetro (comportamiento anterior intacto).
+    //
+    // Solo se interceptan los dos links que realmente necesitan el contexto;
+    // todos los demás links del sidebar funcionan exactamente igual que antes.
+    var CONTEXT_LINKS = [
+      '/historia-clinica/st-odo-03-historial',
+      '/historia-clinica/st-odo-04-odontograma'
+    ];
+
+    var contextLinks = sidebar.querySelectorAll('a.nav-item');
+    contextLinks.forEach(function (link) {
+      var href = (link.getAttribute('href') || '').split('?')[0]; // ignorar params existentes
+      if (!CONTEXT_LINKS.includes(href)) return;  // solo los dos links afectados
+
+      link.addEventListener('click', function (e) {
+        var pacienteId = sessionStorage.getItem('st_paciente_id');
+        if (pacienteId) {
+          e.preventDefault();
+          window.location.href = href + '?pacienteId=' + encodeURIComponent(pacienteId);
+        }
+        // Sin contexto: deja que el navegador siga con el href original
+      });
+    });
+    // ─────────────────────────────────────────────────────────────────────
   }
 
   // ════════════════════════════════════════════════════════════════════

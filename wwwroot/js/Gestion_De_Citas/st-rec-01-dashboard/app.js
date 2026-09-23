@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Dashboard Recepción (st-rec-01-dashboard)
 ============================================
 Autor: Johan Santamaria
@@ -39,6 +39,14 @@ const debounce = (fn, delay) => {
   };
 };
 
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  "'": '&#39;',
+  '"': '&quot;'
+}[character]));
+
 // WHY: Muestra retroalimentación temporal autolimpiable para no interrumpir el flujo visual de la recepción
 
 // ═══ DATOS REALES DE CITAS (ver ConstruirDashboardRecepcionAsync en GestionCitasController.cs) ═══
@@ -54,11 +62,11 @@ const appointments = window.smiletrackDashboardRecData?.appointments || [];
  */
 const getActionMeta = (action) => {
   const map = {
-    'pencil':       { icon: '✏️', label: 'Editar',   cls: 'btn-icon action-btn edit',     danger: false },
-    'file-invoice': { icon: '🧾', label: 'Facturar', cls: 'btn-icon action-btn btn-facturar', danger: false },
-    'eye':          { icon: '👁️', label: 'Ver',      cls: 'btn-icon action-btn btn-view',  danger: false }
+    'pencil':       { icon: '✏️', label: 'Editar',   cls: 'btn-secondary edit',     danger: false },
+    'file-invoice': { icon: '🧾', label: 'Facturar', cls: 'btn-secondary btn-facturar', danger: false },
+    'eye':          { icon: '👁️', label: 'Ver',      cls: 'btn-secondary btn-view',  danger: false }
   };
-  return map[action] || { icon: '👁️', label: 'Ver', cls: 'btn-icon action-btn btn-view', danger: false };
+  return map[action] || { icon: '👁️', label: 'Ver', cls: 'btn-secondary btn-view', danger: false };
 };
 
 /**
@@ -78,20 +86,20 @@ const createAppointmentRow = (appt) => {
     const meta = getActionMeta(action);
     return `<button class="${meta.cls}" type="button"
               data-action="${action}"
-              title="${meta.label} cita de ${appt.patient}"
-              aria-label="${meta.label} cita de ${appt.patient}">
+              title="${escapeHtml(meta.label)} cita de ${escapeHtml(appt.patient)}"
+              aria-label="${escapeHtml(meta.label)} cita de ${escapeHtml(appt.patient)}">
               ${meta.icon} <span class="btn-text">${meta.label}</span>
             </button>`;
   }).join('');
 
   tr.innerHTML = `
-    <td class="col-hora">${appt.time}</td>
-    <td class="col-paciente">${appt.patient}</td>
-    <td class="col-profesional">${appt.doctor}</td>
-    <td class="col-servicio">${appt.service}</td>
-    <td><span class="status-badge ${appt.statusClass}" role="status" aria-label="Estado: ${appt.status}">${appt.status}</span></td>
+    <td class="col-hora">${escapeHtml(appt.time)}</td>
+    <td class="col-paciente">${escapeHtml(appt.patient)}</td>
+    <td class="col-profesional">${escapeHtml(appt.doctor)}</td>
+    <td class="col-servicio">${escapeHtml(appt.service)}</td>
+    <td><span class="status-badge ${escapeHtml(appt.statusClass)}" role="status" aria-label="Estado: ${escapeHtml(appt.status)}">${escapeHtml(appt.status)}</span></td>
     <td>
-      <div class="actions-cell" role="group" aria-label="Acciones para ${appt.patient}">
+      <div class="actions-cell" role="group" aria-label="Acciones para ${escapeHtml(appt.patient)}">
         ${actionButtons}
       </div>
     </td>
@@ -162,63 +170,7 @@ const handleTableAction = (e) => {
  * Consistente con módulos anteriores
  */
 const initMobileMenu = () => {
-  const ham = safeGetElement('hamburger');
-  const sb = safeGetElement('sidebar');
-  const ov = safeGetElement('overlay');
-  
-  if (!ham || !sb || !ov) return;
-  
-  // [MEJORA]: Sincronizar aria-expanded con estado visual
-  const toggleMenu = () => {
-    const isOpen = sb.classList.toggle('open');
-    ov.classList.toggle('open');
-    ham.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-    ov.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
-    
-    // [MEJORA]: Manejo de foco para accesibilidad
-    if (isOpen) {
-      sb.dataset.previousFocus = document.activeElement?.id || '';
-      const firstLink = sb.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      const prevFocus = sb.dataset.previousFocus;
-      if (prevFocus) safeGetElement(prevFocus)?.focus();
-    }
-  };
-  
-  ham.addEventListener('click', toggleMenu);
-  ov.addEventListener('click', () => {
-    sb.classList.remove('open');
-    ov.classList.remove('open');
-    ham.setAttribute('aria-expanded', 'false');
-    ov.setAttribute('aria-hidden', 'true');
-    ham.focus();
-  });
-  
-  // [MEJORA]: Cerrar menú al navegar (móvil)
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      if (window.innerWidth <= 680) {
-        sb.classList.remove('open');
-        ov.classList.remove('open');
-        ham.setAttribute('aria-expanded', 'false');
-        ov.setAttribute('aria-hidden', 'true');
-        ham.focus();
-      }
-    });
-  });
-  
-  // [MEJORA]: Escape cierra menú con restauración de foco
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sb.classList.contains('open')) {
-      e.preventDefault();
-      sb.classList.remove('open');
-      ov.classList.remove('open');
-      ham.setAttribute('aria-expanded', 'false');
-      ov.setAttribute('aria-hidden', 'true');
-      ham.focus();
-    }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 /**
@@ -279,12 +231,34 @@ const initAlertButtons = () => {
 // Renderiza los datos reales inyectados por el servidor: fecha/hora del encabezado,
 // estadísticas del día y banner de próximas citas (ver ConstruirDashboardRecepcionAsync
 // en GestionCitasController.cs).
+const renderProximasCitas = (proximas) => {
+  const banner = safeGetElement('alertBannerProximas');
+  const desc = safeGetElement('alertBannerDesc');
+  if (!banner || !desc) return;
+
+  desc.replaceChildren(...proximas.map(p => {
+    const paragraph = document.createElement('p');
+    const time = document.createElement('time');
+    time.dateTime = p.fechaIso || '';
+    const strong = document.createElement('strong');
+    strong.textContent = p.hora || '';
+    time.appendChild(strong);
+    paragraph.append(time, document.createTextNode(` ${p.texto || ''}`));
+    return paragraph;
+  }));
+  banner.style.display = proximas.length > 0 ? '' : 'none';
+};
+
 const renderResumenServidor = () => {
   const d = window.smiletrackDashboardRecData || {};
 
   const subtitle = safeGetElement('pageSubtitleDate');
   if (subtitle) {
-    subtitle.innerHTML = `${d.fechaHoraTexto || ''} - <time class="text-primary font-bold" datetime="${d.horaActualIso || ''}">${d.horaActualTexto || ''}</time>`;
+    const time = document.createElement('time');
+    time.className = 'text-primary font-bold';
+    time.dateTime = d.horaActualIso || '';
+    time.textContent = d.horaActualTexto || '';
+    subtitle.replaceChildren(document.createTextNode(`${d.fechaHoraTexto || ''} - `), time);
   }
 
   const stats = d.stats || {};
@@ -294,13 +268,44 @@ const renderResumenServidor = () => {
   set('statPendientes', stats.pendientes);
   set('statFacturasPendientes', stats.facturasPendientes);
 
-  const banner = safeGetElement('alertBannerProximas');
-  const desc = safeGetElement('alertBannerDesc');
   const proximas = d.proximasCitas || [];
-  if (banner && desc && proximas.length > 0) {
-    desc.innerHTML = proximas.map(p => `<p><time datetime="${p.fechaIso}"><strong>${p.hora}</strong></time> ${p.texto}</p>`).join('');
-    banner.style.display = '';
+  renderProximasCitas(proximas);
+};
+
+let proximasCitasTimer = null;
+
+const refreshProximasCitas = async () => {
+  if (document.hidden) return;
+  try {
+    const response = await fetch('/api/citas/proximas?ventanaMinutos=30', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) throw new Error(`status ${response.status}`);
+    const payload = await response.json();
+    renderProximasCitas(Array.isArray(payload.proximasCitas) ? payload.proximasCitas : []);
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudieron actualizar las próximas citas:', error);
   }
+};
+
+const initProximasPolling = () => {
+  const stop = () => {
+    if (proximasCitasTimer) {
+      clearInterval(proximasCitasTimer);
+      proximasCitasTimer = null;
+    }
+  };
+  const resume = () => {
+    stop();
+    if (!document.hidden) {
+      refreshProximasCitas();
+      proximasCitasTimer = setInterval(refreshProximasCitas, 30000);
+    }
+  };
+  document.addEventListener('visibilitychange', resume);
+  window.addEventListener('pagehide', stop, { once: true });
+  resume();
 };
 
 const init = () => {
@@ -314,6 +319,7 @@ const init = () => {
   // Inicializar interacciones
   initActionButtons();
   initAlertButtons();
+  initProximasPolling();
   
   // [MEJORA]: Event delegation para tabla de citas (performance)
   const tableBody = safeGetElement('appointmentsTable');

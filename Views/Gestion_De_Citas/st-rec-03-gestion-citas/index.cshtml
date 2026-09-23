@@ -1,4 +1,4 @@
-﻿@* ============================================
+@* ============================================
 SmileTrack — Gestión de Citas Recepción (st-rec-03-gestion-citas)
 ============================================
 Autor: Johan Santamaria
@@ -21,8 +21,13 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 ============================================ *@
-@{ Layout = null;
-  var profesionalesFilterOptions = ViewData["ProfesionalesFilterOptions"] as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
+@{ Layout = "_Layout"; ViewData["Title"] = "Gestión de Citas"; }
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-rec-03-gestion-citas/styles.css" asp-append-version="true" />
+}
+
+@{var profesionalesFilterOptions = ViewData["ProfesionalesFilterOptions"] as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
   var pacientes = ViewData["Pacientes"] as List<SmileTrack_MVC.Models.Entities.Paciente> ?? new();
   var profesionales = ViewData["Profesionales"] as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
   var servicios = ViewData["Servicios"] as List<SmileTrack_MVC.Models.Entities.Servicio> ?? new();
@@ -39,38 +44,9 @@ NOTAS DE MANTENIMIENTO:
   var statRecCanceladasHoy = (int)(ViewData["StatRecCanceladasHoy"] ?? 0);
 }
 
-﻿<!DOCTYPE html>
-<html lang="es">
+﻿
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Gestión de Citas</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Citas/st-rec-03-gestion-citas/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/footer.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/print.css")" media="print" />
-</head>
 
-<body>
-
-  <!-- Skip link para accesibilidad -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-    @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
-
-  <!-- ═════ HAMBURGER (móvil) ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
 
   <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
@@ -78,82 +54,118 @@ NOTAS DE MANTENIMIENTO:
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Recepción</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Gestión de citas</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
+          <span data-i18n="nav.group_citas">Recepción</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" data-i18n="citas.title">Gestión de citas</span>
         </nav>
-        <h1 class="page-title">Gestión de Citas</h1>
-        <p class="page-subtitle">Programa, modifica y cancela citas de manera eficiente.</p>
+        <h1 class="page-title" data-i18n="citas.title">Gestión de Citas</h1>
+        <p class="page-subtitle" data-i18n="citas.rec_subtitle">Programa, modifica y cancela citas de manera eficiente.</p>
       </div>
-      <button class="btn-primary" id="btnNuevaCita" aria-label="Crear nueva cita">➕ Nueva cita</button>
-      <button type="button" class="btn-secondary no-print" onclick="window.print()" aria-label="Imprimir listado de citas" style="display:flex;align-items:center;gap:6px;">🖨️ Imprimir</button>
+      <div class="header-actions">
+        <button type="button" class="btn-secondary no-print print-button" onclick="window.print()" aria-label="Imprimir listado de citas" data-i18n-aria-label="form.print">
+          <span class="material-symbols-outlined" aria-hidden="true">print</span>
+          <span data-i18n="form.print">Imprimir</span>
+        </button>
+        <button class="btn-primary" id="btnNuevaCita" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new"><span data-i18n="citas.new">➕ Nueva cita</span></button>
+      </div>
     </header>
 
-    <!-- View toggles -->
-    <div class="view-toggles" role="group" aria-label="Alternar vista de citas">
-      <button type="button" class="view-toggle active" data-view="table" aria-pressed="true" tabindex="0">📊 Tabla</button>
-      <button type="button" class="view-toggle" data-view="calendar" aria-pressed="false" tabindex="-1">📅 Calendario</button>
-      <button type="button" class="view-toggle" data-view="paused" aria-pressed="false" tabindex="-1">⏸️ Pausado (1)</button>
-    </div>
-
     <!-- Stats Grid -->
-    <section class="stats-grid" aria-label="Resumen de citas del día">
+    <section class="stats-grid" aria-label="Resumen de citas del día" data-i18n-aria-label="citas.dashboard_title">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="metricToday" data-target="@statRecHoy" aria-live="polite">0</span>
-
-
-        <span class="stat-label">Citas hoy</span>
+        <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="metricConfirmed" data-target="@statRecConfirmadas" aria-live="polite">0</span>
-        <span class="stat-label">Confirmadas</span>
+        <span class="stat-label" data-i18n="status.confirmed">Confirmadas</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="stat-number" id="metricPending" data-target="@statRecPendientes" aria-live="polite">0</span>
-        <span class="stat-label">Pendientes</span>
+        <span class="stat-label" data-i18n="status.pending">Pendientes</span>
       </div>
       <div class="stat-card" data-color="purple">
         <span class="stat-number" id="metricCancelled" data-target="@statRecCanceladasHoy" aria-live="polite">0</span>
-        <span class="stat-label">Canceladas hoy</span>
+        <span class="stat-label" data-i18n="status.cancelled">Canceladas hoy</span>
       </div>
     </section>
 
-    <form method="get" class="filter-bar" role="toolbar" aria-label="Filtros de citas">
-      <div class="search-wrap">
-        <span class="search-icon" aria-hidden="true">🔍</span>
-        <input type="search" class="search-input" id="searchPatient" name="search" placeholder="Buscar paciente…"
-          aria-label="Buscar por nombre de paciente" autocomplete="off" value="@ViewData["SearchFilter"]" />
+    <section class="queue-panel" aria-labelledby="pendingRequestsTitle" style="margin: 1.25rem 0; background: #fff; border-radius: 16px; padding: 1.25rem; box-shadow: 0 10px 30px rgba(15,23,42,0.06); border: 1px solid #e2e8f0;">
+      <div class="queue-header" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
+        <div>
+          <p style="margin:0; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Cola de atención</p>
+          <h2 id="pendingRequestsTitle" style="margin:0.35rem 0 0; font-size:1.2rem;">Solicitudes pendientes</h2>
+        </div>
+        <span id="solicitudesPendientesBadge" class="status-badge status-agendada" style="padding:0.5rem 0.75rem; border-radius:999px;">0</span>
       </div>
-      <select class="status-select" id="filterProfessional" name="profesional" aria-label="Filtrar por profesional">
-        <option value="">Todos los profesionales</option>
-        @foreach (var profesional in profesionalesFilterOptions)
-        {
-          var isSelected = ViewData["ProfesionalFilter"]?.ToString() == profesional.IdProfesional.ToString();
-          <option value="@profesional.IdProfesional" @(isSelected ? "selected" : "")>@profesional.NombreProfesional</option>
-        }
-      </select>
-      <input type="date" class="status-select" id="filterDate" name="fecha" aria-label="Filtrar por fecha" value="@ViewData["FechaFilter"]" />
-      <select class="status-select" id="filterStatus" name="estado" aria-label="Filtrar por estado">
-        <option value="">Todos los estados</option>
-        @{
-          var estadoActual = ViewData["EstadoFilter"]?.ToString();
-          var estadosFiltrar = new[] { "programada", "confirmada", "atendida", "cancelada" };
-          foreach (var e in estadosFiltrar)
-          {
-            var isSelected = estadoActual == e;
-            <option value="@e" @(isSelected ? "selected" : "")>@char.ToUpperInvariant(e[0])@e.Substring(1)</option>
-          }
-        }
-      </select>
-      <input type="hidden" name="page" value="1" />
-      <button class="btn-primary" type="submit">Aplicar</button>
-      <a class="btn-secondary" href="@Url.Action("Strec03GestionCitas", "GestionCitas")">Limpiar</a>
-    </form>
+      <div id="solicitudesPendientesList" class="pending-requests-list" aria-live="polite">
+        <div class="empty-state" role="status" style="padding:1.25rem; color:#64748b;">No hay solicitudes pendientes por confirmar.</div>
+      </div>
+    </section>
+
+    <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
+    <div class="table-tabs" role="tablist" aria-label="Filtrar citas por estado">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="all" id="tab-all">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_note</span>
+        Todas las citas
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="cancelled" id="tab-cancelled">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
+        Cancelaciones
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="no-show" id="tab-no-show">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_busy</span>
+        No asistió
+      </button>
+    </div>
+
+    <section class="filters-section" aria-label="Filtros de citas" data-i18n-aria-label="citas.filter_status">
+      <form method="get" class="filters-row">
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+          <input type="search" class="search-input" id="searchPatient" name="search" placeholder="Buscar paciente…"
+            aria-label="Buscar por nombre de paciente" data-i18n-ph="table.search" data-i18n-aria-label="citas.patient" autocomplete="off" value="@ViewData["SearchFilter"]" />
+        </div>
+        <div class="filter-wrap">
+          <label for="filterProfessional" class="visually-hidden">Filtrar por profesional</label>
+          <select class="status-select" id="filterProfessional" name="profesional" aria-label="Filtrar por profesional" data-i18n-aria-label="citas.filter_professional">
+            <option value="" data-i18n="citas.filter_professional">Todos los profesionales</option>
+            @foreach (var profesional in profesionalesFilterOptions)
+            {
+              var isSelected = ViewData["ProfesionalFilter"]?.ToString() == profesional.IdProfesional.ToString();
+              <option value="@profesional.IdProfesional" @(isSelected ? "selected" : "")>@profesional.NombreProfesional</option>
+            }
+          </select>
+        </div>
+        <div class="filter-wrap">
+          <label for="filterDate" class="visually-hidden">Filtrar por fecha</label>
+          <input type="date" class="status-select" id="filterDate" name="fecha" aria-label="Filtrar por fecha" data-i18n-aria-label="citas.filter_date" value="@ViewData["FechaFilter"]" />
+        </div>
+        <div class="filter-wrap">
+          <label for="filterStatus" class="visually-hidden">Filtrar por estado</label>
+          <select class="status-select" id="filterStatus" name="estado" aria-label="Filtrar por estado" data-i18n-aria-label="citas.filter_status">
+            <option value="" data-i18n="citas.filter_all_status">Todos los estados</option>
+            @{
+              var estadoActual = ViewData["EstadoFilter"]?.ToString();
+              var estadosFiltrar = new[] { "programada", "confirmada", "atendida", "cancelada" };
+              foreach (var e in estadosFiltrar)
+              {
+                var isSelected = estadoActual == e;
+                <option value="@e" @(isSelected ? "selected" : "")>@char.ToUpperInvariant(e[0])@e.Substring(1)</option>
+              }
+            }
+          </select>
+        </div>
+        <input type="hidden" name="page" value="1" />
+        <button class="btn-primary" type="submit" data-i18n="form.search">Aplicar</button>
+        <a class="btn-secondary" href="@Url.Action("Strec03GestionCitas", "GestionCitas")" data-i18n="form.clear">Limpiar</a>
+      </form>
+    </section>
 
     <!-- Availability alert (oculto por defecto) -->
     <div class="availability-alert" role="status" aria-live="polite" id="availabilityAlert" style="display:none;">
-      <span class="availability-alert-icon" aria-hidden="true">✅</span>
+      <span class="material-symbols-outlined availability-alert-icon" aria-hidden="true">check_circle</span>
       <p class="availability-alert-text">Disponibilidad validada</p>
     </div>
 
@@ -163,14 +175,14 @@ NOTAS DE MANTENIMIENTO:
         <table class="table-base" aria-label="Listado de citas">
           <thead>
             <tr>
-              <th scope="col">Fecha</th>
-              <th scope="col">Hora</th>
-              <th scope="col">Paciente</th>
-              <th scope="col">Profesional</th>
-              <th scope="col">Servicio</th>
-              <th scope="col">Consultorio</th>
-              <th scope="col">Estado</th>
-              <th scope="col">Acciones</th>
+              <th scope="col" data-i18n="citas.date">Fecha</th>
+              <th scope="col" data-i18n="citas.time">Hora</th>
+              <th scope="col" data-i18n="citas.patient">Paciente</th>
+              <th scope="col" data-i18n="citas.professional">Profesional</th>
+              <th scope="col" data-i18n="citas.service">Servicio</th>
+              <th scope="col" data-i18n="citas.office">Consultorio</th>
+              <th scope="col" data-i18n="citas.status">Estado</th>
+              <th scope="col" data-i18n="table.actions">Acciones</th>
             </tr>
           </thead>
           <tbody id="appointmentsTable" aria-live="polite">
@@ -179,11 +191,11 @@ NOTAS DE MANTENIMIENTO:
               <tr>
                 <td colspan="8">
                   <div class="empty-state" role="status" aria-label="Sin citas registradas" style="padding:48px 24px;text-align:center;">
-                    <div style="font-size:3rem;margin-bottom:12px;" aria-hidden="true">📅</div>
+                    <span class="material-symbols-outlined" aria-hidden="true" style="font-size:3rem;color:var(--text-muted,#94a3b8);display:inline-block;margin-bottom:12px;">calendar_month</span>
                     <p style="font-size:1.05rem;font-weight:600;color:var(--text-primary,#1e293b);margin:0 0 6px;">Sin citas para mostrar</p>
                     <p style="font-size:.9rem;color:var(--text-muted,#64748b);margin:0 0 20px;">No hay citas que coincidan con los filtros seleccionados.</p>
                     <button type="button" class="btn-primary" id="btnNuevaCitaEmpty" onclick="document.getElementById('btnNuevaCita')?.click()" aria-label="Crear nueva cita">
-                      ➕ Agendar primera cita
+                      <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">add</span>Agendar primera cita
                     </button>
                   </div>
                 </td>
@@ -222,6 +234,8 @@ NOTAS DE MANTENIMIENTO:
                 "atendida" or "finalizada" => "status-atendida",
                 "en consulta" or "en_proceso" or "en proceso" => "status-consulta",
                 "agendada" or "programada" or "confirmada" => "status-agendada",
+                "cancelada" or "cancelado" => "status-cancelada",
+                "no asistida" or "no_asistida" or "no-show" or "no asistió" => "status-no-asistio",
                 _ => "status-no-asistio"
               };
 
@@ -245,7 +259,9 @@ NOTAS DE MANTENIMIENTO:
                 <td>
                   <div class="actions-cell" role="group" aria-label="Acciones para @Html.Encode(citaPaciente)">
                     <button type="button"
-                            class="btn-icon action-btn btn-view"
+                            class="action-btn btn-secondary btn-view"
+                            data-action="view"
+                            data-id="@cita.IdCita"
                             aria-label="Ver detalles de la cita de @Html.Encode(citaPaciente)"
                             title="Ver detalles de la cita de @Html.Encode(citaPaciente)"
                             data-fecha="@Html.Encode(citaFecha)"
@@ -256,15 +272,32 @@ NOTAS DE MANTENIMIENTO:
                             data-consultorio="@Html.Encode(citaConsultorio)"
                             data-estado="@Html.Encode(citaEstado)"
                             data-notas="@Html.Encode(citaNotas)">
-                      👁️ <span class="btn-text">Ver</span>
+                      <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                      <span class="btn-text">Ver</span>
                     </button>
-                    <a class="btn-icon action-btn edit"
-                       href="@Url.Action("Strec03GestionCitas", "GestionCitas", new { editId = cita.IdCita })"
-                       aria-label="Editar la cita de @Html.Encode(citaPaciente)"
-                       title="Editar la cita de @Html.Encode(citaPaciente)"
-                       role="button">
-                      ✏️ <span class="btn-text">Editar</span>
-                    </a>
+                    <button type="button"
+                            class="action-btn btn-secondary edit"
+                            data-action="edit"
+                            data-id="@cita.IdCita"
+                            aria-label="Editar la cita de @Html.Encode(citaPaciente)"
+                            title="Editar la cita de @Html.Encode(citaPaciente)"
+                            role="button">
+                      <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                      <span class="btn-text">Editar</span>
+                    </button>
+                    @if (estadoLower != "cancelada" && estadoLower != "cancelado")
+                    {
+                      <button type="button"
+                              class="action-btn btn-danger btn-delete"
+                              data-action="cancel"
+                              data-id="@cita.IdCita"
+                              data-paciente="@Html.Encode(citaPaciente)"
+                              aria-label="Cancelar cita de @Html.Encode(citaPaciente)"
+                              title="Cancelar cita de @Html.Encode(citaPaciente)">
+                        <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                        <span class="btn-text">Cancelar</span>
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>
@@ -310,19 +343,19 @@ NOTAS DE MANTENIMIENTO:
   <!-- Mobile bottom nav -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-rec-01-dashboard" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">🏠</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">home</span></span>
       <span>Inicio</span>
     </a>
     <a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
       <span>Citas</span>
     </a>
     <a href="/perfiles/st-rec-06-perfil-recepcionista" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
       <span>Perfil</span>
     </a>
     <button class="mobile-nav-item" id="mobileMoreBtn" aria-label="Más opciones">
-      <span class="mobile-nav-icon" aria-hidden="true">⋮</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">more_horiz</span></span>
       <span>Más</span>
     </button>
   </nav>
@@ -533,41 +566,54 @@ NOTAS DE MANTENIMIENTO:
     </div>
   </div>
 
-  <!-- ═════ MODAL: SINCRONIZAR ═════ -->
-  <div class="modal-overlay" id="modalSyncCalendar" role="dialog" aria-modal="true" aria-labelledby="modalSyncTitle"
-    aria-hidden="true" inert>
-    <div class="modal modal--sm">
-      <button class="modal-close" id="modalSyncClose" aria-label="Cerrar modal">×</button>
-      <h2 class="modal-title" id="modalSyncTitle">Sincronizar con Calendario</h2>
-      <p class="modal-desc">Selecciona la plataforma para sincronizar esta cita:</p>
-      <div class="sync-options">
-        <button class="sync-option" id="syncGoogle" data-platform="google">
-          <span class="sync-icon" aria-hidden="true">📅</span><span>Google Calendar</span>
-        </button>
-        <button class="sync-option" id="syncOutlook" data-platform="outlook">
-          <span class="sync-icon" aria-hidden="true">🗓️</span><span>Outlook</span>
-        </button>
-        <button class="sync-option" id="syncApple" data-platform="apple">
-          <span class="sync-icon" aria-hidden="true">🍎</span><span>Apple Calendar</span>
-        </button>
-      </div>
-      <p class="sync-note">* La sincronización requiere permisos de acceso a tu calendario</p>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary" id="modalSyncCancel">Cancelar</button>
-      </div>
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL SSR: Confirmar Cancelación de Cita (patrón st-adm-09)
+       Idéntica estructura a #modalConfirmDeleteCita pero orientado a
+       recepción: solicita motivo antes de POST cancelar cita.
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalConfirmCancelCita" role="dialog" aria-modal="true"
+       aria-labelledby="modalConfirmCancelCitaTitle" aria-hidden="true" inert>
+    <div class="modal modal--sm" style="max-width:480px;">
+      <button class="modal-close" id="modalConfirmCancelCitaClose" aria-label="Cerrar ventana">×</button>
+      <h2 class="modal-title" id="modalConfirmCancelCitaTitle">Confirmar cancelación</h2>
+      <p id="modalConfirmCancelCitaMessage"
+         style="margin:16px 0 16px; line-height:1.5; color:var(--text-muted,#64748b);">
+        ¿Estás seguro de <strong>cancelar</strong> esta cita? El paciente recibirá una notificación y el cupo quedará libre.
+      </p>
+      <form id="formCancelCita" method="post" action="/gestion-de-citas/cancelar-cita">
+        @Html.AntiForgeryToken()
+        <input type="hidden" id="cancelCitaId" name="IdCita" value="" />
+        <input type="hidden" id="cancelCitaReturnUrl" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
+        <div class="form-group" style="margin-bottom:20px;">
+          <label class="form-label" for="cancelCitaMotivo">Motivo de la cancelación</label>
+          <select id="cancelCitaMotivo" name="MotivoCancelacion" class="form-input" required aria-required="true">
+            <option value="">Seleccione un motivo</option>
+            <option value="Paciente cancela">Paciente cancela</option>
+            <option value="Profesional no disponible">Profesional no disponible</option>
+            <option value="Cambio de agenda">Cambio de agenda</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="modalConfirmCancelCitaCancel">Cancelar</button>
+          <button type="submit" class="btn-primary"
+                  style="background:var(--red,#ef4444); border-color:var(--red,#ef4444);">
+            <span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">cancel</span>
+            Sí, cancelar cita
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span style="font-size:1rem;">🦷</span>
-      <p>© @DateTime.Now.Year Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track. <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO – SENA</p>
   </footer>
-
-<script src="@Url.Content("~/js/footer.js")"></script>
-<script src="@Url.Content("~/js/Gestion_De_Citas/st-rec-03-gestion-citas/app.js")"></script>
+<script src="@Url.Content("~/js/Gestion_De_Citas/st-rec-03-gestion-citas/app.js")" defer></script>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -686,18 +732,72 @@ NOTAS DE MANTENIMIENTO:
         }
       });
     });
+
+    // ═══ MODAL CONFIRMAR CANCELACIÓN DE CITA (patrón st-adm-09 SSR) ═══
+    const modalCancelCita = document.getElementById('modalConfirmCancelCita');
+    const cancelCitaIdInput = document.getElementById('cancelCitaId');
+    const cancelCitaMotivoSelect = document.getElementById('cancelCitaMotivo');
+    const cancelCitaMessageEl = document.getElementById('modalConfirmCancelCitaMessage');
+    const formCancelCita = document.getElementById('formCancelCita');
+
+    window.openConfirmCancelCita = (idCita, paciente, triggerEl) => {
+      if (!modalCancelCita) return;
+      if (cancelCitaIdInput) cancelCitaIdInput.value = String(idCita);
+      if (cancelCitaMessageEl && paciente) {
+        cancelCitaMessageEl.innerHTML =
+          `¿Estás seguro de <strong>cancelar</strong> la cita de <strong>${paciente}</strong>? El paciente recibirá una notificación y el cupo quedará libre.`;
+      }
+      if (cancelCitaMotivoSelect) { cancelCitaMotivoSelect.value = ''; cancelCitaMotivoSelect.selectedIndex = 0; }
+      modalCancelCita.classList.add('open');
+      modalCancelCita.setAttribute('aria-hidden', 'false');
+      modalCancelCita.removeAttribute('inert');
+      document.body.style.overflow = 'hidden';
+      setTimeout(() => cancelCitaMotivoSelect?.focus(), 120);
+    };
+
+    window.closeConfirmCancelCita = () => {
+      if (!modalCancelCita) return;
+      modalCancelCita.classList.remove('open');
+      modalCancelCita.setAttribute('aria-hidden', 'true');
+      modalCancelCita.setAttribute('inert', '');
+      if (cancelCitaIdInput) cancelCitaIdInput.value = '';
+      if (cancelCitaMotivoSelect) cancelCitaMotivoSelect.value = '';
+      if (!document.querySelector('.modal-overlay.open')) {
+        document.body.style.overflow = '';
+      }
+    };
+
+    // Enlazar botones Cancelar cita de la tabla
+    document.querySelectorAll('.btn-delete[data-action="cancel"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const paciente = btn.getAttribute('data-paciente') || '';
+        window.openConfirmCancelCita(id, paciente, btn);
+      });
+    });
+
+    // Botones cerrar/cancelar del modal
+    document.getElementById('modalConfirmCancelCitaClose')?.addEventListener('click', window.closeConfirmCancelCita);
+    document.getElementById('modalConfirmCancelCitaCancel')?.addEventListener('click', window.closeConfirmCancelCita);
+
+    // Click backdrop
+    if (modalCancelCita) {
+      modalCancelCita.addEventListener('click', (e) => {
+        if (e.target === modalCancelCita) window.closeConfirmCancelCita();
+      });
+    }
+
+    // Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modalCancelCita?.classList.contains('open')) {
+        e.preventDefault();
+        window.closeConfirmCancelCita();
+      }
+    });
   });
 </script>
 
-    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-    <script src="@Url.Content("~/js/shared/appointment-utils.js")"></script>
-</body>
-
-</html>
-
-
-
-
+@section Scripts {
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
+}

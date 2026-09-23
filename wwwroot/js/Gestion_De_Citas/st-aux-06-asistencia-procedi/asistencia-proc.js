@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Asistencia en Procedimiento (st-aux-06-asistencia-procedi)
 ============================================
 Autor: Johan Santamaria
@@ -39,6 +39,60 @@ const debounce = (fn, delay) => {
     timeoutId = setTimeout(() => fn.apply(this, args), delay);
   };
 };
+
+const procedureData = window.smiletrackAsistenciaProcedData || {};
+let procedureSyncTimer = null;
+
+const procedureHeaders = () => {
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  if (token) headers['X-CSRF-TOKEN'] = token;
+  return headers;
+};
+
+async function persistProcedureState() {
+  if (!procedureData.citaId) return;
+  const state = procedureStorage.load();
+  try {
+    await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: procedureHeaders(),
+      body: JSON.stringify({
+        minutos: state.minutes,
+        inicio: state.startTime,
+        limpieza: Boolean(state.pills.limpieza),
+        esterilizacion: Boolean(state.pills.esterilizacion),
+        equipos: Boolean(state.pills.equipos)
+      })
+    });
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudo sincronizar asistencia procedural:', error);
+  }
+}
+
+async function hydrateProcedureState() {
+  if (!procedureData.citaId) return;
+  try {
+    const response = await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
+      credentials: 'same-origin', headers: procedureHeaders()
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (!payload.data) return;
+    procedureStorage.save({
+      minutes: payload.data.minutos || 0,
+      startTime: payload.data.inicio || new Date().toISOString(),
+      pills: {
+        limpieza: Boolean(payload.data.limpieza),
+        esterilizacion: Boolean(payload.data.esterilizacion),
+        equipos: Boolean(payload.data.equipos)
+      }
+    });
+  } catch (error) {
+    console.warn('[SmileTrack] Se usará el respaldo local de asistencia:', error);
+  }
+}
 
 // WHY: Las notificaciones no bloqueantes brindan retroalimentación al usuario sin interrumpir el flujo durante el procedimiento
 
@@ -85,6 +139,8 @@ const procedureStorage = {
     const state = procedureStorage.load();
     state.minutes = minutes;
     procedureStorage.save(state);
+    clearTimeout(procedureSyncTimer);
+    procedureSyncTimer = setTimeout(persistProcedureState, 250);
   },
   
   // WHY: Actualiza solo la píldora modificada en lugar de reescribir el estado completo, optimizando escrituras
@@ -92,50 +148,14 @@ const procedureStorage = {
     const state = procedureStorage.load();
     state.pills[pillId] = completed;
     procedureStorage.save(state);
+    clearTimeout(procedureSyncTimer);
+    procedureSyncTimer = setTimeout(persistProcedureState, 250);
   }
 };
 
-// Inicializa menú móvil con gestión de foco y atributos ARIA
+// Inicializa menú móvil (delegado al módulo centralizado)
 const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamburger = safeGetElement('hamburger');
-
-  if (!sidebar || !overlay || !hamburger) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sidebar.classList.add('open');
-      overlay.classList.add('open');
-      hamburger.setAttribute('aria-expanded', 'true');
-      overlay.setAttribute('aria-hidden', 'false');
-      
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      overlay.setAttribute('aria-hidden', 'true');
-      hamburger.focus();
-    }
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
+  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
 // WHY: Inicializa el timer del procedimiento cargando el valor persistido y ejecutando un intervalo de 60s
@@ -237,7 +257,9 @@ const renderDatosCita = () => {
   const banner = safeGetElement('apAlertBanner');
   const bannerText = safeGetElement('apAlertBannerText');
   if (d.alergia && banner && bannerText) {
-    bannerText.innerHTML = `<strong>ALERTA</strong> — ${d.paciente} — Alérgico a ${d.alergia}`;
+    const strong = document.createElement('strong');
+    strong.textContent = 'ALERTA';
+    bannerText.replaceChildren(strong, document.createTextNode(` — ${d.paciente} — Alérgico a ${d.alergia}`));
     banner.style.display = '';
   }
 
@@ -253,7 +275,8 @@ const renderDatosCita = () => {
   if (hayAlertas && sinAlertas) sinAlertas.style.display = 'none';
 };
 
-const init = () => {
+const init = async () => {
+  await hydrateProcedureState();
     // Inicializar componentes de UI
     renderDatosCita();
     initMobileMenu();

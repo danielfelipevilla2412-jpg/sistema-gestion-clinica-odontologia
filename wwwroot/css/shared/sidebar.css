@@ -27,7 +27,7 @@
    - --primary:      color primario del sistema (#1a56cc)
    - --tr:           duración de transiciones (.18s ease)
    - --radius-sm:    radio de borde pequeño (8px)
-   - --text-muted:   color de texto secundario (#64748b)
+  - --text-muted:   color de texto secundario (#5f6b7a)
    - --bg-soft:      fondo suave para hover (#f8fafc)
 
    COMPATIBILIDAD:
@@ -54,7 +54,7 @@
  */
 .sidebar {
   width: var(--sidebar-w, 220px);
-  background: linear-gradient(180deg, #0f2057 0%, #1a3580 100%);
+  background: linear-gradient(180deg, #18284f 0%, #263d73 100%);
   color: #c8d3e8;
   display: flex;
   flex-direction: column;
@@ -79,17 +79,24 @@
  * delgado y sutil mantiene la coherencia visual sin sacrificar usabilidad.
  */
 .sidebar::-webkit-scrollbar {
-  width: 4px; /* Delgado: no compite visualmente con el contenido */
+  width: 4px;
+  /* Delgado: no compite visualmente con el contenido */
 }
+
 .sidebar::-webkit-scrollbar-track {
-  background: transparent; /* Sin fondo para integración visual */
+  background: transparent;
+  /* Sin fondo para integración visual */
 }
+
 .sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18); /* Visible pero discreto */
+  background: rgba(255, 255, 255, 0.18);
+  /* Visible pero discreto */
   border-radius: 4px;
 }
+
 .sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.32); /* Feedback visual al hover */
+  background: rgba(255, 255, 255, 0.32);
+  /* Feedback visual al hover */
 }
 
 /* ── Scrollbar personalizado — Firefox ──────────────────────────────────── */
@@ -113,7 +120,8 @@
   border-bottom: 1px solid rgba(255, 255, 255, .1);
   margin-bottom: 10px;
   text-align: center;
-  flex-shrink: 0; /* Mantener tamaño fijo: el logo nunca se encoge */
+  flex-shrink: 0;
+  /* Mantener tamaño fijo: el logo nunca se encoge */
 }
 
 .logo-img {
@@ -145,7 +153,8 @@
   flex-direction: column;
   gap: 2px;
   padding: 0 10px;
-  overflow: visible; /* El sidebar padre gestiona el scroll, no este nav */
+  overflow: visible;
+  /* El sidebar padre gestiona el scroll, no este nav */
 }
 
 /* ── Ítems de navegación individuales ───────────────────────────────────── */
@@ -198,6 +207,7 @@
   color: #f87171;
   margin-top: 4px;
 }
+
 .nav-item--logout:hover {
   background: rgba(239, 68, 68, .15);
   color: #fca5a5;
@@ -237,17 +247,20 @@
   justify-content: space-between;
   padding: 10px 12px;
   cursor: pointer;
-  user-select: none; /* Evitar selección de texto al hacer doble clic */
+  user-select: none;
+  /* Evitar selección de texto al hacer doble clic */
   font-size: .84rem;
   font-weight: 600;
   color: #c8d3e8;
   border-radius: var(--radius-sm, 8px);
   transition: background var(--tr, .18s ease), color var(--tr, .18s ease);
 }
+
 .nav-group-header:hover {
   background: rgba(255, 255, 255, .08);
   color: #fff;
 }
+
 .nav-group-header:focus-visible {
   outline: 2px solid var(--primary, #1a56cc);
   outline-offset: 2px;
@@ -261,7 +274,8 @@
  */
 .nav-arrow {
   font-size: .65rem;
-  transition: transform 0.25s ease; /* Independiente de --tr para control preciso */
+  transition: transform 0.25s ease;
+  /* Independiente de --tr para control preciso */
   opacity: 0.7;
   flex-shrink: 0;
 }
@@ -283,8 +297,24 @@
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
   transition: max-height 0.3s ease;
-  max-height: 0; /* Colapsado por defecto; sidebar.js expande el grupo activo */
+  max-height: 0;
+  /* Colapsado por defecto; sidebar.js expande el grupo activo */
+}
+
+/* Respaldo sin JavaScript: la sección de la vista actual siempre queda visible. */
+.nav-group-items:has(> .nav-item.active) {
+  max-height: 500px !important;
+  overflow: visible !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.nav-group-items.is-expanded {
+  visibility: visible;
+  pointer-events: auto;
 }
 
 /* Sangría visual para distinguir sub-ítems del grupo padre */
@@ -334,7 +364,8 @@
 .user-info {
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Permite text-overflow en los hijos */
+  overflow: hidden;
+  /* Permite text-overflow en los hijos */
 }
 
 .user-role {
@@ -343,7 +374,8 @@
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis; /* Truncar nombres muy largos con "..." */
+  text-overflow: ellipsis;
+  /* Truncar nombres muy largos con "..." */
 }
 
 .user-email {
@@ -365,11 +397,13 @@
  * cuando no es necesario (reduce ruido de accesibilidad en teclado).
  */
 .hamburger {
-  display: none; /* Visible solo en @media móvil */
+  display: none;
+  /* Visible solo en @media móvil */
   position: fixed;
   top: 14px;
   left: 14px;
-  z-index: 300; /* Por encima del sidebar (z-index 200) y del overlay (z-index 150) */
+  z-index: 300;
+  /* Por encima del sidebar (z-index 200) y del overlay (z-index 150) */
   background: #0f2057;
   border: none;
   border-radius: 8px;
@@ -384,7 +418,7 @@
   display: block;
   width: 20px;
   height: 2px;
-  background: #fff;
+  background: transparent;
   border-radius: 2px;
   transition: transform var(--tr, .18s ease), opacity var(--tr, .18s ease);
 }
@@ -404,7 +438,8 @@
  * sidebar quede visualmente por delante del overlay.
  */
 .overlay {
-  display: none; /* Visible solo cuando tiene clase .open */
+  display: none;
+  /* Visible solo cuando tiene clase .open */
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, .45);
@@ -426,20 +461,24 @@
  */
 @media (max-width: 680px) {
   .hamburger {
-    display: flex; /* Mostrar el botón en móvil */
+    display: flex;
+    /* Mostrar el botón en móvil */
   }
 
   .sidebar {
-    transform: translateX(-100%); /* Ocultar fuera de pantalla */
+    transform: translateX(-100%);
+    /* Ocultar fuera de pantalla */
   }
 
   .sidebar.open {
-    transform: translateX(0); /* Mostrar con animación CSS */
+    transform: translateX(0);
+    /* Mostrar con animación CSS */
     box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
   }
 
   .overlay.open {
-    display: block; /* Mostrar overlay cuando el menú está abierto */
+    display: block;
+    /* Mostrar overlay cuando el menú está abierto */
   }
 }
 
@@ -459,10 +498,12 @@
  * es independiente y no se mezcla con el modo mini.
  */
 @media (min-width: 681px) {
+
   /* Sidebar colapsado: ancho mínimo para mostrar solo íconos */
   .sidebar.mini {
     width: 56px;
-    overflow: visible; /* Permite que los tooltips salgan del borde */
+    overflow: visible;
+    /* Permite que los tooltips salgan del borde */
   }
 
   /* Ocultar texto de ítems de nav en modo mini */
@@ -502,14 +543,15 @@
     white-space: nowrap;
     z-index: 400;
     pointer-events: none;
-    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
   }
 
   /* Ocultar texto de headers de grupo y colapsar visualmente */
   .sidebar.mini .nav-group-header {
     padding: 10px 0;
     justify-content: center;
-    pointer-events: none; /* Desactivar accordion en modo mini */
+    pointer-events: none;
+    /* Desactivar accordion en modo mini */
   }
 
   /* Forzar expansión de todos los grupos en mini para mostrar íconos */
@@ -523,6 +565,7 @@
     justify-content: center;
     padding: 14px 0 0;
   }
+
   .sidebar.mini .user-avatar {
     flex-shrink: 0;
   }
@@ -531,6 +574,7 @@
   .sidebar.mini .sidebar-logo {
     padding: 0 4px 12px;
   }
+
   .sidebar.mini .sidebar-logo .logo-img {
     max-width: 36px;
     display: block;
@@ -544,14 +588,15 @@
 
 /* Botón de colapso/expansión del sidebar en desktop */
 .sidebar-collapse-btn {
-  display: none; /* Oculto en móvil */
+  display: none;
+  /* Oculto en móvil */
   position: absolute;
   bottom: 70px;
   right: -14px;
   width: 28px;
   height: 28px;
   background: #1a3580;
-  border: 2px solid rgba(255,255,255,.2);
+  border: 2px solid rgba(255, 255, 255, .2);
   border-radius: 50%;
   color: #c8d3e8;
   font-size: .75rem;
@@ -600,6 +645,7 @@
  * prefers-reduced-motion.
  */
 @media (prefers-reduced-motion: reduce) {
+
   .sidebar,
   .nav-group-items,
   .nav-arrow,
@@ -607,6 +653,49 @@
   .nav-group-header,
   .hamburger span {
     transition: none !important;
+
     animation: none !important;
   }
+}
+
+/* ══════════════════════════════════════════════════════
+   SELECTOR DE IDIOMA (sidebar-lang / lang-btn)
+   Aparece en el bloque .sidebar-user de todos los roles.
+   ══════════════════════════════════════════════════════ */
+.sidebar-lang {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.lang-btn {
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--border, #e2e8f0);
+  background: #fff;
+  color: var(--text-muted, #64748b);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.lang-btn:hover {
+  background: var(--primary, #005ea4);
+  color: #fff;
+  border-color: var(--primary, #005ea4);
+}
+
+.lang-btn.is-active {
+  background: var(--primary, #005ea4);
+  color: #fff;
+  border-color: var(--primary, #005ea4);
+}
+
+.lang-btn:focus-visible {
+  outline: 2px solid var(--primary, #005ea4);
+  outline-offset: 2px;
 }

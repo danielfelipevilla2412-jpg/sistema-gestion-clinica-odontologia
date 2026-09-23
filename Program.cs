@@ -13,6 +13,7 @@ using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Email;
 using System.Security.Claims;
 using System.Net;
@@ -68,6 +69,9 @@ builder.Configuration
     .AddCommandLine(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
+builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
+builder.Services.AddScoped<SmileTrack_MVC.Services.Perfiles.IPerfilPacienteService, SmileTrack_MVC.Services.Perfiles.PerfilPacienteService>();
 
 bool ejecutandoEnContenedor =
     string.Equals(
@@ -94,6 +98,7 @@ if (ejecutandoEnContenedor)
             new DirectoryInfo("/root/.aspnet/DataProtection-Keys"));
 }
 
+
 // -----------------------------------------------------------------------------
 // RATE LIMITING
 // -----------------------------------------------------------------------------
@@ -114,6 +119,14 @@ builder.Services.AddRateLimiter(options =>
     {
         opt.PermitLimit = 5;
         opt.Window = TimeSpan.FromMinutes(15);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("PerfilPaciente", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 0;
     });
@@ -185,6 +198,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryDelay: TimeSpan.FromSeconds(3),
             errorNumbersToAdd: null)));
 
+builder.Services.AddScoped<ICitaService, CitaService>();
+builder.Services.AddScoped<IAgendaService, AgendaService>();
+builder.Services.AddScoped<IPanelOperativoService, PanelOperativoService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.ICitasDashboardService,
+    SmileTrack_MVC.Services.CitasDashboardService>();
+
 // -----------------------------------------------------------------------------
 // JWT
 // -----------------------------------------------------------------------------
@@ -195,7 +215,13 @@ var jwtSection =
 string jwtKey =
     jwtSection.GetValue<string>("Key")
     ?? throw new InvalidOperationException(
-        "No se encontró Jwt:Key. Configure la clave JWT en appsettings.Local.json.");
+        "No se encontró Jwt:Key. Configure la clave JWT mediante User Secrets o variables de entorno.");
+
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
+{
+    throw new InvalidOperationException(
+        "Jwt:Key debe estar configurada y tener al menos 32 caracteres.");
+}
 
 string jwtIssuer =
     jwtSection.GetValue<string>("Issuer")
@@ -485,8 +511,7 @@ if (ejecutandoEnContenedor)
     selectedUrl =
         "http://0.0.0.0:80";
 
-    builder.WebHost.UseUrls(
-        selectedUrl);
+    builder.WebHost.UseUrls(selectedUrl);
 }
 else
 {
@@ -784,16 +809,42 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        // CORRECCIÓN yeray — Estos dos scripts cambian con el odontograma de
+        // Historia Clínica. Antes todos los estáticos se entregaban por siete
+        // días y el navegador ejecutaba un JS anterior que seguía dibujando el
+        // canvas 2D. Se evita su caché para que una actualización sea visible
+        // inmediatamente después de reiniciar la aplicación.
+        var ruta = context.Context.Request.Path.Value ?? string.Empty;
+        var esScriptOdontogramaHistoria = ruta.EndsWith(
+            "/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js",
+            StringComparison.OrdinalIgnoreCase)
+            || ruta.EndsWith(
+                "/js/Historia_Clinica/components/odontograma-3d-readonly.js",
+                StringComparison.OrdinalIgnoreCase);
+
+        context.Context.Response.Headers.CacheControl = esScriptOdontogramaHistoria
+            ? "no-cache, no-store, must-revalidate"
+            : "public,max-age=604800";
+
+        if (esScriptOdontogramaHistoria)
+        {
+            context.Context.Response.Headers.Pragma = "no-cache";
+            context.Context.Response.Headers.Expires = "0";
+        }
+    }
+});
 app.UseRouting();
 
 
 
+app.UseRateLimiter();
 app.UseAuthentication();
 
 app.UseAuthorization();
-
-app.UseRateLimiter();
 
 // -----------------------------------------------------------------------------
 // ROUTING

@@ -4,9 +4,16 @@
   Incluye: <aside> completo, logo, nav con grupos colapsables y bloque de usuario.
 *@
 @{
-    var currentPath = Context.Request.Path.Value ?? "/";
+    var rawPath = Context.Request.Path.Value ?? "/";
+    var currentPath = rawPath.TrimEnd('/');
+    if (string.IsNullOrEmpty(currentPath)) currentPath = "/";
+
     Func<string, string> linkClass = href =>
-        currentPath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    {
+        var cleanHref = (href ?? "/").TrimEnd('/');
+        if (string.IsNullOrEmpty(cleanHref)) cleanHref = "/";
+        return currentPath.Equals(cleanHref, StringComparison.OrdinalIgnoreCase) ? "nav-item active" : "nav-item";
+    };
 
     var _aName     = User.Identity?.Name ?? "Administrador";
     var _aEmail    = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "admin@smiletrack.co";
@@ -18,7 +25,7 @@
     if (string.IsNullOrWhiteSpace(_aInitials)) _aInitials = "AD";
 }
 
-<aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+<aside class="sidebar" id="sidebar" aria-label="Navegación principal" data-i18n-aria-label="sidebar_main_nav">
 
   <div class="sidebar-logo">
     <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
@@ -26,152 +33,149 @@
 
   <nav class="sidebar-nav">
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_inicio">
         Inicio <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
-        <a href="/" class="@linkClass("/")" data-icon="🏠">Homepage</a>
+        <a href="/" class="@linkClass("/")" data-icon="🏠" data-i18n="nav.item_homepage">Homepage</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_reportes_analitica">
         Reportes y Analítica <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
-        <a href="/reportes" class="@linkClass("/reportes")" data-icon="📊">Panel de Analítica</a>
+        <a href="/reportes" class="@linkClass("/reportes")" data-icon="📊" data-i18n="nav.item_panel_analitica">Panel de Analítica</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_acceso_seguridad">
         Acceso y Seguridad <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios"
            class="@linkClass("/acceso-y-seguridad/st-adm-02-gestion-usuarios")"
-           data-icon="👥">Gestión de Usuarios</a>
+           data-icon="👥" data-i18n="nav.item_gestion_usuarios">Gestión de Usuarios</a>
         <a href="/acceso-y-seguridad/st-adm-03-gestion-roles"
            class="@linkClass("/acceso-y-seguridad/st-adm-03-gestion-roles")"
-           data-icon="🛡️">Gestión de Roles</a>
+           data-icon="🛡️" data-i18n="nav.item_gestion_roles">Gestión de Roles</a>
         <a href="/acceso-y-seguridad/st-adm-15-bitacora"
            class="@linkClass("/acceso-y-seguridad/st-adm-15-bitacora")"
-           data-icon="📜">Bitácora del Sistema</a>
+           data-icon="📜" data-i18n="nav.item_bitacora_sistema">Bitácora del Sistema</a>
         <a href="/acceso-y-seguridad/cambiar-contrasena"
            class="@linkClass("/acceso-y-seguridad/cambiar-contrasena")"
-           data-icon="🔐">Cambiar Contraseña</a>
+           data-icon="🔐" data-i18n="nav.item_cambiar_contrasena">Cambiar Contraseña</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_pacientes">
         Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes"
            class="@linkClass("/gestion-de-pacientes/st-adm-05-gestion-pacientes")"
-           data-icon="👥">Gestión de Pacientes</a>
+           data-icon="👥" data-i18n="nav.item_gestion_pacientes">Gestión de Pacientes</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_historia_clinica">
         Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/historia-clinica/st-adm-historial"
            class="@linkClass("/historia-clinica/st-adm-historial")"
-           data-icon="📋">Historial Clínico</a>
+           data-icon="📋" data-i18n="nav.item_historial_clinico">Historial Clínico</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_profesionales">
         Gestión de Profesionales <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales"
            class="@linkClass("/gestion-de-profesionales/st-adm-07-gestion-profesionales")"
-           data-icon="🩺">Gestión de Profesionales</a>
+           data-icon="🩺" data-i18n="nav.item_gestion_profesionales">Gestión de Profesionales</a>
         <a href="/gestion-de-profesionales/st-adm-14-reportes-clinicos"
            class="@linkClass("/gestion-de-profesionales/st-adm-14-reportes-clinicos")"
-           data-icon="📈">Reportes Clínicos</a>
+           data-icon="📈" data-i18n="nav.item_reportes_clinicos">Reportes Clínicos</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_citas">
         Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-citas/st-adm-01-dashboard"
            class="@linkClass("/gestion-de-citas/st-adm-01-dashboard")"
-           data-icon="📊">Dashboard General</a>
+           data-icon="📊" data-i18n="nav.item_dashboard_general">Dashboard General</a>
         <a href="/gestion-de-citas/st-adm-08-agenda"
            class="@linkClass("/gestion-de-citas/st-adm-08-agenda")"
-           data-icon="📅">Agenda General</a>
+           data-icon="📅" data-i18n="nav.item_agenda_general">Agenda General</a>
         <a href="/gestion-de-citas/st-adm-09-citas"
            class="@linkClass("/gestion-de-citas/st-adm-09-citas")"
-           data-icon="🗓️">Gestión Integral de Citas</a>
+           data-icon="🗓️" data-i18n="nav.item_gestion_integral_citas">Gestión Integral de Citas</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_facturacion_pagos">
         Facturación y Pagos <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/facturacion-y-pagos/st-adm-12-facturacion"
            class="@linkClass("/facturacion-y-pagos/st-adm-12-facturacion")"
-           data-icon="💰">Gestión de Facturación</a>
-        <a href="/facturacion-y-pagos/st-adm-13-reportes-financieros"
-           class="@linkClass("/facturacion-y-pagos/st-adm-13-reportes-financieros")"
-           data-icon="📊">Reportes Financieros</a>
+           data-icon="💰" data-i18n="nav.item_gestion_facturacion">Gestión de Facturación</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_servicios_recursos">
         Servicios y Recursos <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/servicios-y-recursos/st-adm-10-servicios"
            class="@linkClass("/servicios-y-recursos/st-adm-10-servicios")"
-           data-icon="🔧">Catálogo de Servicios</a>
+           data-icon="🔧" data-i18n="nav.item_catalogo_servicios">Catálogo de Servicios</a>
         <a href="/servicios-y-recursos/st-adm-16-configuracion-general"
            class="@linkClass("/servicios-y-recursos/st-adm-16-configuracion-general")"
-           data-icon="⚙️">Configuración General</a>
+           data-icon="⚙️" data-i18n="nav.item_configuracion_general">Configuración General</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_pqr">
         Gestión de PQR <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-pqr/st-adm-17-gestion-pqr"
            class="@linkClass("/gestion-de-pqr/st-adm-17-gestion-pqr")"
-           data-icon="📮">Peticiones, Quejas y Reclamos</a>
+           data-icon="📮" data-i18n="nav.item_peticiones_quejas_reclamos">Gestión de PQR</a>
         <a href="/gestion-de-pqr/st-pac-04-nueva-pqr"
            class="@linkClass("/gestion-de-pqr/st-pac-04-nueva-pqr")"
-           data-icon="📝">Nueva Solicitud</a>
+           data-icon="📝" data-i18n="nav.item_nueva_solicitud">Nueva Solicitud</a>
       </div>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_centro_ayuda">
         Centro de Ayuda <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/centro-de-ayuda/como-programar-cita"
            class="@linkClass("/centro-de-ayuda/como-programar-cita")"
-           data-icon="📅">Cómo programar una cita</a>
+           data-icon="📅" data-i18n="nav.item_como_programar_cita">Cómo programar una cita</a>
         <a href="/centro-de-ayuda/guias-tutoriales"
            class="@linkClass("/centro-de-ayuda/guias-tutoriales")"
-           data-icon="📚">Guías y Tutoriales</a>
+           data-icon="📚" data-i18n="nav.item_guias_tutoriales">Guías y Tutoriales</a>
         <a href="/centro-de-ayuda/soporte"
            class="@linkClass("/centro-de-ayuda/soporte")"
-           data-icon="🎫">Soporte y Tickets</a>
+           data-icon="🎫" data-i18n="nav.item_soporte_tickets">Soporte y Tickets</a>
       </div>
     </div>
 
@@ -180,7 +184,9 @@
     <a href="/acceso-y-seguridad/login"
        class="nav-item nav-item--logout"
        data-icon="🚪"
-       aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
+       aria-label="Cerrar sesión y volver al login"
+       data-i18n-aria-label="sidebar_logout_aria"
+       data-i18n="sidebar_logout_text">Cerrar sesión</a>
   </nav>
 
   <div class="sidebar-user">
@@ -188,6 +194,12 @@
     <div class="user-info">
       <span class="user-role">@_aName</span>
       <span class="user-email">@_aEmail</span>
+    </div>
+    <div class="sidebar-lang" aria-label="Cambiar idioma" data-i18n-aria-label="sidebar_change_language">
+      <button type="button" data-i18n-switcher data-i18n-lang="es"
+        class="lang-btn" aria-label="Español" data-i18n-aria-label="sidebar_lang_es">ES</button>
+      <button type="button" data-i18n-switcher data-i18n-lang="en"
+        class="lang-btn" aria-label="English" data-i18n-aria-label="sidebar_lang_en">EN</button>
     </div>
   </div>
 

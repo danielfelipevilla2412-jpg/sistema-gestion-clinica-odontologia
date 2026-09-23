@@ -1,0 +1,9 @@
+@model SmileTrack_MVC.Models.ViewModels.Components.IndicadoresTiempoViewModel
+<link rel="stylesheet" href="~/css/shared/components/indicadores-tiempo.css" asp-append-version="true" />
+<div class="indicadores-tiempo" aria-label="Indicadores de tiempo">
+@foreach (var indicador in Model.Indicadores)
+{
+    <span class="indicador-tiempo @indicador.Clase" data-time-status="@indicador.Estado">@indicador.Etiqueta</span>
+}
+</div>
+<script src="~/js/shared/components/IndicadoresTiempo.js" asp-append-version="true"></script>

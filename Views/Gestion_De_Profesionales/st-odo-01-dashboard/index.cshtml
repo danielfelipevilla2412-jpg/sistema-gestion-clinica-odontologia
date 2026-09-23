@@ -23,41 +23,11 @@ NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 - Los contadores de métricas se animan al cargar la vista para atraer la atención del profesional hacia los KPIs del día.
 ============================================ *@
-@{ Layout = null; }
+@{ Layout = "_Layout"; ViewData["Title"] = "Dashboard Odontólogo"; }
 
-﻿<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Dashboard General de SmileTrack - Sistema de Gestión Dental" />
-  <meta name="robots" content="noindex, nofollow" />
-  <title>SmileTrack — Dashboard General</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Profesionales/st-odo-01-dashboard/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
-
-  <!-- ═════ HAMBURGER (móvil) ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Profesionales/st-odo-01-dashboard/styles.css" asp-append-version="true" />
+}
 
   <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
@@ -66,46 +36,131 @@ NOTAS DE MANTENIMIENTO:
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Administración</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
+          <span>Profesional</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
           <span class="bc-active">Dashboard</span>
         </nav>
-        <h1 class="page-title">Dashboard General</h1>
+        <h1 class="page-title" data-i18n="nav.dashboard_general">Dashboard General</h1>
         <p class="page-subtitle">
           Resumen en tiempo real ·
           <time datetime="" id="headerDate">Cargando fecha...</time>
         </p>
       </div>
-      <button class="btn-primary" id="btnExport" aria-label="Exportar reporte en PDF y Excel">
-        📊 Exportar reporte
-      </button>
+      <a href="/reportes/vista-profesional" class="btn-secondary">
+        <span class="material-symbols-outlined">analytics</span>
+        Ver Reportes Completos
+      </a>
     </header>
 
-    <!-- Barra de progreso superior -->
-    <div class="progress-row" role="progressbar" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"
-      aria-label="Progreso del sistema: 75%">
+    @{
+        var proximaCita = ViewData["OdoProximaCitaUrgente"] as SmileTrack_MVC.Models.Entities.Cita;
+        var ultimaAtencion = ViewData["UltimaAtencionProximaCita"] as SmileTrack_MVC.Models.Entities.Cita;
+    }
+
+    <!-- Banner de Próxima Cita Urgente -->
+    <section class="next-appointment-banner" aria-live="polite">
+        @if (proximaCita != null)
+        {
+            var minutos = (proximaCita.FechaHora - DateTime.Now).TotalMinutes;
+            var urgente = minutos <= 15 && minutos > 0;
+            var claseUrgencia = urgente ? "urgent" : "upcoming";
+            var nombrePaciente = $"{proximaCita.Paciente?.Nombres} {proximaCita.Paciente?.Apellidos}".Trim();
+            
+            <div class="next-appt-card @claseUrgencia">
+                <div class="next-appt-icon">
+                    <span class="material-symbols-outlined">@(urgente ? "notification_important" : "schedule")</span>
+                </div>
+                <div class="next-appt-info">
+                    <span class="next-appt-label">@(urgente ? "¡CITA URGENTE!" : "Próxima cita")</span>
+                    <strong class="next-appt-patient">@nombrePaciente</strong>
+                    <span class="next-appt-time">
+                        @proximaCita.FechaHora.ToString("HH:mm") — @(proximaCita.Servicio?.Nombre ?? "Consulta") — @(proximaCita.Consultorio?.Nombre ?? "Sin asignar")
+                    </span>
+                    @if (urgente)
+                    {
+                        <span class="next-appt-countdown">⏰ En @((int)minutos) minutos</span>
+                    }
+                    @if (ultimaAtencion != null)
+                    {
+                        <span class="next-appt-context">
+                            Última atención: @ultimaAtencion.FechaHora.ToString("dd/MM/yyyy") - @(ultimaAtencion.Servicio?.Nombre ?? "Consulta")
+                        </span>
+                    }
+                </div>
+                <a href="/gestion-de-citas/st-odo-02-agenda" class="btn-primary btn-sm">
+                    <span class="material-symbols-outlined">calendar_month</span>
+                    Ver en Agenda
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="next-appt-card empty">
+                <span class="material-symbols-outlined">check_circle</span>
+                <span>No tienes citas programadas para hoy. ¡Buen trabajo!</span>
+            </div>
+        }
+    </section>
+
+    <!-- Barra de progreso del día -->
+    @{
+        var citasHoyCount = (int)(ViewData["OdoCitasHoy"] ?? 0);
+        var atendidasHoyCount = (int)(ViewData["OdoCitasAtendidas"] ?? 0);
+        var progresoDia = citasHoyCount > 0 ? (int)Math.Round((double)atendidasHoyCount / citasHoyCount * 100) : 0;
+    }
+    <div class="progress-row" role="progressbar" aria-valuenow="@progresoDia" aria-valuemin="0" aria-valuemax="100"
+      aria-label="Progreso del día: @progresoDia%">
       <div class="progress-bar-wrap">
-        <div class="progress-bar" id="topProgressBar" style="width:75%"></div>
+        <div class="progress-bar" id="topProgressBar" style="width:@progresoDia%"></div>
       </div>
-      <span class="progress-label" aria-live="polite">Sistema operativo</span>
+      <span class="progress-label" id="dailyProgressLabel" aria-live="polite">
+        @atendidasHoyCount de @citasHoyCount citas completadas hoy (@progresoDia%)
+      </span>
     </div>
 
+    <!-- Accesos Rápidos -->
+    <section class="quick-actions" aria-label="Accesos rápidos">
+        <h2 class="section-subtitle">Accesos Rápidos</h2>
+        <div class="quick-actions-grid">
+            <a href="/gestion-de-citas/st-odo-02-agenda" class="quick-action-card">
+                <span class="material-symbols-outlined">calendar_month</span>
+                <strong>Mi Agenda</strong>
+                <span>Ver y gestionar citas</span>
+            </a>
+            <a href="/historia-clinica/st-odo-06-pacientes" class="quick-action-card">
+                <span class="material-symbols-outlined">folder_open</span>
+                <strong>Mis Pacientes</strong>
+                <span>Historial clínico</span>
+            </a>
+            <a href="/reportes/vista-profesional" class="quick-action-card">
+                <span class="material-symbols-outlined">analytics</span>
+                <strong>Reportes</strong>
+                <span>Estadísticas detalladas</span>
+            </a>
+            <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="quick-action-card">
+                <span class="material-symbols-outlined">person</span>
+                <strong>Mi Perfil</strong>
+                <span>Datos personales</span>
+            </a>
+        </div>
+    </section>
+
     <!-- Stats Grid -->
-    <section class="stats-grid" aria-label="Métricas principales">
+    <section class="stats-grid" aria-label="Métricas principales" data-i18n-aria-label="facturacion.title">
       <div class="stat-card" data-color="blue">
         <span class="stat-number" id="statPacientes" data-target="@(ViewData["OdoPacientesActivos"] ?? 0)" aria-live="polite">0</span>
         <span class="stat-label">Pacientes del mes</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="stat-number" id="statCitas" data-target="@(ViewData["OdoCitasHoy"] ?? 0)" aria-live="polite">0</span>
-        <span class="stat-label">Citas hoy</span>
+        <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="stat-number" id="statProfesionales" data-target="@(ViewData["OdoCitasAtendidas"] ?? 0)" aria-live="polite">0</span>
-        <span class="stat-label">Citas atendidas</span>
+        <span class="stat-label" data-i18n="status.attended">Citas atendidas</span>
       </div>
       <div class="stat-card" data-color="purple">
-        <span class="stat-number" id="statIngresos" aria-live="polite">$@(Convert.ToDecimal(ViewData["OdoIngresosMes"] ?? 0).ToString("N0"))</span>
+        <span class="stat-number" id="statIngresos" data-format="currency-cop" data-target="@(Convert.ToDecimal(ViewData["OdoIngresosMes"] ?? 0))" aria-live="polite">0</span>
         <span class="stat-label">Ingresos del mes</span>
       </div>
     </section>
@@ -180,7 +235,106 @@ NOTAS DE MANTENIMIENTO:
             var pctProgramadas = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasProgramadas"] ?? 0) / totalCitas * 100) : 0;
             var pctCanceladas = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasCanceladas"] ?? 0) / totalCitas * 100) : 0;
             var pctNoAsistio = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasNoAsistio"] ?? 0) / totalCitas * 100) : 0;
+            
+            var tasaAsistencia = (int)(ViewData["TasaAsistenciaHoy"] ?? 0);
+            var iconoMs = tasaAsistencia >= 80 ? "local_fire_department" : tasaAsistencia >= 50 ? "thumb_up" : "warning";
+            var mensajeRendimiento = tasaAsistencia >= 80 
+                ? "¡Excelente día! Estás cumpliendo tus objetivos."
+                : tasaAsistencia >= 50 
+                    ? "Buen ritmo, continúa así."
+                    : "Varias citas pendientes, organiza tu tiempo.";
+            var colorMensaje = tasaAsistencia >= 80 ? "#10b981" : tasaAsistencia >= 50 ? "#f59e0b" : "#ef4444";
         }
+
+        <!-- Rendimiento del Día -->
+        <section class="card" aria-labelledby="performanceTitle">
+            <h2 class="card-title" id="performanceTitle">
+                <span class="material-symbols-outlined">trending_up</span>
+                Rendimiento del Día
+            </h2>
+            <div class="performance-score">
+                <div class="score-circle" data-score="@tasaAsistencia">
+                    <svg width="120" height="120" viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="10"/>
+                        <circle cx="60" cy="60" r="50" fill="none" stroke="url(#gradient)" 
+                                stroke-width="10" stroke-linecap="round"
+                                stroke-dasharray="@(314 * tasaAsistencia / 100) 314"
+                                transform="rotate(-90 60 60)"
+                                style="transition: stroke-dasharray 1s ease;"/>
+                        <defs>
+                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div class="score-text">
+                        <span class="score-emoji material-symbols-outlined" aria-hidden="true">@iconoMs</span>
+                        <strong class="score-value">@tasaAsistencia%</strong>
+                        <span class="score-label">Atendidas</span>
+                    </div>
+                </div>
+                <p class="performance-message">
+                    <strong style="color: @colorMensaje;">@mensajeRendimiento</strong>
+                </p>
+            </div>
+        </section>
+
+        <!-- Panel de Notificaciones -->
+        <section class="card notifications-card" aria-labelledby="notifTitle">
+            <h2 class="card-title" id="notifTitle">
+                <span class="material-symbols-outlined">notifications</span>
+                Notificaciones
+            </h2>
+            <div class="notifications-list">
+                @{
+                    var citasPendientesConfirmar = (int)(ViewData["CitasPendientesConfirmar"] ?? 0);
+                    var pacientesEspera = (int)(ViewData["PacientesEnEspera"] ?? 0);
+                    var historiasPendientes = (int)(ViewData["HistoriasPendientes"] ?? 0);
+                }
+                
+                @if (citasPendientesConfirmar > 0)
+                {
+                    <div class="notif-item warning">
+                        <span class="material-symbols-outlined">schedule</span>
+                        <div>
+                            <strong>@citasPendientesConfirmar citas sin confirmar</strong>
+                            <span>Revisa tu agenda para confirmar</span>
+                        </div>
+                    </div>
+                }
+                
+                @if (pacientesEspera > 0)
+                {
+                    <div class="notif-item urgent">
+                        <span class="material-symbols-outlined">groups</span>
+                        <div>
+                            <strong>@pacientesEspera pacientes en espera</strong>
+                            <span>Esperando en sala de atención</span>
+                        </div>
+                    </div>
+                }
+                
+                @if (historiasPendientes > 0)
+                {
+                    <div class="notif-item info">
+                        <span class="material-symbols-outlined">assignment</span>
+                        <div>
+                            <strong>@historiasPendientes historias por completar</strong>
+                            <span>Cierra las historias clínicas pendientes</span>
+                        </div>
+                    </div>
+                }
+                
+                @if (citasPendientesConfirmar == 0 && pacientesEspera == 0 && historiasPendientes == 0)
+                {
+                    <div class="notif-empty">
+                        <span class="material-symbols-outlined">check_circle</span>
+                        <span>Todo al día</span>
+                    </div>
+                }
+            </div>
+        </section>
 
         <!-- Estado de citas -->
         <section class="card" aria-labelledby="statusTitle">
@@ -254,77 +408,21 @@ NOTAS DE MANTENIMIENTO:
 
   </main>
 
-  <!-- Mobile bottom nav -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item active"
-      aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">🏠</span>
-      <span>Dashboard</span>
-    </a>
-    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
-      <span>Agenda</span>
-    </a>
-    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional"
-      class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
-      <span>Perfil</span>
-    </a>
-  </nav>
-
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Estilos para screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
   </footer>
   <script>
-    window.ODO_REVENUE = @Html.Raw((string)(ViewData["OdoRevenueMonthsJson"] ?? "[]"));
-  </script>
-  <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-odo-01-dashboard/app.js")"></script>
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-</body>
-
-</html>
+    window.ODO_REVENUE = @Html.Raw((string)(ViewData["OdoRevenueMonthsJson"] ?? "[]"));  </script>
+@section Scripts {
+    <script src="~/js/Gestion_De_Profesionales/st-odo-01-dashboard/app.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+}

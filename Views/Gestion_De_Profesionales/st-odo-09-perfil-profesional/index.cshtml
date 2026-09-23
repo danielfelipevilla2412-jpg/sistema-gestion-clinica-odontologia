@@ -22,46 +22,18 @@ NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 ============================================ *@
 @{
-  Layout = null;
-  var loggedProfesional = ViewData["LoggedProfesional"] as SmileTrack_MVC.Models.Entities.Profesional;
-  var especialidades = loggedProfesional?.Especialidades?.Select(pe => pe.Especialidad?.Nombre).Where(n => n != null).ToList() ?? new List<string?>();
-  var initials = loggedProfesional != null 
-      ? string.Concat($"{loggedProfesional.Nombres} {loggedProfesional.Apellidos}".Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant()
-      : "CM";
+    Layout = "_Layout";
+    ViewData["Title"] = "Mi Perfil";
+    var loggedProfesional = ViewData["LoggedProfesional"] as SmileTrack_MVC.Models.Entities.Profesional;
+    var especialidades = loggedProfesional?.Especialidades?.Select(pe => pe.Especialidad?.Nombre).Where(n => n != null).ToList() ?? new List<string?>();
+    var initials = loggedProfesional != null && !string.IsNullOrEmpty(loggedProfesional.Nombres)
+        ? $"{loggedProfesional.Nombres[0]}{(string.IsNullOrEmpty(loggedProfesional.Apellidos) ? "" : loggedProfesional.Apellidos[0])}"
+        : "DR";
 }
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmileTrack — Perfil Profesional</title>
-  <meta name="description" content="Gestiona tu información profesional y configuración en SmileTrack." />
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Profesionales/st-odo-09-perfil-profesional/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-
-  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
-
-  <!-- ═════ HAMBURGER (móvil) ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Profesionales/st-odo-09-perfil-profesional/styles.css" asp-append-version="true" />
+}
 
   <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
@@ -69,13 +41,13 @@ NOTAS DE MANTENIMIENTO:
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Odontólogo</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Perfil Profesional</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_profesional">Odontólogo</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" data-i18n="profile.title">Perfil Profesional</span>
         </nav>
-        <h1 class="page-title">Mi Perfil Profesional</h1>
-        <p class="page-subtitle">Información personal y configuración del profesional</p>
+        <h1 class="page-title" data-i18n="profile.title">Mi Perfil Profesional</h1>
+        <p class="page-subtitle" data-i18n="profile.professional_subtitle">Informaci&#243;n personal y configuraci&#243;n del profesional</p>
       </div>
     </header>
 
@@ -83,21 +55,19 @@ NOTAS DE MANTENIMIENTO:
     <section class="profile-header-card" aria-labelledby="profileName">
       <div class="profile-avatar-large" aria-hidden="true">@initials</div>
       <div class="profile-info">
-        <h2 id="profileName">@(loggedProfesional != null ? $"Dr. {loggedProfesional.Nombres} {loggedProfesional.Apellidos}" : "Dr. Carlos Méndez")</h2>
+        <h2 id="profileName">@(loggedProfesional != null ? $"Dr. {loggedProfesional.Nombres} {loggedProfesional.Apellidos}" : "Profesional no disponible")</h2>
         <div class="profile-tags" role="list">
           @if (loggedProfesional != null)
           {
             foreach (var esp in especialidades)
             {
-              <span class="tag tag-blue" role="listitem">🦷 @esp</span>
+              <span class="tag tag-blue" role="listitem"><span class="material-symbols-outlined" style="font-size:.85rem;vertical-align:middle;margin-right:2px;" aria-hidden="true">medical_services</span> @esp</span>
             }
-            <span class="tag tag-green" role="listitem">✓ @loggedProfesional.RegistroMedico</span>
+            <span class="tag tag-green" role="listitem"><span class="material-symbols-outlined" style="font-size:.85rem;vertical-align:middle;margin-right:2px;" aria-hidden="true">verified</span> @loggedProfesional.RegistroMedico</span>
           }
           else
           {
-            <span class="tag tag-blue" role="listitem">🦷 Odontología General</span>
-            <span class="tag tag-purple" role="listitem">✨ Estética Dental</span>
-            <span class="tag tag-green" role="listitem">✓ RM-2026-001</span>
+            <span class="tag tag-gray" role="listitem">Información no disponible</span>
           }
         </div>
       </div>
@@ -109,30 +79,30 @@ NOTAS DE MANTENIMIENTO:
       <!-- Left Column: Personal Info -->
       <div class="content-left">
         <div class="card info-card">
-          <h3 class="card-title">📝 Información personal</h3>
+          <h3 class="card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">person_search</span><span data-i18n="common.personal_data">Información personal</span></h3>
 
           <div class="info-grid">
             <div class="info-item">
-              <div class="info-icon" aria-hidden="true">📞</div>
+              <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">call</span></div>
               <div>
                 <label>Teléfono</label>
-                <div class="info-value">@(loggedProfesional?.Telefono ?? "300 123 4567")</div>
+                <div class="info-value">@(loggedProfesional?.Telefono ?? "No disponible")</div>
               </div>
             </div>
             <div class="info-item">
-              <div class="info-icon" aria-hidden="true">✉️</div>
+              <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">mail</span></div>
               <div>
                 <label>Correo</label>
-                <div class="info-value">@(loggedProfesional?.Usuario?.Correo ?? "dr.mendez@smiletrack.co")</div>
+                <div class="info-value">@(loggedProfesional?.Usuario?.Correo ?? "No disponible")</div>
               </div>
             </div>
             <div class="info-item">
-              <div class="info-icon" aria-hidden="true">📅</div>
+              <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></div>
               <div>
                 <label>Fecha de ingreso</label>
                 <div class="info-value">
-                  <time datetime="@(loggedProfesional?.FechaIngreso?.ToString("yyyy-MM-dd") ?? "2022-03-15")">
-                    @(loggedProfesional?.FechaIngreso?.ToString("dd MMM yyyy") ?? "15 Mar 2022")
+                  <time datetime="@(loggedProfesional?.FechaIngreso?.ToString("yyyy-MM-dd") ?? string.Empty)">
+                    @(loggedProfesional?.FechaIngreso?.ToString("dd MMM yyyy") ?? "No disponible")
                   </time>
                 </div>
               </div>
@@ -155,16 +125,17 @@ NOTAS DE MANTENIMIENTO:
 
           <!-- Change Password Section -->
           <div class="password-section">
-            <h3 class="card-title">🔒 Cambiar contraseña</h3>
+            <h3 class="card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">lock</span> Cambiar contraseña</h3>
 
             <form id="passwordForm" novalidate>
+              @Html.AntiForgeryToken()
               <div class="form-group">
                 <label class="form-label" for="currentPassword">Contraseña actual</label>
                 <div class="input-with-icon">
                   <input type="password" class="form-input" id="currentPassword" placeholder="••••••••" required
                     aria-required="true">
                   <button type="button" class="toggle-password" aria-label="Mostrar u ocultar contraseña actual"
-                    aria-pressed="false">👁</button>
+                    aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">visibility</span></button>
                 </div>
               </div>
               <div class="form-group">
@@ -186,7 +157,7 @@ NOTAS DE MANTENIMIENTO:
                     aria-label="Mostrar u ocultar confirmación de contraseña" aria-pressed="false">👁</button>
                 </div>
               </div>
-              <button type="submit" class="btn-update">Actualizar contraseña</button>
+              <button type="submit" class="btn-primary">Actualizar contraseña</button>
             </form>
           </div>
         </div>
@@ -196,11 +167,12 @@ NOTAS DE MANTENIMIENTO:
       <div class="content-right">
         <div class="card schedule-card">
           <div class="schedule-header">
-            <h3 class="card-title" style="margin-bottom: 0;">📅 Horario Semanal</h3>
+            <h3 class="card-title schedule-card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">calendar_month</span> Horario Semanal</h3>
             <span class="edit-hint">Click en un día para editar</span>
           </div>
 
-          <div class="schedule-grid" id="scheduleGrid" role="list" aria-label="Horario semanal del profesional">
+          <div class="schedule-grid" id="scheduleGrid" role="list" aria-label="Horario semanal del profesional"
+               data-profesional-id="@(loggedProfesional?.IdProfesional ?? 0)">
             <!-- Generated by JS -->
           </div>
 
@@ -246,7 +218,16 @@ NOTAS DE MANTENIMIENTO:
         <!-- Toggle Activo/Inactivo -->
         <div class="modal-toggle-section">
           <label class="modal-toggle">
-            <input type="checkbox" id="modalDayActive" aria-describedby="toggleText">
+            <!--
+              ACCESIBILIDAD: El checkbox mantiene position:absolute + opacity:0
+              para que sea alcanzable por teclado y lectores de pantalla.
+              role="switch" + aria-checked son actualizados por perfil.js.
+            -->
+            <input type="checkbox"
+                   id="modalDayActive"
+                   role="switch"
+                   aria-checked="false"
+                   aria-describedby="toggleText">
             <span class="toggle-slider" aria-hidden="true"></span>
             <span class="toggle-text" id="toggleText">Día laboral</span>
           </label>
@@ -255,14 +236,14 @@ NOTAS DE MANTENIMIENTO:
         <!-- Time Inputs (solo visibles si está activo) -->
         <div class="modal-time-section" id="modalTimeSection">
           <div class="time-input-group">
-            <label class="time-label" for="modalStartTime">🌅 Hora de inicio</label>
+            <label class="time-label" for="modalStartTime"><span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:3px;" aria-hidden="true">wb_twilight</span> Hora de inicio</label>
             <input type="time" class="time-input" id="modalStartTime" value="08:00">
           </div>
           <div class="time-separator" aria-hidden="true">
             <span>a</span>
           </div>
           <div class="time-input-group">
-            <label class="time-label" for="modalEndTime">🌇 Hora de fin</label>
+            <label class="time-label" for="modalEndTime"><span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:3px;" aria-hidden="true">nightlight</span> Hora de fin</label>
             <input type="time" class="time-input" id="modalEndTime" value="12:00">
           </div>
         </div>
@@ -277,7 +258,7 @@ NOTAS DE MANTENIMIENTO:
 
       <div class="modal-footer">
         <button class="modal-btn modal-btn-secondary" id="modalCancel">Cancelar</button>
-        <button class="modal-btn modal-btn-primary" id="modalSave"><span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar horario</button>
+        <button class="modal-btn modal-btn-primary" id="modalSave" disabled aria-disabled="true" title="Cargando horario..."><span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar horario</button>
       </div>
     </div>
   </div>
@@ -285,55 +266,33 @@ NOTAS DE MANTENIMIENTO:
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Estilos para screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
 
-    .skip-link:focus {
-      top: 0;
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-  <script src="@Url.Content("~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js")"></script>
+  <!-- Mobile bottom nav — Odontólogo -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">bar_chart</span></span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+      <span>Mi agenda</span>
+    </a>
+    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
+      <span>Perfil</span>
+    </a>
+  </nav>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+    <div class="profile-footer-content">
+      <span class="material-symbols-outlined" aria-hidden="true">copyright</span>
+      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
+    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
 
   </footer>
-
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-</body>
-
-</html>
-
+@section Scripts {
+    <script src="~/js/shared/toasts.js" asp-append-version="true" defer></script>
+    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
+    <script src="~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js" asp-append-version="true" defer></script>
+}

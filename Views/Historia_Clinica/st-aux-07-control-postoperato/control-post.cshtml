@@ -17,12 +17,12 @@
 </head>
 
 <body>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
 
   <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!-- ═════ SIDEBAR UNIFICADO (Activo: Control post-operatorio) ═════ -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
     @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
 
@@ -40,15 +40,33 @@
     <!-- Breadcrumb y header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Auxiliar</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_auxiliar">Auxiliar</span>
           <span class="bc-sep" aria-hidden="true">→</span>
           <span>Citas finalizadas</span>
           <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active">Postoperatorio</span>
         </nav>
-        <h1 class="page-title">Control Postoperatorio</h1>
-        <p class="page-subtitle" id="postopSubtitle">Cargando…</p>
+        <h1 class="page-title" data-i18n="historia.evolution">Control Postoperatorio</h1>
+        <p class="page-subtitle" id="postopSubtitle" data-i18n="common.loading">Cargando…</p>
+      </div>
+      @* Yeray (2025) - Selector de cita postoperatoria.
+         ANTES: la vista siempre cargaba la cita completada más reciente por defecto;
+                el auxiliar no tenía forma de cambiar a otra cita sin modificar la URL.
+         AHORA: se muestra un <select> que lista todas las citas completadas
+                del día (GET /historia-clinica/st-aux-07-control-postoperato/data)
+                y al cambiar la selección navega a ?citaId=X, recargando los datos
+                del control postoperatorio correspondiente. *@
+      <div class="header-right" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label for="selectorCitaPostop" style="font-size:.85rem;color:var(--text-muted);white-space:nowrap;">
+          <span data-i18n="citas.title">Cita:</span>
+        </label>
+        <select id="selectorCitaPostop"
+                aria-label="Seleccionar cita postoperatoria"
+                style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;
+                       font-size:.85rem;cursor:pointer;max-width:280px;">
+          <option value="">Cargando citas…</option>
+        </select>
       </div>
     </header>
 
@@ -60,7 +78,7 @@
 
         <!-- Estado final del consultorio con role radiogroup -->
         <div class="card status-card">
-          <h3 class="card-title" id="statusTitle">Estado final del consultorio</h3>
+          <h3 class="card-title" id="statusTitle" data-i18n="facturacion.status">Estado final del consultorio</h3>
           <div class="status-buttons" role="radiogroup" aria-labelledby="statusTitle">
             <button class="status-btn stable active" role="radio" aria-checked="true" id="statusStable"
               aria-label="Paciente estable - sin complicaciones">
@@ -96,6 +114,7 @@
           <!-- Input para agregar nueva instrucción -->
           <div class="add-instruction-wrapper">
             <input type="text" id="newInstructionInput" placeholder="Escribir nueva instrucción..."
+              data-i18n-ph="historia.new_instruction_ph"
               aria-label="Nueva instrucción postoperatoria" />
             <button class="add-btn" id="btnAddInstruction" aria-label="Agregar instrucción a la lista">+</button>
           </div>
@@ -110,6 +129,7 @@
         <div class="card observation-card">
           <h3 class="card-title" id="observationsTitle">Observaciones</h3>
           <textarea class="obs-textarea" id="obsTextarea" placeholder="Paciente toleró bien el procedimiento..."
+            data-i18n-ph="historia.observations_ph"
             aria-label="Observaciones del auxiliar sobre el estado postoperatorio"
             aria-describedby="observationsTitle"></textarea>
         </div>
@@ -134,23 +154,19 @@
   <!-- Mobile bottom nav con aria-label para navegación móvil -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
       <span>Panel</span>
     </a>
-    <a href="#" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
       <span>Agenda</span>
     </a>
-    <a href="/gestion-de-citas/st-aux-05-historial-parcial" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
-      <span>Historial</span>
-    </a>
-    <a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">🏥</span>
-      <span>Postop.</span>
+    <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item">
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">check_circle</span>
+      <span>Finalizadas</span>
     </a>
     <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
+      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
       <span>Perfil</span>
     </a>
   </nav>
@@ -204,6 +220,8 @@
   </footer>
 
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
 </body>

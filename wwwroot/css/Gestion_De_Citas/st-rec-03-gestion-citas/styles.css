@@ -32,9 +32,8 @@ NOTAS DE MANTENIMIENTO:
   --green: #22c55e;
   --orange: #f59e0b;
   --purple: #9333ea;
-  --danger: #dc2626;
+  --danger: #ef4444;
   --text: #1e293b;
-  --text-muted: #64748b;
   --border: #e2e8f0;
   --shadow: 0 1px 4px rgba(0,0,0,.07);
   --shadow-md: 0 4px 16px rgba(0,0,0,.1);
@@ -49,6 +48,7 @@ NOTAS DE MANTENIMIENTO:
   --status-atendida: #dcfce7;
   --status-consulta: #dbeafe;
   --status-agendada: #ffedd5;
+  --status-cancelada: #e2e8f0;
   --status-no-asistio: #fee2e2;
   --alert-bg: #dcfce7;
   --alert-border: #86efac;
@@ -79,6 +79,11 @@ button { font-family: inherit; cursor: pointer; }
   transition: top var(--tr);
 }
 .skip-link:focus { top: 0; }
+
+.status-badge.status-cancelada {
+  background: var(--status-cancelada);
+  color: #334155;
+}
 
 /* ═══ SIDEBAR (IDÉNTICO A st-rec-01) ═══ */
 .sidebar {
@@ -162,6 +167,23 @@ button { font-family: inherit; cursor: pointer; }
   gap: 12px;
   flex-wrap: wrap;
 }
+.header-left { flex: 1 1 auto; min-width: 220px; }
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.print-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.print-button .material-symbols-outlined {
+  font-size: 1.1rem;
+}
 .breadcrumb { font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
 .page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; color: var(--primary); }
 .page-subtitle { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
@@ -204,7 +226,7 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 600; font-size: .83rem;
   cursor: pointer; transition: background var(--tr);
 }
-.btn-primary:hover { background: #1547a8; }
+.btn-primary:hover { background: var(--primary-dark); }
 .btn-secondary {
   background: var(--white); color: var(--text);
   border: 1.5px solid var(--border);
@@ -220,15 +242,7 @@ button { font-family: inherit; cursor: pointer; }
   cursor: pointer; transition: background var(--tr);
 }
 .btn-danger:hover { background: #b91c1c; }
-.btn-icon {
-  background: none; border: none; cursor: pointer;
-  font-size: 16px; padding: 5px 7px; border-radius: 6px;
-  transition: background var(--tr), color var(--tr);
-  color: var(--text-muted);
-  display: flex; align-items: center; justify-content: center;
-}
-.btn-icon:hover { background: var(--primary-light); color: var(--primary); }
-.btn-icon.danger:hover { background: #fee2e2; color: var(--danger); }
+/* .btn-icon styles unified below in the action-btn section */
 
 /* ═══ COMPONENTES ESPECÍFICOS DE GESTIÓN DE CITAS ═══ */
 
@@ -266,65 +280,8 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--primary);
 }
 
-/* Filter bar */
-.filter-bar {
-  background: var(--white);
-  border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  border: 1px solid var(--border);
-}
-.filter-bar .search-wrap {
-  flex: 1;
-  min-width: 200px;
-  position: relative;
-}
-.filter-bar .search-input {
-  width: 100%;
-  padding: 9px 12px 9px 36px;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: .85rem;
-  font-family: var(--font);
-  background: var(--white);
-  outline: none;
-  transition: border-color var(--tr);
-}
-.filter-bar .search-input:focus {
-  border-color: var(--primary);
-}
-.filter-bar .search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  pointer-events: none;
-}
-.filter-bar .status-select {
-  padding: 9px 32px 9px 12px;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: .85rem;
-  font-family: var(--font);
-  background: var(--white);
-  color: var(--text);
-  cursor: pointer;
-  outline: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 16px;
-}
-.filter-bar .status-select:focus {
-  border-color: var(--primary);
-}
+/* Filter bar — OBSOLETO: reemplazado por shared/ui-components.css
+   (.filters-section / .filters-row / .search-wrap / .filter-wrap / .filter-select) */
 
 /* Availability alert */
 .availability-alert {
@@ -430,13 +387,7 @@ button { font-family: inherit; cursor: pointer; }
 .status-agendada { background: var(--status-agendada); color: #9a3412; }
 .status-no-asistio { background: var(--status-no-asistio); color: #991b1b; }
 
-/* Acciones en tabla */
-.actions-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
+/* Acciones en tabla — estilos completos definidos al final del archivo en el bloque canónico */
 
 /* Paginación */
 .pagination {
@@ -609,34 +560,6 @@ button { font-family: inherit; cursor: pointer; }
   border-top: 1px solid var(--border);
 }
 
-/* Sync options */
-.sync-options {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 16px 0;
-}
-.sync-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--white);
-  cursor: pointer;
-  transition: border-color var(--tr), background var(--tr);
-}
-.sync-option:hover {
-  border-color: var(--primary);
-  background: var(--primary-light);
-}
-.sync-icon { font-size: 1.2rem; }
-.sync-note {
-  font-size: .75rem;
-  color: var(--text-muted);
-  margin-top: 8px;
-}
 
 
 
@@ -699,7 +622,7 @@ button { font-family: inherit; cursor: pointer; }
   transition: background var(--tr), transform var(--tr);
 }
 .fab:hover {
-  background: #1547a8;
+  background: var(--primary-dark);
   transform: scale(1.05);
 }
 
@@ -720,12 +643,13 @@ button { font-family: inherit; cursor: pointer; }
   .main { margin-left: 0; padding: 58px 14px 32px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .page-header { flex-direction: column; align-items: flex-start; }
-  .filter-bar { flex-direction: column; align-items: stretch; }
-  .filter-bar .search-wrap { min-width: 100%; }
-  .filter-bar .filter-wrap,
-  .filter-bar .status-select,
-  .filter-bar .btn-primary,
-  .filter-bar .btn-secondary { width: 100%; }
+  /* filter-bar OBSOLETO: reemplazado por .filters-section / .filters-row en shared/ui-components.css */
+  .filters-row { flex-direction: column; align-items: stretch; }
+  .filters-row .search-wrap { min-width: 100%; }
+  .filters-row .filter-wrap,
+  .filters-row .status-select,
+  .filters-row .btn-primary,
+  .filters-row .btn-secondary { width: 100%; }
   .btn-text { display: none; }
   .action-btn { padding: 6px 8px; }
   .view-toggles { width: 100%; overflow-x: auto; padding-bottom: 4px; }
@@ -742,32 +666,28 @@ button { font-family: inherit; cursor: pointer; }
   .table-base td:nth-child(5) { display: none; }
   .pagination { flex-direction: column; align-items: center; }
 }
-/* ═══ ACCIONES DE TABLA: btn-icon, btn-text (estándar SmileTrack) ═══ */
-.actions-cell { display: flex; align-items: center; gap: 6px; justify-content: center; }
+/* ═══ ACCIONES DE TABLA: btn-icon, btn-text (patrón canónico SmileTrack) ═══ */
+.actions-cell { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
 .btn-icon {
   background: var(--white); border: 1.5px solid var(--border);
   border-radius: var(--radius-sm); padding: 5px 10px;
-  cursor: pointer; font-size: 14px;
-  /* gap para separar emoji de span.btn-text */
+  cursor: pointer; font-size: 14px; color: var(--text-muted);
   display: inline-flex; align-items: center; gap: 5px;
-  transition: background var(--tr), border-color var(--tr), transform var(--tr);
+  transition: background var(--tr), border-color var(--tr), color var(--tr), transform var(--tr);
   line-height: 1; box-shadow: 0 4px 10px rgba(15, 32, 87, 0.05);
-  text-decoration: none; color: var(--text-muted);
+  text-decoration: none;
 }
 .btn-icon:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
 .btn-icon:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.btn-icon.view, .btn-icon.btn-view { color: var(--primary); }
-.btn-icon.edit { color: #d97706; }
-.btn-icon.btn-delete { color: var(--danger); border-color: #fecaca; }
-.btn-icon.btn-delete:hover { background: #fee2e2; color: #991b1b; }
+.btn-icon.btn-delete:hover { background: #fee2e2; border-color: #fecaca; color: var(--danger); }
 .btn-icon .btn-text { font-size: 0.76rem; font-weight: 600; }
 
-/* Reglas base para botones con texto (compatibilidad action-btn legacy) */
+/* Reglas base para botones con texto */
 .action-btn { display: inline-flex; align-items: center; gap: 5px; }
 .action-btn .btn-text { display: inline; font-size: 0.78rem; font-weight: 600; }
 
-/* Filtros: wrap uniforme */
-.filter-bar .filter-wrap { flex-shrink: 0; display: flex; align-items: center; }
+/* Filtros: wrap uniforme — OBSOLETO. Ahora usa shared/ui-components.css
+   (.filters-row .filter-wrap) */
 
 /* ═══ AVATAR DE PACIENTE EN TABLA (patrón canónico) ═══ */
 /* td-paciente: contenedor flex para avatar + nombre, mismo patrón que st-adm-07 */
