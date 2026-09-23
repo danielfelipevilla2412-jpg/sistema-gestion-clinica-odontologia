@@ -1011,7 +1011,7 @@ public sealed class CambiarEstadoCitaDto
             var cita = await _citaService.CambiarEstadoAsync(
                 IdCita,
                 estadoNormalizado,
-                ct);
+                ct: ct);
 
             if (cita is null)
             {
