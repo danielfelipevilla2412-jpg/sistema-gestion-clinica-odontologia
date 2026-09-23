@@ -60,8 +60,8 @@
     @* Accesibilidad: saltar al contenido principal *@
     <a href="#main-content" class="skip-link" data-i18n="layout_skip_to_content">Saltar al contenido principal</a>
 
-    @* Sidebar dinámico — despacha _SidebarAdmin/Recepcionista/Auxiliar/Profesional/Paciente *@
-    @await Html.PartialAsync("_SidebarDynamic")
+    @* Sidebar dinámico o sidebar fijado por la vista *@
+    @await Html.PartialAsync(ViewData["SidebarPartial"] as string ?? "_SidebarDynamic")
 
     @* Hamburger para móvil — sidebar.js lo inicializa *@
     <button class="hamburger" id="hamburger" type="button"

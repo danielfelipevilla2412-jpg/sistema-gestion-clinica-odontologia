@@ -77,8 +77,8 @@
     <!-- Top Header -->
     <div class="top-header">
       <div class="header-left">
-        <div class="breadcrumb"><span data-i18n="common_role_auxiliar">Auxiliar</span> → <span data-i18n="citas.title">Preparación Consulta</span></div>
-        <h1 data-i18n="citas.title">Preparación de Consulta</h1>
+        <div class="breadcrumb"><span data-i18n="common_role_auxiliar">Auxiliar</span> → <span>Preparación de Consulta</span></div>
+        <h1>Preparación de Consulta</h1>
         @if (Model.SinCitasHoy)
         {
           <div class="subtitle" id="citaSubtitle">Sin citas programadas para hoy</div>
@@ -322,26 +322,6 @@
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Mobile nav -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
-      <span>Panel</span>
-    </a>
-    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item active" aria-current="page">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
-      <span>Agenda</span>
-    </a>
-    <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">check_circle</span>
-      <span>Finalizadas</span>
-    </a>
-    <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
-      <span>Perfil</span>
-    </a>
-  </nav>
 
   <style>
     .skip-link { position:absolute;top:-40px;left:0;background:var(--primary);color:#fff;padding:8px 16px;z-index:1000;transition:top .15s; }

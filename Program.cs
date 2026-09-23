@@ -804,8 +804,28 @@ app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = context =>
     {
-        context.Context.Response.Headers.CacheControl =
-            "public,max-age=604800";
+        // CORRECCIÓN yeray — Estos dos scripts cambian con el odontograma de
+        // Historia Clínica. Antes todos los estáticos se entregaban por siete
+        // días y el navegador ejecutaba un JS anterior que seguía dibujando el
+        // canvas 2D. Se evita su caché para que una actualización sea visible
+        // inmediatamente después de reiniciar la aplicación.
+        var ruta = context.Context.Request.Path.Value ?? string.Empty;
+        var esScriptOdontogramaHistoria = ruta.EndsWith(
+            "/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js",
+            StringComparison.OrdinalIgnoreCase)
+            || ruta.EndsWith(
+                "/js/Historia_Clinica/components/odontograma-3d-readonly.js",
+                StringComparison.OrdinalIgnoreCase);
+
+        context.Context.Response.Headers.CacheControl = esScriptOdontogramaHistoria
+            ? "no-cache, no-store, must-revalidate"
+            : "public,max-age=604800";
+
+        if (esScriptOdontogramaHistoria)
+        {
+            context.Context.Response.Headers.Pragma = "no-cache";
+            context.Context.Response.Headers.Expires = "0";
+        }
     }
 });
 app.UseRouting();

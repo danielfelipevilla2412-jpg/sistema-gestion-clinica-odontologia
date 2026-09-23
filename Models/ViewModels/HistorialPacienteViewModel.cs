@@ -20,12 +20,18 @@ namespace SmileTrack_MVC.Models.ViewModels;
 public class HistorialPacienteViewModel
 {
     public OdontogramaViewModel Odontograma { get; set; } = new();
+    // FASE 1 — Ficha clínica del paciente.
+    // Motivo: la vista solo tenía nombre/edad y no podía mostrar los datos de
+    // identificación, contacto y emergencia que ya existen en Paciente.
+    // Uso: el controlador la llena desde BD y Razor la entrega al JavaScript.
+    public PacienteResumenClinicoViewModel Paciente { get; set; } = new();
     public string GrupoSanguineo { get; set; } = "N/D";
     public List<string> Alergias { get; set; } = [];
     public List<string> Medicamentos { get; set; } = [];
     public string AntecedentesMedicos { get; set; } = "Sin antecedentes registrados";
     public DateTime? ProximaCitaFecha { get; set; }
     public string? ProximaCitaProfesional { get; set; }
+    public HistoriaFormularioViewModel Formulario { get; set; } = new();
 
     /// <summary>
     /// Registros de consultas pasadas derivados de la tabla Cita.
@@ -37,6 +43,61 @@ public class HistorialPacienteViewModel
     // El JS las recibe en window.smiletrackHistoriaData.notasClinicas y ya no
     // necesita parsear el JSON de ObservacionesGenerales.
     public List<NotaClinicaHistorialItem> NotasClinicas { get; set; } = [];
+
+    /// <summary>
+    /// Línea de tiempo unificada, construida desde las tablas clínicas reales.
+    /// No reemplaza las entidades de origen: solo las presenta en orden clínico.
+    /// </summary>
+    public List<EventoHistoriaClinicaItem> LineaDeTiempo { get; set; } = [];
+}
+
+public class HistoriaFormularioViewModel
+{
+    public string MotivoConsulta { get; set; } = "";
+    public string EnfermedadActual { get; set; } = "";
+    public string Habitos { get; set; } = "";
+    public string Hallazgos { get; set; } = "";
+    public string OdontogramaObservaciones { get; set; } = "";
+    public string ExamenesComplementarios { get; set; } = "";
+    public string DiagnosticoPrincipal { get; set; } = "";
+    public string DiagnosticoSecundario { get; set; } = "";
+    public string EvolucionClinica { get; set; } = "";
+    public string Prescripcion { get; set; } = "";
+}
+
+public class HistoriaFormularioGuardarRequest : HistoriaFormularioViewModel
+{
+    public int? PacienteId { get; set; }
+}
+
+// FASE 1 — DTO de solo lectura para no exponer la entidad Paciente directamente
+// a la vista. Reúne únicamente los campos que el profesional debe consultar.
+public class PacienteResumenClinicoViewModel
+{
+    public string TipoDocumento { get; set; } = "";
+    public string Documento { get; set; } = "";
+    public string Genero { get; set; } = "No registrado";
+    public string Telefono { get; set; } = "No registrado";
+    public string Correo { get; set; } = "No registrado";
+    public string Direccion { get; set; } = "No registrada";
+    public string Ciudad { get; set; } = "No registrada";
+    public string ContactoEmergencia { get; set; } = "No registrado";
+    public string TelefonoEmergencia { get; set; } = "No registrado";
+}
+
+// FASE 1 — Formato común para eventos de fuentes distintas (citas, notas,
+// odontograma, controles y documentos). Permite ordenarlos y filtrarlos en una
+// única línea de tiempo sin perder la categoría ni el vínculo del documento.
+public class EventoHistoriaClinicaItem
+{
+    public DateTime Fecha { get; set; }
+    /// <summary>consulta, nota, odontograma, control o documento.</summary>
+    public string Categoria { get; set; } = "consulta";
+    public string Titulo { get; set; } = "";
+    public string Descripcion { get; set; } = "";
+    public string Profesional { get; set; } = "";
+    public string Estado { get; set; } = "";
+    public string? EnlaceDocumento { get; set; }
 }
 
 public class RegistroHistorialItem
