@@ -798,7 +798,7 @@ public class CitaService : ICitaService
         TimeSpan? anticipacionMinima = null,
         CancellationToken ct = default)
     {
-        return await CancelarAsync(id, motivo: null, anticipacionMinima: anticipacionMinima, ct: ct);
+        return await CancelarAsync(id, motivo: "Cancelación de cita", anticipacionMinima: anticipacionMinima, ct: ct);
     }
 
     public async Task<bool> CancelarAsync(
@@ -1265,43 +1265,47 @@ public class CitaService : ICitaService
         // servicio de esa especialidad.
         if (idServicio > 0)
         {
-            var idsEspProf = await _context.ProfesionalEspecialidades
+            bool tieneServiciosAsignados = await _context.ProfesionalServicios
                 .AsNoTracking()
-                .Where(pe => pe.IdProfesional == idProfesional)
-                .Select(pe => pe.IdEspecialidad)
-                .ToListAsync(ct);
+                .AnyAsync(ps => ps.IdProfesional == idProfesional && ps.Activo, ct);
 
-            if (idsEspProf.Count == 0)
+            if (tieneServiciosAsignados)
             {
-                // Fallback Odontología General
-                var espGeneral = await _context.Especialidades
+                bool estaAsignado = await _context.ProfesionalServicios
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(e => e.Nombre.ToLower().Contains("general"), ct);
-                if (espGeneral != null)
-                    idsEspProf.Add(espGeneral.IdEspecialidad);
-            }
+                    .AnyAsync(ps => ps.IdProfesional == idProfesional && ps.IdServicio == idServicio && ps.Activo, ct);
 
-            if (idsEspProf.Count > 0)
-            {
-                bool servicioPermitido = await _context.Servicios
-                    .AsNoTracking()
-                    .AnyAsync(s =>
-                        s.IdServicio == idServicio &&
-                        s.Estado == "activo", ct);
-
-                // También aceptar si existe asignación directa personalizada
-                if (!servicioPermitido)
+                if (!estaAsignado)
                 {
-                    servicioPermitido = await _context.ProfesionalServicios
+                    return (false, "El servicio seleccionado no está asignado a este profesional.");
+                }
+            }
+            else
+            {
+                var idsEspProf = await _context.ProfesionalEspecialidades
+                    .AsNoTracking()
+                    .Where(pe => pe.IdProfesional == idProfesional)
+                    .Select(pe => pe.IdEspecialidad)
+                    .ToListAsync(ct);
+
+                if (idsEspProf.Count == 0)
+                {
+                    var espGeneral = await _context.Especialidades
                         .AsNoTracking()
-                        .AnyAsync(ps =>
-                            ps.IdProfesional == idProfesional &&
-                            ps.IdServicio == idServicio &&
-                            ps.Activo, ct);
+                        .FirstOrDefaultAsync(e => e.Nombre.ToLower().Contains("general"), ct);
+                    if (espGeneral != null)
+                        idsEspProf.Add(espGeneral.IdEspecialidad);
                 }
 
-                if (!servicioPermitido)
-                    return (false, "El servicio seleccionado no está habilitado para este profesional según sus especialidades.");
+                if (idsEspProf.Count > 0)
+                {
+                    bool servicioPermitido = await _context.Servicios
+                        .AsNoTracking()
+                        .AnyAsync(s => s.IdServicio == idServicio && s.Estado == "activo", ct);
+
+                    if (!servicioPermitido)
+                        return (false, "El servicio seleccionado no está habilitado para este profesional según sus especialidades.");
+                }
             }
         }
 

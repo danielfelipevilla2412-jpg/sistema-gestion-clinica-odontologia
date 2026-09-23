@@ -1345,6 +1345,62 @@ public partial class ProfesionalService : IProfesionalService
                      && f.Estado != "anulada")
             .ToListAsync(ct);
 
+        if (facturas.Count == 0)
+        {
+            var citasAtendidas = await _context.Citas
+                .AsNoTracking()
+                .Include(c => c.Servicio)
+                .Where(c => c.IdProfesional == idProfesional
+                         && c.FechaHora >= fechaInicio
+                         && c.FechaHora <= fechaFin
+                         && c.Estado == "Atendida")
+                .ToListAsync(ct);
+
+            if (citasAtendidas.Count > 0)
+            {
+                var gruposCitas = citasAtendidas
+                    .GroupBy(c => c.IdServicio)
+                    .Select(g =>
+                    {
+                        var srv = g.First().Servicio;
+                        string nombreServicio = srv?.Nombre ?? "Servicio Odontológico";
+                        decimal precioUnitario = srv?.Precio ?? 100000m;
+                        int cantidad = g.Count();
+                        decimal subtotal = cantidad * precioUnitario;
+                        decimal honorarios = subtotal * (porcentajeComision / 100m);
+
+                        return new SmileTrack_MVC.Models.DTOs.ReporteComisionServicioDto
+                        {
+                            IdServicio = g.Key ?? 0,
+                            NombreServicio = nombreServicio,
+                            CantidadAtendida = cantidad,
+                            PrecioUnitario = precioUnitario,
+                            SubtotalFacturado = subtotal,
+                            HonorariosGenerados = honorarios
+                        };
+                    })
+                    .ToList();
+
+                decimal totalFacturado = gruposCitas.Sum(g => g.SubtotalFacturado);
+                decimal totalHonorarios = gruposCitas.Sum(g => g.HonorariosGenerados);
+
+                return new SmileTrack_MVC.Models.DTOs.ReporteComisionProfesionalDto
+                {
+                    IdProfesional = idProfesional,
+                    NombreProfesional = $"{profesional.Nombres} {profesional.Apellidos}".Trim(),
+                    FechaInicio = fechaInicio,
+                    FechaFin = fechaFin,
+                    TotalCitasAtendidas = citasAtendidas.Count,
+                    MontoTotalFacturado = totalFacturado,
+                    MontoTotalRecaudado = totalFacturado,
+                    PorcentajeComision = porcentajeComision,
+                    MontoTotalHonorarios = totalHonorarios,
+                    MontoComisionPendiente = 0m,
+                    DetalleServicios = gruposCitas
+                };
+            }
+        }
+
         var detallesPagados = facturas
             .Where(f => f.Estado == "pagada" && f.MontoPagado > 0)
             .SelectMany(f => f.Detalles.Select(d => new { Factura = f, Detalle = d }))
