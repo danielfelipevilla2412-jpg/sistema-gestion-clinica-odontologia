@@ -48,19 +48,19 @@
     <!-- Resumen de KPIs y Progreso Diario -->
     <section class="stats-grid" aria-label="Resumen de citas del día" data-i18n-aria-label="citas.title">
         <div class="stat-card" data-color="blue">
-            <span class="stat-number" id="statHoy" aria-live="polite">@citasHoyCount</span>
+            <span class="stat-number" id="statHoy" data-target="@citasHoyCount" aria-live="polite">0</span>
             <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
         </div>
         <div class="stat-card" data-color="green">
-            <span class="stat-number" id="statAtendidas" aria-live="polite">@atendidasHoyCount</span>
+            <span class="stat-number" id="statAtendidas" data-target="@atendidasHoyCount" aria-live="polite">0</span>
             <span class="stat-label" data-i18n="status.attended">Atendidas</span>
         </div>
         <div class="stat-card" data-color="orange">
-            <span class="stat-number" id="statPendientes" aria-live="polite">@pendientesHoyCount</span>
+            <span class="stat-number" id="statPendientes" data-target="@pendientesHoyCount" aria-live="polite">0</span>
             <span class="stat-label" data-i18n="status.pending">Pendientes hoy</span>
         </div>
         <div class="stat-card" data-color="purple">
-            <span class="stat-number" id="statMes" aria-live="polite">@totalPendientesSemana</span>
+            <span class="stat-number" id="statMes" data-target="@totalPendientesSemana" aria-live="polite">0</span>
             <span class="stat-label">Pendientes en la semana</span>
         </div>
     </section>

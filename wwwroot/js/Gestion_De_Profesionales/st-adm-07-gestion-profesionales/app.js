@@ -90,20 +90,12 @@ let professionalAbsences = [];
 
 /**
  * Anima contador numérico de 0 al valor objetivo.
- * WHY: Mejora visual al cargar estadísticas — indica que el número es dinámico.
+ * DELEGADO a window.animateCounter (shared/utils.js) — guard data-animated,
+ * formatea con toLocaleString es-CO y soporta data-format="currency-cop".
  * @param {HTMLElement} el
  * @param {number} target
  */
-const animateCounter = (el, target) => {
-  if (!el) return;
-  let cur = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const t = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = cur;
-    if (cur >= target) clearInterval(t);
-  }, 30);
-};
+// (resolución de nombre global automática)
 
 /**
  * Obtiene clase CSS para badge de especialidad.
@@ -339,14 +331,22 @@ const renderAbsences = () => {
     remove.className = 'btn-secondary';
     remove.textContent = 'Eliminar';
     remove.addEventListener('click', async () => {
-      if (!window.confirm('¿Eliminar esta ausencia?')) return;
-      try {
-        const result = await apiRequest(`${API_BASE}/${detailProfessionalId}/ausencias/${absence.idAusencia}`, { method: 'DELETE' });
-        window.ToastService?.success(result.message || 'Ausencia eliminada.');
-        await loadProfessionalAbsences(detailProfessionalId);
-      } catch (error) {
-        window.ToastService?.error(`No se pudo eliminar la ausencia: ${error.message}`);
-      }
+      window.ModalService?.confirm({
+        title: '¿Eliminar ausencia?',
+        message: 'Esta acción eliminará permanentemente el registro de ausencia del profesional y no podrá deshacerse.',
+        confirmText: 'Sí, eliminar',
+        cancelText: 'Cancelar',
+        isDanger: true,
+        onConfirm: async () => {
+          try {
+            const result = await apiRequest(`${API_BASE}/${detailProfessionalId}/ausencias/${absence.idAusencia}`, { method: 'DELETE' });
+            window.ToastService?.success(result.message || 'Ausencia eliminada.');
+            await loadProfessionalAbsences(detailProfessionalId);
+          } catch (error) {
+            window.ToastService?.error(`No se pudo eliminar la ausencia: ${error.message}`);
+          }
+        }
+      });
     });
     actions.append(edit, remove);
     item.append(details, actions);

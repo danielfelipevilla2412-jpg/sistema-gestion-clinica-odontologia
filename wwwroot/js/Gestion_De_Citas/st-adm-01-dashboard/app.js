@@ -190,6 +190,57 @@
     };
 
     // ─────────────────────────────────────────────────────────────
+    //  POLLING DE KPIs (M5 / RF-27)
+    //  Actualiza los contadores del dashboard periódicamente sin
+    //  recargar la página. Intervalo: 60 segundos.
+    // ─────────────────────────────────────────────────────────────
+    const initKpiPolling = () => {
+        const POLL_INTERVAL_MS = 60_000;
+
+        const refreshKpis = async () => {
+            try {
+                const res = await fetch('/api/citas/kpis', {
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (!res.ok) return;
+                const payload = await res.json();
+                if (!payload?.success || !payload?.data) return;
+
+                const d = payload.data;
+
+                // Mapa de data-key → campo del DTO CitasKpiDto
+                const kpiMap = {
+                    'total':       d.Total       ?? d.total,
+                    'programadas': d.Programadas ?? d.programadas,
+                    'canceladas':  d.Canceladas  ?? d.canceladas,
+                    'atendidas':   d.Atendidas   ?? d.atendidas
+                };
+
+                document.querySelectorAll('.stat-number[data-target]').forEach(el => {
+                    const key = el.closest('[data-kpi]')?.dataset?.kpi;
+                    if (key && kpiMap[key] !== undefined) {
+                        const newVal = Number(kpiMap[key]);
+                        if (!isNaN(newVal) && Number(el.dataset.target) !== newVal) {
+                            el.dataset.target = newVal;
+                            el.textContent = newVal.toLocaleString('es-CO');
+                        }
+                    }
+                });
+            } catch (err) {
+                // Silencioso: el polling no debe interrumpir la UI
+                console.debug('[SmileTrack][Dashboard] Error en polling KPIs:', err);
+            }
+        };
+
+        // Primera actualización al cabo de 60 s; las siguientes siguen el intervalo
+        const timerId = setInterval(refreshKpis, POLL_INTERVAL_MS);
+
+        // Limpiar al salir de la página para evitar memory leaks
+        window.addEventListener('beforeunload', () => clearInterval(timerId));
+    };
+
+    // ─────────────────────────────────────────────────────────────
     //  INICIALIZACIÓN
     // ─────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
@@ -197,5 +248,6 @@
         initExport();
         animateCounters();
         initProgressBar();
+        initKpiPolling();
     });
 })();

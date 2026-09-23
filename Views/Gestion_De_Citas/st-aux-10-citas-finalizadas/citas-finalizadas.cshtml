@@ -58,18 +58,38 @@ NOTAS DE MANTENIMIENTO:
          Antes usaba summary-cards/summary-card.green que era un diseño ad-hoc distinto. -->
     <section class="stats-grid" aria-label="Resumen de citas por estado" data-i18n-aria-label="citas.status">
       <div class="stat-card" data-color="green">
-        <span class="stat-number" id="countAtendidas" aria-live="polite">0</span>
+        <span class="stat-number" id="countAtendidas" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.attended">Atendidas</span>
       </div>
       <div class="stat-card" data-color="red">
-        <span class="stat-number" id="countCanceladas" aria-live="polite">0</span>
+        <span class="stat-number" id="countCanceladas" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
       </div>
       <div class="stat-card" data-color="orange">
-        <span class="stat-number" id="countNoAsistio" aria-live="polite">0</span>
+        <span class="stat-number" id="countNoAsistio" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.no_show">No asistió</span>
       </div>
     </section>
+
+    <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
+    <div class="table-tabs" role="tablist" aria-label="Filtrar citas finalizadas por estado">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="all" id="tab-all">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">task_alt</span>
+        Todas las finalizadas
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="attended" id="tab-attended">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">check_circle</span>
+        Atendidas
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="cancelled" id="tab-cancelled">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
+        Canceladas
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="no-show" id="tab-no-show">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_busy</span>
+        No asistió
+      </button>
+    </div>
 
     <!-- Tabla de citas con estructura accesible -->
     <div class="table-card">

@@ -63,15 +63,19 @@
     /* Estados de citas */
     --status-programada-bg: #dbeafe;
     --status-programada-text: #1d4ed8;
+    --status-programada-border: #93c5fd;
 
     --status-confirmada-bg: #dcfce7;
     --status-confirmada-text: #166534;
+    --status-confirmada-border: #86efac;
 
     --status-atendida-bg: #dcfce7;
     --status-atendida-text: #166534;
+    --status-atendida-border: #86efac;
 
     --status-cancelada-bg: #fee2e2;
     --status-cancelada-text: #991b1b;
+    --status-cancelada-border: #fca5a5;
 
     /* Banner */
     --banner-bg: linear-gradient(135deg, #1a3a6b, #2563eb);
@@ -628,7 +632,7 @@ img {
 .table-appointments {
     width: 100%;
     border-collapse: separate;
-    border-spacing: 0;
+    border-spacing: 0 3px;
     table-layout: fixed;
     min-width: 980px;
 }
@@ -640,19 +644,20 @@ img {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    padding: 12px 12px;
+    padding: 14px 16px;
     border-bottom: 2px solid var(--border);
     text-align: left;
     white-space: nowrap;
 }
 
 .table-appointments tbody td {
-    padding: 12px 12px;
+    padding: 14px 16px;
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
     background: var(--white);
     overflow-wrap: anywhere;
     word-break: break-word;
+    line-height: 1.5;
 }
 
 .table-appointments tbody tr:hover td {
@@ -794,23 +799,25 @@ img {
 
 .col-fecha {
     flex: 1;
-    min-width: 90px;
+    min-width: 100px;
+    width: 105px;
 }
 
 .col-hora {
     flex: 0.8;
     min-width: 80px;
+    width: 88px;
 }
 
 .col-paciente {
     flex: 1.5;
-    min-width: 140px;
+    min-width: 150px;
     max-width: 260px;
 }
 
 .col-profesional {
     flex: 1.2;
-    min-width: 140px;
+    min-width: 150px;
     max-width: 240px;
 }
 
@@ -821,7 +828,8 @@ img {
 
 .col-estado {
     flex: 0.9;
-    min-width: 100px;
+    min-width: 120px;
+    width: 130px;
 }
 
 .col-acciones {
@@ -852,6 +860,10 @@ img {
     transition: background var(--tr), box-shadow var(--tr), transform var(--tr);
 }
 
+.table-row td {
+    min-height: 60px;
+}
+
 .table-row:hover {
     background: #f8fafc;
     box-shadow: var(--shadow);
@@ -869,8 +881,8 @@ img {
 
 .col-servicio {
     flex: 1.4;
-    min-width: 200px;
-    max-width: 340px;
+    min-width: 160px;
+    max-width: 300px;
 }
 
 .col-acciones {
@@ -898,26 +910,29 @@ img {
 .patient-info {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
 .patient-avatar {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     color: #fff;
     flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .patient-name {
     font-weight: 600;
     color: var(--text);
     display: block;
+    font-size: 0.85rem;
+    line-height: 1.3;
 }
 
 .patient-id {
@@ -933,77 +948,106 @@ img {
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.4px;
     padding: 4px 12px;
     border-radius: var(--radius-full);
+    border: 1.5px solid transparent;
 }
 
 .status-badge.programada {
     background: var(--status-programada-bg);
     color: var(--status-programada-text);
+    border-color: var(--status-programada-border);
 }
 
 .status-badge.confirmada {
     background: var(--status-confirmada-bg);
     color: var(--status-confirmada-text);
+    border-color: var(--status-confirmada-border);
 }
 
 .status-badge.atendida {
     background: var(--status-atendida-bg);
     color: var(--status-atendida-text);
+    border-color: var(--status-atendida-border);
 }
 
 .status-badge.cancelada {
     background: var(--status-cancelada-bg);
     color: var(--status-cancelada-text);
+    border-color: var(--status-cancelada-border);
 }
 
 /* Inline Status Select (Badge) */
 select.status-select-inline {
     appearance: none;
     -webkit-appearance: none;
-    background-color: transparent;
-    border: none;
+    border: 1.5px solid transparent;
     color: inherit;
     font-family: inherit;
-    font-size: inherit;
-    font-weight: inherit;
-    padding: 0;
-    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
     cursor: pointer;
     text-align: center;
-    text-transform: capitalize;
-    min-width: 88px;
-    padding: 4px 12px;
-    border-radius: var(--radius-full);
     text-align-last: center;
+    padding: 4px 14px;
+    border-radius: var(--radius-full);
+    min-width: 110px;
+    transition: filter var(--tr), box-shadow var(--tr);
+}
+
+select.status-select-inline:hover {
+    filter: brightness(0.96);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 select.status-select-inline.programada {
     background: var(--status-programada-bg);
     color: var(--status-programada-text);
+    border-color: var(--status-programada-border);
 }
 
-select.status-select-inline.confirmada,
-select.status-select-inline.atendida {
+select.status-select-inline.confirmada {
     background: var(--status-confirmada-bg);
     color: var(--status-confirmada-text);
+    border-color: var(--status-confirmada-border);
+}
+
+select.status-select-inline.atendida {
+    background: var(--status-atendida-bg);
+    color: var(--status-atendida-text);
+    border-color: var(--status-atendida-border);
 }
 
 select.status-select-inline.cancelada,
 select.status-select-inline.no-asistio {
     background: var(--status-cancelada-bg);
     color: var(--status-cancelada-text);
+    border-color: var(--status-cancelada-border);
+}
+
+/* M5 (RN-30): No asistió es estado independiente de Cancelada */
+select.status-select-inline.no-asistio {
+    background: #fff7ed;
+    color: #9a3412;
+    border-color: #fed7aa;
 }
 
 select.status-select-inline:focus {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: var(--radius-full);
 }
 
 select.status-select-inline option {
     background-color: #fff;
     color: #333;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════

@@ -72,6 +72,13 @@ const getAuthHeaders = () => {
     return headers;
 };
 
+const getInvoiceHeaders = () => {
+    const headers = getAuthHeaders();
+    const csrf = window.CommonUtils?.getCsrfToken?.() || document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+    if (csrf) headers['X-CSRF-TOKEN'] = csrf;
+    return headers;
+};
+
 // ════════════════════════════════════════════════════════════════════
 //  UTILIDADES GLOBALES - CENTRALIZADAS EN utils.js
 // ════════════════════════════════════════════════════════════════════
@@ -514,6 +521,25 @@ const getFilteredAppointments = () => {
 //  RENDER: TABLA DE CITAS
 // ════════════════════════════════════════════════════════════════════
 
+const createInvoiceFromAppointment = async (id, button) => {
+    button.disabled = true;
+    try {
+        const response = await fetch(`${API_BASE}/facturas/desde-cita/${id}`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: getInvoiceHeaders()
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.message || 'No fue posible generar la factura.');
+        showToast(payload.message || 'Factura generada correctamente.', 'success');
+        appointments = await fetchAppointments();
+        renderAppointments();
+    } catch (error) {
+        showToast(error.message || 'No fue posible generar la factura.', 'error');
+        button.disabled = false;
+    }
+};
+
 /**
  * Renderiza la tabla de citas con los datos filtrados y paginados.
  * Incluye event listeners para botones de acción.
@@ -538,6 +564,11 @@ const renderAppointments = () => {
     // Renderizar filas de la tabla
     tableBody.innerHTML = pageData.map(appointment => {
         const status = statusLabels[appointment.status] || statusLabels.programada;
+        const invoiceButton = ['atendida', 'completada', 'finalizada'].includes(String(status.label).toLowerCase())
+            ? `<button class="action-btn btn-secondary btn-invoice" aria-label="Generar factura de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Generar factura">
+                  <span class="material-symbols-outlined action-icon" aria-hidden="true">receipt_long</span><span class="btn-text">Facturar</span>
+               </button>`
+            : '';
 
         return `
             <tr class="table-row" role="row" tabindex="0" aria-label="Cita de ${escapeHtml(appointment.patient)} el ${escapeHtml(fmtDate(appointment.date))}">
@@ -577,6 +608,7 @@ const renderAppointments = () => {
                         <a href="/gestion-de-citas/st-adm-09-citas?editId=${appointment.id}" class="action-btn btn-secondary btn-edit" aria-label="Editar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Editar cita">
                           <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
                         </a>
+                                                ${invoiceButton}
                         <button class="action-btn btn-danger btn-delete" aria-label="Cancelar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Cancelar cita" onclick="openConfirmDeleteCita(${appointment.id}, '${escapeHtml(appointment.patient)}')">
                           <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span> <span class="btn-text">Eliminar</span>
                         </button>
@@ -610,6 +642,10 @@ const renderAppointments = () => {
                 openAppointmentModal(parseInt(event.currentTarget.dataset.id), 'edit');
             }
         });
+    });
+
+    tableBody.querySelectorAll('.btn-invoice').forEach(button => {
+        button.addEventListener('click', () => createInvoiceFromAppointment(parseInt(button.dataset.id, 10), button));
     });
 
     // Agregar event listeners a botones de eliminar
@@ -874,33 +910,21 @@ const updatePagination = (totalItems) => {
 
 /**
  * Anima un contador numérico desde 0 hasta el valor objetivo.
+ * IMPLEMENTACIÓN UNIFICADA: delega a window.animateCounter (shared/utils.js)
+ * que incluye guard `data-animated`, `WeakMap` de limpieza, `data-format`
+ * para moneda, y breakpoints consistentes.
  *
  * @param {HTMLElement} element - Elemento DOM a animar
  * @param {number} target - Valor objetivo
  */
-const counterIntervals = new WeakMap();
-
 const animateCounter = (element, target) => {
-    if (!element) return;
-
-    if (counterIntervals.has(element)) {
-        clearInterval(counterIntervals.get(element));
+  if (typeof window.animateCounter === 'function') {
+    // Clear guard si es una re-animación (updateStats runtime)
+    if (element && element.dataset.animated === '1') {
+      delete element.dataset.animated;
     }
-
-    let currentValue = 0;
-    const step = Math.max(1, Math.ceil(target / 30));
-
-    const animationTimer = setInterval(() => {
-        currentValue = Math.min(currentValue + step, target);
-        element.textContent = currentValue;
-
-        if (currentValue >= target) {
-            clearInterval(animationTimer);
-            counterIntervals.delete(element);
-        }
-    }, 30);
-
-    counterIntervals.set(element, animationTimer);
+    window.animateCounter(element, target);
+  }
 };
 
 /**

@@ -227,9 +227,17 @@ window.AppointmentUtils = (() => {
             isDirty = checkDirty();
             if (!isDirty) { closeFn(); return; }
 
-            // Intentar usar _ConfirmModal si está disponible en la página
-            const confirmModal = document.getElementById('confirmModal');
-            if (confirmModal && window.ConfirmModalService) {
+            // Intentar usar ModalService canónico primero, luego ConfirmModalService si existe
+            if (window.ModalService && typeof window.ModalService.confirm === 'function') {
+                window.ModalService.confirm({
+                    title: '¿Descartar cambios?',
+                    message: 'Tienes cambios sin guardar. Si cierras ahora perderás la información ingresada.',
+                    confirmText: 'Sí, descartar',
+                    cancelText: 'Seguir editando',
+                    isDanger: true,
+                    onConfirm: () => { snapshot = null; closeFn(); }
+                });
+            } else if (confirmModal && window.ConfirmModalService) {
                 window.ConfirmModalService.show({
                     title: '¿Descartar cambios?',
                     message: 'Tienes cambios sin guardar. Si cierras ahora perderás la información ingresada.',
@@ -239,7 +247,7 @@ window.AppointmentUtils = (() => {
                     onConfirm: () => { snapshot = null; closeFn(); }
                 });
             } else {
-                // Fallback: confirm nativo del navegador
+                // Fallback final: confirm nativo del navegador
                 if (window.confirm('Tienes cambios sin guardar. ¿Deseas descartarlos?')) {
                     snapshot = null;
                     closeFn();

@@ -101,16 +101,9 @@ const shouldUseServerRenderedList = () => {
   return false;
 };
 
-const animateCounter = (el, target) => {
-  if (!el) return;
-  let cur = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const t = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = cur;
-    if (cur >= target) clearInterval(t);
-  }, 30);
-};
+// animateCounter → usa window.animateCounter global (shared/utils.js).
+// Conserva firma `animateCounter(el, target)` porque el resolve scope JS
+// encuentra la global window.animateCounter automáticamente.
 
 // Formato fecha: "20 mar"
 const fmtFechaCorta = (fhIso) => {
@@ -281,6 +274,15 @@ const createAppointmentRow = (appt) => {
   const avatarColor = PALETTE[Math.abs(hash) % PALETTE.length];
 
   const isCancelada = (appt.status || '').toLowerCase() === 'cancelada' || (appt.status || '').toLowerCase() === 'cancelado';
+    const isFacturable = ['atendida', 'completada', 'finalizada'].includes((appt.status || '').toLowerCase());
+    const invoiceBtnHtml = isFacturable ? `
+      <button class="btn-secondary btn-invoice" type="button"
+          data-action="invoice" data-id="${appt.id}"
+          aria-label="Generar factura de ${escapeHtml(appt.patient)}"
+          title="Generar factura">
+        <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
+        <span class="btn-text">Facturar</span>
+      </button>` : '';
   const cancelBtnHtml = isCancelada ? '' : `
         <button class="btn-danger btn-delete" type="button"
                 data-action="cancel" data-id="${appt.id}"
@@ -316,11 +318,52 @@ const createAppointmentRow = (appt) => {
                 aria-label="Editar cita de ${escapeHtml(appt.patient)}"
                 title="Editar cita de ${escapeHtml(appt.patient)}">
           ✏️ <span class="btn-text">Editar</span>
-        </button>${cancelBtnHtml}
+        </button>${invoiceBtnHtml}${cancelBtnHtml}
       </div>
     </td>
   `;
   return tr;
+};
+
+const createInvoiceFromAppointment = async (id) => {
+  const button = document.querySelector(`[data-action="invoice"][data-id="${id}"]`);
+  if (button) button.disabled = true;
+  try {
+    const headers = getCancelHeaders();
+    if (!headers['X-CSRF-TOKEN']) {
+      throw new Error('No se pudo validar la sesión. Recarga la página e inténtalo nuevamente.');
+    }
+    const response = await fetch(`${API_BASE}/facturas/desde-cita/${id}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = payload.message || (response.status === 403
+        ? 'No tienes permisos para generar facturas.'
+        : response.status === 400
+          ? 'La cita no cumple las condiciones para facturación.'
+          : `No fue posible generar la factura (HTTP ${response.status}).`);
+      throw new Error(detail);
+    }
+    showToast(payload.message || 'Factura generada correctamente.', 'success');
+    const citas = await fetchAppointments(currentApiPage);
+    renderAppointments(citas);
+    updateMetrics();
+    window.setTimeout(() => {
+      const invoiceId = payload.data?.id;
+      const destination = invoiceId
+        ? `/facturacion-y-pagos/st-adm-12-facturacion?facturaId=${encodeURIComponent(invoiceId)}`
+        : '/facturacion-y-pagos/st-adm-12-facturacion';
+      if (window.confirm('Factura creada. ¿Deseas abrir el módulo de facturación?')) {
+        window.location.assign(destination);
+      }
+    }, 50);
+  } catch (error) {
+    showToast(error.message || 'No fue posible generar la factura.', 'error');
+    if (button) button.disabled = false;
+  }
 };
 
 const renderAppointments = (data) => {
@@ -558,6 +601,7 @@ const handleTableAction = async (e) => {
   if (action === 'view')   return openViewModal(id);
   if (action === 'edit')   return openEditModal(id, btn.dataset);
   if (action === 'cancel') return openCancelModal(id, btn.dataset);
+  if (action === 'invoice') return createInvoiceFromAppointment(id);
 };
 
 // ═══════════════════════════════════════════════════════════════════

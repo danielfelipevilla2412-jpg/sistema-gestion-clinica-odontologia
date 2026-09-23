@@ -62,10 +62,37 @@ public partial class GestionProfesionalesController(
     [Route("gestion-de-profesionales/st-adm-14-reportes-clinicos")]
     public async Task<IActionResult> Stadm14ReportesClinicos([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null, [FromQuery] string? profesional = null, [FromQuery] string? mes = null, CancellationToken ct = default)
     {
+        // ── A6: Control de acceso por rol para reportes clínicos (RN-18) ────
+        // Profesional solo puede ver sus propios datos.
+        // Si no tiene fila asociada en la tabla Profesionales, se deniega.
+        int? idProfesionalForzado = null;
+        if (User.IsInRole("Profesional"))
+        {
+            string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId))
+            {
+                TempData["ErrorValidacion"] = "No fue posible identificar al profesional autenticado.";
+                return View("~/Views/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/index.cshtml");
+            }
+
+            var profCheck = await _context.Profesionales.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
+
+            if (profCheck is null)
+            {
+                TempData["ErrorValidacion"] = "Su cuenta no está vinculada a un profesional activo. Contacte al administrador.";
+                return View("~/Views/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/index.cshtml");
+            }
+
+            // Forzar filtro al propio profesional; ignorar cualquier ?profesional= externo
+            idProfesionalForzado = profCheck.IdProfesional;
+            profesional = null;
+        }
+
         try
         {
             await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
-            await CargarDatosReportesClinicos(page, pageSize, search, profesional, mes, ct);
+            await CargarDatosReportesClinicos(page, pageSize, search, profesional, mes, idProfesionalForzado, ct);
             return View("~/Views/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/index.cshtml");
         }
         catch (Exception ex)
@@ -313,7 +340,7 @@ public partial class GestionProfesionalesController(
     // fueron eliminadas en la Fase 2E porque el frontend ahora consume directamente
     // ProfesionalesApiController.cs.
 
-    private async Task CargarDatosReportesClinicos(int page, int pageSize, string? search = null, string? profesional = null, string? mes = null, CancellationToken ct = default)
+    private async Task CargarDatosReportesClinicos(int page, int pageSize, string? search = null, string? profesional = null, string? mes = null, int? idProfesionalForzado = null, CancellationToken ct = default)
     {
         try
         {
@@ -330,18 +357,17 @@ public partial class GestionProfesionalesController(
                 .AsNoTracking()
                 .AsQueryable();
 
-            if (User.IsInRole("Profesional"))
+            // A6: si viene idProfesionalForzado (rol Profesional) lo usamos directamente;
+            // si no (rol Administrador), permitir filtro por nombre desde el parámetro.
+            if (idProfesionalForzado.HasValue)
             {
-                string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (int.TryParse(userIdStr, out int userId))
-                {
-                    var prof = await _context.Profesionales.AsNoTracking()
-                        .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
-                    if (prof != null)
-                    {
-                        citasQuery = citasQuery.Where(c => c.IdProfesional == prof.IdProfesional);
-                    }
-                }
+                citasQuery = citasQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
+            }
+            else if (User.IsInRole("Profesional"))
+            {
+                // Fallback de seguridad: si llegamos aquí sin idProfesionalForzado siendo
+                // Profesional, es un escenario no esperado — filtramos por 0 (sin resultados).
+                citasQuery = citasQuery.Where(c => c.IdProfesional == 0);
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -518,18 +544,13 @@ public partial class GestionProfesionalesController(
             ViewData["TotalPacientesReportes"] = await _context.Pacientes.CountAsync(ct);
 
             var consultasQuery = _context.Citas.AsNoTracking();
-            if (User.IsInRole("Profesional"))
+            if (idProfesionalForzado.HasValue)
             {
-                string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (int.TryParse(userIdStr, out int userId))
-                {
-                    var prof = await _context.Profesionales.AsNoTracking()
-                        .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
-                    if (prof != null)
-                    {
-                        consultasQuery = consultasQuery.Where(c => c.IdProfesional == prof.IdProfesional);
-                    }
-                }
+                consultasQuery = consultasQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
+            }
+            else if (User.IsInRole("Profesional"))
+            {
+                consultasQuery = consultasQuery.Where(c => c.IdProfesional == 0);
             }
 
             ViewData["ConsultasMes"] = await consultasQuery.CountAsync(c => c.FechaHora >= inicioMes && c.FechaHora < finMes, ct);

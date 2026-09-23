@@ -37,6 +37,16 @@ public sealed class ProfesionalApiRequest
 
     [Range(1, int.MaxValue, ErrorMessage = "La especialidad seleccionada es inválida.")]
     public int? IdEspecialidad { get; set; }
+
+    /// <summary>
+    /// Lista de IDs de especialidades a asignar al profesional (RF-11).
+    /// Si se envía <see cref="IdsEspecialidades"/> con al menos un elemento,
+    /// tiene prioridad sobre <see cref="IdEspecialidad"/> (mantenido por
+    /// compatibilidad con clientes anteriores).
+    /// Si ambos están vacíos, el servicio aplica la especialidad por defecto
+    /// "Odontología General" (RN-15).
+    /// </summary>
+    public List<int>? IdsEspecialidades { get; set; }
 }
 
 public sealed class ProfesionalEstadoApiRequest

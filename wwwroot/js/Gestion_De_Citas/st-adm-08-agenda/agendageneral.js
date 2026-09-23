@@ -110,40 +110,16 @@ const trackedRAF = (callback) => {
 };
 
 // ════════════════════════════════════════════════════════════════════
-//  FUNCIONES DE ANIMACIÓN
+//  FUNCIONES DE ANIMACIÓN  (ahora usa window.animateCounter global)
 // ════════════════════════════════════════════════════════════════════
-
-/**
- * Anima un contador numérico desde 0 hasta el valor objetivo.
- */
-const animateCounter = (element, targetString) => {
-    if (!element) return;
-
-    const targetValue = parseInt(targetString, 10);
-    
-    // Validar que el target sea un número válido y positivo
-    if (isNaN(targetValue) || targetValue <= 0) return;
-
-    let currentValue = 0;
-    const step = Math.max(1, Math.ceil(targetValue / 30));
-
-    const animationInterval = setInterval(() => {
-        currentValue = Math.min(currentValue + step, targetValue);
-        element.textContent = currentValue;
-
-        if (currentValue >= targetValue) {
-            clearInterval(animationInterval);
-        }
-    }, 30);
-};
 
 /**
  * Inicializa todas las animaciones nativas del dashboard.
  */
 const initNativeAnimations = () => {
     // Animar contadores numéricos
-    document.querySelectorAll('.stat-number[data-target]').forEach(element => {
-        animateCounter(element, element.dataset.target);
+    document.querySelectorAll('.stat-number[data-target]:not([data-animated="1"])').forEach(element => {
+        window.animateCounter(element, Number(element.dataset.target) || 0);
     });
 
     // Animar barras de progreso usando requestAnimationFrame rastreado

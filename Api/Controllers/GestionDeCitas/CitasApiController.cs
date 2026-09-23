@@ -338,6 +338,59 @@ public sealed class CitasApiController : ControllerBase
         return Ok(new { success = true, data = payload, total = payload.Count });
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/citas/lista-espera/sugerencias
+    // M7 (RF-24): Devuelve candidatos de la lista de espera con profesionales
+    // disponibles para una franja liberada. No modifica datos.
+    // La confirmación la hace recepción con PUT /api/citas/{id}/confirmar-asignacion.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [Route("api/citas/lista-espera/sugerencias")]
+    public async Task<IActionResult> ObtenerSugerenciasListaEspera(
+        [FromQuery] DateTime fechaHora,
+        [FromQuery] int? idServicio = null,
+        [FromQuery] int? idProfesional = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var sugerencias = await _citaService.ObtenerSugerenciasListaEsperaAsync(
+                fechaHora, idServicio, idProfesional, ct);
+            return Ok(new { success = true, data = sugerencias, total = sugerencias.Count });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error al obtener sugerencias de lista de espera");
+            return StatusCode(500, new { success = false, message = "No se pudieron obtener sugerencias." });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/citas/kpis?fecha=YYYY-MM-DD
+    // M5 (RF-27): Endpoint de KPIs para polling periódico desde el dashboard.
+    // Permite que el cliente actualice los indicadores sin recargar la página.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [Route("api/citas/kpis")]
+    public async Task<IActionResult> ObtenerKpis(
+        [FromQuery] DateTime? fecha = null,
+        CancellationToken ct = default)
+    {
+        var fechaRef = fecha?.Date ?? DateTime.Today;
+        try
+        {
+            var kpis = await _citaService.ObtenerKpisGestionAsync(fechaRef, ct);
+            return Ok(new { success = true, data = kpis, generadoEn = DateTime.Now });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error al obtener KPIs de citas para fecha={Fecha}", fechaRef);
+            return StatusCode(500, new { success = false, message = "No se pudieron calcular los KPIs." });
+        }
+    }
+
     [HttpGet]
     [Authorize(Policy = "ApiOrCookie")]
     [Route("api/citas/profesionales-disponibles")]
@@ -528,26 +581,64 @@ public sealed class CitasApiController : ControllerBase
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // PUT /api/citas/{id}/estado
+    // Cambia el estado de una cita.
+    // Actores (RF-21/CU-CIT-04): Recepcionista, Profesional, Auxiliar.
+    // - Profesional: solo sus propias citas (RN-25).
+    // - Auxiliar: solo transiciones operativas del ciclo diario.
+    // - Recepcionista/Administrador: sin restricción de ownership.
+    // ─────────────────────────────────────────────────────────────────────────
     [HttpPut]
     [CookieAwareValidateAntiforgeryToken]
-    [Authorize(Roles = "Profesional", Policy = "ApiOrCookie")]
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional,Auxiliar", Policy = "ApiOrCookie")]
     [Route("api/citas/{id:int}/estado")]
     public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoCitaDto dto, CancellationToken ct = default)
     {
         if (id <= 0 || dto is null || !ModelState.IsValid || string.IsNullOrWhiteSpace(dto.Estado))
             return BadRequest(new { success = false, message = "El estado de la cita es obligatorio." });
+
         var cita = await _citaService.ObtenerPorIdAsync(id, ct);
-        if (cita is null) return NotFound(new { success = false, message = "La cita no existe." });
-        if (!EsProfesionalPropietario(cita)) return Forbid();
+        if (cita is null)
+            return NotFound(new { success = false, message = "La cita no existe." });
+
+        // Ownership: Profesional solo puede cambiar estado de sus propias citas (RN-25)
+        if (User.IsInRole("Profesional") && !EsProfesionalPropietario(cita))
+            return Forbid();
+
         try
         {
-            var actualizada = await _citaService.CambiarEstadoAsync(id, dto.Estado, ct);
-            if (actualizada is null) return NotFound(new { success = false, message = "La cita no existe." });
+            int? idUsuarioActor = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int uid) ? uid : null;
+            string? ipActor = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            var actualizada = await _citaService.CambiarEstadoAsync(id, dto.Estado, idUsuarioActor, ct);
+            if (actualizada is null)
+                return NotFound(new { success = false, message = "La cita no existe." });
+
             string estado = NormalizarEstado(actualizada.Estado);
-            if (estado is "confirmada" or "cancelada") await EnviarNotificacionCitaAsync(actualizada.IdCita, estado, ct);
-            return Ok(new { success = true, id = actualizada.IdCita, idEstado = actualizada.IdEstado, estado = actualizada.Estado, message = $"Cita actualizada a '{actualizada.Estado}' correctamente." });
+            if (estado is "confirmada" or "cancelada")
+                await EnviarNotificacionCitaAsync(actualizada.IdCita, estado, ct);
+
+            await RegistrarAuditoriaAsync(
+                "UPDATE", actualizada.IdCita,
+                $"Estado cambiado a '{actualizada.Estado}' por usuario {idUsuarioActor}.",
+                new { EstadoAnterior = cita.Estado },
+                new { EstadoNuevo = actualizada.Estado },
+                ct);
+
+            return Ok(new
+            {
+                success  = true,
+                id       = actualizada.IdCita,
+                idEstado = actualizada.IdEstado,
+                estado   = actualizada.Estado,
+                message  = $"Cita actualizada a '{actualizada.Estado}' correctamente."
+            });
         }
-        catch (InvalidOperationException ex) { return BadRequest(new { success = false, message = ex.Message }); }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     [HttpGet]
@@ -622,30 +713,72 @@ public sealed class CitasApiController : ControllerBase
         }});
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // DELETE /api/citas/{id}
+    // Cancela una cita. Actores autorizados: Administrador, Recepcionista, Paciente
+    // y Profesional (solo sus propias citas — RF-20 + RN-25).
+    //
+    // DISCREPANCIA DOCUMENTADA (A9/M9): RF-20 incluye Profesional; CU-CIT-05 no
+    // lo lista explícitamente. Decisión conservadora: se permite al Profesional
+    // cancelar únicamente citas donde aparece como prestador asignado, aplicando
+    // todas las restricciones (motivo obligatorio, estado, fecha). Un Profesional
+    // sin relación con la cita recibe 403.
+    // ─────────────────────────────────────────────────────────────────────────
     [HttpDelete]
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Policy = "ApiOrCookie")]
     [Route("api/citas/{id:int}")]
     public async Task<IActionResult> Cancelar(
         int id,
-        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] CitaCancelacionDto? dto = null,
+        [FromBody] CitaCancelacionDto dto,
         CancellationToken ct = default)
     {
-        if (id <= 0) return BadRequest(new { success = false, message = "Identificador de cita inválido." });
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "Identificador de cita inválido." });
+
+        // RN-23: motivo obligatorio — validado por [Required] en el DTO
+        if (dto is null || !ModelState.IsValid || string.IsNullOrWhiteSpace(dto.Motivo))
+            return BadRequest(new { success = false, message = "El motivo de cancelación es obligatorio (RN-23)." });
+
         var cita = await _citaService.ObtenerPorIdAsync(id, ct);
-        if (cita is null) return NotFound(new { success = false, message = "Cita no encontrada." });
-        if (User.IsInRole("Profesional")) return Forbid();
-        if (User.IsInRole("Paciente") && !EsPacientePropietario(cita)) return Forbid();
-        if (!User.IsInRole("Paciente") && !User.IsInRole("Administrador") && !User.IsInRole("Recepcionista")) return Forbid();
+        if (cita is null)
+            return NotFound(new { success = false, message = "Cita no encontrada." });
+
+        // Control de acceso por rol + ownership (RN-25)
+        // Profesional: solo sus propias citas (RF-20 permite; CU-CIT-05 no lista —
+        //   se aplica restricción de ownership como solución conservadora).
+        if (User.IsInRole("Profesional") && !EsProfesionalPropietario(cita))
+            return Forbid();
+
+        if (User.IsInRole("Paciente") && !EsPacientePropietario(cita))
+            return Forbid();
+
+        if (!User.IsInRole("Paciente") &&
+            !User.IsInRole("Administrador") &&
+            !User.IsInRole("Recepcionista") &&
+            !User.IsInRole("Profesional"))
+            return Forbid();
+
         try
         {
             TimeSpan? anticipacionMinima = User.IsInRole("Paciente") ? TimeSpan.FromHours(2) : null;
-            string? motivo = dto is null ? null : dto.Motivo;
-            if (!await _citaService.CancelarAsync(id, motivo, anticipacionMinima, ct)) return NotFound(new { success = false, message = "Cita no encontrada." });
-            await RegistrarAuditoriaAsync("UPDATE", id, "Cita cancelada mediante API." + (string.IsNullOrWhiteSpace(motivo) ? string.Empty : $" Motivo: {motivo.Trim()}"), ct);
+            string motivo = dto.Motivo.Trim();
+
+            if (!await _citaService.CancelarAsync(id, motivo, anticipacionMinima, ct))
+                return NotFound(new { success = false, message = "Cita no encontrada." });
+
+            await RegistrarAuditoriaAsync(
+                "UPDATE", id,
+                $"Cita cancelada mediante API. Motivo: {motivo}",
+                new { EstadoAnterior = cita.Estado, cita.FechaHora, cita.IdPaciente, cita.IdProfesional },
+                new { Estado = "Cancelada", Motivo = motivo },
+                ct);
             return Ok(new { success = true, message = "Cita cancelada exitosamente.", id });
         }
-        catch (InvalidOperationException ex) { return BadRequest(new { success = false, message = ex.Message }); }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     private bool TieneOwnership(Cita cita) => User.IsInRole("Administrador") || User.IsInRole("Recepcionista") || (User.IsInRole("Paciente") && EsPacientePropietario(cita)) || (User.IsInRole("Profesional") && EsProfesionalPropietario(cita));
@@ -658,10 +791,47 @@ public sealed class CitasApiController : ControllerBase
     {
         try
         {
-            _context.Auditorias.Add(new Auditoria { Accion = accion, TablaAfectada = "Cita", IdRegistro = idRegistro, Descripcion = descripcion, IdUsuario = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int id) ? id : null, IpOrigen = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida", Fecha = DateTime.Now });
+            _context.Auditorias.Add(new Auditoria
+            {
+                Accion        = accion,
+                TablaAfectada = "Cita",
+                IdRegistro    = idRegistro,
+                Descripcion   = descripcion,
+                IdUsuario     = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int id) ? id : null,
+                IpOrigen      = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+                Fecha         = DateTime.Now
+            });
             await _context.SaveChangesAsync(ct);
         }
         catch (Exception ex) { _logger.LogWarning(ex, "No se pudo registrar auditoría de cita IdCita={IdCita}", idRegistro); }
+    }
+
+    // M4: Sobrecarga con snapshots anterior/nuevo para cumplir RN-28 completo
+    private async Task RegistrarAuditoriaAsync(
+        string accion,
+        int idRegistro,
+        string descripcion,
+        object? datosAnteriores,
+        object? datosNuevos,
+        CancellationToken ct)
+    {
+        try
+        {
+            _context.Auditorias.Add(new Auditoria
+            {
+                Accion          = accion,
+                TablaAfectada   = "Cita",
+                IdRegistro      = idRegistro,
+                Descripcion     = descripcion,
+                IdUsuario       = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int id) ? id : null,
+                IpOrigen        = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+                Fecha           = DateTime.Now,
+                DatosAnteriores = datosAnteriores is null ? null : System.Text.Json.JsonSerializer.Serialize(datosAnteriores),
+                DatosNuevos     = datosNuevos is null     ? null : System.Text.Json.JsonSerializer.Serialize(datosNuevos)
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex) { _logger.LogWarning(ex, "No se pudo registrar auditoría con snapshots. IdCita={IdCita}", idRegistro); }
     }
 
     private async Task EnviarNotificacionCitaAsync(int idCita, string estado, CancellationToken ct)

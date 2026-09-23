@@ -33,6 +33,7 @@ NOTAS DE MANTENIMIENTO:
 // ═══════════════════════════════════════════════════════════════════
 const API_BASE = '/api';
 const API_PAGE_SIZE = 200;
+let activeTab = 'all';
 
 const getCsrfToken = () => {
   const requestToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
@@ -134,9 +135,11 @@ const fmtHora = (fh) => {
 // ═══════════════════════════════════════════════════════════════════
 
 const mapServerToClient = (srv) => {
-  const est = CommonUtils.mapEstadoServerToClient(srv.Estado);
+  const estadoServidor = srv.Estado ?? srv.estado ?? srv.EstadoCatalogo ?? srv.estadoCatalogo ?? '';
+  const est = CommonUtils.mapEstadoServerToClient(estadoServidor);
   const info = CommonUtils.getStatusInfo(est);
-  const fhISO = srv.FechaHora ? new Date(srv.FechaHora).toISOString() : null;
+  const fechaHora = srv.FechaHora ?? srv.fechaHora;
+  const fhISO = fechaHora ? new Date(fechaHora).toISOString() : null;
   const proximaFutura = info.label === 'Agendada' || info.label === 'Confirmada';
   const todayISO = new Date().toISOString().split('T')[0];
   const citaFechaISO = fhISO ? fhISO.split('T')[0] : todayISO;
@@ -205,7 +208,11 @@ const getFiltered = () => {
       || c.servicio.toLowerCase().includes(q)
       || c.fecha.toLowerCase().includes(q);
     const matchS = !st || c.estado === st;
-    return matchQ && matchS;
+    const matchTab = activeTab === 'all'
+      || (activeTab === 'pending' && ['Agendada', 'Confirmada', 'En curso'].includes(c.estado))
+      || (activeTab === 'completed' && c.estado === 'Completada')
+      || (activeTab === 'cancelled' && ['Cancelada', 'No asistió'].includes(c.estado));
+    return matchQ && matchS && matchTab;
   });
 };
 
@@ -234,30 +241,25 @@ const updateStats = () => {
   if (lbl) lbl.textContent = `${comp} de ${total} citas completadas`;
 };
 
-const animateCounter = (el, target) => {
-  if (!el) return;
-  let cur = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const start = performance.now();
-  const dur = 900;
-  const tick = (t) => {
-    const p = Math.min((t - start) / dur, 1);
-    const eased = 1 - Math.pow(1 - p, 3);
-    el.textContent = Math.floor(eased * target);
-    if (p < 1) requestAnimationFrame(tick); else el.textContent = target;
-  };
-  requestAnimationFrame(tick);
-};
+// animateCounter: IMPLEMENTACIÓN UNIFICADA en window.animateCounter
+// (shared/utils.js). Elimina la versión local basada en requestAnimationFrame
+// con easing para mantener consistencia con otras vistas; runtime calls
+// animateCounter(el, target) = window.animateCounter (resolución global).
 
 const animateCounters = () => {
   const total = citas.length;
   const comp = citas.filter(c => c.estado === 'Completada').length;
   const pend = citas.filter(c => c.estado === 'Agendada' || c.estado === 'Confirmada').length;
   const canc = citas.filter(c => c.estado === 'Cancelada').length;
-  animateCounter(safeGetElement('cnt-total'), total);
-  animateCounter(safeGetElement('cnt-completadas'), comp);
-  animateCounter(safeGetElement('cnt-pendientes'), pend);
-  animateCounter(safeGetElement('cnt-canceladas'), canc);
+  // Limpiamos guard `data-animated` porque es re-animación post-filtrado
+  const nodes = [safeGetElement('cnt-total'), safeGetElement('cnt-completadas'), safeGetElement('cnt-pendientes'), safeGetElement('cnt-canceladas')];
+  nodes.forEach(n => { if (n) delete n.dataset.animated; });
+  if (typeof window.animateCounter === 'function') {
+    window.animateCounter(safeGetElement('cnt-total'), total);
+    window.animateCounter(safeGetElement('cnt-completadas'), comp);
+    window.animateCounter(safeGetElement('cnt-pendientes'), pend);
+    window.animateCounter(safeGetElement('cnt-canceladas'), canc);
+  }
 };
 
 const renderTable = () => {
@@ -618,6 +620,20 @@ const initTableEvents = () => {
   });
 };
 
+const initStatusTabs = () => {
+  document.querySelectorAll('[data-tab]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      activeTab = tab.dataset.tab || 'all';
+      document.querySelectorAll('[data-tab]').forEach(item => {
+        const selected = item === tab;
+        item.classList.toggle('active', selected);
+        item.setAttribute('aria-selected', String(selected));
+      });
+      renderTable();
+    });
+  });
+};
+
 // ═══════════════════════════════════════════════════════════════════
 //  FETCH CITAS DESDE API
 // ═══════════════════════════════════════════════════════════════════
@@ -656,6 +672,7 @@ const init = async () => {
 
     initNuevaCitaModal();
     initTableEvents();
+    initStatusTabs();
 
     // Filtros
     safeGetElement('filterEstado')?.addEventListener('change', renderTable);

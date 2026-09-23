@@ -42,6 +42,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AuditoriaRecuperacion> AuditoriasRecuperacion => Set<AuditoriaRecuperacion>();
     public DbSet<Factura> Facturas => Set<Factura>();
     public DbSet<DetalleFactura> DetallesFactura => Set<DetalleFactura>();
+      public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
     public DbSet<TicketSoporte> TicketsSoporte => Set<TicketSoporte>();
@@ -577,6 +578,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(f => f.Total).HasColumnName("total").HasPrecision(12, 2);
             entity.Property(f => f.Estado).HasColumnName("estado");
             entity.Property(f => f.IdPaciente).HasColumnName("id_paciente");
+            entity.Property(f => f.IdCita).HasColumnName("id_cita");
+            entity.Property(f => f.IdProfesional).HasColumnName("id_profesional");
             entity.Property(f => f.Notas).HasColumnName("notas");
             entity.Property(f => f.GeneradaPor).HasColumnName("generada_por");
             entity.Property(f => f.MontoPagado).HasColumnName("monto_pagado").HasPrecision(12, 2);
@@ -586,6 +589,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(f => f.IdPaciente)
                   .OnDelete(DeleteBehavior.Restrict);
 
+            entity.HasOne(f => f.Cita)
+                  .WithMany(c => c.Facturas)
+                  .HasForeignKey(f => f.IdCita)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(f => f.Profesional)
+                  .WithMany()
+                  .HasForeignKey(f => f.IdProfesional)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(f => f.IdCita)
+                  .HasDatabaseName("UX_Factura_Cita_Activa")
+                  .IsUnique()
+                  .HasFilter("[id_cita] IS NOT NULL AND [estado] <> 'anulada'");
+
             entity.HasOne(f => f.GeneradaPorUsuario)
                   .WithMany()
                   .HasForeignKey(f => f.GeneradaPor)
@@ -594,6 +612,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                  .WithOne(d => d.Factura)
                   .HasForeignKey(d => d.IdFactura)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Pago>(entity =>
+        {
+            entity.ToTable("Pago");
+            entity.HasKey(p => p.IdPago);
+            entity.Property(p => p.IdPago).HasColumnName("id_pago");
+            entity.Property(p => p.IdFactura).HasColumnName("id_factura");
+            entity.Property(p => p.Monto).HasColumnName("monto").HasPrecision(12, 2);
+            entity.Property(p => p.FechaPago).HasColumnName("fecha_pago");
+            entity.Property(p => p.MetodoPago).HasColumnName("metodo_pago").HasMaxLength(30);
+            entity.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(100);
+            entity.Property(p => p.RegistradoPor).HasColumnName("registrado_por");
+            entity.Property(p => p.Observaciones).HasColumnName("observaciones").HasMaxLength(500);
+
+            entity.HasOne(p => p.Factura)
+                  .WithMany(f => f.Pagos)
+                  .HasForeignKey(p => p.IdFactura)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(p => p.RegistradoPorUsuario)
+                  .WithMany()
+                  .HasForeignKey(p => p.RegistradoPor)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<DetalleFactura>(entity =>

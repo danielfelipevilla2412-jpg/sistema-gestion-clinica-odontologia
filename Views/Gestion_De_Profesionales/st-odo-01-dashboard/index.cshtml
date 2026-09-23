@@ -160,7 +160,7 @@ NOTAS DE MANTENIMIENTO:
         <span class="stat-label" data-i18n="status.attended">Citas atendidas</span>
       </div>
       <div class="stat-card" data-color="purple">
-        <span class="stat-number" id="statIngresos" aria-live="polite">$@(Convert.ToDecimal(ViewData["OdoIngresosMes"] ?? 0).ToString("N0"))</span>
+        <span class="stat-number" id="statIngresos" data-format="currency-cop" data-target="@(Convert.ToDecimal(ViewData["OdoIngresosMes"] ?? 0))" aria-live="polite">0</span>
         <span class="stat-label">Ingresos del mes</span>
       </div>
     </section>
@@ -237,7 +237,7 @@ NOTAS DE MANTENIMIENTO:
             var pctNoAsistio = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasNoAsistio"] ?? 0) / totalCitas * 100) : 0;
             
             var tasaAsistencia = (int)(ViewData["TasaAsistenciaHoy"] ?? 0);
-            var emoji = tasaAsistencia >= 80 ? "🔥" : tasaAsistencia >= 50 ? "👍" : "⚠️";
+            var iconoMs = tasaAsistencia >= 80 ? "local_fire_department" : tasaAsistencia >= 50 ? "thumb_up" : "warning";
             var mensajeRendimiento = tasaAsistencia >= 80 
                 ? "¡Excelente día! Estás cumpliendo tus objetivos."
                 : tasaAsistencia >= 50 
@@ -269,7 +269,7 @@ NOTAS DE MANTENIMIENTO:
                         </defs>
                     </svg>
                     <div class="score-text">
-                        <span class="score-emoji">@emoji</span>
+                        <span class="score-emoji material-symbols-outlined" aria-hidden="true">@iconoMs</span>
                         <strong class="score-value">@tasaAsistencia%</strong>
                         <span class="score-label">Atendidas</span>
                     </div>

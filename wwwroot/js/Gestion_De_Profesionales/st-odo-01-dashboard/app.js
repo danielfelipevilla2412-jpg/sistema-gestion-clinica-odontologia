@@ -12,22 +12,9 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#039;');
 
-const animateCounter = (el, target) => {
-  if (!el) return;
-  const numericTarget = Number(target) || 0;
-  if (numericTarget === 0) {
-    el.textContent = '0';
-    return;
-  }
-
-  let current = 0;
-  const step = Math.max(1, Math.ceil(numericTarget / 30));
-  const timer = setInterval(() => {
-    current = Math.min(current + step, numericTarget);
-    el.textContent = current;
-    if (current >= numericTarget) clearInterval(timer);
-  }, 30);
-};
+// animateCounter → delega a window.animateCounter global (shared/utils.js).
+// Para statIngresos con formato $COP el elemento HTML tiene atributo
+// data-format="currency-cop" y animateCounter lo formatea automáticamente.
 
 const initHeaderDate = () => {
   const headerDate = safeGetElement('headerDate');

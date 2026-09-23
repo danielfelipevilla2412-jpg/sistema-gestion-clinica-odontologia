@@ -28,11 +28,11 @@ DEPENDENCIAS TÉCNICAS:
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-pac-03-notificaciones/styles.css" asp-append-version="true" />
+  <link rel="stylesheet" href="~/css/shared/perfil-paciente-ui.css" asp-append-version="true" />
 }
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
-
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
@@ -50,6 +50,7 @@ DEPENDENCIAS TÉCNICAS:
         </button>
       </div>
     </header>
+    <div data-perfil-paciente-header></div>
 
     <!-- Toolbar de filtros -->
     <div class="toolbar" role="toolbar" aria-label="Filtros de notificaciones" data-i18n-aria-label="notifications.filter_aria">
@@ -126,6 +127,8 @@ DEPENDENCIAS TÉCNICAS:
     window.smiletrackNotificacionesData = @Html.Raw(notificacionesDataJson);
   </script>
 @section Scripts {
+  <script src="~/js/shared/perfil-paciente-service.js" asp-append-version="true" defer></script>
+  <script src="~/js/shared/perfil-paciente-ui.js" asp-append-version="true" defer></script>
     <script src="~/js/Gestion_De_Citas/st-pac-03-notificaciones/notificaciones.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>

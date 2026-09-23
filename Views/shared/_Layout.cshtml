@@ -43,6 +43,11 @@
     @* Tokens canónicos + reset + componentes base (variables.css) *@
     <link rel="stylesheet" href="~/css/shared/variables.css" asp-append-version="true" />
 
+    @* Componentes UI estandarizados (tabs, filtros, stat-cards, action-btns, breakpoints) —
+       patrón canónico extraído de st-adm-09. Cargado ANTES del CSS específico de la vista para
+       que este último pueda sobreescribirlo si necesita ajustes locales. *@
+    <link rel="stylesheet" href="~/css/shared/ui-components.css" asp-append-version="true" />
+
     @* CSS propio de la vista (nombre del módulo + vista) *@
     @await RenderSectionAsync("Styles", required: false)
 
@@ -92,6 +97,35 @@
     @* Utilidades compartidas: una sola carga para todas las vistas. *@
     <script src="~/js/shared/common.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/utils.js" asp-append-version="true" defer></script>
+
+    @* Inicialización SSR GLOBAL de animateCounter sobre [data-target] (patrón canónico st-adm-09).
+         Se ejecuta UNA sola vez aquí y automáticamente anima las stat-cards de TODAS las vistas
+         que tengan data-target, sin necesidad de repetir bloque por vista. *@
+    <script asp-append-version="true" defer>
+      (function () {
+        function runSsrAnimateCounters() {
+          var nodes = document.querySelectorAll('[data-target]:not([data-animated="1"])');
+          if (nodes.length === 0) return;
+          if (typeof window.animateCounter !== 'function') {
+            setTimeout(runSsrAnimateCounters, 60);
+            return;
+          }
+          nodes.forEach(function (el) {
+            if (el.getAttribute('data-animated') === '1') return;
+            var raw = el.getAttribute('data-target');
+            if (raw === null || raw === '') return;
+            var t = Number(raw);
+            if (!Number.isFinite(t)) return;
+            try { window.animateCounter(el, Math.round(t)); } catch (_) {}
+          });
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', runSsrAnimateCounters, { once: true });
+        } else {
+          runSsrAnimateCounters();
+        }
+      })();
+    </script>
 
     @await RenderSectionAsync("Scripts", required: false)
 

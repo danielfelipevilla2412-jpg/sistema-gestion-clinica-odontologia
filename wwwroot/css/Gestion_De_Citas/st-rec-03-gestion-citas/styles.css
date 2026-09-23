@@ -280,65 +280,8 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--primary);
 }
 
-/* Filter bar */
-.filter-bar {
-  background: var(--white);
-  border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  border: 1px solid var(--border);
-}
-.filter-bar .search-wrap {
-  flex: 1;
-  min-width: 200px;
-  position: relative;
-}
-.filter-bar .search-input {
-  width: 100%;
-  padding: 9px 12px 9px 36px;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: .85rem;
-  font-family: var(--font);
-  background: var(--white);
-  outline: none;
-  transition: border-color var(--tr);
-}
-.filter-bar .search-input:focus {
-  border-color: var(--primary);
-}
-.filter-bar .search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  pointer-events: none;
-}
-.filter-bar .status-select {
-  padding: 9px 32px 9px 12px;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: .85rem;
-  font-family: var(--font);
-  background: var(--white);
-  color: var(--text);
-  cursor: pointer;
-  outline: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 16px;
-}
-.filter-bar .status-select:focus {
-  border-color: var(--primary);
-}
+/* Filter bar — OBSOLETO: reemplazado por shared/ui-components.css
+   (.filters-section / .filters-row / .search-wrap / .filter-wrap / .filter-select) */
 
 /* Availability alert */
 .availability-alert {
@@ -700,12 +643,13 @@ button { font-family: inherit; cursor: pointer; }
   .main { margin-left: 0; padding: 58px 14px 32px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .page-header { flex-direction: column; align-items: flex-start; }
-  .filter-bar { flex-direction: column; align-items: stretch; }
-  .filter-bar .search-wrap { min-width: 100%; }
-  .filter-bar .filter-wrap,
-  .filter-bar .status-select,
-  .filter-bar .btn-primary,
-  .filter-bar .btn-secondary { width: 100%; }
+  /* filter-bar OBSOLETO: reemplazado por .filters-section / .filters-row en shared/ui-components.css */
+  .filters-row { flex-direction: column; align-items: stretch; }
+  .filters-row .search-wrap { min-width: 100%; }
+  .filters-row .filter-wrap,
+  .filters-row .status-select,
+  .filters-row .btn-primary,
+  .filters-row .btn-secondary { width: 100%; }
   .btn-text { display: none; }
   .action-btn { padding: 6px 8px; }
   .view-toggles { width: 100%; overflow-x: auto; padding-bottom: 4px; }
@@ -742,8 +686,8 @@ button { font-family: inherit; cursor: pointer; }
 .action-btn { display: inline-flex; align-items: center; gap: 5px; }
 .action-btn .btn-text { display: inline; font-size: 0.78rem; font-weight: 600; }
 
-/* Filtros: wrap uniforme */
-.filter-bar .filter-wrap { flex-shrink: 0; display: flex; align-items: center; }
+/* Filtros: wrap uniforme — OBSOLETO. Ahora usa shared/ui-components.css
+   (.filters-row .filter-wrap) */
 
 /* ═══ AVATAR DE PACIENTE EN TABLA (patrón canónico) ═══ */
 /* td-paciente: contenedor flex para avatar + nombre, mismo patrón que st-adm-07 */

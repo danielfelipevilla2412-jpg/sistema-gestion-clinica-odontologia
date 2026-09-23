@@ -97,5 +97,7 @@ namespace SmileTrack_MVC.Models.Entities
 
         [ForeignKey(nameof(IdEstado))]
         public EstadoCita? EstadoCita { get; set; }
+
+        public ICollection<Factura> Facturas { get; set; } = [];
     }
 }

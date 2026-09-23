@@ -709,7 +709,7 @@ public class CitaService : ICitaService
     // CAMBIAR ESTADO
     // =========================================================================
 
-    public async Task<Cita?> CambiarEstadoAsync(int id, string nuevoEstado, CancellationToken ct = default)
+    public async Task<Cita?> CambiarEstadoAsync(int id, string nuevoEstado, int? idUsuarioActor = null, CancellationToken ct = default)
     {
         var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == id, ct);
         if (cita is null)
@@ -737,12 +737,12 @@ public class CitaService : ICitaService
         cita.Estado   = estadoDestino.NombreEstado;
         await _context.SaveChangesAsync(ct);
 
-        // ── Historial de cambio de estado ────────────────────────────────────
+        // ── Historial de cambio de estado (M6: propagar actor) ───────────────
         await RegistrarHistorialEstadoAsync(
             idCita:      cita.IdCita,
             idEstado:    cita.IdEstado,
             estadoTexto: cita.Estado,
-            idUsuario:   null,
+            idUsuario:   idUsuarioActor,
             motivo:      $"Estado cambiado de '{estadoAnteriorTexto}' a '{cita.Estado}'",
             ct:          ct);
 
@@ -826,8 +826,11 @@ public class CitaService : ICitaService
         int    idPacienteCancelar     = cita.IdPaciente;
         DateTime fechaHoraCancelar    = cita.FechaHora;
 
+        // RN-23: motivo obligatorio, no puede estar vacío, máximo 500 caracteres
         var motivoCancelacion = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim();
-        if (!string.IsNullOrWhiteSpace(motivoCancelacion) && motivoCancelacion.Length > 500)
+        if (string.IsNullOrWhiteSpace(motivoCancelacion))
+            throw new InvalidOperationException("El motivo de cancelación es obligatorio (RN-23). Debe indicar la razón de la cancelación.");
+        if (motivoCancelacion.Length > 500)
             throw new InvalidOperationException("El motivo de cancelación no puede superar 500 caracteres.");
 
         cita.MotivoCancelacion = motivoCancelacion;
@@ -846,9 +849,7 @@ public class CitaService : ICitaService
         await _context.SaveChangesAsync(ct);
 
         // ── Historial de cancelación ─────────────────────────────────────────
-        var motivoHistorial = string.IsNullOrWhiteSpace(motivoCancelacion)
-            ? $"Cita cancelada (estado anterior: '{estadoAnteriorCancelar}')"
-            : $"Cita cancelada (estado anterior: '{estadoAnteriorCancelar}', motivo: '{motivoCancelacion}')";
+        var motivoHistorial = $"Cita cancelada (estado anterior: '{estadoAnteriorCancelar}', motivo: '{motivoCancelacion}')";
 
         await RegistrarHistorialEstadoAsync(
             idCita:      cita.IdCita,
@@ -864,7 +865,7 @@ public class CitaService : ICitaService
             idPaciente: idPacienteCancelar,
             tipo:       "cancelacion",
             titulo:     "Cita cancelada",
-            contenido:  $"Tu cita del {fechaHoraCancelar:dd/MM/yyyy} a las {fechaHoraCancelar:HH:mm} ha sido cancelada.{(string.IsNullOrWhiteSpace(motivoCancelacion) ? string.Empty : $" Motivo: {motivoCancelacion}")}",
+            contenido:  $"Tu cita del {fechaHoraCancelar:dd/MM/yyyy} a las {fechaHoraCancelar:HH:mm} ha sido cancelada. Motivo: {motivoCancelacion}",
             ct:         ct);
 
         // ── Notificación a pacientes en Lista de Espera ──────────────────────
@@ -873,6 +874,10 @@ public class CitaService : ICitaService
             idProfesional: cita.IdProfesional,
             fechaHoraLiberada: fechaHoraCancelar,
             ct: ct);
+
+        // M3 (RN-29): Intentar envío de correo al paciente al cancelar.
+        // Una falla de correo NO revierte la cancelación — solo se registra como advertencia.
+        await EnviarCorreoCancelacionAsync(cita.IdCita, fechaHoraCancelar, motivoCancelacion!, ct);
 
         return true;
     }
@@ -1254,22 +1259,49 @@ public class CitaService : ICitaService
         int duracionMinutos,
         CancellationToken ct)
     {
+        // M2 (RF-16): verificar que el servicio esté habilitado para el profesional
+        // a través de sus especialidades. Si el profesional no tiene especialidades,
+        // se aplica el fallback de Odontología General (RN-15) y se acepta cualquier
+        // servicio de esa especialidad.
         if (idServicio > 0)
         {
-            bool tieneAsignaciones = await _context.ProfesionalServicios
+            var idsEspProf = await _context.ProfesionalEspecialidades
                 .AsNoTracking()
-                .AnyAsync(ps => ps.IdProfesional == idProfesional && ps.Activo, ct);
+                .Where(pe => pe.IdProfesional == idProfesional)
+                .Select(pe => pe.IdEspecialidad)
+                .ToListAsync(ct);
 
-            if (tieneAsignaciones)
+            if (idsEspProf.Count == 0)
             {
-                bool servicioAsignado = await _context.ProfesionalServicios
+                // Fallback Odontología General
+                var espGeneral = await _context.Especialidades
                     .AsNoTracking()
-                    .AnyAsync(ps => ps.IdProfesional == idProfesional && ps.IdServicio == idServicio && ps.Activo, ct);
+                    .FirstOrDefaultAsync(e => e.Nombre.ToLower().Contains("general"), ct);
+                if (espGeneral != null)
+                    idsEspProf.Add(espGeneral.IdEspecialidad);
+            }
 
-                if (!servicioAsignado)
+            if (idsEspProf.Count > 0)
+            {
+                bool servicioPermitido = await _context.Servicios
+                    .AsNoTracking()
+                    .AnyAsync(s =>
+                        s.IdServicio == idServicio &&
+                        s.Estado == "activo", ct);
+
+                // También aceptar si existe asignación directa personalizada
+                if (!servicioPermitido)
                 {
-                    return (false, "El servicio seleccionado no está asignado al profesional.");
+                    servicioPermitido = await _context.ProfesionalServicios
+                        .AsNoTracking()
+                        .AnyAsync(ps =>
+                            ps.IdProfesional == idProfesional &&
+                            ps.IdServicio == idServicio &&
+                            ps.Activo, ct);
                 }
+
+                if (!servicioPermitido)
+                    return (false, "El servicio seleccionado no está habilitado para este profesional según sus especialidades.");
             }
         }
 
@@ -1298,12 +1330,9 @@ public class CitaService : ICitaService
 
         if (horarios.Count == 0)
         {
-            // Fallback: si el profesional no tiene horario específico configurado,
-            // se valida contra el horario general de atención de la clínica.
-            var (horarioClinicaValido, mensajeClinica) = await ValidarHorarioClinicaAsync(fechaHora, duracionMinutos, ct);
-            return horarioClinicaValido
-                ? (true, null)
-                : (false, mensajeClinica ?? "La cita está fuera del horario de atención de la clínica.");
+            // RN-17: Un profesional sin horario configurado NO está disponible para
+            // nuevas citas. No se hace fallback al horario general de la clínica.
+            return (false, "El profesional no tiene horario de atención configurado y no puede recibir citas.");
         }
 
         string dia = NombreDia(fechaHora.DayOfWeek);
@@ -1483,6 +1512,111 @@ public class CitaService : ICitaService
             _logger.LogWarning(ex,
                 "No se pudo crear notificación interna. IdCita={IdCita}, Tipo={Tipo}",
                 idCita, tipo);
+        }
+    }
+
+    // =========================================================================
+    // SUGERENCIAS LISTA DE ESPERA (M7 / RF-24)
+    // =========================================================================
+
+    /// <inheritdoc/>
+    public async Task<List<SugerenciaListaEsperaDto>> ObtenerSugerenciasListaEsperaAsync(
+        DateTime fechaHoraLiberada,
+        int? idServicio,
+        int? idProfesional,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var candidatos = await _context.ListaEsperaCitas
+                .AsNoTracking()
+                .Include(l => l.Paciente)
+                .Include(l => l.Servicio)
+                .Where(l => l.Estado == "pendiente"
+                         && l.FechaDeseadaInicio <= fechaHoraLiberada
+                         && l.FechaDeseadaFin >= fechaHoraLiberada
+                         && (l.IdServicio == null || l.IdServicio == idServicio)
+                         && (l.IdProfesionalPreferido == null || l.IdProfesionalPreferido == idProfesional))
+                .OrderBy(l => l.FechaRegistro)
+                .ToListAsync(ct);
+
+            if (candidatos.Count == 0)
+                return [];
+
+            // Obtener duración y profesionales disponibles para esa franja
+            int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
+            var disponibles = await ObtenerProfesionalesDisponiblesAsync(
+                fechaHoraLiberada.Date,
+                fechaHoraLiberada.TimeOfDay,
+                duracion,
+                idServicio,
+                ct);
+
+            return candidatos.Select(c => new SugerenciaListaEsperaDto
+            {
+                IdListaEspera         = c.IdListaEspera,
+                IdPaciente            = c.IdPaciente,
+                NombrePaciente        = c.Paciente is null
+                                        ? "Paciente desconocido"
+                                        : $"{c.Paciente.Nombres} {c.Paciente.Apellidos}".Trim(),
+                IdServicio            = c.IdServicio,
+                NombreServicio        = c.Servicio?.Nombre,
+                FechaHoraLiberada     = fechaHoraLiberada,
+                ProfesionalesDisponibles = disponibles,
+                Notas                 = c.Notas
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "No se pudieron obtener sugerencias de lista de espera para {FechaHora}", fechaHoraLiberada);
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// M3 (RN-29): Intenta enviar correo de cancelación al paciente.
+    /// Best-effort: si falla, solo registra la advertencia en el log.
+    /// </summary>
+    private async Task EnviarCorreoCancelacionAsync(
+        int idCita,
+        DateTime fechaHoraCita,
+        string motivo,
+        CancellationToken ct)
+    {
+        if (_emailService is null) return;
+
+        try
+        {
+            var cita = await _context.Citas
+                .AsNoTracking()
+                .Include(c => c.Paciente)
+                .Include(c => c.Profesional)
+                .Include(c => c.Servicio)
+                .FirstOrDefaultAsync(c => c.IdCita == idCita, ct);
+
+            if (cita?.Paciente is null || string.IsNullOrWhiteSpace(cita.Paciente.Correo))
+                return;
+
+            string nombrePaciente = $"{cita.Paciente.Nombres} {cita.Paciente.Apellidos}".Trim();
+            string nombreProfesional = cita.Profesional is null
+                ? "el profesional asignado"
+                : $"{cita.Profesional.Nombres} {cita.Profesional.Apellidos}".Trim();
+            string servicio = cita.Servicio?.Nombre ?? "Consulta";
+
+            await _emailService.SendCitaNotificacionAsync(
+                cita.Paciente.Correo,
+                nombrePaciente,
+                fechaHoraCita,
+                nombreProfesional,
+                servicio,
+                "Cancelada");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "No se pudo enviar correo de cancelación. IdCita={IdCita} — la cancelación NO se revierte (RN-29).",
+                idCita);
         }
     }
 

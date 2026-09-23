@@ -87,6 +87,26 @@ NOTAS DE MANTENIMIENTO:
       </div>
     </section>
 
+    <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
+    <div class="table-tabs" role="tablist" aria-label="Filtrar profesionales por estado">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="all" id="tab-all">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">groups</span>
+        Todos los profesionales
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="activo" id="tab-activo">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">person_check</span>
+        Activos
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="vacaciones" id="tab-vacaciones">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">beach_access</span>
+        En vacaciones
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="inactivo" id="tab-inactivo">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">person_off</span>
+        Inactivos
+      </button>
+    </div>
+
 
     <!-- Filtros: cada submit hace GET real al Controller — los parámetros van como query string -->
     <!-- WHY: GET en lugar de POST permite compartir URLs con filtros aplicados (bookmarkeable) -->
@@ -132,11 +152,11 @@ NOTAS DE MANTENIMIENTO:
         <!-- Resetear page=1 al filtrar: evita quedarse en una página que ya no existe tras filtrar -->
         <input type="hidden" name="page" value="1" />
         <button class="btn-primary" type="submit" aria-label="Aplicar los filtros de búsqueda seleccionados" data-i18n-aria-label="gestionprofesionales_btn_buscar_aria" data-i18n="gestionprofesionales_btn_buscar">
-          🔍 Buscar
+          <span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">search</span>Buscar
         </button>
         <!-- Limpiar: enlace simple al GET sin params — más limpio que resetear el form con JS -->
         <a class="btn-secondary" href="@Url.Action("Stadm07GestionProfesionales", "GestionProfesionales")" aria-label="Limpiar todos los filtros y ver todos los profesionales" data-i18n-aria-label="gestionprofesionales_btn_limpiar_aria" data-i18n="gestionprofesionales_btn_limpiar">
-          ✕ Limpiar filtros
+          <span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">close</span>Limpiar filtros
         </a>
       </form>
     </section>
@@ -340,18 +360,18 @@ NOTAS DE MANTENIMIENTO:
           <label class="form-label" for="formContrasenaAcceso" data-i18n="gestionprofesionales_form_password_label">Contraseña</label>
           <div style="position:relative;">
             <input type="password" id="formContrasenaAcceso" name="ContrasenaAcceso" class="form-input" minlength="8" placeholder="Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo" style="padding-right:44px;" data-i18n-ph="gestionprofesionales_form_password_ph">
-            <button type="button" id="toggleProfesionalPassword" aria-label="Mostrar contraseña" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;font-size:16px;" data-i18n-aria-label="gestionprofesionales_form_password_toggle_aria">👁</button>
+            <button type="button" id="toggleProfesionalPassword" aria-label="Mostrar contraseña" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;font-size:16px;" data-i18n-aria-label="gestionprofesionales_form_password_toggle_aria"><span class="material-symbols-outlined" aria-hidden="true">visibility</span></button>
           </div>
           <small id="formContrasenaHelp" style="display:block;margin-top:5px;color:var(--text-muted);" data-i18n="gestionprofesionales_form_password_help">Debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo.</small>
         </div>
         <div class="form-group" id="professionalPasswordRules">
           <div style="font-size:12px;line-height:1.6;">
             <div style="font-weight:600;margin-bottom:4px;" data-i18n="gestionprofesionales_form_password_rules_title">La contraseña debe cumplir:</div>
-            <div data-rule="length"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_length">Mínimo 8 caracteres</span></div>
-            <div data-rule="upper"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_upper">Una letra mayúscula</span></div>
-            <div data-rule="lower"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_lower">Una letra minúscula</span></div>
-            <div data-rule="number"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_number">Un número</span></div>
-            <div data-rule="symbol"><span class="rule-icon" aria-hidden="true">✗</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_symbol">Un símbolo especial</span></div>
+            <div data-rule="length"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_length">Mínimo 8 caracteres</span></div>
+            <div data-rule="upper"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_upper">Una letra mayúscula</span></div>
+            <div data-rule="lower"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_lower">Una letra minúscula</span></div>
+            <div data-rule="number"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_number">Un número</span></div>
+            <div data-rule="symbol"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_symbol">Un símbolo especial</span></div>
           </div>
         </div>
         <div class="form-group" id="statusGroup">
@@ -381,13 +401,13 @@ NOTAS DE MANTENIMIENTO:
       <!-- Pestañas de navegación interna del modal -->
       <div class="modal-tabs" role="tablist" aria-label="Secciones del profesional">
         <button type="button" class="modal-tab-btn active" id="tabBtnGeneral" role="tab" aria-selected="true" aria-controls="tabPaneGeneral">
-          📋 Ficha General
+          <span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">description</span>Ficha General
         </button>
         <button type="button" class="modal-tab-btn" id="tabBtnHorarios" role="tab" aria-selected="false" aria-controls="tabPaneHorarios">
-          ⏰ Horarios de Atención
+          <span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">schedule</span>Horarios de Atención
         </button>
         <button type="button" class="modal-tab-btn" id="tabBtnAusencias" role="tab" aria-selected="false" aria-controls="tabPaneAusencias">
-          🏖️ Ausencias y Permisos
+          <span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">beach_access</span>Ausencias y Permisos
         </button>
       </div>
 
@@ -422,11 +442,11 @@ NOTAS DE MANTENIMIENTO:
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
             <h3 id="professionalScheduleTitle" style="margin:0;font-size:1rem;font-weight:700;">Horario Semanal de Atención</h3>
             <button type="button" class="btn-secondary" id="btnApplyDefaultSchedule" style="font-size:0.8rem;padding:4px 10px;">
-              ⚡ Aplicar Horario Estándar (Lun-Vie 08:00 - 17:00)
+              <span class="material-symbols-outlined" style="font-size:.9rem;vertical-align:middle;margin-right:3px;" aria-hidden="true">bolt</span>Aplicar Horario Estándar (Lun-Vie 08:00 - 17:00)
             </button>
           </div>
           <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 12px;line-height:1.4;">
-            💡 <em>Configura los días y franjas horarias en las que este profesional atiende citas. Si no tiene días configurados, el sistema usará el horario general de la clínica por defecto.</em>
+            <span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:3px;" aria-hidden="true">lightbulb</span> <em>Configura los días y franjas horarias en las que este profesional atiende citas. Si no tiene días configurados, el sistema usará el horario general de la clínica por defecto.</em>
           </p>
           <form id="scheduleForm">
             <div class="schedule-grid" id="scheduleDaysContainer">
@@ -435,7 +455,7 @@ NOTAS DE MANTENIMIENTO:
             <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
               <span id="scheduleStatusMsg" style="font-size:0.82rem;font-weight:600;"></span>
               <button type="submit" class="btn-primary" id="scheduleSaveButton">
-                💾 Guardar Horarios
+                <span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">save</span>Guardar Horarios
               </button>
             </div>
           </form>

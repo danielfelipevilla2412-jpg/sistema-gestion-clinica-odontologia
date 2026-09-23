@@ -61,9 +61,9 @@ NOTAS DE MANTENIMIENTO:
           {
             foreach (var esp in especialidades)
             {
-              <span class="tag tag-blue" role="listitem">🦷 @esp</span>
+              <span class="tag tag-blue" role="listitem"><span class="material-symbols-outlined" style="font-size:.85rem;vertical-align:middle;margin-right:2px;" aria-hidden="true">medical_services</span> @esp</span>
             }
-            <span class="tag tag-green" role="listitem">✓ @loggedProfesional.RegistroMedico</span>
+            <span class="tag tag-green" role="listitem"><span class="material-symbols-outlined" style="font-size:.85rem;vertical-align:middle;margin-right:2px;" aria-hidden="true">verified</span> @loggedProfesional.RegistroMedico</span>
           }
           else
           {
@@ -79,25 +79,25 @@ NOTAS DE MANTENIMIENTO:
       <!-- Left Column: Personal Info -->
       <div class="content-left">
         <div class="card info-card">
-          <h3 class="card-title"><span data-i18n="common.personal_data">📝 Información personal</span></h3>
+          <h3 class="card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">person_search</span><span data-i18n="common.personal_data">Información personal</span></h3>
 
           <div class="info-grid">
             <div class="info-item">
-              <div class="info-icon" aria-hidden="true">📞</div>
+              <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">call</span></div>
               <div>
                 <label>Teléfono</label>
                 <div class="info-value">@(loggedProfesional?.Telefono ?? "No disponible")</div>
               </div>
             </div>
             <div class="info-item">
-              <div class="info-icon" aria-hidden="true">✉️</div>
+              <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">mail</span></div>
               <div>
                 <label>Correo</label>
                 <div class="info-value">@(loggedProfesional?.Usuario?.Correo ?? "No disponible")</div>
               </div>
             </div>
             <div class="info-item">
-              <div class="info-icon" aria-hidden="true">📅</div>
+              <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></div>
               <div>
                 <label>Fecha de ingreso</label>
                 <div class="info-value">
@@ -125,7 +125,7 @@ NOTAS DE MANTENIMIENTO:
 
           <!-- Change Password Section -->
           <div class="password-section">
-            <h3 class="card-title">🔒 Cambiar contraseña</h3>
+            <h3 class="card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">lock</span> Cambiar contraseña</h3>
 
             <form id="passwordForm" novalidate>
               @Html.AntiForgeryToken()
@@ -135,7 +135,7 @@ NOTAS DE MANTENIMIENTO:
                   <input type="password" class="form-input" id="currentPassword" placeholder="••••••••" required
                     aria-required="true">
                   <button type="button" class="toggle-password" aria-label="Mostrar u ocultar contraseña actual"
-                    aria-pressed="false">👁</button>
+                    aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">visibility</span></button>
                 </div>
               </div>
               <div class="form-group">
@@ -167,7 +167,7 @@ NOTAS DE MANTENIMIENTO:
       <div class="content-right">
         <div class="card schedule-card">
           <div class="schedule-header">
-            <h3 class="card-title schedule-card-title">📅 Horario Semanal</h3>
+            <h3 class="card-title schedule-card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">calendar_month</span> Horario Semanal</h3>
             <span class="edit-hint">Click en un día para editar</span>
           </div>
 
@@ -236,14 +236,14 @@ NOTAS DE MANTENIMIENTO:
         <!-- Time Inputs (solo visibles si está activo) -->
         <div class="modal-time-section" id="modalTimeSection">
           <div class="time-input-group">
-            <label class="time-label" for="modalStartTime">🌅 Hora de inicio</label>
+            <label class="time-label" for="modalStartTime"><span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:3px;" aria-hidden="true">wb_twilight</span> Hora de inicio</label>
             <input type="time" class="time-input" id="modalStartTime" value="08:00">
           </div>
           <div class="time-separator" aria-hidden="true">
             <span>a</span>
           </div>
           <div class="time-input-group">
-            <label class="time-label" for="modalEndTime">🌇 Hora de fin</label>
+            <label class="time-label" for="modalEndTime"><span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:3px;" aria-hidden="true">nightlight</span> Hora de fin</label>
             <input type="time" class="time-input" id="modalEndTime" value="12:00">
           </div>
         </div>

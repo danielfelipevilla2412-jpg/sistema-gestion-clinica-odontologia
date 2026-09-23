@@ -84,6 +84,8 @@ let invoices = invoicesStorage.load();
 let searchQuery = '';
 let filterStatus = '';
 let filterMonth = '';
+let filterProfessional = '';
+let filterAppointment = '';
 let currentPage = 1;
 const itemsPerPage = 10;
 
@@ -116,6 +118,8 @@ const getFilteredInvoices = () => {
     
     // Filtro por mes
     if (filterMonth && !i.date.startsWith(filterMonth)) return false;
+    if (filterProfessional && String(i.idProfesional || '') !== filterProfessional) return false;
+    if (filterAppointment && String(i.idCita || '') !== filterAppointment) return false;
     
     return true;
   });
@@ -500,6 +504,8 @@ const initSearch = () => {
 const initFilters = () => {
   const filterStatusEl = safeGetElement('filterStatus');
   const filterMonthEl = safeGetElement('filterMonth');
+  const filterProfessionalEl = safeGetElement('filterProfessional');
+  const filterAppointmentEl = safeGetElement('filterAppointment');
   
   filterStatusEl?.addEventListener('change', (e) => {
     filterStatus = e.target.value;
@@ -512,6 +518,33 @@ const initFilters = () => {
     currentPage = 1;
     renderInvoices();
   });
+  filterProfessionalEl?.addEventListener('change', (e) => {
+    filterProfessional = e.target.value;
+    currentPage = 1;
+    renderInvoices();
+  });
+  filterAppointmentEl?.addEventListener('input', debounce((e) => {
+    filterAppointment = e.target.value.trim();
+    currentPage = 1;
+    renderInvoices();
+  }, 180));
+};
+
+const loadProfessionalFilter = async () => {
+  const select = safeGetElement('filterProfessional');
+  if (!select) return;
+  try {
+    const response = await window.apiRequest('/api/facturas/catalogos/profesionales');
+    if (!response?.success || !Array.isArray(response.data)) return;
+    response.data.forEach((professional) => {
+      const option = document.createElement('option');
+      option.value = professional.id;
+      option.textContent = professional.nombre;
+      select.appendChild(option);
+    });
+  } catch (error) {
+    console.warn('No fue posible cargar el filtro de profesionales.', error);
+  }
 };
 
 const initPagination = () => {
@@ -805,7 +838,7 @@ const init = async () => {
     const response = await window.apiRequest('/api/facturas');
     if (response?.success && Array.isArray(response.data)) {
       invoices = response.data.map((f, idx) => ({
-        id: f.id, number: f.numero, patient: f.paciente, doc: f.documento,
+        id: f.id, idCita: f.idCita, idProfesional: f.idProfesional, number: f.numero, patient: f.paciente, doc: f.documento,
         date: String(f.fecha).slice(0, 10), total: f.total, pending: f.pendiente,
         status: f.estado, color: ['blue','green','purple','orange','red'][idx % 5],
         service: f.notas || 'Servicio Odontológico', history: []
@@ -816,6 +849,7 @@ const init = async () => {
     showToast('No fue posible cargar las facturas.', 'error');
   }
   updateStats();
+  await loadProfessionalFilter();
   renderInvoices();
   
   window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });

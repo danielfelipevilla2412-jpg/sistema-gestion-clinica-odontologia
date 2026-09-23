@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Reportes Clínicos (st-adm-14-reportes-clinicos)
 ============================================
 Autor: Johan Santamaria
@@ -43,19 +43,11 @@ const debounce = (fn, delay) => {
 
 
 // ═══════════════════════════════════════════════════════════════════
-// ANIMACIÓN DE CONTADORES (igual a st-adm-07)
+// ANIMACIÓN DE CONTADORES  →  window.animateCounter (shared/utils.js)
 // ═══════════════════════════════════════════════════════════════════
 
-const animateCounter = (el, target) => {
-    if (!el) return;
-    let cur = 0;
-    const step = Math.max(1, Math.ceil(target / 30));
-    const t = setInterval(() => {
-        cur = Math.min(cur + step, target);
-        el.textContent = cur;
-        if (cur >= target) clearInterval(t);
-    }, 30);
-};
+// animateCounter conserva nombre de llamada por backward-compat;
+// el binding dinámico resuelve window.animateCounter automáticamente.
 
 // ═══════════════════════════════════════════════════════════════════
 // INICIALIZACIÓN DE COMPONENTES (iguales a st-adm-07)

@@ -714,10 +714,18 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                        style="margin:16px 0 24px; line-height:1.5; color:var(--text-muted, #64748b);">
                                         ¿Está seguro de eliminar esta cita? Esta acción no se puede deshacer.
                                     </p>
-                                    <form id="formDeleteCita" method="post" action="/gestion-de-citas/eliminar-cita">
+                            <form id="formDeleteCita" method="post" action="/gestion-de-citas/eliminar-cita">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" id="deleteCitaId" name="IdCita" value="" />
                                         <input type="hidden" id="deleteCitaReturnUrl" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
+                                        <!-- A1/B1: motivo obligatorio en ruta MVC (RN-23) -->
+                                        <div class="form-group" style="margin-bottom:16px;">
+                                            <label class="form-label" for="deleteCitaMotivo" style="font-size:0.82rem;font-weight:600;">
+                                                Motivo de cancelación <span style="color:var(--danger)">*</span>
+                                            </label>
+                                            <textarea id="deleteCitaMotivo" name="MotivoCancelacion" class="form-input" rows="2"
+                                                      maxlength="500" required placeholder="Indique el motivo..." style="resize:vertical;"></textarea>
+                                        </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn-secondary" id="modalConfirmDeleteCitaCancel">Cancelar</button>
                                             <button type="submit" class="btn-primary"

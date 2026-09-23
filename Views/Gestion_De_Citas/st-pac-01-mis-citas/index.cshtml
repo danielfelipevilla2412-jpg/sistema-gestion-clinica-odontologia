@@ -25,6 +25,7 @@ NOTAS DE MANTENIMIENTO:
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css" asp-append-version="true" />
+  <link rel="stylesheet" href="~/css/shared/perfil-paciente-ui.css" asp-append-version="true" />
 }
 
   <!-- MAIN: área de contenido principal de la página -->
@@ -43,26 +44,47 @@ NOTAS DE MANTENIMIENTO:
       </div>
       <button class="btn-primary" id="btnNuevaCita" aria-label="Solicitar nueva cita" data-i18n="citas.new">+ Solicitar cita</button>
     </header>
+    <div data-perfil-paciente-header></div>
 
     <!-- Stats Grid: estadísticas animadas del paciente -->
     <section class="stats-grid" aria-label="Resumen de mis citas" data-i18n-aria-label="citas.stats_aria">
       <div class="stat-card" data-color="blue">
-        <span class="stat-number" id="cnt-total" aria-live="polite">0</span>
+        <span class="stat-number" id="cnt-total" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="citas.stat_total">Total citas</span>
       </div>
       <div class="stat-card" data-color="green">
-        <span class="stat-number" id="cnt-completadas" aria-live="polite">0</span>
+        <span class="stat-number" id="cnt-completadas" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.completed">Completadas</span>
       </div>
       <div class="stat-card" data-color="orange">
-        <span class="stat-number" id="cnt-pendientes" aria-live="polite">0</span>
+        <span class="stat-number" id="cnt-pendientes" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.pending">Pendientes</span>
       </div>
       <div class="stat-card" data-color="red">
-        <span class="stat-number" id="cnt-canceladas" aria-live="polite">0</span>
+        <span class="stat-number" id="cnt-canceladas" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
       </div>
     </section>
+
+    <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
+    <div class="table-tabs" role="tablist" aria-label="Filtrar mis citas por estado">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="all" id="tab-all">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_note</span>
+        Todas las citas
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="pending" id="tab-pending">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">schedule</span>
+        Pendientes
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="completed" id="tab-completed">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">check_circle</span>
+        Completadas
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="cancelled" id="tab-cancelled">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
+        Canceladas
+      </button>
+    </div>
 
     <!-- TABLA: sección con barra de progreso, filtros y tabla completa de citas -->
     <section class="agenda-section" aria-label="Listado de citas">
@@ -74,27 +96,30 @@ NOTAS DE MANTENIMIENTO:
         <span class="progress-label" id="progressLabel">Cargando...</span>
       </div>
 
-      <!-- Barra de herramientas con campo de búsqueda por texto y filtro por estado -->
-      <div class="toolbar" role="toolbar" aria-label="Filtros de citas" data-i18n-aria-label="table.filter">
-        <div class="search-wrap">
-          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
-          <!-- Campo de búsqueda para filtrar citas por doctor, servicio o fecha -->
-          <input type="search" id="searchInput" class="search-input" 
-                 placeholder="Buscar por doctor, servicio o fecha..." 
-                 data-i18n-ph="table.search"
-                 aria-label="Buscar citas por doctor, servicio o fecha"
-                 autocomplete="off" />
+      <!-- Barra de filtros estandarizada (patrón canónico filters-section / filters-row) -->
+      <section class="filters-section" aria-label="Filtros de citas" data-i18n-aria-label="table.filter">
+        <div class="filters-row">
+          <div class="search-wrap">
+            <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+            <input type="search" id="searchInput" class="search-input"
+                   placeholder="Buscar por doctor, servicio o fecha..."
+                   data-i18n-ph="table.search"
+                   aria-label="Buscar citas por doctor, servicio o fecha"
+                   autocomplete="off" />
+          </div>
+          <div class="filter-wrap">
+            <label for="filterEstado" class="visually-hidden">Filtrar por estado</label>
+            <select id="filterEstado" class="status-select" aria-label="Filtrar citas por estado">
+              <option value="" data-i18n="table.filter_all_states">Todos los estados</option>
+              <option value="Agendada" data-i18n="status.scheduled">Agendada</option>
+              <option value="Confirmada" data-i18n="status.confirmed">Confirmada</option>
+              <option value="Completada" data-i18n="status.completed">Completada</option>
+              <option value="Cancelada" data-i18n="status.cancelled">Cancelada</option>
+            </select>
+          </div>
+          <span class="count-label" id="countLabel" aria-live="polite"></span>
         </div>
-        <!-- Selector para filtrar citas por estado (Agendada, Confirmada, Completada, Cancelada) -->
-        <select id="filterEstado" class="status-select" aria-label="Filtrar citas por estado">
-          <option value="" data-i18n="table.filter_all_states">Todos los estados</option>
-          <option value="Agendada" data-i18n="status.scheduled">Agendada</option>
-          <option value="Confirmada" data-i18n="status.confirmed">Confirmada</option>
-          <option value="Completada" data-i18n="status.completed">Completada</option>
-          <option value="Cancelada" data-i18n="status.cancelled">Cancelada</option>
-        </select>
-        <span class="count-label" id="countLabel" aria-live="polite"></span>
-      </div>
+      </section>
 
       <!-- Tabla de citas con columnas: fecha, hora, doctor, servicio, estado y acciones -->
       <div class="table-wrap">
@@ -186,6 +211,9 @@ NOTAS DE MANTENIMIENTO:
     <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
   </footer>
 @section Scripts {
+  <script src="~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js" asp-append-version="true" defer></script>
+  <script src="~/js/shared/perfil-paciente-service.js" asp-append-version="true" defer></script>
+  <script src="~/js/shared/perfil-paciente-ui.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
 }

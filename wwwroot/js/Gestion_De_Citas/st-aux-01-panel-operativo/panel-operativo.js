@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ============================================
  * SmileTrack — Dashboard Admin (app.js)
  * ============================================
@@ -71,29 +71,14 @@ const trackedRAF = (callback) => {
 };
 
 // ════════════════════════════════════════════════════════════════════
-//  FUNCIONES DE ANIMACIÓN
+//  FUNCIONES DE ANIMACIÓN  (ahora usa window.animateCounter global)
+//  El formato de moneda para #statIncome se controla vía atributo
+//  HTML: data-format="currency-cop" en el span correspondiente.
 // ════════════════════════════════════════════════════════════════════
 
-const animateCounter = (el, targetStr) => {
-  if (!el) return;
-  const target = parseInt(targetStr, 10);
-  // WHY: Validar target previene animaciones infinitas o valores NaN en UI
-  if (isNaN(target) || target <= 0) return;
-
-  let cur = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const t = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = el.id === 'statIncome'
-      ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(cur)
-      : cur;
-    if (cur >= target) clearInterval(t);
-  }, 30);
-};
-
 const initNativeAnimations = () => {
-  document.querySelectorAll('.stat-number[data-target]').forEach(el => {
-    animateCounter(el, el.dataset.target);
+  document.querySelectorAll('.stat-number[data-target]:not([data-animated="1"])').forEach(el => {
+    window.animateCounter(el, Number(el.dataset.target) || 0);
   });
 
   // WHY: trackedRAF permite cleanup de animaciones en beforeunload para prevenir memory leaks

@@ -14,6 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Perfiles/st-pac-perfil-Paciente/perfil-paciente.css")" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/perfil-paciente-ui.css")" />
 </head>
 <body>
   @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
@@ -32,6 +33,7 @@
 
   <!-- ═══ MAIN ═══ -->
   <main class="main" id="main-content">
+    <div data-perfil-paciente-header></div>
     <!-- Breadcrumb -->
     <div class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
       <span data-i18n="nav.group_inicio">Inicio</span>
@@ -320,6 +322,8 @@
       <span>Avisos</span>
     </a>
   </nav>
+  <script src="@Url.Content("~/js/shared/perfil-paciente-service.js")"></script>
+  <script src="@Url.Content("~/js/shared/perfil-paciente-ui.js")"></script>
   <script src="@Url.Content("~/js/Perfiles/st-pac-perfil-Paciente/perfil-paciente.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }

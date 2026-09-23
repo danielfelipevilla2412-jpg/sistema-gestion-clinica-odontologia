@@ -50,7 +50,7 @@ DEPENDENCIAS: panel-operativo.css / panel-operativo.js
         </div>
         <div class="stat-card" data-color="purple">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
-            <span class="stat-number" id="statIncome" data-target="@(ViewData["IngresosDelMes"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-number" id="statIncome" data-format="currency-cop" data-target="@(ViewData["IngresosDelMes"] ?? 0)" aria-live="polite">0</span>
             <span class="stat-label">Ingresos del mes</span>
             <span class="stat-sub">Solo citas atendidas</span>
         </div>
