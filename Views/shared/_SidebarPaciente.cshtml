@@ -1,4 +1,11 @@
 @{
+    var _pNombre  = User.Identity?.Name ?? "Paciente";
+    var _pEmail   = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "paciente@smiletrack.co";
+
+    var _partes   = _pNombre.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    var _iniciales = _partes.Length >= 2
+    ? $"{_partes[0][0]}{_partes[^1][0]}".ToUpper()
+    : (_pNombre.Length >= 2 ? _pNombre[..2].ToUpper() : _pNombre.ToUpper());
     var rawPath = Context.Request.Path.Value ?? "/";
     var currentPath = rawPath.TrimEnd('/');
     if (string.IsNullOrEmpty(currentPath)) currentPath = "/";
@@ -128,11 +135,9 @@
     </nav>
 
     <div class="sidebar-user">
-        <div class="user-avatar" aria-hidden="true">PA</div>
-        <div class="user-info">
-            <span class="user-role">Paciente</span>
-            <span class="user-email">paciente@smiletrack.co</span>
-        </div>
+        <div class="user-avatar">@_iniciales</div>
+        <span class="user-role">@_pNombre</span>
+        <span class="user-email">@_pEmail</span>
         <div class="sidebar-lang" aria-label="Cambiar idioma">
             <button type="button" data-i18n-switcher data-i18n-lang="es" class="lang-btn" aria-label="Español">ES</button>
             <button type="button" data-i18n-switcher data-i18n-lang="en" class="lang-btn" aria-label="English">EN</button>

@@ -175,14 +175,14 @@ img { max-width: 100%; height: auto; display: block; }
   border-radius: var(--radius);
   padding: 24px 28px;
   margin-bottom: 22px;
-  color: #fff;
+  color: #11a3dd;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
   box-shadow: var(--shadow-md);
-  animation: fadeIn .4s ease both;
+  
 }
 .header-avatar-wrap { display: flex; align-items: center; gap: 16px; }
 .header-avatar {
@@ -201,15 +201,15 @@ img { max-width: 100%; height: auto; display: block; }
 .header-name {
   font-family: var(--font-display);
   font-size: 1.4rem; font-weight: 700;
-  color: #fff; margin-bottom: 4px;
+  color: #1b9bd6; margin-bottom: 4px;
 }
-.header-sub { font-size: .82rem; color: rgba(255,255,255,.75); }
-.header-sub span { color: rgba(255,255,255,.95); font-weight: 600; }
+.header-sub { font-size: .82rem; color: rgba(20, 117, 182, 0.75); }
+.header-sub span { color: rgba(34, 200, 241, 0.95); font-weight: 600; }
 .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* ═══ BUTTONS ═══ */
 .btn-editar {
-  background: rgba(255,255,255,.15); color: #fff;
+  background: #16a34a; color: #fdfdfd;
   border: 1.5px solid rgba(255,255,255,.3);
   border-radius: var(--radius-sm); padding: 9px 18px;
   font-family: var(--font); font-size: .88rem; font-weight: 700;
@@ -231,7 +231,7 @@ img { max-width: 100%; height: auto; display: block; }
 .btn-guardar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
 .btn-cancelar {
-  background: rgba(255,255,255,.10); color: rgba(255,255,255,.8);
+  background: rgb(255, 0, 0); color: rgba(255,255,255,.8);
   border: 1.5px solid rgba(255,255,255,.2);
   border-radius: var(--radius-sm); padding: 9px 16px;
   font-family: var(--font); font-size: .85rem; font-weight: 600;

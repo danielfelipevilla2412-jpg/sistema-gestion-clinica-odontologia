@@ -383,6 +383,64 @@ public async Task<(bool Success, string Message, object? Data)> CrearAsync(
             return (false, "No se pudo cambiar el estado del usuario.", null);
         }
     }
+    
+        // "Bloqueado" no es un valor de la columna Estado:
+    // se calcula a partir de IntentosFallidos >= 3 (el mismo criterio del login).
+    // Bloquear/desbloquear manualmente sube o reinicia ese contador.
+    public async Task<(bool Success, string Message, object? Data)> CambiarBloqueoAsync(
+        int idUsuario,
+        CambiarBloqueoUsuarioRequest request,
+        int? usuarioOperador,
+        CancellationToken ct = default)
+    {
+        if (idUsuario <= 0)
+            return (false, "Identificador de usuario inválido.", null);
+
+        var usuario = await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.IdUsuario == idUsuario, ct);
+
+        if (usuario == null)
+            return (false, "Usuario no encontrado.", null);
+
+        var rol = await _context.Roles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.IdRol == usuario.IdRol, ct);
+
+        if (rol?.NombreRol.Equals("Administrador", StringComparison.OrdinalIgnoreCase) == true)
+            return (false, "La cuenta de Administrador no se puede bloquear desde este módulo.", null);
+
+        string datosAnteriores = SerializeUsuario(usuario, rol?.NombreRol ?? "Sin Rol");
+
+        // Bloquear = poner IntentosFallidos en 3 (umbral del login).
+        // Desbloquear = resetear a 0.
+        usuario.IntentosFallidos = request.Bloquear ? 3 : 0;
+
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+
+            await RegistrarAuditoriaAsync(
+                "UPDATE",
+                usuario.IdUsuario,
+                datosAnteriores,
+                SerializeUsuario(usuario, rol?.NombreRol ?? "Sin Rol"),
+                request.Bloquear
+                    ? "Usuario bloqueado manualmente por administración."
+                    : "Usuario desbloqueado manualmente por administración.",
+                usuarioOperador,
+                ct);
+
+            return (
+                true,
+                request.Bloquear ? "Usuario bloqueado correctamente." : "Usuario desbloqueado correctamente.",
+                MapUsuario(usuario, rol?.NombreRol ?? "Sin Rol"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al cambiar bloqueo del usuario IdUsuario={IdUsuario}", idUsuario);
+            return (false, "No se pudo actualizar el bloqueo del usuario.", null);
+        }
+    }
 
     private static string NormalizarEstado(string? estado)
     {

@@ -54,3 +54,8 @@ public sealed class CambiarEstadoUsuarioRequest
     [Required]
     public string Estado { get; set; } = string.Empty;
 }
+public sealed class CambiarBloqueoUsuarioRequest
+{
+    [Required]
+    public bool Bloquear { get; set; }
+}

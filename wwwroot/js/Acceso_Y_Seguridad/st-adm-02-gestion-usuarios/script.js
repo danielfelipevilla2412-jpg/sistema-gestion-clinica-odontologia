@@ -1006,12 +1006,10 @@ const renderTable = (data) => {
             ✏️
           </button>
 
-          <button
-            class="btn-icon lock"
-            title="${blocked ? 'Activar' : 'Desactivar'}"
-            onclick="toggleStatus(${u.id})"
-          >
-            ${blocked ? '🔓' : '🔒'}
+          <button class="btn-icon lock"
+            title="${blocked ? 'Desbloquear usuario' : 'Bloquear usuario'}"
+            onclick="toggleBlock(${u.id})">
+            ${blocked ? '🔒' : '🔓'}   // correcto
           </button>
 
         </div>
