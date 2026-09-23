@@ -76,7 +76,7 @@ const paciente = {
     id: config.pacienteId || null,
     historiaId: config.historiaId || null,
     nombre: config.pacienteNombre || 'Paciente',
-    codigoHC: config.codigoHC || 'HC-SIN-ASIGNAR',
+    codigoHC: config.codigoHC || '',
     fechaNacimiento: config.fechaNacimiento || '',
     // Yeray (2025): citaId activa inyectada por la vista si el profesional
     // llegó desde la agenda. Se usa en persistirEstado() para registrar

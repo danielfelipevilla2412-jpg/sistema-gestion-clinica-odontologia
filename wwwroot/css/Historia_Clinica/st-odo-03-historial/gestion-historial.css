@@ -136,9 +136,35 @@ a { text-decoration: none; }
 
 .page-hero {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
   padding: 14px 0 10px;
+}
+
+.eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(26, 86, 204, 0.08);
+  border: 1px solid rgba(26, 86, 204, 0.14);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--primary-dark);
+  text-transform: uppercase;
+}
+
+.page-hero-copy {
+  flex: 1;
 }
 
 .page-hero-copy h1 {
@@ -147,7 +173,7 @@ a { text-decoration: none; }
   font-size: clamp(1.8rem, 3vw, 2.5rem);
   line-height: 1.1;
   letter-spacing: -0.04em;
-  color: var(--text);
+  color: var(--brand-dark);
 }
 
 .page-hero-copy p {
@@ -155,6 +181,61 @@ a { text-decoration: none; }
   font-size: 0.9rem;
   color: var(--text-muted);
   font-family: var(--font);
+}
+
+.page-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.clinical-overview-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.overview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.overview-item strong {
+  font-size: 1.4rem;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+.overview-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.overview-item--blue {
+  border-top: 3px solid var(--primary);
+}
+
+.overview-item--green {
+  border-top: 3px solid var(--success);
+}
+
+.overview-item--orange {
+  border-top: 3px solid var(--warning);
+}
+
+.overview-item--purple {
+  border-top: 3px solid var(--info);
 }
 
 .status-pill {
@@ -168,6 +249,12 @@ a { text-decoration: none; }
   color: #166534;
   font-size: 12px;
   font-weight: 700;
+}
+
+.status-pill--neutral {
+  background: #f8fafc;
+  border-color: var(--border);
+  color: var(--text-muted);
 }
 
 .status-dot {
@@ -229,7 +316,7 @@ a { text-decoration: none; }
 }
 
 .patient-summary-card {
-  background: var(--panel);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
@@ -237,8 +324,8 @@ a { text-decoration: none; }
 }
 
 .empty-patient-card {
-  border: 1px dashed #c7d2e0;
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: linear-gradient(135deg, #f8fafc 0%, #f4f7ff 100%);
 }
 
 .patient-summary-inner {
@@ -253,6 +340,13 @@ a { text-decoration: none; }
   display: flex;
   align-items: flex-start;
   gap: 16px;
+}
+
+.patient-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .empty-state-block {
@@ -332,7 +426,7 @@ a { text-decoration: none; }
 
 .patient-title-row h2 {
   font-size: 1.5rem;
-  color: var(--text);
+  color: var(--brand-dark);
 }
 
 .hc-badge,
@@ -534,7 +628,7 @@ a { text-decoration: none; }
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #0f172a;
+  color: var(--brand-dark);
 }
 
 .card-header p {
@@ -571,7 +665,7 @@ a { text-decoration: none; }
 .field-group label {
   display: block;
   margin-bottom: 7px;
-  color: #374151;
+  color: var(--brand-dark);
   font-size: 12px;
   font-weight: 800;
 }
@@ -861,6 +955,15 @@ a { text-decoration: none; }
     justify-content: space-between;
   }
 
+  .page-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .clinical-overview-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .diagnostic-grid,
   .file-grid {
     grid-template-columns: 1fr;
@@ -877,6 +980,15 @@ a { text-decoration: none; }
   .bottom-form-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .clinical-overview-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-summary-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .hidden-mobile {

@@ -1,3 +1,6 @@
+@using Microsoft.AspNetCore.Antiforgery
+@inject IAntiforgery Antiforgery
+
 @{ Layout = null; }
 
 <!DOCTYPE html>
@@ -6,6 +9,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    @{
+        var pqrRequestToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+    }
+    <meta name="csrf-request-token" content="@pqrRequestToken" />
     <title>SmileTrack — Gestión de PQR</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
@@ -253,12 +260,13 @@
         window.RAZOR_PQRS = @Html.Raw(ViewData["PqrsJson"] ?? "[]");
         window.RAZOR_PQR_STATS = @Html.Raw(ViewData["PqrStatsJson"] ?? "null");
     </script>
-    <script src="@Url.Content("~/js/Gestion_De_PQR/st-adm-17-gestion-pqr/script.js")"></script>
+    <script src="@Url.Content("~/js/Gestion_De_PQR/st-adm-17-gestion-pqr/script.js")?v=20260922-pqr"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
     <script src="@Url.Content("~/js/i18n-core.js")"></script>
     <script src="@Url.Content("~/js/i18n.config.js")"></script>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
 </body>
 
 </html>

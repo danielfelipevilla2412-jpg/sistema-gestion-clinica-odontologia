@@ -658,7 +658,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<PqrEntity>(entity =>
         {
-            entity.ToTable("PQR");
+            entity.ToTable("PQR", tableBuilder => tableBuilder.UseSqlOutputClause(false));
             entity.HasKey(p => p.IdPqr);
             entity.Property(p => p.IdPqr).HasColumnName("id_pqr");
             entity.Property(p => p.IdPaciente).HasColumnName("id_paciente");

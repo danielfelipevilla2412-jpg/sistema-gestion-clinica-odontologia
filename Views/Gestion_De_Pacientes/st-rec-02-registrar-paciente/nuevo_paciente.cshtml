@@ -374,7 +374,8 @@
                                 }
                                 <script src="@Url.Content("~/js/i18n-core.js")"></script>
                                 <script src="@Url.Content("~/js/i18n.config.js")"></script>
-                              </body>
+                  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
+                                </body>
 
                             </html>
 

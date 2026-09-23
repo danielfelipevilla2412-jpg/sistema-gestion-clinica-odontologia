@@ -332,6 +332,7 @@
   <script src="@Url.Content("~/js/Centro_De_Ayuda/Como_Programar_Una_Cita/script.js")" defer></script>
   <script src="@Url.Content("~/js/i18n-core.js")"></script>
   <script src="@Url.Content("~/js/i18n.config.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
 </body>
 </html>
 
