@@ -1,28 +1,19 @@
 @* ============================================
-SmileTrack — Citas Finalizadas (st-aux-10-citas-finalizadas)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Citas Finalizadas (st-aux-10-citas-finalizadas)
+   ============================================
+   Archivo: Views/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.cshtml
 
-DESCRIPCIÓN:
-Vista de resumen de la jornada que muestra todas las citas finalizadas del día con sus estados (Atendida, Cancelada, No asistió), tarjetas de métricas por tipo y la opción de exportar el informe en formato CSV.
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Muestra el histórico y métricas de citas concluidas de la jornada actual.
 
-FUNCIONALIDADES PRINCIPALES:
-- Tabla accesible de citas finalizadas del día con badges de estado coloreados
-- Tarjetas de resumen numérico por estado con animación de conteo suave
-- Botón de exportación del resumen diario a CSV generado en el cliente (sin servidor)
-- Tbody con aria-live="polite" para que lectores de pantalla anuncien los cambios de datos
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Resumen estadístico por estado (Atendidas, Canceladas, Inasistencias).
 
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y Stadm09Citas
-- CSS: ~/css/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.css
-- JS: ~/js/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.js
-- Partial / Otros: Sidebar hardcoded en la vista (no usa partial)
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- El tbody se renderiza vía JS para poder aplicar badges de estado dinámicos sin duplicar lógica en Razor.
-============================================ *@
+   DEPENDENCIAS:
+   - CSS: ~/css/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.css
+   - JS: ~/js/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.js
+   ============================================ *@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Citas Finalizadas";

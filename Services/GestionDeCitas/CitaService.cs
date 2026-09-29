@@ -1,3 +1,26 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: CitaService
+ * ============================================
+ * Archivo: Services/GestionDeCitas/CitaService.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Implementación de la capa de servicios de citas odontológicas. Encapsula las reglas de negocio
+ * complejas como la detección de conflictos multirecurso, duraciones dinámicas configurables,
+ * auditoría transaccional de cambios de estado y envío automático de notificaciones por correo.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Duración configurable vía tabla Configuracion_General ("cita_duracion_minutos") con fallback a 60 min.
+ * - Validación integral de conflictos (VerificarConflictoCompletoAsync) evaluando simultáneamente
+ *   Profesional, Paciente y Consultorio para prevenir doble agendamiento.
+ * - Notificaciones por email automatizadas ante creación/modificación/cancelación de citas.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, ILogger, IEmailService, EstadoCitaHelper
+ * ============================================
+ */
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SmileTrack_MVC.Data;

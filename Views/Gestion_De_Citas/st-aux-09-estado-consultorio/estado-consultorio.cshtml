@@ -1,28 +1,19 @@
 @* ============================================
-SmileTrack — Estado del Consultorio (st-aux-09-estado-consultorio)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Estado del Consultorio (st-aux-09-estado-consultorio)
+   ============================================
+   Archivo: Views/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.cshtml
 
-DESCRIPCIÓN:
-Vista de gestión del estado del consultorio odontológico que permite al auxiliar completar el checklist post-atención, registrar observaciones, seleccionar el estado operativo y confirmar la disponibilidad del consultorio.
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Interfaz para la gestión del estado operativo y checklist de higienización de consultorios entre citas.
 
-FUNCIONALIDADES PRINCIPALES:
-- Checklist interactivo post-atención con barra de progreso ARIA accesible
-- Selector de estado del consultorio (Disponible / En mantenimiento / No disponible) con patrón radiogroup
-- Campo de observaciones con auto-guardado mediante debounce
-- Historial cronológico de cambios de estado del consultorio con marcas de tiempo accesibles
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Visualiza la disponibilidad del consultorio con controles de cambio de estado.
 
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y Stadm09Citas
-- CSS: ~/css/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.css
-- JS: ~/js/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.js
-- Partial / Otros: Sidebar hardcoded en la vista (no usa partial)
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- La barra de progreso usa role="progressbar" con aria-valuenow para anunciar el avance del checklist a lectores de pantalla.
-============================================ *@
+   DEPENDENCIAS:
+   - CSS: ~/css/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.css
+   - JS: ~/js/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.js
+   ============================================ *@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Estado del Consultorio";
@@ -258,6 +249,5 @@ NOTAS DE MANTENIMIENTO:
   </script>
 @section Scripts {
     <script src="~/js/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.js" asp-append-version="true" defer></script>
-    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
-    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
 }
+

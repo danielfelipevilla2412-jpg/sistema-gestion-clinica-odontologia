@@ -1,3 +1,25 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: ICitaService (Interfaz de Servicio)
+ * ============================================
+ * Archivo: Services/GestionDeCitas/ICitaService.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Contrato principal que define los métodos de negocio para la gestión integral de citas.
+ * Establece la abstracción desacoplada de la capa de persistencia para permitir inyección
+ * de dependencias, pruebas unitarias y consistencia operativa entre MVC y API Controllers.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Operaciones CRUD con validación de conflictos en profesional, paciente y consultorio.
+ * - Cálculo de KPIs de dashboard de citas en tiempo real.
+ * - Soporte para operaciones administrativas (cancelación, reagendamiento) y solicitudes móviles.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Cita, CitasKpiDto, CitaFormDto, CancellationToken
+ * ============================================
+ */
+
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
 

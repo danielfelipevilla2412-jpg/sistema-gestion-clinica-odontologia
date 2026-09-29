@@ -1,3 +1,27 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: GestionProfesionalesController
+ * ============================================
+ * Archivo: Controllers/GestionDeProfesionales/ProfesionalesController.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Controlador MVC responsable de la gestión integral del cuerpo profesional (odontólogos,
+ * especialistas y auxiliares). Administra la interfaz de usuario para el registro, edición,
+ * consulta de perfiles y reportes clínicos de profesionales de la clínica.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Requiere rol "Administrador" para la edición/creación de perfiles y asignación de credenciales.
+ * - Validación estricta de Registro Médico único y formato de correo corporativo/teléfono.
+ * - Sincronización automática de credenciales de usuario (Hash de contraseña vía BCrypt/Helper)
+ *   para garantizar la integridad entre la entidad Profesional y la entidad Usuario de acceso.
+ * - Integración con IProfesionalService para separar la persistencia de la lógica de presentación.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, IProfesionalService, ProfesionalEstadoHelper, ILogger
+ * ============================================
+ */
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;

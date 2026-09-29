@@ -1,3 +1,22 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: CitaViewModel (Modelo de Vista)
+ * ============================================
+ * Archivo: Models/ViewModels/GestionDeCitas/CitaViewModel.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Modelo de datos utilizado en la gestión integral de citas (creación, edición y detalle).
+ * Define anotaciones de validación (DataAnnotations) para la entrada de datos en la UI.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Valida campos requeridos y rangos válidos para llaves foráneas (Paciente, Profesional, Consultorio, Servicio).
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - DataAnnotations
+ * ============================================
+ */
+
 using System.ComponentModel.DataAnnotations;
 
 namespace SmileTrack_MVC.Models.ViewModels

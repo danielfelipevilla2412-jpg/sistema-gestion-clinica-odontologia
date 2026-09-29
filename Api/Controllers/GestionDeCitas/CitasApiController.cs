@@ -1,3 +1,27 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: CitasApiController
+ * ============================================
+ * Archivo: Api/Controllers/GestionDeCitas/CitasApiController.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Expone la API RESTful para la administración de citas odontológicas,
+ * permitiendo consumo asíncrono desde el frontend SPA/JS y clientes externos/móviles.
+ * Garantiza respuestas estandarizadas JSON, soporte dual de autenticación (JWT Bearer + Cookie Auth)
+ * y protección de seguridad contra falsificación de peticiones en sitios cruzados (CSRF/Antiforgery).
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Paginación y filtrado dinámico de citas por fecha, estado, paciente o profesional.
+ * - Validación exhaustiva de disponibilidad horaria multirecurso ante solicitudes de creación o cambio de hora.
+ * - Retorno de respuestas JSON unificadas con estructura { success, message, data, totalCount }.
+ * - Transaccionalidad atómica y auditoría completa de operaciones de reagendamiento y cancelación.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, ICitaService, IAgendaService, IAntiforgery, IEmailService
+ * ============================================
+ */
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;

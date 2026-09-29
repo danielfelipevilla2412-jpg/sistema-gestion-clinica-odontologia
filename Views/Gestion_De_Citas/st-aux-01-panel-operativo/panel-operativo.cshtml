@@ -1,10 +1,19 @@
 @* ============================================
-SmileTrack — Dashboard General Administrativo (st-aux-01-panel-operativo)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026 · Rediseño visual
-DEPENDENCIAS: panel-operativo.css / panel-operativo.js
-============================================ *@
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Panel Operativo de Auxiliares (st-aux-01-panel-operativo)
+   ============================================
+   Archivo: Views/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.cshtml
+
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Muestra el flujo de pacientes del día y el estado de atención en consultorios para el equipo auxiliar.
+
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Renderiza tarjetas KPI operacionales y tabla de pacientes del turno.
+
+   DEPENDENCIAS:
+   - CSS: ~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css
+   - JS: ~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js
+   ============================================ *@
 @{ Layout = "_Layout"; ViewData["Title"] = "Dashboard General"; }
 
 @section Styles {

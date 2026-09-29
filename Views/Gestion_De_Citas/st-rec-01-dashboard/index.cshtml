@@ -1,26 +1,19 @@
 @* ============================================
-SmileTrack — Dashboard Recepción (st-rec-01-dashboard)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Dashboard Recepción (st-rec-01-dashboard)
+   ============================================
+   Archivo: Views/Gestion_De_Citas/st-rec-01-dashboard/index.cshtml
 
-DESCRIPCIÓN:
-Vista principal para el rol de recepcionista que muestra el control de flujo de pacientes en sala de espera, el resumen operativo del día y accesos rápidos a agendamiento.
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Panel operativo para recepcionistas. Gestiona la sala de espera y la llegada de pacientes.
 
-FUNCIONALIDADES PRINCIPALES:
-- Visualización de pacientes en sala de espera y tiempos acumulados
-- Resumen numÉrico del estado de las citas diarias
-- Control rápido para marcar asistencia y canalizar pacientes al consultorio correspondiente
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Control de tiempos de espera y asignación a consultorios.
 
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y RecepcionDashboard
-- CSS: ~/css/Gestion_De_Citas/st-rec-01-dashboard/styles.css
-- JS: ~/js/Gestion_De_Citas/st-rec-01-dashboard/app.js
-- Partial / Otros: Sidebar unificado
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-============================================ *@
+   DEPENDENCIAS:
+   - CSS: ~/css/Gestion_De_Citas/st-rec-01-dashboard/styles.css
+   - JS: ~/js/Gestion_De_Citas/st-rec-01-dashboard/app.js
+   ============================================ *@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Dashboard Recepción";
@@ -193,7 +186,3 @@ NOTAS DE MANTENIMIENTO:
     </div>
     <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
   </footer>
-@section Scripts {
-    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
-    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
-}

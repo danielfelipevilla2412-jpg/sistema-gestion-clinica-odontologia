@@ -543,16 +543,6 @@ img {
     border-bottom-color: var(--primary);
 }
 
-/* Filtros */
-.table-filters {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
-    background: linear-gradient(90deg, rgba(26, 86, 204, 0.05), rgba(255, 255, 255, 0.9));
-}
 
 .search-wrap {
     display: flex;
@@ -1161,10 +1151,6 @@ select.status-select-inline option {
     cursor: not-allowed;
 }
 
-.pagination-ellipsis {
-    color: var(--text-muted);
-    font-size: 0.8rem;
-}
 
 /* Banner informativo */
 .info-banner {
@@ -1194,22 +1180,6 @@ select.status-select-inline option {
     opacity: 0.9;
 }
 
-.btn-banner {
-    background: var(--white);
-    color: var(--primary);
-    border: none;
-    padding: 10px 20px;
-    border-radius: var(--radius-sm);
-    font-weight: 700;
-    font-size: 0.83rem;
-    cursor: pointer;
-    transition: transform var(--tr), box-shadow var(--tr);
-}
-
-.btn-banner:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-}
 
 /* ═══════════════════════════════════════════════════════════════
    MODALES
@@ -1416,7 +1386,6 @@ select.status-select-inline option {
         align-items: flex-start;
     }
 
-    .table-filters,
     .filters-row {
         flex-direction: column;
         align-items: stretch;

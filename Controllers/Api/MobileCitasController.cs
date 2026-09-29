@@ -1,3 +1,25 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: MobileCitasController
+ * ============================================
+ * Archivo: Controllers/Api/MobileCitasController.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Proporciona un endpoint API simplificado y autenticado exclusivamente vía JWT Bearer
+ * para la aplicación móvil del paciente. Permite consultar el listado de "Mis Citas"
+ * vinculadas directamente a la cuenta del usuario logueado.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Extracción estricta del claim NameIdentifier para mapear Paciente por IdUsuario.
+ * - Filtra únicamente citas activas no eliminadas, ordenadas descendentemente por fecha/hora.
+ * - Formatea la salida JSON ligera optimizada para dispositivos móviles (red reducida).
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, JwtBearerDefaults
+ * ============================================
+ */
+
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;

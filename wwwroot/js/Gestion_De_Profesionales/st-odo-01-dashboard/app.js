@@ -1,71 +1,196 @@
-/*
- SmileTrack — Dashboard del Odontólogo (st-odo-01-dashboard)
- Fuente de datos: Controller + Razor. No usa datos de demostración.
-*/
+/* ============================================
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: Dashboard del Odontólogo (st-odo-01-dashboard)
+ * ============================================
+ * Archivo: wwwroot/js/Gestion_De_Profesionales/st-odo-01-dashboard/app.js
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Panel de control principal para el profesional odontológico logueado.
+ * Presenta el banner de próxima cita urgente, tarjetas KPI de citas atendidas/pendientes del día,
+ * barra de avance de metas clínicas y accesos directos a la historia clínica.
+ *
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Datos servidos por SSR y refrescados mediante solicitudes periódicas para mantener el widget activo.
+ * - Formateo automático de moneda COP para ingresos acumulados.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionProfesionalesController -> Stodo01Dashboard
+ * - HTML: Views/Gestion_De_Profesionales/st-odo-01-dashboard/index.cshtml
+ * ============================================ */
 
-const safeGetElement = (id) => document.getElementById(id);
+// ═══════════════════════════════════════════════════════════════════
+// 1. CONSTANTES Y CONFIGURACIÓN
+// ═══════════════════════════════════════════════════════════════════
 
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#039;');
+const AUTO_REFRESH_INTERVAL_MS = 300_000; // 5 minutos
+const INACTIVITY_TIMEOUT_MS = 600_000;    // 10 minutos
+const COUNTDOWN_INTERVAL_MS = 60_000;      // 1 minuto
 
-// animateCounter → delega a window.animateCounter global (shared/utils.js).
-// Para statIngresos con formato $COP el elemento HTML tiene atributo
-// data-format="currency-cop" y animateCounter lo formatea automáticamente.
+// ═══════════════════════════════════════════════════════════════════
+// 2. ESTADO DE LA APLICACIÓN
+// ═══════════════════════════════════════════════════════════════════
 
-const initHeaderDate = () => {
-  const headerDate = safeGetElement('headerDate');
-  if (!headerDate) return;
+let lastUserActivityTimestamp = Date.now();
+
+// ═══════════════════════════════════════════════════════════════════
+// 3. UTILIDADES Y HELPERS
+// ═══════════════════════════════════════════════════════════════════
+
+const safeGetElement = (elementId) =>
+  window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
+
+const escapeHtml = (value) =>
+  window.CommonUtils?.escapeHtml ? window.CommonUtils.escapeHtml(value) : String(value ?? '');
+
+const displayCurrentHeaderDate = () => {
+  const headerDateElement = safeGetElement('headerDate');
+  if (!headerDateElement) return;
 
   const now = new Date();
-  const formatted = now.toLocaleDateString('es-CO', {
+  const formattedDate = now.toLocaleDateString('es-CO', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric'
   });
 
-  headerDate.textContent = formatted;
-  headerDate.setAttribute('datetime', now.toISOString().slice(0, 10));
+  headerDateElement.textContent = formattedDate;
+  headerDateElement.setAttribute('datetime', now.toISOString().slice(0, 10));
 };
 
+const addKpiTooltips = () => {
+  const statCards = document.querySelectorAll('.stat-card');
+  
+  statCards.forEach(cardElement => {
+    const labelText = cardElement.querySelector('.stat-label')?.textContent;
+    
+    if (labelText) {
+      let tooltipText = '';
+      
+      if (labelText.includes('Pacientes del mes')) {
+        tooltipText = 'Número de pacientes únicos atendidos este mes';
+      } else if (labelText.includes('Citas hoy')) {
+        tooltipText = 'Total de citas programadas para hoy';
+      } else if (labelText.includes('Atendidas')) {
+        tooltipText = 'Citas completadas hoy';
+      } else if (labelText.includes('Ingresos')) {
+        tooltipText = 'Ingresos generados este mes por citas atendidas';
+      }
+      
+      if (tooltipText) {
+        cardElement.setAttribute('title', tooltipText);
+        cardElement.style.cursor = 'help';
+      }
+    }
+  });
+};
+
+const enhanceKeyboardNavigation = () => {
+  const focusableElements = document.querySelectorAll(
+    'a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+
+  focusableElements.forEach(element => {
+    element.addEventListener('keydown', (event) => {
+      if (event.key === 'Home') {
+        event.preventDefault();
+        focusableElements[0]?.focus();
+      }
+      
+      if (event.key === 'End') {
+        event.preventDefault();
+        focusableElements[focusableElements.length - 1]?.focus();
+      }
+    });
+  });
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 4. SERVICIOS Y API
+// ═══════════════════════════════════════════════════════════════════
+
+const setupAutoRefreshStats = () => {
+  ['mousedown', 'keydown', 'scroll', 'touchstart'].forEach(eventName => {
+    document.addEventListener(eventName, () => {
+      lastUserActivityTimestamp = Date.now();
+    }, { passive: true });
+  });
+
+  const autoRefreshHandler = async () => {
+    if (Date.now() - lastUserActivityTimestamp > INACTIVITY_TIMEOUT_MS) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/profesionales/dashboard-stats', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) return;
+
+      const responseData = await response.json();
+      
+      if (responseData.citasHoy !== undefined) {
+        const appointmentCountEl = safeGetElement('statCitas');
+        if (appointmentCountEl && typeof window.animateCounter === 'function') {
+          window.animateCounter(appointmentCountEl, responseData.citasHoy);
+        }
+      }
+
+      if (responseData.citasAtendidas !== undefined) {
+        const attendedCountEl = safeGetElement('statProfesionales');
+        if (attendedCountEl && typeof window.animateCounter === 'function') {
+          window.animateCounter(attendedCountEl, responseData.citasAtendidas);
+        }
+      }
+
+      setTimeout(updateDailyProgress, 1000);
+      console.log('[SmileTrack] Dashboard actualizado:', new Date().toLocaleTimeString('es-CO'));
+    } catch (error) {
+      console.error('[SmileTrack] Error actualizando dashboard:', error);
+    }
+  };
+
+  setInterval(autoRefreshHandler, AUTO_REFRESH_INTERVAL_MS);
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 5. RENDERIZADO Y DOM
+// ═══════════════════════════════════════════════════════════════════
+
 const renderRevenueChart = () => {
-  const container = safeGetElement('revenueChart');
-  if (!container) return;
+  const chartContainer = safeGetElement('revenueChart');
+  if (!chartContainer) return;
 
-  const data = Array.isArray(window.ODO_REVENUE)
-    ? window.ODO_REVENUE
-    : [];
+  const dataset = Array.isArray(window.ODO_REVENUE) ? window.ODO_REVENUE : [];
 
-  if (!data.length) {
-    const empty = document.createElement('p');
-    empty.style.cssText = 'padding:16px;color:var(--text-muted);';
-    empty.textContent = 'No hay ingresos registrados en el período.';
-    container.replaceChildren(empty);
+  if (!dataset.length) {
+    const emptyMessage = document.createElement('p');
+    emptyMessage.style.cssText = 'padding:16px;color:var(--text-muted);';
+    emptyMessage.textContent = 'No hay ingresos registrados en el período.';
+    chartContainer.replaceChildren(emptyMessage);
     return;
   }
 
-  const maxValue = Math.max(
-    ...data.map((item) => Number(item.valor) || 0),
+  const maxRevenueValue = Math.max(
+    ...dataset.map(item => Number(item.valor) || 0),
     0
   );
 
-  const currency = new Intl.NumberFormat('es-CO', {
+  const currencyFormatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     maximumFractionDigits: 0
   });
 
-  container.innerHTML = data.map((item) => {
-    const value = Number(item.valor) || 0;
-    const width = maxValue > 0
-      ? Math.round((value / maxValue) * 100)
+  chartContainer.innerHTML = dataset.map(item => {
+    const revenueValue = Number(item.valor) || 0;
+    const barWidth = maxRevenueValue > 0
+      ? Math.round((revenueValue / maxRevenueValue) * 100)
       : 0;
 
-    const colorClass = value === maxValue && maxValue > 0
+    const colorClass = (revenueValue === maxRevenueValue && maxRevenueValue > 0)
       ? 'green'
       : 'blue';
 
@@ -75,202 +200,135 @@ const renderRevenueChart = () => {
         <div class="chart-bar-bg">
           <div
             class="chart-bar-fill ${colorClass}"
-            data-width="${width}"
+            data-width="${barWidth}"
             style="width:0"
             role="progressbar"
-            aria-valuenow="${width}"
+            aria-valuenow="${barWidth}"
             aria-valuemin="0"
             aria-valuemax="100"
-            aria-label="${escapeHtml(item.mes)}: ${escapeHtml(currency.format(value))}"
+            aria-label="${escapeHtml(item.mes)}: ${escapeHtml(currencyFormatter.format(revenueValue))}"
           ></div>
         </div>
-        <span class="chart-val">${currency.format(value)}</span>
+        <span class="chart-val">${currencyFormatter.format(revenueValue)}</span>
       </div>`;
   }).join('');
 
   requestAnimationFrame(() => {
-    container.querySelectorAll('.chart-bar-fill').forEach((bar) => {
-      bar.style.width = `${Number(bar.dataset.width) || 0}%`;
+    chartContainer.querySelectorAll('.chart-bar-fill').forEach(barElement => {
+      barElement.style.width = `${Number(barElement.dataset.width) || 0}%`;
     });
   });
 };
 
-const animateExistingBars = () => {
-  document.querySelectorAll('.status-bar-fill').forEach((bar) => {
-    const width = Number(bar.dataset.width) || 0;
+const animateStatusBars = () => {
+  document.querySelectorAll('.status-bar-fill').forEach(barElement => {
+    const targetWidth = Number(barElement.dataset.width) || 0;
     requestAnimationFrame(() => {
-      bar.style.width = `${width}%`;
+      barElement.style.width = `${targetWidth}%`;
     });
   });
 };
 
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  if (!hamburger || !sidebar || !overlay) return;
+const updateNextAppointmentCountdown = () => {
+  const appointmentCard = document.querySelector('.next-appt-card.urgent, .next-appt-card.upcoming');
+  if (!appointmentCard) return;
 
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', String(show));
-    overlay.setAttribute('aria-hidden', String(!show));
+  const countdownLabel = appointmentCard.querySelector('.next-appt-countdown');
+  if (!countdownLabel) return;
 
-    if (show) sidebar.querySelector('.nav-item')?.focus();
-    else hamburger.focus();
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach((item) => {
-    item.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && sidebar.classList.contains('open')) {
-      event.preventDefault();
-      toggleMenu(false);
-    }
-  });
-};
-
-const initExport = () => {
-  const btn = safeGetElement('btnExport');
-  if (!btn) return;
-
-  btn.addEventListener('click', () => {
-    if (window.ToastService) {
-      window.ToastService.warning(
-        'La exportación de reportes se habilitará en una fase posterior.'
-      );
-    }
-  });
-};
-
-const init = () => {
-  initSidebar();
-  initHeaderDate();
-  initExport();
-
-  document.querySelectorAll('.stat-number[data-target]').forEach((el) => {
-    animateCounter(el, el.dataset.target);
-  });
-
-  renderRevenueChart();
-  animateExistingBars();
-};
-
-document.addEventListener('DOMContentLoaded', init);
-
-
-/* ═══════════════════════════════════════════════════════════════
-   MEJORAS 2026-09-15: FUNCIONALIDADES DINÁMICAS DASHBOARD
-   ═══════════════════════════════════════════════════════════════ */
-
-/**
- * Actualiza el countdown de la próxima cita urgente
- */
-const actualizarCountdownProximaCita = () => {
-  const card = document.querySelector('.next-appt-card.urgent, .next-appt-card.upcoming');
-  if (!card) return;
-
-  const countdown = card.querySelector('.next-appt-countdown');
-  if (!countdown) return;
-
-  // Extraer la hora de la cita del texto
-  const timeText = card.querySelector('.next-appt-time')?.textContent;
+  const timeText = appointmentCard.querySelector('.next-appt-time')?.textContent;
   if (!timeText) return;
 
-  const match = timeText.match(/(\d{2}):(\d{2})/);
-  if (!match) return;
+  const timeMatch = timeText.match(/(\d{2}):(\d{2})/);
+  if (!timeMatch) return;
 
   const now = new Date();
-  const citaHoy = new Date(now);
-  citaHoy.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
+  const appointmentToday = new Date(now);
+  appointmentToday.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
 
-  const diffMs = citaHoy - now;
-  const diffMins = Math.floor(diffMs / 60000);
+  const differenceMs = appointmentToday - now;
+  const differenceMinutes = Math.floor(differenceMs / 60000);
 
-  if (diffMins <= 0) {
-    countdown.textContent = '⏰ ¡Es ahora!';
-    countdown.style.background = 'rgba(255,255,255,0.4)';
-    countdown.style.animation = 'pulse-urgent 1s ease-in-out infinite';
-  } else if (diffMins <= 15) {
-    countdown.textContent = `⏰ En ${diffMins} minuto${diffMins !== 1 ? 's' : ''}`;
-    if (!card.classList.contains('urgent')) {
-      card.classList.add('urgent');
-      card.classList.remove('upcoming');
+  if (differenceMinutes <= 0) {
+    countdownLabel.textContent = '⏰ ¡Es ahora!';
+    countdownLabel.style.background = 'rgba(255,255,255,0.4)';
+    countdownLabel.style.animation = 'pulse-urgent 1s ease-in-out infinite';
+  } else if (differenceMinutes <= 15) {
+    countdownLabel.textContent = `⏰ En ${differenceMinutes} minuto${differenceMinutes !== 1 ? 's' : ''}`;
+    if (!appointmentCard.classList.contains('urgent')) {
+      appointmentCard.classList.add('urgent');
+      appointmentCard.classList.remove('upcoming');
     }
   } else {
-    countdown.textContent = `🕐 En ${diffMins} minutos`;
+    countdownLabel.textContent = `🕐 En ${differenceMinutes} minutos`;
   }
 };
 
-/**
- * Actualiza la barra de progreso del día dinámicamente
- */
-const actualizarProgresoDelDia = () => {
+const updateDailyProgress = () => {
   const progressBar = safeGetElement('topProgressBar');
   const progressLabel = safeGetElement('dailyProgressLabel');
   
   if (!progressBar || !progressLabel) return;
 
-  const statCitas = safeGetElement('statCitas');
-  const statProfesionales = safeGetElement('statProfesionales'); // Atendidas
+  const statCitasEl = safeGetElement('statCitas');
+  const statProfesionalesEl = safeGetElement('statProfesionales');
 
-  if (!statCitas || !statProfesionales) return;
+  if (!statCitasEl || !statProfesionalesEl) return;
 
-  const totalHoy = parseInt(statCitas.textContent) || 0;
-  const atendidas = parseInt(statProfesionales.textContent) || 0;
-  const porcentaje = totalHoy > 0 ? Math.round((atendidas / totalHoy) * 100) : 0;
+  const totalAppointmentsToday = parseInt(statCitasEl.textContent, 10) || 0;
+  const attendedAppointments = parseInt(statProfesionalesEl.textContent, 10) || 0;
+  const progressPercentage = totalAppointmentsToday > 0 ? Math.round((attendedAppointments / totalAppointmentsToday) * 100) : 0;
 
-  // Animar el cambio
   setTimeout(() => {
-    progressBar.style.width = `${porcentaje}%`;
-    progressBar.parentElement.setAttribute('aria-valuenow', porcentaje);
-    progressLabel.textContent = `${atendidas} de ${totalHoy} citas completadas hoy (${porcentaje}%)`;
+    progressBar.style.width = `${progressPercentage}%`;
+    progressBar.parentElement.setAttribute('aria-valuenow', progressPercentage);
+    progressLabel.textContent = `${attendedAppointments} de ${totalAppointmentsToday} citas completadas hoy (${progressPercentage}%)`;
   }, 500);
 };
 
-/**
- * Anima el círculo de rendimiento SVG
- */
-const animarCirculoRendimiento = () => {
-  const scoreCircle = document.querySelector('.score-circle');
-  if (!scoreCircle) return;
+const animatePerformanceCircle = () => {
+  const scoreCircleElement = document.querySelector('.score-circle');
+  if (!scoreCircleElement) return;
 
-  const score = parseInt(scoreCircle.dataset.score) || 0;
-  const circle = scoreCircle.querySelector('circle[stroke="url(#gradient)"]');
+  const scoreValue = parseInt(scoreCircleElement.dataset.score, 10) || 0;
+  const circleElement = scoreCircleElement.querySelector('circle[stroke="url(#gradient)"]');
   
-  if (!circle) return;
+  if (!circleElement) return;
 
-  const circumference = 314; // 2 * π * 50 (radio)
-  const targetLength = (circumference * score) / 100;
+  const circumference = 314; // 2 * π * 50
+  const targetDasharrayLength = (circumference * scoreValue) / 100;
 
-  // Animar desde 0 hasta el valor actual
-  circle.style.strokeDasharray = `0 ${circumference}`;
+  circleElement.style.strokeDasharray = `0 ${circumference}`;
   
   requestAnimationFrame(() => {
     setTimeout(() => {
-      circle.style.strokeDasharray = `${targetLength} ${circumference}`;
+      circleElement.style.strokeDasharray = `${targetDasharrayLength} ${circumference}`;
     }, 300);
   });
 };
 
-/**
- * Agrega interactividad a las tarjetas de acceso rápido
- */
-const inicializarAccesosRapidos = () => {
-  const cards = document.querySelectorAll('.quick-action-card');
+// ═══════════════════════════════════════════════════════════════════
+// 6. MANEJO DE MODALES Y FORMULARIOS
+// ═══════════════════════════════════════════════════════════════════
+
+const setupExportButtonListener = () => {
+  const exportBtn = safeGetElement('btnExport');
+  if (!exportBtn) return;
+
+  exportBtn.addEventListener('click', () => {
+    if (window.ToastService) {
+      window.ToastService.warning('La exportación de reportes se habilitará en una fase posterior.');
+    }
+  });
+};
+
+const setupQuickAccessCards = () => {
+  const quickActionCards = document.querySelectorAll('.quick-action-card');
   
-  cards.forEach(card => {
-    // Agregar efecto de ripple al hacer click
-    card.addEventListener('click', function(e) {
-      const ripple = document.createElement('span');
-      ripple.style.cssText = `
+  quickActionCards.forEach(cardElement => {
+    cardElement.addEventListener('click', function(event) {
+      const rippleSpan = document.createElement('span');
+      rippleSpan.style.cssText = `
         position: absolute;
         border-radius: 50%;
         background: rgba(26, 86, 204, 0.3);
@@ -282,62 +340,48 @@ const inicializarAccesosRapidos = () => {
         pointer-events: none;
       `;
       
-      const rect = this.getBoundingClientRect();
-      ripple.style.left = (e.clientX - rect.left) + 'px';
-      ripple.style.top = (e.clientY - rect.top) + 'px';
+      const boundingRectangle = this.getBoundingClientRect();
+      rippleSpan.style.left = (event.clientX - boundingRectangle.left) + 'px';
+      rippleSpan.style.top = (event.clientY - boundingRectangle.top) + 'px';
       
-      this.appendChild(ripple);
-      
-      setTimeout(() => ripple.remove(), 600);
+      this.appendChild(rippleSpan);
+      setTimeout(() => rippleSpan.remove(), 600);
     });
 
-    // Agregar animación CSS si no existe
     if (!document.getElementById('ripple-animation')) {
-      const style = document.createElement('style');
-      style.id = 'ripple-animation';
-      style.textContent = `
+      const styleSheet = document.createElement('style');
+      styleSheet.id = 'ripple-animation';
+      styleSheet.textContent = `
         @keyframes ripple {
-          from {
-            opacity: 1;
-            transform: scale(0);
-          }
-          to {
-            opacity: 0;
-            transform: scale(2);
-          }
+          from { opacity: 1; transform: scale(0); }
+          to { opacity: 0; transform: scale(2); }
         }
       `;
-      document.head.appendChild(style);
+      document.head.appendChild(styleSheet);
     }
   });
 };
 
-/**
- * Hace las notificaciones dismissibles (opcional)
- */
-const inicializarNotificaciones = () => {
-  const notifItems = document.querySelectorAll('.notif-item');
+const setupDismissibleNotifications = () => {
+  const notificationItems = document.querySelectorAll('.notif-item');
   
-  notifItems.forEach(item => {
-    // Agregar cursor pointer
-    item.style.cursor = 'pointer';
+  notificationItems.forEach(itemElement => {
+    itemElement.style.cursor = 'pointer';
     
-    // Click para marcar como leída (solo visual)
-    item.addEventListener('click', function() {
+    itemElement.addEventListener('click', function() {
       this.style.opacity = '0.5';
       this.style.pointerEvents = 'none';
       
       setTimeout(() => {
         this.style.display = 'none';
         
-        // Si no quedan notificaciones, mostrar mensaje "todo al día"
-        const remaining = Array.from(document.querySelectorAll('.notif-item'))
-          .filter(n => n.style.display !== 'none');
+        const remainingItems = Array.from(document.querySelectorAll('.notif-item'))
+          .filter(element => element.style.display !== 'none');
         
-        if (remaining.length === 0) {
-          const notifList = document.querySelector('.notifications-list');
-          if (notifList) {
-            notifList.innerHTML = `
+        if (remainingItems.length === 0) {
+          const notificationsList = document.querySelector('.notifications-list');
+          if (notificationsList) {
+            notificationsList.innerHTML = `
               <div class="notif-empty">
                 <span class="material-symbols-outlined">check_circle</span>
                 <span>Todo al día</span>
@@ -350,164 +394,77 @@ const inicializarNotificaciones = () => {
   });
 };
 
-/**
- * Auto-actualización de métricas cada 5 minutos
- */
-const configurarAutoActualizacion = () => {
-  // Solo en producción y si el usuario está activo
-  let lastActivity = Date.now();
-  
-  ['mousedown', 'keydown', 'scroll', 'touchstart'].forEach(event => {
-    document.addEventListener(event, () => {
-      lastActivity = Date.now();
-    }, { passive: true });
-  });
+// ═══════════════════════════════════════════════════════════════════
+// 7. INICIALIZACIÓN Y EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════════
 
-  const autoRefresh = async () => {
-    // No actualizar si el usuario ha estado inactivo más de 10 minutos
-    if (Date.now() - lastActivity > 600000) {
-      return;
-    }
+const setupSidebarNavigation = () => {
+  const hamburgerButton = safeGetElement('hamburger');
+  const sidebarElement = safeGetElement('sidebar');
+  const overlayElement = safeGetElement('overlay');
+  if (!hamburgerButton || !sidebarElement || !overlayElement) return;
 
-    try {
-      const response = await fetch('/api/profesionales/dashboard-stats', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
+  const toggleMenuState = (shouldShow) => {
+    sidebarElement.classList.toggle('open', shouldShow);
+    overlayElement.classList.toggle('open', shouldShow);
+    hamburgerButton.setAttribute('aria-expanded', String(shouldShow));
+    overlayElement.setAttribute('aria-hidden', String(!shouldShow));
 
-      if (!response.ok) return;
-
-      const data = await response.json();
-      
-      // Actualizar KPIs sin recargar la página
-      if (data.citasHoy !== undefined) {
-        const el = safeGetElement('statCitas');
-        if (el) {
-          animateCounter(el, data.citasHoy);
-        }
-      }
-
-      if (data.citasAtendidas !== undefined) {
-        const el = safeGetElement('statProfesionales');
-        if (el) {
-          animateCounter(el, data.citasAtendidas);
-        }
-      }
-
-      // Actualizar barra de progreso
-      setTimeout(actualizarProgresoDelDia, 1000);
-
-      console.log('Dashboard actualizado:', new Date().toLocaleTimeString('es-CO'));
-    } catch (error) {
-      console.error('Error actualizando dashboard:', error);
-    }
+    if (shouldShow) sidebarElement.querySelector('.nav-item')?.focus();
+    else hamburgerButton.focus();
   };
 
-  // Actualizar cada 5 minutos
-  setInterval(autoRefresh, 300000);
-};
+  hamburgerButton.addEventListener('click', () => toggleMenuState(true));
+  overlayElement.addEventListener('click', () => toggleMenuState(false));
 
-/**
- * Añade tooltips informativos a los KPIs
- */
-const agregarTooltipsKPIs = () => {
-  const statCards = document.querySelectorAll('.stat-card');
-  
-  statCards.forEach(card => {
-    const label = card.querySelector('.stat-label')?.textContent;
-    
-    if (label) {
-      let tooltip = '';
-      
-      if (label.includes('Pacientes del mes')) {
-        tooltip = 'Número de pacientes únicos atendidos este mes';
-      } else if (label.includes('Citas hoy')) {
-        tooltip = 'Total de citas programadas para hoy';
-      } else if (label.includes('Atendidas')) {
-        tooltip = 'Citas completadas hoy';
-      } else if (label.includes('Ingresos')) {
-        tooltip = 'Ingresos generados este mes por citas atendidas';
-      }
-      
-      if (tooltip) {
-        card.setAttribute('title', tooltip);
-        card.style.cursor = 'help';
-      }
+  sidebarElement.querySelectorAll('.nav-item').forEach(navItem => {
+    navItem.addEventListener('click', () => {
+      if (window.innerWidth <= 680) toggleMenuState(false);
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && sidebarElement.classList.contains('open')) {
+      event.preventDefault();
+      toggleMenuState(false);
     }
   });
 };
 
-/**
- * Manejo de teclado mejorado para accesibilidad
- */
-const mejorarAccesibilidadTeclado = () => {
-  // Navegación con Tab mejorada en tarjetas
-  const focusableElements = document.querySelectorAll(
-    'a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  );
+const initDashboardEnhancements = () => {
+  setTimeout(updateDailyProgress, 1500);
+  setTimeout(animatePerformanceCircle, 800);
 
-  focusableElements.forEach((el, index) => {
-    el.addEventListener('keydown', (e) => {
-      // Home: ir al primer elemento
-      if (e.key === 'Home') {
-        e.preventDefault();
-        focusableElements[0]?.focus();
-      }
-      
-      // End: ir al último elemento
-      if (e.key === 'End') {
-        e.preventDefault();
-        focusableElements[focusableElements.length - 1]?.focus();
-      }
-    });
+  setupQuickAccessCards();
+  setupDismissibleNotifications();
+  addKpiTooltips();
+  enhanceKeyboardNavigation();
+
+  updateNextAppointmentCountdown();
+  setInterval(updateNextAppointmentCountdown, COUNTDOWN_INTERVAL_MS);
+};
+
+const initializeDashboardModule = () => {
+  setupSidebarNavigation();
+  displayCurrentHeaderDate();
+  setupExportButtonListener();
+
+  document.querySelectorAll('.stat-number[data-target]').forEach(numberElement => {
+    if (typeof window.animateCounter === 'function') {
+      window.animateCounter(numberElement, numberElement.dataset.target);
+    }
   });
+
+  renderRevenueChart();
+  animateStatusBars();
+
+  setTimeout(initDashboardEnhancements, 1000);
 };
 
-/**
- * Inicialización de todas las mejoras
- */
-const inicializarMejoras = () => {
-  console.log('🚀 Inicializando mejoras del dashboard...');
+document.addEventListener('DOMContentLoaded', initializeDashboardModule);
 
-  // Actualizar progreso después de la animación inicial
-  setTimeout(actualizarProgresoDelDia, 1500);
-
-  // Animar círculo de rendimiento
-  setTimeout(animarCirculoRendimiento, 800);
-
-  // Configurar accesos rápidos interactivos
-  inicializarAccesosRapidos();
-
-  // Configurar notificaciones
-  inicializarNotificaciones();
-
-  // Agregar tooltips
-  agregarTooltipsKPIs();
-
-  // Mejorar accesibilidad
-  mejorarAccesibilidadTeclado();
-
-  // Actualizar countdown cada minuto
-  actualizarCountdownProximaCita();
-  setInterval(actualizarCountdownProximaCita, 60000);
-
-  // Configurar auto-actualización (opcional, comentar si no se desea)
-  // configurarAutoActualizacion();
-
-  console.log('✅ Dashboard mejorado iniciado correctamente');
-};
-
-// Ejecutar mejoras después de la inicialización principal
-document.addEventListener('DOMContentLoaded', () => {
-  // Esperar a que termine la inicialización original
-  setTimeout(inicializarMejoras, 1000);
-});
-
-// Limpiar animaciones al salir (para mejor rendimiento)
 window.addEventListener('beforeunload', () => {
-  document.querySelectorAll('[style*="animation"]').forEach(el => {
-    el.style.animation = 'none';
+  document.querySelectorAll('[style*="animation"]').forEach(animatedElement => {
+    animatedElement.style.animation = 'none';
   });
 });

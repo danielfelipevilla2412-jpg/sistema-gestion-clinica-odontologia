@@ -369,7 +369,6 @@ img { max-width: 100%; height: auto; display: block; }
   font-size: .7rem; font-weight: 700; text-transform: uppercase;
 }
 .badge-activo, .badge-confirmada { background: var(--status-activo-bg); color: var(--status-activo-text); }
-.badge-vacaciones { background: var(--status-vacaciones-bg); color: var(--status-vacaciones-text); }
 .badge-inactivo, .badge-cancelada { background: #fef2f2; color: #991b1b; }
 .badge-no { background: #f1f5f9; color: #475569; } /* Gris para "no asistió" */
 
@@ -655,16 +654,6 @@ img { max-width: 100%; height: auto; display: block; }
   font-size: 2.5rem;
   margin-bottom: 12px;
 }
-.empty-state-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 4px;
-}
-.empty-state-subtitle {
-  font-size: 0.875rem;
-}
-
 /* Animación sutil de entrada para las filas de la tabla */
 @keyframes fadeInRow {
   from {

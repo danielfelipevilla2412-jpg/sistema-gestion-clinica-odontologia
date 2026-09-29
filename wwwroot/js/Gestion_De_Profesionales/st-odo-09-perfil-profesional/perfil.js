@@ -1,39 +1,80 @@
 /* ============================================
-SmileTrack — Perfil Profesional (st-odo-09-perfil-profesional)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: Perfil Profesional (st-odo-09-perfil-profesional)
+ * ============================================
+ * Archivo: wwwroot/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Administra la vista de perfil de usuario para el profesional odontológico.
+ * Permite actualizar datos personales, especialidades, horario laboral semanal y credenciales de acceso (contraseña)
+ * consumiendo los endpoints de `ProfesionalesApiController`.
+ *
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Envíos asíncronos vía fetch con tokens CSRF (Antiforgery) agregados en cabeceras.
+ * - Validación estricta de política de contraseñas seguras y horarios válidos por día de la semana.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionProfesionalesController / ProfesionalesApiController
+ * - HTML: Views/Gestion_De_Profesionales/st-odo-09-perfil-profesional/index.cshtml
+ * ============================================ */
 
-DESCRIPCIÓN:
-Gestiona la lógica interactiva del perfil del profesional logueado: guardado de datos mediante API fetch o LocalStorage fallback, cambio de pestañas de navegación interna y validaciones de seguridad en los formularios.
+// ===================================================================
+// 1. CONSTANTES Y CONFIGURACIÓN
+// ===================================================================
 
-FUNCIONALIDADES PRINCIPALES:
-- Guardado asíncrono (fetch) de datos personales y credenciales de seguridad con feedback visual
-- Navegación interactiva por pestañas (Datos Personales / Configuración de Seguridad)
-- Validaciones en cliente para contraseñas seguras y campos de contacto correctos
-- Gestión de alertas y notificaciones del sistema con dismiss automático
+const API_BASE_URL = '/api';
 
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionProfesionalesController
-- CSS: ~/css/Gestion_De_Profesionales/st-odo-09-perfil-profesional/styles.css
-- JS: ~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js
-- Partial / Otros: index.cshtml
+/** Estructura base de los días de la semana con metadatos de visualización */
+const WEEK_DAYS_STRUCTURE = [
+  { day: 'Lun', dayFull: 'Lunes'     },
+  { day: 'Mar', dayFull: 'Martes'    },
+  { day: 'Mié', dayFull: 'Miércoles' },
+  { day: 'Jue', dayFull: 'Jueves'    },
+  { day: 'Vie', dayFull: 'Viernes'   },
+  { day: 'Sáb', dayFull: 'Sábado'    },
+  { day: 'Dom', dayFull: 'Domingo'   },
+];
 
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-============================================ */
+/** Plantilla inicial de datos del perfil */
+const DEFAULT_PROFILE_TEMPLATE = { horario: [] };
 
-// ═══════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN API
-// ═══════════════════════════════════════════════════════════════════
-const API_BASE = '/api';
+// ===================================================================
+// 2. GESTIÓN DE ESTADO LOCAL
+// ===================================================================
 
+let profileState = { ...DEFAULT_PROFILE_TEMPLATE };
+let editingDayIndex = null;
+let lastFocusedElement = null;
+let isScheduleLoadedFromApi = false;
+
+// ===================================================================
+// 3. UTILIDADES Y FORMATEADORES
+// ===================================================================
+
+/**
+ * Obtiene un elemento DOM por ID de forma segura con advertencia en consola.
+ * @param {string} elementId
+ * @returns {HTMLElement|null}
+ */
+const getElementByIdSafe = (elementId) =>
+  window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
+
+const debounce = (callbackFn, delayMs) =>
+  window.CommonUtils?.debounce ? window.CommonUtils.debounce(callbackFn, delayMs) : callbackFn;
+
+/**
+ * Ejecuta una petición fetch con timeout dinámico mediante AbortController.
+ * @param {string} url
+ * @param {Object} [options={}]
+ * @param {number} [timeoutMs=15000]
+ * @returns {Promise<Response>}
+ */
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const abortController = new AbortController();
+  const timeoutId = window.setTimeout(() => abortController.abort(), timeoutMs);
 
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetch(url, { ...options, signal: abortController.signal });
   } catch (error) {
     if (error.name === 'AbortError') {
       throw new Error('La solicitud tardó demasiado. Inténtalo de nuevo.');
@@ -44,533 +85,102 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   }
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
-// ═══════════════════════════════════════════════════════════════════
-
-// Obtiene elemento del DOM con manejo seguro de null
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  return el;
+/**
+ * Calcula la cantidad de horas transcurridas entre hora inicio y fin (HH:MM).
+ * @param {string} startTime
+ * @param {string} endTime
+ * @returns {number}
+ */
+const calculateTimeDifferenceInHours = (startTime, endTime) => {
+  if (!startTime || !endTime) return 0;
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+  const totalHours = (endHour + endMinute / 60) - (startHour + startMinute / 60);
+  return Math.max(0, totalHours);
 };
 
-// Reduce llamadas a función en eventos frecuentes
-const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
+/**
+ * Obtiene la clase CSS (morning / afternoon) según la hora de inicio.
+ * @param {string} startTime
+ * @returns {string}
+ */
+const getSlotCssClassByStartHour = (startTime) => {
+  const [startHour] = startTime.split(':').map(Number);
+  return startHour < 12 ? 'morning' : 'afternoon';
 };
 
-// Muestra notificación temporal con auto-cierre
-
-// ═══════════════════════════════════════════════════════════════════
-//  Fallback seguro: al fallar la API se mantiene el horario vacío.
-// ═══════════════════════════════════════════════════════════════════
-const SAMPLE_PROFILE = { horario: [] };
-
-let profileData = { ...SAMPLE_PROFILE };
-let currentEditingDay = null;
-let lastFocusedScheduleElement = null;
-let scheduleLoadedFromApi = false;
-
-// ═══════════════════════════════════════════════════════════════════
-//  FUNCIONES DE RENDERIZADO
-// ═══════════════════════════════════════════════════════════════════
-
-// Calcula horas entre dos tiempos
-const calculateHours = (start, end) => {
-  if (!start || !end) return 0;
-  const [startH, startM] = start.split(':').map(Number);
-  const [endH, endM] = end.split(':').map(Number);
-  const hours = (endH + endM / 60) - (startH + startM / 60);
-  return Math.max(0, hours);
+/**
+ * Obtiene el ícono representativo según la hora de inicio.
+ * @param {string} startTime
+ * @returns {string}
+ */
+const getSlotIconByStartHour = (startTime) => {
+  const [startHour] = startTime.split(':').map(Number);
+  return startHour < 12 ? '🌅' : '🌇';
 };
 
-// Obtiene clase CSS para slot de tiempo
-const getTimeSlotClass = (start) => {
-  const [h] = start.split(':').map(Number);
-  return h < 12 ? 'morning' : 'afternoon';
+/**
+ * Obtiene el ID del profesional leyendo el atributo dataset del contenedor DOM.
+ * @returns {number|null}
+ */
+const getProfessionalIdFromDom = () => {
+  const scheduleGridElement = document.getElementById('scheduleGrid');
+  const professionalId = parseInt(scheduleGridElement?.dataset?.profesionalId ?? '0', 10);
+  return professionalId > 0 ? professionalId : null;
 };
 
-// Obtiene ícono para slot de tiempo
-const getTimeSlotIcon = (start) => {
-  const [h] = start.split(':').map(Number);
-  return h < 12 ? '🌅' : '🌇';
-};
+/**
+ * Evalúa la fortaleza de una contraseña devolviendo 'weak', 'medium' o 'strong'.
+ * @param {string} passwordText
+ * @returns {string|null}
+ */
+const evaluatePasswordStrengthLevel = (passwordText) => {
+  if (passwordText.length === 0) return null;
 
-// Renderiza grilla de horario semanal
-const renderSchedule = () => {
-  const grid = safeGetElement('scheduleGrid');
-  if (!grid) return;
+  let strengthScore = 0;
+  if (passwordText.length >= 8) strengthScore++;
+  if (passwordText.length >= 12) strengthScore++;
+  if (/[a-z]/.test(passwordText) && /[A-Z]/.test(passwordText)) strengthScore++;
+  if (/\d/.test(passwordText)) strengthScore++;
+  if (/[^a-zA-Z0-9]/.test(passwordText)) strengthScore++;
 
-  let totalHours = 0;
-  let activeDays = 0;
-
-  grid.innerHTML = profileData.horario.map((dayData, index) => {
-    const hours = dayData.active ? calculateHours(dayData.start, dayData.end) : 0;
-    totalHours += hours;
-    if (dayData.active) activeDays++;
-
-    const statusClass = dayData.active ? 'active' : 'inactive';
-    
-    let timeSlotsHTML = '';
-    if (dayData.active && dayData.start && dayData.end) {
-      const slotClass = getTimeSlotClass(dayData.start);
-      const icon = getTimeSlotIcon(dayData.start);
-      timeSlotsHTML = `
-        <span class="time-slot ${slotClass}">
-          <span class="time-slot-icon" aria-hidden="true">${icon}</span>
-          <time datetime="${dayData.start}">${dayData.start}</time> - <time datetime="${dayData.end}">${dayData.end}</time>
-        </span>
-      `;
-    } else {
-      timeSlotsHTML = '<div class="no-schedule">— Descanso —</div>';
-    }
-
-    const hoursText = dayData.active ? `${hours}h` : '—';
-
-    return `
-      <div class="schedule-day ${statusClass}" 
-           role="listitem"
-           tabindex="0"
-           aria-label="${dayData.dayFull}: ${dayData.active ? `${hours} horas, ${dayData.start} a ${dayData.end}` : 'No disponible'}"
-           data-index="${index}">
-        <div class="day-name">${dayData.day}</div>
-        <div class="time-blocks">${timeSlotsHTML}</div>
-        <div class="hours-badge" aria-label="${hours} horas">${hoursText}</div>
-      </div>
-    `;
-  }).join('');
-
-  // Agregar event listeners a días del horario
-  grid.querySelectorAll('.schedule-day').forEach(dayEl => {
-    const index = parseInt(dayEl.dataset.index, 10);
-    
-    dayEl.addEventListener('click', () => openScheduleModal(index));
-    dayEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        openScheduleModal(index);
-      }
-    });
-  });
-
-  // Actualizar resumen
-  const totalHoursEl = safeGetElement('totalHours');
-  const totalDaysEl = safeGetElement('totalDays');
-  if (totalHoursEl) totalHoursEl.textContent = `${totalHours} horas`;
-  if (totalDaysEl) totalDaysEl.textContent = `${activeDays} días laborales`;
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  MODAL - EDITAR HORARIO
-// ═══════════════════════════════════════════════════════════════════
-
-// Abre modal para editar día del horario
-const openScheduleModal = (index) => {
-  currentEditingDay = index;
-  const dayData = profileData.horario[index];
-  
-  // Set modal content
-  const modalDayIcon = safeGetElement('modalDayIcon');
-  const modalDayName = safeGetElement('modalDayName');
-  const modalDayActive = safeGetElement('modalDayActive');
-  const modalStartTime = safeGetElement('modalStartTime');
-  const modalEndTime = safeGetElement('modalEndTime');
-  
-  if (modalDayIcon) modalDayIcon.textContent = dayData.day;
-  if (modalDayName) modalDayName.textContent = dayData.dayFull;
-  if (modalDayActive) {
-    modalDayActive.checked = dayData.active;
-    // Sincronizar aria-checked con el estado actual (accesibilidad role="switch")
-    modalDayActive.setAttribute('aria-checked', String(dayData.active));
-  }
-  if (modalStartTime) modalStartTime.value = dayData.start || '08:00';
-  if (modalEndTime) modalEndTime.value = dayData.end || '12:00';
-  
-  // Update UI based on active state
-  updateModalUI(dayData.active);
-  updatePreview();
-  
-  // Show modal
-  const modal = safeGetElement('scheduleModal');
-  if (modal) {
-    lastFocusedScheduleElement = document.activeElement;
-    modal.classList.add('active');
-    modal.setAttribute('aria-hidden', 'false');
-    modal.removeAttribute('inert');
-    
-    // Enfocar primer elemento interactivo
-    const firstInput = modal.querySelector('input, button');
-    if (firstInput) firstInput.focus();
-    
-    // Bloquear scroll del body
-    document.body.style.overflow = 'hidden';
-  }
-};
-
-// Cierra modal de edición de horario
-const closeScheduleModal = () => {
-  const modal = safeGetElement('scheduleModal');
-  if (modal) {
-    modal.classList.remove('active');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
-    
-    // Restaurar scroll
-    document.body.style.overflow = '';
-  }
-  currentEditingDay = null;
-  if (lastFocusedScheduleElement instanceof HTMLElement) {
-    lastFocusedScheduleElement.focus();
-  }
-  lastFocusedScheduleElement = null;
-};
-
-// Actualiza UI del modal según estado activo
-const updateModalUI = (isActive) => {
-  const timeSection = safeGetElement('modalTimeSection');
-  const toggleText = safeGetElement('toggleText');
-  
-  if (timeSection) {
-    timeSection.classList.toggle('disabled', !isActive);
-  }
-  const startInput = safeGetElement('modalStartTime');
-  const endInput = safeGetElement('modalEndTime');
-  if (startInput) startInput.disabled = !isActive;
-  if (endInput) endInput.disabled = !isActive;
-  if (toggleText) {
-    toggleText.textContent = isActive ? 'Día laboral' : 'No disponible';
-    toggleText.classList.toggle('active', isActive);
-    toggleText.classList.toggle('inactive', !isActive);
-  }
-};
-
-// Actualiza vista previa del horario
-const updatePreview = () => {
-  const isActive = safeGetElement('modalDayActive')?.checked;
-  const start = safeGetElement('modalStartTime')?.value;
-  const end = safeGetElement('modalEndTime')?.value;
-  const preview = safeGetElement('modalPreview');
-  
-  if (!preview) return;
-  
-  if (isActive && start && end) {
-    const hours = calculateHours(start, end);
-    const previewTime = safeGetElement('previewTime');
-    const previewHours = safeGetElement('previewHours');
-    
-    if (previewTime) previewTime.textContent = `${start} - ${end}`;
-    if (previewHours) previewHours.textContent = `${hours} hora${hours !== 1 ? 's' : ''}`;
-    preview.style.opacity = '1';
-  } else {
-    preview.style.opacity = '0.5';
-    const previewTime = safeGetElement('previewTime');
-    const previewHours = safeGetElement('previewHours');
-    if (previewTime) previewTime.textContent = isActive ? 'Selecciona horario' : 'Día no laboral';
-    if (previewHours) previewHours.textContent = isActive ? '' : 'Sin horario';
-  }
-};
-
-const setSaveScheduleButtonState = (enabled) => {
-  const saveButton = safeGetElement('modalSave');
-  if (!saveButton) return;
-  saveButton.disabled = !enabled;
-  if (enabled) {
-    saveButton.removeAttribute('aria-disabled');
-    saveButton.removeAttribute('title');
-  } else {
-    saveButton.setAttribute('aria-disabled', 'true');
-    saveButton.setAttribute('title', 'Debes cargar el horario real del servidor para poder guardar cambios.');
-  }
-};
-
-// Guarda cambios del horario
-const saveSchedule = async () => {
-  if (currentEditingDay === null) return;
-
-  if (!scheduleLoadedFromApi) {
-    window.ToastService?.error(
-      '❌ No se puede guardar',
-      'El horario no se cargó correctamente desde el servidor. Refresca la página e inténtalo de nuevo.'
-    );
-    return;
-  }
-
-  const dayData = profileData.horario[currentEditingDay];
-  const isActive = safeGetElement('modalDayActive')?.checked;
-  const startEl = safeGetElement('modalStartTime');
-  const endEl = safeGetElement('modalEndTime');
-  const start = startEl?.value;
-  const end = endEl?.value;
-  
-  if (window.ValidationUtils) {
-      if (startEl) window.ValidationUtils.clearError(startEl);
-      if (endEl) window.ValidationUtils.clearError(endEl);
-  }
-  
-  // Validate if active
-  if (isActive) {
-    if (!start || !end) {
-      if (window.ValidationUtils && !start && startEl) window.ValidationUtils.showError(startEl, null, 'Por favor completa el horario');
-      if (window.ValidationUtils && !end && endEl) window.ValidationUtils.showError(endEl, null, 'Por favor completa el horario');
-      window.ToastService.warning('⚠️ Verifique los campos resaltados en rojo');
-      return;
-    }
-    
-    const hours = calculateHours(start, end);
-    if (hours <= 0) {
-      if (window.ValidationUtils && endEl) {
-          window.ValidationUtils.showError(endEl, null, 'La hora de fin debe ser mayor a la hora de inicio');
-      }
-      window.ToastService.warning('⚠️ Verifique los campos resaltados en rojo');
-      return;
-    }
-    
-    if (hours > 12) {
-      if (window.ValidationUtils && endEl) {
-          window.ValidationUtils.showError(endEl, null, 'El horario máximo es de 12 horas por día');
-      }
-      window.ToastService.warning('⚠️ Verifique los campos resaltados en rojo');
-      return;
-    }
-  }
-
-  // Construir el nuevo estado del día (no modificar profileData todavía)
-  const nuevosDatosDia = isActive
-    ? { ...dayData, active: true, start, end }
-    : { ...dayData, active: false, start: '', end: '' };
-
-  const horarioActualizado = profileData.horario.map((d, i) =>
-    i === currentEditingDay ? nuevosDatosDia : d
-  );
-
-  // Persistir via API
-  const profesionalId = getProfesionalId();
-  if (!profesionalId) {
-    // Sin ID de profesional: fallback local (no debería ocurrir en producción)
-    profileData.horario[currentEditingDay] = nuevosDatosDia;
-    renderSchedule();
-    closeScheduleModal();
-    window.ToastService.success(`✅ Horario de ${nuevosDatosDia.dayFull} actualizado`);
-    return;
-  }
-
-  try {
-    const saveButton = safeGetElement('modalSave');
-    const originalSaveText = saveButton?.textContent;
-    if (saveButton) {
-      saveButton.disabled = true;
-      saveButton.setAttribute('aria-busy', 'true');
-      saveButton.textContent = 'Guardando...';
-    }
-
-    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const response = await fetchWithTimeout(`${API_BASE}/profesionales/${profesionalId}/horarios`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'X-CSRF-TOKEN': token } : {})
-      },
-      credentials: 'include',
-      body: JSON.stringify(horarioActualizado)
-    });
-
-    if (!response.ok) {
-      const errorJson = await response.json().catch(() => ({}));
-      const msg = errorJson.message || `Error ${response.status}`;
-      window.ToastService.error('❌ Error al guardar el horario', msg);
-      return;
-    }
-
-    // Éxito: actualizar el estado local y re-renderizar
-    profileData.horario = horarioActualizado;
-    renderSchedule();
-    closeScheduleModal();
-    window.ToastService.success(`✅ Horario de ${nuevosDatosDia.dayFull} actualizado`);
-  } catch (err) {
-    console.error('[SmileTrack] Error de red al guardar horario:', err);
-    window.ToastService.error('❌ Error de conexión', 'No se pudo guardar el horario. Inténtalo de nuevo.');
-  } finally {
-    const saveButton = safeGetElement('modalSave');
-    if (saveButton) {
-      saveButton.disabled = false;
-      saveButton.removeAttribute('aria-busy');
-      saveButton.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar horario';
-    }
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  FORMULARIO: CAMBIAR CONTRASEÑA
-// ═══════════════════════════════════════════════════════════════════
-
-// Verifica fortaleza de contraseña
-const checkPasswordStrength = (password) => {
-  if (password.length === 0) return null;
-  
-  let strength = 0;
-  if (password.length >= 8) strength++;
-  if (password.length >= 12) strength++;
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-  if (/\d/.test(password)) strength++;
-  if (/[^a-zA-Z0-9]/.test(password)) strength++;
-  
-  if (strength <= 2) return 'weak';
-  if (strength <= 4) return 'medium';
+  if (strengthScore <= 2) return 'weak';
+  if (strengthScore <= 4) return 'medium';
   return 'strong';
 };
 
-// Alterna visibilidad de contraseña
-const togglePasswordVisibility = (inputId, button) => {
-  const input = safeGetElement(inputId);
-  if (!input) return;
-  
-  if (input.type === 'password') {
-    input.type = 'text';
-    button.textContent = '🙈';
-    button.setAttribute('aria-pressed', 'true');
-  } else {
-    input.type = 'password';
-    button.textContent = '👁';
-    button.setAttribute('aria-pressed', 'false');
-  }
-};
+// ===================================================================
+// 4. COMUNICACIÓN CON LA API REST
+// ===================================================================
 
-// Maneja cambio de contraseña
-const changePassword = async (event) => {
-  event.preventDefault();
-  
-  const currentPasswordEl = safeGetElement('currentPassword');
-  const newPasswordEl = safeGetElement('newPassword');
-  const confirmPasswordEl = safeGetElement('confirmPassword');
-  
-  const currentPassword = currentPasswordEl?.value;
-  const newPassword = newPasswordEl?.value;
-  const confirmPassword = confirmPasswordEl?.value;
+/**
+ * Transforma el listado de horarios de la API a la estructura interna de 7 días.
+ * @param {Array} apiSchedulesList
+ * @returns {Array}
+ */
+const mapApiSchedulesToProfileState = (apiSchedulesList) => {
+  const normalizeDayName = (dayName) => (dayName || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 
-  if (window.ValidationUtils) {
-      if (currentPasswordEl) window.ValidationUtils.clearError(currentPasswordEl);
-      if (newPasswordEl) window.ValidationUtils.clearError(newPasswordEl);
-      if (confirmPasswordEl) window.ValidationUtils.clearError(confirmPasswordEl);
-  }
-  
-  let valid = true;
-
-  // Validaciones básicas
-  if (currentPassword?.length < 6) {
-    if (window.ValidationUtils && currentPasswordEl) {
-        window.ValidationUtils.showError(currentPasswordEl, null, 'La contraseña actual debe tener al menos 6 caracteres');
-    }
-    valid = false;
-  }
-  
-  if (newPassword?.length < 8) {
-    if (window.ValidationUtils && newPasswordEl) {
-        window.ValidationUtils.showError(newPasswordEl, null, 'La nueva contraseña debe tener al menos 8 caracteres');
-    }
-    valid = false;
-  }
-  
-  if (newPassword !== confirmPassword) {
-    if (window.ValidationUtils && confirmPasswordEl) {
-        window.ValidationUtils.showError(confirmPasswordEl, null, 'Las nuevas contraseñas no coinciden');
-    }
-    valid = false;
-  }
-  
-  if (currentPassword === newPassword) {
-    if (window.ValidationUtils && newPasswordEl) {
-        window.ValidationUtils.showError(newPasswordEl, null, 'La nueva contraseña debe ser diferente a la actual');
-    }
-    valid = false;
-  }
-
-  if (!valid) {
-      window.ToastService.warning('⚠️ Verifique los campos resaltados en rojo');
-      return;
-  }
-  
-  const btn = event.target.querySelector('.btn-update');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = '⏳ Actualizando...';
-  }
-  
-  try {
-    const token = event.target.querySelector('input[name="__RequestVerificationToken"]')?.value;
-    const response = await fetchWithTimeout('/acceso-y-seguridad/cambiar-contrasena/api', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...(token ? { 'X-CSRF-TOKEN': token } : {})
-      },
-      body: JSON.stringify({
-        ContrasenaActual: currentPassword,
-        NuevaContrasena: newPassword,
-        ConfirmarContrasena: confirmPassword
-      })
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload.success === false) throw new Error(payload.message || 'No fue posible cambiar la contraseña.');
-    window.ToastService?.success(payload.message || 'Contraseña actualizada. Inicia sesión nuevamente.');
-    window.setTimeout(() => { window.location.href = '/acceso-y-seguridad/login'; }, 900);
-  } catch (error) {
-    window.ToastService?.error(error.message || 'No fue posible cambiar la contraseña.');
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Actualizar contraseña';
-    }
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  API CALLS
-// ═══════════════════════════════════════════════════════════════════
-
-// Estructura base de la semana laboral (7 días en orden, con metadatos)
-const DIAS_SEMANA = [
-  { day: 'Lun', dayFull: 'Lunes'      },
-  { day: 'Mar', dayFull: 'Martes'     },
-  { day: 'Mié', dayFull: 'Miércoles'  },
-  { day: 'Jue', dayFull: 'Jueves'     },
-  { day: 'Vie', dayFull: 'Viernes'    },
-  { day: 'Sáb', dayFull: 'Sábado'     },
-  { day: 'Dom', dayFull: 'Domingo'    },
-];
-
-// Construye la estructura de 7 días a partir de la respuesta de la API
-const mapApiHorariosToProfileData = (apiData) => {
-  return DIAS_SEMANA.map(({ day, dayFull }) => {
-    const normalizarDia = (value) => (value || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase();
-    const bloque = apiData.find(
-      (h) => normalizarDia(h.diaSemana) === normalizarDia(dayFull)
+  return WEEK_DAYS_STRUCTURE.map(({ day, dayFull }) => {
+    const matchedSchedule = apiSchedulesList.find(
+      (item) => normalizeDayName(item.diaSemana) === normalizeDayName(dayFull)
     );
-    return bloque
-      ? { day, dayFull, active: bloque.activo !== false, start: bloque.horaInicio || '', end: bloque.horaFin || '' }
+    return matchedSchedule
+      ? { day, dayFull, active: matchedSchedule.activo !== false, start: matchedSchedule.horaInicio || '', end: matchedSchedule.horaFin || '' }
       : { day, dayFull, active: false, start: '', end: '' };
   });
 };
 
-// Obtiene el ID del profesional desde el data-attribute del DOM
-const getProfesionalId = () => {
-  const grid = document.getElementById('scheduleGrid');
-  const id = parseInt(grid?.dataset?.profesionalId ?? '0', 10);
-  return id > 0 ? id : null;
-};
-
-// Obtiene datos del perfil desde API (GET /api/profesionales/{id}/horarios)
-async function fetchProfile() {
-  const profesionalId = getProfesionalId();
-  if (!profesionalId) {
+/**
+ * Obtiene la configuración de horarios del profesional desde la API.
+ * @returns {Promise<Object>}
+ */
+const fetchProfessionalScheduleApi = async () => {
+  const professionalId = getProfessionalIdFromDom();
+  if (!professionalId) {
     console.warn('[SmileTrack] No se encontró el ID del profesional en el DOM; se omite la carga del horario.');
     window.ToastService?.error(
       '❌ No se pudo cargar el horario',
@@ -580,7 +190,7 @@ async function fetchProfile() {
   }
 
   try {
-    const response = await fetchWithTimeout(`${API_BASE}/profesionales/${profesionalId}/horarios`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/profesionales/${professionalId}/horarios`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include'
@@ -595,206 +205,627 @@ async function fetchProfile() {
       return { horario: [], success: false };
     }
 
-    const json = await response.json();
-    const horario = mapApiHorariosToProfileData(json.data ?? []);
-    return { horario, success: true };
-  } catch (err) {
-    console.warn('[SmileTrack] Error de red al cargar horarios:', err);
+    const payloadJson = await response.json();
+    const mappedSchedule = mapApiSchedulesToProfileState(payloadJson.data ?? []);
+    return { horario: mappedSchedule, success: true };
+  } catch (error) {
+    console.warn('[SmileTrack] Error de red al cargar horarios:', error);
     window.ToastService?.error(
       '❌ Error de conexión',
       'No se pudo contactar con el servidor para cargar el horario. Verifica la conexión y actualiza la página.'
     );
     return { horario: [], success: false };
   }
-}
+};
 
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN DE COMPONENTES
-// ═══════════════════════════════════════════════════════════════════
+/**
+ * Envía la actualización de contraseña a la API.
+ * @param {Event} event
+ */
+const submitPasswordChangeApi = async (event) => {
+  event.preventDefault();
 
-// Inicializa sidebar móvil con gestión de foco y ARIA
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
+  const currentPasswordElement = getElementByIdSafe('currentPassword');
+  const newPasswordElement = getElementByIdSafe('newPassword');
+  const confirmPasswordElement = getElementByIdSafe('confirmPassword');
 
-  if (!hamburger || !sidebar || !overlay) return;
+  const currentPasswordValue = currentPasswordElement?.value;
+  const newPasswordValue = newPasswordElement?.value;
+  const confirmPasswordValue = confirmPasswordElement?.value;
 
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
+  if (window.ValidationUtils) {
+    if (currentPasswordElement) window.ValidationUtils.clearError(currentPasswordElement);
+    if (newPasswordElement) window.ValidationUtils.clearError(newPasswordElement);
+    if (confirmPasswordElement) window.ValidationUtils.clearError(confirmPasswordElement);
+  }
+
+  let isFormValid = true;
+
+  if (currentPasswordValue?.length < 6) {
+    if (window.ValidationUtils && currentPasswordElement) {
+      window.ValidationUtils.showError(currentPasswordElement, null, 'La contraseña actual debe tener al menos 6 caracteres');
+    }
+    isFormValid = false;
+  }
+
+  if (newPasswordValue?.length < 8) {
+    if (window.ValidationUtils && newPasswordElement) {
+      window.ValidationUtils.showError(newPasswordElement, null, 'La nueva contraseña debe tener al menos 8 caracteres');
+    }
+    isFormValid = false;
+  }
+
+  if (newPasswordValue !== confirmPasswordValue) {
+    if (window.ValidationUtils && confirmPasswordElement) {
+      window.ValidationUtils.showError(confirmPasswordElement, null, 'Las nuevas contraseñas no coinciden');
+    }
+    isFormValid = false;
+  }
+
+  if (currentPasswordValue === newPasswordValue) {
+    if (window.ValidationUtils && newPasswordElement) {
+      window.ValidationUtils.showError(newPasswordElement, null, 'La nueva contraseña debe ser diferente a la actual');
+    }
+    isFormValid = false;
+  }
+
+  if (!isFormValid) {
+    window.ToastService?.warning('⚠️ Verifique los campos resaltados en rojo');
+    return;
+  }
+
+  const updateSubmitButton = event.target.querySelector('.btn-update');
+  if (updateSubmitButton) {
+    updateSubmitButton.disabled = true;
+    updateSubmitButton.textContent = '⏳ Actualizando...';
+  }
+
+  try {
+    const csrfToken = event.target.querySelector('input[name="__RequestVerificationToken"]')?.value;
+    const response = await fetchWithTimeout('/acceso-y-seguridad/cambiar-contrasena/api', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {})
+      },
+      body: JSON.stringify({
+        ContrasenaActual: currentPasswordValue,
+        NuevaContrasena: newPasswordValue,
+        ConfirmarContrasena: confirmPasswordValue
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message || 'No fue posible cambiar la contraseña.');
+    }
+
+    window.ToastService?.success(payload.message || 'Contraseña actualizada. Inicia sesión nuevamente.');
+    window.setTimeout(() => { window.location.href = '/acceso-y-seguridad/login'; }, 900);
+  } catch (error) {
+    window.ToastService?.error(error.message || 'No fue posible cambiar la contraseña.');
+    if (updateSubmitButton) {
+      updateSubmitButton.disabled = false;
+      updateSubmitButton.textContent = 'Actualizar contraseña';
+    }
+  }
+};
+
+/**
+ * Guarda los cambios de horario en la API.
+ */
+const saveScheduleChangesApi = async () => {
+  if (editingDayIndex === null) return;
+
+  if (!isScheduleLoadedFromApi) {
+    window.ToastService?.error(
+      '❌ No se puede guardar',
+      'El horario no se cargó correctamente desde el servidor. Refresca la página e inténtalo de nuevo.'
+    );
+    return;
+  }
+
+  const currentDayState = profileState.horario[editingDayIndex];
+  const isDayActive = getElementByIdSafe('modalDayActive')?.checked;
+  const startTimeInput = getElementByIdSafe('modalStartTime');
+  const endTimeInput = getElementByIdSafe('modalEndTime');
+  const startTimeValue = startTimeInput?.value;
+  const endTimeValue = endTimeInput?.value;
+
+  if (window.ValidationUtils) {
+    if (startTimeInput) window.ValidationUtils.clearError(startTimeInput);
+    if (endTimeInput) window.ValidationUtils.clearError(endTimeInput);
+  }
+
+  if (isDayActive) {
+    if (!startTimeValue || !endTimeValue) {
+      if (window.ValidationUtils && !startTimeValue && startTimeInput) window.ValidationUtils.showError(startTimeInput, null, 'Por favor completa el horario');
+      if (window.ValidationUtils && !endTimeValue && endTimeInput) window.ValidationUtils.showError(endTimeInput, null, 'Por favor completa el horario');
+      window.ToastService?.warning('⚠️ Verifique los campos resaltados en rojo');
+      return;
+    }
+
+    const calculatedHours = calculateTimeDifferenceInHours(startTimeValue, endTimeValue);
+    if (calculatedHours <= 0) {
+      if (window.ValidationUtils && endTimeInput) {
+        window.ValidationUtils.showError(endTimeInput, null, 'La hora de fin debe ser mayor a la hora de inicio');
+      }
+      window.ToastService?.warning('⚠️ Verifique los campos resaltados en rojo');
+      return;
+    }
+
+    if (calculatedHours > 12) {
+      if (window.ValidationUtils && endTimeInput) {
+        window.ValidationUtils.showError(endTimeInput, null, 'El horario máximo es de 12 horas por día');
+      }
+      window.ToastService?.warning('⚠️ Verifique los campos resaltados en rojo');
+      return;
+    }
+  }
+
+  const updatedDayState = isDayActive
+    ? { ...currentDayState, active: true, start: startTimeValue, end: endTimeValue }
+    : { ...currentDayState, active: false, start: '', end: '' };
+
+  const fullUpdatedSchedule = profileState.horario.map((dayItem, idx) =>
+    idx === editingDayIndex ? updatedDayState : dayItem
+  );
+
+  const professionalId = getProfessionalIdFromDom();
+  if (!professionalId) {
+    profileState.horario[editingDayIndex] = updatedDayState;
+    renderWeeklyScheduleGrid();
+    closeScheduleEditorModal();
+    window.ToastService?.success(`✅ Horario de ${updatedDayState.dayFull} actualizado`);
+    return;
+  }
+
+  try {
+    const saveButton = getElementByIdSafe('modalSave');
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.setAttribute('aria-busy', 'true');
+      saveButton.textContent = 'Guardando...';
+    }
+
+    const csrfToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const response = await fetchWithTimeout(`${API_BASE_URL}/profesionales/${professionalId}/horarios`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {})
+      },
+      credentials: 'include',
+      body: JSON.stringify(fullUpdatedSchedule)
+    });
+
+    if (!response.ok) {
+      const errorJson = await response.json().catch(() => ({}));
+      const errorMessage = errorJson.message || `Error ${response.status}`;
+      window.ToastService?.error('❌ Error al guardar el horario', errorMessage);
+      return;
+    }
+
+    profileState.horario = fullUpdatedSchedule;
+    renderWeeklyScheduleGrid();
+    closeScheduleEditorModal();
+    window.ToastService?.success(`✅ Horario de ${updatedDayState.dayFull} actualizado`);
+  } catch (error) {
+    console.error('[SmileTrack] Error de red al guardar horario:', error);
+    window.ToastService?.error('❌ Error de conexión', 'No se pudo guardar el horario. Inténtalo de nuevo.');
+  } finally {
+    const saveButton = getElementByIdSafe('modalSave');
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.removeAttribute('aria-busy');
+      saveButton.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">save</span> Guardar horario';
+    }
+  }
+};
+
+// ===================================================================
+// 5. RENDERIZADO Y MANIPULACIÓN DEL DOM
+// ===================================================================
+
+/**
+ * Renderiza una tarjeta individual de día para el horario.
+ * @param {Object} dayData
+ * @param {number} index
+ * @returns {string}
+ */
+const renderScheduleDayCard = (dayData, index) => {
+  const hours = dayData.active ? calculateTimeDifferenceInHours(dayData.start, dayData.end) : 0;
+  const statusClass = dayData.active ? 'active' : 'inactive';
+
+  let timeSlotsHtml = '';
+  if (dayData.active && dayData.start && dayData.end) {
+    const slotCssClass = getSlotCssClassByStartHour(dayData.start);
+    const slotIcon = getSlotIconByStartHour(dayData.start);
+    timeSlotsHtml = `
+      <span class="time-slot ${slotCssClass}">
+        <span class="time-slot-icon" aria-hidden="true">${slotIcon}</span>
+        <time datetime="${dayData.start}">${dayData.start}</time> - <time datetime="${dayData.end}">${dayData.end}</time>
+      </span>
+    `;
+  } else {
+    timeSlotsHtml = '<div class="no-schedule">— Descanso —</div>';
+  }
+
+  const hoursBadgeText = dayData.active ? `${hours}h` : '—';
+
+  return {
+    html: `
+      <div class="schedule-day ${statusClass}" 
+           role="listitem"
+           tabindex="0"
+           aria-label="${dayData.dayFull}: ${dayData.active ? `${hours} horas, ${dayData.start} a ${dayData.end}` : 'No disponible'}"
+           data-index="${index}">
+        <div class="day-name">${dayData.day}</div>
+        <div class="time-blocks">${timeSlotsHtml}</div>
+        <div class="hours-badge" aria-label="${hours} horas">${hoursBadgeText}</div>
+      </div>
+    `,
+    hours,
+    isActive: dayData.active
+  };
+};
+
+/**
+ * Renderiza la grilla de horarios semanales.
+ */
+const renderWeeklyScheduleGrid = () => {
+  const scheduleGridElement = getElementByIdSafe('scheduleGrid');
+  if (!scheduleGridElement) return;
+
+  let totalAccumulatedHours = 0;
+  let activeDaysCount = 0;
+
+  const htmlCardsList = profileState.horario.map((dayData, index) => {
+    const renderedCard = renderScheduleDayCard(dayData, index);
+    totalAccumulatedHours += renderedCard.hours;
+    if (renderedCard.isActive) activeDaysCount++;
+    return renderedCard.html;
+  });
+
+  scheduleGridElement.innerHTML = htmlCardsList.join('');
+
+  scheduleGridElement.querySelectorAll('.schedule-day').forEach(dayCardElement => {
+    const dayIndex = parseInt(dayCardElement.dataset.index, 10);
     
-    if (show) {
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
+    dayCardElement.addEventListener('click', () => openScheduleEditorModal(dayIndex));
+    dayCardElement.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openScheduleEditorModal(dayIndex);
+      }
+    });
+  });
+
+  const totalHoursLabel = getElementByIdSafe('totalHours');
+  const totalDaysLabel = getElementByIdSafe('totalDays');
+  if (totalHoursLabel) totalHoursLabel.textContent = `${totalAccumulatedHours} horas`;
+  if (totalDaysLabel) totalDaysLabel.textContent = `${activeDaysCount} días laborales`;
+};
+
+/**
+ * Actualiza los campos visuales del modal de edición de horario.
+ * @param {boolean} isDayActive
+ */
+const updateScheduleEditorModalUI = (isDayActive) => {
+  const timeSectionContainer = getElementByIdSafe('modalTimeSection');
+  const toggleTextSpan = getElementByIdSafe('toggleText');
+
+  if (timeSectionContainer) {
+    timeSectionContainer.classList.toggle('disabled', !isDayActive);
+  }
+
+  const startTimeInput = getElementByIdSafe('modalStartTime');
+  const endTimeInput = getElementByIdSafe('modalEndTime');
+  if (startTimeInput) startTimeInput.disabled = !isDayActive;
+  if (endTimeInput) endTimeInput.disabled = !isDayActive;
+
+  if (toggleTextSpan) {
+    toggleTextSpan.textContent = isDayActive ? 'Día laboral' : 'No disponible';
+    toggleTextSpan.classList.toggle('active', isDayActive);
+    toggleTextSpan.classList.toggle('inactive', !isDayActive);
+  }
+};
+
+/**
+ * Actualiza el bloque de vista previa del horario en el modal.
+ */
+const updateSchedulePreviewDisplay = () => {
+  const isDayActive = getElementByIdSafe('modalDayActive')?.checked;
+  const startTimeValue = getElementByIdSafe('modalStartTime')?.value;
+  const endTimeValue = getElementByIdSafe('modalEndTime')?.value;
+  const previewContainer = getElementByIdSafe('modalPreview');
+
+  if (!previewContainer) return;
+
+  const previewTimeLabel = getElementByIdSafe('previewTime');
+  const previewHoursLabel = getElementByIdSafe('previewHours');
+
+  if (isDayActive && startTimeValue && endTimeValue) {
+    const calculatedHours = calculateTimeDifferenceInHours(startTimeValue, endTimeValue);
+    if (previewTimeLabel) previewTimeLabel.textContent = `${startTimeValue} - ${endTimeValue}`;
+    if (previewHoursLabel) previewHoursLabel.textContent = `${calculatedHours} hora${calculatedHours !== 1 ? 's' : ''}`;
+    previewContainer.style.opacity = '1';
+  } else {
+    previewContainer.style.opacity = '0.5';
+    if (previewTimeLabel) previewTimeLabel.textContent = isDayActive ? 'Selecciona horario' : 'Día no laboral';
+    if (previewHoursLabel) previewHoursLabel.textContent = isDayActive ? '' : 'Sin horario';
+  }
+};
+
+/**
+ * Modifica la habilitación del botón de guardar horario.
+ * @param {boolean} isEnabled
+ */
+const setScheduleSaveButtonEnabledState = (isEnabled) => {
+  const saveButton = getElementByIdSafe('modalSave');
+  if (!saveButton) return;
+  saveButton.disabled = !isEnabled;
+  if (isEnabled) {
+    saveButton.removeAttribute('aria-disabled');
+    saveButton.removeAttribute('title');
+  } else {
+    saveButton.setAttribute('aria-disabled', 'true');
+    saveButton.setAttribute('title', 'Debes cargar el horario real del servidor para poder guardar cambios.');
+  }
+};
+
+// ===================================================================
+// 6. GESTIÓN DE FORMULARIOS Y MODALES
+// ===================================================================
+
+/**
+ * Abre el modal de edición de horario para un día de la semana.
+ * @param {number} dayIndex
+ */
+const openScheduleEditorModal = (dayIndex) => {
+  editingDayIndex = dayIndex;
+  const dayData = profileState.horario[dayIndex];
+
+  const modalDayIconSpan = getElementByIdSafe('modalDayIcon');
+  const modalDayNameSpan = getElementByIdSafe('modalDayName');
+  const modalDayActiveCheckbox = getElementByIdSafe('modalDayActive');
+  const modalStartTimeInput = getElementByIdSafe('modalStartTime');
+  const modalEndTimeInput = getElementByIdSafe('modalEndTime');
+
+  if (modalDayIconSpan) modalDayIconSpan.textContent = dayData.day;
+  if (modalDayNameSpan) modalDayNameSpan.textContent = dayData.dayFull;
+  if (modalDayActiveCheckbox) {
+    modalDayActiveCheckbox.checked = dayData.active;
+    modalDayActiveCheckbox.setAttribute('aria-checked', String(dayData.active));
+  }
+  if (modalStartTimeInput) modalStartTimeInput.value = dayData.start || '08:00';
+  if (modalEndTimeInput) modalEndTimeInput.value = dayData.end || '12:00';
+
+  updateScheduleEditorModalUI(dayData.active);
+  updateSchedulePreviewDisplay();
+
+  const modalElement = getElementByIdSafe('scheduleModal');
+  if (modalElement) {
+    lastFocusedElement = document.activeElement;
+    modalElement.classList.add('active');
+    modalElement.setAttribute('aria-hidden', 'false');
+    modalElement.removeAttribute('inert');
+
+    const firstInput = modalElement.querySelector('input, button');
+    if (firstInput) firstInput.focus();
+
+    document.body.style.overflow = 'hidden';
+  }
+};
+
+/**
+ * Cierra el modal de edición de horario y restaura el foco.
+ */
+const closeScheduleEditorModal = () => {
+  const modalElement = getElementByIdSafe('scheduleModal');
+  if (modalElement) {
+    modalElement.classList.remove('active');
+    modalElement.setAttribute('aria-hidden', 'true');
+    modalElement.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  }
+  editingDayIndex = null;
+  if (lastFocusedElement instanceof HTMLElement) {
+    lastFocusedElement.focus();
+  }
+  lastFocusedElement = null;
+};
+
+/**
+ * Muestra u oculta el texto de una contraseña.
+ * @param {string} inputId
+ * @param {HTMLButtonElement} toggleButton
+ */
+const togglePasswordVisibilityState = (inputId, toggleButton) => {
+  const passwordInput = getElementByIdSafe(inputId);
+  if (!passwordInput) return;
+
+  const isPasswordHidden = passwordInput.type === 'password';
+  passwordInput.type = isPasswordHidden ? 'text' : 'password';
+  toggleButton.textContent = isPasswordHidden ? '🙈' : '👁';
+  toggleButton.setAttribute('aria-pressed', String(isPasswordHidden));
+};
+
+// ===================================================================
+// 7. LISTENERS DE EVENTOS E INICIALIZACIÓN
+// ===================================================================
+
+/**
+ * Inicializa el comportamiento responsive del sidebar en móviles.
+ */
+const initMobileSidebarMenu = () => {
+  const hamburgerButton = getElementByIdSafe('hamburger');
+  const sidebarElement = getElementByIdSafe('sidebar');
+  const overlayElement = getElementByIdSafe('overlay');
+
+  if (!hamburgerButton || !sidebarElement || !overlayElement) return;
+
+  const toggleMenuState = (showMenu) => {
+    sidebarElement.classList.toggle('open', showMenu);
+    overlayElement.classList.toggle('open', showMenu);
+    hamburgerButton.setAttribute('aria-expanded', showMenu);
+    overlayElement.setAttribute('aria-hidden', !showMenu);
+
+    if (showMenu) {
+      const firstNavigationLink = sidebarElement.querySelector('.nav-item');
+      if (firstNavigationLink) firstNavigationLink.focus();
     } else {
-      hamburger.focus();
+      hamburgerButton.focus();
     }
   };
 
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
+  hamburgerButton.addEventListener('click', () => toggleMenuState(true));
+  overlayElement.addEventListener('click', () => toggleMenuState(false));
 
-  // ✅ Navegación: cerrar menú en móvil, SIN bloquear enlaces
-  sidebar.querySelectorAll('.nav-item').forEach(item => {
+  sidebarElement.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
       if (window.innerWidth <= 680) {
-        toggleMenu(false);
+        toggleMenuState(false);
       }
     });
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+    if (e.key === 'Escape' && sidebarElement.classList.contains('open')) {
       e.preventDefault();
-      toggleMenu(false);
+      toggleMenuState(false);
     }
   });
 };
 
-// Inicializa formulario de contraseña
-const initPasswordForm = () => {
-  const form = safeGetElement('passwordForm');
-  const newPasswordInput = safeGetElement('newPassword');
-  
-  // Toggle password visibility
+/**
+ * Configura los event listeners del formulario de cambio de contraseña.
+ */
+const initPasswordChangeForm = () => {
+  const passwordFormElement = getElementByIdSafe('passwordForm');
+  const newPasswordInput = getElementByIdSafe('newPassword');
+
   document.querySelectorAll('.toggle-password').forEach(button => {
     button.addEventListener('click', () => {
-      const inputId = button.closest('.input-with-icon')?.querySelector('.form-input')?.id;
-      if (inputId) togglePasswordVisibility(inputId, button);
+      const targetInputId = button.closest('.input-with-icon')?.querySelector('.form-input')?.id;
+      if (targetInputId) togglePasswordVisibilityState(targetInputId, button);
     });
   });
-  
-  // Password strength checker
+
   if (newPasswordInput) {
     newPasswordInput.addEventListener('input', debounce(() => {
-      const password = newPasswordInput.value;
-      const strengthIndicator = safeGetElement('passwordStrength');
-      
-      if (!strengthIndicator) return;
-      
-      if (password.length === 0) {
-        strengthIndicator.className = 'password-strength';
-        strengthIndicator.textContent = '';
+      const passwordText = newPasswordInput.value;
+      const strengthIndicatorElement = getElementByIdSafe('passwordStrength');
+
+      if (!strengthIndicatorElement) return;
+
+      if (passwordText.length === 0) {
+        strengthIndicatorElement.className = 'password-strength';
+        strengthIndicatorElement.textContent = '';
         return;
       }
-      
-      const strength = checkPasswordStrength(password);
-      strengthIndicator.className = `password-strength ${strength}`;
-      
-      const labels = {
+
+      const strengthLevel = evaluatePasswordStrengthLevel(passwordText);
+      strengthIndicatorElement.className = `password-strength ${strengthLevel}`;
+
+      const strengthLabelsMap = {
         weak: '🔴 Débil',
         medium: '🟡 Media',
         strong: '🟢 Fuerte'
       };
-      strengthIndicator.textContent = labels[strength] || '';
+      strengthIndicatorElement.textContent = strengthLabelsMap[strengthLevel] || '';
     }, 150));
   }
-  
-  // Form submit
-  if (form) {
-    form.addEventListener('submit', changePassword);
+
+  if (passwordFormElement) {
+    passwordFormElement.addEventListener('submit', submitPasswordChangeApi);
   }
 };
 
-// Inicializa modal de horario
-const initScheduleModal = () => {
-  const modal = safeGetElement('scheduleModal');
-  const modalClose = safeGetElement('modalClose');
-  const modalCancel = safeGetElement('modalCancel');
-  const modalSave = safeGetElement('modalSave');
-  const modalDayActive = safeGetElement('modalDayActive');
-  const modalStartTime = safeGetElement('modalStartTime');
-  const modalEndTime = safeGetElement('modalEndTime');
-  
-  // Close handlers
-  if (modalClose) modalClose.addEventListener('click', closeScheduleModal);
-  if (modalCancel) modalCancel.addEventListener('click', closeScheduleModal);
-  if (modal) {
-    modal.addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) closeScheduleModal();
+/**
+ * Inicializa los eventos del modal de edición de horario.
+ */
+const initScheduleModalEvents = () => {
+  const modalElement = getElementByIdSafe('scheduleModal');
+  const closeIconButton = getElementByIdSafe('modalClose');
+  const cancelButton = getElementByIdSafe('modalCancel');
+  const saveButton = getElementByIdSafe('modalSave');
+  const activeCheckbox = getElementByIdSafe('modalDayActive');
+  const startTimeInput = getElementByIdSafe('modalStartTime');
+  const endTimeInput = getElementByIdSafe('modalEndTime');
+
+  if (closeIconButton) closeIconButton.addEventListener('click', closeScheduleEditorModal);
+  if (cancelButton) cancelButton.addEventListener('click', closeScheduleEditorModal);
+  if (modalElement) {
+    modalElement.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeScheduleEditorModal();
     });
   }
-  
-  // Save handler
-  if (modalSave) modalSave.addEventListener('click', saveSchedule);
-  
-  // Toggle active state
-  if (modalDayActive) {
-    modalDayActive.addEventListener('change', () => {
-      // Sincronizar aria-checked con el estado actual (accesibilidad role="switch")
-      modalDayActive.setAttribute('aria-checked', String(modalDayActive.checked));
-      updateModalUI(modalDayActive.checked);
-      updatePreview();
+
+  if (saveButton) saveButton.addEventListener('click', saveScheduleChangesApi);
+
+  if (activeCheckbox) {
+    activeCheckbox.addEventListener('change', () => {
+      activeCheckbox.setAttribute('aria-checked', String(activeCheckbox.checked));
+      updateScheduleEditorModalUI(activeCheckbox.checked);
+      updateSchedulePreviewDisplay();
     });
   }
-  
-  // Time input listeners
-  if (modalStartTime) {
-    modalStartTime.addEventListener('change', updatePreview);
-    modalStartTime.addEventListener('input', updatePreview);
+
+  if (startTimeInput) {
+    startTimeInput.addEventListener('change', updateSchedulePreviewDisplay);
+    startTimeInput.addEventListener('input', updateSchedulePreviewDisplay);
   }
-  if (modalEndTime) {
-    modalEndTime.addEventListener('change', updatePreview);
-    modalEndTime.addEventListener('input', updatePreview);
+  if (endTimeInput) {
+    endTimeInput.addEventListener('change', updateSchedulePreviewDisplay);
+    endTimeInput.addEventListener('input', updateSchedulePreviewDisplay);
   }
-  
-  // Keyboard support
+
   document.addEventListener('keydown', (e) => {
-    if (!modal?.classList.contains('active')) return;
+    if (!modalElement?.classList.contains('active')) return;
     if (e.key === 'Escape') {
       e.preventDefault();
-      closeScheduleModal();
+      closeScheduleEditorModal();
       return;
     }
     if (e.key === 'Tab') {
-      const focusable = [...modal.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
-        .filter(element => !element.disabled && element.offsetParent !== null);
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
+      const focusableElements = [...modalElement.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter(el => !el.disabled && el.offsetParent !== null);
+      if (focusableElements.length === 0) return;
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey && document.activeElement === firstElement) {
         e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
         e.preventDefault();
-        first.focus();
+        firstElement.focus();
       }
     }
   });
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
-// ═══════════════════════════════════════════════════════════════════
-
+/**
+ * Función principal de inicialización del módulo de perfil profesional.
+ */
 const init = async () => {
-  // Inicializar componentes de UI
-  initSidebar();
-  initPasswordForm();
-  initScheduleModal();
+  initMobileSidebarMenu();
+  initPasswordChangeForm();
+  initScheduleModalEvents();
 
-  // Deshabilitar Guardar horario hasta confirmar carga real desde API
-  setSaveScheduleButtonState(false);
+  setScheduleSaveButtonEnabledState(false);
 
-  // Cargar datos del perfil
-  const fetchResult = await fetchProfile();
-  profileData = { horario: fetchResult.horario };
-  scheduleLoadedFromApi = fetchResult.success === true;
+  const fetchResult = await fetchProfessionalScheduleApi();
+  profileState = { horario: fetchResult.horario };
+  isScheduleLoadedFromApi = fetchResult.success === true;
 
-  // Habilitar/deshabilitar botón según resultado de carga
-  setSaveScheduleButtonState(scheduleLoadedFromApi);
+  setScheduleSaveButtonEnabledState(isScheduleLoadedFromApi);
+  renderWeeklyScheduleGrid();
 
-  // Renderizar horario
-  renderSchedule();
-
-  // Limpieza al unload para evitar memory leaks
-  window.addEventListener('beforeunload', () => {
-    // Remover listeners en implementación SPA real
-  });
+  window.addEventListener('beforeunload', () => {});
 };
 
-// Ejecutar al cargar DOM
 document.addEventListener('DOMContentLoaded', init);

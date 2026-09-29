@@ -1,9 +1,22 @@
 @* ============================================
-   SmileTrack — Dashboard de Citas (st-adm-01-dashboard)
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Dashboard de Citas Administrativo (st-adm-01-dashboard)
    ============================================
-   Autor: Johan Santamaria
-   DESCRIPCIÓN: Vista principal del dashboard administrativo refinada.
-============================================ *@
+   Archivo: Views/Gestion_De_Citas/st-adm-01-dashboard/index.cshtml
+
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Renderiza el resumen ejecutivo y tarjetas KPI del centro odontológico para la administración.
+   Muestra métricas de ocupación de consultorios, volumen de citas por estado y ranking de profesionales.
+
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Uso de ViewModel fuertemente tipado `CitasDashboardViewModel`.
+   - Renderizado server-side optimizado con etiquetas semánticas HTML5.
+
+   DEPENDENCIAS:
+   - ViewModel: SmileTrack_MVC.Models.ViewModels.CitasDashboardViewModel
+   - CSS: ~/css/Gestion_De_Citas/st-adm-01-dashboard/styles.css
+   - JS: ~/js/Gestion_De_Citas/st-adm-01-dashboard/app.js
+   ============================================ *@
 @model SmileTrack_MVC.Models.ViewModels.CitasDashboardViewModel
 @using System.Globalization
 @{ Layout = "_Layout"; ViewData["Title"] = "Dashboard de Citas"; }

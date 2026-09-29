@@ -1,30 +1,21 @@
 @* ============================================
-   SmileTrack — Gestión Integral de Citas (st-adm-09-citas)
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Gestión Integral de Citas (st-adm-09-citas)
    ============================================
-   Autor: Johan Santamaria
-   Fecha: 29/07/2026
+   Archivo: Views/Gestion_De_Citas/st-adm-09-citas/index.cshtml
 
-   DESCRIPCIÓN:
-   Vista principal de administración de citas con listado paginado,
-   filtros avanzados, modales para CRUD y cambio rápido de estado.
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Interfaz principal de administración de citas con tabla de gestión paginada, filtros multicriterio,
+   diálogos modales para la creación/edición de turnos y acciones de actualización directa de estado.
 
-   FUNCIONALIDADES PRINCIPALES:
-   - Listado de citas con paginación server-side
-   - Filtros dinámicos por paciente, estado, profesional y fecha
-   - Modal de creación y edición con validación CSRF
-   - Cambio rápido de estado directo en la tabla
-   - Panel de estadísticas con contadores animados
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Renderiza datos paginados mediante `PagedResult<Cita>` o `IEnumerable<CitaViewModel>`.
+   - Incluye tokens Antiforgery para la protección de formularios POST/PUT/DELETE.
 
-   DEPENDENCIAS TÉCNICAS:
-   - Controller: GestionCitasController y Stadm09Citas
+   DEPENDENCIAS:
    - CSS: ~/css/Gestion_De_Citas/st-adm-09-citas/gestionintegral.css
    - JS: ~/js/Gestion_De_Citas/st-adm-09-citas/gestionintegral.js
-   - Partial / Otros: _SidebarAdmin.cshtml
-
-   NOTAS DE MANTENIMIENTO:
-   - Comentarios internos explican el "por qué" de decisiones de diseño
-   - El formulario modal reutiliza ViewData del backend para selectores
-============================================ *@
+   ============================================ *@
 
 @{ Layout = "_Layout"; ViewData["Title"] = "Gestión de Citas"; }
 

@@ -1,3 +1,24 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: EstadoCitaHelper (Clase Helper)
+ * ============================================
+ * Archivo: Helpers/EstadoCitaHelper.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Centraliza la normalización y resolución de estados de las citas odontológicas. Evita
+ * inconsistencias de formato (mayúsculas, tildes, sinónimos como "completada" vs "atendida")
+ * entre la base de datos, los servicios backend y la interfaz gráfica.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Normaliza sinónimos de estados a las claves canónicas reconocidas por la BD ("programada", "en_proceso", "atendida", "cancelada", etc.).
+ * - Elimina tildes, convierte a minúsculas y reemplaza guiones/espacios por guiones bajos.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - System.Globalization, System.Text
+ * ============================================
+ */
+
 using System.Globalization;
 using System.Text;
 

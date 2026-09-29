@@ -1,3 +1,24 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: CitasDashboardService
+ * ============================================
+ * Archivo: Services/GestionDeCitas/CitasDashboardService.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Implementa la agregación de métricas y construcción de KPIs para el Dashboard de Citas.
+ * Extrae todas las consultas complejas de agregación LINQ/SQL fuera de los controladores MVC,
+ * asegurando alto desempeño y mantenibilidad centralizada de estadísticas clínicas.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Filtra únicamente citas no eliminadas (soft delete check).
+ * - Calcula porcentajes de ocupación diaria e índices de inasistencia/cancelaciones.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, ICitaService, CitasDashboardViewModel, EstadoCitaHelper
+ * ============================================
+ */
+
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;

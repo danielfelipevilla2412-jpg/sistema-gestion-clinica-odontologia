@@ -1,3 +1,22 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: CitasDashboardViewModel (Modelo de Vista)
+ * ============================================
+ * Archivo: Models/ViewModels/GestionDeCitas/CitasDashboardViewModel.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Estructura fuertemente tipada que consolida todas las tarjetas KPI, métricas de estado
+ * y rankings de profesionales del Dashboard de Citas. Elimina el uso de ViewData dinámico e inestable.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Agrupa KPIs de ocupación, citas del día y profesionales con mayor demanda.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - DashboardKpiViewModel, DashboardEstadosViewModel, TopProfesionalViewModel
+ * ============================================
+ */
+
 namespace SmileTrack_MVC.Models.ViewModels;
 
 /// <summary>

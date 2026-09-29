@@ -151,7 +151,7 @@ img { max-width: 100%; height: auto; display: block; }
 .summary-card.green .summary-number { color: var(--green); }
 .summary-card.red .summary-number { color: var(--danger); }
 .summary-card.yellow .summary-number { color: var(--orange); }
-.summary-label { font-size: .77rem; color: var(--text-muted); }
+
 
 /* Patrón canónico (igual que st-adm-07, st-rec-01, st-rec-03, st-adm-01) */
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }

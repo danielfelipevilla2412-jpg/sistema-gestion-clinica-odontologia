@@ -1,26 +1,19 @@
 @* ============================================
-SmileTrack — Mis Citas Paciente (st-pac-01-mis-citas)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Mis Citas Paciente (st-pac-01-mis-citas)
+   ============================================
+   Archivo: Views/Gestion_De_Citas/st-pac-01-mis-citas/index.cshtml
 
-DESCRIPCIÓN:
-Vista orientada al paciente que permite consultar el historial de citas clínicas, ver el estado de las citas programadas y solicitar agendamiento o cancelaciones de manera interactiva.
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Portal de autoservicio para el paciente. Muestra su agenda personal de citas pasadas y futuras.
 
-FUNCIONALIDADES PRINCIPALES:
-- Visualización del listado de citas programadas e historial clínico del paciente
-- Cancelación o reprogramación de citas pendientes sujetas a validación horaria
-- Resumen interactivo (atendidas, programadas, canceladas) del paciente
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Filtro por paciente autenticado mediante claims de sesión.
 
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y CitasPaciente
-- CSS: ~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css
-- JS: ~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js
-- Partial / Otros: Menú del paciente
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-============================================ *@
+   DEPENDENCIAS:
+   - CSS: ~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css
+   - JS: ~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js
+   ============================================ *@
 @{ Layout = "_Layout"; ViewData["Title"] = "Mis Citas"; }
 
 @section Styles {

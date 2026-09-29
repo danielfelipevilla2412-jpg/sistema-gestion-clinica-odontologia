@@ -1,67 +1,47 @@
 /* ============================================
-SmileTrack — Historial Clínico Parcial (st-aux-05-historial-parcial)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
-
-DESCRIPCIÓN:
-Maneja la lógica interactiva del historial parcial del paciente: consulta de alertas, renderizado de la tabla de consultas anteriores con remoción de skeleton loaders, y accesibilidad ARIA.
-
-FUNCIONALIDADES PRINCIPALES:
-- Lectura de los datos reales del paciente y su historial, inyectados por el servidor vía SSR
-  (window.smiletrackHistorialParcialData, ver ConstruirHistorialParcialAsync en
-  GestionCitasController.cs). No hay ninguna llamada a la API desde esta vista: es de solo lectura.
-- Renderizado interactivo de la tarjeta de alertas de alergias con indicadores visuales, escalando
-  su severidad ARIA (role/aria-live) según si el paciente tiene alergias registradas o no.
-- Poblamiento de la tabla de consultas con remoción dinámica de skeleton loaders.
-- Soporte para lectores de pantalla con actualización de etiquetas aria-live y descriptivas.
-
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y Stadm09Citas
-- CSS: ~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css
-- JS: ~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js
-- Requiere: ~/js/shared/common.js (window.CommonUtils) cargado ANTES que este archivo
-- Partial / Otros: historial-parcial.cshtml
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- El controlador limita estrictamente las consultas a un máximo de 3 filas para mantener el perfil "parcial" por seguridad.
-- AUDITORÍA (ver docs/mejoras/st-aux-05-historial-parcial.md):
-  - safeGetElement ya no se reimplementa acá: usamos window.CommonUtils.safeGetElement, que hacía
-    exactamente lo mismo (shared/common.js).
-  - Se eliminó el debounce local: esta vista no tiene buscador ni filtro que lo necesite, era código
-    muerto.
-  - El formateo de fecha corta ahora usa window.CommonUtils.formatFechaLocal en vez de reinventar
-    toLocaleDateString('es-CO', ...) — mismo formato "05 Sep 2026" que usa el resto del proyecto.
-  - El Promise.all de getAlertas()/getConsultas() NO espera ninguna red real (los datos ya están en
-    memoria desde el SSR): se conserva por consistencia estructural con vistas que sí hacen fetch,
-    no porque haya una espera asíncrona genuina.
-============================================ */
-
-// WHY: reutilizamos la versión canónica de shared/common.js en vez de reimplementarla por vista.
-const safeGetElement = window.CommonUtils.safeGetElement;
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: Historial Parcial de Citas (st-aux-05-historial-parcial)
+ * ============================================
+ * Archivo: wwwroot/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Visualización del resumen de citas anteriores y observaciones clínicas del paciente en atención.
+ * Proporciona lectura rápida de alergias, medicamentos actuales y notas de evoluciones pasadas al auxiliar.
+ *
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Datos alimentados de forma segura mediante SSR en objeto `smiletrackHistorialParcialData`.
+ * - Alertas visuales destacadas para pacientes con condiciones médicas especiales o alergias.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionCitasController -> Staux05HistorialParcial
+ * - HTML: Views/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.cshtml
+ * ============================================ */
 
 // ═══════════════════════════════════════════════════════════════════
-//  HISTORIA PARCIAL CONTROLLER CON PERSISTENCIA
+// 1. CONSTANTES Y CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════
-class HistoriaParcialController {
+
+const DEFAULT_MAX_RECORD_LIMIT = 3;
+
+// ═══════════════════════════════════════════════════════════════════
+// 2. ESTADO DE LA APLICACIÓN
+// ═══════════════════════════════════════════════════════════════════
+
+class PartialHistoryController {
   constructor() {
-    const data = window.smiletrackHistorialParcialData || {};
-    this._paciente = data.paciente || { id: null, nombre: 'Sin paciente asignado', tipoDoc: '', documento: '', alergias: [], medicamentos: [], grupoSanguineo: 'N/D', ultimaActualizacion: '' };
-    this._limite = data.limite || 3;
-    this._historial = (data.consultas || []).map(c => ({
-      ...c,
-      fecha: c.fecha ? window.CommonUtils.formatFechaLocal(c.fecha) : ''
+    const serverData = window.smiletrackHistorialParcialData || {};
+    this._paciente = serverData.paciente || { id: null, nombre: 'Sin paciente asignado', tipoDoc: '', documento: '', alergias: [], medicamentos: [], grupoSanguineo: 'N/D', ultimaActualizacion: '' };
+    this._limite = serverData.limite || DEFAULT_MAX_RECORD_LIMIT;
+    this._historial = (serverData.consultas || []).map(item => ({
+      ...item,
+      fecha: item.fecha ? window.CommonUtils.formatFechaLocal(item.fecha) : ''
     }));
   }
 
-  // Datos reales inyectados por el servidor (ver ConstruirHistorialParcialAsync en
-  // GestionCitasController.cs).
   async getPaciente() {
     return { ...this._paciente };
   }
 
-  // Estructura la información médica crítica separadamente de los datos personales
   async getAlertas() {
     return {
       alergias: [...this._paciente.alergias],
@@ -70,140 +50,132 @@ class HistoriaParcialController {
     };
   }
 
-  // El límite ya viene aplicado desde el servidor (Take(limite))
   async getConsultas() {
     return this._historial.slice(0, this._limite);
   }
 
-  // Genera un texto consolidado de identificación para ubicar rápidamente la información
   getMetaString() {
     const p = this._paciente;
     return `${p.nombre} · ${p.tipoDoc} ${p.documento} · Últimas ${this._limite} consultas · Acceso parcial · Actualizado: ${p.ultimaActualizacion}`;
   }
 }
 
-// Instancia única del controlador para toda la aplicación
-const hpCtrl = new HistoriaParcialController();
+const partialHistoryControllerInstance = new PartialHistoryController();
 
 // ═══════════════════════════════════════════════════════════════════
-//  SIDEBAR MÓVIL CON GESTIÓN DE FOCO Y ARIA
+// 3. UTILIDADES Y HELPERS
 // ═══════════════════════════════════════════════════════════════════
-const initMobileMenu = () => {
-  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
-};
 
-// ═══════════════════════════════════════════════════════════════════
-//  RENDER: Alerta médica con actualización dinámica
-// ═══════════════════════════════════════════════════════════════════
-const renderAlerta = (alertas) => {
-  // WHY: Actualiza nodos del DOM e inyecta etiquetas ARIA descriptivas para lectores de pantalla.
-  // Los spans internos ya NO tienen aria-live propio (ver historial-parcial.cshtml): la región
-  // aria-live única es #alertaMedica, para que el navegador anuncie el cambio con la severidad
-  // (assertive/polite) que le asignamos más abajo, en vez del comportamiento indefinido que
-  // resulta de anidar live regions.
-  const updateElement = (id, value) => {
-    const el = safeGetElement(id);
-    if (el) {
-      el.textContent = value || '—';
-      // Actualiza aria-label para screen readers si el valor cambia
-      el.setAttribute('aria-label', `${el.previousElementSibling?.textContent?.trim() || 'Valor'}: ${value || 'No disponible'}`);
-    }
-  };
+const safeGetElement = window.CommonUtils.safeGetElement;
 
-  // Actualiza cada campo de alerta
-  updateElement('alergia', alertas.alergias.join(', ') || 'Ninguna conocida');
-  updateElement('medicamentos', alertas.medicamentos.join(', ') || 'Ninguno');
-  updateElement('grupoSang', alertas.grupoSanguineo || '—');
-
-  // WHY: la severidad ARIA del contenedor se decide con los datos reales del paciente, no de forma
-  // estática en el HTML: un paciente sin alergias registradas no debe generar una alerta "assertive"
-  // (interrupción inmediata) para usuarios de lector de pantalla — sería una falsa alarma médica.
-  const card = safeGetElement('alertaMedica');
-  if (card) {
-    const hayAlergias = alertas.alergias.length > 0;
-    card.setAttribute('role', hayAlergias ? 'alert' : 'status');
-    card.setAttribute('aria-live', hayAlergias ? 'assertive' : 'polite');
-
-    // WHY: Reduce el impacto visual si no hay alertas críticas, evitando falsas alarmas
-    if (!hayAlergias && !alertas.medicamentos.length) {
-      card.style.opacity = '.6';
-      card.setAttribute('aria-label', 'Sin alertas médicas registradas para este paciente');
-    } else {
-      card.removeAttribute('aria-label');
-    }
+const updateElementWithAriaLabel = (elementId, valueText) => {
+  const element = safeGetElement(elementId);
+  if (element) {
+    element.textContent = valueText || '—';
+    const labelPrefix = element.previousElementSibling?.textContent?.trim() || 'Valor';
+    element.setAttribute('aria-label', `${labelPrefix}: ${valueText || 'No disponible'}`);
   }
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  RENDER: Tabla de historial con skeleton loader
+// 4. SERVICIOS Y API
 // ═══════════════════════════════════════════════════════════════════
-const renderTabla = (filas) => {
-  const tbody = safeGetElement('histBody');
-  const footer = safeGetElement('tableFooter');
-  if (!tbody) return;
 
-  // Muestra mensaje si no hay datos
-  if (!filas.length) {
-    const row = document.createElement('tr');
-    const cell = document.createElement('td');
-    cell.colSpan = 4;
-    cell.style.cssText = 'text-align:center;padding:26px;color:var(--text-muted);font-size:.85rem;';
-    cell.textContent = 'Sin consultas registradas.';
-    row.appendChild(cell);
-    tbody.replaceChildren(row);
-    if (footer) footer.style.display = 'none';
+// Los métodos de acceso a datos están encapsulados en partialHistoryControllerInstance
+
+// ═══════════════════════════════════════════════════════════════════
+// 5. RENDERIZADO Y DOM
+// ═══════════════════════════════════════════════════════════════════
+
+const renderMedicalAlertCard = (alertsData) => {
+  updateElementWithAriaLabel('alergia', alertsData.alergias.join(', ') || 'Ninguna conocida');
+  updateElementWithAriaLabel('medicamentos', alertsData.medicamentos.join(', ') || 'Ninguno');
+  updateElementWithAriaLabel('grupoSang', alertsData.grupoSanguineo || '—');
+
+  const cardElement = safeGetElement('alertaMedica');
+  if (cardElement) {
+    const hasAllergies = alertsData.alergias.length > 0;
+    cardElement.setAttribute('role', hasAllergies ? 'alert' : 'status');
+    cardElement.setAttribute('aria-live', hasAllergies ? 'assertive' : 'polite');
+
+    if (!hasAllergies && !alertsData.medicamentos.length) {
+      cardElement.style.opacity = '.6';
+      cardElement.setAttribute('aria-label', 'Sin alertas médicas registradas para este paciente');
+    } else {
+      cardElement.removeAttribute('aria-label');
+    }
+  }
+};
+
+const renderHistoryTable = (rowsList) => {
+  const tableBody = safeGetElement('histBody');
+  const footerElement = safeGetElement('tableFooter');
+  if (!tableBody) return;
+
+  if (!rowsList.length) {
+    const emptyRow = document.createElement('tr');
+    const emptyCell = document.createElement('td');
+    emptyCell.colSpan = 4;
+    emptyCell.style.cssText = 'text-align:center;padding:26px;color:var(--text-muted);font-size:.85rem;';
+    emptyCell.textContent = 'Sin consultas registradas.';
+    emptyRow.appendChild(emptyCell);
+    tableBody.replaceChildren(emptyRow);
+    if (footerElement) footerElement.style.display = 'none';
     return;
   }
 
-  // WHY: Reemplaza las celdas de carga (skeleton cells) por las de datos reales una vez completada la llamada asíncrona
-  const crearCelda = (className, label, value) => {
+  const createTableCell = (classNameText, labelText, valueText) => {
     const cell = document.createElement('td');
-    cell.className = className;
-    cell.dataset.label = label;
-    cell.textContent = value || 'Sin información';
+    cell.className = classNameText;
+    cell.dataset.label = labelText;
+    cell.textContent = valueText || 'Sin información';
     return cell;
   };
-  tbody.replaceChildren(...filas.map(f => {
-    const row = document.createElement('tr');
-    row.append(
-      crearCelda('td-fecha', 'Fecha', f.fecha),
-      crearCelda('td-profesional', 'Profesional', f.profesional),
-      crearCelda('', 'Diagnóstico', f.diagnostico),
-      crearCelda('', 'Procedimiento', f.procedimiento)
+
+  tableBody.replaceChildren(...rowsList.map(row => {
+    const tableRow = document.createElement('tr');
+    tableRow.append(
+      createTableCell('td-fecha', 'Fecha', row.fecha),
+      createTableCell('td-profesional', 'Profesional', row.profesional),
+      createTableCell('', 'Diagnóstico', row.diagnostico),
+      createTableCell('', 'Procedimiento', row.procedimiento)
     );
-    return row;
+    return tableRow;
   }));
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  INIT: Función principal de inicialización
+// 6. MANEJO DE MODALES Y FORMULARIOS
 // ═══════════════════════════════════════════════════════════════════
-const init = async () => {
-    // Inicializar componentes de UI
-    initMobileMenu();
 
-    // WHY: Promise.all permite disparar peticiones concurrentes reduciendo el tiempo total de bloqueo de la UI
-    const [alertas, consultas] = await Promise.all([
-      hpCtrl.getAlertas(),
-      hpCtrl.getConsultas(),
-    ]);
+// Módulo sin modales ni formularios interactivos directos
 
-    // Actualiza metadatos del paciente en el header
-    const metaEl = safeGetElement('patientMeta');
-    if (metaEl) {
-      metaEl.textContent = hpCtrl.getMetaString();
-      metaEl.setAttribute('aria-label', `Información del paciente: ${hpCtrl.getMetaString()}`);
-    }
+// ═══════════════════════════════════════════════════════════════════
+// 7. INICIALIZACIÓN Y EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════════
 
-    // Renderiza alerta médica y tabla de historial
-    renderAlerta(alertas);
-    renderTabla(consultas);
-
-    // Limpieza de listeners al unload para evitar memory leaks
-    window.addEventListener('beforeunload', () => {
-      // Remover listeners en implementación SPA real
-    });
+const setupMobileNavigationMenu = () => {
+  // El menú móvil es gestionado centralizadamente por ~/js/shared/sidebar.js
 };
 
-// Ejecutar al cargar DOM
-document.addEventListener('DOMContentLoaded', init);
+const initializeHistorialParcialModule = async () => {
+    setupMobileNavigationMenu();
+
+    const [alertsData, consultationsList] = await Promise.all([
+      partialHistoryControllerInstance.getAlertas(),
+      partialHistoryControllerInstance.getConsultas(),
+    ]);
+
+    const metaElement = safeGetElement('patientMeta');
+    if (metaElement) {
+      metaElement.textContent = partialHistoryControllerInstance.getMetaString();
+      metaElement.setAttribute('aria-label', `Información del paciente: ${partialHistoryControllerInstance.getMetaString()}`);
+    }
+
+    renderMedicalAlertCard(alertsData);
+    renderHistoryTable(consultationsList);
+
+    window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
+};
+
+document.addEventListener('DOMContentLoaded', initializeHistorialParcialModule);

@@ -1,125 +1,119 @@
 /* ============================================
-SmileTrack — Dashboard Recepción (st-rec-01-dashboard)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: Dashboard Recepción (st-rec-01-dashboard)
+ * ============================================
+ * Archivo: wwwroot/js/Gestion_De_Citas/st-rec-01-dashboard/app.js
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Administra el panel de control de recepción para la gestión de sala de espera y recepción de pacientes.
+ * Mide tiempos de espera en tiempo real y gestiona el flujo de ingreso del paciente al consultorio.
+ *
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Cálculo de minutos en sala de espera con alertas de tiempo excedido (> 15 min).
+ * - Cambio de estado de la cita a "en_sala_de_espera" o "en_proceso" con notificación al odontólogo.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionCitasController -> Strec01Dashboard
+ * - HTML: Views/Gestion_De_Citas/st-rec-01-dashboard/index.cshtml
+ * ============================================ */
 
-DESCRIPCIÓN:
-Controla la carga de pacientes en sala de espera, el cálculo de sus tiempos acumulados y la canalización de pacientes hacia consultorios.
+// ═══════════════════════════════════════════════════════════════════
+// 1. CONSTANTES Y CONFIGURACIÓN
+// ═══════════════════════════════════════════════════════════════════
 
-FUNCIONALIDADES PRINCIPALES:
-- Carga y actualización en tiempo real de pacientes en sala de espera
-- Manejo de botones de acción para llamar pacientes o cambiar su estado de recepción
+const POLLING_INTERVAL_MS = 30000;
 
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y RecepcionDashboard
-- CSS: ~/css/Gestion_De_Citas/st-rec-01-dashboard/styles.css
-- JS: ~/js/Gestion_De_Citas/st-rec-01-dashboard/app.js
-- Partial / Otros: index.cshtml
+// ═══════════════════════════════════════════════════════════════════
+// 2. ESTADO DE LA APLICACIÓN
+// ═══════════════════════════════════════════════════════════════════
 
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-============================================ */
+const receptionAppointmentsList = window.smiletrackDashboardRecData?.appointments || [];
+let upcomingAppointmentsTimerRef = null;
 
-// WHY: safeGetElement evita excepciones fatales en tiempo de ejecución si un id no se encuentra en el DOM
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  if (!el) {
-    console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  }
-  return el;
-};
+// ═══════════════════════════════════════════════════════════════════
+// 3. UTILIDADES Y HELPERS
+// ═══════════════════════════════════════════════════════════════════
 
-// WHY: Debounce evita la sobrecarga del hilo principal ante eventos repetitivos como tecleos de búsqueda o redimensiones
-const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
-};
+const safeGetElement = (elementId) =>
+  window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
-const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  "'": '&#39;',
-  '"': '&quot;'
-}[character]));
+const debounce = (fn, delay) =>
+  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
 
-// WHY: Muestra retroalimentación temporal autolimpiable para no interrumpir el flujo visual de la recepción
+const escapeHtml = (value) =>
+  window.CommonUtils?.escapeHtml ? window.CommonUtils.escapeHtml(value) : String(value ?? '');
 
-// ═══ DATOS REALES DE CITAS (ver ConstruirDashboardRecepcionAsync en GestionCitasController.cs) ═══
-const appointments = window.smiletrackDashboardRecData?.appointments || [];
-
-// ═══ UTILIDADES DE RENDERIZADO ═══
-
-/**
- * Mapeo de iconos para acciones de tabla.
- * Cada entrada incluye icono, texto visible (btn-text) y si es acción de riesgo.
- * WHY: el patrón canónico del sistema (st-adm-07) requiere emoji + <span class="btn-text">
- * junto al ícono para que la acción sea legible sin depender de tooltip.
- */
-const getActionMeta = (action) => {
-  const map = {
+const getActionMeta = (actionType) => {
+  const metaMap = {
     'pencil':       { icon: '✏️', label: 'Editar',   cls: 'btn-secondary edit',     danger: false },
     'file-invoice': { icon: '🧾', label: 'Facturar', cls: 'btn-secondary btn-facturar', danger: false },
     'eye':          { icon: '👁️', label: 'Ver',      cls: 'btn-secondary btn-view',  danger: false }
   };
-  return map[action] || { icon: '👁️', label: 'Ver', cls: 'btn-secondary btn-view', danger: false };
+  return metaMap[actionType] || { icon: '👁️', label: 'Ver', cls: 'btn-secondary btn-view', danger: false };
 };
 
-/**
- * Crea el elemento de fila para una cita individual.
- * BUG FIX patrón canónico: los botones de acción ahora siguen la misma estructura
- * que st-adm-07 — clase "btn-icon action-btn", emoji + <span class="btn-text">texto</span>,
- * data-action para event delegation, y aria-label descriptivo con nombre del paciente.
- * Antes solo tenían emoji sin texto visible, lo que rompía consistencia visual y
- * dejaba sin contexto a usuarios con modo alto contraste o sin soporte de emoji.
- */
-const createAppointmentRow = (appt) => {
-  const tr = document.createElement('tr');
-  if (appt.highlight) tr.classList.add('row-highlight');
-  tr.setAttribute('role', 'row');
+// ═══════════════════════════════════════════════════════════════════
+// 4. SERVICIOS Y API
+// ═══════════════════════════════════════════════════════════════════
 
-  const actionButtons = appt.actions.map(action => {
+const refreshUpcomingAppointmentsData = async () => {
+  if (document.hidden) return;
+  try {
+    const response = await fetch('/api/citas/proximas?ventanaMinutos=30', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) throw new Error(`status ${response.status}`);
+    const payload = await response.json();
+    renderUpcomingAppointmentsBanner(Array.isArray(payload.proximasCitas) ? payload.proximasCitas : []);
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudieron actualizar las próximas citas:', error);
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 5. RENDERIZADO Y DOM
+// ═══════════════════════════════════════════════════════════════════
+
+const createAppointmentRow = (appointmentItem) => {
+  const tableRow = document.createElement('tr');
+  if (appointmentItem.highlight) tableRow.classList.add('row-highlight');
+  tableRow.setAttribute('role', 'row');
+
+  const actionButtonsHtml = appointmentItem.actions.map(action => {
     const meta = getActionMeta(action);
     return `<button class="${meta.cls}" type="button"
               data-action="${action}"
-              title="${escapeHtml(meta.label)} cita de ${escapeHtml(appt.patient)}"
-              aria-label="${escapeHtml(meta.label)} cita de ${escapeHtml(appt.patient)}">
+              title="${escapeHtml(meta.label)} cita de ${escapeHtml(appointmentItem.patient)}"
+              aria-label="${escapeHtml(meta.label)} cita de ${escapeHtml(appointmentItem.patient)}">
               ${meta.icon} <span class="btn-text">${meta.label}</span>
             </button>`;
   }).join('');
 
-  tr.innerHTML = `
-    <td class="col-hora">${escapeHtml(appt.time)}</td>
-    <td class="col-paciente">${escapeHtml(appt.patient)}</td>
-    <td class="col-profesional">${escapeHtml(appt.doctor)}</td>
-    <td class="col-servicio">${escapeHtml(appt.service)}</td>
-    <td><span class="status-badge ${escapeHtml(appt.statusClass)}" role="status" aria-label="Estado: ${escapeHtml(appt.status)}">${escapeHtml(appt.status)}</span></td>
+  tableRow.innerHTML = `
+    <td class="col-hora">${escapeHtml(appointmentItem.time)}</td>
+    <td class="col-paciente">${escapeHtml(appointmentItem.patient)}</td>
+    <td class="col-profesional">${escapeHtml(appointmentItem.doctor)}</td>
+    <td class="col-servicio">${escapeHtml(appointmentItem.service)}</td>
+    <td><span class="status-badge ${escapeHtml(appointmentItem.statusClass)}" role="status" aria-label="Estado: ${escapeHtml(appointmentItem.status)}">${escapeHtml(appointmentItem.status)}</span></td>
     <td>
-      <div class="actions-cell" role="group" aria-label="Acciones para ${escapeHtml(appt.patient)}">
-        ${actionButtons}
+      <div class="actions-cell" role="group" aria-label="Acciones para ${escapeHtml(appointmentItem.patient)}">
+        ${actionButtonsHtml}
       </div>
     </td>
   `;
 
-  return tr;
+  return tableRow;
 };
 
-/**
- * Renderiza la tabla de citas con los datos actuales
- * [MEJORA]: Separación de lógica de creación de elementos para mejor mantenibilidad
- */
 const renderAppointments = () => {
-  const tbody = safeGetElement('appointmentsTable');
-  if (!tbody) return;
+  const tableBody = safeGetElement('appointmentsTable');
+  if (!tableBody) return;
 
-  tbody.innerHTML = '';
+  tableBody.innerHTML = '';
 
-  if (appointments.length === 0) {
-    tbody.innerHTML = `
+  if (receptionAppointmentsList.length === 0) {
+    tableBody.innerHTML = `
       <tr>
         <td colspan="6" style="text-align:center;padding:20px;">
           <div class="empty-state" role="status">
@@ -131,217 +125,160 @@ const renderAppointments = () => {
     return;
   }
 
-  // [MEJORA]: Usar DocumentFragment para mejor performance en inserciones múltiples
-  const fragment = document.createDocumentFragment();
-  appointments.forEach(appt => {
-    const row = createAppointmentRow(appt);
-    fragment.appendChild(row);
+  const documentFragment = document.createDocumentFragment();
+  receptionAppointmentsList.forEach(appointmentItem => {
+    const rowElement = createAppointmentRow(appointmentItem);
+    documentFragment.appendChild(rowElement);
   });
-  tbody.appendChild(fragment);
+  tableBody.appendChild(documentFragment);
 };
 
-// ═══ MANEJADORES DE EVENTOS ═══
+const renderUpcomingAppointmentsBanner = (upcomingAppointmentsList) => {
+  const bannerElement = safeGetElement('alertBannerProximas');
+  const descriptionElement = safeGetElement('alertBannerDesc');
+  if (!bannerElement || !descriptionElement) return;
 
-/**
- * Event delegation para acciones en la tabla de citas.
- * BUG FIX: el selector antes era '.action-icon' — clase que ya no se usa tras el cambio
- * al patrón canónico. Ahora busca '[data-action]' directamente, que es más robusto
- * y no depende de ninguna clase CSS específica.
- */
-const handleTableAction = (e) => {
-  const btn = e.target.closest('[data-action]');
-  if (!btn) return;
+  descriptionElement.replaceChildren(...upcomingAppointmentsList.map(item => {
+    const paragraphElement = document.createElement('p');
+    const timeElement = document.createElement('time');
+    timeElement.dateTime = item.fechaIso || '';
+    const strongElement = document.createElement('strong');
+    strongElement.textContent = item.hora || '';
+    timeElement.appendChild(strongElement);
+    paragraphElement.append(timeElement, document.createTextNode(` ${item.texto || ''}`));
+    return paragraphElement;
+  }));
+  bannerElement.style.display = upcomingAppointmentsList.length > 0 ? '' : 'none';
+};
 
-  const action = btn.dataset.action;
-  const row = btn.closest('tr');
-  const patientName = row?.querySelector('.col-paciente')?.textContent?.trim() || 'el paciente';
+const renderServerSummaryStats = () => {
+  const dashboardData = window.smiletrackDashboardRecData || {};
 
-  if (action === 'pencil') {
+  const subtitleElement = safeGetElement('pageSubtitleDate');
+  if (subtitleElement) {
+    const timeElement = document.createElement('time');
+    timeElement.className = 'text-primary font-bold';
+    timeElement.dateTime = dashboardData.horaActualIso || '';
+    timeElement.textContent = dashboardData.horaActualTexto || '';
+    subtitleElement.replaceChildren(document.createTextNode(`${dashboardData.fechaHoraTexto || ''} - `), timeElement);
+  }
+
+  const stats = dashboardData.stats || {};
+  const setElementValue = (elementId, value) => {
+    const element = safeGetElement(elementId);
+    if (element) element.textContent = value ?? '0';
+  };
+  setElementValue('statCitasHoy', stats.citasHoy);
+  setElementValue('statConfirmadas', stats.confirmadas);
+  setElementValue('statPendientes', stats.pendientes);
+  setElementValue('statFacturasPendientes', stats.facturasPendientes);
+
+  const upcomingList = dashboardData.proximasCitas || [];
+  renderUpcomingAppointmentsBanner(upcomingList);
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 6. MANEJO DE MODALES Y FORMULARIOS
+// ═══════════════════════════════════════════════════════════════════
+
+const handleTableAction = (event) => {
+  const actionButton = event.target.closest('[data-action]');
+  if (!actionButton) return;
+
+  const actionType = actionButton.dataset.action;
+  const tableRow = actionButton.closest('tr');
+  const patientName = tableRow?.querySelector('.col-paciente')?.textContent?.trim() || 'el paciente';
+
+  if (actionType === 'pencil') {
     window.ToastService?.success('Editando cita', `Editando cita de ${patientName}…`);
-  } else if (action === 'file-invoice') {
+  } else if (actionType === 'file-invoice') {
     window.ToastService?.success('Facturando', `Generando factura para ${patientName}…`);
-  } else if (action === 'eye') {
+  } else if (actionType === 'eye') {
     window.ToastService?.info('Detalle', `Viendo detalles de ${patientName}`);
   }
 };
 
-/**
- * Maneja el toggle del menú móvil con gestión de accesibilidad
- * Consistente con módulos anteriores
- */
-const initMobileMenu = () => {
-  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
-};
+const setupHeaderActionButtons = () => {
+  const newPatientBtn = safeGetElement('btnNuevoPaciente');
+  const generateInvoiceBtn = safeGetElement('btnGenerarFactura');
 
-/**
- * Inicializa botones de acción principal del header.
- * BUG FIX: los handlers existían pero la navegación estaba comentada como placeholder.
- * Ahora navegan a las rutas reales del módulo:
- *   - "Nuevo paciente"    → /gestion-de-pacientes/st-rec-02-registrar-paciente
- *   - "Generar factura"   → /facturacion-y-pagos/st-rec-04-generar-factura
- * Estas rutas coinciden con las entradas del _SidebarRecepcionista, garantizando
- * consistencia con la navegación lateral.
- */
-const initActionButtons = () => {
-  const btnNuevo   = safeGetElement('btnNuevoPaciente');
-  const btnFactura = safeGetElement('btnGenerarFactura');
-
-  if (btnNuevo) {
-    btnNuevo.addEventListener('click', () => {
+  if (newPatientBtn) {
+    newPatientBtn.addEventListener('click', () => {
       window.location.href = '/gestion-de-pacientes/st-rec-02-registrar-paciente';
     });
   }
 
-  if (btnFactura) {
-    btnFactura.addEventListener('click', () => {
+  if (generateInvoiceBtn) {
+    generateInvoiceBtn.addEventListener('click', () => {
       window.location.href = '/facturacion-y-pagos/st-rec-04-generar-factura';
     });
   }
 };
 
-/**
- * Inicializa botones de notificación de alertas
- * [MEJORA]: Validación de estado para evitar múltiples clicks
- */
-const initAlertButtons = () => {
-  document.querySelectorAll('.btn-notify').forEach(btn => {
-    btn.addEventListener('click', () => {
-      // [MEJORA]: Prevenir ejecución si ya está deshabilitado
-      if (btn.disabled) return;
+const setupAlertButtons = () => {
+  document.querySelectorAll('.btn-notify').forEach(buttonElement => {
+    buttonElement.addEventListener('click', () => {
+      if (buttonElement.disabled) return;
       
-      const alertType = btn.dataset.alert;
-      const msg = alertType === 'sin-confirmar' 
+      const alertType = buttonElement.dataset.alert;
+      const feedbackMessage = alertType === 'sin-confirmar' 
         ? 'Notificaciones de confirmación enviadas' 
         : 'Recordatorio de pago enviado';
       
-      window.ToastService.success(msg);
+      if (window.ToastService) window.ToastService.success(feedbackMessage);
       
-      // [MEJORA]: Deshabilitar botón con feedback visual
-      btn.disabled = true;
-      btn.setAttribute('aria-disabled', 'true');
+      buttonElement.disabled = true;
+      buttonElement.setAttribute('aria-disabled', 'true');
     });
   });
 };
 
-// ═══ INIT PRINCIPAL ═══
+// ═══════════════════════════════════════════════════════════════════
+// 7. INICIALIZACIÓN Y EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════════
 
-/**
- * Función principal de inicialización del dashboard
- */
-// Renderiza los datos reales inyectados por el servidor: fecha/hora del encabezado,
-// estadísticas del día y banner de próximas citas (ver ConstruirDashboardRecepcionAsync
-// en GestionCitasController.cs).
-const renderProximasCitas = (proximas) => {
-  const banner = safeGetElement('alertBannerProximas');
-  const desc = safeGetElement('alertBannerDesc');
-  if (!banner || !desc) return;
-
-  desc.replaceChildren(...proximas.map(p => {
-    const paragraph = document.createElement('p');
-    const time = document.createElement('time');
-    time.dateTime = p.fechaIso || '';
-    const strong = document.createElement('strong');
-    strong.textContent = p.hora || '';
-    time.appendChild(strong);
-    paragraph.append(time, document.createTextNode(` ${p.texto || ''}`));
-    return paragraph;
-  }));
-  banner.style.display = proximas.length > 0 ? '' : 'none';
-};
-
-const renderResumenServidor = () => {
-  const d = window.smiletrackDashboardRecData || {};
-
-  const subtitle = safeGetElement('pageSubtitleDate');
-  if (subtitle) {
-    const time = document.createElement('time');
-    time.className = 'text-primary font-bold';
-    time.dateTime = d.horaActualIso || '';
-    time.textContent = d.horaActualTexto || '';
-    subtitle.replaceChildren(document.createTextNode(`${d.fechaHoraTexto || ''} - `), time);
-  }
-
-  const stats = d.stats || {};
-  const set = (id, val) => { const el = safeGetElement(id); if (el) el.textContent = val ?? '0'; };
-  set('statCitasHoy', stats.citasHoy);
-  set('statConfirmadas', stats.confirmadas);
-  set('statPendientes', stats.pendientes);
-  set('statFacturasPendientes', stats.facturasPendientes);
-
-  const proximas = d.proximasCitas || [];
-  renderProximasCitas(proximas);
-};
-
-let proximasCitasTimer = null;
-
-const refreshProximasCitas = async () => {
-  if (document.hidden) return;
-  try {
-    const response = await fetch('/api/citas/proximas?ventanaMinutos=30', {
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' }
-    });
-    if (!response.ok) throw new Error(`status ${response.status}`);
-    const payload = await response.json();
-    renderProximasCitas(Array.isArray(payload.proximasCitas) ? payload.proximasCitas : []);
-  } catch (error) {
-    console.warn('[SmileTrack] No se pudieron actualizar las próximas citas:', error);
-  }
-};
-
-const initProximasPolling = () => {
-  const stop = () => {
-    if (proximasCitasTimer) {
-      clearInterval(proximasCitasTimer);
-      proximasCitasTimer = null;
+const setupUpcomingAppointmentsPolling = () => {
+  const stopPolling = () => {
+    if (upcomingAppointmentsTimerRef) {
+      clearInterval(upcomingAppointmentsTimerRef);
+      upcomingAppointmentsTimerRef = null;
     }
   };
-  const resume = () => {
-    stop();
+  const resumePolling = () => {
+    stopPolling();
     if (!document.hidden) {
-      refreshProximasCitas();
-      proximasCitasTimer = setInterval(refreshProximasCitas, 30000);
+      refreshUpcomingAppointmentsData();
+      upcomingAppointmentsTimerRef = setInterval(refreshUpcomingAppointmentsData, POLLING_INTERVAL_MS);
     }
   };
-  document.addEventListener('visibilitychange', resume);
-  window.addEventListener('pagehide', stop, { once: true });
-  resume();
+  document.addEventListener('visibilitychange', resumePolling);
+  window.addEventListener('pagehide', stopPolling, { once: true });
+  resumePolling();
 };
 
-const init = () => {
-  // Inicializar componentes de UI
-  initMobileMenu();
-  
-  // Renderizado inicial de datos
-  renderResumenServidor();
+const initializeReceptionDashboardModule = () => {
+  renderServerSummaryStats();
   renderAppointments();
   
-  // Inicializar interacciones
-  initActionButtons();
-  initAlertButtons();
-  initProximasPolling();
+  setupHeaderActionButtons();
+  setupAlertButtons();
+  setupUpcomingAppointmentsPolling();
   
-  // [MEJORA]: Event delegation para tabla de citas (performance)
   const tableBody = safeGetElement('appointmentsTable');
   if (tableBody) {
     tableBody.addEventListener('click', handleTableAction);
-    // [MEJORA]: Soporte para activación con teclado (Enter/Space)
-    tableBody.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        const target = e.target.closest('.action-icon');
-        if (target) {
-          e.preventDefault();
-          target.click();
+    tableBody.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        const targetButton = event.target.closest('[data-action]');
+        if (targetButton) {
+          event.preventDefault();
+          targetButton.click();
         }
       }
     });
   }
   
-  // [MEJORA]: Limpieza de listeners al unload (buena práctica para SPAs)
-  window.addEventListener('beforeunload', () => {
-    // En una SPA real, aquí se removerían listeners para evitar memory leaks
-  });
+  window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
 };
 
-// Ejecutar al cargar DOM
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', initializeReceptionDashboardModule);

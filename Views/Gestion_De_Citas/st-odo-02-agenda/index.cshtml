@@ -1,10 +1,21 @@
 @* ============================================
-   SmileTrack — Mi Agenda Odontólogo (st-odo-02-agenda)
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Agenda del Odontólogo (st-odo-02-agenda)
    ============================================
-   Autor: Johan Santamaria / Antigravity
-   Fecha: 29/07/2026 (Actualizado 2026-09-12)
-   DEPENDENCIAS: agenda.css / agenda.js / appointment-utils.js
-============================================ *@
+   Archivo: Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml
+
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Cuadrante de agenda personal del profesional odontológico.
+   Permite gestionar las consultas asignadas de la semana y registrar el inicio/fin de atención clínica.
+
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Filtra citas según el profesional logueado y calcula la barra de avance de la jornada.
+
+   DEPENDENCIAS:
+   - ViewModel: SmileTrack_MVC.Models.ViewModels.AgendaViewModel
+   - CSS: ~/css/Gestion_De_Citas/st-odo-02-agenda/agenda.css
+   - JS: ~/js/Gestion_De_Citas/st-odo-02-agenda/agenda.js
+   ============================================ *@
 @model SmileTrack_MVC.Models.ViewModels.AgendaViewModel
 @{ 
     Layout = "_Layout"; 

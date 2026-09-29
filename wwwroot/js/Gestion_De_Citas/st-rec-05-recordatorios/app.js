@@ -1,291 +1,276 @@
 /* ============================================
-SmileTrack — Recordatorios (st-rec-05-recordatorios)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
-
-DESCRIPCIÓN:
-Controla la interfaz de recordatorios de recepción: envío manual, confirmación visual de estados de entrega y configuración de envíos automáticos.
-
-FUNCIONALIDADES PRINCIPALES:
-- Acciones de envío para recordatorios por medio de fetch API
-- Confirmación visual temporal (Toast) de los envíos realizados
-- Toggle de activación de canales de envío automáticos
-
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y Recordatorios
-- CSS: ~/css/Gestion_De_Citas/st-rec-05-recordatorios/styles.css
-- JS: ~/js/Gestion_De_Citas/st-rec-05-recordatorios/app.js
-- Partial / Otros: index.cshtml
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-============================================ */
-
-// WHY: safeGetElement previene excepciones fatales en la inicialización si un elemento no existe en el DOM
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  return el;
-};
-
-// WHY: Debounce evita la sobrecarga del hilo principal ante eventos repetitivos como tecleos de búsqueda o redimensiones
-const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
-};
-
-// WHY: Las notificaciones no bloqueantes brindan retroalimentación al recepcionista sin interrumpir la gestión de la tabla
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: Recordatorios Recepción (st-rec-05-recordatorios)
+ * ============================================
+ * Archivo: wwwroot/js/Gestion_De_Citas/st-rec-05-recordatorios/app.js
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Administra el envío masivo o individual de recordatorios de citas vía correo electrónico/SMS/WhatsApp.
+ * Permite a la recepción confirmar asistencias y re-notificar a los pacientes con citas agendadas para el día siguiente.
+ *
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Envío asíncrono con retroalimentación visual inmediata.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionCitasController -> Strec05Recordatorios
+ * - HTML: Views/Gestion_De_Citas/st-rec-05-recordatorios/index.cshtml
+ * ============================================ */
 
 // ═══════════════════════════════════════════════════════════════════
-//  CSRF / AUTH HEADERS
+// 1. CONSTANTES Y CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
-const getApiHeaders = () => {
-  const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+const DEFAULT_PAGE_SIZE = 100;
+
+// ═══════════════════════════════════════════════════════════════════
+// 2. ESTADO DE LA APLICACIÓN
+// ═══════════════════════════════════════════════════════════════════
+
+let selectedAppointmentIdsList = [];
+
+// ═══════════════════════════════════════════════════════════════════
+// 3. UTILIDADES Y HELPERS
+// ═══════════════════════════════════════════════════════════════════
+
+const safeGetElement = (elementId) =>
+  window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
+
+const debounce = (fn, delay) =>
+  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
+
+const buildApiAuthHeaders = () => {
+  const headersMap = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const requestToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-  if (requestToken) headers['X-CSRF-TOKEN'] = requestToken;
+  if (requestToken) headersMap['X-CSRF-TOKEN'] = requestToken;
   try {
     const jwt = sessionStorage.getItem('st_jwt');
-    if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+    if (jwt) headersMap['Authorization'] = `Bearer ${jwt}`;
   } catch { /* modo privado */ }
-  return headers;
+  return headersMap;
+};
+
+const getTomorrowIsoDateString = () => {
+  const dateObj = new Date();
+  dateObj.setDate(dateObj.getDate() + 1);
+  return dateObj.toISOString().split('T')[0];
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  RECOPILACIÓN DE CITAS SELECCIONADAS
+// 4. SERVICIOS Y API
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Recopila los IDs de citas de los checkboxes marcados en #patientListContainer.
- * Cada fila .patient-row debe tener un atributo data-cita-id en la fila o en el checkbox.
- * @returns {number[]} Array de IDs de citas seleccionadas.
- */
-const getSelectedPatients = () => {
-  const container = safeGetElement('patientListContainer');
-  if (!container) return [];
-  const ids = [];
-  container.querySelectorAll('.patient-row').forEach(row => {
-    const checkbox = row.querySelector('.custom-checkbox');
-    if (!checkbox?.checked) return;
-    // Buscar el ID en data-cita-id del checkbox, o de la fila, o del input[name="citaId"]
-    const rawId = checkbox.dataset.citaId
-      ?? checkbox.dataset.id
-      ?? row.dataset.citaId
-      ?? row.dataset.id
-      ?? row.querySelector('input[name="citaId"]')?.value
-      ?? row.querySelector('input[name="id"]')?.value;
-    const id = parseInt(rawId, 10);
-    if (!isNaN(id) && id > 0) ids.push(id);
-  });
-  return ids;
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  ENVÍO REAL DE RECORDATORIOS POR CORREO
-// ═══════════════════════════════════════════════════════════════════
-
-/**
- * Envía recordatorios de cita por correo a los pacientes de las citas seleccionadas.
- * Conecta con el endpoint real POST /api/citas/recordatorios/enviar.
- * @param {number[]} selectedIds - Array de IDs de citas.
- * @param {string} [mensajePersonalizado] - Mensaje adicional opcional.
- */
-const sendReminders = async (selectedIds, mensajePersonalizado) => {
+const sendRemindersToPatients = async (selectedIds, customMessageText) => {
   if (!selectedIds || selectedIds.length === 0) {
-    window.ToastService?.error?.('Por favor, selecciona al menos un paciente para enviar el recordatorio.');
+    if (window.ToastService) window.ToastService.error('Por favor, selecciona al menos un paciente para enviar el recordatorio.');
     return;
   }
 
-  // Deshabilitar botón para evitar doble envío
-  const btn = safeGetElement('btnSendSelected') || safeGetElement('btnSendAllMobile');
-  const originalText = btn?.textContent;
-  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  const triggerButton = safeGetElement('btnSendSelected') || safeGetElement('btnSendAllMobile');
+  const originalButtonText = triggerButton?.textContent;
+  if (triggerButton) { triggerButton.disabled = true; triggerButton.textContent = 'Enviando…'; }
 
   try {
-    const body = { IdsCitas: selectedIds };
-    if (mensajePersonalizado) body.MensajePersonalizado = mensajePersonalizado;
+    const requestPayload = { IdsCitas: selectedIds };
+    if (customMessageText) requestPayload.MensajePersonalizado = customMessageText;
 
-    const res = await fetch('/api/citas/recordatorios/enviar', {
+    const response = await fetch('/api/citas/recordatorios/enviar', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: getApiHeaders(),
-      body: JSON.stringify(body)
+      headers: buildApiAuthHeaders(),
+      body: JSON.stringify(requestPayload)
     });
 
     let payload;
-    try { payload = await res.json(); } catch { payload = { success: res.ok }; }
+    try { payload = await response.json(); } catch { payload = { success: response.ok }; }
 
-    if (res.ok && payload.success !== false) {
-      const enviados = payload.enviados ?? selectedIds.length;
-      const fallidos = payload.fallidos ?? 0;
-      if (fallidos > 0) {
-        const notifyPartial = enviados > 0
+    if (response.ok && payload.success !== false) {
+      const sentCount = payload.enviados ?? selectedIds.length;
+      const failedCount = payload.fallidos ?? 0;
+      if (failedCount > 0) {
+        const notifyPartialHandler = sentCount > 0
           ? window.ToastService?.warning
           : window.ToastService?.error;
-        notifyPartial?.(
-          `Recordatorios enviados: ${enviados} éxito(s), ${fallidos} fallo(s). Verifica que los pacientes tengan correo registrado.`
-        );
+        if (notifyPartialHandler) {
+          notifyPartialHandler(
+            `Recordatorios enviados: ${sentCount} éxito(s), ${failedCount} fallo(s). Verifica que los pacientes tengan correo registrado.`
+          );
+        }
       } else {
-        window.ToastService?.success?.(
-          payload.message || `Se enviaron ${enviados} recordatorio(s) exitosamente por correo electrónico.`
-        );
+        if (window.ToastService) {
+          window.ToastService.success(
+            payload.message || `Se enviaron ${sentCount} recordatorio(s) exitosamente por correo electrónico.`
+          );
+        }
       }
-      // Deseleccionar todos los checkboxes después del envío exitoso
-      const container = safeGetElement('patientListContainer');
-      container?.querySelectorAll('.patient-row.selected .custom-checkbox').forEach(cb => {
-        cb.checked = false;
-        cb.closest('.patient-row')?.classList.remove('selected');
+      
+      const listContainer = safeGetElement('patientListContainer');
+      listContainer?.querySelectorAll('.patient-row.selected .custom-checkbox').forEach(checkboxElement => {
+        checkboxElement.checked = false;
+        checkboxElement.closest('.patient-row')?.classList.remove('selected');
       });
     } else {
-      window.ToastService?.error?.(
-        payload.message || 'No fue posible enviar los recordatorios. Verifica la configuración del servidor de correo.'
-      );
+      if (window.ToastService) {
+        window.ToastService.error(
+          payload.message || 'No fue posible enviar los recordatorios. Verifica la configuración del servidor de correo.'
+        );
+      }
     }
   } catch (err) {
     console.error('[SmileTrack] Error al enviar recordatorios:', err);
-    window.ToastService?.error?.('Error de conexión al enviar recordatorios. Verifica tu conexión a internet.');
+    if (window.ToastService) window.ToastService.error('Error de conexión al enviar recordatorios. Verifica tu conexión a internet.');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = originalText; }
+    if (triggerButton) { triggerButton.disabled = false; triggerButton.textContent = originalButtonText; }
   }
 };
 
-// Maneja cambio de estado en checkboxes de pacientes
-const handleCheckboxChange = (checkbox) => {
-  const row = checkbox.closest('.patient-row');
-  if (!row) return;
-  
-  if (checkbox.checked) {
-    row.classList.add('selected');
-  } else {
-    row.classList.remove('selected');
-  }
+const fetchUnconfirmedAppointmentsForTomorrow = async () => {
+  const tomorrowIsoDate = getTomorrowIsoDateString();
+  const response = await fetch(`/api/citas?estado=programada&fecha=${tomorrowIsoDate}&pageSize=${DEFAULT_PAGE_SIZE}`, {
+    headers: { 'Accept': 'application/json' }
+  });
+  if (!response.ok) throw new Error(`status ${response.status}`);
+  const payload = await response.json();
+  return (payload.data ?? []).map(appointment => appointment.IdCita ?? appointment.idCita).filter(Boolean);
 };
 
-// Inicializa eventos de checkboxes en lista de pacientes
-const initPatientCheckboxes = () => {
-  const container = safeGetElement('patientListContainer');
-  if (!container) return;
+// ═══════════════════════════════════════════════════════════════════
+// 5. RENDERIZADO Y DOM
+// ═══════════════════════════════════════════════════════════════════
 
-  container.addEventListener('change', (e) => {
-    if (e.target.classList.contains('custom-checkbox')) {
-      handleCheckboxChange(e.target);
-    }
-  });
-
-  // Soporte para teclado en filas de paciente
-  container.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      const row = e.target.closest('.patient-row');
-      if (row) {
-        e.preventDefault();
-        const checkbox = row.querySelector('.custom-checkbox');
-        if (checkbox) {
-          checkbox.checked = !checkbox.checked;
-          handleCheckboxChange(checkbox);
-        }
-      }
-    }
-  });
-};
-
-// Inicializa botón de enviar seleccionados
-const initSendSelected = () => {
-  const btn = safeGetElement('btnSendSelected');
-  if (!btn) return;
-
-  btn.addEventListener('click', () => {
-    const selected = getSelectedPatients();
-    sendReminders(selected);
-  });
-};
-
-// Inicializa botón móvil de enviar a todos
-const initSendAllMobile = () => {
-  const btn = safeGetElement('btnSendAllMobile');
-  if (!btn) return;
-
-  btn.addEventListener('click', () => {
-    // Selecciona todos los pacientes programados para mañana
-    const container = safeGetElement('patientListContainer');
-    if (!container) return;
+const getSelectedPatientAppointmentIds = () => {
+  const listContainer = safeGetElement('patientListContainer');
+  if (!listContainer) return [];
+  const selectedIds = [];
+  listContainer.querySelectorAll('.patient-row').forEach(rowElement => {
+    const checkboxElement = rowElement.querySelector('.custom-checkbox');
+    if (!checkboxElement?.checked) return;
     
-    container.querySelectorAll('.patient-row[data-es-manana="true"]:not(.dimmed)').forEach(row => {
-      const checkbox = row.querySelector('.custom-checkbox');
-      if (checkbox && !checkbox.disabled) {
-        checkbox.checked = true;
-        row.classList.add('selected');
+    const rawIdValue = checkboxElement.dataset.citaId
+      ?? checkboxElement.dataset.id
+      ?? rowElement.dataset.citaId
+      ?? rowElement.dataset.id
+      ?? rowElement.querySelector('input[name="citaId"]')?.value
+      ?? rowElement.querySelector('input[name="id"]')?.value;
+    const parsedId = parseInt(rawIdValue, 10);
+    if (!isNaN(parsedId) && parsedId > 0) selectedIds.push(parsedId);
+  });
+  return selectedIds;
+};
+
+const updatePatientRowSelectionState = (checkboxElement) => {
+  const rowElement = checkboxElement.closest('.patient-row');
+  if (!rowElement) return;
+  
+  if (checkboxElement.checked) {
+    rowElement.classList.add('selected');
+  } else {
+    rowElement.classList.remove('selected');
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 6. MANEJO DE MODALES Y FORMULARIOS
+// ═══════════════════════════════════════════════════════════════════
+
+const setupSendSelectedButtonListener = () => {
+  const sendSelectedBtn = safeGetElement('btnSendSelected');
+  if (!sendSelectedBtn) return;
+
+  sendSelectedBtn.addEventListener('click', () => {
+    selectedAppointmentIdsList = getSelectedPatientAppointmentIds();
+    sendRemindersToPatients(selectedAppointmentIdsList);
+  });
+};
+
+const setupSendAllMobileButtonListener = () => {
+  const sendAllMobileBtn = safeGetElement('btnSendAllMobile');
+  if (!sendAllMobileBtn) return;
+
+  sendAllMobileBtn.addEventListener('click', () => {
+    const listContainer = safeGetElement('patientListContainer');
+    if (!listContainer) return;
+    
+    listContainer.querySelectorAll('.patient-row[data-es-manana="true"]:not(.dimmed)').forEach(rowElement => {
+      const checkboxElement = rowElement.querySelector('.custom-checkbox');
+      if (checkboxElement && !checkboxElement.disabled) {
+        checkboxElement.checked = true;
+        rowElement.classList.add('selected');
       }
     });
     
-    const selected = getSelectedPatients();
-    sendReminders(selected);
+    selectedAppointmentIdsList = getSelectedPatientAppointmentIds();
+    sendRemindersToPatients(selectedAppointmentIdsList);
   });
 };
 
-// Inicializa botones de alertas laterales
-const initAlertButtons = () => {
-  const btnUnconfirmed = safeGetElement('btnAlertUnconfirmed');
-  const btnOverdue = safeGetElement('btnAlertOverdue');
+const setupAlertButtonsListeners = () => {
+  const unconfirmedAlertBtn = safeGetElement('btnAlertUnconfirmed');
+  const overdueAlertBtn = safeGetElement('btnAlertOverdue');
 
-  if (btnUnconfirmed) {
-    btnUnconfirmed.addEventListener('click', async () => {
-      btnUnconfirmed.disabled = true;
-      btnUnconfirmed.textContent = 'Enviando…';
+  if (unconfirmedAlertBtn) {
+    unconfirmedAlertBtn.addEventListener('click', async () => {
+      unconfirmedAlertBtn.disabled = true;
+      unconfirmedAlertBtn.textContent = 'Enviando…';
       try {
-        // Obtener IDs de citas no confirmadas con cita para mañana
-        const mañana = (() => {
-          const d = new Date(); d.setDate(d.getDate() + 1);
-          return d.toISOString().split('T')[0];
-        })();
-        const res = await fetch(`/api/citas?estado=programada&fecha=${mañana}&pageSize=100`, {
-          headers: { 'Accept': 'application/json' }
-        });
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        const payload = await res.json();
-        const ids = (payload.data ?? []).map(c => c.IdCita ?? c.idCita).filter(Boolean);
-        if (ids.length === 0) {
-          window.ToastService?.success?.('No hay citas sin confirmar para mañana.');
+        const unconfirmedIds = await fetchUnconfirmedAppointmentsForTomorrow();
+        if (unconfirmedIds.length === 0) {
+          if (window.ToastService) window.ToastService.success('No hay citas sin confirmar para mañana.');
         } else {
-          await sendReminders(ids, 'Recordatorio: tienes una cita programada para mañana. Por favor confirma tu asistencia.');
+          await sendRemindersToPatients(unconfirmedIds, 'Recordatorio: tienes una cita programada para mañana. Por favor confirma tu asistencia.');
         }
       } catch (err) {
         console.warn('[SmileTrack] Error al buscar citas no confirmadas:', err);
-        window.ToastService?.error?.('No fue posible obtener las citas sin confirmar.');
+        if (window.ToastService) window.ToastService.error('No fue posible obtener las citas sin confirmar.');
       } finally {
-        btnUnconfirmed.disabled = false;
-        btnUnconfirmed.textContent = 'Enviar notificación';
+        unconfirmedAlertBtn.disabled = false;
+        unconfirmedAlertBtn.textContent = 'Enviar notificación';
       }
     });
   }
 
-  if (btnOverdue) {
-    btnOverdue.addEventListener('click', () => {
-      window.ToastService?.warning?.('Los recordatorios de pago no están conectados a un contrato de facturación disponible.');
+  if (overdueAlertBtn) {
+    overdueAlertBtn.addEventListener('click', () => {
+      if (window.ToastService) window.ToastService.warning('Los recordatorios de pago no están conectados a un contrato de facturación disponible.');
     });
   }
 };
 
-// Inicializa menú móvil (delegado al módulo centralizado)
-const initMobileMenu = () => {
-  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
-};
+// ═══════════════════════════════════════════════════════════════════
+// 7. INICIALIZACIÓN Y EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════════
 
-// Función principal de inicialización
-const init = () => {
-  initMobileMenu();
-  initPatientCheckboxes();
-  initSendSelected();
-  initSendAllMobile();
-  initAlertButtons();
+const setupPatientCheckboxListeners = () => {
+  const listContainer = safeGetElement('patientListContainer');
+  if (!listContainer) return;
 
-  // Limpieza de listeners al unload para evitar memory leaks
-  window.addEventListener('beforeunload', () => {
-    // Remover listeners en implementación SPA real
+  listContainer.addEventListener('change', (event) => {
+    if (event.target.classList.contains('custom-checkbox')) {
+      updatePatientRowSelectionState(event.target);
+    }
+  });
+
+  listContainer.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      const rowElement = event.target.closest('.patient-row');
+      if (rowElement) {
+        event.preventDefault();
+        const checkboxElement = rowElement.querySelector('.custom-checkbox');
+        if (checkboxElement) {
+          checkboxElement.checked = !checkboxElement.checked;
+          updatePatientRowSelectionState(checkboxElement);
+        }
+      }
+    }
   });
 };
 
-document.addEventListener('DOMContentLoaded', init);
+const initializeRemindersModule = () => {
+  setupPatientCheckboxListeners();
+  setupSendSelectedButtonListener();
+  setupSendAllMobileButtonListener();
+  setupAlertButtonsListeners();
+
+  window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
+};
+
+document.addEventListener('DOMContentLoaded', initializeRemindersModule);

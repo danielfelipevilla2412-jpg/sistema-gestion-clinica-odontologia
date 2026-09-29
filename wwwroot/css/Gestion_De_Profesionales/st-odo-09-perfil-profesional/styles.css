@@ -47,7 +47,6 @@ NOTAS DE MANTENIMIENTO:
 
   /* === VARIABLES ESPECÍFICAS DE PERFIL === */
   --tag-blue-bg: #dbeafe; --tag-blue-text: #1d4ed8;
-  --tag-purple-bg: #f3e8ff; --tag-purple-text: #9333ea;
   --tag-green-bg: #dcfce7; --tag-green-text: #166534;
   --status-active-bg: #dcfce7; --status-active-text: #166534;
   --status-vacaciones-bg: #fef9c3; --status-vacaciones-text: #92400e;
@@ -219,7 +218,6 @@ img { max-width: 100%; height: auto; display: block; }
   padding: 4px 10px; border-radius: var(--radius-full);
 }
 .tag-blue { background: var(--tag-blue-bg); color: var(--tag-blue-text); }
-.tag-purple { background: var(--tag-purple-bg); color: var(--tag-purple-text); }
 .tag-green { background: var(--tag-green-bg); color: var(--tag-green-text); }
 
 /* ═══ CONTENT LAYOUT ═══ */
@@ -282,8 +280,6 @@ img { max-width: 100%; height: auto; display: block; }
 /* Aliases del sistema admin/recepción — mismas variables, misma apariencia */
 .status-badge.badge-activo,
 .badge-activo     { background: var(--status-active-bg);   color: var(--status-active-text); }
-.status-badge.badge-vacaciones,
-.badge-vacaciones { background: var(--status-vacaciones-bg); color: var(--status-vacaciones-text); }
 .status-badge.badge-inactivo,
 .badge-inactivo   { background: var(--status-inactive-bg); color: var(--status-inactive-text); }
 .status-dot {

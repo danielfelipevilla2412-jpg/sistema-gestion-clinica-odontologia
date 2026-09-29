@@ -1,93 +1,137 @@
-﻿/**
+/* ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: Dashboard de Citas Administrativo (st-adm-01-dashboard)
  * ============================================
- * SmileTrack — Dashboard de Citas (app.js)
- * ============================================
- * Autor: Johan Santamaria
+ * Archivo: wwwroot/js/Gestion_De_Citas/st-adm-01-dashboard/app.js
  *
- * PROPÓSITO:
- * Maneja animaciones de contadores, barra de ocupación,
- * exportación PDF y navegación responsive del sidebar.
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Maneja las interacciones del lado del cliente en el dashboard administrativo de citas.
+ * Implementa animaciones fluidas para indicadores KPI, barra visual de porcentaje de ocupación,
+ * exportación de reportes a PDF y comportamiento responsive de la interfaz.
  *
- * DECISIONES DE DISEÑO:
- * - IIFE para no contaminar el scope global.
- * - prefers-reduced-motion respetado en todas las animaciones.
- * - performance.now() en lugar de setInterval para animaciones
- *   de contadores: evita drift y se cancela solo cuando llega al 100%.
- * - ToastService ya inyectado por _Toasts.cshtml — no se reinventa aquí.
- * - No se importan API_BASE, debounce ni trackedRAF: no se necesitan
- *   en una página de solo-lectura sin llamadas API del cliente.
- ============================================ */
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Respeto estricto a las preferencias del usuario (`prefers-reduced-motion`).
+ * - Uso de `performance.now()` en animaciones numéricas para prevenir drift y garantizar 60 FPS.
+ * - Despliegue de notificaciones amigables vía ToastService global.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionCitasController -> Stadm01Dashboard
+ * - HTML: Views/Gestion_De_Citas/st-adm-01-dashboard/index.cshtml
+ * ============================================ */
+
 (() => {
     'use strict';
 
-    // ── Selectores ──────────────────────────────────────────────
-    const SEL = {
-        hamburger:       '#hamburger',
-        sidebar:         '#sidebar',
-        overlay:         '#overlay',
-        exportBtn:       '#btnExport',
-        exportBtnText:   '#btnExport .btn-export-text',
-        occupancyBar:    '#dashboardOccupancyBar',
-        counters:        '.stat-number[data-target]'
+    // ═══════════════════════════════════════════════════════════════════
+    // 1. CONSTANTES Y CONFIGURACIÓN
+    // ═══════════════════════════════════════════════════════════════════
+
+    const ANIMATION_DURATION_MS = 700;
+    const KPI_POLL_INTERVAL_MS  = 60_000;
+
+    const SELECTORS = {
+        hamburger:     '#hamburger',
+        sidebar:       '#sidebar',
+        overlay:       '#overlay',
+        exportBtn:     '#btnExport',
+        exportBtnText: '#btnExport .btn-export-text',
+        occupancyBar:  '#dashboardOccupancyBar',
+        counters:      '.stat-number[data-target]'
     };
 
-    const q = sel => document.querySelector(sel);
+    const API_ENDPOINTS = {
+        exportPdf: '/gestion-de-citas/st-adm-01-dashboard/exportar-pdf',
+        kpis:      '/api/citas/kpis'
+    };
 
-    // ── Utilidad: respeta prefers-reduced-motion ─────────────────
+    // ═══════════════════════════════════════════════════════════════════
+    // 2. ESTADO DE LA APLICACIÓN
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Módulo stateless: todo el estado reside en el DOM (data-target, class lists).
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 3. UTILIDADES
+    // ═══════════════════════════════════════════════════════════════════
+
+    /** Shorthand para document.querySelector. */
+    const qs = sel => document.querySelector(sel);
+
+    /** Detecta si el usuario prefiere movimiento reducido. */
     const prefersReducedMotion = () =>
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // ── Formato de moneda (es-CO) ────────────────────────────────
-    const fmtCOP = amount =>
+    /** Formatea un número como moneda COP. */
+    const formatCOP = amount =>
         new Intl.NumberFormat('es-CO', {
             style:                 'currency',
             currency:              'COP',
             maximumFractionDigits: 0
         }).format(amount);
 
-    // ─────────────────────────────────────────────────────────────
-    //  ANIMACIÓN DE CONTADORES
-    // ─────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════
+    // 4. SERVICIOS Y API
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Descarga el reporte PDF del dashboard desde el servidor.
+     * @returns {Promise<Response>}
+     */
+    const fetchDashboardPdf = () =>
+        fetch(API_ENDPOINTS.exportPdf, {
+            method:      'GET',
+            credentials: 'same-origin',
+            headers:     { Accept: 'application/pdf' }
+        });
+
+    /**
+     * Obtiene los KPIs actuales desde la API REST.
+     * @returns {Promise<Response>}
+     */
+    const fetchKpis = () =>
+        fetch(API_ENDPOINTS.kpis, {
+            credentials: 'same-origin',
+            headers:     { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 5. RENDERIZADO Y DOM
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Anima numéricamente todos los contadores con `data-target` en la página.
+     * Respeta `prefers-reduced-motion`.
+     */
     const animateCounters = () => {
-        document.querySelectorAll(SEL.counters).forEach(el => {
-            const raw    = el.dataset.target ?? '0';
-            const target = el.classList.contains('currency')
-                ? parseFloat(raw)   // preservar decimales para ingresos
-                : parseInt(raw, 10);
+        document.querySelectorAll(SELECTORS.counters).forEach(el => {
+            const raw        = el.dataset.target ?? '0';
+            const isCurrency = el.classList.contains('currency');
+            const target     = isCurrency ? parseFloat(raw) : parseInt(raw, 10);
 
             if (!Number.isFinite(target) || target <= 0) return;
 
-            // Sin animación si el usuario prefiere movimiento reducido.
             if (prefersReducedMotion()) {
-                el.textContent = el.classList.contains('currency')
-                    ? fmtCOP(target)
-                    : String(target);
+                el.textContent = isCurrency ? formatCOP(target) : String(target);
                 return;
             }
 
-            const DURATION = 700; // ms
-            const start    = performance.now();
-
-            const tick = now => {
-                const progress = Math.min((now - start) / DURATION, 1);
-                const current  = target * progress;
-
-                el.textContent = el.classList.contains('currency')
-                    ? fmtCOP(current)
-                    : String(Math.round(current));
-
-                if (progress < 1) requestAnimationFrame(tick);
-            };
-
-            requestAnimationFrame(tick);
+            if (window.CommonUtils?.animateCounter) {
+                window.CommonUtils.animateCounter(el, target, {
+                    duration: ANIMATION_DURATION_MS,
+                    prefix: isCurrency ? '$' : ''
+                });
+            } else {
+                el.textContent = isCurrency ? formatCOP(target) : target.toLocaleString('es-CO');
+            }
         });
     };
 
-    // ─────────────────────────────────────────────────────────────
-    //  BARRA DE OCUPACIÓN
-    // ─────────────────────────────────────────────────────────────
-    const initProgressBar = () => {
-        const bar = q(SEL.occupancyBar);
+    /**
+     * Inicializa la barra de progreso de ocupación animándola hacia el ancho objetivo.
+     * Respeta `prefers-reduced-motion`.
+     */
+    const initOccupancyBar = () => {
+        const bar = qs(SELECTORS.occupancyBar);
         if (!bar) return;
 
         const raw   = Number(bar.dataset.width);
@@ -99,26 +143,52 @@
         }
 
         // Un frame de retraso para que la transición CSS se active.
-        requestAnimationFrame(() => {
-            bar.style.width = `${width}%`;
+        requestAnimationFrame(() => { bar.style.width = `${width}%`; });
+    };
+
+    /**
+     * Actualiza los contadores KPI en el DOM con los valores recibidos del servidor.
+     * @param {Object} data — Payload del DTO CitasKpiDto.
+     */
+    const renderKpiCounters = data => {
+        const kpiMap = {
+            'total':       data.Total       ?? data.total,
+            'programadas': data.Programadas ?? data.programadas,
+            'canceladas':  data.Canceladas  ?? data.canceladas,
+            'atendidas':   data.Atendidas   ?? data.atendidas
+        };
+
+        document.querySelectorAll('.stat-number[data-target]').forEach(el => {
+            const key = el.closest('[data-kpi]')?.dataset?.kpi;
+            if (!key || kpiMap[key] === undefined) return;
+
+            const newVal = Number(kpiMap[key]);
+            if (!isNaN(newVal) && Number(el.dataset.target) !== newVal) {
+                el.dataset.target = newVal;
+                el.textContent    = newVal.toLocaleString('es-CO');
+            }
         });
     };
 
-    // ─────────────────────────────────────────────────────────────
-    //  SIDEBAR RESPONSIVE
-    // ─────────────────────────────────────────────────────────────
-    const initSidebar = () => {
-        const hamburger = q(SEL.hamburger);
-        const sidebar   = q(SEL.sidebar);
-        const overlay   = q(SEL.overlay);
+    // ═══════════════════════════════════════════════════════════════════
+    // 6. MANEJO DE MODALES Y SIDEBAR
+    // ═══════════════════════════════════════════════════════════════════
 
+    /**
+     * Inicializa el sidebar responsive con soporte para hamburger, overlay
+     * y navegación por teclado (Escape, foco accesible).
+     */
+    const initSidebar = () => {
+        const hamburger = qs(SELECTORS.hamburger);
+        const sidebar   = qs(SELECTORS.sidebar);
+        const overlay   = qs(SELECTORS.overlay);
         if (!hamburger || !sidebar || !overlay) return;
 
         const setOpen = open => {
             sidebar.classList.toggle('open', open);
             overlay.classList.toggle('open', open);
             hamburger.setAttribute('aria-expanded', String(open));
-            overlay.setAttribute('aria-hidden', String(!open));
+            overlay.setAttribute('aria-hidden',     String(!open));
             if (open) {
                 // Mover foco al primer ítem del menú (WCAG 2.4.3).
                 sidebar.querySelector('.nav-item')?.focus();
@@ -129,7 +199,6 @@
 
         hamburger.addEventListener('click', () => setOpen(true));
         overlay.addEventListener('click',   () => setOpen(false));
-
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape' && sidebar.classList.contains('open')) {
                 e.preventDefault();
@@ -138,12 +207,13 @@
         });
     };
 
-    // ─────────────────────────────────────────────────────────────
-    //  EXPORTAR PDF
-    // ─────────────────────────────────────────────────────────────
-    const initExport = () => {
-        const btn     = q(SEL.exportBtn);
-        const btnText = q(SEL.exportBtnText);
+    /**
+     * Inicializa el botón de exportación de PDF.
+     * Gestiona el estado de carga y descarga el blob resultante.
+     */
+    const initExportButton = () => {
+        const btn     = qs(SELECTORS.exportBtn);
+        const btnText = qs(SELECTORS.exportBtnText);
         if (!btn) return;
 
         btn.addEventListener('click', async () => {
@@ -153,11 +223,7 @@
             if (btnText) btnText.textContent = 'Generando…';
 
             try {
-                const res = await fetch(
-                    '/gestion-de-citas/st-adm-01-dashboard/exportar-pdf',
-                    { method: 'GET', credentials: 'same-origin', headers: { Accept: 'application/pdf' } }
-                );
-
+                const res = await fetchDashboardPdf();
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
                 const blob = await res.blob();
@@ -189,65 +255,39 @@
         });
     };
 
-    // ─────────────────────────────────────────────────────────────
-    //  POLLING DE KPIs (M5 / RF-27)
-    //  Actualiza los contadores del dashboard periódicamente sin
-    //  recargar la página. Intervalo: 60 segundos.
-    // ─────────────────────────────────────────────────────────────
+    /**
+     * Inicia el polling periódico de KPIs (cada 60 s).
+     * Actualiza el DOM sin recargar la página.
+     * El intervalo se limpia al salir de la página para evitar memory leaks.
+     */
     const initKpiPolling = () => {
-        const POLL_INTERVAL_MS = 60_000;
-
         const refreshKpis = async () => {
             try {
-                const res = await fetch('/api/citas/kpis', {
-                    credentials: 'same-origin',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                });
+                const res = await fetchKpis();
                 if (!res.ok) return;
                 const payload = await res.json();
                 if (!payload?.success || !payload?.data) return;
-
-                const d = payload.data;
-
-                // Mapa de data-key → campo del DTO CitasKpiDto
-                const kpiMap = {
-                    'total':       d.Total       ?? d.total,
-                    'programadas': d.Programadas ?? d.programadas,
-                    'canceladas':  d.Canceladas  ?? d.canceladas,
-                    'atendidas':   d.Atendidas   ?? d.atendidas
-                };
-
-                document.querySelectorAll('.stat-number[data-target]').forEach(el => {
-                    const key = el.closest('[data-kpi]')?.dataset?.kpi;
-                    if (key && kpiMap[key] !== undefined) {
-                        const newVal = Number(kpiMap[key]);
-                        if (!isNaN(newVal) && Number(el.dataset.target) !== newVal) {
-                            el.dataset.target = newVal;
-                            el.textContent = newVal.toLocaleString('es-CO');
-                        }
-                    }
-                });
+                renderKpiCounters(payload.data);
             } catch (err) {
-                // Silencioso: el polling no debe interrumpir la UI
+                // Silencioso: el polling no debe interrumpir la UI.
                 console.debug('[SmileTrack][Dashboard] Error en polling KPIs:', err);
             }
         };
 
-        // Primera actualización al cabo de 60 s; las siguientes siguen el intervalo
-        const timerId = setInterval(refreshKpis, POLL_INTERVAL_MS);
-
-        // Limpiar al salir de la página para evitar memory leaks
+        const timerId = setInterval(refreshKpis, KPI_POLL_INTERVAL_MS);
         window.addEventListener('beforeunload', () => clearInterval(timerId));
     };
 
-    // ─────────────────────────────────────────────────────────────
-    //  INICIALIZACIÓN
-    // ─────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════
+    // 7. INICIALIZACIÓN
+    // ═══════════════════════════════════════════════════════════════════
+
     document.addEventListener('DOMContentLoaded', () => {
         initSidebar();
-        initExport();
+        initExportButton();
         animateCounters();
-        initProgressBar();
+        initOccupancyBar();
         initKpiPolling();
     });
+
 })();

@@ -1,271 +1,258 @@
 /* ============================================
-SmileTrack — Citas Finalizadas (st-aux-10-citas-finalizadas)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: Citas Finalizadas (st-aux-10-citas-finalizadas)
+ * ============================================
+ * Archivo: wwwroot/js/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.js
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Despliega el resumen de citas concluidas de la jornada.
+ * Permite al personal de apoyo revisar el histórico del día y exportar el informe de atenciones a CSV.
+ *
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Filtra únicamente citas en estado "atendida" o "finalizada".
+ * - Generación de archivo CSV cliente sin recarga de página para facilitar auditoría rápida.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionCitasController -> Staux10CitasFinalizadas
+ * - HTML: Views/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.cshtml
+ * ============================================ */
 
-DESCRIPCIÓN:
-Gestiona el renderizado dinámico de la tabla de citas finalizadas, el cálculo de métricas por estado, la animación de contadores y la exportación del resumen diario a CSV sin depender del servidor.
+// ═══════════════════════════════════════════════════════════════════
+// 1. CONSTANTES Y CONFIGURACIÓN
+// ═══════════════════════════════════════════════════════════════════
 
-FUNCIONALIDADES PRINCIPALES:
-- Renderizado dinámico de filas de tabla desde LocalStorage con badges de estado accesibles
-- Exportación a CSV generada en el cliente (Blob + createObjectURL) sin petición al servidor
-- Animación de conteo progresivo en tarjetas de métricas para reflejar el resumen visual de la jornada
-- Clave de LocalStorage con fecha para evitar colisiones entre jornadas en el mismo dispositivo
+const EXPORT_RESET_TIMEOUT_MS = 2000;
 
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y Stadm09Citas
-- CSS: ~/css/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.css
-- JS: ~/js/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.js
-- Partial / Otros: citas-finalizadas.cshtml
+// ═══════════════════════════════════════════════════════════════════
+// 2. ESTADO DE LA APLICACIÓN
+// ═══════════════════════════════════════════════════════════════════
 
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- La exportación usa Blob en lugar de llamar al servidor para no requerir autorización adicional y funcionar offline.
-============================================ */
+const summaryIntervalsWeakMap = new WeakMap();
 
-// WHY: safeGetElement previene excepciones fatales en la inicialización si un elemento no existe en el DOM
-const safeGetElement = (id) => {
-  if (window.CommonUtils?.safeGetElement) {
-    return window.CommonUtils.safeGetElement(id);
-  }
-  const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  return el;
+// ═══════════════════════════════════════════════════════════════════
+// 3. UTILIDADES Y HELPERS
+// ═══════════════════════════════════════════════════════════════════
+
+const safeGetElement = (elementId) =>
+  window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
+
+const debounce = (fn, delay) =>
+  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
+
+const formatDateForExport = () => {
+  const dateObj = new Date();
+  const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return `${dateObj.getDate()} de ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
 };
 
-// WHY: Debounce protege contra eventos de input repetitivos que podrían generar exportaciones o escrituras redundantes
-const debounce = (fn, delay) => {
-  if (window.CommonUtils?.debounce) {
-    return window.CommonUtils.debounce(fn, delay);
-  }
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
+const escapeCsvValue = (value) => {
+  const textValue = String(value ?? '');
+  return `"${textValue.replaceAll('"', '""')}"`;
 };
 
-// WHY: Las notificaciones no bloqueantes informan el resultado de la exportación sin interrumpir la revisión del resumen
+// ═══════════════════════════════════════════════════════════════════
+// 4. SERVICIOS Y API
+// ═══════════════════════════════════════════════════════════════════
 
-// WHY: Envuelve los datos reales inyectados por el servidor (window.smiletrackCitasFinalizadasData,
-// ver ConstruirCitasFinalizadasAsync en GestionCitasController.cs) en la misma interfaz que
-// usaba el almacenamiento local, para no reescribir el resto del archivo.
+const exportFinalizedAppointmentsToCsv = (buttonElement) => {
+  const originalHtml = buttonElement.innerHTML;
+  buttonElement.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">hourglass_top</span><span class="btn-text">Generando...</span>';
+  buttonElement.disabled = true;
+  
+  try {
+    const appointmentsList = finalizedStorage.load();
+    const countsSummary = finalizedStorage.getCounts(appointmentsList);
+    
+    const csvLines = [
+      'Fecha de exportación,' + formatDateForExport(),
+      '',
+      'RESUMEN',
+      'Estado,Cantidad',
+      `Atendida,${countsSummary.atendidas}`,
+      `Cancelada,${countsSummary.canceladas}`,
+      `No asistió,${countsSummary.noAsistio}`,
+      `Total,${appointmentsList.length}`,
+      '',
+      'DETALLE DE CITAS',
+      'Hora,Paciente,Profesional,Servicio,Estado',
+      ...appointmentsList.map(item => [item.hora, item.paciente, item.profesional, item.servicio, item.estado].map(escapeCsvValue).join(','))
+    ].join('\n');
+    
+    const csvBlob = new Blob([csvLines], { type: 'text/csv;charset=utf-8;' });
+    const downloadUrl = URL.createObjectURL(csvBlob);
+    const downloadLink = document.createElement('a');
+    downloadLink.href = downloadUrl;
+    downloadLink.download = `smiletrack_citas_finalizadas_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadLink.style.display = 'none';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(downloadUrl);
+    
+    buttonElement.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">check_circle</span><span class="btn-text">Descargado</span>';
+    buttonElement.style.background = '#dcfce7';
+    buttonElement.style.borderColor = '#22c55e';
+    buttonElement.style.color = '#166534';
+    if (window.ToastService) {
+      window.ToastService.success('Resumen descargado exitosamente');
+    }
+    
+    setTimeout(() => {
+      buttonElement.innerHTML = originalHtml;
+      buttonElement.disabled = false;
+      buttonElement.style.background = '';
+      buttonElement.style.borderColor = '';
+      buttonElement.style.color = '';
+    }, EXPORT_RESET_TIMEOUT_MS);
+    
+  } catch (error) {
+    console.error('Error al exportar:', error);
+    buttonElement.innerHTML = originalHtml;
+    buttonElement.disabled = false;
+    if (window.ToastService) window.ToastService.error('Error al generar resumen');
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 5. RENDERIZADO Y DOM
+// ═══════════════════════════════════════════════════════════════════
+
 const finalizedStorage = {
   load: () => (window.smiletrackCitasFinalizadasData?.citas) || [],
 
-  // WHY: Centraliza el cálculo de contadores para no duplicar la lógica de filtrado entre la tabla y las tarjetas de resumen
-  getCounts: (citas) => {
+  getCounts: (appointments) => {
     return {
-      atendidas: citas.filter(c => CommonUtils.normalizeAppointmentStatus(c.estado) === 'atendida').length,
-      canceladas: citas.filter(c => CommonUtils.normalizeAppointmentStatus(c.estado) === 'cancelada').length,
-      noAsistio: citas.filter(c => CommonUtils.normalizeAppointmentStatus(c.estado) === 'no_asistida').length
+      atendidas: appointments.filter(item => CommonUtils.normalizeAppointmentStatus(item.estado) === 'atendida').length,
+      canceladas: appointments.filter(item => CommonUtils.normalizeAppointmentStatus(item.estado) === 'cancelada').length,
+      noAsistio: appointments.filter(item => CommonUtils.normalizeAppointmentStatus(item.estado) === 'no_asistida').length
     };
   }
 };
 
-// WHY: Formatea la fecha en español para que el CSV exportado sea legible sin conversión manual por parte del auxiliar
-const formatDateForExport = () => {
-  const now = new Date();
-  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  return `${now.getDate()} de ${months[now.getMonth()]} ${now.getFullYear()}`;
-};
+const renderAppointmentsTable = (dataList) => {
+  const tableBody = safeGetElement('appointmentsBody');
+  if (!tableBody) return;
 
-// Inicializa menú móvil (delegado al módulo centralizado)
-const initMobileMenu = () => {
-  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
-};
-
-// WHY: Renderiza la tabla dinámicamente para poder asignar clases y aria-labels de estado sin lógica duplicada en Razor
-const renderAppointments = (data) => {
-  const tbody = safeGetElement('appointmentsBody');
-  if (!tbody) return;
-
-  if (data.length === 0) {
-    const row = document.createElement('tr');
-    row.className = 'empty-state-row';
-    row.setAttribute('role', 'row');
-    row.setAttribute('aria-label', 'Estado vacío');
-    const cell = document.createElement('td');
-    cell.colSpan = 5;
-    cell.className = 'empty-state-cell';
-    const content = document.createElement('div');
-    content.className = 'empty-state-content';
-    content.setAttribute('role', 'status');
-    content.setAttribute('aria-live', 'polite');
-    const icon = document.createElement('div');
-    icon.className = 'empty-state-icon';
-    icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = '📅';
-    const message = document.createElement('p');
-    message.className = 'empty-state-message';
-    message.textContent = 'No hay citas finalizadas registradas.';
-    content.append(icon, message);
-    cell.appendChild(content);
-    row.appendChild(cell);
-    tbody.replaceChildren(row);
+  if (dataList.length === 0) {
+    const emptyRow = document.createElement('tr');
+    emptyRow.className = 'empty-state-row';
+    emptyRow.setAttribute('role', 'row');
+    emptyRow.setAttribute('aria-label', 'Estado vacío');
+    const emptyCell = document.createElement('td');
+    emptyCell.colSpan = 5;
+    emptyCell.className = 'empty-state-cell';
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'empty-state-content';
+    contentDiv.setAttribute('role', 'status');
+    contentDiv.setAttribute('aria-live', 'polite');
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'empty-state-icon';
+    iconDiv.setAttribute('aria-hidden', 'true');
+    iconDiv.textContent = '📅';
+    const messageParagraph = document.createElement('p');
+    messageParagraph.className = 'empty-state-message';
+    messageParagraph.textContent = 'No hay citas finalizadas registradas.';
+    contentDiv.append(iconDiv, messageParagraph);
+    emptyCell.appendChild(contentDiv);
+    emptyRow.appendChild(emptyCell);
+    tableBody.replaceChildren(emptyRow);
     return;
   }
 
-  // WHY: Mapea el estado de la cita a una clase CSS semántica para que el color refleje el resultado clínico del turno
-  tbody.replaceChildren(...data.map(apt => {
-    const estado = CommonUtils.normalizeAppointmentStatus(apt.estado);
-    const statusClass = estado === 'atendida' ? 'atendida' :
-               estado === 'cancelada' ? 'cancelada' : 'no-asistio';
-    const row = document.createElement('tr');
-    row.setAttribute('role', 'row');
-    const horaVisible = apt.esHoy === false && apt.fecha
+  tableBody.replaceChildren(...dataList.map(apt => {
+    const normalizedStatus = CommonUtils.normalizeAppointmentStatus(apt.estado);
+    const statusClass = normalizedStatus === 'atendida' ? 'atendida' :
+               normalizedStatus === 'cancelada' ? 'cancelada' : 'no-asistio';
+    const tableRow = document.createElement('tr');
+    tableRow.setAttribute('role', 'row');
+    const horaVisibleText = apt.esHoy === false && apt.fecha
       ? `${apt.fecha} ${apt.hora || ''}`.trim()
       : (apt.hora || '');
-    const cell = (className, value) => {
+    const createCell = (className, value) => {
       const element = document.createElement('td');
       element.className = className;
       element.textContent = value || '';
       return element;
     };
     const statusCell = document.createElement('td');
-    const badge = document.createElement('span');
-    badge.className = `status-badge ${statusClass}`;
-    badge.setAttribute('role', 'status');
-    badge.setAttribute('aria-label', `Estado: ${apt.estado}`);
-    badge.textContent = apt.estado || 'Sin estado';
-    statusCell.appendChild(badge);
-    row.append(cell('td-hora', horaVisible), cell('td-paciente', apt.paciente),
-      cell('td-profesional', apt.profesional), cell('td-servicio', apt.servicio), statusCell);
-    return row;
+    const statusBadgeSpan = document.createElement('span');
+    statusBadgeSpan.className = `status-badge ${statusClass}`;
+    statusBadgeSpan.setAttribute('role', 'status');
+    statusBadgeSpan.setAttribute('aria-label', `Estado: ${apt.estado}`);
+    statusBadgeSpan.textContent = apt.estado || 'Sin estado';
+    statusCell.appendChild(statusBadgeSpan);
+    tableRow.append(createCell('td-hora', horaVisibleText), createCell('td-paciente', apt.paciente),
+      createCell('td-profesional', apt.profesional), createCell('td-servicio', apt.servicio), statusCell);
+    return tableRow;
   }));
 };
 
-const csvValue = (value) => {
-  const text = String(value ?? '');
-  return `"${text.replaceAll('"', '""')}"`;
-};
-
-// WHY: La animación de conteo progresivo hace que el auxiliar note el cambio sin leer texto, facilitando el scan rápido
-const summaryIntervals = new WeakMap();
-
-const updateSummary = () => {
-  const citas = finalizedStorage.load();
-  const counts = finalizedStorage.getCounts(citas);
+const updateSummaryCounters = () => {
+  const appointmentsList = finalizedStorage.load();
+  const countsSummary = finalizedStorage.getCounts(appointmentsList);
   
-  const els = {
+  const elementMap = {
     atendidas: safeGetElement('countAtendidas'),
     canceladas: safeGetElement('countCanceladas'),
     noAsistio: safeGetElement('countNoAsistio')
   };
   
-  Object.entries(els).forEach(([key, el]) => {
-    if (el) {
-      if (summaryIntervals.has(el)) {
-        clearInterval(summaryIntervals.get(el));
+  Object.entries(elementMap).forEach(([key, counterElement]) => {
+    if (counterElement) {
+      if (summaryIntervalsWeakMap.has(counterElement)) {
+        clearInterval(summaryIntervalsWeakMap.get(counterElement));
       }
-      const target = counts[key] ?? 0;
-      const current = parseInt(el.textContent) || 0;
+      const targetValue = countsSummary[key] ?? 0;
+      const currentValue = parseInt(counterElement.textContent, 10) || 0;
       
-      if (current !== target) {
-        let step = current;
-        const increment = target > current ? 1 : -1;
-        const interval = setInterval(() => {
-          step += increment;
-          el.textContent = step;
-          if ((increment > 0 && step >= target) || (increment < 0 && step <= target)) {
-            el.textContent = target;
-            clearInterval(interval);
-            summaryIntervals.delete(el);
+      if (currentValue !== targetValue) {
+        let stepValue = currentValue;
+        const stepIncrement = targetValue > currentValue ? 1 : -1;
+        const intervalTimer = setInterval(() => {
+          stepValue += stepIncrement;
+          counterElement.textContent = stepValue;
+          if ((stepIncrement > 0 && stepValue >= targetValue) || (stepIncrement < 0 && stepValue <= targetValue)) {
+            counterElement.textContent = targetValue;
+            clearInterval(intervalTimer);
+            summaryIntervalsWeakMap.delete(counterElement);
           }
         }, 30);
-        summaryIntervals.set(el, interval);
+        summaryIntervalsWeakMap.set(counterElement, intervalTimer);
       }
     }
   });
 };
 
-// WHY: El CSV se genera en el cliente con Blob para que la exportación funcione sin autenticación adicional ni latencia de red
-const initExportButton = () => {
-  const btn = safeGetElement('btnExport');
-  if (!btn) return;
+// ═══════════════════════════════════════════════════════════════════
+// 6. MANEJO DE MODALES Y FORMULARIOS
+// ═══════════════════════════════════════════════════════════════════
+
+const setupExportButtonListener = () => {
+  const exportBtn = safeGetElement('btnExport');
+  if (!exportBtn) return;
   
-  btn.addEventListener('click', async () => {
-    const original = btn.innerHTML;
-    btn.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">hourglass_top</span><span class="btn-text">Generando...</span>';
-    btn.disabled = true;
-    
-    try {
-      // Carga citas desde storage
-      const citas = finalizedStorage.load();
-      const counts = finalizedStorage.getCounts(citas);
-      
-      // Genera contenido CSV
-      const csvContent = [
-        'Fecha de exportación,' + formatDateForExport(),
-        '',
-        'RESUMEN',
-        'Estado,Cantidad',
-        `Atendida,${counts.atendidas}`,
-        `Cancelada,${counts.canceladas}`,
-        `No asistió,${counts.noAsistio}`,
-        `Total,${citas.length}`,
-        '',
-        'DETALLE DE CITAS',
-        'Hora,Paciente,Profesional,Servicio,Estado',
-        ...citas.map(c => [c.hora, c.paciente, c.profesional, c.servicio, c.estado].map(csvValue).join(','))
-      ].join('\n');
-      
-      // Crea blob y descarga
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `smiletrack_citas_finalizadas_${new Date().toISOString().split('T')[0]}.csv`;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      // Feedback visual
-      btn.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">check_circle</span><span class="btn-text">Descargado</span>';
-      btn.style.background = '#dcfce7';
-      btn.style.borderColor = '#22c55e';
-      btn.style.color = '#166534';
-      if (window.ToastService) {
-        window.ToastService.success('Resumen descargado exitosamente');
-      }
-      
-      // Restaura botón
-      setTimeout(() => {
-        btn.innerHTML = original;
-        btn.disabled = false;
-        btn.style.background = '';
-        btn.style.borderColor = '';
-        btn.style.color = '';
-      }, 2000);
-      
-    } catch (error) {
-      console.error('Error al exportar:', error);
-      btn.innerHTML = original;
-      btn.disabled = false;
-      window.ToastService.error('Error al generar resumen');
-    }
+  exportBtn.addEventListener('click', () => {
+    exportFinalizedAppointmentsToCsv(exportBtn);
   });
 };
 
-// Función principal de inicialización
-const init = () => {
-    // Inicializar componentes de UI
-    initMobileMenu();
-    initExportButton();
-    
-    // Cargar y renderizar datos
-    const citas = finalizedStorage.load();
-    renderAppointments(citas);
-    updateSummary();
-    
-    // Limpieza de listeners al unload para evitar memory leaks
-    window.addEventListener('beforeunload', () => {
-      // Remover listeners en implementación SPA real
-    });
+// ═══════════════════════════════════════════════════════════════════
+// 7. INICIALIZACIÓN Y EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════════
+
+const setupMobileMenu = () => {
+  // El menú móvil es gestionado centralizadamente por ~/js/shared/sidebar.js
 };
 
-// Ejecutar al cargar DOM
-document.addEventListener('DOMContentLoaded', init);
+const initializeCitasFinalizadasModule = () => {
+    setupMobileMenu();
+    setupExportButtonListener();
+    
+    const appointmentsList = finalizedStorage.load();
+    renderAppointmentsTable(appointmentsList);
+    updateSummaryCounters();
+    
+    window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
+};
+
+document.addEventListener('DOMContentLoaded', initializeCitasFinalizadasModule);

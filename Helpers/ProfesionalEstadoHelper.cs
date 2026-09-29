@@ -1,3 +1,23 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: ProfesionalEstadoHelper (Clase Helper)
+ * ============================================
+ * Archivo: Helpers/ProfesionalEstadoHelper.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Encapsula la lógica de validación de contraseñas, normalización de estados operacionales ("activo", "vacaciones", "inactivo")
+ * y formateo de etiquetas para el módulo de gestión de profesionales.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Política única de contraseñas (mínimo 8 caracteres, mayúscula, minúscula, dígito y símbolo).
+ * - Normalización de estados a formato canónico compatible con BD y UI.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - System.Text.RegularExpressions
+ * ============================================
+ */
+
 using System.Text.RegularExpressions;
 
 namespace SmileTrack_MVC.Helpers;

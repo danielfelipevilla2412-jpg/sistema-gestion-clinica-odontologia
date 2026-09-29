@@ -1,28 +1,20 @@
 @* ============================================
-SmileTrack — Historial Clínico Parcial (st-aux-05-historial-parcial)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Historial Clínico Parcial (st-aux-05-historial-parcial)
+   ============================================
+   Archivo: Views/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.cshtml
 
-DESCRIPCIÓN:
-Vista que permite al auxiliar odontológico consultar de manera rápida y en modo lectura los antecedentes médicos de un paciente, alertas de alergias y las últimas consultas odontológicas.
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Vista en modo lectura para que el personal de auxilio consulte de forma segura antecedentes médicos, alergias y notas resumidas.
 
-FUNCIONALIDADES PRINCIPALES:
-- Visualización destacada de la tarjeta de Alerta Médica (alergias críticas, medicamentos activos y tipo de sangre)
-- Listado tabular de historial clínico (fecha, profesional a cargo, diagnóstico y procedimiento realizado)
-- Skeleton loaders para feedback visual Óptimo durante tiempos de carga as—ncrona
-- Restricción de visibilidad a las últimas 3 consultas por motivos de seguridad y privacidad de datos
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Limita por privacidad a las evoluciones relevantes y resalta alertas médicas críticas.
 
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y Stadm09Citas
-- CSS: ~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css
-- JS: ~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js
-- Partial / Otros: _SidebarAuxiliar.cshtml
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- AUDITORÍA (ver docs/mejoras/st-aux-05-historial-parcial.md): el contenedor #alertaMedica es la
-  ÚNICA región aria-live de este componente. Antes había aria-live="polite" duplicado en cada
+   DEPENDENCIAS:
+   - CSS: ~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css
+   - JS: ~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js
+   ============================================ *@
+@*
   span interno (#alergia, #medicamentos, #grupoSang), lo que según la spec de ARIA (comportamiento
   indefinido para live regions anidadas) hacía que los lectores de pantalla anunciaran los cambios
   como "polite" en vez de "assertive" — contradiciendo el propio propósito de la alerta médica.
@@ -125,6 +117,5 @@ NOTAS DE MANTENIMIENTO:
   </script>
 @section Scripts {
     <script src="~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js" asp-append-version="true" defer></script>
-    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
-    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
 }
+

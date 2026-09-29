@@ -1,26 +1,19 @@
 @* ============================================
-SmileTrack — Gestión de Citas Recepción (st-rec-03-gestion-citas)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Gestión de Citas Recepción (st-rec-03-gestion-citas)
+   ============================================
+   Archivo: Views/Gestion_De_Citas/st-rec-03-gestion-citas/index.cshtml
 
-DESCRIPCIÓN:
-Vista que permite al personal de recepción agendar, reprogramar, cancelar y listar la totalidad de las citas odontológicas, contando con filtros y búsqueda avanzada.
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Interfaz operativa para la recepción de la clínica. Agendamiento, reprogramación y confirmación telefónica de turnos.
 
-FUNCIONALIDADES PRINCIPALES:
-- CRUD completo de citas (agendamiento interactivo y modales de confirmación)
-- Tabla paginada de citas de la clínica con filtros por profesional, fecha y estado
-- Validación en cliente de solapamientos horarios y asignación de consultorio
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Tabla paginada con filtros por profesional, fecha y estado.
 
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y CitasRecepcion
-- CSS: ~/css/Gestion_De_Citas/st-rec-03-gestion-citas/styles.css
-- JS: ~/js/Gestion_De_Citas/st-rec-03-gestion-citas/app.js
-- Partial / Otros: Sidebar unificado
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-============================================ *@
+   DEPENDENCIAS:
+   - CSS: ~/css/Gestion_De_Citas/st-rec-03-gestion-citas/styles.css
+   - JS: ~/js/Gestion_De_Citas/st-rec-03-gestion-citas/app.js
+   ============================================ *@
 @{ Layout = "_Layout"; ViewData["Title"] = "Gestión de Citas"; }
 
 @section Styles {

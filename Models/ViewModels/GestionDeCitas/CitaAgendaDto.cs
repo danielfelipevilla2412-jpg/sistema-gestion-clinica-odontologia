@@ -1,3 +1,23 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: CitaAgendaDto (Objeto de Transferencia)
+ * ============================================
+ * Archivo: Models/ViewModels/GestionDeCitas/CitaAgendaDto.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * DTO para la transferencia de datos en formularios de creación y edición rápida de citas
+ * desde la agenda visual y los diálogos modales. Implementa `IValidatableObject` para validar que la hora
+ * de inicio pertenezca a la jornada laboral.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Valida la estructura horaria (HoraInicio) ante el rango laboral de la clínica.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - IValidatableObject, DataAnnotations
+ * ============================================
+ */
+
 using System.ComponentModel.DataAnnotations;
 
 namespace SmileTrack_MVC.Models.ViewModels

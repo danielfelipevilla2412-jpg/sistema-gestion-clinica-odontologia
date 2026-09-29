@@ -1,3 +1,22 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: ProximaCitaWidgetViewComponent
+ * ============================================
+ * Archivo: ViewComponents/ProximaCitaWidgetViewComponent.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * ViewComponent reutilizable encargado de renderizar la tarjeta widget de "Próxima Cita"
+ * con cuenta regresiva en tiempo real en los dashboards del Odontólogo, Paciente o Administrador.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Filtra la cita más inminente en estado activo ("programada", "confirmada", "en_proceso") posterior o igual a la hora actual.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, ProximaCitaWidgetViewModel
+ * ============================================
+ */
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;

@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Dashboard Recepción (st-rec-01-dashboard)
 ============================================
 Autor: Johan Santamaria
@@ -200,10 +200,6 @@ img { max-width: 100%; height: auto; display: block; }
 /* Action Buttons Row */
 .action-buttons-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .btn-action { display: flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); border: none; }
-.btn-action.btn-green { background: var(--green); color: #fff; }
-.btn-action.btn-green:hover { background: #16a34a; }
-.btn-action.btn-blue { background: var(--primary); color: #fff; }
-.btn-action.btn-blue:hover { background: var(--primary-dark); }
 /* [MEJORA]: Focus visible para botones de acción */
 .btn-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 

@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Notificaciones Paciente (st-pac-03-notificaciones)
 ============================================
 Autor: Johan Santamaria
@@ -211,10 +211,6 @@ img { max-width: 100%; height: auto; display: block; }
   display: flex; align-items: center; justify-content: center;
   font-size: 1.1rem; flex-shrink: 0;
 }
-.notification-card__icon--reminder  { background: var(--primary-light); color: var(--primary); }
-.notification-card__icon--confirmed { background: #dcfce7; color: var(--green); }
-.notification-card__icon--cancelled { background: #fee2e2; color: #dc2626; }
-.notification-card__icon--message   { background: #f3e8ff; color: var(--purple); }
 .notification-card__body { flex: 1; min-width: 0; }
 .notification-card__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
 .notification-card__title { font-weight: 600; font-size: .9rem; color: var(--text); }

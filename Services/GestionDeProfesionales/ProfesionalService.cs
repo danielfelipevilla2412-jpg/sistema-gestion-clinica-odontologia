@@ -1,3 +1,25 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: ProfesionalService
+ * ============================================
+ * Archivo: Services/GestionDeProfesionales/ProfesionalService.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Implementación de la capa de servicios para la administración de profesionales odontológicos.
+ * Encapsula la lógica de persistencia, generación/asociación de cuenta de usuario, hash de contraseñas,
+ * asignación de especialidades y actualización de disponibilidad semanal.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Delega la validación de contraseñas y estados a ProfesionalEstadoHelper para mantener coherencia única.
+ * - Garantiza transaccionalidad mediante DbContext al crear simultáneamente la entidad Usuario y la entidad Profesional.
+ * - Formatea y normaliza campos de identificación (Registro Médico, Teléfono, Email).
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, ProfesionalEstadoHelper, BCrypt / SHA256, ILogger
+ * ============================================
+ */
+
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;

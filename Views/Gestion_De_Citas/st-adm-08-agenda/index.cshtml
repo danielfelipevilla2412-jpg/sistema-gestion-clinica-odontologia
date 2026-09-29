@@ -1,10 +1,21 @@
 @* ============================================
-   SmileTrack — Agenda General (st-adm-08-agenda)
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Agenda General (st-adm-08-agenda)
    ============================================
-   Autor: Johan Santamaria
-   Fecha: 29/07/2026
-   DEPENDENCIAS: agendageneral.css / agendageneral.js
-============================================ *@
+   Archivo: Views/Gestion_De_Citas/st-adm-08-agenda/index.cshtml
+
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Renderiza la cuadrícula completa de la agenda médica semanal y diaria para la administración clínica.
+   Permite visualizar la asignación de consultorios, franjas de disponibilidad y agendamiento interactivo.
+
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Utiliza `AgendaViewModel` con listas de selección precargadas (pacientes, profesionales, consultorios, servicios).
+
+   DEPENDENCIAS:
+   - ViewModel: SmileTrack_MVC.Models.ViewModels.AgendaViewModel
+   - CSS: ~/css/Gestion_De_Citas/st-adm-08-agenda/agendageneral.css
+   - JS: ~/js/Gestion_De_Citas/st-adm-08-agenda/agendageneral.js
+   ============================================ *@
 @model SmileTrack_MVC.Models.ViewModels.AgendaViewModel
 @{ Layout = "_Layout"; ViewData["Title"] = "Agenda General"; }
 

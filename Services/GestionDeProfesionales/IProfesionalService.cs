@@ -1,3 +1,24 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: IProfesionalService (Interfaz)
+ * ============================================
+ * Archivo: Services/GestionDeProfesionales/IProfesionalService.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Contrato de servicio para la gestión de profesionales odontológicos. Define los métodos
+ * de consulta paginada, mantenimiento de perfiles, registro de usuarios vinculados y gestión de horarios.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Paginación y filtrado unificado para MVC y API REST.
+ * - Registro y actualización con hash de contraseña de usuario vinculado.
+ * - Validación de duplicados en Registro Médico e Email.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Profesional, ProfesionalesApiResult, ProfesionalesStats, PagedResult
+ * ============================================
+ */
+
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;

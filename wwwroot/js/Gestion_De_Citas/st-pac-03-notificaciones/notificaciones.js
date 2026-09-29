@@ -1,77 +1,71 @@
 /* ============================================
-SmileTrack — Notificaciones Paciente (st-pac-03-notificaciones)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: Notificaciones del Paciente (st-pac-03-notificaciones)
+ * ============================================
+ * Archivo: wwwroot/js/Gestion_De_Citas/st-pac-03-notificaciones/notificaciones.js
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Administra el panel de notificaciones y recordatorios automatizados de citas para el paciente.
+ * Permite marcar notificaciones como leídas, filtrar por tipo (confirmación, recordatorio, cancelación) y borrarlas.
+ *
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Actualización dinámica del contador de notificaciones no leídas en el badge del encabezado.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionCitasController -> Stpac03Notificaciones
+ * - HTML: Views/Gestion_De_Citas/st-pac-03-notificaciones/index.cshtml
+ * ============================================ */
 
-DESCRIPCIÓN:
-Controla la carga de notificaciones del paciente, acciones de marcar como leídas, visualización de detalle en modal, archivado/eliminación y filtrado omnicanal de alertas.
-============================================ */
+// ═══════════════════════════════════════════════════════════════════
+// 1. CONSTANTES Y CONFIGURACIÓN
+// ═══════════════════════════════════════════════════════════════════
 
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  if (!el) {
-    console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  }
-  return el;
-};
+const DEBOUNCE_DELAY_MS = 180;
 
-const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
-};
+// ═══════════════════════════════════════════════════════════════════
+// 2. ESTADO DE LA APLICACIÓN
+// ═══════════════════════════════════════════════════════════════════
 
-const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  "'": '&#39;',
-  '"': '&quot;'
-}[character]));
-
-const formatTiempoRelativo = (iso) => {
-  if (!iso) return '';
-  const fecha = new Date(iso);
-  if (Number.isNaN(fecha.getTime())) return String(iso);
-  const diffMs = Date.now() - fecha.getTime();
-  const diffHoras = diffMs / (1000 * 60 * 60);
-  if (diffHoras < 0) {
-    const horasFuturas = Math.abs(diffHoras);
-    if (horasFuturas < 24) return `En ${Math.round(horasFuturas)} horas`;
-    return `En ${Math.round(horasFuturas / 24)} días`;
-  }
-  if (diffHoras < 1) return 'Hace unos minutos';
-  if (diffHoras < 24) return `Hace ${Math.round(diffHoras)} horas`;
-  const diffDias = Math.round(diffHoras / 24);
-  if (diffDias === 1) return 'Ayer';
-  if (diffDias < 7) return `Hace ${diffDias} días`;
-  return `Hace ${Math.round(diffDias / 7)} semanas`;
-};
-
-const rawData = window.smiletrackNotificacionesData?.notificaciones || [];
-let notificaciones = rawData.map(n => ({
-  ...n,
-  displayTime: formatTiempoRelativo(n.time)
+const initialRawNotifications = window.smiletrackNotificacionesData?.notificaciones || [];
+let notificationsList = initialRawNotifications.map(item => ({
+  ...item,
+  displayTime: formatRelativeTime(item.time)
 }));
 
-let currentFilter = 'all';
-let showOnlyUnread = false;
+let currentFilterType = 'all';
+let showOnlyUnreadState = false;
+let lastActiveTriggerElement = null;
 
-const badgeClass = (badge) => {
-  const map = { 'pending': 'badge-agendada', 'new': 'badge-completada', 'read': 'badge-cancelada' };
-  return map[badge] || 'badge-cancelada';
+// ═══════════════════════════════════════════════════════════════════
+// 3. UTILIDADES Y HELPERS
+// ═══════════════════════════════════════════════════════════════════
+
+const safeGetElement = (elementId) =>
+  window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
+
+const debounce = (fn, delay) =>
+  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
+
+const escapeHtml = (value) =>
+  window.CommonUtils?.escapeHtml ? window.CommonUtils.escapeHtml(value) : String(value ?? '');
+
+function formatRelativeTime(isoString) {
+  if (!isoString) return '';
+  return window.CommonUtils?.formatTiempoRelativo ? window.CommonUtils.formatTiempoRelativo(isoString) : String(isoString);
+}
+
+const getBadgeClassForType = (badgeKey) => {
+  const badgeMap = { 'pending': 'badge-agendada', 'new': 'badge-completada', 'read': 'badge-cancelada' };
+  return badgeMap[badgeKey] || 'badge-cancelada';
 };
 
-const badgeLabel = (badge) => {
-  const map = { 'pending': 'Pendiente', 'new': 'Nueva', 'read': 'Leída' };
-  return map[badge] || 'Leída';
+const getBadgeLabelForType = (badgeKey) => {
+  const labelMap = { 'pending': 'Pendiente', 'new': 'Nueva', 'read': 'Leída' };
+  return labelMap[badgeKey] || 'Leída';
 };
 
-const getIconByType = (tipo) => {
-  const map = {
+const getIconForNotificationType = (notificationType) => {
+  const iconMap = {
     'reminder': 'notifications',
     'confirmed': 'check_circle',
     'cancelled': 'cancel',
@@ -80,44 +74,104 @@ const getIconByType = (tipo) => {
     'invoice': 'payments',
     'message': 'message'
   };
-  return map[tipo] || 'notifications';
+  return iconMap[notificationType] || 'notifications';
 };
 
-const getFiltered = () => {
+// ═══════════════════════════════════════════════════════════════════
+// 4. SERVICIOS Y API
+// ═══════════════════════════════════════════════════════════════════
+
+const markReadOnServer = async (notificationIds) => {
+  const isSingle = notificationIds.length === 1;
+  const endpointUrl = isSingle
+    ? `/api/notificaciones/${notificationIds[0]}/leida`
+    : '/api/notificaciones/leidas';
+
+  const response = await fetch(endpointUrl, {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(isSingle ? {} : notificationIds)
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.success === false) {
+    throw new Error(payload.message || 'No fue posible guardar el estado de lectura.');
+  }
+};
+
+const deleteOnServer = async (notificationId) => {
+  const response = await fetch(`/api/notificaciones/${notificationId}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+    headers: { 'Accept': 'application/json' }
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.success === false) {
+    throw new Error(payload.message || 'No fue posible eliminar la notificación.');
+  }
+};
+
+const fetchNotificationsApi = async () => {
+  try {
+    const response = await fetch('/api/notificaciones', {
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin'
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (payload.success && payload.data && Array.isArray(payload.data.notificaciones)) {
+      notificationsList = payload.data.notificaciones.map(item => ({
+        ...item,
+        displayTime: formatRelativeTime(item.time)
+      }));
+      renderNotificationsList();
+    }
+  } catch (err) {
+    console.warn('[SmileTrack] Fallback a datos SSR:', err);
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 5. RENDERIZADO Y DOM
+// ═══════════════════════════════════════════════════════════════════
+
+const getFilteredNotifications = () => {
   const searchInput = safeGetElement('searchInput');
-  const q = searchInput?.value.toLowerCase().trim() || '';
+  const queryText = searchInput?.value.toLowerCase().trim() || '';
   
-  return notificaciones.filter(n => {
-    const matchQ = !q || (
-      (n.titulo || '').toLowerCase().includes(q) ||
-      (n.desc || '').toLowerCase().includes(q)
+  return notificationsList.filter(item => {
+    const matchQuery = !queryText || (
+      (item.titulo || '').toLowerCase().includes(queryText) ||
+      (item.desc || '').toLowerCase().includes(queryText)
     );
-    const matchFilter = currentFilter === 'all' || n.tipo === currentFilter;
-    const matchUnread = !showOnlyUnread || !n.leida;
-    return matchQ && matchFilter && matchUnread;
+    const matchFilter = currentFilterType === 'all' || item.tipo === currentFilterType;
+    const matchUnread = !showOnlyUnreadState || !item.leida;
+    return matchQuery && matchFilter && matchUnread;
   });
 };
 
-const createNotificationItem = (item) => {
-  const li = document.createElement('li');
-  li.className = `notification-card${item.leida ? ' notification-card--read' : ''}`;
-  li.dataset.type = item.tipo;
-  li.dataset.id = item.id;
+const createNotificationCardElement = (item) => {
+  const listItemElement = document.createElement('li');
+  listItemElement.className = `notification-card${item.leida ? ' notification-card--read' : ''}`;
+  listItemElement.dataset.type = item.tipo;
+  listItemElement.dataset.id = item.id;
   
   if (!item.leida) {
-    li.setAttribute('role', 'article');
-    li.setAttribute('aria-label', `Notificación sin leer: ${item.titulo}`);
-    li.setAttribute('tabindex', '0');
+    listItemElement.setAttribute('role', 'article');
+    listItemElement.setAttribute('aria-label', `Notificación sin leer: ${item.titulo}`);
+    listItemElement.setAttribute('tabindex', '0');
   }
   
-  li.innerHTML = `
+  listItemElement.innerHTML = `
     <div class="notification-card__icon" aria-hidden="true">
-      <span class="material-symbols-outlined">${escapeHtml(getIconByType(item.tipo))}</span>
+      <span class="material-symbols-outlined">${escapeHtml(getIconForNotificationType(item.tipo))}</span>
     </div>
     <div class="notification-card__body">
       <div class="notification-card__header">
         <h3 class="notification-card__title">${escapeHtml(item.titulo)}</h3>
-        <span class="badge ${escapeHtml(badgeClass(item.badge))}" aria-label="Estado: ${escapeHtml(badgeLabel(item.badge))}">${escapeHtml(badgeLabel(item.badge))}</span>
+        <span class="badge ${escapeHtml(getBadgeClassForType(item.badge))}" aria-label="Estado: ${escapeHtml(getBadgeLabelForType(item.badge))}">${escapeHtml(getBadgeLabelForType(item.badge))}</span>
       </div>
       <p class="notification-card__desc">${escapeHtml(item.desc)}</p>
       <div class="notification-card__footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
@@ -139,101 +193,75 @@ const createNotificationItem = (item) => {
     ${!item.leida ? '<span class="notification-card__dot" aria-label="No leída" role="status"></span>' : ''}
   `;
   
-  return li;
+  return listItemElement;
 };
 
-const renderNotifications = () => {
-  const data = getFiltered();
-  const container = safeGetElement('notificationsList');
-  const emptyState = safeGetElement('emptyState');
+const renderNotificationsList = () => {
+  const filteredData = getFilteredNotifications();
+  const listContainer = safeGetElement('notificationsList');
+  const emptyStateElement = safeGetElement('emptyState');
   
-  if (!container) return;
-  
-  container.replaceChildren();
+  if (!listContainer) return;
+  listContainer.replaceChildren();
   
   const countLabel = safeGetElement('countLabel');
-  if (countLabel) countLabel.textContent = `${data.length} resultado${data.length !== 1 ? 's' : ''}`;
+  if (countLabel) countLabel.textContent = `${filteredData.length} resultado${filteredData.length !== 1 ? 's' : ''}`;
   
-  if (!data.length) {
-    if (emptyState) {
-      emptyState.style.display = 'flex';
-      emptyState.setAttribute('aria-hidden', 'false');
+  if (!filteredData.length) {
+    if (emptyStateElement) {
+      emptyStateElement.style.display = 'flex';
+      emptyStateElement.setAttribute('aria-hidden', 'false');
     }
     return;
   }
   
-  if (emptyState) {
-    emptyState.style.display = 'none';
-    emptyState.setAttribute('aria-hidden', 'true');
+  if (emptyStateElement) {
+    emptyStateElement.style.display = 'none';
+    emptyStateElement.setAttribute('aria-hidden', 'true');
   }
   
-  data.forEach(item => {
-    const li = createNotificationItem(item);
-    container.appendChild(li);
+  filteredData.forEach(item => {
+    const cardElement = createNotificationCardElement(item);
+    listContainer.appendChild(cardElement);
   });
 };
 
-const markReadOnServer = async (ids) => {
-  const response = await fetch(ids.length === 1
-    ? `/api/notificaciones/${ids[0]}/leida`
-    : '/api/notificaciones/leidas', {
-      method: 'PUT',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(ids.length === 1 ? {} : ids)
-    });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.success === false) {
-    throw new Error(payload.message || 'No fue posible guardar el estado de lectura.');
-  }
-};
+// ═══════════════════════════════════════════════════════════════════
+// 6. MANEJO DE MODALES Y FORMULARIOS
+// ═══════════════════════════════════════════════════════════════════
 
-const deleteOnServer = async (id) => {
-  const response = await fetch(`/api/notificaciones/${id}`, {
-    method: 'DELETE',
-    credentials: 'same-origin',
-    headers: { 'Accept': 'application/json' }
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.success === false) {
-    throw new Error(payload.message || 'No fue posible eliminar la notificación.');
-  }
-};
-
-let lastActiveTrigger = null;
-
-const openModalDetail = (notif, triggerEl) => {
-  lastActiveTrigger = triggerEl || document.activeElement;
-  const modal = safeGetElement('modalNotifDetail');
-  if (!modal) return;
+const openModalDetail = (notif, triggerElement) => {
+  lastActiveTriggerElement = triggerElement || document.activeElement;
+  const modalElement = safeGetElement('modalNotifDetail');
+  if (!modalElement) return;
 
   safeGetElement('modalNotifTitle').textContent = notif.titulo || 'Detalle de Notificación';
   safeGetElement('modalNotifDesc').textContent = notif.desc || '';
-  safeGetElement('modalNotifTime').textContent = `${formatTiempoRelativo(notif.time)} (${new Date(notif.time).toLocaleString()})`;
+  safeGetElement('modalNotifTime').textContent = `${formatRelativeTime(notif.time)} (${new Date(notif.time).toLocaleString()})`;
   safeGetElement('modalNotifCanal').textContent = notif.canal || 'Interno (In-App)';
   
   const iconBadge = safeGetElement('modalNotifIcon');
-  if (iconBadge) iconBadge.textContent = getIconByType(notif.tipo);
+  if (iconBadge) iconBadge.textContent = getIconForNotificationType(notif.tipo);
 
-  const badgeEl = safeGetElement('modalNotifBadge');
-  if (badgeEl) {
-    badgeEl.className = `badge ${badgeClass(notif.badge)}`;
-    badgeEl.textContent = badgeLabel(notif.badge);
+  const badgeElement = safeGetElement('modalNotifBadge');
+  if (badgeElement) {
+    badgeElement.className = `badge ${getBadgeClassForType(notif.badge)}`;
+    badgeElement.textContent = getBadgeLabelForType(notif.badge);
   }
 
-  const actionBtn = safeGetElement('btnModalAction');
-  if (actionBtn) {
+  const actionButton = safeGetElement('btnModalAction');
+  if (actionButton) {
     if (notif.urlAccion) {
-      actionBtn.href = notif.urlAccion;
-      actionBtn.style.display = 'inline-flex';
+      actionButton.href = notif.urlAccion;
+      actionButton.style.display = 'inline-flex';
     } else {
-      actionBtn.style.display = 'none';
+      actionButton.style.display = 'none';
     }
   }
 
-  modal.classList.add('open');
-  modal.setAttribute('aria-hidden', 'false');
-  modal.removeAttribute('inert');
+  modalElement.classList.add('open');
+  modalElement.setAttribute('aria-hidden', 'false');
+  modalElement.removeAttribute('inert');
   document.body.style.overflow = 'hidden';
 
   const closeBtn = safeGetElement('btnModalClose');
@@ -241,52 +269,53 @@ const openModalDetail = (notif, triggerEl) => {
 };
 
 const closeModalDetail = () => {
-  const modal = safeGetElement('modalNotifDetail');
-  if (!modal) return;
-  modal.classList.remove('open');
-  modal.setAttribute('aria-hidden', 'true');
-  modal.setAttribute('inert', '');
+  const modalElement = safeGetElement('modalNotifDetail');
+  if (!modalElement) return;
+  modalElement.classList.remove('open');
+  modalElement.setAttribute('aria-hidden', 'true');
+  modalElement.setAttribute('inert', '');
   document.body.style.overflow = '';
-  if (lastActiveTrigger && typeof lastActiveTrigger.focus === 'function' && document.contains(lastActiveTrigger)) {
-    lastActiveTrigger.focus();
+
+  if (lastActiveTriggerElement && typeof lastActiveTriggerElement.focus === 'function' && document.contains(lastActiveTriggerElement)) {
+    lastActiveTriggerElement.focus();
   }
-  lastActiveTrigger = null;
+  lastActiveTriggerElement = null;
 };
 
-const handleNotificationClick = async (e) => {
-  const viewBtn = e.target.closest('.btn-view-detail');
-  const markBtn = e.target.closest('.btn-mark-read');
-  const deleteBtn = e.target.closest('.btn-delete-notif');
-  const card = e.target.closest('.notification-card');
-  if (!card) return;
+const handleNotificationCardAction = async (event) => {
+  const viewButton = event.target.closest('.btn-view-detail');
+  const markButton = event.target.closest('.btn-mark-read');
+  const deleteButton = event.target.closest('.btn-delete-notif');
+  const cardElement = event.target.closest('.notification-card');
+  if (!cardElement) return;
 
-  const id = parseInt(card.dataset.id, 10);
-  if (isNaN(id)) return;
-  const notif = notificaciones.find(n => n.id === id);
-  if (!notif) return;
+  const notificationId = parseInt(cardElement.dataset.id, 10);
+  if (isNaN(notificationId)) return;
+  const notificationItem = notificationsList.find(item => item.id === notificationId);
+  if (!notificationItem) return;
 
-  if (viewBtn || (!markBtn && !deleteBtn)) {
-    openModalDetail(notif, viewBtn || card);
-    if (!notif.leida) {
+  if (viewButton || (!markButton && !deleteButton)) {
+    openModalDetail(notificationItem, viewButton || cardElement);
+    if (!notificationItem.leida) {
       try {
-        await markReadOnServer([id]);
-        notif.leida = true;
-        notif.badge = 'read';
-        renderNotifications();
+        await markReadOnServer([notificationId]);
+        notificationItem.leida = true;
+        notificationItem.badge = 'read';
+        renderNotificationsList();
       } catch (err) {
-        console.warn('Error al marcar leída:', err);
+        console.warn('[SmileTrack] Error al marcar leída:', err);
       }
     }
     return;
   }
 
-  if (markBtn) {
-    e.stopPropagation();
+  if (markButton) {
+    event.stopPropagation();
     try {
-      await markReadOnServer([id]);
-      notif.leida = true;
-      notif.badge = 'read';
-      renderNotifications();
+      await markReadOnServer([notificationId]);
+      notificationItem.leida = true;
+      notificationItem.badge = 'read';
+      renderNotificationsList();
       if (window.ToastService) window.ToastService.success('Notificación marcada como leída');
     } catch (error) {
       if (window.ToastService) window.ToastService.error(error.message);
@@ -294,12 +323,12 @@ const handleNotificationClick = async (e) => {
     return;
   }
 
-  if (deleteBtn) {
-    e.stopPropagation();
+  if (deleteButton) {
+    event.stopPropagation();
     try {
-      await deleteOnServer(id);
-      notificaciones = notificaciones.filter(n => n.id !== id);
-      renderNotifications();
+      await deleteOnServer(notificationId);
+      notificationsList = notificationsList.filter(item => item.id !== notificationId);
+      renderNotificationsList();
       if (window.ToastService) window.ToastService.success('Notificación eliminada');
     } catch (error) {
       if (window.ToastService) window.ToastService.error(error.message);
@@ -307,113 +336,97 @@ const handleNotificationClick = async (e) => {
   }
 };
 
-const markAllAsRead = async () => {
-  const unreadList = notificaciones.filter(n => !n.leida);
-  if (!unreadList.length) {
+const markAllNotificationsAsRead = async () => {
+  const unreadItems = notificationsList.filter(item => !item.leida);
+  if (!unreadItems.length) {
     if (window.ToastService) window.ToastService.success('No hay notificaciones sin leer');
     return;
   }
   
   try {
-    await markReadOnServer(unreadList.map(n => n.id));
-    notificaciones.forEach(n => { n.leida = true; n.badge = 'read'; });
-    renderNotifications();
+    await markReadOnServer(unreadItems.map(item => item.id));
+    notificationsList.forEach(item => { item.leida = true; item.badge = 'read'; });
+    renderNotificationsList();
     if (window.ToastService) window.ToastService.success('Todas las notificaciones marcadas como leídas');
   } catch (error) {
     if (window.ToastService) window.ToastService.error(error.message);
   }
 };
 
-const handleChipClick = (chip) => {
-  document.querySelectorAll('.chip').forEach(c => {
-    c.classList.remove('chip--active');
-    c.setAttribute('aria-pressed', 'false');
+const handleFilterChipClick = (chipElement) => {
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.classList.remove('chip--active');
+    chip.setAttribute('aria-pressed', 'false');
   });
   
-  chip.classList.add('chip--active');
-  chip.setAttribute('aria-pressed', 'true');
+  chipElement.classList.add('chip--active');
+  chipElement.setAttribute('aria-pressed', 'true');
   
-  currentFilter = chip.dataset.filter;
-  renderNotifications();
+  currentFilterType = chipElement.dataset.filter;
+  renderNotificationsList();
 };
 
-const toggleOnlyUnread = () => {
-  showOnlyUnread = !showOnlyUnread;
-  const btn = safeGetElement('btnToggleUnread');
-  const lbl = safeGetElement('lblToggleUnread');
-  if (btn) {
-    btn.setAttribute('aria-pressed', String(showOnlyUnread));
-    btn.classList.toggle('btn-primary', showOnlyUnread);
-    btn.classList.toggle('btn-secondary', !showOnlyUnread);
+const toggleUnreadFilterMode = () => {
+  showOnlyUnreadState = !showOnlyUnreadState;
+  const toggleBtn = safeGetElement('btnToggleUnread');
+  const toggleLabel = safeGetElement('lblToggleUnread');
+  if (toggleBtn) {
+    toggleBtn.setAttribute('aria-pressed', String(showOnlyUnreadState));
+    toggleBtn.classList.toggle('btn-primary', showOnlyUnreadState);
+    toggleBtn.classList.toggle('btn-secondary', !showOnlyUnreadState);
   }
-  if (lbl) lbl.textContent = showOnlyUnread ? 'Ver todas' : 'Solo no leídas';
-  renderNotifications();
+  if (toggleLabel) toggleLabel.textContent = showOnlyUnreadState ? 'Ver todas' : 'Solo no leídas';
+  renderNotificationsList();
 };
 
-const fetchNotificationsApi = async () => {
-  try {
-    const res = await fetch('/api/notificaciones', {
-      headers: { 'Accept': 'application/json' },
-      credentials: 'same-origin'
-    });
-    if (!res.ok) return;
-    const payload = await res.json();
-    if (payload.success && payload.data && Array.isArray(payload.data.notificaciones)) {
-      notificaciones = payload.data.notificaciones.map(n => ({
-        ...n,
-        displayTime: formatTiempoRelativo(n.time)
-      }));
-      renderNotifications();
-    }
-  } catch (err) {
-    console.warn('[SmileTrack] Fallback a datos SSR:', err);
-  }
-};
+// ═══════════════════════════════════════════════════════════════════
+// 7. INICIALIZACIÓN Y EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════════
 
-const initModalEvents = () => {
-  const modal = safeGetElement('modalNotifDetail');
+const setupModalEventListeners = () => {
+  const modalElement = safeGetElement('modalNotifDetail');
   safeGetElement('modalNotifClose')?.addEventListener('click', closeModalDetail);
   safeGetElement('btnModalClose')?.addEventListener('click', closeModalDetail);
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) closeModalDetail();
+  modalElement?.addEventListener('click', (event) => {
+    if (event.target === modalElement) closeModalDetail();
   });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modal?.classList.contains('open')) {
-      e.preventDefault();
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modalElement?.classList.contains('open')) {
+      event.preventDefault();
       closeModalDetail();
     }
   });
 };
 
-const init = () => {
-  renderNotifications();
-  initModalEvents();
+const initializeNotificationsModule = () => {
+  renderNotificationsList();
+  setupModalEventListeners();
   
-  const notificationsList = safeGetElement('notificationsList');
-  if (notificationsList) {
-    notificationsList.addEventListener('click', handleNotificationClick);
-    notificationsList.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        handleNotificationClick(e);
+  const notificationsListContainer = safeGetElement('notificationsList');
+  if (notificationsListContainer) {
+    notificationsListContainer.addEventListener('click', handleNotificationCardAction);
+    notificationsListContainer.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleNotificationCardAction(event);
       }
     });
   }
   
-  document.querySelectorAll('.chip').forEach(chip => {
-    chip.addEventListener('click', () => handleChipClick(chip));
+  document.querySelectorAll('.chip').forEach(chipElement => {
+    chipElement.addEventListener('click', () => handleFilterChipClick(chipElement));
   });
   
-  const searchEl = safeGetElement('searchInput');
-  if (searchEl) {
-    const debouncedRender = debounce(renderNotifications, 180);
-    searchEl.addEventListener('input', debouncedRender);
+  const searchInputElement = safeGetElement('searchInput');
+  if (searchInputElement) {
+    const debouncedRenderHandler = debounce(renderNotificationsList, DEBOUNCE_DELAY_MS);
+    searchInputElement.addEventListener('input', debouncedRenderHandler);
   }
   
-  safeGetElement('btnMarkAllRead')?.addEventListener('click', markAllAsRead);
-  safeGetElement('btnToggleUnread')?.addEventListener('click', toggleOnlyUnread);
+  safeGetElement('btnMarkAllRead')?.addEventListener('click', markAllNotificationsAsRead);
+  safeGetElement('btnToggleUnread')?.addEventListener('click', toggleUnreadFilterMode);
 
   fetchNotificationsApi();
 };
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', initializeNotificationsModule);

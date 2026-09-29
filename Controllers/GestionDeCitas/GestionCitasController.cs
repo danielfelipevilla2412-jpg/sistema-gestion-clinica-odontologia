@@ -1,32 +1,24 @@
 /**
  * ============================================
- * SmileTrack — Controller: Gestión de Citas
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: GestionCitasController
  * ============================================
- * Autor: Johan Santamaria
- * Fecha: 2026-07-30
+ * Archivo: Controllers/GestionDeCitas/GestionCitasController.cs
  *
- * PROPÓSITO:
- * Centraliza la lógica de negocio para todos los módulos
- * relacionados con citas: dashboards, agenda, gestión integral,
- * paneles auxiliares y vistas de profesionales/pacientes.
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Centraliza la atención de peticiones MVC (Server-Side Rendering) e interacciones
+ * web para la gestión integral de citas odontológicas. Actúa como capa de orquestación
+ * entre las vistas Razor y los servicios de negocio (CitaService, AgendaService,
+ * CitasDashboardService), garantizando la validación de autorización por roles y ownership.
  *
- * REGLAS PRINCIPALES:
- * - Una cita tiene una duración fija de 60 minutos.
- * - FechaHora siempre se calcula a partir de Fecha + HoraInicio.
- * - HoraFin es un dato derivado y no debe utilizarse para alterar FechaHora.
- * - Los conflictos de agenda se validan considerando bloques de 60 minutos.
- * - Las operaciones administrativas de creación/cancelación requieren
- *   rol Administrador o Recepcionista.
- * - Las operaciones de paciente/profesional aplican ownership mediante claims.
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Duración configurable de cita (60 min por defecto) validada ante disponibilidad de recursos.
+ * - Validación triple de conflictos (Profesional, Paciente y Consultorio) para evitar solapamientos.
+ * - Control estricto de acceso basado en claims y roles (Administrador, Recepcionista, Odontólogo, Auxiliar, Paciente).
+ * - Sincronización de transacciones con Auditoría y Soft Delete para cancelación de citas.
  *
- * PATRONES APLICADOS:
- * - Constructor injection
- * - CancellationToken
- * - Validación de ModelState
- * - Try/catch estratificado
- * - TempData para mensajes amigables
- * - Auditoría de modificaciones
- * - Soft delete para cancelación
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, ICitaService, IAgendaService, ICitasDashboardService, IEmailService
  * ============================================
  */
 
