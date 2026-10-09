@@ -878,6 +878,129 @@ const initFormularioClinico = () => {
   });
 };
 
+const initAdjuntosClinicos = () => {
+  const button = safeGetElement('btnAdjuntarEstudio');
+  const input = safeGetElement('inputArchivosEstudio');
+  const fileGrid = safeGetElement('fileGrid');
+  const uploadBox = safeGetElement('uploadBox');
+
+  if (!button || !input || !fileGrid || !uploadBox) return;
+
+  const archivos = [];
+
+  const formatBytes = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getIcon = (fileName = '') => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    if (['jpg', 'jpeg', 'png'].includes(extension)) return '🖼️';
+    if (extension === 'pdf') return '📄';
+    return '📎';
+  };
+
+  const renderArchivos = () => {
+    const cards = archivos.map((file, index) => `
+      <div class="file-item" data-index="${index}">
+        <div class="file-thumb">${getIcon(file.name)}</div>
+        <div class="file-meta">
+          <strong>${escaparHtml(file.name)}</strong>
+          <span>${formatBytes(file.size)}</span>
+        </div>
+        <button type="button" class="soft-btn subtle remove-attachment" data-index="${index}" style="margin-top:10px;">Quitar</button>
+      </div>
+    `).join('');
+
+    fileGrid.innerHTML = `${cards}${`
+      <div class="upload-box" id="uploadBox" tabindex="0" role="button" aria-label="Arrastra o selecciona estudios">
+        <div class="upload-ghost">⇪</div>
+        <strong>Arrastra o selecciona estudios</strong>
+        <span>Radiografías, fotos intraorales o documentos anexos</span>
+      </div>
+    `}`;
+
+    const freshUploadBox = safeGetElement('uploadBox');
+    if (!freshUploadBox) return;
+
+    freshUploadBox.addEventListener('click', () => input.click());
+    freshUploadBox.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        input.click();
+      }
+    });
+    freshUploadBox.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      freshUploadBox.classList.add('dragover');
+    });
+    freshUploadBox.addEventListener('dragleave', () => {
+      freshUploadBox.classList.remove('dragover');
+    });
+    freshUploadBox.addEventListener('drop', (event) => {
+      event.preventDefault();
+      freshUploadBox.classList.remove('dragover');
+      const dropped = Array.from(event.dataTransfer?.files || []);
+      if (dropped.length) addArchivos(dropped);
+    });
+
+    fileGrid.querySelectorAll('.remove-attachment').forEach((removeButton) => {
+      removeButton.addEventListener('click', (event) => {
+        const { index } = event.currentTarget.dataset;
+        archivos.splice(Number(index), 1);
+        renderArchivos();
+      });
+    });
+  };
+
+  const addArchivos = (nuevosArchivos) => {
+    const validFiles = Array.from(nuevosArchivos).filter((file) => {
+      const isAllowed = ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      const allowedExt = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+      return isAllowed.includes(file.type) || (extension && allowedExt.includes(extension));
+    });
+
+    if (!validFiles.length) {
+      showToast('Tipo de archivo no permitido. Usa JPG, PNG, PDF o DOCX', 'warning');
+      input.value = '';
+      return;
+    }
+
+    validFiles.forEach(file => archivos.push(file));
+    renderArchivos();
+    input.value = '';
+  };
+
+  button.addEventListener('click', () => input.click());
+  input.addEventListener('change', (event) => {
+    if (!event.target.files?.length) return;
+    addArchivos(event.target.files);
+  });
+
+  uploadBox.addEventListener('click', () => input.click());
+  uploadBox.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      input.click();
+    }
+  });
+  uploadBox.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    uploadBox.classList.add('dragover');
+  });
+  uploadBox.addEventListener('dragleave', () => {
+    uploadBox.classList.remove('dragover');
+  });
+  uploadBox.addEventListener('drop', (event) => {
+    event.preventDefault();
+    uploadBox.classList.remove('dragover');
+    const dropped = Array.from(event.dataTransfer?.files || []);
+    if (dropped.length) addArchivos(dropped);
+  });
+};
+
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
@@ -888,6 +1011,7 @@ const init = async () => {
   initScrollToForm();
   initForm();
   initFormularioClinico();
+  initAdjuntosClinicos();
   //  — Registrar los filtros antes de renderizar los datos clínicos.
   initFiltrosLineaDeTiempo();
   

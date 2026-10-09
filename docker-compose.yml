@@ -4,10 +4,10 @@ services:
     container_name: smiletrack-sqlserver
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Debes configurar MSSQL_SA_PASSWORD en .env}"
       MSSQL_PID: "Express"
     ports:
-      - "1433:1433"
+      - "1435:1433"
     volumes:
       - smiletrack-sqldata:/var/opt/mssql
     healthcheck:
@@ -22,21 +22,25 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: smiletrack-web
+    image: smiletrack-web:actualizacion
     container_name: smiletrack-web
     depends_on:
       sqlserver:
         condition: service_healthy
     ports:
-      - "5258:80"
+      - "5259:80"
     environment:
-      ASPNETCORE_URLS: "${ASPNETCORE_URLS}"
-      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT}"
-      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SmileTrackDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      ASPNETCORE_URLS: "http://+:80"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SmileTrackDB;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Debes configurar MSSQL_SA_PASSWORD en .env};TrustServerCertificate=True;"
     volumes:
       - smiletrack-dataprotection:/root/.aspnet/DataProtection-Keys
     restart: unless-stopped
 
 volumes:
   smiletrack-sqldata:
+    external: true
+    name: sistema-gestion-clinica-odontologia_smiletrack-sqldata
   smiletrack-dataprotection:
+    external: true
+    name: sistema-gestion-clinica-odontologia_smiletrack-dataprotection

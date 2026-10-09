@@ -320,12 +320,13 @@
                             <p>Estudios imagenológicos, fotografías clínicas y validación legal</p>
                         </div>
                     </div>
-                    <button type="button" class="mini-btn">+ Adjuntar Nuevo Estudio</button>
+                    <button type="button" class="mini-btn" id="btnAdjuntarEstudio" aria-label="Adjuntar nuevo estudio">+ Adjuntar Nuevo Estudio</button>
+                    <input type="file" id="inputArchivosEstudio" class="visually-hidden" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" multiple />
                 </div>
 
                 <div class="card-body file-area">
-                    <div class="file-grid empty-file-grid">
-                        <div class="upload-box full-span">
+                    <div class="file-grid" id="fileGrid" aria-live="polite">
+                        <div class="upload-box full-span" id="uploadBox" tabindex="0" role="button" aria-label="Arrastra o selecciona estudios">
                             <div class="upload-ghost">⇪</div>
                             <strong>Arrastra o selecciona estudios</strong>
                             <span>Radiografías, fotos intraorales o documentos anexos</span>
@@ -364,6 +365,7 @@
 
 
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+  <script src="@Url.Content("~/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
   <script src="@Url.Content("~/js/i18n-core.js")"></script>
