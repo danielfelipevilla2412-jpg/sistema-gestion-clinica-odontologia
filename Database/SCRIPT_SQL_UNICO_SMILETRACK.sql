@@ -264,6 +264,10 @@ IF COL_LENGTH(N'dbo.Profesional', N'descripcion') IS NULL
 GO
 IF COL_LENGTH(N'dbo.Profesional', N'categoria') IS NULL
     ALTER TABLE Profesional ADD categoria VARCHAR(100) NULL;
+
+IF COL_LENGTH(N'dbo.Profesional', N'credenciales_aprobadas') IS NULL
+    ALTER TABLE Profesional ADD credenciales_aprobadas BIT NOT NULL
+        CONSTRAINT DF_Profesional_CredencialesAprobadas DEFAULT (1) WITH VALUES;
 GO
 IF COL_LENGTH(N'dbo.Profesional', N'telefono') IS NULL
     ALTER TABLE Profesional ADD telefono VARCHAR(20) NULL;
@@ -1284,6 +1288,32 @@ END
 GO
 
 PRINT 'Script de Nota_Clinica y Control_Postoperatorio ejecutado correctamente.';
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Credencial_Profesional') AND type = N'U')
+BEGIN
+    CREATE TABLE dbo.Credencial_Profesional (
+        id_credencial INT IDENTITY(1,1) PRIMARY KEY,
+        id_profesional INT NOT NULL,
+        subido_por INT NULL,
+        tipo VARCHAR(50) NOT NULL,
+        nombre_original VARCHAR(255) NOT NULL,
+        ruta_privada VARCHAR(500) NOT NULL,
+        content_type VARCHAR(100) NOT NULL,
+        tamano_bytes BIGINT NOT NULL,
+        estado_revision VARCHAR(15) NOT NULL CONSTRAINT DF_Credencial_Profesional_Estado DEFAULT ('pendiente'),
+        observacion_revision VARCHAR(500) NULL,
+        fecha_subida DATETIME2 NOT NULL CONSTRAINT DF_Credencial_Profesional_Fecha DEFAULT (GETUTCDATE()),
+        revisado_por INT NULL,
+        fecha_revision DATETIME2 NULL,
+        CONSTRAINT CK_Credencial_Profesional_Estado CHECK (estado_revision IN ('pendiente', 'aprobado', 'rechazado')),
+        CONSTRAINT FK_Credencial_Profesional_Profesional FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional) ON DELETE CASCADE,
+        CONSTRAINT FK_Credencial_Profesional_SubidoPor FOREIGN KEY (subido_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL,
+        CONSTRAINT FK_Credencial_Profesional_RevisadoPor FOREIGN KEY (revisado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IX_Credencial_Profesional_Revision ON dbo.Credencial_Profesional(id_profesional, estado_revision);
+END
 GO
 
 -- ============================================================

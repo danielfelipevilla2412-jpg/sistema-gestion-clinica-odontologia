@@ -255,6 +255,8 @@ public partial class ProfesionalService : IProfesionalService
         var (valido, errorMsg) = ValidarRequest(request, esCreacion: true);
         if (!valido)
             return ProfesionalApiOperationResult.Fail(errorMsg!, 422);
+        if (!await EsCategoriaValidaAsync(request.Categoria, ct))
+            return ProfesionalApiOperationResult.Fail("La categoría seleccionada no pertenece al catálogo de especialidades.", 422);
 
         string nombres = request.Nombres.Trim();
         string apellidos = request.Apellidos.Trim();
@@ -315,7 +317,8 @@ public partial class ProfesionalService : IProfesionalService
                         Categoria = request.Categoria?.Trim(),
                         Telefono = request.Telefono?.Trim(),
                         Descripcion = request.Descripcion?.Trim(),
-                        Estado = "activo",
+                        Estado = "inactivo",
+                        CredencialesAprobadas = false,
                         FechaIngreso = DateTime.Today
                     };
 
@@ -396,7 +399,7 @@ public partial class ProfesionalService : IProfesionalService
             // Recargar con navegación para devolver DTO completo
             var dto = await ObtenerPorIdAsync(profesional!.IdProfesional, ct);
             return ProfesionalApiOperationResult.Ok(
-                "El profesional y su cuenta de acceso fueron creados correctamente. La contraseña temporal segura fue generada automáticamente.", dto);
+                "La cuenta fue creada y la contraseña temporal segura fue generada automáticamente. El perfil profesional permanecerá inactivo hasta que el administrador apruebe las credenciales cargadas.", dto);
         }
         catch (CorreoDuplicadoException)
         {
@@ -432,6 +435,8 @@ public partial class ProfesionalService : IProfesionalService
         var (valido, errorMsg) = ValidarRequest(request, esCreacion: false);
         if (!valido)
             return ProfesionalApiOperationResult.Fail(errorMsg!, 422);
+        if (!await EsCategoriaValidaAsync(request.Categoria, ct))
+            return ProfesionalApiOperationResult.Fail("La categoría seleccionada no pertenece al catálogo de especialidades.", 422);
 
         string nombres = request.Nombres.Trim();
         string apellidos = request.Apellidos.Trim();
@@ -511,6 +516,9 @@ public partial class ProfesionalService : IProfesionalService
                     profesional.Descripcion = request.Descripcion?.Trim();
                     profesional.FechaIngreso ??= DateTime.Today;
 
+                    if (estadoSolicitado is "activo" or "vacaciones" && !profesional.CredencialesAprobadas)
+                        throw new InvalidOperationException("El profesional no puede activarse hasta que el administrador apruebe sus credenciales.");
+
                     if (estadoSolicitado == "inactivo" && profesional.Estado != "inactivo")
                     {
                         bool tieneCitasActivas = await _context.Citas.AnyAsync(c =>
@@ -525,7 +533,9 @@ public partial class ProfesionalService : IProfesionalService
                         profesional.Estado = estadoSolicitado;
 
                     // Sincronizar estado de la cuenta
-                    usuario.Estado = profesional.Estado == "inactivo" ? "inactivo" : "activo";
+                    usuario.Estado = profesional.Estado == "inactivo" && profesional.CredencialesAprobadas
+                        ? "inactivo"
+                        : "activo";
 
                     await _context.SaveChangesAsync(ct);
 
@@ -663,6 +673,9 @@ public partial class ProfesionalService : IProfesionalService
 
                     string estadoAnterior = profesional.Estado;
 
+                    if (estadoNorm is "activo" or "vacaciones" && !profesional.CredencialesAprobadas)
+                        throw new InvalidOperationException("El profesional no puede activarse hasta que el administrador apruebe sus credenciales.");
+
                     // Si se va a inactivar, verificar citas pendientes
                     if (estadoNorm == "inactivo" && estadoAnterior != "inactivo")
                     {
@@ -683,7 +696,9 @@ public partial class ProfesionalService : IProfesionalService
 
                     // Sincronizar la cuenta de usuario
                     if (profesional.Usuario != null)
-                        profesional.Usuario.Estado = estadoNorm == "inactivo" ? "inactivo" : "activo";
+                        profesional.Usuario.Estado = estadoNorm == "inactivo" && profesional.CredencialesAprobadas
+                            ? "inactivo"
+                            : "activo";
 
                     // Sincronizar bloqueo en Bloqueo_Profesional según el estado
                     if (estadoNorm == "inactivo")
@@ -1306,6 +1321,12 @@ public partial class ProfesionalService : IProfesionalService
 
         return (true, null);
     }
+
+    private Task<bool> EsCategoriaValidaAsync(string? categoria, CancellationToken ct) =>
+        string.IsNullOrWhiteSpace(categoria)
+            ? Task.FromResult(true)
+            : _context.Especialidades.AsNoTracking()
+                .AnyAsync(e => e.Nombre == categoria.Trim(), ct);
 
     private static string GenerarContrasenaTemporal()
     {

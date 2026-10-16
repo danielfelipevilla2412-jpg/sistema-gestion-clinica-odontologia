@@ -93,6 +93,43 @@
         </div>
     </section>
 
+    <section class="agenda-availability" aria-labelledby="availabilityTitle">
+        <div class="agenda-availability-heading">
+            <div>
+                <h2 id="availabilityTitle">Consultar disponibilidad</h2>
+                <p>Elige un servicio y horario para ver profesionales calificados y libres.</p>
+            </div>
+            <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
+        </div>
+        <div class="agenda-availability-controls">
+            <div class="filter-group">
+                <label class="filter-label" for="availabilityDate">Fecha</label>
+                <input class="status-select" type="date" id="availabilityDate" min="@DateTime.Today.ToString("yyyy-MM-dd")" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="availabilityTime">Hora</label>
+                <input class="status-select" type="time" id="availabilityTime" value="09:00" />
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="availabilityService">Servicio</label>
+                <select class="status-select" id="availabilityService">
+                    <option value="">Selecciona un servicio</option>
+                    @foreach (var servicio in Model.Servicios)
+                    {
+                        <option value="@servicio.Id">@servicio.Text</option>
+                    }
+                </select>
+            </div>
+            <button type="button" class="btn-primary" id="checkAvailabilityButton">
+                <span class="material-symbols-outlined" aria-hidden="true">search</span>
+                Consultar
+            </button>
+        </div>
+        <div class="availability-results" id="agendaAvailabilityResults" aria-live="polite" role="status">
+            Selecciona fecha, hora y servicio para consultar profesionales.
+        </div>
+    </section>
+
     <div class="agenda-print-actions no-print">
         <button type="button" class="btn-secondary" onclick="window.print()" aria-label="Imprimir agenda semanal" data-i18n-aria-label="adm08_print_aria">
             <span class="material-symbols-outlined" aria-hidden="true">print</span>

@@ -226,30 +226,6 @@ const mapServerAppointmentToClient = (serverAppointment) => {
   const tomorrowIso = (() => { const date = new Date(); date.setDate(date.getDate() + 1); return date.toISOString().split('T')[0]; })();
 
   return {
-<<<<<<< Updated upstream
-    id: get('IdCita'),
-    patientId: get('IdPaciente'),
-    professionalId: get('IdProfesional'),
-    serviceId: get('IdServicio'),
-    officeId: get('IdConsultorio'),
-    date: fmtFechaCorta(fechaHora),
-    dateISO,
-    time: fmtHora12(fechaHora),
-    timeISO: fmtHora24(fechaHora),
-    patient,
-    doctor,
-    service,
-    office: consultorioRaw?.Nombre || consultorioRaw?.nombre || '—',
-    status: info.label,
-    statusClass: info.cls,
-    highlight: dateISO === hoy && info.label === 'En consulta',
-    noShow: info.label === 'No asistió',
-    notes: get('Notas') || '',
-    // Helper para filtros predefinidos ('today' / 'tomorrow')
-    _dateMatchPreset: { today: dateISO === hoy, tomorrow: dateISO === manana },
-    _raw: srv,
-    _durationMinutes: get('DuracionMinutos') || null
-=======
     id: getProperty('IdCita'),
     patientId: getProperty('IdPaciente'),
     professionalId: getProperty('IdProfesional'),
@@ -272,7 +248,6 @@ const mapServerAppointmentToClient = (serverAppointment) => {
     _dateMatchPreset: { today: dateIsoString === todayIso, tomorrow: dateIsoString === tomorrowIso },
     _raw: serverAppointment,
     _durationMinutes: getProperty('DuracionMinutos') || null
->>>>>>> Stashed changes
   };
 };
 
@@ -1008,100 +983,6 @@ const handleTableAction = async (event) => {
   if (action === 'invoice') return generateInvoiceFromAppointment(id);
 };
 
-<<<<<<< Updated upstream
-const handleTableAction = async (e) => {
-  const btn = e.target.closest('[data-action]');
-  if (!btn) return;
-  e.preventDefault();
-  e.stopPropagation();
-  const { action, id } = btn.dataset;
-
-  if (action === 'view')   return openViewModal(id);
-  if (action === 'edit')   return openEditModal(id, btn.dataset);
-  if (action === 'cancel') return openCancelModal(id, btn.dataset);
-  if (action === 'invoice') return createInvoiceFromAppointment(id);
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  MODAL VER DETALLE
-// ═══════════════════════════════════════════════════════════════════
-
-const openViewModal = (id) => {
-  const a = appointmentStorage.findById(id);
-  if (!a) return;
-  const content = safeGetElement('modalViewContent');
-  if (content) {
-    content.innerHTML = `
-      <div class="modal-row"><span class="modal-key">Paciente</span>     <span class="modal-val">${escapeHtml(a.patient)}</span></div>
-      <div class="modal-row"><span class="modal-key">Fecha</span>        <span class="modal-val"><time datetime="${escapeHtml(a.dateISO)}">${escapeHtml(a.date)}</time></span></div>
-      <div class="modal-row"><span class="modal-key">Hora</span>         <span class="modal-val">${escapeHtml(a.time)}</span></div>
-      <div class="modal-row"><span class="modal-key">Profesional</span>  <span class="modal-val">${escapeHtml(a.doctor)}</span></div>
-      <div class="modal-row"><span class="modal-key">Servicio</span>     <span class="modal-val">${escapeHtml(a.service)}</span></div>
-      <div class="modal-row"><span class="modal-key">Consultorio</span>  <span class="modal-val">${escapeHtml(a.office)}</span></div>
-      <div class="modal-row"><span class="modal-key">Estado</span>       <span class="modal-val"><span class="status-badge ${a.statusClass}">${escapeHtml(a.status)}</span></span></div>
-      ${a.notes ? `<div class="modal-row"><span class="modal-key">Notas</span><span class="modal-val">${escapeHtml(a.notes)}</span></div>` : ''}
-    `;
-  }
-  const editBtn = safeGetElement('modalViewEdit');
-  if (editBtn) {
-    const fresh = editBtn.cloneNode(true);
-    editBtn.replaceWith(fresh);
-    fresh.addEventListener('click', () => { modalManager.close('modalViewAppointment'); openEditModal(id); });
-  }
-  modalManager.open('modalViewAppointment');
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  MODAL EDITAR CITA (con PUT API)
-// ═══════════════════════════════════════════════════════════════════
-
-const openEditModal = (id, dataset) => {
-  const a = appointmentStorage.findById(id);
-
-  const pacienteVal = dataset?.pacienteId || a?.patientId || a?.patient || '';
-  const profesionalVal = dataset?.profesionalId || a?.professionalId || a?.doctor || '';
-  const servicioVal = dataset?.servicioId || a?.serviceId || a?.service || '';
-  const consultorioVal = dataset?.consultorioId || a?.officeId || a?.office || '';
-  const estadoVal = dataset?.estadoId || a?.status || '';
-  const fechaVal = dataset?.fecha || a?.dateISO || '';
-  const horaVal = dataset?.hora || a?.timeISO || '';
-  const notasVal = dataset?.notas ?? a?.notes ?? dataset?.motivo ?? '';
-
-  const idEl = safeGetElement('editAppointmentId');
-  if (idEl) idEl.value = id;
-
-  const selects = {
-    editPatient: pacienteVal,
-    editDoctor: profesionalVal,
-    editService: servicioVal,
-    editOffice: consultorioVal,
-    editStatus: estadoVal
-  };
-  Object.entries(selects).forEach(([k, v]) => {
-    const el = safeGetElement(k);
-    if (el && v !== undefined && v !== null && v !== '') {
-      el.value = String(v);
-    }
-  });
-
-  const dateEl = safeGetElement('editDate');
-  if (dateEl && fechaVal) dateEl.value = fechaVal;
-  const timeEl = safeGetElement('editTime');
-  if (timeEl && horaVal) timeEl.value = horaVal;
-  const notesEl = safeGetElement('editNotes');
-  if (notesEl) notesEl.value = notasVal;
-
-  document.querySelectorAll('#modalEditAppointment .error').forEach(x => x.classList.remove('error'));
-  document.querySelectorAll('#modalEditAppointment .error-message.visible').forEach(x => x.classList.remove('visible'));
-  modalManager.open('modalEditAppointment');
-};
-
-const submitEditAppointment = (e) => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  if (!validateForm(form)) {
-    window.ToastService.error('Por favor completa los campos requeridos.');
-=======
 /**
  * Maneja el submit de edición de cita.
  * @param {Event} event
@@ -1111,7 +992,6 @@ const submitEditAppointment = (event) => {
   const formElement = event.currentTarget;
   if (!validateForm(formElement)) {
     showToastNotification('Por favor completa los campos requeridos.', 'error');
->>>>>>> Stashed changes
     return;
   }
   const submitButton = formElement.querySelector('[type="submit"]');
@@ -1147,19 +1027,26 @@ const submitNewAppointment = (event) => {
 const updateAvailableProfessionalsOptions = debounce(async () => {
   const dateInput = getElementByIdSafe('newDate');
   const timeInput = getElementByIdSafe('newTime');
+  const serviceSelect = getElementByIdSafe('newService');
   const doctorSelect = getElementByIdSafe('newDoctor');
-  if (!dateInput || !timeInput || !doctorSelect) return;
+  if (!dateInput || !timeInput || !serviceSelect || !doctorSelect) return;
 
   const dateValue = dateInput.value;
   const timeValue = timeInput.value;
-  if (!dateValue || !timeValue) return;
+  const serviceId = serviceSelect.value;
+  if (!dateValue || !timeValue || !serviceId) {
+    doctorSelect.innerHTML = '<option value="">Selecciona un servicio, fecha y hora</option>';
+    const alertElement = getElementByIdSafe('availabilityAlert');
+    if (alertElement) alertElement.style.display = 'none';
+    return;
+  }
 
   if (!originalDoctorSelectOptions) {
     originalDoctorSelectOptions = doctorSelect.innerHTML;
   }
 
   try {
-    const urlParams = new URLSearchParams({ fecha: dateValue, horaInicio: timeValue });
+    const urlParams = new URLSearchParams({ fecha: dateValue, horaInicio: timeValue, idServicio: serviceId });
     const response = await fetch(`${API_BASE_URL}/citas/profesionales-disponibles?${urlParams}`, {
       headers: { 'Accept': 'application/json' }
     });
@@ -1291,6 +1178,10 @@ const init = async () => {
     getElementByIdSafe('searchPatient')?.addEventListener('input', debounce(refreshFromApi, 250));
     ['filterProfessional', 'filterDate', 'filterStatus'].forEach(elementId =>
       getElementByIdSafe(elementId)?.addEventListener('change', refreshFromApi)
+    );
+
+    ['newDate', 'newTime', 'newService'].forEach(elementId =>
+      getElementByIdSafe(elementId)?.addEventListener('change', updateAvailableProfessionalsOptions)
     );
 
     document.querySelector('.filter-bar')?.addEventListener('submit', (event) => {

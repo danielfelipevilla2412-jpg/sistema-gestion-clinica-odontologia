@@ -177,6 +177,87 @@ const submitAppointmentData = async (formData, formElement) => {
     }
 };
 
+const checkAgendaAvailability = async () => {
+    const date = safeGetElement('availabilityDate')?.value;
+    const time = safeGetElement('availabilityTime')?.value;
+    const serviceId = safeGetElement('availabilityService')?.value;
+    const results = safeGetElement('agendaAvailabilityResults');
+    if (!results) return;
+    if (!date || !time || !serviceId) {
+        results.textContent = 'Selecciona fecha, hora y servicio para consultar profesionales.';
+        return;
+    }
+
+    results.textContent = 'Consultando disponibilidad...';
+    const query = new URLSearchParams({ fecha: date, horaInicio: time, idServicio: serviceId });
+    try {
+        const response = await fetch(`${API_BASE_URL}/citas/profesionales-disponibles?${query}`, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' }
+        });
+        if (!response.ok) throw new Error('No fue posible consultar la disponibilidad.');
+        const payload = await response.json();
+        const professionals = payload.data ?? [];
+        results.replaceChildren();
+
+        if (professionals.length === 0) {
+            results.textContent = 'No hay profesionales calificados disponibles en ese horario.';
+            return;
+        }
+
+        const summary = document.createElement('p');
+        summary.textContent = `${professionals.length} profesional(es) disponible(s)`;
+        results.appendChild(summary);
+        const list = document.createElement('div');
+        list.className = 'availability-professional-list';
+        professionals.forEach(professional => {
+            const row = document.createElement('div');
+            row.className = 'availability-professional';
+            const name = document.createElement('strong');
+            name.textContent = professional.nombreCompleto ?? professional.NombreCompleto ?? 'Profesional';
+            const specialties = document.createElement('span');
+            specialties.textContent = professional.especialidades ?? professional.Especialidades ?? '';
+            const assign = document.createElement('button');
+            assign.type = 'button';
+            assign.className = 'btn-secondary';
+            assign.textContent = 'Asignar cita';
+            assign.dataset.assignProfessional = String(professional.idProfesional ?? professional.IdProfesional ?? '');
+            row.append(name, specialties, assign);
+            list.appendChild(row);
+        });
+        results.appendChild(list);
+    } catch (error) {
+        results.textContent = error.message || 'No fue posible consultar la disponibilidad.';
+    }
+};
+
+const initializeAgendaAvailability = () => {
+    const button = safeGetElement('checkAvailabilityButton');
+    const results = safeGetElement('agendaAvailabilityResults');
+    if (!button || !results || button.dataset.initialized === 'true') return;
+    button.dataset.initialized = 'true';
+
+    const refresh = () => checkAgendaAvailability();
+    button.addEventListener('click', refresh);
+    ['availabilityDate', 'availabilityTime', 'availabilityService'].forEach(id =>
+        safeGetElement(id)?.addEventListener('change', refresh));
+
+    results.addEventListener('click', event => {
+        const assignButton = event.target.closest('[data-assign-professional]');
+        if (!assignButton) return;
+        const date = safeGetElement('availabilityDate')?.value;
+        const time = safeGetElement('availabilityTime')?.value;
+        const serviceId = safeGetElement('availabilityService')?.value;
+        const form = safeGetElement('formNewAppointment');
+        if (!form) return;
+        form.querySelector('#newApptDate').value = date;
+        form.querySelector('#newApptStartTime').value = time;
+        form.querySelector('#newApptProfessional').value = assignButton.dataset.assignProfessional;
+        form.querySelector('#newApptService').value = serviceId;
+        document.dispatchEvent(new CustomEvent('smiletrack:new-appointment', { detail: { date } }));
+    });
+};
+
 // ════════════════════════════════════════════════════════════════════
 // 5. RENDERIZADO Y DOM
 // ════════════════════════════════════════════════════════════════════
@@ -886,6 +967,7 @@ const initializeAgendaGeneralModule = async () => {
         initializeNativeAnimations();
         initializeNewAppointmentModal();
         initializeAppointmentDetailModal();
+        initializeAgendaAvailability();
 
         setTimeout(() => {
             if (window.ToastService) window.ToastService.success('✅ Panel administrativo cargado');
