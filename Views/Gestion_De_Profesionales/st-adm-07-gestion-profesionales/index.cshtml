@@ -32,6 +32,7 @@ NOTAS DE MANTENIMIENTO:
   // Extraer datos del ViewBag con fallback para evitar null reference en caso de error del Controller
   var especialidades = ViewData["Especialidades"] as List<SmileTrack_MVC.Models.Entities.Especialidad> ?? new();
   var profesionales  = ViewData["Profesionales"]  as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
+  var credenciales   = ViewData["CredencialesProfesionales"] as List<SmileTrack_MVC.Models.Entities.CredencialProfesional> ?? new();
   var pageResult     = ViewData["ProfesionalesPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Profesional>;
   // Stats globales: vienen del Controller como COUNT() sobre toda la BD (no de la página actual).
   // WHY: si hay 80 profesionales y se muestran 10 por página, los stats deben decir 80, no 10.
@@ -85,6 +86,51 @@ NOTAS DE MANTENIMIENTO:
         <span class="stat-number" id="profesionales-stat-inactivos" data-target="@statInactivos" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="gestionprofesionales_stat_inactivos">Inactivos</span>
       </div>
+    </section>
+
+    <section class="table-card" aria-labelledby="credentialsReviewTitle" style="margin:1.25rem 0;padding:1.25rem;">
+      <h2 id="credentialsReviewTitle">Verificación de credenciales</h2>
+      @if (!credenciales.Any())
+      {
+        <p>No hay documentos profesionales cargados para revisión.</p>
+      }
+      else
+      {
+        <div class="table-wrap">
+          <table class="table-base">
+            <thead>
+              <tr><th>PROFESIONAL</th><th>DOCUMENTO</th><th>ARCHIVO</th><th>ESTADO</th><th>REVISIÓN</th></tr>
+            </thead>
+            <tbody>
+              @foreach (var credencial in credenciales)
+              {
+                <tr>
+                  <td>@credencial.Profesional?.NombreProfesional</td>
+                  <td>@credencial.Tipo</td>
+                  <td><a href="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/archivo">@credencial.NombreOriginal</a></td>
+                  <td>@credencial.EstadoRevision</td>
+                  <td>
+                    @if (credencial.EstadoRevision == "pendiente")
+                    {
+                      <form method="post" action="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/revisar">
+                        @Html.AntiForgeryToken()
+                        <label class="visually-hidden" for="review-@credencial.IdCredencial">Observación de revisión</label>
+                        <input id="review-@credencial.IdCredencial" name="observacion" maxlength="500" placeholder="Observación (opcional)" />
+                        <button class="btn-primary" type="submit" name="decision" value="aprobado">Aprobar</button>
+                        <button class="btn-danger" type="submit" name="decision" value="rechazado">Rechazar</button>
+                      </form>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(credencial.ObservacionRevision))
+                    {
+                      @credencial.ObservacionRevision
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     </section>
 
     <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
@@ -335,7 +381,13 @@ NOTAS DE MANTENIMIENTO:
         </div>
         <div class="form-group">
           <label class="form-label" for="formCategoria" data-i18n="gestionprofesionales_form_categoria_label">Categoría</label>
-          <input type="text" id="formCategoria" name="Categoria" class="form-input" placeholder="Ej. Odontología General" value="" data-i18n-ph="gestionprofesionales_form_categoria_ph">
+          <select id="formCategoria" name="Categoria" class="form-input">
+            <option value="">Seleccionar categoría</option>
+            @foreach (var especialidad in especialidades)
+            {
+              <option value="@especialidad.Nombre">@especialidad.Nombre</option>
+            }
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label" for="formTelefono" data-i18n="gestionprofesionales_form_telefono_label">Teléfono</label>

@@ -61,6 +61,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // no existía ninguna tabla de documentos. Ahora cada archivo subido (radiografía,
     // PDF, consentimiento, etc.) se persiste como fila real consultable con SQL.
     public DbSet<DocumentoClinico> DocumentosClinicos => Set<DocumentoClinico>();
+      public DbSet<CredencialProfesional> CredencialesProfesionales => Set<CredencialProfesional>();
 
     // ── Disponibilidad y servicios de Profesional (P-01 / U-06) ──────────────
     // Estas cuatro tablas existían en el script SQL pero carecían de entidades,
@@ -188,6 +189,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.Categoria).HasColumnName("categoria");
             entity.Property(p => p.Telefono).HasColumnName("telefono");
             entity.Property(p => p.Estado).HasColumnName("estado");
+            entity.Property(p => p.CredencialesAprobadas).HasColumnName("credenciales_aprobadas").HasDefaultValue(true);
             entity.Property(p => p.FechaIngreso).HasColumnName("fecha_ingreso");
 
             entity.HasOne(p => p.Usuario)
@@ -786,6 +788,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(d => d.SubidoPor)
                   .OnDelete(DeleteBehavior.SetNull);
         });
+
+            modelBuilder.Entity<CredencialProfesional>(entity =>
+            {
+                  entity.ToTable("Credencial_Profesional");
+                  entity.HasKey(d => d.IdCredencial);
+                  entity.Property(d => d.IdCredencial).HasColumnName("id_credencial");
+                  entity.Property(d => d.IdProfesional).HasColumnName("id_profesional");
+                  entity.Property(d => d.SubidoPor).HasColumnName("subido_por");
+                  entity.Property(d => d.Tipo).HasColumnName("tipo").HasMaxLength(50);
+                  entity.Property(d => d.NombreOriginal).HasColumnName("nombre_original").HasMaxLength(255);
+                  entity.Property(d => d.RutaPrivada).HasColumnName("ruta_privada").HasMaxLength(500);
+                  entity.Property(d => d.ContentType).HasColumnName("content_type").HasMaxLength(100);
+                  entity.Property(d => d.TamanoBytes).HasColumnName("tamano_bytes");
+                  entity.Property(d => d.EstadoRevision).HasColumnName("estado_revision").HasMaxLength(15);
+                  entity.Property(d => d.ObservacionRevision).HasColumnName("observacion_revision").HasMaxLength(500);
+                  entity.Property(d => d.FechaSubida).HasColumnName("fecha_subida");
+                  entity.Property(d => d.RevisadoPor).HasColumnName("revisado_por");
+                  entity.Property(d => d.FechaRevision).HasColumnName("fecha_revision");
+                  entity.HasIndex(d => new { d.IdProfesional, d.EstadoRevision }).HasDatabaseName("IX_Credencial_Profesional_Revision");
+                  entity.HasOne(d => d.Profesional).WithMany().HasForeignKey(d => d.IdProfesional).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(d => d.UsuarioSubida).WithMany().HasForeignKey(d => d.SubidoPor).OnDelete(DeleteBehavior.SetNull);
+                  entity.HasOne(d => d.UsuarioRevision).WithMany().HasForeignKey(d => d.RevisadoPor).OnDelete(DeleteBehavior.SetNull);
+            });
 
         // Yeray (2025) - Configuración Fluent API para Alergia_Paciente.
         // Tabla nueva que convierte las alergias de texto libre en filas consultables.

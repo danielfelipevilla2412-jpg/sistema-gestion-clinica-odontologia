@@ -29,6 +29,9 @@ NOTAS DE MANTENIMIENTO:
     var initials = loggedProfesional != null && !string.IsNullOrEmpty(loggedProfesional.Nombres)
         ? $"{loggedProfesional.Nombres[0]}{(string.IsNullOrEmpty(loggedProfesional.Apellidos) ? "" : loggedProfesional.Apellidos[0])}"
         : "DR";
+    var professionalStatus = loggedProfesional?.Estado ?? "inactivo";
+    var professionalStatusClass = string.Equals(professionalStatus, "activo", StringComparison.OrdinalIgnoreCase) ? "active" : "inactive";
+    var credenciales = ViewData["CredencialesProfesional"] as List<SmileTrack_MVC.Models.Entities.CredencialProfesional> ?? new();
 }
 
 @section Styles {
@@ -73,6 +76,59 @@ NOTAS DE MANTENIMIENTO:
       </div>
     </section>
 
+    <section class="card" aria-labelledby="credentialsTitle" style="margin:1.25rem 0;padding:1.25rem;">
+      <h2 class="card-title" id="credentialsTitle">Credenciales profesionales</h2>
+      <p>Sube certificados médicos, títulos de especialidad o estudios en PDF o imagen. La activación requiere aprobación administrativa.</p>
+      @if (TempData["Mensaje"] is string successMessage)
+      {
+        <p role="status">@successMessage</p>
+      }
+      @if (TempData["ErrorValidacion"] is string errorMessage)
+      {
+        <p role="alert">@errorMessage</p>
+      }
+      <form method="post" action="/gestion-de-profesionales/credenciales/subir" enctype="multipart/form-data">
+        @Html.AntiForgeryToken()
+        <div class="form-group">
+          <label class="form-label" for="credentialType">Tipo de documento</label>
+          <select class="form-input" id="credentialType" name="tipo" required>
+            <option value="">Seleccionar tipo</option>
+            <option value="Certificado médico">Certificado médico</option>
+            <option value="Título de especialidad">Título de especialidad</option>
+            <option value="Estudios complementarios">Estudios complementarios</option>
+            <option value="Registro profesional">Registro profesional</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="credentialFile">Archivo (PDF, JPG o PNG, máximo 10 MB)</label>
+          <input class="form-input" type="file" id="credentialFile" name="archivo" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
+        </div>
+        <button class="btn-primary" type="submit">Cargar documento</button>
+      </form>
+
+      <h3>Documentos cargados</h3>
+      @if (credenciales.Count == 0)
+      {
+        <p>Aún no has cargado documentos.</p>
+      }
+      else
+      {
+        <ul>
+          @foreach (var credencial in credenciales)
+          {
+            <li>
+              <a href="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/archivo">@credencial.Tipo: @credencial.NombreOriginal</a>
+              <span> · @credencial.EstadoRevision · @credencial.FechaSubida.ToLocalTime().ToString("dd/MM/yyyy")</span>
+              @if (!string.IsNullOrWhiteSpace(credencial.ObservacionRevision))
+              {
+                <p>@credencial.ObservacionRevision</p>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
     <!-- Content Layout -->
     <div class="content-layout">
 
@@ -112,9 +168,9 @@ NOTAS DE MANTENIMIENTO:
               <div>
                 <label>Estado</label>
                 <div class="info-value">
-                  <span class="status-badge active" role="status" aria-label="Estado: @(loggedProfesional?.Estado ?? "Activo")">
+                  <span class="status-badge @professionalStatusClass" role="status" aria-label="Estado: @professionalStatus">
                     <span class="status-dot" aria-hidden="true"></span>
-                    @(loggedProfesional?.Estado ?? "Activo")
+                    @professionalStatus
                   </span>
                 </div>
               </div>

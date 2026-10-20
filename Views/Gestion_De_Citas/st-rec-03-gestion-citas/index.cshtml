@@ -37,9 +37,6 @@
   var statRecCanceladasHoy = (int)(ViewData["StatRecCanceladasHoy"] ?? 0);
 }
 
-﻿
-
-
 
   <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
@@ -56,6 +53,10 @@
         <p class="page-subtitle" data-i18n="citas.rec_subtitle">Programa, modifica y cancela citas de manera eficiente.</p>
       </div>
       <div class="header-actions">
+        <a class="btn-secondary" href="/gestion-de-citas/st-adm-08-agenda" aria-label="Consultar agenda y disponibilidad de profesionales">
+          <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+          <span>Agenda de profesionales</span>
+        </a>
         <button type="button" class="btn-secondary no-print print-button" onclick="window.print()" aria-label="Imprimir listado de citas" data-i18n-aria-label="form.print">
           <span class="material-symbols-outlined" aria-hidden="true">print</span>
           <span data-i18n="form.print">Imprimir</span>

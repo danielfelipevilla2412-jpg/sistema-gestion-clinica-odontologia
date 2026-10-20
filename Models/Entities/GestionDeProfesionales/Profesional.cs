@@ -45,6 +45,9 @@ namespace SmileTrack_MVC.Models.Entities
         [StringLength(15)]
         public string Estado { get; set; } = "activo";
 
+        [Column("credenciales_aprobadas")]
+        public bool CredencialesAprobadas { get; set; } = true;
+
         [Column("fecha_ingreso")]
         public DateTime? FechaIngreso { get; set; }
 

@@ -1123,3 +1123,72 @@ body.modal-open {
     from { background-position: 200% 0; }
     to { background-position: -200% 0; }
 }
+
+.agenda-availability {
+    margin: 1.25rem 0;
+    padding: 1.25rem;
+    border: 1px solid #d8e2e8;
+    border-left: 4px solid #168b83;
+    background: #f4f8f8;
+}
+
+.agenda-availability-heading,
+.agenda-availability-controls,
+.availability-professional {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.agenda-availability-heading {
+    justify-content: space-between;
+}
+
+.agenda-availability-heading h2,
+.agenda-availability-heading p,
+.availability-results p {
+    margin: 0;
+}
+
+.agenda-availability-heading h2 {
+    font-size: 1.1rem;
+}
+
+.agenda-availability-heading p,
+.availability-professional span {
+    color: #53636b;
+}
+
+.agenda-availability-controls {
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.agenda-availability-controls .filter-group {
+    min-width: 10rem;
+}
+
+.availability-results {
+    margin-top: 1rem;
+}
+
+.availability-professional-list {
+    display: grid;
+    gap: .5rem;
+    margin-top: .75rem;
+}
+
+.availability-professional {
+    justify-content: space-between;
+    padding: .65rem .75rem;
+    border: 1px solid #d8e2e8;
+    background: #fff;
+}
+
+@media (max-width: 600px) {
+    .agenda-availability-controls,
+    .availability-professional {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
