@@ -76,7 +76,6 @@ function displayUserErrorMessage(errorMessage) {
   errorBanner.style.display = 'block';
 }
 
-const safeGetElement = (elementId) => {
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
@@ -280,6 +279,53 @@ const handleNewAppointmentSubmit = async () => {
     notifyUser('error', 'Sin conexión', 'No fue posible conectar con el servidor. Verifica tu conexión y vuelve a intentarlo.');
   } finally {
     if (confirmButton) { confirmButton.disabled = false; confirmButton.textContent = 'Solicitar'; }
+  }
+};
+
+const handleWaitlistSubmit = async () => {
+  const startInput = safeGetElement('listaEsperaFechaInicio');
+  const endInput = safeGetElement('listaEsperaFechaFin');
+  const serviceSelect = safeGetElement('citaServicio');
+  const noteTextarea = safeGetElement('citaNota');
+  const submitButton = safeGetElement('btnListaEspera');
+  const today = new Date().toISOString().split('T')[0];
+
+  if (!startInput?.value || !endInput?.value || startInput.value < today || endInput.value < startInput.value) {
+    notifyUser('warning', 'Rango inválido', 'Selecciona un rango de fechas futuro válido.');
+    return;
+  }
+
+  if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'Enviando…'; }
+
+  try {
+    const response = await fetch('/api/citas/lista-espera', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: buildAuthHeaders(),
+      body: JSON.stringify({
+        IdServicio: serviceSelect?.value ? Number(serviceSelect.value) : null,
+        FechaDeseadaInicio: `${startInput.value}T08:00:00`,
+        FechaDeseadaFin: `${endInput.value}T18:00:00`,
+        Notas: noteTextarea?.value?.trim() || null
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || payload.success === false) {
+      notifyUser('error', 'No se pudo registrar', payload.message || 'Inténtalo de nuevo.');
+      return;
+    }
+
+    const modal = safeGetElement('modalNuevaCita');
+    modal?.classList.remove('open');
+    modal?.setAttribute('aria-hidden', 'true');
+    modal?.setAttribute('inert', '');
+    notifyUser('success', 'Lista de espera', 'Quedaste registrado para el rango seleccionado.');
+  } catch (error) {
+    console.warn('[SmileTrack] Error al registrar lista de espera:', error);
+    notifyUser('error', 'Sin conexión', 'No fue posible conectar con el servidor.');
+  } finally {
+    if (submitButton) { submitButton.disabled = false; submitButton.textContent = 'Unirme a lista de espera'; }
   }
 };
 
@@ -533,6 +579,10 @@ const setupNewAppointmentModal = () => {
   if (dateInput) {
     dateInput.min = new Date().toISOString().split('T')[0];
   }
+  const waitlistStartInput = safeGetElement('listaEsperaFechaInicio');
+  const waitlistEndInput = safeGetElement('listaEsperaFechaFin');
+  if (waitlistStartInput) waitlistStartInput.min = new Date().toISOString().split('T')[0];
+  if (waitlistEndInput) waitlistEndInput.min = new Date().toISOString().split('T')[0];
 
   const closeModalHandler = () => {
     newAppointmentModal.classList.remove('open');
@@ -564,7 +614,15 @@ const setupNewAppointmentModal = () => {
     }
   });
 
+  waitlistStartInput?.addEventListener('change', () => {
+    if (waitlistEndInput) {
+      waitlistEndInput.min = waitlistStartInput.value || new Date().toISOString().split('T')[0];
+      if (waitlistEndInput.value < waitlistEndInput.min) waitlistEndInput.value = waitlistEndInput.min;
+    }
+  });
+
   safeGetElement('confirmarNuevaCita')?.addEventListener('click', handleNewAppointmentSubmit);
+  safeGetElement('btnListaEspera')?.addEventListener('click', handleWaitlistSubmit);
 };
 
 // ═══════════════════════════════════════════════════════════════════

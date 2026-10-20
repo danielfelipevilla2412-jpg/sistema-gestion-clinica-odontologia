@@ -137,10 +137,22 @@ public class MobileSolicitudCitasController : ControllerBase
             FechaHora = solicitud.FechaHora,
             IdEstado = estadoAgendada.IdEstado,
             Estado = estadoAgendada.NombreEstado,
-            Notas = solicitud.Notas?.Trim()
+            Notas = solicitud.Notas?.Trim(),
+            CreadoPor = idUsuario
         };
 
         _context.Citas.Add(cita);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _context.CitasHistorialEstado.Add(new CitaHistorialEstado
+        {
+            IdCita = cita.IdCita,
+            IdEstado = cita.IdEstado,
+            EstadoTexto = cita.Estado,
+            IdUsuario = idUsuario,
+            Motivo = "Solicitud de cita creada desde la aplicación móvil.",
+            FechaCambio = DateTime.UtcNow
+        });
         await _context.SaveChangesAsync(cancellationToken);
 
         return Ok(new

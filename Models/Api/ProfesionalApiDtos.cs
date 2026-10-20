@@ -112,6 +112,13 @@ public sealed class ServicioProfesionalApiDto
     public bool Activo { get; set; }
 }
 
+public sealed class ServicioProfesionalAsignacionApiRequest
+{
+    public int IdServicio { get; set; }
+    public decimal? PrecioPersonalizado { get; set; }
+    public bool Activo { get; set; } = true;
+}
+
 public sealed class ProfesionalApiCollectionResult<T>
 {
     public bool Success { get; private set; }

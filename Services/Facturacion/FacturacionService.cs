@@ -255,7 +255,8 @@ public sealed class FacturacionService : IFacturacionService
             Titulo = titulo,
             Contenido = contenido,
             Canal = "interno",
-            Estado = "pendiente",
+            Estado = "enviada",
+            FechaEnvio = DateTime.UtcNow,
             CreadaEn = DateTime.Now
         });
     }

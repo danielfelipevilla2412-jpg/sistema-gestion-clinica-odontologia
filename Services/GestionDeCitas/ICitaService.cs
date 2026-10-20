@@ -21,6 +21,7 @@
  */
 
 using SmileTrack_MVC.Models.DTOs;
+using SmileTrack_MVC.Models.DTOs.GestionDeCitas;
 using SmileTrack_MVC.Models.Entities;
 
 namespace SmileTrack_MVC.Services;
@@ -53,12 +54,14 @@ public interface ICitaService
 
     Task<Cita> CrearAsync(
         CitaApiRequest request,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? idUsuarioActor = null);
 
     Task<Cita?> ActualizarAsync(
         int id,
         CitaApiUpdateDto request,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? idUsuarioActor = null);
 
     Task<Cita?> CambiarEstadoAsync(
         int id,
@@ -74,13 +77,15 @@ public interface ICitaService
     Task<bool> CancelarAsync(
         int id,
         TimeSpan? anticipacionMinima = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? idUsuarioActor = null);
 
     Task<bool> CancelarAsync(
         int id,
         string? motivo,
         TimeSpan? anticipacionMinima = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? idUsuarioActor = null);
 
     /// <summary>
     /// Registra una nueva solicitud de cita enviada directamente por un paciente.
@@ -90,7 +95,8 @@ public interface ICitaService
     Task<Cita> SolicitarCitaPacienteAsync(
         int idPaciente,
         CitaSolicitudPacienteDto dto,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? idUsuarioActor = null);
 
     /// <summary>
     /// Devuelve las solicitudes pendientes de confirmación por parte de la recepción.
@@ -117,7 +123,8 @@ public interface ICitaService
     Task<Cita?> ConfirmarYAsignarCitaAsync(
         int idCita,
         CitaConfirmacionAsignacionDto dto,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? idUsuarioActor = null);
 
     /// <summary>
     /// Envía recordatorios de cita por correo electrónico a los pacientes seleccionados.
@@ -194,5 +201,10 @@ public interface ICitaService
         DateTime fechaHoraLiberada,
         int? idServicio,
         int? idProfesional,
+        CancellationToken ct = default);
+
+    Task<ListaEsperaCita> RegistrarListaEsperaAsync(
+        int idPaciente,
+        RegistrarListaEsperaDto request,
         CancellationToken ct = default);
 }

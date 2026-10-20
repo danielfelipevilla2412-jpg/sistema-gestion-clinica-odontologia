@@ -1773,20 +1773,7 @@ GO
 IF OBJECT_ID(N'dbo.TR_Cita_Historial_Estado', N'TR') IS NOT NULL
     DROP TRIGGER dbo.TR_Cita_Historial_Estado;
 GO
-CREATE TRIGGER dbo.TR_Cita_Historial_Estado ON dbo.Cita
-AFTER INSERT, UPDATE
-AS
-BEGIN
-    SET NOCOUNT ON;
-    INSERT INTO dbo.Cita_Historial_Estado (id_cita, id_estado, estado_texto, id_usuario, motivo)
-    SELECT i.id_cita, i.id_estado, i.estado, NULL,
-           CASE WHEN d.id_cita IS NULL THEN 'Creación de la cita' ELSE 'Cambio registrado en la cita' END
-    FROM inserted i
-    LEFT JOIN deleted d ON d.id_cita = i.id_cita
-    WHERE d.id_cita IS NULL
-       OR ISNULL(i.estado, '') <> ISNULL(d.estado, '')
-       OR ISNULL(i.id_estado, 0) <> ISNULL(d.id_estado, 0);
-END
+PRINT 'TR_Cita_Historial_Estado eliminado: el historial se registra desde la aplicación con el usuario actor.';
 GO
 
 -- Mantiene compatibles las integraciones antiguas que todavía envían estado
@@ -1856,6 +1843,14 @@ BEGIN
 END
 GO
 
+UPDATE dbo.Notificacion
+SET estado = 'enviada',
+        fecha_envio = COALESCE(fecha_envio, creada_en)
+WHERE canal = 'interno'
+    AND estado = 'pendiente'
+    AND (fecha_programada IS NULL OR fecha_programada <= SYSUTCDATETIME());
+GO
+
 IF OBJECT_ID(N'dbo.Recordatorio_Cita', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Recordatorio_Cita (
@@ -1871,6 +1866,32 @@ BEGIN
         CONSTRAINT FK_Recordatorio_Cita FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita) ON DELETE CASCADE
     );
     CREATE INDEX IX_Recordatorio_Estado_Fecha ON dbo.Recordatorio_Cita(estado, programado_para);
+END
+GO
+
+IF OBJECT_ID(N'dbo.Lista_Espera_Cita', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Lista_Espera_Cita (
+        id_lista_espera INT IDENTITY(1,1) PRIMARY KEY,
+        id_paciente INT NOT NULL,
+        id_servicio INT NULL,
+        id_profesional_preferido INT NULL,
+        fecha_deseada_inicio DATETIME2 NOT NULL,
+        fecha_deseada_fin DATETIME2 NOT NULL,
+        estado VARCHAR(20) NOT NULL CONSTRAINT DF_ListaEspera_Estado DEFAULT ('pendiente'),
+        fecha_registro DATETIME2 NOT NULL CONSTRAINT DF_ListaEspera_Fecha DEFAULT (SYSUTCDATETIME()),
+        notas VARCHAR(500) NULL,
+        CONSTRAINT CK_ListaEspera_Rango CHECK (fecha_deseada_fin > fecha_deseada_inicio),
+        CONSTRAINT CK_ListaEspera_Estado CHECK (estado IN ('pendiente', 'notificado', 'agendado', 'cancelado')),
+        CONSTRAINT FK_ListaEspera_Paciente FOREIGN KEY (id_paciente) REFERENCES dbo.Paciente(id_paciente) ON DELETE CASCADE,
+        CONSTRAINT FK_ListaEspera_Servicio FOREIGN KEY (id_servicio) REFERENCES dbo.Servicio(id_servicio) ON DELETE SET NULL,
+        CONSTRAINT FK_ListaEspera_Profesional FOREIGN KEY (id_profesional_preferido) REFERENCES dbo.Profesional(id_profesional) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IX_ListaEspera_Estado_Rango
+        ON dbo.Lista_Espera_Cita(estado, fecha_deseada_inicio, fecha_deseada_fin);
+    CREATE INDEX IX_ListaEspera_Paciente_Estado
+        ON dbo.Lista_Espera_Cita(id_paciente, estado, fecha_registro DESC);
 END
 GO
 

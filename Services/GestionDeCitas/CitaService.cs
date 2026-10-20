@@ -26,6 +26,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
+using SmileTrack_MVC.Models.DTOs.GestionDeCitas;
 using SmileTrack_MVC.Models.Entities;
 
 namespace SmileTrack_MVC.Services;
@@ -497,7 +498,10 @@ public class CitaService : ICitaService
     // CREAR CITA (C-01, C-04)
     // =========================================================================
 
-    public async Task<Cita> CrearAsync(CitaApiRequest request, CancellationToken ct = default)
+    public async Task<Cita> CrearAsync(
+        CitaApiRequest request,
+        CancellationToken ct = default,
+        int? idUsuarioActor = null)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -582,7 +586,8 @@ public class CitaService : ICitaService
                 Notas = request.Notas?.Trim(),
                 MotivoConsulta = request.Notas?.Trim(),
                 DuracionMinutos = duracion,
-                FechaCreacion = DateTime.UtcNow
+                FechaCreacion = DateTime.UtcNow,
+                CreadoPor = idUsuarioActor
             };
 
             _context.Citas.Add(cita);
@@ -593,7 +598,7 @@ public class CitaService : ICitaService
                 idCita:       cita.IdCita,
                 idEstado:     cita.IdEstado,
                 estadoTexto:  cita.Estado,
-                idUsuario:    null,
+                idUsuario:    idUsuarioActor,
                 motivo:       "Cita creada",
                 ct:           ct);
 
@@ -614,7 +619,11 @@ public class CitaService : ICitaService
     // ACTUALIZAR CITA (C-01, C-04)
     // =========================================================================
 
-    public async Task<Cita?> ActualizarAsync(int id, CitaApiUpdateDto request, CancellationToken ct = default)
+    public async Task<Cita?> ActualizarAsync(
+        int id,
+        CitaApiUpdateDto request,
+        CancellationToken ct = default,
+        int? idUsuarioActor = null)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -632,6 +641,9 @@ public class CitaService : ICitaService
         var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == id, ct);
         if (cita is null)
             return null;
+
+        string estadoAnteriorTexto = cita.Estado;
+        DateTime fechaHoraAnterior = cita.FechaHora;
 
         EstadoCita? estadoSolicitado = null;
         if (request.IdEstado is > 0)
@@ -724,6 +736,23 @@ public class CitaService : ICitaService
             cita.Notas = request.Notas?.Trim();
             cita.MotivoConsulta = request.Notas?.Trim();
             await _context.SaveChangesAsync(ct);
+
+            bool cambioEstado = NormalizarEstado(estadoAnteriorTexto) != NormalizarEstado(cita.Estado);
+            bool cambioHorario = fechaHoraAnterior != cita.FechaHora;
+            if (cambioEstado || cambioHorario)
+            {
+                string motivo = cambioEstado
+                    ? $"Estado cambiado de '{estadoAnteriorTexto}' a '{cita.Estado}'"
+                    : $"Cita reagendada de '{fechaHoraAnterior:dd/MM/yyyy HH:mm}' a '{cita.FechaHora:dd/MM/yyyy HH:mm}'";
+                await RegistrarHistorialEstadoAsync(
+                    cita.IdCita,
+                    cita.IdEstado,
+                    cita.Estado,
+                    idUsuarioActor,
+                    motivo,
+                    ct);
+            }
+
             return cita;
         }, ct);
     }
@@ -819,16 +848,18 @@ public class CitaService : ICitaService
     public async Task<bool> CancelarAsync(
         int id,
         TimeSpan? anticipacionMinima = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? idUsuarioActor = null)
     {
-        return await CancelarAsync(id, motivo: "Cancelación de cita", anticipacionMinima: anticipacionMinima, ct: ct);
+        return await CancelarAsync(id, motivo: "Cancelación de cita", anticipacionMinima: anticipacionMinima, ct: ct, idUsuarioActor: idUsuarioActor);
     }
 
     public async Task<bool> CancelarAsync(
         int id,
         string? motivo,
         TimeSpan? anticipacionMinima = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? idUsuarioActor = null)
     {
         var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == id, ct);
         if (cita is null)
@@ -878,7 +909,7 @@ public class CitaService : ICitaService
             idCita:      cita.IdCita,
             idEstado:    cita.IdEstado,
             estadoTexto: cita.Estado,
-            idUsuario:   null,
+            idUsuario:   idUsuarioActor,
             motivo:      motivoHistorial,
             ct:          ct);
 
@@ -913,7 +944,8 @@ public class CitaService : ICitaService
     public async Task<Cita> SolicitarCitaPacienteAsync(
         int idPaciente,
         CitaSolicitudPacienteDto dto,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? idUsuarioActor = null)
     {
         if (dto is null)
             throw new ArgumentNullException(nameof(dto));
@@ -966,11 +998,19 @@ public class CitaService : ICitaService
             IdConsultorio = null,
             IdEstado = estadoSolicitada?.IdEstado,
             Estado = estadoSolicitada?.NombreEstado ?? "Solicitada",
-            Notas = dto.Notas?.Trim()
+            Notas = dto.Notas?.Trim(),
+            CreadoPor = idUsuarioActor
         };
 
         _context.Citas.Add(cita);
         await _context.SaveChangesAsync(ct);
+        await RegistrarHistorialEstadoAsync(
+            cita.IdCita,
+            cita.IdEstado,
+            cita.Estado,
+            idUsuarioActor,
+            "Solicitud de cita creada por el paciente.",
+            ct);
         return cita;
     }
 
@@ -1088,7 +1128,8 @@ public class CitaService : ICitaService
     public async Task<Cita?> ConfirmarYAsignarCitaAsync(
         int idCita,
         CitaConfirmacionAsignacionDto dto,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? idUsuarioActor = null)
     {
         if (dto is null)
             throw new ArgumentNullException(nameof(dto));
@@ -1150,6 +1191,13 @@ public class CitaService : ICitaService
             cita.Notas = dto.Notas.Trim();
 
         await _context.SaveChangesAsync(ct);
+        await RegistrarHistorialEstadoAsync(
+            cita.IdCita,
+            cita.IdEstado,
+            cita.Estado,
+            idUsuarioActor,
+            "Cita confirmada y asignada por recepción.",
+            ct);
 
         // Notificar al paciente por correo si hay servicio de email configurado
         if (_emailService is not null && cita.Paciente is not null && !string.IsNullOrWhiteSpace(cita.Paciente.Correo))
@@ -1208,11 +1256,34 @@ public class CitaService : ICitaService
 
         int enviados = 0;
         int fallidos = 0;
+        var recordatorios = new List<RecordatorioCita>();
 
         foreach (var cita in citas)
         {
+            var recordatorio = new RecordatorioCita
+            {
+                IdCita = cita.IdCita,
+                Canal = "email",
+                Estado = "pendiente",
+                ProgramadoPara = DateTime.UtcNow,
+                CreadoEn = DateTime.UtcNow
+            };
+            _context.RecordatoriosCita.Add(recordatorio);
+            await _context.SaveChangesAsync(ct);
+            recordatorios.Add(recordatorio);
+
             if (cita.Paciente is null || string.IsNullOrWhiteSpace(cita.Paciente.Correo))
             {
+                recordatorio.Estado = "fallido";
+                recordatorio.UltimoError = "El paciente no tiene un correo registrado.";
+                fallidos++;
+                continue;
+            }
+
+            if (_emailService is null)
+            {
+                recordatorio.Estado = "fallido";
+                recordatorio.UltimoError = "El servicio de correo no está configurado.";
                 fallidos++;
                 continue;
             }
@@ -1220,23 +1291,22 @@ public class CitaService : ICitaService
             string profNombre = cita.Profesional?.Usuario != null
                 ? $"{cita.Profesional.Usuario.Nombre} {cita.Profesional.Usuario.Apellidos}".Trim()
                 : $"{cita.Profesional?.Nombres} {cita.Profesional?.Apellidos}".Trim();
-
             string pacienteNombre = $"{cita.Paciente.Nombres} {cita.Paciente.Apellidos}".Trim();
 
             try
             {
-                if (_emailService is not null)
-                {
-                    await _emailService.SendCitaNotificacionAsync(
-                        cita.Paciente.Correo,
-                        pacienteNombre,
-                        cita.FechaHora,
-                        string.IsNullOrWhiteSpace(profNombre) ? "Tu profesional" : profNombre,
-                        cita.Servicio?.Nombre ?? "Consulta Odontológica",
-                        "recordatorio",
-                        ct);
-                }
+                recordatorio.Intentos++;
+                await _emailService.SendCitaNotificacionAsync(
+                    cita.Paciente.Correo,
+                    pacienteNombre,
+                    cita.FechaHora,
+                    string.IsNullOrWhiteSpace(profNombre) ? "Tu profesional" : profNombre,
+                    cita.Servicio?.Nombre ?? "Consulta Odontológica",
+                    "recordatorio",
+                    ct);
 
+                recordatorio.Estado = "enviado";
+                recordatorio.EnviadoEn = DateTime.UtcNow;
                 _context.Auditorias.Add(new Auditoria
                 {
                     Accion = "EMAIL_RECORDATORIO",
@@ -1246,17 +1316,18 @@ public class CitaService : ICitaService
                     IpOrigen = "ServicioRecordatorios",
                     Fecha = DateTime.Now
                 });
-
                 enviados++;
             }
             catch (Exception ex)
             {
+                recordatorio.Estado = "fallido";
+                recordatorio.UltimoError = ex.Message.Length <= 500 ? ex.Message : ex.Message[..500];
                 _logger.LogWarning(ex, "Error enviando recordatorio por correo para Cita {IdCita}", cita.IdCita);
                 fallidos++;
             }
         }
 
-        if (enviados > 0)
+        if (recordatorios.Count > 0)
         {
             try
             {
@@ -1264,7 +1335,7 @@ public class CitaService : ICitaService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "No se pudo registrar auditoría de recordatorios enviados.");
+                _logger.LogWarning(ex, "No se pudo registrar el resultado de los recordatorios enviados.");
             }
         }
 
@@ -1527,8 +1598,9 @@ public class CitaService : ICitaService
                 Titulo          = titulo,
                 Contenido       = contenido,
                 Canal           = "interno",
-                Estado          = "pendiente",
+                Estado          = "enviada",
                 FechaProgramada = DateTime.UtcNow,
+                FechaEnvio      = DateTime.UtcNow,
                 CreadaEn        = DateTime.UtcNow
             });
             await _context.SaveChangesAsync(ct);
@@ -1547,6 +1619,44 @@ public class CitaService : ICitaService
     // =========================================================================
 
     /// <inheritdoc/>
+    public async Task<ListaEsperaCita> RegistrarListaEsperaAsync(
+        int idPaciente,
+        RegistrarListaEsperaDto request,
+        CancellationToken ct = default)
+    {
+        if (request.FechaDeseadaInicio <= DateTime.Now || request.FechaDeseadaFin <= request.FechaDeseadaInicio)
+            throw new InvalidOperationException("El rango de fechas de la lista de espera no es válido.");
+
+        bool pacienteActivo = await _context.Pacientes.AsNoTracking()
+            .AnyAsync(p => p.IdPaciente == idPaciente && p.Estado == "activo", ct);
+        if (!pacienteActivo)
+            throw new InvalidOperationException("El paciente seleccionado no está activo.");
+
+        if (request.IdServicio.HasValue && !await _context.Servicios.AsNoTracking()
+                .AnyAsync(s => s.IdServicio == request.IdServicio.Value && s.Estado == "activo", ct))
+            throw new InvalidOperationException("El servicio seleccionado no está disponible.");
+
+        if (request.IdProfesionalPreferido.HasValue && !await _context.Profesionales.AsNoTracking()
+                .AnyAsync(p => p.IdProfesional == request.IdProfesionalPreferido.Value && p.Estado == "activo", ct))
+            throw new InvalidOperationException("El profesional seleccionado no está disponible.");
+
+        var entrada = new ListaEsperaCita
+        {
+            IdPaciente = idPaciente,
+            IdServicio = request.IdServicio,
+            IdProfesionalPreferido = request.IdProfesionalPreferido,
+            FechaDeseadaInicio = request.FechaDeseadaInicio,
+            FechaDeseadaFin = request.FechaDeseadaFin,
+            Estado = "pendiente",
+            FechaRegistro = DateTime.UtcNow,
+            Notas = request.Notas?.Trim()
+        };
+
+        _context.ListaEsperaCitas.Add(entrada);
+        await _context.SaveChangesAsync(ct);
+        return entrada;
+    }
+
     public async Task<List<SugerenciaListaEsperaDto>> ObtenerSugerenciasListaEsperaAsync(
         DateTime fechaHoraLiberada,
         int? idServicio,
@@ -1677,8 +1787,9 @@ public class CitaService : ICitaService
                     Titulo = "Franja horaria disponible",
                     Contenido = $"Se ha liberado un turno el {fechaHoraLiberada:dd/MM/yyyy} a las {fechaHoraLiberada:HH:mm}. ¡Ingresa ahora para agendar tu cita!",
                     Canal = "interno",
-                    Estado = "pendiente",
+                    Estado = "enviada",
                     FechaProgramada = DateTime.UtcNow,
+                    FechaEnvio = DateTime.UtcNow,
                     CreadaEn = DateTime.UtcNow
                 });
             }

@@ -390,6 +390,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   entity.HasOne(r => r.Cita).WithMany().HasForeignKey(r => r.IdCita).OnDelete(DeleteBehavior.Cascade);
             });
 
+            modelBuilder.Entity<ListaEsperaCita>(entity =>
+            {
+                  entity.ToTable("Lista_Espera_Cita");
+                  entity.HasKey(l => l.IdListaEspera);
+                  entity.Property(l => l.IdListaEspera).HasColumnName("id_lista_espera");
+                  entity.Property(l => l.IdPaciente).HasColumnName("id_paciente");
+                  entity.Property(l => l.IdServicio).HasColumnName("id_servicio");
+                  entity.Property(l => l.IdProfesionalPreferido).HasColumnName("id_profesional_preferido");
+                  entity.Property(l => l.FechaDeseadaInicio).HasColumnName("fecha_deseada_inicio");
+                  entity.Property(l => l.FechaDeseadaFin).HasColumnName("fecha_deseada_fin");
+                  entity.Property(l => l.Estado).HasColumnName("estado").HasMaxLength(20);
+                  entity.Property(l => l.FechaRegistro).HasColumnName("fecha_registro");
+                  entity.Property(l => l.Notas).HasColumnName("notas").HasMaxLength(500);
+                  entity.HasOne(l => l.Paciente).WithMany().HasForeignKey(l => l.IdPaciente).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(l => l.Servicio).WithMany().HasForeignKey(l => l.IdServicio).OnDelete(DeleteBehavior.SetNull);
+                  entity.HasOne(l => l.ProfesionalPreferido).WithMany().HasForeignKey(l => l.IdProfesionalPreferido).OnDelete(DeleteBehavior.SetNull);
+            });
+
             modelBuilder.Entity<ConsultorioHistorial>(entity =>
             {
                   entity.ToTable("Consultorio_Historial");

@@ -361,7 +361,7 @@ public class GestionCitasController(
                     Notas = dto.Notas?.Trim()
                 };
 
-                cita = await _citaService.ActualizarAsync(dto.IdCita.Value, updateDto, ct)
+                cita = await _citaService.ActualizarAsync(dto.IdCita.Value, updateDto, ct, ObtenerIdUsuarioActual())
                     ?? throw new InvalidOperationException("La cita no existe.");
             }
             else
@@ -377,7 +377,7 @@ public class GestionCitasController(
                     Notas = dto.Notas?.Trim()
                 };
 
-                cita = await _citaService.CrearAsync(request, ct);
+                cita = await _citaService.CrearAsync(request, ct, ObtenerIdUsuarioActual());
             }
 
             await RegistrarAuditoriaAsync(
@@ -763,7 +763,8 @@ public sealed class CambiarEstadoCitaDto
                 cita = await _citaService.ActualizarAsync(
                            model.IdCita.Value,
                            updateDto,
-                           ct)
+                           ct,
+                           ObtenerIdUsuarioActual())
                        ?? throw new InvalidOperationException(
                            "La cita que intenta actualizar no existe.");
 
@@ -789,7 +790,7 @@ public sealed class CambiarEstadoCitaDto
                     IdEstado = model.IdEstado > 0 ? model.IdEstado : null
                 };
 
-                cita = await _citaService.CrearAsync(request, ct);
+                cita = await _citaService.CrearAsync(request, ct, ObtenerIdUsuarioActual());
                 operacion = "Creacion";
             }
 
@@ -1003,6 +1004,7 @@ public sealed class CambiarEstadoCitaDto
             var cita = await _citaService.CambiarEstadoAsync(
                 IdCita,
                 estadoNormalizado,
+                ObtenerIdUsuarioActual(),
                 ct: ct);
 
             if (cita is null)
@@ -1144,7 +1146,7 @@ public sealed class CambiarEstadoCitaDto
             bool ok;
             try
             {
-                ok = await _citaService.CancelarAsync(IdCita, ct: ct);
+                ok = await _citaService.CancelarAsync(IdCita, ct: ct, idUsuarioActor: ObtenerIdUsuarioActual());
             }
             catch (InvalidOperationException ioex)
                 when (ioex.Message.Contains("cancelada",
@@ -2487,30 +2489,51 @@ public sealed class CambiarEstadoCitaDto
             .FirstOrDefaultAsync(ct);
         if (!idPaciente.HasValue) return Forbid();
 
-        // 1. Buscar en Notificacion por IdNotificacion
+        var ahora = DateTime.UtcNow;
+        int? idCita = null;
         var notif = await _context.Notificaciones
             .FirstOrDefaultAsync(n => n.IdNotificacion == id && n.IdPaciente == idPaciente.Value, ct);
-        if (notif != null)
-        {
-            notif.FechaLectura = DateTime.UtcNow;
-            notif.Estado = "leida";
-        }
 
-        // 2. Buscar/Insertar en NotificacionesLeidas por IdCita
-        var lectura = await _context.NotificacionesLeidas
-            .FirstOrDefaultAsync(n => n.IdPaciente == idPaciente.Value && n.IdCita == id, ct);
-        if (lectura is null)
+        if (notif is not null)
         {
-            _context.NotificacionesLeidas.Add(new NotificacionLeida
+            notif.FechaLectura = ahora;
+            notif.Estado = "leida";
+            if (notif.IdCita.HasValue)
             {
-                IdPaciente = idPaciente.Value,
-                IdCita = id,
-                FechaLectura = DateTime.UtcNow
-            });
+                idCita = await _context.Citas.AsNoTracking()
+                    .Where(c => c.IdCita == notif.IdCita.Value && c.IdPaciente == idPaciente.Value)
+                    .Select(c => (int?)c.IdCita)
+                    .FirstOrDefaultAsync(ct);
+            }
         }
         else
         {
-            lectura.FechaLectura = DateTime.UtcNow;
+            idCita = await _context.Citas.AsNoTracking()
+                .Where(c => c.IdCita == id && c.IdPaciente == idPaciente.Value)
+                .Select(c => (int?)c.IdCita)
+                .FirstOrDefaultAsync(ct);
+
+            if (!idCita.HasValue)
+                return NotFound(new { success = false, message = "No se encontró la notificación." });
+        }
+
+        if (idCita.HasValue)
+        {
+            var lectura = await _context.NotificacionesLeidas
+                .FirstOrDefaultAsync(n => n.IdPaciente == idPaciente.Value && n.IdCita == idCita.Value, ct);
+            if (lectura is null)
+            {
+                _context.NotificacionesLeidas.Add(new NotificacionLeida
+                {
+                    IdPaciente = idPaciente.Value,
+                    IdCita = idCita.Value,
+                    FechaLectura = ahora
+                });
+            }
+            else
+            {
+                lectura.FechaLectura = ahora;
+            }
         }
 
         await _context.SaveChangesAsync(ct);
@@ -2531,35 +2554,46 @@ public sealed class CambiarEstadoCitaDto
             .FirstOrDefaultAsync(ct);
         if (!idPaciente.HasValue) return Forbid();
 
-        // Marcar en tabla Notificacion
+        var requestedIds = ids?.Where(id => id > 0).Distinct().ToList();
         var dbNotifs = await _context.Notificaciones
-            .Where(n => n.IdPaciente == idPaciente.Value && (ids == null || ids.Contains(n.IdNotificacion)))
+            .Where(n => n.IdPaciente == idPaciente.Value &&
+                        (requestedIds == null || requestedIds.Contains(n.IdNotificacion)))
             .ToListAsync(ct);
-        foreach (var n in dbNotifs)
+        var notificationIds = dbNotifs.Select(n => n.IdNotificacion).ToHashSet();
+        var ahora = DateTime.UtcNow;
+        foreach (var notification in dbNotifs)
         {
-            n.FechaLectura = DateTime.UtcNow;
-            n.Estado = "leida";
+            notification.FechaLectura = ahora;
+            notification.Estado = "leida";
         }
 
-        // Marcar en tabla NotificacionesLeidas por IdCita
-        var permitidos = await _context.Citas.AsNoTracking()
-            .Where(c => c.IdPaciente == idPaciente.Value && (ids == null || ids.Contains(c.IdCita)))
-            .Select(c => c.IdCita)
+        var requestedAppointmentIds = requestedIds?
+            .Where(id => !notificationIds.Contains(id))
+            .ToList();
+        IQueryable<Cita> citasQuery = _context.Citas.AsNoTracking()
+            .Where(c => c.IdPaciente == idPaciente.Value);
+        if (requestedAppointmentIds is not null)
+            citasQuery = citasQuery.Where(c => requestedAppointmentIds.Contains(c.IdCita));
+
+        var citaIds = await citasQuery.Select(c => c.IdCita).ToListAsync(ct);
+        var existingReads = await _context.NotificacionesLeidas
+            .Where(read => read.IdPaciente == idPaciente.Value && citaIds.Contains(read.IdCita))
             .ToListAsync(ct);
-        var existentes = await _context.NotificacionesLeidas
-            .Where(n => n.IdPaciente == idPaciente.Value && permitidos.Contains(n.IdCita))
-            .ToListAsync(ct);
-        var existentesIds = existentes.Select(n => n.IdCita).ToHashSet();
-        foreach (var lectura in existentes) lectura.FechaLectura = DateTime.UtcNow;
-        _context.NotificacionesLeidas.AddRange(permitidos.Where(i => !existentesIds.Contains(i)).Select(i => new NotificacionLeida
-        {
-            IdPaciente = idPaciente.Value,
-            IdCita = i,
-            FechaLectura = DateTime.UtcNow
-        }));
+        var existingReadIds = existingReads.Select(read => read.IdCita).ToHashSet();
+        foreach (var read in existingReads)
+            read.FechaLectura = ahora;
+
+        _context.NotificacionesLeidas.AddRange(citaIds
+            .Where(idCita => !existingReadIds.Contains(idCita))
+            .Select(idCita => new NotificacionLeida
+            {
+                IdPaciente = idPaciente.Value,
+                IdCita = idCita,
+                FechaLectura = ahora
+            }));
 
         await _context.SaveChangesAsync(ct);
-        return Ok(new { success = true, count = dbNotifs.Count + permitidos.Count });
+        return Ok(new { success = true, count = dbNotifs.Count + citaIds.Count });
     }
 
     [HttpDelete]
@@ -4241,6 +4275,8 @@ private static bool EsEstadoCancelado(
 
         return edad;
     }
+
+    private int? ObtenerIdUsuarioActual() => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ? idUsuario : null;
 
     private static string? BuildNotasCita(
         CitaViewModel model)

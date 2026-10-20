@@ -185,6 +185,18 @@
           <label class="form-label" for="citaNota" data-i18n="citas.form_notes">Notas adicionales</label>
           <textarea class="form-input" id="citaNota" rows="3" placeholder="Describe tu motivo..." data-i18n-ph="citas.form_notes_ph"></textarea>
         </div>
+        <hr />
+        <h3>Lista de espera</h3>
+        <p>Si no tienes una fecha exacta, indica el rango en el que podrías asistir.</p>
+        <div class="form-group">
+          <label class="form-label" for="listaEsperaFechaInicio">Desde</label>
+          <input type="date" class="form-input" id="listaEsperaFechaInicio" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="listaEsperaFechaFin">Hasta</label>
+          <input type="date" class="form-input" id="listaEsperaFechaFin" />
+        </div>
+        <button class="btn-secondary" id="btnListaEspera" type="button">Unirme a lista de espera</button>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" id="cancelarNuevaCita" data-i18n="common.cancel">Cancelar</button>
