@@ -37,6 +37,7 @@
         antecedentesMedicos = Model.AntecedentesMedicos,
         motivoConsulta = Model.Formulario.MotivoConsulta,
         enfermedadActual = Model.Formulario.EnfermedadActual,
+        sintomasSignos = Model.Formulario.SintomasSignos,
         habitos = Model.Formulario.Habitos,
         hallazgos = Model.Formulario.Hallazgos,
         odontogramaObservaciones = Model.Formulario.OdontogramaObservaciones,
@@ -198,13 +199,17 @@
 
                     <div class="field-group checkbox-group">
                         <label>Síntomas y Signos Principales Referidos</label>
-                        <div class="checkbox-grid">
-                            <label class="check-option"><input type="checkbox" /> <span>Sensibilidad al frío</span></label>
-                            <label class="check-option"><input type="checkbox" /> <span>Dolor al masticar</span></label>
-                            <label class="check-option"><input type="checkbox" /> <span>Halitosis</span></label>
-                            <label class="check-option"><input type="checkbox" /> <span>Enrojecimiento de encía</span></label>
-                            <label class="check-option"><input type="checkbox" /> <span>Fiebre</span></label>
-                            <label class="check-option"><input type="checkbox" /> <span>Molestia al frío</span></label>
+                        <div class="checkbox-grid" id="sintomasSignosGrid">
+                            <label class="check-option"><input type="checkbox" value="Sensibilidad al frío" /> <span>Sensibilidad al frío</span></label>
+                            <label class="check-option"><input type="checkbox" value="Dolor al masticar" /> <span>Dolor al masticar</span></label>
+                            <label class="check-option"><input type="checkbox" value="Halitosis" /> <span>Halitosis</span></label>
+                            <label class="check-option"><input type="checkbox" value="Enrojecimiento de encía" /> <span>Enrojecimiento de encía</span></label>
+                            <label class="check-option"><input type="checkbox" value="Fiebre" /> <span>Fiebre</span></label>
+                            <label class="check-option"><input type="checkbox" value="Molestia al frío" /> <span>Molestia al frío</span></label>
+                        </div>
+                        <div class="symptom-add-row">
+                            <input type="text" id="nuevoSintomaSigno" placeholder="Escribe otro síntoma o signo" aria-label="Nuevo síntoma o signo" />
+                            <button type="button" class="mini-btn" id="btnAgregarSintomaSigno">Agregar opción</button>
                         </div>
                     </div>
                 </div>
@@ -288,10 +293,15 @@
                             <label for="diagnostico_principal">Diagnóstico Principal (CIE-10) <span class="required-mark">*</span></label>
                             <select id="diagnostico_principal">
                                 <option value="">Seleccione un diagnóstico</option>
-                                <option>K02.1 - Caries de la dentina</option>
-                                <option>K04.4 - Periodontitis apical</option>
-                                <option>K05.1 - Gingivitis marginal</option>
+                                <option value="K02.1 - Caries de la dentina">K02.1 - Caries de la dentina</option>
+                                <option value="K04.4 - Periodontitis apical">K04.4 - Periodontitis apical</option>
+                                <option value="K05.1 - Gingivitis marginal">K05.1 - Gingivitis marginal</option>
+                                <option value="__otro__">Otro</option>
                             </select>
+                        </div>
+                        <div class="field-group" id="diagnosticoOtroGroup" hidden>
+                            <label for="diagnostico_principal_otro">Especifique el diagnóstico</label>
+                            <input id="diagnostico_principal_otro" type="text" placeholder="Escribe el diagnóstico" />
                         </div>
                         <div class="field-group">
                             <label for="diagnostico_secundario">Diagnósticos Secundarios / Comorbilidades</label>
@@ -320,16 +330,20 @@
                             <p>Estudios imagenológicos, fotografías clínicas y validación legal</p>
                         </div>
                     </div>
-                    <button type="button" class="mini-btn">+ Adjuntar Nuevo Estudio</button>
+                    <div class="attachment-actions">
+                        <button type="button" class="mini-btn" id="btnAdjuntarEstudio">+ Agregar archivos</button>
+                        <button type="button" class="mini-btn" id="btnSubirEstudios" disabled>Subir seleccionados (0)</button>
+                    </div>
+                    <input type="file" id="inputArchivosEstudio" class="visually-hidden" accept=".jpg,.jpeg,.png,.pdf" multiple />
                 </div>
 
                 <div class="card-body file-area">
-                    <div class="file-grid empty-file-grid">
-                        <div class="upload-box full-span">
+                    <div class="file-grid empty-file-grid" id="fileGrid" aria-live="polite">
+                        <button type="button" class="upload-box full-span" id="uploadBox" tabindex="0" aria-label="Arrastra o selecciona estudios">
                             <div class="upload-ghost">⇪</div>
                             <strong>Arrastra o selecciona estudios</strong>
-                            <span>Radiografías, fotos intraorales o documentos anexos</span>
-                        </div>
+                            <span>Radiografías, fotos intraorales o documentos anexos · JPG, PNG o PDF · Máx. 10 MB</span>
+                        </button>
                     </div>
                 </div>
             </section>

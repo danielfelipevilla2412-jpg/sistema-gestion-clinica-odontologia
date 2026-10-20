@@ -185,7 +185,7 @@ public class HistoriaClinicaController(
     //        (tipo, fecha, nombreArchivo, subidoPor).
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
-    [Authorize(Roles = "Auxiliar")]
+    [Authorize(Roles = "Auxiliar,Profesional")]
     [Route("historia-clinica/st-aux-08-documentos-clinicos/data")]
     public async Task<IActionResult> Staux08DocumentosClinicosData([FromQuery] int? pacienteId)
     {
@@ -240,7 +240,7 @@ public class HistoriaClinicaController(
     // ─────────────────────────────────────────────────────────────────────────
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Auxiliar")]
+    [Authorize(Roles = "Auxiliar,Profesional")]
     [Route("historia-clinica/st-aux-08-documentos-clinicos/subir")]
     public async Task<IActionResult> SubirDocumentoClinco(
         [FromForm] int pacienteId,
@@ -344,6 +344,60 @@ public class HistoriaClinicaController(
             nombreArchivo = documento.NombreOriginal,
             tamanoBytes   = documento.TamanoBytes
         });
+    }
+
+    [HttpDelete]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Auxiliar,Profesional")]
+    [Route("historia-clinica/st-aux-08-documentos-clinicos/eliminar/{id:int}")]
+    public async Task<IActionResult> EliminarDocumentoClinico(
+        int id,
+        [FromServices] IWebHostEnvironment env)
+    {
+        var documento = await _context.DocumentosClinicos
+            .FirstOrDefaultAsync(d => d.IdDocumento == id);
+
+        if (documento is null)
+            return NotFound(new { success = false, message = "El estudio ya no existe." });
+
+        string webRoot = Path.GetFullPath(env.WebRootPath);
+        string rutaFisica = Path.GetFullPath(Path.Combine(
+            webRoot,
+            documento.RutaRelativa.Replace('/', Path.DirectorySeparatorChar)));
+        string prefijoWebRoot = Path.TrimEndingDirectorySeparator(webRoot) + Path.DirectorySeparatorChar;
+        StringComparison comparacionRuta = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        if (!rutaFisica.StartsWith(prefijoWebRoot, comparacionRuta))
+            return BadRequest(new { success = false, message = "La ruta del archivo no es válida." });
+
+        string rutaTemporal = rutaFisica + ".deleting-" + Guid.NewGuid().ToString("N");
+        bool archivoMovido = false;
+
+        try
+        {
+            if (System.IO.File.Exists(rutaFisica))
+            {
+                System.IO.File.Move(rutaFisica, rutaTemporal);
+                archivoMovido = true;
+            }
+
+            _context.DocumentosClinicos.Remove(documento);
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception)
+        {
+            if (archivoMovido && System.IO.File.Exists(rutaTemporal) && !System.IO.File.Exists(rutaFisica))
+                System.IO.File.Move(rutaTemporal, rutaFisica);
+
+            return StatusCode(500, new { success = false, message = "No fue posible quitar el estudio." });
+        }
+
+        if (archivoMovido)
+            System.IO.File.Delete(rutaTemporal);
+
+        return Ok(new { success = true, message = "Estudio quitado correctamente." });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -562,6 +616,11 @@ public class HistoriaClinicaController(
         {
             MotivoConsulta = request.MotivoConsulta?.Trim() ?? "",
             EnfermedadActual = request.EnfermedadActual?.Trim() ?? "",
+            SintomasSignos = (request.SintomasSignos ?? [])
+                .Where(sintoma => !string.IsNullOrWhiteSpace(sintoma))
+                .Select(sintoma => sintoma.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
             Habitos = request.Habitos?.Trim() ?? "",
             Hallazgos = request.Hallazgos?.Trim() ?? "",
             OdontogramaObservaciones = request.OdontogramaObservaciones?.Trim() ?? "",

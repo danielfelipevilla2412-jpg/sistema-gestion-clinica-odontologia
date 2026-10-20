@@ -55,6 +55,7 @@ public class HistoriaFormularioViewModel
 {
     public string MotivoConsulta { get; set; } = "";
     public string EnfermedadActual { get; set; } = "";
+    public List<string> SintomasSignos { get; set; } = [];
     public string Habitos { get; set; } = "";
     public string Hallazgos { get; set; } = "";
     public string OdontogramaObservaciones { get; set; } = "";

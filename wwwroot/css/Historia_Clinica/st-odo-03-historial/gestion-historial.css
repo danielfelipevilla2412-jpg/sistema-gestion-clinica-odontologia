@@ -734,6 +734,22 @@ a { text-decoration: none; }
   accent-color: var(--brand);
 }
 
+.symptom-add-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.symptom-add-row input {
+  width: min(100%, 360px);
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
 .diagnostic-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -798,6 +814,18 @@ a { text-decoration: none; }
   padding-top: 18px;
 }
 
+.attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.attachment-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .file-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -814,6 +842,22 @@ a { text-decoration: none; }
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+
+.file-item {
+  position: relative;
+  padding-top: 38px;
+}
+
+.pending-file {
+  border-style: solid;
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.file-status {
+  color: #1d4ed8 !important;
+  opacity: 1 !important;
 }
 
 .file-item.dark {
@@ -851,12 +895,67 @@ a { text-decoration: none; }
   opacity: 0.82;
 }
 
+.file-remove-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #f2b8b5;
+  border-radius: 50%;
+  background: #fff;
+  color: #b42318;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.file-grid .file-item > .file-remove-btn {
+  position: absolute;
+  inset: 6px 6px auto auto;
+  inline-size: 22px;
+  min-inline-size: 22px;
+  max-inline-size: 22px;
+  block-size: 22px;
+  min-block-size: 22px;
+  max-block-size: 22px;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 22px;
+  box-sizing: border-box;
+}
+
+.file-remove-btn:hover {
+  border-color: #b42318;
+  background: #fff1f0;
+}
+
+.file-remove-btn:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .upload-box {
   display: grid;
   place-items: center;
   text-align: center;
   background: #fff;
   border-style: dashed;
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+}
+
+.upload-box.dragover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.upload-box:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .upload-ghost {
@@ -1001,6 +1100,11 @@ a { text-decoration: none; }
 
   .checkbox-grid {
     grid-template-columns: 1fr;
+  }
+
+  .symptom-add-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
