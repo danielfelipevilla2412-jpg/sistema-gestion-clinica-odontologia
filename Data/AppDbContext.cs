@@ -809,7 +809,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   entity.HasIndex(d => new { d.IdProfesional, d.EstadoRevision }).HasDatabaseName("IX_Credencial_Profesional_Revision");
                   entity.HasOne(d => d.Profesional).WithMany().HasForeignKey(d => d.IdProfesional).OnDelete(DeleteBehavior.Cascade);
                   entity.HasOne(d => d.UsuarioSubida).WithMany().HasForeignKey(d => d.SubidoPor).OnDelete(DeleteBehavior.SetNull);
-                  entity.HasOne(d => d.UsuarioRevision).WithMany().HasForeignKey(d => d.RevisadoPor).OnDelete(DeleteBehavior.SetNull);
+                  entity.HasOne(d => d.UsuarioRevision).WithMany().HasForeignKey(d => d.RevisadoPor).OnDelete(DeleteBehavior.NoAction);
             });
 
         // Yeray (2025) - Configuración Fluent API para Alergia_Paciente.

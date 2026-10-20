@@ -1309,7 +1309,7 @@ BEGIN
         CONSTRAINT CK_Credencial_Profesional_Estado CHECK (estado_revision IN ('pendiente', 'aprobado', 'rechazado')),
         CONSTRAINT FK_Credencial_Profesional_Profesional FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional) ON DELETE CASCADE,
         CONSTRAINT FK_Credencial_Profesional_SubidoPor FOREIGN KEY (subido_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL,
-        CONSTRAINT FK_Credencial_Profesional_RevisadoPor FOREIGN KEY (revisado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
+        CONSTRAINT FK_Credencial_Profesional_RevisadoPor FOREIGN KEY (revisado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE NO ACTION
     );
 
     CREATE INDEX IX_Credencial_Profesional_Revision ON dbo.Credencial_Profesional(id_profesional, estado_revision);
