@@ -526,6 +526,11 @@ img { max-width: 100%; height: auto; display: block; }
 .invoice-details-list > div:last-child { border-bottom: 0; }
 .invoice-details-list dt { color: var(--text-muted); }
 .invoice-details-list dd { margin: 0; color: var(--text); font-weight: 600; text-align: right; }
+.invoice-payment-history { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.invoice-payment-history h4 { margin: 0 0 8px; font-size: .9rem; }
+#invoicePaymentHistory { max-height: 190px; overflow-y: auto; list-style: none; }
+#invoicePaymentHistory li { padding: 9px 0; border-bottom: 1px solid var(--border); font-size: .8rem; overflow-wrap: anywhere; }
+#invoicePaymentHistory li:last-child { border-bottom: 0; }
 .invoice-details-footer {
   display: flex; justify-content: flex-end; padding: 16px 24px;
   border-top: 1px solid var(--border);

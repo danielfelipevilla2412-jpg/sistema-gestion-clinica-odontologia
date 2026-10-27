@@ -38,6 +38,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AuditoriaRecuperacion> AuditoriasRecuperacion => Set<AuditoriaRecuperacion>();
     public DbSet<Factura> Facturas => Set<Factura>();
     public DbSet<DetalleFactura> DetallesFactura => Set<DetalleFactura>();
+      public DbSet<PagoFactura> PagosFacturas => Set<PagoFactura>();
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
     public DbSet<TicketSoporte> TicketsSoporte => Set<TicketSoporte>();
@@ -492,12 +493,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(f => f.NumeroFactura).HasColumnName("numero_factura");
             entity.Property(f => f.FechaFactura).HasColumnName("fecha_factura");
             entity.Property(f => f.Subtotal).HasColumnName("subtotal").HasPrecision(12, 2);
+            entity.Property(f => f.Descuento).HasColumnName("descuento").HasPrecision(12, 2);
             entity.Property(f => f.Total).HasColumnName("total").HasPrecision(12, 2);
             entity.Property(f => f.Estado).HasColumnName("estado");
             entity.Property(f => f.IdPaciente).HasColumnName("id_paciente");
             entity.Property(f => f.Notas).HasColumnName("notas");
             entity.Property(f => f.GeneradaPor).HasColumnName("generada_por");
-            entity.Property(f => f.MontoPagado).HasColumnName("monto_pagado").HasPrecision(12, 2);
+            entity.Property(f => f.MontoPagado).HasColumnName("monto_pagado").HasPrecision(12, 2).IsConcurrencyToken();
             entity.Property(f => f.FechaPago).HasColumnName("fecha_pago");
             entity.HasOne(f => f.Paciente)
                   .WithMany()
@@ -524,6 +526,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(d => d.Descripcion).HasColumnName("descripcion");
             entity.Property(d => d.Cantidad).HasColumnName("cantidad");
             entity.Property(d => d.PrecioUnitario).HasColumnName("precio_unitario").HasPrecision(12, 2);
+            entity.Property(d => d.Descuento).HasColumnName("descuento").HasPrecision(12, 2);
             entity.Property(d => d.SubtotalLinea).HasColumnName("subtotal_linea").HasPrecision(12, 2);
 
             entity.HasOne(d => d.Servicio)
@@ -531,6 +534,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(d => d.IdServicio)
                   .OnDelete(DeleteBehavior.Restrict);
         });
+
+            modelBuilder.Entity<PagoFactura>(entity =>
+            {
+                  entity.ToTable("Pago_Factura");
+                  entity.HasKey(p => p.IdPago);
+                  entity.Property(p => p.IdPago).HasColumnName("id_pago");
+                  entity.Property(p => p.IdFactura).HasColumnName("id_factura");
+                  entity.Property(p => p.Monto).HasColumnName("monto").HasPrecision(12, 2);
+                  entity.Property(p => p.MetodoPago).HasColumnName("metodo_pago").HasMaxLength(30).IsRequired();
+                  entity.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20).IsRequired();
+                  entity.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(40).IsRequired();
+                  entity.Property(p => p.RegistradoPor).HasColumnName("registrado_por");
+                  entity.Property(p => p.FechaUtc).HasColumnName("fecha_utc");
+                  entity.HasIndex(p => p.Referencia).IsUnique();
+                  entity.HasIndex(p => new { p.IdFactura, p.FechaUtc });
+                  entity.HasOne(p => p.Factura)
+                        .WithMany(f => f.Pagos)
+                        .HasForeignKey(p => p.IdFactura)
+                        .OnDelete(DeleteBehavior.Restrict);
+                  entity.HasOne(p => p.Usuario)
+                        .WithMany()
+                        .HasForeignKey(p => p.RegistradoPor)
+                        .OnDelete(DeleteBehavior.Restrict);
+            });
 
         modelBuilder.Entity<PqrEntity>(entity =>
         {
