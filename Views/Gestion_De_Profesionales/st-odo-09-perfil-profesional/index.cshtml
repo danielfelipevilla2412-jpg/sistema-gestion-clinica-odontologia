@@ -76,59 +76,6 @@ NOTAS DE MANTENIMIENTO:
       </div>
     </section>
 
-    <section class="card" aria-labelledby="credentialsTitle" style="margin:1.25rem 0;padding:1.25rem;">
-      <h2 class="card-title" id="credentialsTitle">Credenciales profesionales</h2>
-      <p>Sube certificados médicos, títulos de especialidad o estudios en PDF o imagen. La activación requiere aprobación administrativa.</p>
-      @if (TempData["Mensaje"] is string successMessage)
-      {
-        <p role="status">@successMessage</p>
-      }
-      @if (TempData["ErrorValidacion"] is string errorMessage)
-      {
-        <p role="alert">@errorMessage</p>
-      }
-      <form method="post" action="/gestion-de-profesionales/credenciales/subir" enctype="multipart/form-data">
-        @Html.AntiForgeryToken()
-        <div class="form-group">
-          <label class="form-label" for="credentialType">Tipo de documento</label>
-          <select class="form-input" id="credentialType" name="tipo" required>
-            <option value="">Seleccionar tipo</option>
-            <option value="Certificado médico">Certificado médico</option>
-            <option value="Título de especialidad">Título de especialidad</option>
-            <option value="Estudios complementarios">Estudios complementarios</option>
-            <option value="Registro profesional">Registro profesional</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="credentialFile">Archivo (PDF, JPG o PNG, máximo 10 MB)</label>
-          <input class="form-input" type="file" id="credentialFile" name="archivo" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
-        </div>
-        <button class="btn-primary" type="submit">Cargar documento</button>
-      </form>
-
-      <h3>Documentos cargados</h3>
-      @if (credenciales.Count == 0)
-      {
-        <p>Aún no has cargado documentos.</p>
-      }
-      else
-      {
-        <ul>
-          @foreach (var credencial in credenciales)
-          {
-            <li>
-              <a href="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/archivo">@credencial.Tipo: @credencial.NombreOriginal</a>
-              <span> · @credencial.EstadoRevision · @credencial.FechaSubida.ToLocalTime().ToString("dd/MM/yyyy")</span>
-              @if (!string.IsNullOrWhiteSpace(credencial.ObservacionRevision))
-              {
-                <p>@credencial.ObservacionRevision</p>
-              }
-            </li>
-          }
-        </ul>
-      }
-    </section>
-
     <!-- Content Layout -->
     <div class="content-layout">
 
@@ -217,6 +164,117 @@ NOTAS DE MANTENIMIENTO:
             </form>
           </div>
         </div>
+
+        <section class="card credentials-card" aria-labelledby="credentialsTitle">
+          <header class="credentials-header">
+            <div class="credentials-heading">
+              <span class="credentials-icon material-symbols-outlined" aria-hidden="true">workspace_premium</span>
+              <div>
+                <h2 class="credentials-title" id="credentialsTitle">Credenciales profesionales</h2>
+                <p class="credentials-description">Carga títulos y certificados para revisión administrativa.</p>
+              </div>
+            </div>
+            <span class="credentials-count" aria-label="Documentos cargados">
+              <span class="material-symbols-outlined" aria-hidden="true">description</span>
+              @credenciales.Count
+            </span>
+          </header>
+
+          @if (TempData["Mensaje"] is string successMessage)
+          {
+            <p class="credential-feedback credential-feedback--success" role="status">
+              <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+              @successMessage
+            </p>
+          }
+          @if (TempData["ErrorValidacion"] is string errorMessage)
+          {
+            <p class="credential-feedback credential-feedback--error" role="alert">
+              <span class="material-symbols-outlined" aria-hidden="true">error</span>
+              @errorMessage
+            </p>
+          }
+
+          <form class="credentials-form" method="post" action="/gestion-de-profesionales/credenciales/subir" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <div class="credentials-form-grid">
+              <div class="form-group">
+                <label class="form-label" for="credentialType">Tipo de documento</label>
+                <select class="form-input" id="credentialType" name="tipo" required>
+                  <option value="">Seleccionar tipo</option>
+                  <option value="Certificado médico">Certificado médico</option>
+                  <option value="Título de especialidad">Título de especialidad</option>
+                  <option value="Estudios complementarios">Estudios complementarios</option>
+                  <option value="Registro profesional">Registro profesional</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="credentialFile">Archivo del documento</label>
+                <div class="credentials-file-control">
+                  <input class="credentials-file-input" type="file" id="credentialFile" name="archivo"
+                         accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                         aria-describedby="credentialFileHelp credentialFileName" required />
+                  <label class="credentials-file-trigger" for="credentialFile">
+                    <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+                    Seleccionar archivo
+                  </label>
+                  <span class="credentials-file-name" id="credentialFileName" aria-live="polite">Sin archivo seleccionado</span>
+                </div>
+                <p class="credentials-help" id="credentialFileHelp">PDF, JPG o PNG. Tamaño máximo: 10 MB.</p>
+              </div>
+            </div>
+            <div class="credentials-form-footer">
+              <p class="credentials-review-note">
+                <span class="material-symbols-outlined" aria-hidden="true">info</span>
+                Los documentos se activan después de la aprobación administrativa.
+              </p>
+              <button class="btn-primary" type="submit">
+                <span class="material-symbols-outlined" aria-hidden="true">cloud_upload</span>
+                Cargar documento
+              </button>
+            </div>
+          </form>
+
+          <div class="credentials-documents">
+            <div class="credentials-documents-heading">
+              <h3>Documentos cargados</h3>
+              <span>@credenciales.Count</span>
+            </div>
+            @if (credenciales.Count == 0)
+            {
+              <div class="credentials-empty">
+                <span class="material-symbols-outlined" aria-hidden="true">folder_open</span>
+                <p>Aún no has cargado documentos.</p>
+              </div>
+            }
+            else
+            {
+              <ul class="credentials-list">
+                @foreach (var credencial in credenciales)
+                {
+                  <li class="credential-item">
+                    <span class="credential-document-icon material-symbols-outlined" aria-hidden="true">description</span>
+                    <div class="credential-item-content">
+                      <div class="credential-item-heading">
+                        <a class="credential-link" href="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/archivo">@credencial.Tipo</a>
+                        <span class="credential-status">@credencial.EstadoRevision</span>
+                      </div>
+                      <p class="credential-item-meta">
+                        @credencial.NombreOriginal
+                        <span aria-hidden="true">·</span>
+                        @credencial.FechaSubida.ToLocalTime().ToString("dd/MM/yyyy")
+                      </p>
+                      @if (!string.IsNullOrWhiteSpace(credencial.ObservacionRevision))
+                      {
+                        <p class="credential-observation">@credencial.ObservacionRevision</p>
+                      }
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </section>
       </div>
 
       <!-- Right Column: Schedule -->

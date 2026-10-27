@@ -851,7 +851,17 @@ const init = async () => {
   updateStats();
   await loadProfessionalFilter();
   renderInvoices();
-  
+
+  // POR QUÉ: cuando se llega desde otra vista con ?facturaId=N hay que abrir automáticamente el
+  // detalle de esa factura (por ejemplo al pulsar "Facturar" en una cita que ya tiene factura).
+  const facturaIdParam = new URLSearchParams(window.location.search).get('facturaId');
+  if (facturaIdParam) {
+    const facturaId = parseInt(facturaIdParam, 10);
+    if (!Number.isNaN(facturaId) && invoices.some(invoiceItem => invoiceItem.id === facturaId)) {
+      openDrawer(facturaId);
+    }
+  }
+
   window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
 };
 

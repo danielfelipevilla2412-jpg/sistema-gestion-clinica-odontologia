@@ -1856,6 +1856,41 @@ BEGIN
 END
 GO
 
+-- Amplía los tipos permitidos de Notificacion (facturación y pagos) en bases ya existentes.
+-- POR QUÉ: el CHECK original solo admitía 'recordatorio','confirmacion','cancelacion','mensaje','alerta',
+-- pero el módulo de facturación registra notificaciones con tipo 'factura'. Eso provocaba
+-- "The INSERT statement conflicted with the CHECK constraint ... column 'tipo'" (HTTP 500 al facturar).
+IF OBJECT_ID(N'dbo.Notificacion', N'U') IS NOT NULL
+BEGIN
+    DECLARE @ckTipoNotificacion SYSNAME;
+
+    SELECT @ckTipoNotificacion = cc.name
+    FROM sys.check_constraints AS cc
+    INNER JOIN sys.columns AS col
+        ON col.object_id = cc.parent_object_id
+       AND col.column_id = cc.parent_column_id
+    WHERE cc.parent_object_id = OBJECT_ID(N'dbo.Notificacion')
+      AND col.name = N'tipo';
+
+    IF @ckTipoNotificacion IS NOT NULL
+        AND @ckTipoNotificacion <> N'CK_Notificacion_tipo'
+    BEGIN
+        EXEC(N'ALTER TABLE dbo.Notificacion DROP CONSTRAINT [' + @ckTipoNotificacion + N'];');
+    END
+
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.check_constraints
+        WHERE name = N'CK_Notificacion_tipo'
+          AND parent_object_id = OBJECT_ID(N'dbo.Notificacion')
+    )
+    BEGIN
+        ALTER TABLE dbo.Notificacion WITH CHECK
+            ADD CONSTRAINT CK_Notificacion_tipo
+            CHECK (tipo IN ('recordatorio','confirmacion','cancelacion','mensaje','alerta','factura','pago'));
+    END
+END
+GO
+
 IF OBJECT_ID(N'dbo.Recordatorio_Cita', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Recordatorio_Cita (

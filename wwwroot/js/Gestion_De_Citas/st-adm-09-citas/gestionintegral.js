@@ -453,11 +453,16 @@ const renderAppointmentsTable = () => {
 };
 
 const updatePaginationDisplay = (totalItems) => {
-    const showing = Math.min(DEFAULT_ITEMS_PER_PAGE, Math.max(0, totalItems - (currentPageNumber - 1) * DEFAULT_ITEMS_PER_PAGE));
+    const startIndex = (currentPageNumber - 1) * DEFAULT_ITEMS_PER_PAGE;
+    const showing = Math.min(DEFAULT_ITEMS_PER_PAGE, Math.max(0, totalItems - startIndex));
+    const rangeStart = showing > 0 ? startIndex + 1 : 0;
+    const rangeEnd = showing > 0 ? startIndex + showing : 0;
+    const pageRangeStartElement = safeGetElement('pageRangeStart');
     const pageShowingElement = safeGetElement('pageShowing');
     const pageTotalElement = safeGetElement('pageTotal');
 
-    if (pageShowingElement) pageShowingElement.textContent = showing;
+    if (pageRangeStartElement) pageRangeStartElement.textContent = rangeStart;
+    if (pageShowingElement) pageShowingElement.textContent = rangeEnd;
     if (pageTotalElement) pageTotalElement.textContent = totalItems;
 };
 

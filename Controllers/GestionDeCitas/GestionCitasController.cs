@@ -226,6 +226,7 @@ public class GestionCitasController(
 
     [HttpGet]
     [Authorize(Roles = "Administrador,Recepcionista")]
+    [Route("gestion-de-citas/agenda-profesionales")]
     [Route("gestion-de-citas/st-adm-08-agenda")]
     public async Task<IActionResult> Stadm08Agenda(
         [FromQuery] DateTime? weekStart,
@@ -1987,7 +1988,6 @@ public sealed class CambiarEstadoCitaDto
                 .Include(c => c.Profesional)
                 .Include(c => c.Servicio)
                 .OrderByDescending(c => c.FechaHora)
-                .Take(25)
                 .ToListAsync(ct);
         }
 
@@ -3495,6 +3495,29 @@ public sealed class CambiarEstadoCitaDto
                         c =>
                             c.FechaHora >= inicio &&
                             c.FechaHora < fin);
+            }
+
+            // POR QUÉ: las citas que ya vencieron y siguen en un estado no final (en espera /
+            // pendiente) no deben listarse. Solo se muestran si el usuario filtra por fecha o por
+            // estado, de modo que el histórico sigue siendo auditable.
+            if (string.IsNullOrWhiteSpace(pagination.Fecha) &&
+                string.IsNullOrWhiteSpace(pagination.Estado))
+            {
+                var ahoraFiltro = DateTime.Now;
+                string[] estadosFinales =
+                    EstadoCitaHelper.EstadosFinales;
+
+                citasQuery =
+                    citasQuery.Where(
+                        c =>
+                            c.FechaHora >= ahoraFiltro ||
+                            (c.Estado != null &&
+                             estadosFinales.Contains(
+                                 c.Estado.ToLower())) ||
+                            (c.EstadoCita != null &&
+                             c.EstadoCita.NombreEstado != null &&
+                             estadosFinales.Contains(
+                                 c.EstadoCita.NombreEstado.ToLower())));
             }
 
             citasQuery =

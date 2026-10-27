@@ -82,72 +82,128 @@ public sealed class FacturacionService : IFacturacionService
 
     public async Task<FacturaDto> CrearDesdeCitaAsync(int idCita, int idUsuario, CancellationToken ct)
     {
-        var transaction = _db.Database.IsRelational()
-            ? await _db.Database.BeginTransactionAsync(ct)
-            : null;
-        var cita = await _db.Citas
-            .Include(c => c.Paciente)
-            .Include(c => c.Servicio)
-            .FirstOrDefaultAsync(c => c.IdCita == idCita, ct);
+        // POR QUÉ: la conexión está configurada con EnableRetryOnFailure (SqlServerRetryingExecutionStrategy),
+        // estrategia que NO admite transacciones iniciadas por el usuario. Toda la unidad transaccional
+        // debe ejecutarse dentro de la estrategia de reintentos.
+        var strategy = _db.Database.CreateExecutionStrategy();
 
-        if (cita is null)
-            throw new InvalidOperationException("La cita no existe.");
-        if (!EsEstadoFacturable(cita.Estado))
-            throw new InvalidOperationException("Solo se pueden facturar citas atendidas o completadas.");
-        if (cita.Paciente is null || !string.Equals(cita.Paciente.Estado, "activo", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("La cita no tiene un paciente activo válido.");
-        if (cita.Servicio is null || cita.IdServicio is null)
-            throw new InvalidOperationException("La cita no tiene un servicio válido.");
-        if (await _db.Facturas.AnyAsync(f => f.IdCita == idCita && f.Estado != "anulada", ct))
-            throw new InvalidOperationException("La cita ya tiene una factura activa.");
-
-        var total = cita.Servicio.Precio;
-        var factura = new Factura
+        var idFactura = await strategy.ExecuteAsync(async () =>
         {
-            NumeroFactura = await NuevoNumeroAsync(ct),
-            FechaFactura = DateTime.Now,
-            Subtotal = total,
-            Total = total,
-            Estado = "pendiente",
-            IdPaciente = cita.IdPaciente,
-            IdCita = cita.IdCita,
-            IdProfesional = cita.IdProfesional,
-            GeneradaPor = idUsuario,
-            MontoPagado = 0,
-            Detalles =
-            [
-                new DetalleFactura
-                {
-                    IdServicio = cita.IdServicio,
-                    Descripcion = cita.Servicio.Nombre,
-                    Cantidad = 1,
-                    PrecioUnitario = total,
-                    SubtotalLinea = total
-                }
-            ]
-        };
+            await using var transaction = _db.Database.IsRelational()
+                ? await _db.Database.BeginTransactionAsync(ct)
+                : null;
 
-        _db.Facturas.Add(factura);
-        AgregarNotificacion(factura.IdPaciente, factura.IdCita, "Factura creada", $"Se creó la factura {factura.NumeroFactura} por {factura.Total:C}.");
-        try
+            var cita = await _db.Citas
+                .Include(c => c.Paciente)
+                .Include(c => c.Servicio)
+                .FirstOrDefaultAsync(c => c.IdCita == idCita, ct);
+
+            if (cita is null)
+                throw new InvalidOperationException("La cita no existe.");
+            if (!EsEstadoFacturable(cita.Estado))
+                throw new InvalidOperationException("Solo se pueden facturar citas atendidas o completadas.");
+            if (cita.Paciente is null || !string.Equals(cita.Paciente.Estado, "activo", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("La cita no tiene un paciente activo válido.");
+            if (cita.Servicio is null || cita.IdServicio is null)
+                throw new InvalidOperationException("La cita no tiene un servicio válido.");
+            if (await _db.Facturas.AnyAsync(f => f.IdCita == idCita && f.Estado != "anulada", ct))
+                throw new InvalidOperationException("La cita ya tiene una factura activa.");
+
+            var total = cita.Servicio.Precio;
+            var factura = new Factura
+            {
+                NumeroFactura = await NuevoNumeroAsync(ct),
+                FechaFactura = DateTime.Now,
+                Subtotal = total,
+                Total = total,
+                Estado = "pendiente",
+                IdPaciente = cita.IdPaciente,
+                IdCita = cita.IdCita,
+                IdProfesional = cita.IdProfesional,
+                GeneradaPor = idUsuario,
+                MontoPagado = 0,
+                Detalles =
+                [
+                    new DetalleFactura
+                    {
+                        IdServicio = cita.IdServicio,
+                        Descripcion = cita.Servicio.Nombre,
+                        Cantidad = 1,
+                        PrecioUnitario = total,
+                        SubtotalLinea = total
+                    }
+                ]
+            };
+
+            _db.Facturas.Add(factura);
+            AgregarNotificacion(factura.IdPaciente, factura.IdCita, "Factura creada", $"Se creó la factura {factura.NumeroFactura} por {factura.Total:C}.");
+
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+                AgregarAuditoria(idUsuario, factura.IdFactura, "INSERT", null, $"Factura {factura.NumeroFactura} creada desde cita {idCita}.");
+                await _db.SaveChangesAsync(ct);
+                if (transaction is not null)
+                    await transaction.CommitAsync(ct);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("UX_Factura_Cita_Activa", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new InvalidOperationException("La cita ya tiene una factura activa.", ex);
+            }
+
+            return factura.IdFactura;
+        });
+
+        return (await ObtenerAsync(idFactura, ct))!;
+    }
+
+    /// <summary>
+    /// Genera notificaciones internas para los pacientes con facturas vencidas
+    /// (estado pendiente y con más de 15 días de antigüedad).
+    /// </summary>
+    public async Task<(int Enviados, int Fallidos)> EnviarRecordatoriosFacturasVencidasAsync(int idUsuario, CancellationToken ct)
+    {
+        var limite = DateTime.Now.Date.AddDays(-15);
+
+        var facturasVencidas = await _db.Facturas
+            .AsNoTracking()
+            .Include(f => f.Paciente)
+            .Where(f => f.Estado == "pendiente" && f.FechaFactura < limite)
+            .ToListAsync(ct);
+
+        int enviados = 0;
+        int fallidos = 0;
+
+        foreach (var factura in facturasVencidas)
         {
+            if (factura.Paciente is null || !string.Equals(factura.Paciente.Estado, "activo", StringComparison.OrdinalIgnoreCase))
+            {
+                fallidos++;
+                continue;
+            }
+
+            AgregarNotificacion(
+                factura.IdPaciente,
+                factura.IdCita,
+                "Pago pendiente",
+                $"La factura {factura.NumeroFactura} por {factura.Total:C} presenta un saldo pendiente desde el {factura.FechaFactura:dd/MM/yyyy}. Por favor acércate a la clínica para regularizar tu pago.");
+
+            enviados++;
+        }
+
+        if (enviados > 0)
+        {
+            AgregarAuditoria(
+                idUsuario,
+                facturasVencidas.Count > 0 ? facturasVencidas[0].IdFactura : 0,
+                "INSERT",
+                null,
+                $"Se enviaron {enviados} recordatorio(s) de pago a pacientes con facturas vencidas.");
+
             await _db.SaveChangesAsync(ct);
-            AgregarAuditoria(idUsuario, factura.IdFactura, "INSERT", null, $"Factura {factura.NumeroFactura} creada desde cita {idCita}.");
-            await _db.SaveChangesAsync(ct);
-            if (transaction is not null)
-                await transaction.CommitAsync(ct);
-        }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("UX_Factura_Cita_Activa", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            throw new InvalidOperationException("La cita ya tiene una factura activa.", ex);
-        }
-        finally
-        {
-            if (transaction is not null)
-                await transaction.DisposeAsync();
         }
 
-        return (await ObtenerAsync(factura.IdFactura, ct))!;
+        return (enviados, fallidos);
     }
 
     public async Task<FacturaDto> CrearAsync(CrearFacturaRequest request, int idUsuario, CancellationToken ct)

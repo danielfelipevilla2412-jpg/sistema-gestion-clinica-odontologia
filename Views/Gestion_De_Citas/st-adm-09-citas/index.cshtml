@@ -32,6 +32,12 @@
     var profesionalesFilterOptions = ViewData["ProfesionalesFilterOptions"] as
 List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
     var pageResult = ViewData["CitasPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Cita>;
+    var resultItemCount = pageResult?.Items?.Count ?? 0;
+    var resultTotalCount = pageResult?.TotalCount ?? 0;
+    var resultPage = pageResult?.Page ?? 1;
+    var resultPageSize = pageResult?.PageSize ?? 10;
+    var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+    var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
 
     // Datos para modal de edición
     var editingCita = ViewData["EditingCita"] as SmileTrack_MVC.Models.Entities.Cita;
@@ -171,6 +177,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                     </section>
 
                     <!-- Tabla ACCESIBLE con semántica HTML nativa -->
+                    <div class="table-wrap">
                     <table class="table-appointments" aria-label="Tabla de citas" role="grid" data-i18n-aria-label="adm09_table_aria">
                         <thead>
                             <tr role="row">
@@ -348,15 +355,12 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             }
                         </tbody>
                     </table>
+                    </div>
 
                     <!-- Paginación accesible -->
                     <footer class="table-footer" aria-label="Navegación de páginas">
-                        @{
-                            var mostrando = Math.Min(pageResult?.PageSize ?? 10, pageResult?.Items?.Count ?? 0);
-                            var total = pageResult?.TotalCount ?? 0;
-                        }
                         <span>
-                            Mostrando <strong id="pageShowing">@mostrando</strong> de <strong id="pageTotal">@total</strong>
+                            Mostrando <strong id="pageRangeStart">@resultRangeStart</strong>-<strong id="pageShowing">@resultRangeEnd</strong> de <strong id="pageTotal">@resultTotalCount</strong>
                             citas
                         </span>
                         <nav class="pagination" aria-label="Páginas de resultados">
@@ -910,10 +914,6 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                         }
                                     });
                                 });
-                                modalAppEl.setAttribute('aria-hidden', 'false');
-                                modalAppEl.removeAttribute('inert');
-                                document.body.style.overflow = 'hidden';
-                                modalAppCloseBtn?.focus();
                                 }
                                 });
                                 });
