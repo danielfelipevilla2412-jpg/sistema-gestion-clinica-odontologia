@@ -117,11 +117,6 @@
     <!-- Floating side buttons -->
     <div class="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-3 mr-5">
         <button
-            class="bg-white text-[#021c3a] p-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-x-1 transition-all active:scale-95"
-            title="Chat" data-i18n-title="home.float_chat_title">
-            <span class="material-symbols-outlined text-xl">chat_bubble</span>
-        </button>
-        <button
             class="bg-white text-[#005ea4] p-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-x-1 transition-all active:scale-95"
             title="Llamar" data-i18n-title="home.float_phone_title">
             <span class="material-symbols-outlined text-xl">phone</span>
@@ -849,36 +844,6 @@
     <script src="@Url.Content("~/js/i18n.config.js")"></script>
     <script src="@Url.Content("~/js/Publico/homepage.js")" defer></script>
 
-<!-- ═════ MODALES: Chatbot + PQRS (Funcionalidad sin alterar diseño) ═════ -->
-
-<!-- Chatbot Modal -->
-<div id="chatbotModal" class="st-modal-overlay" role="dialog" aria-modal="true" hidden>
-  <div class="st-modal-content">
-    <header class="st-modal-header">
-      <div class="st-modal-brand">
-        <div class="st-modal-avatar">🤖</div>
-        <div>
-          <h2 class="st-modal-title">Asistente SmileTrack</h2>
-          <p class="st-modal-status"><span class="st-status-dot"></span> En línea</p>
-        </div>
-      </div>
-      <button class="st-modal-close" id="chatbotClose" aria-label="Cerrar">×</button>
-    </header>
-    <main id="chatbotMessages" class="st-modal-messages" role="log" aria-live="polite"></main>
-    <div id="typingIndicator" class="st-typing" hidden><span></span><span></span><span></span></div>
-    <div class="st-quick-replies">
-      <button class="st-quick-btn" data-q="¿Cómo agendo una cita?">📅 Agendar</button>
-      <button class="st-quick-btn" data-q="¿Qué métodos de pago aceptan?">💳 Pagos</button>
-      <button class="st-quick-btn" data-q="¿Qué servicios ofrecen?">🦷 Servicios</button>
-      <button class="st-quick-btn" data-q="¿Dónde están ubicados?">📍 Ubicación</button>
-    </div>
-    <form id="chatbotForm" class="st-modal-input">
-      <input type="text" id="chatbotInput" class="st-input" placeholder="Escribe tu pregunta..." autocomplete="off">
-      <button type="submit" class="st-send" aria-label="Enviar">➤</button>
-    </form>
-  </div>
-</div>
-
 <!-- PQRS Modal -->
 <div id="pqrsModal" class="st-modal-overlay" role="dialog" aria-modal="true" hidden>
   <div class="st-modal-content st-pqrs">
@@ -1000,39 +965,23 @@
 <script>
 (function(){'use strict';const $=id=>document.getElementById(id);const $$=(sel,p=document)=>Array.from(p.querySelectorAll(sel));
 // Referencias
-const chatModal=$('chatbotModal'),pqrsModal=$('pqrsModal'),chatClose=$('chatbotClose'),pqrsClose=$('pqrsClose');
-const chatForm=$('chatbotForm'),chatInput=$('chatbotInput'),chatMessages=$('chatbotMessages'),typing=$('typingIndicator');
+const pqrsModal=$('pqrsModal'),pqrsClose=$('pqrsClose');
 const pqrsForm=$('pqrsForm'),pqrsSuccess=$('pqrsSuccess'),pqrsTicket=$('pqrsTicket'),pqrsResp=$('pqrsResponseEmail');
 const toast=$('stToast'),toastMsg=$('stToastMsg');
-// Chatbot knowledge
-const KB={citas:{kw:['cita','agendar','reservar','hora'],r:'📅 Para agendar: 1) Haz clic en "Agendar cita", 2) Completa el formulario, 3) Te confirmamos por WhatsApp.'},
-pagos:{kw:['pago','factura','tarjeta','efectivo','nequi'],r:'💳 Aceptamos: Efectivo, tarjetas, Nequi, Daviplata. Consulta tus pagos en tu cuenta.'},
-servicios:{kw:['servicio','limpieza','blanqueamiento','ortodoncia'],r:'🦷 Ofrecemos: Limpieza ($80k), Blanqueamiento ($350k), Ortodoncia y más. ¿Te interesa agendar?'},
-horarios:{kw:['horario','abre','cierra','lunes','sábado'],r:'🕒 Lunes-Viernes: 8AM-6PM | Sábados: 9AM-2PM | Urgencias: 300 123 4567'},
-urgencias:{kw:['urgencia','dolor','emergencia','ayuda'],r:'🚨 Para urgencias: Llama YA al 300 123 4567 o acude a nuestra sede.'},
-ubicacion:{kw:['ubicación','dirección','dónde','carrera'],r:'📍 Estamos en: Cra. 15 #93-47, Oficina 302, Bogotá. También ofrecemos consultas virtuales.'},
-fallback:{r:'😅 No entendí. Pregúntame sobre: citas, pagos, servicios, horarios, urgencias o ubicación.'}};
 // Utils
 const showToast=(m,t='success')=>{if(!toast||!toastMsg)return;const i={success:'✅',error:'❌',warning:'⚠️'};toast.className=`st-toast ${t} show`;$('#stToastIcon').textContent=i[t]||'✅';toastMsg.textContent=m;toast.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>{toast.classList.remove('show');setTimeout(()=>{toast.hidden=true},200)},4000)};
-const findReply=t=>{const s=t.toLowerCase().trim();for(const[k,d]of Object.entries(KB)){if(k==='fallback')continue;if(d.kw.some(w=>s.includes(w)))return d.r}return KB.fallback.r};
-const addMsg=(txt,user)=>{if(!chatMessages)return;const tm=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}),el=document.createElement('div');el.className=`st-message ${user?'user':'bot'}`;el.innerHTML=`<div class="st-msg-avatar">${user?'👤':'🤖'}</div><div class="st-msg-content"><p>${txt.replace(/\n/g,'<br>')}</p><time class="st-msg-time">${tm}</time></div>`;chatMessages.appendChild(el);chatMessages.scrollTop=chatMessages.scrollHeight};
 // Modal controls
 const openM=m=>{if(m){m.hidden=false;document.body.style.overflow='hidden'}};const closeM=m=>{if(m){m.hidden=true;document.body.style.overflow=''}};
-// Openers: usar botón flotante existente para chat (title="Chat")
-$$('button[title="Chat"]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();openM(chatModal);if(chatMessages.children.length===0)addMsg('¡Hola! 👋 Soy tu asistente de SmileTrack. ¿En qué puedo ayudarte?',false);setTimeout(()=>chatInput?.focus(),100)}));
 // PQRS: agregar botón en footer (sección Compañía)
 const footerPqrs=$$('footer a').find(a=>a.textContent.trim()==='Preguntas frecuentes')?.parentElement;
 if(footerPqrs){const li=document.createElement('li');li.innerHTML='<a href="#" id="openPqrsLink" class="hover:text-[#a4f0e9] transition-colors">PQRS</a>';footerPqrs.after(li);$('#openPqrsLink')?.addEventListener('click',e=>{e.preventDefault();openM(pqrsModal);if(pqrsForm)pqrsForm.reset();if(pqrsSuccess)pqrsSuccess.hidden=true;pqrsForm.hidden=false})}
 // Cerrar modales
-chatClose?.addEventListener('click',()=>closeM(chatModal));pqrsClose?.addEventListener('click',()=>closeM(pqrsModal));
-$$('.st-modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o){closeM(chatModal);closeM(pqrsModal)}}));
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeM(chatModal);closeM(pqrsModal)}});
-// Chatbot logic
-chatForm?.addEventListener('submit',e=>{e.preventDefault();const t=chatInput?.value.trim();if(!t)return;addMsg(t,true);if(chatInput)chatInput.value='';if(typing)typing.hidden=false;setTimeout(()=>{if(typing)typing.hidden=true;addMsg(findReply(t),false);if(t.toLowerCase().includes('urgencia')||t.toLowerCase().includes('dolor'))showToast('🚨 Para emergencias, llama al 300 123 4567','warning')},700)});
-$$('.st-quick-btn').forEach(b=>b.addEventListener('click',()=>{const q=b.dataset.q;if(q&&chatInput){chatInput.value=q;chatForm.requestSubmit()}}));
+pqrsClose?.addEventListener('click',()=>closeM(pqrsModal));
+$$('.st-modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeM(pqrsModal)}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM(pqrsModal)});
 // PQRS form
 pqrsForm?.addEventListener('submit',async e=>{e.preventDefault();const btn=pqrsForm.querySelector('button[type="submit"]'),bt=btn?.querySelector('.st-btn-text'),bl=btn?.querySelector('.st-btn-load');try{if(bt&&bl){bt.hidden=true;bl.hidden=false;btn.disabled=true}await new Promise(r=>setTimeout(r,1200));if(pqrsForm)pqrsForm.hidden=true;if(pqrsSuccess){pqrsSuccess.hidden=false;pqrsTicket.textContent=`ST-${new Date().getFullYear()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;pqrsResp.textContent=$('pqrsEmail')?.value||'tu@email.com'}showToast('✅ PQRS registrada exitosamente','success')}catch(err){console.error('PQRS error',err);showToast('❌ Error al enviar. Intenta de nuevo.','error')}finally{if(bt&&bl){bt.hidden=false;bl.hidden=true;btn.disabled=false}}});
-$('#pqrsNew')?.addEventListener('click',()=>{if(pqrsSuccess)pqrsSuccess.hidden=true;if(pqrsForm){pqrsForm.hidden=false;pqrsForm.reset()}});$('#pqrsCancel')?.addEventListener('click',()=>{if(confirm('¿Cancelar esta solicitud?'))closeM(pqrsModal)});$('#stToastClose')?.addEventListener('click',()=>{if(toast){toast.classList.remove('show');setTimeout(()=>{toast.hidden=true},200)}});console.log('✅ SmileTrack: Chatbot+PQRS listos');})();
+$('#pqrsNew')?.addEventListener('click',()=>{if(pqrsSuccess)pqrsSuccess.hidden=true;if(pqrsForm){pqrsForm.hidden=false;pqrsForm.reset()}});$('#pqrsCancel')?.addEventListener('click',()=>{if(confirm('¿Cancelar esta solicitud?'))closeM(pqrsModal)});$('#stToastClose')?.addEventListener('click',()=>{if(toast){toast.classList.remove('show');setTimeout(()=>{toast.hidden=true},200)}});console.log('✅ SmileTrack: PQRS lista');})();
 </script>
 </body>
 

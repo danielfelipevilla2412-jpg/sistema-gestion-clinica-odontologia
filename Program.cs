@@ -69,6 +69,7 @@ builder.Configuration
     .AddCommandLine(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
 

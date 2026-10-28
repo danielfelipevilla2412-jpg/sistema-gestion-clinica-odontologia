@@ -60,7 +60,7 @@ const invoicesStorage = {
   // AppDbContext.Facturas), serializados en ViewData["FacturasJson"].
   load: () => Array.isArray(window.RAZOR_INVOICES) ? window.RAZOR_INVOICES : [],
   
-  getInvoice: (id) => invoicesStorage.load().find(i => i.id === id),
+  getInvoice: (id) => (Array.isArray(invoices) ? invoices.find(i => i.id === id) : null) || invoicesStorage.load().find(i => i.id === id),
   
 
    // Actualiza solo el estado en memoria para reflejar de inmediato el
@@ -171,8 +171,9 @@ const renderInvoices = () => {
           <span class="status-badge ${status.class}" role="status" aria-label="Estado: ${status.label}">${status.label}</span>
         </div>
         <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
-          <div class="actions-cell">
+          <div class="actions-cell" style="display:flex;gap:6px;justify-content:flex-end;">
             <button class="action-btn btn-view" aria-label="Ver detalle de factura ${i.number}" data-id="${i.id}" title="Ver">👁️ <span class="btn-text">Ver</span></button>
+            <button class="action-btn btn-edit" aria-label="Editar factura ${i.number}" data-id="${i.id}" title="Editar">✏️ <span class="btn-text">Editar</span></button>
           </div>
         </div>
       </div>
@@ -181,15 +182,39 @@ const renderInvoices = () => {
   
   // Event listeners para acciones
   body.querySelectorAll('.btn-view').forEach(btn => {
-    btn.addEventListener('click', (e) => openDrawer(parseInt(e.currentTarget.dataset.id)));
-    btn.addEventListener('keydown', (e) => { if (['Enter',' '].includes(e.key)) { e.preventDefault(); openDrawer(parseInt(e.currentTarget.dataset.id)); }});
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showInvoiceDetails(parseInt(e.currentTarget.dataset.id, 10));
+    });
+    btn.addEventListener('keydown', (e) => {
+      if (['Enter',' '].includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        showInvoiceDetails(parseInt(e.currentTarget.dataset.id, 10));
+      }
+    });
   });
-  // Click en fila abre drawer
+
+  body.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEditInvoiceModal(parseInt(e.currentTarget.dataset.id, 10));
+    });
+    btn.addEventListener('keydown', (e) => {
+      if (['Enter',' '].includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        openEditInvoiceModal(parseInt(e.currentTarget.dataset.id, 10));
+      }
+    });
+  });
+
+  // Click en fila abre detalle
   body.querySelectorAll('.table-row').forEach(row => {
     row.addEventListener('click', (e) => {
       if (!e.target.closest('.action-btn')) {
-        const id = parseInt(row.dataset.id);
-        openDrawer(id);
+        const id = parseInt(row.dataset.id, 10);
+        showInvoiceDetails(id);
       }
     });
   });
@@ -267,7 +292,7 @@ const closeInvoiceDetails = () => {
   }
 };
 
-const showInvoiceDetails = (id) => {
+const showInvoiceDetails = async (id) => {
   const invoice = invoicesStorage.getInvoice(id);
   const modal = safeGetElement('invoiceDetailsOverlay');
   if (!invoice || !modal) return;
@@ -280,6 +305,7 @@ const showInvoiceDetails = (id) => {
     invoiceDetailsService: invoice.service || 'No especificado',
     invoiceDetailsStatus: (statusLabels[invoice.status] || statusLabels.pendiente).label,
     invoiceDetailsTotal: fmtCurrency(invoice.total),
+    invoiceDetailsPaid: fmtCurrency(invoice.paid || 0),
     invoiceDetailsPending: invoice.pending > 0 ? fmtCurrency(invoice.pending) : 'Pagada'
   };
   Object.entries(details).forEach(([elementId, value]) => {
@@ -293,6 +319,44 @@ const showInvoiceDetails = (id) => {
   modal.removeAttribute('inert');
   document.body.style.overflow = 'hidden';
   safeGetElement('invoiceDetailsConfirm')?.focus();
+
+  const historyList = safeGetElement('invoicePaymentHistory');
+  if (!historyList) return;
+  historyList.replaceChildren();
+  const loading = document.createElement('li');
+  loading.textContent = 'Cargando transacciones…';
+  historyList.appendChild(loading);
+
+  try {
+    const response = await window.apiRequest(`/api/facturas/${id}`);
+    if (!response?.success || !response.data) throw new Error('No fue posible cargar el historial.');
+
+    const data = response.data;
+    const paid = safeGetElement('invoiceDetailsPaid');
+    const pending = safeGetElement('invoiceDetailsPending');
+    if (paid) paid.textContent = fmtCurrency(data.montoPagado);
+    if (pending) pending.textContent = data.pendiente > 0 ? fmtCurrency(data.pendiente) : 'Pagada';
+
+    historyList.replaceChildren();
+    if (!data.pagos?.length) {
+      const empty = document.createElement('li');
+      empty.textContent = 'Sin transacciones registradas.';
+      historyList.appendChild(empty);
+      return;
+    }
+
+    data.pagos.forEach((payment) => {
+      const item = document.createElement('li');
+      const date = new Date(payment.fechaUtc).toLocaleString('es-CO');
+      item.textContent = `${date} · ${fmtCurrency(payment.monto)} · ${payment.metodoPago} · ${payment.estado} · ${payment.referencia}`;
+      historyList.appendChild(item);
+    });
+  } catch {
+    historyList.replaceChildren();
+    const error = document.createElement('li');
+    error.textContent = 'No fue posible cargar el historial de transacciones.';
+    historyList.appendChild(error);
+  }
 };
 
 const showPaymentSuccess = (amount, patient) => {
@@ -336,14 +400,22 @@ const registerPayment = async (id) => {
       try {
       const result = await window.apiRequest(`/api/facturas/${id}/pagos`, {
       method: 'POST',
-      body: { montoPagado: paymentAmount }
+      body: { montoPagado: paymentAmount, metodoPago: 'efectivo' }
     });
     if (!result || result.success !== true) {
       showToast(result?.message || 'No fue posible registrar el pago.', 'error');
       return;
   }
 
-  invoicesStorage.updateLocalCache(id, { pending: 0, status: result.data.estado });
+  invoicesStorage.updateLocalCache(id, {
+    paid: result.data.montoPagado,
+    pending: result.data.pendiente,
+    status: result.data.estado,
+    history: (result.data.pagos || []).map(payment => ({
+      date: String(payment.fechaUtc).slice(0, 10),
+      type: 'pago'
+    }))
+  });
   renderInvoices();
   updateStats();
   closeDrawer();
@@ -572,12 +644,188 @@ const initNewInvoice = () => {
   const closeBtn = safeGetElement('newInvoiceClose');
   const cancelBtn = safeGetElement('newInvoiceCancel');
   const dateInput = safeGetElement('invoiceDate');
+  const patientSelect = safeGetElement('invoicePatientSelect');
+  const patientInput = safeGetElement('invoicePatient');
+  const docInput = safeGetElement('invoiceDocument');
+  const serviceSelect = safeGetElement('invoiceService');
+  const totalInput = safeGetElement('invoiceTotal');
 
-  // La creación real de facturas ocurre en el flujo de Recepción
-  // (POST /api/facturas), que sí persiste en SQL Server.
-  btn?.addEventListener('click', () => {
-    window.location.href = '/facturacion-y-pagos/st-rec-04-generar-factura';
+  const openModal = async () => {
+    if (!overlay) return;
+
+    if (dateInput && !dateInput.value) {
+      dateInput.value = new Date().toISOString().slice(0, 10);
+    }
+
+    if (patientSelect && patientSelect.options.length <= 1) {
+      try {
+        const resp = await window.apiRequest('/api/facturas/catalogos/pacientes');
+        if (resp?.success && Array.isArray(resp.data)) {
+          resp.data.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.nombre} (${p.documento})`;
+            opt.dataset.nombre = p.nombre;
+            opt.dataset.doc = p.documento;
+            patientSelect.appendChild(opt);
+          });
+        }
+      } catch (err) {
+        console.warn('No se pudo cargar el catálogo de pacientes en el modal.', err);
+      }
+    }
+
+    overlay.classList.add('open');
+    overlay.removeAttribute('inert');
+    overlay.setAttribute('aria-hidden', 'false');
+
+    if (patientSelect && patientSelect.options.length > 1) {
+      patientSelect.focus();
+    } else if (patientInput) {
+      patientInput.focus();
+    }
+  };
+
+  const closeModal = () => {
+    if (!overlay) return;
+    overlay.classList.remove('open');
+    overlay.setAttribute('inert', '');
+    overlay.setAttribute('aria-hidden', 'true');
+  };
+
+  btn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openModal();
   });
+
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+
+  overlay?.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  patientSelect?.addEventListener('change', () => {
+    const opt = patientSelect.options[patientSelect.selectedIndex];
+    if (opt && opt.value) {
+      if (patientInput) patientInput.value = opt.dataset.nombre || opt.textContent.split(' (')[0];
+      if (docInput) docInput.value = opt.dataset.doc || '';
+    }
+  });
+
+  serviceSelect?.addEventListener('change', () => {
+    const opt = serviceSelect.options[serviceSelect.selectedIndex];
+    if (opt && opt.dataset.price && totalInput) {
+      totalInput.value = opt.dataset.price;
+    }
+  });
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const patientName = patientInput?.value.trim();
+    const doc = docInput?.value.trim();
+    const invoiceDate = dateInput?.value;
+    const serviceName = serviceSelect?.value;
+    const totalVal = parseFloat(totalInput?.value || '0');
+    let selectedPatientId = parseInt(patientSelect?.value || '0', 10);
+    const selectedServiceOpt = serviceSelect?.options[serviceSelect.selectedIndex];
+    const selectedServiceId = selectedServiceOpt?.dataset.id ? parseInt(selectedServiceOpt.dataset.id, 10) : null;
+
+    if (!patientName || !doc || !invoiceDate || !serviceName || totalVal <= 0) {
+      showToast('Por favor completa todos los campos requeridos.', 'error');
+      return;
+    }
+
+    // Resolver paciente ID si no fue seleccionado explícitamente en el select
+    if (!selectedPatientId && patientSelect && patientSelect.options.length > 1) {
+      for (let i = 1; i < patientSelect.options.length; i++) {
+        const opt = patientSelect.options[i];
+        if (opt.value && (opt.dataset.doc === doc || opt.dataset.nombre?.toLowerCase() === patientName.toLowerCase())) {
+          selectedPatientId = parseInt(opt.value, 10);
+          break;
+        }
+      }
+      if (!selectedPatientId && patientSelect.options[1].value) {
+        selectedPatientId = parseInt(patientSelect.options[1].value, 10);
+      }
+    }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+      let createdData = null;
+      if (selectedPatientId > 0) {
+        const payload = {
+          idPaciente: selectedPatientId,
+          notas: `Servicio: ${serviceName}`,
+          detalles: [
+            {
+              idServicio: selectedServiceId,
+              descripcion: serviceName,
+              cantidad: 1,
+              precioUnitario: totalVal
+            }
+          ]
+        };
+
+        const response = await window.apiRequest('/api/facturas', {
+          method: 'POST',
+          body: payload
+        });
+
+        if (response?.success) {
+          createdData = response.data;
+        }
+      }
+
+      const nextNumStr = String(invoices.length + 1).padStart(4, '0');
+      const newInvoice = {
+        id: createdData?.id || Date.now(),
+        number: createdData?.numero || `FAC-2026-${nextNumStr}`,
+        patient: createdData?.paciente || patientName,
+        doc: createdData?.documento || doc,
+        date: createdData?.fecha ? String(createdData.fecha).slice(0, 10) : invoiceDate,
+        total: createdData?.total || totalVal,
+        pending: createdData?.pendiente ?? totalVal,
+        status: createdData?.estado || 'pendiente',
+        avatar: patientName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+        color: ['blue','green','purple','orange','red'][invoices.length % 5],
+        service: serviceName,
+        history: []
+      };
+
+      // Resetear filtros para garantizar que la nueva factura sea visible de inmediato en la tabla
+      searchQuery = '';
+      filterStatus = '';
+      filterMonth = '';
+
+      const searchInput = safeGetElement('searchInvoices');
+      if (searchInput) searchInput.value = '';
+
+      const filterStatusEl = safeGetElement('filterStatus');
+      if (filterStatusEl) filterStatusEl.value = '';
+
+      const filterMonthEl = safeGetElement('filterMonth');
+      if (filterMonthEl) filterMonthEl.value = '';
+
+      invoices.unshift(newInvoice);
+      currentPage = 1;
+      updateStats();
+      renderInvoices();
+
+      showToast(`Factura ${newInvoice.number} generada exitosamente.`, 'success');
+      form.reset();
+      closeModal();
+    } catch (err) {
+      console.error('Error al generar la factura:', err);
+      showToast('Ocurrió un error al generar la factura. Intente nuevamente.', 'error');
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && overlay?.classList.contains('open')) {
       e.preventDefault();
@@ -605,9 +853,10 @@ const init = async () => {
     if (response?.success && Array.isArray(response.data)) {
       invoices = response.data.map((f, idx) => ({
         id: f.id, number: f.numero, patient: f.paciente, doc: f.documento,
-        date: String(f.fecha).slice(0, 10), total: f.total, pending: f.pendiente,
+        date: String(f.fecha).slice(0, 10), total: f.total, paid: f.montoPagado, pending: f.pendiente,
         status: f.estado, color: ['blue','green','purple','orange','red'][idx % 5],
-        service: f.notas || 'Servicio Odontológico', history: []
+        service: f.notas || 'Servicio Odontológico',
+        history: f.fechaPago ? [{ date: String(f.fechaPago).slice(0, 10), type: 'pago' }] : []
       }));
     }
   } catch (error) {
