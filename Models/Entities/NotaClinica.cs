@@ -31,6 +31,9 @@ public class NotaClinica
     [Column("id_profesional")]
     public int? IdProfesional { get; set; }
 
+    [Column("id_cita")]
+    public int? IdCita { get; set; }
+
     [Required]
     [Column("fecha")]
     public DateTime Fecha { get; set; } = DateTime.UtcNow;
@@ -54,4 +57,5 @@ public class NotaClinica
     // ── Navegación ──────────────────────────────────────────
     public HistoriaClinica? HistoriaClinica { get; set; }
     public Profesional? Profesional { get; set; }
+    public Cita? Cita { get; set; }
 }

@@ -54,8 +54,19 @@ public class HistoriaClinicaController(
         }
         else
         {
-            var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == cita.IdPaciente && h.Activa);
-            var (status, instructions, observations) = LeerControlPostoperatorio(historia?.ObservacionesGenerales, cita.IdCita);
+            var control = await _context.ControlesPostoperatorios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.IdCita == cita.IdCita);
+            var instruccionesPorDefecto = new List<object>
+            {
+                new { text = "No comer próximas 2h", @checked = false },
+                new { text = "Medicamento cada 8h", @checked = false },
+                new { text = "Evitar T° extremas", @checked = false },
+                new { text = "Control en 7 días", @checked = false }
+            };
+            var instrucciones = string.IsNullOrWhiteSpace(control?.InstruccionesJson)
+                ? null
+                : JsonSerializer.Deserialize<List<ControlPostoperatorioInstruccion>>(control.InstruccionesJson);
 
             vm = new
             {
@@ -63,9 +74,10 @@ public class HistoriaClinicaController(
                 paciente = cita.Paciente?.NombresCompleto ?? "Paciente sin datos",
                 procedimiento = cita.Servicio?.Nombre ?? "Procedimiento",
                 fecha = cita.FechaHora,
-                status,
-                instructions,
-                observations
+                status = control?.Status ?? "stable",
+                instructions = instrucciones?.Select(i => (object)new { text = i.Text ?? "", @checked = i.Checked }).ToList()
+                    ?? instruccionesPorDefecto,
+                observations = control?.Observaciones ?? ""
             };
         }
 
@@ -87,41 +99,6 @@ public class HistoriaClinicaController(
         return success
             ? Json(new { success = true })
             : Json(new { success = false, message });
-    }
-
-    private static (string status, List<object> instructions, string observations) LeerControlPostoperatorio(string? observacionesGenerales, int citaId)
-    {
-        var instruccionesPorDefecto = new List<object>
-        {
-            new { text = "No comer próximas 2h", @checked = false },
-            new { text = "Medicamento cada 8h", @checked = false },
-            new { text = "Evitar T° extremas", @checked = false },
-            new { text = "Control en 7 días", @checked = false }
-        };
-
-        if (string.IsNullOrWhiteSpace(observacionesGenerales))
-            return ("stable", instruccionesPorDefecto, "");
-
-        try
-        {
-            var raiz = JsonNode.Parse(observacionesGenerales) as JsonObject;
-            var control = raiz?["controlesPostoperatorios"]?[citaId.ToString()] as JsonObject;
-            if (control is null) return ("stable", instruccionesPorDefecto, "");
-
-            string status = control["status"]?.GetValue<string>() ?? "stable";
-            string observations = control["observations"]?.GetValue<string>() ?? "";
-            var instructions = control["instructions"]?.AsArray()?.Select(n => (object)new
-            {
-                text = n?["text"]?.GetValue<string>() ?? "",
-                @checked = n?["checked"]?.GetValue<bool>() ?? false
-            }).ToList() ?? instruccionesPorDefecto;
-
-            return (status, instructions, observations);
-        }
-        catch
-        {
-            return ("stable", instruccionesPorDefecto, "");
-        }
     }
 
     [HttpGet]
@@ -434,9 +411,17 @@ public class HistoriaClinicaController(
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("historia-clinica/st-odo-03-historial")]
-    public async Task<IActionResult> Stodo03Historial([FromQuery] int? pacienteId, [FromQuery] int? historiaId)
+    public async Task<IActionResult> Stodo03Historial(
+        [FromQuery] int? pacienteId,
+        [FromQuery] int? historiaId,
+        [FromQuery] int? citaId)
     {
         var vm = await BuildHistorialPacienteViewModelAsync(pacienteId, historiaId);
+        if (citaId is > 0 && vm.Odontograma.PacienteId is int pacienteResuelto &&
+            await _context.Citas.AnyAsync(c => c.IdCita == citaId && c.IdPaciente == pacienteResuelto))
+        {
+            vm.Odontograma.CitaId = citaId;
+        }
         return View("~/Views/Historia_Clinica/st-odo-03-historial/gestion-historial.cshtml", vm);
     }
 
@@ -549,6 +534,66 @@ public class HistoriaClinicaController(
         return Json(new { success = true, registros = registrosDiente, citas });
     }
 
+    [HttpGet]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/observaciones-cita")]
+    public async Task<IActionResult> ObtenerObservacionesCita([FromQuery] int pacienteId, [FromQuery] int citaId)
+    {
+        if (pacienteId <= 0 || citaId <= 0)
+            return BadRequest(new { success = false, message = "Paciente y cita son obligatorios." });
+
+        var historia = await _context.HistoriasClinicas.AsNoTracking()
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
+        if (historia is null)
+            return Ok(new { success = true, registros = Array.Empty<object>() });
+
+        bool citaValida = await _context.Citas.AnyAsync(c =>
+            c.IdCita == citaId && c.IdPaciente == pacienteId);
+        if (!citaValida)
+            return BadRequest(new { success = false, message = "La cita no pertenece al paciente indicado." });
+
+        var registros = await _context.RegistrosOdontograma.AsNoTracking()
+            .Where(r => r.IdHistoria == historia.IdHistoria && r.IdCita == citaId)
+            .GroupBy(r => r.NumeroFdi)
+            .Select(g => g.OrderByDescending(r => r.FechaRegistro).First())
+            .OrderBy(r => r.NumeroFdi)
+            .Select(r => new { r.NumeroFdi, r.Estado, r.Observacion })
+            .ToListAsync();
+
+        return Ok(new { success = true, registros });
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/odontograma")]
+    public async Task<IActionResult> ObtenerOdontogramaHasta([FromQuery] int pacienteId, [FromQuery] DateOnly hasta)
+    {
+        if (pacienteId <= 0)
+            return BadRequest(new { success = false, message = "El paciente no es válido." });
+
+        var historia = await _context.HistoriasClinicas.AsNoTracking()
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
+        if (historia is null)
+            return Ok(new { success = true, hasta = hasta.ToString("yyyy-MM-dd"), registros = Array.Empty<object>() });
+
+        DateTime limiteExclusivo = hasta.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        var registros = await _context.RegistrosOdontograma.AsNoTracking()
+            .Where(r => r.IdHistoria == historia.IdHistoria && r.FechaRegistro < limiteExclusivo)
+            .GroupBy(r => r.NumeroFdi)
+            .Select(g => g.OrderByDescending(r => r.FechaRegistro).First())
+            .OrderBy(r => r.NumeroFdi)
+            .Select(r => new
+            {
+                r.NumeroFdi,
+                r.Estado,
+                r.Observacion,
+                r.FechaRegistro
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, hasta = hasta.ToString("yyyy-MM-dd"), registros });
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "Profesional")]
@@ -569,7 +614,9 @@ public class HistoriaClinicaController(
             request.PacienteId.Value, request, profesional?.IdProfesional, doctor);
 
         if (!success || nota is null)
-            return Json(new { success = false, message });
+            return message == "Esta cita ya tiene una nota registrada."
+                ? Conflict(new { success = false, message })
+                : BadRequest(new { success = false, message });
 
         // Se mantiene la misma forma que ya consume el JS de st-odo-03-historial.
         return Json(new
@@ -582,10 +629,41 @@ public class HistoriaClinicaController(
                 doctor = nota.Doctor,
                 diagnostico = nota.Diagnostico ?? "",
                 procedimiento = nota.Procedimiento ?? "",
+                citaId = request.CitaId,
                 proximaCita = nota.ProximaCita,
                 estado = nota.Estado
             }
         });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/finalizar-consulta")]
+    public async Task<IActionResult> FinalizarConsulta(
+        [FromBody] FinalizarConsultaRequest request,
+        CancellationToken ct)
+    {
+        if (request is null || request.PacienteId <= 0 || request.CitaId <= 0 || request.Nota is null)
+            return BadRequest(new { success = false, message = "Paciente, cita y nota son obligatorios." });
+
+        int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        var profesional = idProfesional.HasValue
+            ? await _context.Profesionales.FirstOrDefaultAsync(p => p.IdProfesional == idProfesional.Value, ct)
+            : null;
+        string doctor = profesional is null
+            ? "Profesional"
+            : $"Dr(a). {profesional.Nombres} {profesional.Apellidos}";
+
+        var (success, message) = await _historiaService.FinalizarConsultaAsync(
+            request,
+            idProfesional,
+            doctor,
+            ct);
+
+        return success
+            ? Ok(new { success = true, message })
+            : Conflict(new { success = false, message });
     }
 
     [HttpPost]
@@ -930,6 +1008,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
         .Where(c => c.FechaHora <= ahora)
         .Select(c => new RegistroHistorialItem
         {
+            CitaId = c.IdCita,
             Fecha = c.FechaHora,
             Tipo = InferirTipoServicio(c.Servicio?.Nombre),
             Descripcion = c.Servicio?.Nombre ?? c.Notas ?? "Consulta",
@@ -954,6 +1033,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
             .OrderByDescending(n => n.Fecha)
             .Select(n => new NotaClinicaHistorialItem
             {
+                CitaId = n.IdCita,
                 Titulo       = n.Procedimiento ?? n.Diagnostico ?? "Nota clínica",
                 Fecha        = n.Fecha.ToString("yyyy-MM-dd"),
                 Doctor       = n.Profesional != null
@@ -971,6 +1051,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
         // o el estado de una pieza dental.
         vm.LineaDeTiempo.AddRange(vm.NotasClinicas.Select(n => new EventoHistoriaClinicaItem
         {
+            CitaId = n.CitaId,
             Fecha = DateTime.TryParse(n.Fecha, out var fechaNota) ? fechaNota : DateTime.MinValue,
             Categoria = "nota",
             Titulo = n.Titulo,
@@ -1018,6 +1099,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
     // Así el historial reúne entradas clínicas y atención programada en orden real.
     vm.LineaDeTiempo.AddRange(vm.Registros.Select(r => new EventoHistoriaClinicaItem
     {
+        CitaId = r.CitaId,
         Fecha = r.Fecha,
         Categoria = "consulta",
         Titulo = r.Descripcion,

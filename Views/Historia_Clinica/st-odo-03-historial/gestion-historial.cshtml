@@ -28,6 +28,7 @@
     {
         pacienteId = odonto.PacienteId,
         historiaId = odonto.HistoriaId,
+        citaId = odonto.CitaId,
         nombre = nombrePaciente,
         codigoHC = codigoHC,
         fechaNacimiento = fechaNacimiento,
@@ -66,6 +67,7 @@
         estadoPersistido = odonto.EstadoPersistido ?? odonto.ObservacionesGenerales,
         notasClinicas = Model.NotasClinicas.Select(n => new
         {
+            citaId = n.CitaId,
             titulo = n.Titulo,
             fecha = n.Fecha,
             doctor = n.Doctor,
@@ -82,7 +84,8 @@
             diagnostico = "",
             procedimiento = r.Descripcion,
             estado = r.Estado,
-            proximaCita = (string?)null
+            proximaCita = (string?)null,
+            citaId = r.CitaId
         }),
         lineaDeTiempo = Model.LineaDeTiempo.Select(e => new
         {
@@ -92,7 +95,8 @@
             descripcion = e.Descripcion,
             profesional = e.Profesional,
             estado = e.Estado,
-            enlaceDocumento = e.EnlaceDocumento
+            enlaceDocumento = e.EnlaceDocumento,
+            citaId = e.CitaId
         })
     });
 }
@@ -266,6 +270,10 @@
                     <div class="field-group">
                         <label for="odontograma_observaciones">Observaciones del Odontograma</label>
                         <textarea id="odontograma_observaciones" rows="3" placeholder="Indica piezas afectadas, tratamiento recomendado, restauraciones o cambios observados..."></textarea>
+                        <div id="observacionesCitaPanel" class="appointment-observations" hidden>
+                            <strong>Observaciones registradas en esta cita</strong>
+                            <ul id="observacionesCitaList"></ul>
+                        </div>
                     </div>
 
                     <div class="field-group">
@@ -352,11 +360,63 @@
                 <label class="remember-toggle"><input type="checkbox" /> <span>Autoguardado automático habilitado</span></label>
                 <div class="bottom-actions-right">
                     <button type="button" class="soft-btn subtle">Restablecer Valores</button>
+                    @if (odonto.CitaId.HasValue)
+                    {
+                        <button type="button" class="soft-btn" id="btnFinalizarConsulta">Finalizar consulta</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="soft-btn" id="btnGuardarNota">Guardar nota clínica</button>
+                    }
                     <button type="submit" class="primary-btn">Guardar Historia Clínica</button>
                 </div>
             </div>
         </form>
+
+        <section class="history-workspace" aria-labelledby="timelineTitle">
+            <header class="history-workspace-header">
+                <div>
+                    <h2 id="timelineTitle">Evolución clínica</h2>
+                    <p>Consulta notas, citas y cambios del odontograma por fecha.</p>
+                </div>
+                @if (odonto.CitaId.HasValue)
+                {
+                    <span class="active-appointment">Cita activa #@odonto.CitaId</span>
+                }
+            </header>
+            <div class="timeline-controls" id="timelineFilters">
+                <div class="timeline-categories" aria-label="Filtrar eventos por categoría">
+                    <button type="button" class="active" data-filter="todo">Todo</button>
+                    <button type="button" data-filter="nota">Notas</button>
+                    <button type="button" data-filter="consulta">Citas</button>
+                    <button type="button" data-filter="odontograma">Odontograma</button>
+                    <button type="button" data-filter="documento">Documentos</button>
+                </div>
+                <label>Desde <input type="date" id="timelineFrom"></label>
+                <label>Hasta <input type="date" id="timelineTo"></label>
+                <label>Profesional <select id="timelineProfessional"><option value="">Todos</option></select></label>
+            </div>
+            <div class="history-workspace-grid">
+                <div id="historialList" class="timeline-list" role="list" aria-live="polite"></div>
+                <aside class="odontogram-history" aria-label="Odontograma histórico">
+                    <div class="snapshot-controls">
+                        <h3>Odontograma por fecha</h3>
+                        <button type="button" id="btnVolverHoy" hidden>Volver a hoy</button>
+                    </div>
+                    <p id="odontogramaSnapshotNotice" class="snapshot-notice" role="status" hidden></p>
+                    <div id="odontogramaHost"></div>
+                </aside>
+            </div>
+        </section>
     </div>
+
+    <dialog id="toothHistoryDialog" class="tooth-history-dialog">
+        <form method="dialog" class="tooth-history-header">
+            <h2 id="toothHistoryTitle">Evolución del diente</h2>
+            <button type="submit" aria-label="Cerrar">×</button>
+        </form>
+        <div id="toothHistoryRecords" class="tooth-history-records" aria-live="polite"></div>
+    </dialog>
 
     <div id="holo-tooltip-historial" role="status" aria-live="polite"></div>
 </main>

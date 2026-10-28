@@ -99,10 +99,12 @@ public class EventoHistoriaClinicaItem
     public string Profesional { get; set; } = "";
     public string Estado { get; set; } = "";
     public string? EnlaceDocumento { get; set; }
+    public int? CitaId { get; set; }
 }
 
 public class RegistroHistorialItem
 {
+    public int? CitaId { get; set; }
     public DateTime Fecha { get; set; }
     public string Tipo { get; set; } = "consulta";
     public string Descripcion { get; set; } = string.Empty;
@@ -115,6 +117,7 @@ public class RegistroHistorialItem
 //   { titulo, fecha, doctor, diagnostico, procedimiento, proximaCita, estado }
 public class NotaClinicaHistorialItem
 {
+    public int? CitaId { get; set; }
     /// <summary>Título visible en la lista (procedimiento o diagnóstico).</summary>
     public string Titulo { get; set; } = string.Empty;
 

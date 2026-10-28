@@ -492,11 +492,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(n => n.IdNota).HasColumnName("id_nota");
             entity.Property(n => n.IdHistoria).HasColumnName("id_historia");
             entity.Property(n => n.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(n => n.IdCita).HasColumnName("id_cita");
             entity.Property(n => n.Fecha).HasColumnName("fecha");
             entity.Property(n => n.Diagnostico).HasColumnName("diagnostico");
             entity.Property(n => n.Procedimiento).HasColumnName("procedimiento");
             entity.Property(n => n.ProximaCita).HasColumnName("proxima_cita").HasMaxLength(50);
             entity.Property(n => n.Estado).HasColumnName("estado").HasMaxLength(20);
+            entity.HasIndex(n => n.IdCita)
+                  .IsUnique()
+                  .HasFilter("[id_cita] IS NOT NULL");
 
             entity.HasOne(n => n.HistoriaClinica)
                   .WithMany()
@@ -506,6 +510,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(n => n.Profesional)
                   .WithMany()
                   .HasForeignKey(n => n.IdProfesional)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(n => n.Cita)
+                  .WithMany()
+                  .HasForeignKey(n => n.IdCita)
                   .OnDelete(DeleteBehavior.SetNull);
         });
 
