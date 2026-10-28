@@ -117,6 +117,24 @@ public sealed class GestionUsuariosController(
             : BadRequest(new { success = false, message = result.Message });
     }
 
+        [HttpPost("{id:int}/bloqueo")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CambiarBloqueo(
+            int id,
+            [FromBody] CambiarBloqueoUsuarioRequest request,
+            CancellationToken ct = default)
+        {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
+            int? idOperador = ObtenerIdUsuarioActual();
+            var result = await _usuarioService.CambiarBloqueoAsync(id, request, idOperador, ct);
+
+            return result.Success
+                ? Ok(new { success = true, message = result.Message, data = result.Data })
+                : BadRequest(new { success = false, message = result.Message });
+        }
+
     private int? ObtenerIdUsuarioActual()
     {
         string? claim = User.FindFirstValue(ClaimTypes.NameIdentifier);

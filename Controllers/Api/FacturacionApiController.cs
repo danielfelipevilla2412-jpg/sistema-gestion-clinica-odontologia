@@ -89,7 +89,38 @@ public sealed class FacturacionApiController : ControllerBase
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("ya tiene una factura", StringComparison.OrdinalIgnoreCase))
         {
-            return Conflict(new { success = false, message = ex.Message });
+            // POR QUÉ: cuando la cita ya tiene factura devolvemos su id para que la interfaz pueda
+            // redirigir al módulo de facturación en lugar de mostrar solo un error sin salida.
+            var facturaExistenteId = await _db.Facturas
+                .AsNoTracking()
+                .Where(f => f.IdCita == idCita && f.Estado != "anulada")
+                .OrderByDescending(f => f.FechaFactura)
+                .Select(f => (int?)f.IdFactura)
+                .FirstOrDefaultAsync(ct);
+
+            return Conflict(new { success = false, message = ex.Message, facturaId = facturaExistenteId });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("recordatorios-vencidas")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EnviarRecordatoriosVencidas(CancellationToken ct)
+    {
+        var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(uid, out var idUsuario))
+            return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
+
+        try
+        {
+            var (enviados, fallidos) = await _service.EnviarRecordatoriosFacturasVencidasAsync(idUsuario, ct);
+            var mensaje = enviados > 0
+                ? $"Se enviaron {enviados} recordatorio(s) de pago a pacientes con facturas vencidas."
+                : "No hay facturas vencidas con paciente activo para notificar.";
+            return Ok(new { success = true, message = mensaje, enviados, fallidos });
         }
         catch (InvalidOperationException ex)
         {
@@ -137,10 +168,14 @@ public sealed class FacturacionApiController : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
 <<<<<<< HEAD
+<<<<<<< HEAD
         if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
 =======
         if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success=false, message="No se pudo identificar al usuario." });
 >>>>>>> origin/facturacion_ayuda
+=======
+        if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
         try { var r=await _service.RegistrarPagoAsync(id,request,idUsuario,ct); return r==null?NotFound(new{success=false,message="Factura no encontrada."}):Ok(new{success=true,message="Pago registrado correctamente.",data=r}); }
         catch(InvalidOperationException ex){return BadRequest(new{success=false,message=ex.Message});}
     }

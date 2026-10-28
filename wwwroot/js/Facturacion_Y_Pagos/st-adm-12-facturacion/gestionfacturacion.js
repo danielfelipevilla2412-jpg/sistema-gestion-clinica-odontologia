@@ -886,12 +886,17 @@ const init = async () => {
     if (response?.success && Array.isArray(response.data)) {
       invoices = response.data.map((f, idx) => ({
 <<<<<<< HEAD
+<<<<<<< HEAD
         id: f.id, idCita: f.idCita, idProfesional: f.idProfesional, number: f.numero, patient: f.paciente, doc: f.documento,
         date: String(f.fecha).slice(0, 10), total: f.total, pending: f.pendiente,
 =======
         id: f.id, number: f.numero, patient: f.paciente, doc: f.documento,
         date: String(f.fecha).slice(0, 10), total: f.total, paid: f.montoPagado, pending: f.pendiente,
 >>>>>>> origin/facturacion_ayuda
+=======
+        id: f.id, idCita: f.idCita, idProfesional: f.idProfesional, number: f.numero, patient: f.paciente, doc: f.documento,
+        date: String(f.fecha).slice(0, 10), total: f.total, pending: f.pendiente,
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
         status: f.estado, color: ['blue','green','purple','orange','red'][idx % 5],
         service: f.notas || 'Servicio Odontológico',
         history: f.fechaPago ? [{ date: String(f.fechaPago).slice(0, 10), type: 'pago' }] : []
@@ -904,7 +909,17 @@ const init = async () => {
   updateStats();
   await loadProfessionalFilter();
   renderInvoices();
-  
+
+  // POR QUÉ: cuando se llega desde otra vista con ?facturaId=N hay que abrir automáticamente el
+  // detalle de esa factura (por ejemplo al pulsar "Facturar" en una cita que ya tiene factura).
+  const facturaIdParam = new URLSearchParams(window.location.search).get('facturaId');
+  if (facturaIdParam) {
+    const facturaId = parseInt(facturaIdParam, 10);
+    if (!Number.isNaN(facturaId) && invoices.some(invoiceItem => invoiceItem.id === facturaId)) {
+      openDrawer(facturaId);
+    }
+  }
+
   window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
 };
 

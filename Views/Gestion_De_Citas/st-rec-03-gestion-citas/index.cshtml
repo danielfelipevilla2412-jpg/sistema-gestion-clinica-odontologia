@@ -28,6 +28,12 @@
   var estadosCita = ViewData["EstadosCita"] as List<SmileTrack_MVC.Models.Entities.EstadoCita> ?? new();
   var citas = ViewData["Citas"] as List<SmileTrack_MVC.Models.Entities.Cita> ?? new();
   var pageResult = ViewData["CitasPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Cita>;
+  var resultItemCount = pageResult?.Items?.Count ?? 0;
+  var resultTotalCount = pageResult?.TotalCount ?? 0;
+  var resultPage = pageResult?.Page ?? 1;
+  var resultPageSize = pageResult?.PageSize ?? 10;
+  var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+  var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
   var editingCita = ViewData["EditingCita"] as SmileTrack_MVC.Models.Entities.Cita;
   var isEditing = editingCita != null;
 
@@ -53,7 +59,7 @@
         <p class="page-subtitle" data-i18n="citas.rec_subtitle">Programa, modifica y cancela citas de manera eficiente.</p>
       </div>
       <div class="header-actions">
-        <a class="btn-secondary" href="/gestion-de-citas/st-adm-08-agenda" aria-label="Consultar agenda y disponibilidad de profesionales">
+        <a class="btn-secondary" href="/gestion-de-citas/agenda-profesionales" aria-label="Consultar agenda y disponibilidad de profesionales">
           <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
           <span>Agenda de profesionales</span>
         </a>
@@ -303,7 +309,7 @@
 
       <div class="pagination" role="navigation" aria-label="Paginación de citas">
         @{ }
-        <span class="pagination-info" id="paginationInfo" aria-live="polite">Mostrando @Math.Min(pageResult?.PageSize ?? 10, pageResult?.Items.Count ?? 0) de @pageResult?.TotalCount citas</span>
+        <span class="pagination-info" id="paginationInfo" aria-live="polite">Mostrando @resultRangeStart-@resultRangeEnd de @resultTotalCount citas</span>
         <div class="pagination-buttons">
           @if (pageResult != null && pageResult.HasPreviousPage)
           {

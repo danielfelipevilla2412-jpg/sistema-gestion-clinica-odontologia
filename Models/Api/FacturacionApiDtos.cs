@@ -55,6 +55,9 @@ public sealed class FacturaDto : FacturaListItemDto
 {
     public List<FacturaDetalleDto> Detalles { get; init; } = new();
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
     public List<PagoDto> Pagos { get; init; } = new();
 }
 
@@ -67,6 +70,7 @@ public sealed class PagoDto
     public string? Referencia { get; init; }
     public int RegistradoPor { get; init; }
     public string? Observaciones { get; init; }
+<<<<<<< HEAD
 =======
     public List<FacturaPagoDto> Pagos { get; init; } = new();
 }
@@ -80,6 +84,8 @@ public sealed class FacturaPagoDto
     public string Referencia { get; init; } = string.Empty;
     public DateTime FechaUtc { get; init; }
 >>>>>>> origin/facturacion_ayuda
+=======
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
 }
 
 public sealed class FacturaDetalleRequest
@@ -141,17 +147,23 @@ public sealed class RegistrarPagoRequest
     [Range(0.01, 999999999)]
     public decimal MontoPagado { get; set; }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
     [StringLength(30)]
     public string MetodoPago { get; set; } = "efectivo";
     [StringLength(100)]
     public string? Referencia { get; set; }
     [StringLength(500)]
     public string? Observaciones { get; set; }
+<<<<<<< HEAD
 =======
 
     [Required, StringLength(30)]
     public string MetodoPago { get; set; } = "efectivo";
 >>>>>>> origin/facturacion_ayuda
+=======
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
 }
 
 public sealed class AnularFacturaRequest

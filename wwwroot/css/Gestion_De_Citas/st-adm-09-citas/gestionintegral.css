@@ -619,11 +619,14 @@ img {
     outline: none;
 }
 
+.table-wrap {
+    overflow-x: auto;
+}
+
 .table-appointments {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0 3px;
-    table-layout: fixed;
     min-width: 980px;
 }
 

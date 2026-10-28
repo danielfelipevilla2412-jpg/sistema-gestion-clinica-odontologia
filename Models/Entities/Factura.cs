@@ -25,8 +25,12 @@ public class Factura
     public Usuario? GeneradaPorUsuario { get; set; }
     public List<DetalleFactura> Detalles { get; set; } = new();
 <<<<<<< HEAD
+<<<<<<< HEAD
     public List<Pago> Pagos { get; set; } = new();
 =======
     public List<PagoFactura> Pagos { get; set; } = new();
 >>>>>>> origin/facturacion_ayuda
+=======
+    public List<Pago> Pagos { get; set; } = new();
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
 }

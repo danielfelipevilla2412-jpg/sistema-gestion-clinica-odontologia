@@ -353,12 +353,14 @@ const fetchPendingAppointmentRequests = async () => {
  * Confirma la asignación de una solicitud pendiente.
  * @param {number} appointmentId
  * @param {Object} pendingRequestItem
+ * @param {{date?: string, time?: string}} slotOverrides Horario elegido por el recepcionista.
  */
-const confirmPendingRequestAction = async (appointmentId, pendingRequestItem) => {
+const confirmPendingRequestAction = async (appointmentId, pendingRequestItem, slotOverrides = {}) => {
   try {
-    const requestDate = pendingRequestItem.fecha ? String(pendingRequestItem.fecha).slice(0, 10) : new Date().toISOString().slice(0, 10);
-    const requestTime = pendingRequestItem.horaInicio ? String(pendingRequestItem.horaInicio).slice(0, 5) : '09:00';
-    
+    // POR QUÉ: se da prioridad al horario ajustado en la tarjeta; solo si no viene se usa el
+    // solicitado por el paciente. Así se evita confirmar en una fecha/hora ya pasada.
+    const requestDate = slotOverrides.date || (pendingRequestItem.fecha ? String(pendingRequestItem.fecha).slice(0, 10) : new Date().toISOString().slice(0, 10));
+    const requestTime = slotOverrides.time || (pendingRequestItem.horaInicio ? String(pendingRequestItem.horaInicio).slice(0, 5) : '09:00');
     const professionalsResponse = await fetch(`${API_BASE_URL}/citas/profesionales-disponibles?fecha=${encodeURIComponent(requestDate)}&horaInicio=${encodeURIComponent(requestTime)}&idServicio=${encodeURIComponent(pendingRequestItem.servicio?.idServicio ?? 0)}`, {
       method: 'GET',
       credentials: 'same-origin',
@@ -373,7 +375,13 @@ const confirmPendingRequestAction = async (appointmentId, pendingRequestItem) =>
       return;
     }
 
-    const officeId = document.querySelector('#newConsultorio')?.value || document.querySelector('#modalNewAppointment [name="IdConsultorio"]')?.value || 1;
+    // POR QUÉ: el modal de nueva cita expone el select real con id "newOffice" (name="IdConsultorio").
+    // Antes se consultaban selectores inexistentes (#newConsultorio / #modalNewAppointment), así que
+    // siempre se enviaba el consultorio 1 y el backend respondía "El consultorio seleccionado no está disponible.".
+    const officeSelect = document.querySelector('#newOffice') || document.querySelector('select[name="IdConsultorio"]');
+    const officeId = officeSelect?.value
+      || officeSelect?.querySelector('option[value]:not([value=""])')?.value
+      || 1;
     const confirmPayload = {
       idCita: appointmentId,
       idProfesional: Number(availableProfessionals[0].idProfesional ?? availableProfessionals[0].IdProfesional),
@@ -386,12 +394,10 @@ const confirmPendingRequestAction = async (appointmentId, pendingRequestItem) =>
     const response = await fetch(`${API_BASE_URL}/citas/${appointmentId}/confirmar-asignacion`, {
       method: 'PUT',
       credentials: 'same-origin',
-      headers: {
-        ...getAuthHeaders(),
-        'X-CSRF-TOKEN': document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2] ? decodeURIComponent(document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)[2]) : '',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
+      // POR QUÉ: getCancelHeaders() toma el token antiforgery del input hidden generado por Razor
+      // (CommonUtils.getCsrfToken). Leerlo de la cookie XSRF-TOKEN podía devolver vacío y provocar
+      // "Token antiforgery inválido o ausente".
+      headers: getCancelHeaders(),
       body: JSON.stringify(confirmPayload)
     });
 
@@ -484,6 +490,13 @@ const generateInvoiceFromAppointment = async (appointmentId) => {
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
+      // POR QUÉ: si la cita ya tiene factura (409) mostrarlo como error deja al usuario sin salida;
+      // se redirige directamente al módulo de facturación abriendo la factura existente.
+      if (response.status === 409 && payload.facturaId) {
+        showToastNotification('Esta cita ya tiene una factura. Abriendo la factura existente…', 'info');
+        window.location.assign(`/facturacion-y-pagos/st-adm-12-facturacion?facturaId=${encodeURIComponent(payload.facturaId)}`);
+        return;
+      }
       const errorDetail = payload.message || (response.status === 403
         ? 'No tienes permisos para generar facturas.'
         : response.status === 400
@@ -664,6 +677,13 @@ const renderAppointmentsTable = (appointmentList) => {
  * @param {Array} pendingRequests
  */
 const renderPendingRequestsList = (listElement, pendingRequests) => {
+  // POR QUÉ: una solicitud pendiente puede traer una fecha/hora ya pasada y el backend rechaza
+  // confirmarla ("No se puede agendar una cita en fecha u hora pasada."). Se precarga un horario
+  // válido (ahora + 1 hora) cuando el solicitado ya pasó y se permite ajustarlo antes de confirmar.
+  const horarioSugerido = new Date(Date.now() + (60 * 60 * 1000));
+  const fechaSugerida = `${horarioSugerido.getFullYear()}-${String(horarioSugerido.getMonth() + 1).padStart(2, '0')}-${String(horarioSugerido.getDate()).padStart(2, '0')}`;
+  const horaSugerida = `${String(horarioSugerido.getHours()).padStart(2, '0')}:00`;
+
   const requestItemsHtml = pendingRequests.map((solicitudItem) => {
     const formattedDate = solicitudItem?.fecha ? new Date(solicitudItem.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha';
     const formattedTime = solicitudItem?.horaInicio ? String(solicitudItem.horaInicio).slice(0, 5) : '08:00';
@@ -671,14 +691,34 @@ const renderPendingRequestsList = (listElement, pendingRequests) => {
     const serviceName = solicitudItem?.servicio?.nombre || 'Servicio por confirmar';
     const notesText = solicitudItem?.notas ? escapeHtml(solicitudItem.notas) : 'Sin observaciones adicionales.';
 
+    const fechaSolicitada = solicitudItem?.fecha ? String(solicitudItem.fecha).slice(0, 10) : fechaSugerida;
+    const horaSolicitada = solicitudItem?.horaInicio ? String(solicitudItem.horaInicio).slice(0, 5) : horaSugerida;
+    const slotSolicitado = new Date(`${fechaSolicitada}T${horaSolicitada}:00`);
+    const slotYaPaso = Number.isNaN(slotSolicitado.getTime())
+      || slotSolicitado.getTime() < Date.now() + (5 * 60 * 1000);
+    const slotFecha = slotYaPaso ? fechaSugerida : fechaSolicitada;
+    const slotHora = slotYaPaso ? horaSugerida : horaSolicitada;
+    const patientNameForAria = escapeHtml(patientName);
+
     return `
       <article class="pending-request-item" style="display:flex; flex-wrap:wrap; gap:1rem; justify-content:space-between; align-items:center; padding:1rem 1.1rem; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; margin-bottom:0.75rem;">
-        <div>
-          <strong style="display:block; font-size:0.98rem; margin-bottom:0.35rem;">${escapeHtml(patientName)}</strong>
-          <small style="display:block; color:#475569;">${escapeHtml(formattedDate)} · ${escapeHtml(formattedTime)} · ${escapeHtml(serviceName)}</small>
+        <div style="flex:1 1 240px;">
+          <strong style="display:block; font-size:0.98rem; margin-bottom:0.35rem;">${patientNameForAria}</strong>
+          <small style="display:block; color:#475569;">Solicitada para: ${escapeHtml(formattedDate)} · ${escapeHtml(formattedTime)} · ${escapeHtml(serviceName)}</small>
           <small style="display:block; color:#64748b; margin-top:0.3rem;">${notesText}</small>
+          ${slotYaPaso ? '<small style="display:block; color:#b45309; margin-top:0.35rem;">Ese horario ya pasó; ajusta la fecha y hora para poder confirmarla.</small>' : ''}
         </div>
-        <button type="button" class="btn-primary" data-confirm-pending="${solicitudItem.idCita}" style="white-space:nowrap;">Confirmar</button>
+        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+          <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.03em;">
+            Fecha a asignar
+            <input type="date" data-pending-date value="${slotFecha}" aria-label="Fecha a asignar para la solicitud de ${patientNameForAria}" style="padding:0.45rem 0.55rem; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem;">
+          </label>
+          <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.03em;">
+            Hora
+            <input type="time" data-pending-time value="${slotHora}" aria-label="Hora a asignar para la solicitud de ${patientNameForAria}" style="padding:0.45rem 0.55rem; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem;">
+          </label>
+          <button type="button" class="btn-primary" data-confirm-pending="${solicitudItem.idCita}" style="white-space:nowrap;">Confirmar</button>
+        </div>
       </article>
     `;
   }).join('');
@@ -690,7 +730,12 @@ const renderPendingRequestsList = (listElement, pendingRequests) => {
       const appointmentId = Number(confirmButton.getAttribute('data-confirm-pending'));
       const pendingRequestItem = pendingRequests.find(item => Number(item.idCita) === appointmentId);
       if (!pendingRequestItem) return;
-      await confirmPendingRequestAction(appointmentId, pendingRequestItem);
+      const cardElement = confirmButton.closest('.pending-request-item');
+      const slotOverrides = {
+        date: cardElement?.querySelector('[data-pending-date]')?.value || '',
+        time: cardElement?.querySelector('[data-pending-time]')?.value || ''
+      };
+      await confirmPendingRequestAction(appointmentId, pendingRequestItem, slotOverrides);
     });
   });
 };
@@ -735,7 +780,10 @@ const updateMetricsCounters = () => {
  */
 const updatePaginationInfo = (rangeStart, rangeEnd, totalCount) => {
   const infoElement = getElementByIdSafe('paginationInfo');
-  if (infoElement) infoElement.textContent = totalCount > 0 ? `Mostrando ${rangeStart}-${rangeEnd} de ${totalCount} citas` : 'Sin resultados';
+  if (infoElement) infoElement.textContent = totalCount > 0 ? `Mostrando ${rangeStart}-${rangeEnd} de ${totalCount} citas` : 'Mostrando 0 de 0 citas';
+  const requestedPage = Number(new URLSearchParams(window.location.search).get('page'));
+  currentPageIndex = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const appointmentsList = await fetchAppointments(currentPageIndex);
 };
 
 // ===================================================================
@@ -1163,7 +1211,9 @@ const init = async () => {
       input.addEventListener('input', () => { if (input.classList.contains('error')) validateField(input); });
     });
 
-    const appointmentsList = await fetchAppointments();
+    const requestedPage = Number(new URLSearchParams(window.location.search).get('page'));
+    currentPageIndex = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    const appointmentsList = await fetchAppointments(currentPageIndex);
     await fetchPendingAppointmentRequests();
     updateMetricsCounters();
     renderAppointmentsTable(appointmentState.getAll());

@@ -775,6 +775,9 @@ END
 GO
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'id_cita')
 BEGIN
     ALTER TABLE dbo.Factura ADD id_cita INT NULL;
@@ -828,6 +831,7 @@ BEGIN
 END
 GO
 
+<<<<<<< HEAD
 =======
 IF OBJECT_ID(N'dbo.Pago_Factura', N'U') IS NULL
 BEGIN
@@ -869,6 +873,8 @@ WHERE f.monto_pagado > 0
 GO
 
 >>>>>>> origin/facturacion_ayuda
+=======
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Ticket_Soporte') AND type = N'U')
 BEGIN
     CREATE TABLE Ticket_Soporte (
@@ -1909,6 +1915,41 @@ BEGIN
     );
     CREATE INDEX IX_Notificacion_Paciente_Estado ON dbo.Notificacion(id_paciente, estado, creada_en DESC);
     CREATE INDEX IX_Notificacion_Programada ON dbo.Notificacion(estado, fecha_programada);
+END
+GO
+
+-- Amplía los tipos permitidos de Notificacion (facturación y pagos) en bases ya existentes.
+-- POR QUÉ: el CHECK original solo admitía 'recordatorio','confirmacion','cancelacion','mensaje','alerta',
+-- pero el módulo de facturación registra notificaciones con tipo 'factura'. Eso provocaba
+-- "The INSERT statement conflicted with the CHECK constraint ... column 'tipo'" (HTTP 500 al facturar).
+IF OBJECT_ID(N'dbo.Notificacion', N'U') IS NOT NULL
+BEGIN
+    DECLARE @ckTipoNotificacion SYSNAME;
+
+    SELECT @ckTipoNotificacion = cc.name
+    FROM sys.check_constraints AS cc
+    INNER JOIN sys.columns AS col
+        ON col.object_id = cc.parent_object_id
+       AND col.column_id = cc.parent_column_id
+    WHERE cc.parent_object_id = OBJECT_ID(N'dbo.Notificacion')
+      AND col.name = N'tipo';
+
+    IF @ckTipoNotificacion IS NOT NULL
+        AND @ckTipoNotificacion <> N'CK_Notificacion_tipo'
+    BEGIN
+        EXEC(N'ALTER TABLE dbo.Notificacion DROP CONSTRAINT [' + @ckTipoNotificacion + N'];');
+    END
+
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.check_constraints
+        WHERE name = N'CK_Notificacion_tipo'
+          AND parent_object_id = OBJECT_ID(N'dbo.Notificacion')
+    )
+    BEGIN
+        ALTER TABLE dbo.Notificacion WITH CHECK
+            ADD CONSTRAINT CK_Notificacion_tipo
+            CHECK (tipo IN ('recordatorio','confirmacion','cancelacion','mensaje','alerta','factura','pago'));
+    END
 END
 GO
 

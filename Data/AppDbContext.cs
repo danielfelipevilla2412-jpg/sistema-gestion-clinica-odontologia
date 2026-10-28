@@ -43,10 +43,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Factura> Facturas => Set<Factura>();
     public DbSet<DetalleFactura> DetallesFactura => Set<DetalleFactura>();
 <<<<<<< HEAD
+<<<<<<< HEAD
       public DbSet<Pago> Pagos => Set<Pago>();
 =======
       public DbSet<PagoFactura> PagosFacturas => Set<PagoFactura>();
 >>>>>>> origin/facturacion_ayuda
+=======
+      public DbSet<Pago> Pagos => Set<Pago>();
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
     public DbSet<TicketSoporte> TicketsSoporte => Set<TicketSoporte>();
@@ -663,30 +667,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(d => d.IdServicio)
                   .OnDelete(DeleteBehavior.Restrict);
         });
-
-            modelBuilder.Entity<PagoFactura>(entity =>
-            {
-                  entity.ToTable("Pago_Factura");
-                  entity.HasKey(p => p.IdPago);
-                  entity.Property(p => p.IdPago).HasColumnName("id_pago");
-                  entity.Property(p => p.IdFactura).HasColumnName("id_factura");
-                  entity.Property(p => p.Monto).HasColumnName("monto").HasPrecision(12, 2);
-                  entity.Property(p => p.MetodoPago).HasColumnName("metodo_pago").HasMaxLength(30).IsRequired();
-                  entity.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20).IsRequired();
-                  entity.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(40).IsRequired();
-                  entity.Property(p => p.RegistradoPor).HasColumnName("registrado_por");
-                  entity.Property(p => p.FechaUtc).HasColumnName("fecha_utc");
-                  entity.HasIndex(p => p.Referencia).IsUnique();
-                  entity.HasIndex(p => new { p.IdFactura, p.FechaUtc });
-                  entity.HasOne(p => p.Factura)
-                        .WithMany(f => f.Pagos)
-                        .HasForeignKey(p => p.IdFactura)
-                        .OnDelete(DeleteBehavior.Restrict);
-                  entity.HasOne(p => p.Usuario)
-                        .WithMany()
-                        .HasForeignKey(p => p.RegistradoPor)
-                        .OnDelete(DeleteBehavior.Restrict);
-            });
 
         modelBuilder.Entity<PqrEntity>(entity =>
         {

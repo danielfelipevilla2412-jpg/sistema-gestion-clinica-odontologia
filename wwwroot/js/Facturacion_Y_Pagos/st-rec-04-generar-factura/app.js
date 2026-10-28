@@ -513,12 +513,16 @@ const initPayment = () => {
   });
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
     try {
       // 1) Crear la factura real en SQL Server.
       const creado = await window.apiRequest('/api/facturas', {
         method: 'POST',
         body: { idPaciente, idProfesional, notas: null, detalles: items }
       });
+<<<<<<< HEAD
 =======
   confirmButton?.addEventListener('click', confirmPayment);
   cancelButton?.addEventListener('click', closePaymentConfirmation);
@@ -531,6 +535,8 @@ const initPayment = () => {
   });
 };
 >>>>>>> origin/facturacion_ayuda
+=======
+>>>>>>> 83a1479ed269637a52ff5b05687963f999b92b23
 
 const formatInvoiceDate = (value, includeTime = false) => {
   if (!value) return '—';

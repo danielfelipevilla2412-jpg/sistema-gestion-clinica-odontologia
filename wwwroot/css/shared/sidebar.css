@@ -1,3 +1,5 @@
+@import url("scrollbars.css");
+
 /* ============================================
    SmileTrack — Sidebar Compartido (shared/sidebar.css)
    ============================================
@@ -70,41 +72,6 @@
   overflow-y: auto;
   overflow-x: hidden;
 }
-
-/* ── Scrollbar personalizado — WebKit (Chrome, Edge, Safari) ─────────────── */
-
-/**
- * WHY scrollbar personalizado: el scrollbar predeterminado del navegador
- * es visualmente intrusivo en un sidebar oscuro y estrecho. Un scrollbar
- * delgado y sutil mantiene la coherencia visual sin sacrificar usabilidad.
- */
-.sidebar::-webkit-scrollbar {
-  width: 4px;
-  /* Delgado: no compite visualmente con el contenido */
-}
-
-.sidebar::-webkit-scrollbar-track {
-  background: transparent;
-  /* Sin fondo para integración visual */
-}
-
-.sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
-  /* Visible pero discreto */
-  border-radius: 4px;
-}
-
-.sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.32);
-  /* Feedback visual al hover */
-}
-
-/* ── Scrollbar personalizado — Firefox ──────────────────────────────────── */
-.sidebar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
-}
-
 
 /* ═══════════════════════════════════════════
    LOGO
