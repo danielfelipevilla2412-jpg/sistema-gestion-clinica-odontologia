@@ -577,6 +577,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(f => f.NumeroFactura).HasColumnName("numero_factura");
             entity.Property(f => f.FechaFactura).HasColumnName("fecha_factura");
             entity.Property(f => f.Subtotal).HasColumnName("subtotal").HasPrecision(12, 2);
+            entity.Property(f => f.Descuento).HasColumnName("descuento").HasPrecision(12, 2);
             entity.Property(f => f.Total).HasColumnName("total").HasPrecision(12, 2);
             entity.Property(f => f.Estado).HasColumnName("estado");
             entity.Property(f => f.IdPaciente).HasColumnName("id_paciente");
@@ -584,7 +585,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(f => f.IdProfesional).HasColumnName("id_profesional");
             entity.Property(f => f.Notas).HasColumnName("notas");
             entity.Property(f => f.GeneradaPor).HasColumnName("generada_por");
-            entity.Property(f => f.MontoPagado).HasColumnName("monto_pagado").HasPrecision(12, 2);
+            entity.Property(f => f.MontoPagado).HasColumnName("monto_pagado").HasPrecision(12, 2).IsConcurrencyToken();
             entity.Property(f => f.FechaPago).HasColumnName("fecha_pago");
             entity.HasOne(f => f.Paciente)
                   .WithMany()
@@ -650,6 +651,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(d => d.Descripcion).HasColumnName("descripcion");
             entity.Property(d => d.Cantidad).HasColumnName("cantidad");
             entity.Property(d => d.PrecioUnitario).HasColumnName("precio_unitario").HasPrecision(12, 2);
+            entity.Property(d => d.Descuento).HasColumnName("descuento").HasPrecision(12, 2);
             entity.Property(d => d.SubtotalLinea).HasColumnName("subtotal_linea").HasPrecision(12, 2);
 
             entity.HasOne(d => d.Servicio)

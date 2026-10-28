@@ -27,6 +27,7 @@
         {
             var facturasDb = await _context.Facturas
                 .Include(f => f.Paciente)
+                .Include(f => f.Pagos)
                 .OrderByDescending(f => f.FechaFactura)
                 .ToListAsync();
 
@@ -50,7 +51,7 @@
                 status = f.Estado,
                 avatar = f.Paciente != null ? $"{f.Paciente.Nombres.FirstOrDefault()}{f.Paciente.Apellidos.FirstOrDefault()}".ToUpper() : "PA",
                 color = colores[idx % colores.Length],
-                history = new object[] { }
+                history = f.Pagos.Select(p => new { date = p.FechaPago.ToString("yyyy-MM-dd"), type = "pago" }).ToList()
             }).ToList();
 
             ViewData["FacturasJson"] = System.Text.Json.JsonSerializer.Serialize(facturas);

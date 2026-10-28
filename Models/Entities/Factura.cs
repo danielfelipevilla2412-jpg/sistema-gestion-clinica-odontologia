@@ -8,6 +8,7 @@ public class Factura
     public string NumeroFactura { get; set; } = string.Empty;
     public DateTime FechaFactura { get; set; } = DateTime.Now;
     public decimal Subtotal { get; set; }
+    public decimal Descuento { get; set; }
     public decimal Total { get; set; }
     public string Estado { get; set; } = "pendiente"; // pendiente, parcial, pagada, anulada
     public int IdPaciente { get; set; }
