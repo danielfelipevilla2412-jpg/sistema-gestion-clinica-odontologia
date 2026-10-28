@@ -206,6 +206,11 @@ builder.Services.AddScoped<
     SmileTrack_MVC.Services.ICitasDashboardService,
     SmileTrack_MVC.Services.CitasDashboardService>();
 
+// Cierre automático de citas vencidas: se ejecuta a diario a las 23:59 y deja la agenda limpia
+// al día siguiente (las citas en espera que ya pasaron pasan a "No asistio").
+builder.Services.AddHostedService<
+    SmileTrack_MVC.Services.GestionDeCitas.CitasVencidasBackgroundService>();
+
 // -----------------------------------------------------------------------------
 // JWT
 // -----------------------------------------------------------------------------

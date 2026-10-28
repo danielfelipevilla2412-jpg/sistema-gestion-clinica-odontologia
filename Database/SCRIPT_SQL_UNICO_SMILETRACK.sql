@@ -722,6 +722,7 @@ BEGIN
         numero_factura VARCHAR(20) NOT NULL UNIQUE,
         fecha_factura DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
         subtotal DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        descuento DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         estado VARCHAR(10) NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','parcial','pagada','anulada')),
         id_paciente INT NOT NULL,
@@ -741,10 +742,23 @@ BEGIN
       descripcion VARCHAR(200) NOT NULL,
        cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
         precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        descuento DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         subtotal_linea DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         CONSTRAINT FK_DetalleFactura_Factura FOREIGN KEY (id_factura) REFERENCES Factura(id_factura) ON DELETE CASCADE,
         CONSTRAINT FK_DetalleFactura_Servicio FOREIGN KEY (id_servicio) REFERENCES Servicio(id_servicio)
     );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'descuento')
+BEGIN
+    ALTER TABLE dbo.Factura ADD descuento DECIMAL(12,2) NOT NULL CONSTRAINT DF_Factura_Descuento DEFAULT 0.00;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Detalle_Factura') AND name = 'descuento')
+BEGIN
+    ALTER TABLE dbo.Detalle_Factura ADD descuento DECIMAL(12,2) NOT NULL CONSTRAINT DF_DetalleFactura_Descuento DEFAULT 0.00;
 END
 GO
 
@@ -1853,6 +1867,41 @@ BEGIN
     );
     CREATE INDEX IX_Notificacion_Paciente_Estado ON dbo.Notificacion(id_paciente, estado, creada_en DESC);
     CREATE INDEX IX_Notificacion_Programada ON dbo.Notificacion(estado, fecha_programada);
+END
+GO
+
+-- Amplía los tipos permitidos de Notificacion (facturación y pagos) en bases ya existentes.
+-- POR QUÉ: el CHECK original solo admitía 'recordatorio','confirmacion','cancelacion','mensaje','alerta',
+-- pero el módulo de facturación registra notificaciones con tipo 'factura'. Eso provocaba
+-- "The INSERT statement conflicted with the CHECK constraint ... column 'tipo'" (HTTP 500 al facturar).
+IF OBJECT_ID(N'dbo.Notificacion', N'U') IS NOT NULL
+BEGIN
+    DECLARE @ckTipoNotificacion SYSNAME;
+
+    SELECT @ckTipoNotificacion = cc.name
+    FROM sys.check_constraints AS cc
+    INNER JOIN sys.columns AS col
+        ON col.object_id = cc.parent_object_id
+       AND col.column_id = cc.parent_column_id
+    WHERE cc.parent_object_id = OBJECT_ID(N'dbo.Notificacion')
+      AND col.name = N'tipo';
+
+    IF @ckTipoNotificacion IS NOT NULL
+        AND @ckTipoNotificacion <> N'CK_Notificacion_tipo'
+    BEGIN
+        EXEC(N'ALTER TABLE dbo.Notificacion DROP CONSTRAINT [' + @ckTipoNotificacion + N'];');
+    END
+
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.check_constraints
+        WHERE name = N'CK_Notificacion_tipo'
+          AND parent_object_id = OBJECT_ID(N'dbo.Notificacion')
+    )
+    BEGIN
+        ALTER TABLE dbo.Notificacion WITH CHECK
+            ADD CONSTRAINT CK_Notificacion_tipo
+            CHECK (tipo IN ('recordatorio','confirmacion','cancelacion','mensaje','alerta','factura','pago'));
+    END
 END
 GO
 

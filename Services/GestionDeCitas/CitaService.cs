@@ -452,6 +452,22 @@ public class CitaService : ICitaService
             query = query.Where(c => c.FechaHora >= inicio && c.FechaHora < inicio.AddDays(1));
         }
 
+        // POR QUÉ: las citas cuya hora ya pasó y que se quedaron en un estado no final
+        // (en espera / pendiente) no deben aparecer en el listado. Solo se muestran cuando el
+        // usuario filtra explícitamente por fecha o por estado, para poder auditar el histórico.
+        if (!fecha.HasValue && string.IsNullOrWhiteSpace(estado))
+        {
+            DateTime ahora = DateTime.Now;
+            string[] estadosFinales = EstadoCitaHelper.EstadosFinales;
+
+            query = query.Where(c =>
+                c.FechaHora >= ahora
+                || (c.Estado != null && estadosFinales.Contains(c.Estado.ToLower()))
+                || (c.EstadoCita != null
+                    && c.EstadoCita.NombreEstado != null
+                    && estadosFinales.Contains(c.EstadoCita.NombreEstado.ToLower())));
+        }
+
         int totalRecords = await query.CountAsync(ct);
 
         var items = await query

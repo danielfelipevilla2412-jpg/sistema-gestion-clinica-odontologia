@@ -31,6 +31,12 @@ NOTAS DE MANTENIMIENTO:
     var profesionales = ViewData["ProfesionalesReportes"] as List<string> ?? new();
     var reportes = ViewData["ReportesClinicos"] as List<SmileTrack_MVC.Models.ViewModels.ReporteClinicoViewModel> ?? new();
     var pageResult = ViewData["ReportesClinicosPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.ViewModels.ReporteClinicoViewModel>;
+    var resultItemCount = pageResult?.Items?.Count ?? 0;
+    var resultTotalCount = pageResult?.TotalCount ?? 0;
+    var resultPage = pageResult?.Page ?? 1;
+    var resultPageSize = pageResult?.PageSize ?? 10;
+    var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+    var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
 }
 
 
@@ -165,13 +171,13 @@ NOTAS DE MANTENIMIENTO:
                                     @if (!string.IsNullOrWhiteSpace(reporte.Alerta))
                                     {
                                         var alertText = reporte.Alerta.Trim();
-                                        var alertLabel = alertText.Length > 26 ? alertText[..23] + "..." : alertText;
                                         <button type="button"
                                                 class="alert-trigger"
                                                 data-alert="@Html.Encode(alertText)"
-                                                aria-label="Ver observación clínica de @reporte.NombrePaciente">
+                                                data-patient="@Html.Encode(reporte.NombrePaciente)"
+                                                aria-label="Ver alerta de @reporte.NombrePaciente">
                                             <span aria-hidden="true">⚠️</span>
-                                            @alertLabel
+                                            Ver alerta
                                         </button>
                                     }
                                     else
@@ -187,7 +193,7 @@ NOTAS DE MANTENIMIENTO:
 
             <!-- Paginación -->
             <div class="pagination" role="navigation" aria-label="Paginación de reportes">
-                <span id="paginationInfo" aria-live="polite">Mostrando <strong>@(pageResult?.Items.Count ?? 0)</strong> de <strong>@(pageResult?.TotalCount ?? 0)</strong> reportes clínicos</span>
+                <span id="paginationInfo" aria-live="polite">Mostrando @resultRangeStart-@resultRangeEnd de @resultTotalCount reportes clínicos</span>
                 <div class="pagination-buttons" id="paginationButtons">
                     @if (pageResult != null && pageResult.HasPreviousPage)
                     {

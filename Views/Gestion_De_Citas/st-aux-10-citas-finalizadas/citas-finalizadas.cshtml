@@ -83,7 +83,7 @@
     </div>
 
     <!-- Tabla de citas con estructura accesible -->
-    <div class="table-card">
+    <div class="table-wrap">
       <table class="table-base" aria-label="Listado de citas finalizadas del día" data-i18n-aria-label="citas.title">
         <thead>
           <tr>
@@ -99,6 +99,15 @@
         </tbody>
       </table>
     </div>
+
+    <nav class="pagination" aria-label="Paginación de citas finalizadas">
+      <span class="pagination-info" id="finalizedPaginationInfo" aria-live="polite">Mostrando 0 de 0 citas</span>
+      <div class="pagination-buttons">
+        <button type="button" class="pagination-btn" id="finalizedPreviousPage" aria-label="Página anterior" disabled>← Anterior</button>
+        <div class="pagination-numbers" id="finalizedPageNumbers" role="list" aria-label="Números de página"></div>
+        <button type="button" class="pagination-btn" id="finalizedNextPage" aria-label="Página siguiente" disabled>Siguiente →</button>
+      </div>
+    </nav>
 
   </main>
 

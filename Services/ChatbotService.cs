@@ -65,7 +65,12 @@ public sealed class ChatbotService : IChatbotService
                     new() { Label = "Notificaciones", Url = "/gestion-de-citas/st-pac-03-notificaciones" },
                     new() { Label = "Mi historial", Url = "/historia-clinica/st-pac-02-historial" },
                     new() { Label = "Nueva solicitud", Url = "/gestion-de-pqr/st-pac-04-nueva-pqr" }
-                ])
+                ]),
+            ["usuario"] = new(
+                "usuario", "Usuario",
+                "Puedo orientarte sobre las funciones disponibles en tu cuenta. Cuéntame qué intentas hacer.",
+                ["¿Cómo consulto mis opciones disponibles?", "¿Cómo solicito soporte?"],
+                [])
         };
 
     public ChatbotResponse Respond(string? role, string? userName, string? currentPath, string message)
@@ -92,7 +97,7 @@ public sealed class ChatbotService : IChatbotService
         var normalizedRole = Normalize(role);
         return Profiles.TryGetValue(normalizedRole, out var profile)
             ? profile
-            : Profiles["administrador"];
+            : Profiles["usuario"];
     }
 
     private static string ResolveIntent(RoleProfile profile, string message, string module)
@@ -100,31 +105,61 @@ public sealed class ChatbotService : IChatbotService
         if (string.IsNullOrWhiteSpace(message))
             return profile.Welcome;
 
-        if (ContainsAny(message, "hola", "inicio", "saludo"))
+        if (ContainsAny(message, "hola", "buenos dias", "buenas tardes", "buenas noches", "inicio", "saludo"))
             return profile.Welcome;
 
-        if (ContainsAny(message, "cita", "agenda", "horario", "programar"))
-            return $"En {module}, consulta el estado y los horarios desde la agenda disponible para tu rol. Las consultas rápidas visibles respetan tus permisos.";
+        if (ContainsAny(message, "cita", "agenda", "horario", "program", "reprogram", "disponibilidad", "turno"))
+            return AppointmentGuidance(profile, module);
 
-        if (ContainsAny(message, "paciente", "historia", "odontograma", "tratamiento"))
-            return "Para proteger la información clínica, abre el módulo autorizado desde el botón de acceso y verifica siempre el paciente antes de consultar o registrar datos.";
+        if (ContainsAny(message, "registrar paciente", "crear paciente", "nuevo paciente", "datos del paciente", "paciente nuevo"))
+            return profile.Key is "administrador" or "recepcionista"
+                ? $"En {module}, abre el registro de pacientes, completa los datos solicitados y confirma que el documento y los datos de contacto estén correctos antes de guardar."
+                : "El registro de pacientes está disponible para Recepción y Administración. Desde tu rol puedes consultar únicamente la información habilitada para ti.";
 
-        if (ContainsAny(message, "factura", "pago", "cobro"))
-            return "La facturación debe realizarse desde el módulo habilitado para tu rol. Revisa los datos antes de confirmar el pago y conserva el comprobante.";
+        if (ContainsAny(message, "historia", "odontograma", "tratamiento", "evolucion", "evolución", "diagnostico", "diagnóstico", "nota clinica", "nota clínica"))
+            return ClinicalGuidance(profile, module);
 
-        if (ContainsAny(message, "usuario", "rol", "permiso", "seguridad", "contraseña"))
+        if (ContainsAny(message, "factura", "facturacion", "facturación", "pago", "cobro", "comprobante"))
+            return profile.Key is "administrador" or "recepcionista"
+                ? $"En {module}, abre la sección de facturación habilitada para tu rol, verifica paciente, concepto y valor, y confirma el pago solo después de validar los datos. Conserva el comprobante."
+                : "La facturación está reservada a los roles autorizados de Administración y Recepción. Si necesitas consultar un cobro propio, solicita orientación a Recepción.";
+
+        if (ContainsAny(message, "usuario", "rol", "permiso", "seguridad", "contrasena", "contraseña", "acceso", "iniciar sesion", "iniciar sesión"))
             return profile.Key == "administrador"
-                ? "Como Administrador puedes gestionar usuarios y roles desde Acceso y Seguridad. No compartas credenciales y revisa los permisos antes de guardar cambios."
+                ? $"En {module}, la gestión de usuarios y roles está en Acceso y Seguridad. Revisa los permisos antes de guardar cambios; nunca compartas credenciales."
                 : "La gestión de usuarios y permisos está reservada al Administrador. Puedes cambiar tu propia contraseña desde tu perfil.";
 
-        if (ContainsAny(message, "ayuda", "soporte", "error", "problema", "ticket"))
-            return "Si una guía no resuelve tu caso, registra un ticket en Centro de Ayuda con el módulo afectado, pasos para reproducirlo y el mensaje de error. No adjuntes contraseñas ni datos clínicos innecesarios.";
+        if (ContainsAny(message, "ayuda", "soporte", "error", "problema", "ticket", "no funciona", "no puedo", "no me deja", "no aparece", "fallo"))
+            return $"Para resolverlo en {module}, indica qué intentabas hacer, qué ocurrió y el texto del error. Si persiste, registra un ticket en Centro de Ayuda. No incluyas contraseñas ni datos clínicos innecesarios.";
 
-        if (ContainsAny(message, "reporte", "analítica", "analitica"))
-            return "Los reportes disponibles dependen de tu rol. Usa el acceso de reportes del panel lateral para consultar únicamente la información que tienes autorizada.";
+        if (ContainsAny(message, "reporte", "analitica", "analítica", "estadistica", "estadística"))
+            return profile.Key is "administrador" or "profesional" or "recepcionista"
+                ? $"En {module}, abre Reportes desde el menú lateral. Los indicadores y datos disponibles dependen de tu rol; selecciona el periodo y los filtros antes de consultar."
+                : "Los reportes no están habilitados para tu rol. Consulta el panel operativo o solicita a Administración la información autorizada que necesitas.";
 
-        return $"No encontré una guía específica para esa consulta en {module}. Prueba una de las preguntas sugeridas o abre Centro de Ayuda para consultar guías y registrar soporte.";
+        if (ContainsAny(message, "perfil", "mis datos", "correo", "telefono", "teléfono", "actualizar datos"))
+            return $"En {module}, abre tu perfil para revisar los datos personales que puedes modificar. Si un dato no es editable, solicita el cambio a Administración.";
+
+        return $"Puedo orientarte sobre {module} y las tareas habilitadas para tu rol de {profile.Label}. Cuéntame qué intentas hacer o qué problema encontraste, por ejemplo: “¿cómo reprogramo una cita?” o “no puedo guardar el registro”.";
     }
+
+    private static string AppointmentGuidance(RoleProfile profile, string module) => profile.Key switch
+    {
+        "paciente" => $"En {module}, entra a Mis citas para consultar fechas, horarios y estados. Para solicitar un cambio, usa las opciones disponibles en la cita o comunícate con Recepción.",
+        "profesional" => $"En {module}, revisa Mi agenda para consultar tus citas y horarios. Usa los filtros de fecha para localizar una atención; la disponibilidad depende de la configuración de la clínica.",
+        "auxiliar" => $"En {module}, revisa el panel operativo para ver las atenciones asignadas y su horario. La programación o reprogramación debe realizarla Recepción.",
+        "recepcionista" => $"En {module}, abre Gestión de Citas, busca al paciente y verifica la disponibilidad antes de crear o reprogramar. Confirma la fecha, hora y profesional antes de guardar.",
+        "administrador" => $"En {module}, abre Gestión de Citas para consultar la agenda y el estado de las atenciones. Verifica disponibilidad y permisos antes de modificar una cita.",
+        _ => $"En {module}, consulta la agenda que está habilitada para tu cuenta. Para crear o cambiar una cita, comunícate con Recepción."
+    };
+
+    private static string ClinicalGuidance(RoleProfile profile, string module) => profile.Key switch
+    {
+        "profesional" => $"En {module}, busca y verifica al paciente antes de abrir su historia clínica. Registra la evolución, el odontograma o el tratamiento en la sección correspondiente y guarda los cambios al finalizar la atención.",
+        "paciente" => $"En {module}, consulta Mi historial para ver la información clínica que la clínica ha habilitado para ti. Para corregir un dato o resolver una duda clínica, comunícate con tu profesional tratante.",
+        "auxiliar" => $"En {module}, consulta la información necesaria para preparar la atención dentro de tus permisos. El diagnóstico y las notas clínicas deben ser registrados por el profesional tratante.",
+        _ => "La información clínica solo debe consultarse desde el módulo autorizado y para una finalidad de atención. Verifica la identidad del paciente; el registro clínico corresponde al profesional tratante."
+    };
 
     private static string ModuleName(string? currentPath)
     {
@@ -134,6 +169,9 @@ public sealed class ChatbotService : IChatbotService
         if (currentPath.Contains("pacientes", StringComparison.OrdinalIgnoreCase)) return "Gestión de Pacientes";
         if (currentPath.Contains("facturacion", StringComparison.OrdinalIgnoreCase)) return "Facturación y Pagos";
         if (currentPath.Contains("report", StringComparison.OrdinalIgnoreCase)) return "Reportes";
+        if (currentPath.Contains("ayuda", StringComparison.OrdinalIgnoreCase) || currentPath.Contains("pqr", StringComparison.OrdinalIgnoreCase)) return "Centro de Ayuda";
+        if (currentPath.Contains("servicios", StringComparison.OrdinalIgnoreCase)) return "Servicios y Recursos";
+        if (currentPath.Contains("perfil", StringComparison.OrdinalIgnoreCase)) return "Perfil";
         return "el módulo actual";
     }
 

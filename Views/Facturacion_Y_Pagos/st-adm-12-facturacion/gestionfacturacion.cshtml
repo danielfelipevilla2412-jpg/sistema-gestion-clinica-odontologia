@@ -62,6 +62,7 @@ NOTAS DE MANTENIMIENTO:
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/scrollbars.css")" asp-append-version="true" />
 </head>
 
 <body>
@@ -421,8 +422,13 @@ NOTAS DE MANTENIMIENTO:
           <div><dt>Servicio</dt><dd id="invoiceDetailsService"></dd></div>
           <div><dt>Estado</dt><dd id="invoiceDetailsStatus"></dd></div>
           <div><dt>Total</dt><dd id="invoiceDetailsTotal"></dd></div>
+          <div><dt>Pagado</dt><dd id="invoiceDetailsPaid"></dd></div>
           <div><dt>Pendiente</dt><dd id="invoiceDetailsPending"></dd></div>
         </dl>
+        <section class="invoice-payment-history" aria-labelledby="invoicePaymentHistoryTitle">
+          <h4 id="invoicePaymentHistoryTitle">Historial de transacciones</h4>
+          <ol id="invoicePaymentHistory" aria-live="polite"></ol>
+        </section>
       </div>
       <footer class="invoice-details-footer">
         <button class="btn-primary" id="invoiceDetailsConfirm" type="button">Cerrar</button>
