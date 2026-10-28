@@ -20,11 +20,47 @@
         codigoHC = odonto.CodigoHC,
         fechaNacimiento = odonto.FechaNacimiento,
         grupoSanguineo = Model.GrupoSanguineo,
+<<<<<<< Updated upstream
         alergias = Model.Alergias,
         medicamentos = Array.Empty<string>(), // no existe un campo de medicamentos activos en el esquema actual
         antecedentesMedicos = Model.AntecedentesMedicos,
         estadoPersistido = odonto.ObservacionesGenerales,
         // Notas clínicas reales desde Nota_Clinica (ya formateadas por el servidor)
+=======
+        alergias = Model.Formulario.Alergias is null ? Model.Alergias.ToArray() : Array.Empty<string>(),
+        alergiasTexto = Model.Formulario.Alergias,
+        medicamentos = Array.Empty<string>(),
+        antecedentesMedicos = Model.Formulario.AntecedentesMedicos ?? Model.AntecedentesMedicos,
+        motivoConsulta = Model.Formulario.MotivoConsulta,
+        enfermedadActual = Model.Formulario.EnfermedadActual,
+        sintomasSignos = Model.Formulario.SintomasSignos,
+        habitos = Model.Formulario.Habitos,
+        hallazgos = Model.Formulario.Hallazgos,
+        odontogramaObservaciones = Model.Formulario.OdontogramaObservaciones,
+        examenesComplementarios = Model.Formulario.ExamenesComplementarios,
+        diagnosticoPrincipal = Model.Formulario.DiagnosticoPrincipal,
+        diagnosticoSecundario = Model.Formulario.DiagnosticoSecundario,
+        evolucionClinica = Model.Formulario.EvolucionClinica,
+        prescripcion = Model.Formulario.Prescripcion,
+        paciente = new
+        {
+            tipoDocumento = pacienteResumen.TipoDocumento,
+            documento = pacienteResumen.Documento,
+            genero = pacienteResumen.Genero,
+            telefono = pacienteResumen.Telefono,
+            correo = pacienteResumen.Correo,
+            direccion = pacienteResumen.Direccion,
+            ciudad = pacienteResumen.Ciudad,
+            contactoEmergencia = pacienteResumen.ContactoEmergencia,
+            telefonoEmergencia = pacienteResumen.TelefonoEmergencia
+        },
+        proximaCita = Model.ProximaCitaFecha is null ? null : new
+        {
+            fecha = Model.ProximaCitaFecha.Value.ToString("yyyy-MM-ddTHH:mm:ss"),
+            profesional = Model.ProximaCitaProfesional
+        },
+        estadoPersistido = odonto.EstadoPersistido ?? odonto.ObservacionesGenerales,
+>>>>>>> Stashed changes
         notasClinicas = Model.NotasClinicas.Select(n => new
         {
             titulo       = n.Titulo,
@@ -104,8 +140,25 @@
       </div>
     </header>
 
+<<<<<<< Updated upstream
     <!-- Grid Layout -->
     <div class="grid-main">
+=======
+    <div class="clinical-content-shell">
+        <section class="page-hero">
+            <div class="page-hero-copy">
+                <div class="eyebrow-row">
+                    <span class="hero-kicker">Sistema de atención</span>
+                </div>
+                <h1>Historial Clínico</h1>
+                <p>Consulta y registra la información clínica del paciente</p>
+            </div>
+            <div class="page-hero-actions">
+                <button type="button" class="soft-btn">Exportar</button>
+                <button type="submit" form="historia-clinica-form" class="primary-btn">Guardar</button>
+            </div>
+        </section>
+>>>>>>> Stashed changes
 
       <!-- Columna izquierda: Odontograma + Historial -->
       <section class="col-left">

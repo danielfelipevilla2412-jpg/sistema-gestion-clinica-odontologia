@@ -534,6 +534,60 @@ public class HistoriaClinicaController(
         });
     }
 
+<<<<<<< Updated upstream
+=======
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/guardar-formulario")]
+    public async Task<IActionResult> GuardarFormularioHistoria([FromBody] HistoriaFormularioGuardarRequest request)
+    {
+        if (request is null || request.PacienteId is null)
+            return Json(new { success = false, message = "No hay un paciente seleccionado para guardar la historia." });
+
+        var historia = await _context.HistoriasClinicas
+            .FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId.Value && h.Activa);
+
+        historia ??= await _historiaService.CrearHistoriaClinicaAsync(request.PacienteId.Value);
+
+        JsonObject raiz;
+        try
+        {
+            raiz = JsonNode.Parse(historia.ObservacionesGenerales ?? "{}") as JsonObject ?? new JsonObject();
+        }
+        catch (JsonException)
+        {
+            raiz = new JsonObject();
+        }
+
+        raiz["formularioHistoria"] = JsonSerializer.SerializeToNode(new HistoriaFormularioViewModel
+        {
+            MotivoConsulta = request.MotivoConsulta?.Trim() ?? "",
+            EnfermedadActual = request.EnfermedadActual?.Trim() ?? "",
+            SintomasSignos = (request.SintomasSignos ?? [])
+                .Where(sintoma => !string.IsNullOrWhiteSpace(sintoma))
+                .Select(sintoma => sintoma.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            AntecedentesMedicos = request.AntecedentesMedicos?.Trim() ?? "",
+            Habitos = request.Habitos?.Trim() ?? "",
+            Alergias = request.Alergias?.Trim() ?? "",
+            Hallazgos = request.Hallazgos?.Trim() ?? "",
+            OdontogramaObservaciones = request.OdontogramaObservaciones?.Trim() ?? "",
+            ExamenesComplementarios = request.ExamenesComplementarios?.Trim() ?? "",
+            DiagnosticoPrincipal = request.DiagnosticoPrincipal?.Trim() ?? "",
+            DiagnosticoSecundario = request.DiagnosticoSecundario?.Trim() ?? "",
+            EvolucionClinica = request.EvolucionClinica?.Trim() ?? "",
+            Prescripcion = request.Prescripcion?.Trim() ?? ""
+        });
+
+        historia.ObservacionesGenerales = raiz.ToJsonString();
+        await _context.SaveChangesAsync();
+
+        return Json(new { success = true, message = "Historia clínica guardada correctamente." });
+    }
+
+>>>>>>> Stashed changes
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("historia-clinica/st-odo-06-pacientes")]
