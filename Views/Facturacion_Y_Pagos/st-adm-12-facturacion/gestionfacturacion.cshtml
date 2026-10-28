@@ -62,6 +62,7 @@ NOTAS DE MANTENIMIENTO:
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/scrollbars.css")" asp-append-version="true" />
 </head>
 
 <body>
@@ -283,6 +284,10 @@ NOTAS DE MANTENIMIENTO:
           <option value="2026-04">Abril 2026</option>
           <option value="2026-03">Marzo 2026</option>
         </select>
+        <select id="filterProfessional" class="filter-select" aria-label="Filtrar por profesional">
+          <option value="">Todos los profesionales</option>
+        </select>
+        <input type="number" id="filterAppointment" class="filter-select" min="1" placeholder="ID cita" aria-label="Filtrar por cita" />
         <!-- Abre el formulario modal para registrar una nueva factura. -->
         <button class="btn-primary" id="btnNewInvoice" aria-label="Crear nueva factura" data-i18n-aria-label="facturacion.new_invoice" data-i18n="facturacion.new_invoice">
           ➕ Nueva factura

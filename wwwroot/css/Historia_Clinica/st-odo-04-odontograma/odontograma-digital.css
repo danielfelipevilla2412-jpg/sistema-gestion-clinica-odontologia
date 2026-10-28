@@ -684,3 +684,28 @@ img { max-width: 100%; height: auto; display: block; }
   overflow: hidden; transition: max-height 0.3s ease;
 }
 .nav-group-items .nav-item { padding-left: 24px; }
+
+/* La flecha debe dibujarse sobre el iframe de Sketchfab. */
+#tooltip-arrow-svg {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    overflow: visible !important;
+    pointer-events: none !important;
+    z-index: 2147483646 !important;
+}
+
+#holo-tooltip {
+    z-index: 2147483647 !important;
+}
+
+.viewer-wrap,
+.api-frame-style {
+    isolation: auto !important;
+}
+
+.api-frame-style {
+    position: relative;
+    z-index: 1;
+}

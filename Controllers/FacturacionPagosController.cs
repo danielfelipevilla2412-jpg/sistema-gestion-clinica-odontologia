@@ -40,6 +40,8 @@
             var facturas = facturasDb.Select((f, idx) => new
             {
                 id = f.IdFactura,
+                idCita = f.IdCita,
+                idProfesional = f.IdProfesional,
                 number = f.NumeroFactura,
                 patient = f.Paciente != null ? $"{f.Paciente.Nombres} {f.Paciente.Apellidos}" : "Paciente",
                 doc = f.Paciente != null ? f.Paciente.Documento : "N/A",

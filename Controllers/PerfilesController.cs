@@ -33,7 +33,10 @@ public class PerfilesController : Controller
     {
         string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         int.TryParse(userIdStr, out int userId);
-        var paciente = await _context.Pacientes.Include(p => p.Usuario).FirstOrDefaultAsync(p => p.IdUsuario == userId);
+        var paciente = await _context.Pacientes
+        .Include(p => p.Usuario)
+        .Include(p => p.ProfesionalAsignado)
+        .FirstOrDefaultAsync(p => p.IdUsuario == userId);
         return View("~/Views/Perfiles/st-pac-perfil-Paciente/perfil-paciente.cshtml", paciente);
     }
 

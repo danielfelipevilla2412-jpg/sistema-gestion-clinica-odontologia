@@ -37,6 +37,16 @@ public sealed class ProfesionalApiRequest
 
     [Range(1, int.MaxValue, ErrorMessage = "La especialidad seleccionada es inválida.")]
     public int? IdEspecialidad { get; set; }
+
+    /// <summary>
+    /// Lista de IDs de especialidades a asignar al profesional (RF-11).
+    /// Si se envía <see cref="IdsEspecialidades"/> con al menos un elemento,
+    /// tiene prioridad sobre <see cref="IdEspecialidad"/> (mantenido por
+    /// compatibilidad con clientes anteriores).
+    /// Si ambos están vacíos, el servicio aplica la especialidad por defecto
+    /// "Odontología General" (RN-15).
+    /// </summary>
+    public List<int>? IdsEspecialidades { get; set; }
 }
 
 public sealed class ProfesionalEstadoApiRequest
@@ -72,6 +82,22 @@ public sealed class AusenciaProfesionalApiDto
     public string FechaInicio { get; set; } = string.Empty;
     public string FechaFin { get; set; } = string.Empty;
     public int? Duracion { get; set; }
+    public string? Observaciones { get; set; }
+}
+
+public sealed class AusenciaProfesionalApiRequest
+{
+    [Required(ErrorMessage = "El tipo de ausencia es obligatorio.")]
+    [StringLength(30, MinimumLength = 2, ErrorMessage = "El tipo de ausencia no es válido.")]
+    public string Tipo { get; set; } = "vacaciones";
+
+    [Required(ErrorMessage = "La fecha de inicio es obligatoria.")]
+    public DateOnly FechaInicio { get; set; }
+
+    [Required(ErrorMessage = "La fecha de fin es obligatoria.")]
+    public DateOnly FechaFin { get; set; }
+
+    [StringLength(500, ErrorMessage = "Las observaciones no pueden superar 500 caracteres.")]
     public string? Observaciones { get; set; }
 }
 

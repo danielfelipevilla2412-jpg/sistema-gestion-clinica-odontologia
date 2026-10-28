@@ -37,7 +37,7 @@ public sealed class Lote2RegresionesTests
     [Fact]
     public void HistorialParcial_SinPacienteIdNoSeleccionaElUltimoPacienteGlobal()
     {
-        var source = File.ReadAllText(RepoFile("Controllers", "GestionCitasController.cs"));
+        var source = File.ReadAllText(RepoFile("Controllers", "GestionDeCitas", "GestionCitasController.cs"));
 
         Assert.Contains("pacienteId is not null", source, StringComparison.Ordinal);
         Assert.Contains(": null;", source, StringComparison.Ordinal);

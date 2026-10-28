@@ -141,17 +141,28 @@ const historiaStorage = {
       paciente: {
         id: server.pacienteId ?? null,
         nombre: server.nombre || 'Sin paciente asignado',
-        documento: '',
-        tipoDoc: '',
+        //  — Consumir la ficha enviada por Razor. Si no hay datos reales en BD,
+        // se mantiene vacío en lugar de inventar valores por defecto.
+        documento: server.paciente?.documento || '',
+        tipoDoc: server.paciente?.tipoDocumento || '',
+        genero: server.paciente?.genero || '',
+        telefono: server.paciente?.telefono || '',
+        correo: server.paciente?.correo || '',
+        direccion: [server.paciente?.direccion, server.paciente?.ciudad].filter(Boolean).join(', ') || '',
+        contactoEmergencia: [server.paciente?.contactoEmergencia, server.paciente?.telefonoEmergencia].filter(Boolean).join(' · ') || '',
+        antecedentesMedicos: server.antecedentesMedicos || '',
+        proximaCita: server.proximaCita || null,
         fechaNacimiento: server.fechaNacimiento || null,
-        grupoSanguineo: server.grupoSanguineo || 'N/D',
-        codigoHC: server.codigoHC || 'HC-SIN-ASIGNAR',
+        grupoSanguineo: server.grupoSanguineo || '',
+        codigoHC: server.codigoHC || '',
         alergias: server.alergias || [],
         medicamentos: server.medicamentos || [],
         odontograma: tratamientos,
         observaciones,
         // Notas clínicas reales de BD + historial de citas del paciente
-        historial: [...notasClinicas, ...(server.historial || [])],
+        historial: Array.isArray(server.lineaDeTiempo) && server.lineaDeTiempo.length
+          ? server.lineaDeTiempo
+          : [...notasClinicas, ...(server.historial || [])],
       }
     };
   }
@@ -217,31 +228,180 @@ const renderAlertas = (alertas) => {
 //  RENDER: HISTORIAL DE CONSULTAS
 // ═══════════════════════════════════════════════════════════════════
 
-const renderHistorial = (historial) => {
+//  — Estado de solo lectura de la línea de tiempo. Se conserva para que
+// los filtros cambien la vista sin volver a consultar ni modificar la BD.
+let lineaDeTiempoActual = [];
+
+const escaparHtml = (valor) => String(valor ?? '').replace(/[&<>'"]/g, caracter => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
+}[caracter]));
+
+const etiquetaCategoria = (categoria) => ({
+  nota: 'Nota clínica', odontograma: 'Odontograma', consulta: 'Cita',
+  control: 'Control', documento: 'Documento'
+}[categoria] || 'Evento clínico');
+
+//  — Renderiza eventos de distintas fuentes con filtro por categoría.
+// También escapa texto de BD para evitar que una observación se interprete como HTML.
+const renderHistorial = (historial, filtro = 'todo') => {
   const list = safeGetElement('historialList');
   if (!list) return;
+
+  lineaDeTiempoActual = Array.isArray(historial) ? historial : [];
+  const eventos = filtro === 'todo'
+    ? lineaDeTiempoActual
+    : lineaDeTiempoActual.filter(h => h.categoria === filtro);
   
-  if (!historial?.length) {
-    list.innerHTML = '<p style="font-size:.85rem;color:var(--text-muted);padding:12px 0;text-align:center;">Sin consultas registradas</p>';
+  if (!eventos.length) {
+    list.innerHTML = '<p style="font-size:.85rem;color:var(--text-muted);padding:12px 0;text-align:center;">No hay eventos clínicos para este filtro.</p>';
     return;
   }
   
-  list.innerHTML = historial.map(h => {
+  list.innerHTML = eventos.map(h => {
     const fecha = formatFecha(h.fecha, true);
-    const desc = h.procedimiento || h.diagnostico || '';
+    const desc = h.descripcion || h.procedimiento || h.diagnostico || '';
+    const categoria = h.categoria || 'consulta';
+    const enlaceDocumento = typeof h.enlaceDocumento === 'string' && h.enlaceDocumento.startsWith('/')
+      ? `<a class="hist-link" href="${escaparHtml(h.enlaceDocumento)}" target="_blank" rel="noopener">Abrir documento</a>`
+      : '';
     return `
       <div class="hist-item" role="listitem">
         <div class="hist-bullet" aria-hidden="true">🦷</div>
         <div class="hist-body">
           <div class="hist-top">
-            <span class="hist-title">${h.titulo}</span>
-            <span class="hist-badge" role="status" aria-label="Estado: ${h.estado}">● ${h.estado}</span>
+            <span class="hist-title">${escaparHtml(h.titulo)}</span>
+            <span class="hist-badge" role="status" aria-label="Estado: ${escaparHtml(h.estado)}">● ${escaparHtml(h.estado || 'Registrado')}</span>
           </div>
-          <div class="hist-meta"><time datetime="${h.fecha}">${fecha}</time> · ${h.doctor}</div>
-          ${desc ? `<div class="hist-desc">${desc}</div>` : ''}
+          <div class="hist-meta"><time datetime="${escaparHtml(h.fecha)}">${fecha}</time> · ${escaparHtml(h.profesional || h.doctor || 'Sin asignar')} · <span class="hist-category">${etiquetaCategoria(categoria)}</span></div>
+          ${desc ? `<div class="hist-desc">${escaparHtml(desc)}</div>` : ''}
+          ${enlaceDocumento}
         </div>
       </div>`;
   }).join('');
+};
+
+//  — Pinta la ficha clínica lateral con los datos serializados por Razor.
+// Es estrictamente informativa: no añade listeners ni operaciones de escritura.
+const renderResumenPaciente = (paciente) => {
+  const asignar = (id, valor) => {
+    const elemento = safeGetElement(id);
+    if (elemento) elemento.textContent = valor || 'No registrado';
+  };
+
+  asignar('patientDocument', [paciente.tipoDoc, paciente.documento].filter(Boolean).join(' '));
+  asignar('patientGender', paciente.genero);
+  asignar('patientPhone', paciente.telefono);
+  asignar('patientEmail', paciente.correo);
+  asignar('patientAddress', paciente.direccion);
+  asignar('patientEmergency', paciente.contactoEmergencia);
+  asignar('patientBackground', paciente.antecedentesMedicos);
+  const cita = paciente.proximaCita;
+  asignar('patientNextAppointment', cita?.fecha
+    ? `${formatFecha(cita.fecha.slice(0, 10), true)}${cita.profesional ? ` · ${cita.profesional}` : ''}`
+    : 'Sin cita programada');
+};
+
+//  — Rellena el formulario de historial con los datos reales del paciente y la
+// última nota clínica guardada. Cuando no existe paciente seleccionado, conserva
+// el estado en blanco para que el profesional pueda completar la historia desde 0.
+const poblarFormularioHistoria = (datosHistoria = window.smiletrackHistoriaData || {}) => {
+  const listaNotas = Array.isArray(datosHistoria.notasClinicas) ? datosHistoria.notasClinicas : [];
+  const ultimaNota = listaNotas[0] || {};
+  const setValue = (id, value) => {
+    const input = document.getElementById(id);
+    if (input) input.value = value ?? '';
+  };
+
+  const alergias = Array.isArray(datosHistoria.alergias) ? datosHistoria.alergias : [];
+  const observacionesOdontograma = datosHistoria.observaciones || {};
+  const textoObservacionesOdonto = Object.values(observacionesOdontograma)
+    .filter(Boolean)
+    .join(' • ');
+
+  const origenEvolucion = [ultimaNota.diagnostico, ultimaNota.procedimiento]
+    .filter(Boolean)
+    .join(' · ');
+
+  setValue('motivo_consulta', datosHistoria.motivoConsulta || '');
+  setValue('enfermedad_actual', datosHistoria.enfermedadActual || origenEvolucion || '');
+  setValue('antecedentes_medicos', datosHistoria.antecedentesMedicos || '');
+  setValue('habitos', datosHistoria.habitos || '');
+  setValue('alergias', alergias.length ? alergias.join(', ') : datosHistoria.alergiasTexto || '');
+  setValue('hallazgos', datosHistoria.hallazgos || '');
+  setValue('odontograma_observaciones', datosHistoria.odontogramaObservaciones || textoObservacionesOdonto || '');
+  setValue('examenes_complementarios', datosHistoria.examenesComplementarios || '');
+  setValue('diagnostico_principal', datosHistoria.diagnosticoPrincipal || '');
+  setValue('diagnostico_secundario', datosHistoria.diagnosticoSecundario || '');
+  setValue('evolucion_clinica', datosHistoria.evolucionClinica || origenEvolucion || '');
+  setValue('prescripcion', datosHistoria.prescripcion || '');
+};
+
+const renderPacienteInfoShell = (paciente) => {
+  const card = document.querySelector('.patient-summary-card');
+  if (!card) return;
+
+  if (!paciente || !paciente.id) {
+    card.classList.add('empty-patient-card');
+    card.innerHTML = `
+      <div class="patient-summary-inner">
+        <div class="patient-info-block empty-state-block">
+          <div class="patient-avatar empty-avatar">—</div>
+          <div class="patient-meta">
+            <div class="patient-title-row empty-title-row">
+              <h2>Paciente no seleccionado</h2>
+            </div>
+            <div class="patient-details-row empty-details-row">
+              <span><strong>Documento:</strong> <span class="mono placeholder-line">&nbsp;</span></span>
+              <span><strong>Edad:</strong> <span class="placeholder-line">&nbsp;</span></span>
+              <span><strong>Sexo:</strong> <span class="placeholder-line">&nbsp;</span></span>
+              <span><strong>Grupo:</strong> <span class="placeholder-line">&nbsp;</span></span>
+              <span><strong>Teléfono:</strong> <span class="placeholder-line">&nbsp;</span></span>
+              <span><strong>Email:</strong> <span class="placeholder-line">&nbsp;</span></span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const fechaNacimiento = paciente.fechaNacimiento ? new Date(paciente.fechaNacimiento) : null;
+  const edad = fechaNacimiento && !Number.isNaN(fechaNacimiento.getTime()) ? `${calcEdad(paciente.fechaNacimiento)} años` : 'No registrada';
+
+  card.classList.remove('empty-patient-card');
+  card.innerHTML = `
+    <div class="patient-summary-inner">
+      <div class="patient-info-block">
+        <div class="patient-avatar">${escaparHtml((paciente.nombre || 'P').charAt(0).toUpperCase())}</div>
+        <div class="patient-meta">
+          <div class="patient-title-row">
+            <h2>${escaparHtml(paciente.nombre || 'Paciente')}</h2>
+            <span class="status-pill">${escaparHtml(paciente.grupoSanguineo || 'N/D')}</span>
+          </div>
+          <div class="patient-details-row">
+            <span><strong>Documento:</strong> ${escaparHtml([paciente.tipoDoc, paciente.documento].filter(Boolean).join(' ') || 'No registrado')}</span>
+            <span><strong>Edad:</strong> ${escaparHtml(edad)}</span>
+            <span><strong>Sexo:</strong> ${escaparHtml(paciente.genero || 'No registrado')}</span>
+            <span><strong>Grupo:</strong> ${escaparHtml(paciente.grupoSanguineo || 'N/D')}</span>
+            <span><strong>Teléfono:</strong> ${escaparHtml(paciente.telefono || 'No registrado')}</span>
+            <span><strong>Email:</strong> ${escaparHtml(paciente.correo || 'No registrado')}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+};
+
+//  — Activa filtros locales para consulta rápida de notas, citas,
+// odontograma y documentos, sin recargar ni alterar el historial guardado.
+const initFiltrosLineaDeTiempo = () => {
+  const contenedor = safeGetElement('timelineFilters');
+  if (!contenedor) return;
+
+  contenedor.addEventListener('click', event => {
+    const boton = event.target.closest('[data-filter]');
+    if (!boton) return;
+    contenedor.querySelectorAll('[data-filter]').forEach(item => item.classList.toggle('active', item === boton));
+    renderHistorial(lineaDeTiempoActual, boton.dataset.filter || 'todo');
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -601,7 +761,7 @@ const initForm = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'RequestVerificationToken': token } : {})
+          ...(token ? { 'X-CSRF-TOKEN': token } : {})
         },
         body: JSON.stringify({
           pacienteId,
@@ -621,6 +781,20 @@ const initForm = () => {
       window.smiletrackHistoriaData.notasClinicas = [
         result.nota,
         ...(window.smiletrackHistoriaData.notasClinicas || [])
+      ];
+      //  — Reflejar inmediatamente la nota recién guardada en la línea
+      // de tiempo; al recargar, la misma nota se vuelve a obtener desde BD.
+      window.smiletrackHistoriaData.lineaDeTiempo = [
+        {
+          fecha: `${result.nota.fecha}T12:00:00`,
+          categoria: 'nota',
+          titulo: result.nota.titulo,
+          descripcion: [result.nota.diagnostico, result.nota.procedimiento].filter(Boolean).join(' · '),
+          profesional: result.nota.doctor,
+          estado: result.nota.estado,
+          enlaceDocumento: null
+        },
+        ...(window.smiletrackHistoriaData.lineaDeTiempo || [])
       ];
 
       const data = historiaStorage.load();
@@ -654,6 +828,56 @@ const initForm = () => {
   });
 };
 
+const initFormularioClinico = () => {
+  const form = safeGetElement('historia-clinica-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+    if (!pacienteId) {
+      showToast('Selecciona un paciente antes de guardar la historia', 'warning');
+      return;
+    }
+
+    const value = id => safeGetElement(id)?.value?.trim() || '';
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+
+    try {
+      const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+      const response = await fetch('/historia-clinica/st-odo-03-historial/guardar-formulario', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'RequestVerificationToken': token } : {})
+        },
+        body: JSON.stringify({
+          pacienteId,
+          motivoConsulta: value('motivo_consulta'),
+          enfermedadActual: value('enfermedad_actual'),
+          habitos: value('habitos'),
+          hallazgos: value('hallazgos'),
+          odontogramaObservaciones: value('odontograma_observaciones'),
+          examenesComplementarios: value('examenes_complementarios'),
+          diagnosticoPrincipal: value('diagnostico_principal'),
+          diagnosticoSecundario: value('diagnostico_secundario'),
+          evolucionClinica: value('evolucion_clinica'),
+          prescripcion: value('prescripcion')
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo guardar la historia');
+      showToast('Historia clínica guardada correctamente', 'success');
+    } catch (error) {
+      console.error('Error al guardar la historia clínica:', error);
+      showToast(error.message || 'No se pudo guardar la historia clínica', 'error');
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+};
+
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
@@ -663,6 +887,9 @@ const init = async () => {
   initSidebar();
   initScrollToForm();
   initForm();
+  initFormularioClinico();
+  //  — Registrar los filtros antes de renderizar los datos clínicos.
+  initFiltrosLineaDeTiempo();
   
   // Cargar datos desde localStorage
   const data = historiaStorage.load();
@@ -680,6 +907,11 @@ const init = async () => {
   // Actualizar botón de código HC
   const hcBtn = safeGetElement('hcBtn');
   if (hcBtn) hcBtn.textContent = `🗂 ${p.codigoHC}`;
+
+  //  — Si existe paciente activo, se rellena la plantilla editable con la última
+  // información clínica real disponible; si no hay paciente, se deja en blanco.
+  renderPacienteInfoShell(p);
+  poblarFormularioHistoria(window.smiletrackHistoriaData || {});
   
   // Renderizar componentes con datos cargados
   renderAlertas({
@@ -687,13 +919,8 @@ const init = async () => {
     medicamentos: [...p.medicamentos],
     grupoSanguineo: p.grupoSanguineo
   });
-  
-  renderOdontograma({
-    nombrePaciente: p.nombre,
-    tipo: tipoDenticion(p.fechaNacimiento),
-    tratamientos: { ...p.odontograma },
-    observaciones: { ...p.observaciones }
-  });
+  // Mostrar ficha completa antes del odontograma y la línea de tiempo.
+  renderResumenPaciente(p);
   
   renderHistorial([...p.historial].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)));
   

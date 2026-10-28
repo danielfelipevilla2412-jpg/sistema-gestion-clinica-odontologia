@@ -8,6 +8,8 @@ public class FacturaListItemDto
     public string Numero { get; init; } = string.Empty;
     public string Servicios { get; set; } = string.Empty;
     public int IdPaciente { get; init; }
+    public int? IdCita { get; init; }
+    public int? IdProfesional { get; init; }
     public string Paciente { get; init; } = string.Empty;
     public string Documento { get; init; } = string.Empty;
     public DateTime Fecha { get; init; }
@@ -19,6 +21,23 @@ public class FacturaListItemDto
     public DateTime? FechaPago { get; init; }
     public string Estado { get; init; } = string.Empty;
     public string? Notas { get; init; }
+}
+
+public sealed class CitaFacturacionDto
+{
+    public int IdCita { get; init; }
+    public int IdPaciente { get; init; }
+    public string Paciente { get; init; } = string.Empty;
+    public int? IdServicio { get; init; }
+    public string Servicio { get; init; } = string.Empty;
+    public decimal PrecioServicio { get; init; }
+    public int? IdProfesional { get; init; }
+    public string Profesional { get; init; } = string.Empty;
+    public DateTime FechaHora { get; init; }
+    public string Estado { get; init; } = string.Empty;
+    public int? IdFactura { get; init; }
+    public string? EstadoFactura { get; init; }
+    public bool PuedeFacturar { get; init; }
 }
 
 public sealed class FacturaDetalleDto
@@ -69,6 +88,8 @@ public class CrearFacturaRequest
 {
     [Range(1, int.MaxValue)]
     public int IdPaciente { get; set; }
+    public int? IdCita { get; set; }
+    public int? IdProfesional { get; set; }
 
     [StringLength(500)]
     public string? Notas { get; set; }
@@ -90,6 +111,8 @@ public sealed class ActualizarFacturaRequest
 {
     [Range(1, int.MaxValue)]
     public int IdPaciente { get; set; }
+    public int? IdCita { get; set; }
+    public int? IdProfesional { get; set; }
 
     [StringLength(500)]
     public string? Notas { get; set; }

@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
 SmileTrack — Recordatorios (st-rec-05-recordatorios)
 ============================================
 Autor: Johan Santamaria
@@ -142,13 +142,7 @@ img { max-width: 100%; height: auto; display: block; }
 .btn-icon.danger:hover { background: #fee2e2; color: #dc2626; }
 
 /* Stats cards para resumen de recordatorios */
-.stats-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 20px; }
 .stat-card { background: var(--white); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); border-left: 4px solid transparent; display: flex; flex-direction: column; justify-content: center; min-height: 90px; }
-.stat-card.success-card { border-left-color: var(--green); }
-.stat-card.warning-card { border-left-color: var(--orange); }
-.stat-value { font-family: var(--font-display); font-size: 2rem; font-weight: 700; margin-bottom: 4px; }
-.stat-card.success-card .stat-value { color: var(--green); }
-.stat-card.warning-card .stat-value { color: var(--orange); }
 .stat-label { font-size: .77rem; color: var(--text-muted); font-weight: 500; }
 
 /* Sección de recordatorios pendientes */
@@ -180,8 +174,6 @@ img { max-width: 100%; height: auto; display: block; }
 .view-all-link { font-size: .78rem; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 4px; }
 .history-scroller { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
 .history-card { flex-shrink: 0; width: 220px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; display: flex; align-items: center; gap: 10px; }
-.history-info { flex: 1; min-width: 0; }
-.history-name { font-weight: 600; font-size: .85rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .history-time { font-size: .7rem; color: var(--text-muted); margin-top: 2px; }
 .status-badge { font-size: .7rem; font-weight: 600; padding: 4px 8px; border-radius: 20px; background: var(--status-pagada); color: var(--status-pagada-text); }
 
@@ -224,7 +216,7 @@ img { max-width: 100%; height: auto; display: block; }
 .mobile-nav-icon { font-size: 1.2rem; }
 
 /* Responsive idéntico a st-rec-01 */
-@media (max-width: 1050px) { .stats-container { grid-template-columns: repeat(2, 1fr); } .dashboard-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1050px) { .dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width: 680px) {
   .hamburger { display: flex; }
   .sidebar { transform: translateX(-100%); }

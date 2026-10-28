@@ -1,0 +1,42 @@
+@* ============================================
+   Componente: PanelEstadisticas
+   Panel de KPIs con animación de conteo
+============================================ *@
+@model SmileTrack_MVC.Models.ViewModels.Components.PanelEstadisticasViewModel
+
+<link rel="stylesheet" href="~/css/shared/components/panel-estadisticas.css" asp-append-version="true" />
+
+@if (!string.IsNullOrEmpty(Model.Titulo))
+{
+    <h2 class="panel-stats-titulo">@Model.Titulo</h2>
+}
+
+<section class="stats-grid @Model.ClaseAdicional" 
+         aria-label="@(Model.Titulo ?? "Panel de estadísticas")"
+         role="region">
+    @foreach (var stat in Model.Estadisticas)
+    {
+        <article class="stat-card" 
+                 data-color="@stat.Color" 
+                 title="@stat.Tooltip"
+                 role="article">
+            <span class="stat-number" 
+                  data-target="@stat.Valor" 
+                  data-formato="@stat.Formato"
+                  aria-live="polite">0</span>
+            <span class="stat-label">@stat.Etiqueta</span>
+            @if (!string.IsNullOrEmpty(stat.SubEtiqueta))
+            {
+                <span class="stat-sub">@stat.SubEtiqueta</span>
+            }
+            @if (!string.IsNullOrEmpty(stat.Tooltip))
+            {
+                <button class="stat-tooltip-btn" aria-label="Más información" tabindex="0">
+                    <span class="material-symbols-outlined">info</span>
+                </button>
+            }
+        </article>
+    }
+</section>
+
+<script src="~/js/shared/components/PanelEstadisticas.js" asp-append-version="true"></script>

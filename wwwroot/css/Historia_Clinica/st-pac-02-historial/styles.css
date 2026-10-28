@@ -139,6 +139,10 @@ img { max-width: 100%; height: auto; display: block; }
 .badge-confirmada { background:#dbeafe; color:#1e40af; } .badge-confirmada::before { background: #3b82f6; }
 .badge-completada { background:#dcfce7; color:#166534; } .badge-completada::before { background: var(--green); }
 .badge-cancelada { background:#fee2e2; color:#991b1b; } .badge-cancelada::before { background: #ef4444; }
+/* M5 (RN-30): No asistió es estado independiente de Cancelada */
+.badge-no-asistio { background:#fff7ed; color:#9a3412; } .badge-no-asistio::before { background: #f97316; }
+/* M8 (RF-23): Solicitada */
+.badge-solicitada { background:#f5f3ff; color:#5b21b6; } .badge-solicitada::before { background: #7c3aed; }
 
 /* ═══ TOOLBAR & BUSCADOR (IDÉNTICO A st-pac-01) ═══ */
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -169,7 +173,7 @@ img { max-width: 100%; height: auto; display: block; }
 /* ═══ COMPONENTES ESPECÍFICOS DE HISTORIAL ═══ */
 
 /* Grid de contenido */
-.content-grid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+.content-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
 .col-main { display: flex; flex-direction: column; gap: 16px; }
 .col-sidebar { display: flex; flex-direction: column; gap: 14px; }
 
@@ -195,6 +199,47 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* Lista de registros clínicos */
 .records-list { display: flex; flex-direction: column; gap: 10px; }
+.clinical-history-readonly { min-width: 0; }
+.record-card {
+  background: var(--panel, #fff);
+  border: 1px solid var(--border, #dbe4ef);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(15, 23, 42, .05));
+}
+.record-card-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.record-card-header h3 { margin: 4px 0 0; font-size: 1rem; color: var(--text, #172033); }
+.record-card-header time { color: var(--text-muted, #64748b); font-size: .82rem; white-space: nowrap; }
+.record-type { color: var(--primary, #2563eb); font-size: .72rem; font-weight: 700; text-transform: uppercase; }
+.record-description { margin: 12px 0; color: var(--text-soft, #475569); line-height: 1.55; white-space: pre-wrap; }
+.record-card-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--text-muted, #64748b); font-size: .8rem; }
+.record-document-link { display: inline-block; margin-top: 12px; color: var(--primary, #2563eb); font-size: .85rem; font-weight: 600; }
+.empty-history { padding: 32px 16px; border: 1px dashed var(--border, #dbe4ef); border-radius: 12px; color: var(--text-muted, #64748b); text-align: center; }
+.clinical-form-readonly { display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
+.readonly-form-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0; }
+.readonly-eyebrow { color: var(--primary, #2563eb); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.readonly-form-heading h2 { margin: 4px 0 0; color: var(--text, #172033); font-size: 1.35rem; }
+.readonly-badge { border: 1px solid #bfdbfe; border-radius: 999px; color: #1d4ed8; background: #eff6ff; padding: 6px 10px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
+.readonly-form-card { border: 1px solid var(--border, #dbe4ef); border-radius: 12px; background: var(--panel, #fff); padding: 18px; box-shadow: var(--shadow-sm, 0 2px 8px rgba(15, 23, 42, .05)); }
+.readonly-card-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+.readonly-card-header h3 { margin: 0; color: var(--text, #172033); font-size: 1rem; }
+.readonly-card-header p { margin: 4px 0 0; color: var(--text-muted, #64748b); font-size: .82rem; }
+.readonly-step { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; background: #2563eb; color: #fff; font-size: .8rem; font-weight: 700; }
+.readonly-step.step-blue { background: #0ea5e9; }
+.readonly-step.step-purple { background: #8b5cf6; }
+.readonly-step.step-indigo { background: #4f46e5; }
+.readonly-step.step-green { background: #10b981; }
+.readonly-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.readonly-fields > div { min-width: 0; }
+.readonly-fields label { display: block; margin-bottom: 6px; color: var(--text-soft, #475569); font-size: .78rem; font-weight: 700; }
+.readonly-fields textarea { display: block; width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--border, #dbe4ef); border-radius: 8px; padding: 10px; background: #f8fafc; color: var(--text, #172033); font: inherit; line-height: 1.45; }
+.readonly-field-wide { grid-column: 1 / -1; }
+.readonly-document-list { min-height: 52px; padding: 12px; border: 1px dashed var(--border, #dbe4ef); border-radius: 8px; background: #f8fafc; color: var(--text-soft, #475569); white-space: pre-line; }
+@media (max-width: 680px) {
+  .readonly-form-heading { align-items: flex-start; flex-direction: column; }
+  .readonly-fields { grid-template-columns: 1fr; }
+  .readonly-field-wide { grid-column: auto; }
+}
 .record-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; align-items: center; gap: 12px; transition: background var(--tr), border-color var(--tr); background: var(--white); }
 .record-item:hover { background: #f8fafc; border-color: #bfdbfe; }
 /* [MEJORA]: Focus visible para items interactivos */

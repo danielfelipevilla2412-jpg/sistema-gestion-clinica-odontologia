@@ -467,12 +467,14 @@ const initPayment = () => {
       return;
     }
     const pacienteSelect = safeGetElement('pacienteSelect');
+    const profesionalSelect = safeGetElement('profesionalSelect');
     const totalEl = safeGetElement('invoiceTotal');
     const amountReceived = safeGetElement('amountReceived');
     
     
     if (!totalEl || !amountReceived || !pacienteSelect) return;
     const idPaciente = parseInt(pacienteSelect.value, 10);
+    const idProfesional = profesionalSelect?.value ? parseInt(profesionalSelect.value, 10) : null;
     if (!idPaciente) {
       showToast('Seleccione un paciente antes de registrar el pago.', 'error');
       pacienteSelect.focus();
@@ -510,16 +512,12 @@ const initPayment = () => {
     });
   });
 
-  confirmButton?.addEventListener('click', confirmPayment);
-  cancelButton?.addEventListener('click', closePaymentConfirmation);
-  closeButton?.addEventListener('click', closePaymentConfirmation);
-  overlay?.addEventListener('click', (event) => {
-    if (event.target === overlay) closePaymentConfirmation();
-  });
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && overlay && !overlay.hidden) closePaymentConfirmation();
-  });
-};
+    try {
+      // 1) Crear la factura real en SQL Server.
+      const creado = await window.apiRequest('/api/facturas', {
+        method: 'POST',
+        body: { idPaciente, idProfesional, notas: null, detalles: items }
+      });
 
 const formatInvoiceDate = (value, includeTime = false) => {
   if (!value) return '—';

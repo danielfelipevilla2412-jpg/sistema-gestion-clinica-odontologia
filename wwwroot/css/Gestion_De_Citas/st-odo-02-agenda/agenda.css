@@ -703,3 +703,590 @@ img {
     .form-grid { grid-template-columns: 1fr; }
     .full-width { grid-column: span 1; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MEJORAS 2026-09-15: NUEVOS COMPONENTES AGENDA PROFESIONAL
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ═══ TOGGLE DE VISTAS ═══ */
+.view-toggle {
+    display: flex;
+    gap: 0.25rem;
+    background: var(--white);
+    padding: 0.25rem;
+    border-radius: 8px;
+    border: 2px solid var(--border);
+    margin-right: 1rem;
+}
+
+.view-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1rem;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.view-btn .material-symbols-outlined {
+    font-size: 1.2rem;
+}
+
+.view-btn.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 2px 4px rgba(26, 86, 204, 0.2);
+}
+
+.view-btn:hover:not(.active) {
+    background: var(--bg);
+    color: var(--primary);
+}
+
+.view-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* ═══ BÚSQUEDA DE PACIENTES ═══ */
+.search-patient-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-right: 1rem;
+}
+
+.search-patient-wrap .material-symbols-outlined {
+    position: absolute;
+    left: 0.75rem;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    pointer-events: none;
+}
+
+.search-patient-wrap input[type="search"] {
+    padding: 0.6rem 0.75rem 0.6rem 2.5rem;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    min-width: 220px;
+    transition: all 0.2s ease;
+}
+
+.search-patient-wrap input[type="search"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(26, 86, 204, 0.1);
+}
+
+.search-patient-wrap input[type="search"]::placeholder {
+    color: var(--text-muted);
+}
+
+/* ═══ PANEL DE ESTADÍSTICAS RÁPIDAS ═══ */
+.quick-stats-panel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: var(--white);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+
+.quick-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    background: var(--bg);
+    transition: all 0.2s ease;
+    cursor: default;
+}
+
+.quick-stat-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.quick-stat-item .material-symbols-outlined {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.quick-stat-item[data-status="total"] .material-symbols-outlined {
+    color: var(--primary);
+}
+
+.quick-stat-item[data-status="programada"] .material-symbols-outlined {
+    color: #f59e0b;
+}
+
+.quick-stat-item[data-status="confirmada"] .material-symbols-outlined {
+    color: #3b82f6;
+}
+
+.quick-stat-item[data-status="atendida"] .material-symbols-outlined {
+    color: #22c55e;
+}
+
+.quick-stat-item div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.quick-stat-item strong {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text);
+}
+
+.quick-stat-item span {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* ═══ VISTAS DINÁMICAS DEL CALENDARIO ═══ */
+.calendar-scroll-wrapper[data-view="day"] .calendar-day-header:not([data-date]) {
+    display: none;
+}
+
+.calendar-scroll-wrapper[data-view="day"] .calendar-day:not(.current) {
+    display: none;
+}
+
+.calendar-scroll-wrapper[data-view="day"] .calendar-day.current {
+    min-width: 100%;
+    grid-column: 1 / -1;
+}
+
+.calendar-scroll-wrapper[data-view="list"] .calendar-header {
+    display: none;
+}
+
+.calendar-scroll-wrapper[data-view="list"] .calendar-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.calendar-scroll-wrapper[data-view="list"] .calendar-day {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    background: var(--white);
+}
+
+.calendar-scroll-wrapper[data-view="list"] .calendar-day::before {
+    content: attr(data-date);
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--primary);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border);
+}
+
+.calendar-scroll-wrapper[data-view="list"] .appointment {
+    margin: 0.25rem 0;
+    border-left: 4px solid;
+}
+
+.calendar-scroll-wrapper[data-view="list"] .appointment.reserved {
+    border-left-color: #f59e0b;
+}
+
+.calendar-scroll-wrapper[data-view="list"] .appointment.confirmed {
+    border-left-color: #3b82f6;
+}
+
+.calendar-scroll-wrapper[data-view="list"] .appointment.attended {
+    border-left-color: #22c55e;
+}
+
+.calendar-scroll-wrapper[data-view="list"] .appointment.cancelled {
+    border-left-color: #ef4444;
+}
+
+/* ═══ INDICADORES DE TIEMPO REAL EN CITAS ═══ */
+.appointment {
+    position: relative;
+}
+
+.appt-status-indicator {
+    position: absolute;
+    top: -6px;
+    right: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: none;
+    line-height: 1;
+    z-index: 1;
+}
+
+.appointment.in-progress {
+    border-left: 4px solid #22c55e;
+    animation: pulse-green 2s infinite;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
+}
+
+.appointment.in-progress .appt-status-indicator {
+    display: block;
+    background: #22c55e;
+    color: white;
+}
+
+.appointment.upcoming {
+    border-left: 4px solid #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+}
+
+.appointment.upcoming .appt-status-indicator {
+    display: block;
+    background: #f59e0b;
+    color: white;
+}
+
+.appointment.overdue {
+    border-left: 4px solid #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
+}
+
+.appointment.overdue .appt-status-indicator {
+    display: block;
+    background: #ef4444;
+    color: white;
+}
+
+@keyframes pulse-green {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2); }
+    50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+}
+
+/* ═══ DRAG & DROP STYLES ═══ */
+.appointment[draggable="true"] {
+    cursor: move;
+}
+
+.appointment.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+    cursor: grabbing;
+}
+
+.calendar-day.drag-over {
+    background: #f0f9ff;
+    border: 2px dashed var(--primary);
+    box-shadow: inset 0 0 0 2px rgba(26, 86, 204, 0.1);
+}
+
+.calendar-day.drag-over::after {
+    content: 'Soltar aquí para reagendar';
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    inset: 0;
+    background: rgba(26, 86, 204, 0.05);
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* ═══ HIGHLIGHT DE BÚSQUEDA ═══ */
+.appointment.search-match {
+    animation: highlight-pulse 1s ease;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.3);
+}
+
+@keyframes highlight-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.3); }
+    50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.1); }
+}
+
+.appointment.search-hidden {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+/* ═══ MEJORAS EN CONTROLES ═══ */
+.agenda-controls {
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.controls-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.controls-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+    min-width: 180px;
+}
+
+.filter-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.status-select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 38px 9px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: var(--font);
+    font-size: 0.85rem;
+    color: var(--text);
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    cursor: pointer;
+    transition: border-color var(--tr), box-shadow var(--tr), transform var(--tr);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.status-select:hover {
+    border-color: #94a3b8;
+}
+
+.status-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--input-focus-ring);
+    outline: none;
+}
+
+/* ═══ TOOLTIPS PARA CITAS ═══ */
+.appointment:hover::after {
+    content: attr(aria-label);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    animation: tooltip-fadein 0.2s ease forwards;
+}
+
+@keyframes tooltip-fadein {
+    to { opacity: 1; }
+}
+
+/* ═══ LOADING STATE ═══ */
+.calendar-body.loading {
+    opacity: 0.6;
+    pointer-events: none;
+    position: relative;
+}
+
+.calendar-body.loading::after {
+    content: 'Cargando...';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-weight: 600;
+    color: var(--primary);
+}
+
+/* ═══ RESPONSIVE PARA NUEVOS COMPONENTES ═══ */
+@media (max-width: 1200px) {
+    .quick-stats-panel {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .view-toggle {
+        width: 100%;
+        justify-content: space-between;
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+    }
+
+    .view-btn-text {
+        display: none;
+    }
+
+    .view-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 0.7rem;
+    }
+
+    .search-patient-wrap {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+    }
+
+    .search-patient-wrap input[type="search"] {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .controls-left,
+    .controls-right {
+        width: 100%;
+    }
+
+    .filter-group {
+        flex: 1;
+    }
+
+    .quick-stats-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-stat-item {
+        padding: 1rem;
+    }
+
+    .appointment:hover::after {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .quick-stat-item .material-symbols-outlined {
+        font-size: 1.5rem;
+    }
+
+    .quick-stat-item strong {
+        font-size: 1.2rem;
+    }
+
+    .appt-status-indicator {
+        font-size: 0.6rem;
+        padding: 1px 4px;
+    }
+}
+
+/* ═══ MEJORAS DE ACCESIBILIDAD ═══ */
+@media (prefers-reduced-motion: reduce) {
+    .appointment,
+    .quick-stat-item,
+    .view-btn,
+    .calendar-day {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* ═══ HIGH CONTRAST MODE ═══ */
+@media (prefers-contrast: high) {
+    .view-btn.active {
+        outline: 2px solid currentColor;
+    }
+
+    .appointment.in-progress,
+    .appointment.upcoming,
+    .appointment.overdue {
+        outline: 2px solid currentColor;
+    }
+}
+
+/* ═══ MODO IMPRESIÓN MEJORADO ═══ */
+@media print {
+    .view-toggle,
+    .search-patient-wrap,
+    .filter-group,
+    .fab,
+    .mobile-nav,
+    .modal-overlay {
+        display: none !important;
+    }
+
+    .quick-stats-panel {
+        border: 1px solid #ccc;
+        page-break-inside: avoid;
+    }
+
+    .calendar-scroll-wrapper {
+        overflow: visible;
+    }
+
+    .appointment {
+        page-break-inside: avoid;
+    }
+
+    .appt-status-indicator {
+        display: none !important;
+    }
+}
+
+/* ═══ ANIMACIONES SUAVES PARA TRANSICIONES ═══ */
+.calendar-scroll-wrapper[data-view] {
+    transition: all 0.3s ease;
+}
+
+.appointment {
+    transition: all 0.2s ease, border-left-color 0.3s ease;
+}
+
+.quick-stat-item {
+    transition: all 0.2s ease;
+}
+
+/* ═══ ESTADOS DE FOCO MEJORADOS ═══ */
+.appointment:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+    z-index: 10;
+}
+
+.search-patient-wrap input:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}

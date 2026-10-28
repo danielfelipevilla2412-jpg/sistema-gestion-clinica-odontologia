@@ -1,0 +1,4 @@
+.panel-rendimiento { display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; background: #fff; }
+.performance-ring { width: 92px; height: 92px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(#1a56cc calc(var(--performance, 0) * 1%), #e2e8f0 0); position: relative; }
+.performance-ring::after { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: #fff; }
+.performance-ring span { position: relative; z-index: 1; font-weight: 700; }

@@ -1,10 +1,21 @@
 @* ============================================
-   SmileTrack — Agenda General (st-adm-08-agenda)
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Agenda General (st-adm-08-agenda)
    ============================================
-   Autor: Johan Santamaria
-   Fecha: 29/07/2026
-   DEPENDENCIAS: agendageneral.css / agendageneral.js
-============================================ *@
+   Archivo: Views/Gestion_De_Citas/st-adm-08-agenda/index.cshtml
+
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Renderiza la cuadrícula completa de la agenda médica semanal y diaria para la administración clínica.
+   Permite visualizar la asignación de consultorios, franjas de disponibilidad y agendamiento interactivo.
+
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Utiliza `AgendaViewModel` con listas de selección precargadas (pacientes, profesionales, consultorios, servicios).
+
+   DEPENDENCIAS:
+   - ViewModel: SmileTrack_MVC.Models.ViewModels.AgendaViewModel
+   - CSS: ~/css/Gestion_De_Citas/st-adm-08-agenda/agendageneral.css
+   - JS: ~/js/Gestion_De_Citas/st-adm-08-agenda/agendageneral.js
+   ============================================ *@
 @model SmileTrack_MVC.Models.ViewModels.AgendaViewModel
 @{ Layout = "_Layout"; ViewData["Title"] = "Agenda General"; }
 
@@ -24,6 +35,16 @@
             </nav>
             <h1 class="page-title" data-i18n="adm08_title">Agenda General</h1>
             <p class="page-subtitle" data-i18n="adm08_subtitle">Gestión de citas y horarios</p>
+        </div>
+        <div class="header-actions">
+            <button type="button" class="btn-primary" id="btnNewAppointment" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new_aria">
+                <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                <span data-i18n="adm09_btn_nueva_cita">Nueva Cita</span>
+            </button>
+            <a class="btn-secondary" href="/gestion-de-citas/st-adm-09-citas" aria-label="Abrir tabla integral de citas">
+                <span class="material-symbols-outlined" aria-hidden="true">table_view</span>
+                <span>Tabla integral</span>
+            </a>
         </div>
     </header>
 
@@ -73,6 +94,43 @@
         <div>
             <strong data-i18n="adm08_hours_title">Horario de la clínica</strong>
             <span>@Model.HorarioApertura - @Model.HorarioCierre · @Model.DiasAtencionTexto · @Model.DuracionCitaMinutos <span data-i18n="adm08_hours_min">min por cita</span></span>
+        </div>
+    </section>
+
+    <section class="agenda-availability" aria-labelledby="availabilityTitle">
+        <div class="agenda-availability-heading">
+            <div>
+                <h2 id="availabilityTitle">Consultar disponibilidad</h2>
+                <p>Elige un servicio y horario para ver profesionales calificados y libres.</p>
+            </div>
+            <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
+        </div>
+        <div class="agenda-availability-controls">
+            <div class="filter-group">
+                <label class="filter-label" for="availabilityDate">Fecha</label>
+                <input class="status-select" type="date" id="availabilityDate" min="@DateTime.Today.ToString("yyyy-MM-dd")" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="availabilityTime">Hora</label>
+                <input class="status-select" type="time" id="availabilityTime" value="09:00" />
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="availabilityService">Servicio</label>
+                <select class="status-select" id="availabilityService">
+                    <option value="">Selecciona un servicio</option>
+                    @foreach (var servicio in Model.Servicios)
+                    {
+                        <option value="@servicio.Id">@servicio.Text</option>
+                    }
+                </select>
+            </div>
+            <button type="button" class="btn-primary" id="checkAvailabilityButton">
+                <span class="material-symbols-outlined" aria-hidden="true">search</span>
+                Consultar
+            </button>
+        </div>
+        <div class="availability-results" id="agendaAvailabilityResults" aria-live="polite" role="status">
+            Selecciona fecha, hora y servicio para consultar profesionales.
         </div>
     </section>
 
@@ -130,7 +188,11 @@
                                     data-office-id="@cita.IdConsultorio" data-service-id="@cita.IdServicio"
                                     data-status="@Html.Encode(cita.Estado)" data-notes="@Html.Encode(cita.Notas)"
                                     data-patient-name="@Html.Encode(cita.Paciente)" data-service-name="@Html.Encode(cita.Servicio)"
-                                    data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)">
+                                    data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)"
+                                    data-professional-email="@Html.Encode(cita.CorreoProfesional)"
+                                    data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
+                                    data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
+                                    data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)">
                                     <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
                                     <span class="appt-patient">@cita.Paciente</span>
                                     <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
@@ -269,11 +331,6 @@
         </div>
     </div>
 </div>
-
-<!-- FAB nueva cita -->
-<button class="fab" id="btnNewAppointment" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new_aria">
-    <span class="material-symbols-outlined" aria-hidden="true">add</span>
-</button>
 
 <!-- Navegación móvil -->
 <nav class="mobile-nav" aria-label="Navegación móvil" data-i18n-aria-label="adm08_mobile_nav_aria">
