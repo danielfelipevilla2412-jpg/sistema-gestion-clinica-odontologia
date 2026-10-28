@@ -227,10 +227,12 @@ const initProfessionalSelect = () => {
   const invoiceProfessional = safeGetElement('invoiceProfessional');
 
   if (profesionalSelect && invoiceProfessional) {
-    profesionalSelect.addEventListener('change', (e) => {
-      invoiceProfessional.textContent = e.target.value;
-      showToast(`Profesional: ${e.target.value}`, 'info');
-    });
+    const updateProfessional = () => {
+      const option = profesionalSelect.options[profesionalSelect.selectedIndex];
+      invoiceProfessional.textContent = option.value ? option.textContent.trim() : 'Seleccione un profesional';
+    };
+    profesionalSelect.addEventListener('change', updateProfessional);
+    updateProfessional();
   }
 };
 
@@ -383,6 +385,7 @@ const confirmPayment = async () => {
         method: 'POST',
         body: {
           idPaciente: payment.idPaciente,
+          idProfesional: payment.idProfesional,
           notas: null,
           detalles: payment.items,
           montoPagado: payment.amount,
@@ -480,6 +483,11 @@ const initPayment = () => {
       pacienteSelect.focus();
       return;
     }
+    if (!idProfesional) {
+      showToast('Seleccione un profesional antes de registrar el pago.', 'error');
+      profesionalSelect?.focus();
+      return;
+    }
 
     const items = buildInvoiceItemsPayload();
     if (items.length === 0) {
@@ -503,6 +511,7 @@ const initPayment = () => {
 
     openPaymentConfirmation({
       idPaciente,
+      idProfesional,
       items,
       total,
       amount,
@@ -511,13 +520,7 @@ const initPayment = () => {
       metodoPago: safeGetElement('paymentMethod')?.value || 'efectivo'
     });
   });
-
-    try {
-      // 1) Crear la factura real en SQL Server.
-      const creado = await window.apiRequest('/api/facturas', {
-        method: 'POST',
-        body: { idPaciente, idProfesional, notas: null, detalles: items }
-      });
+};
 
 const formatInvoiceDate = (value, includeTime = false) => {
   if (!value) return '—';

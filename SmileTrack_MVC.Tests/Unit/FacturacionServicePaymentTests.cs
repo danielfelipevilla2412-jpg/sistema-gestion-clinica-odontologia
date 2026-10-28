@@ -54,7 +54,7 @@ public sealed class FacturacionServicePaymentTests
         Assert.Equal(25000m, payment.Monto);
         Assert.Equal("efectivo", payment.MetodoPago);
         Assert.Equal(1, await db.Facturas.CountAsync());
-        Assert.Equal(1, await db.PagosFacturas.CountAsync());
+        Assert.Equal(1, await db.Pagos.CountAsync());
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class FacturacionServicePaymentTests
         }, 7, CancellationToken.None));
 
         Assert.Empty(await db.Facturas.ToListAsync());
-        Assert.Empty(await db.PagosFacturas.ToListAsync());
+        Assert.Empty(await db.Pagos.ToListAsync());
     }
 
     [Fact]
@@ -109,8 +109,7 @@ public sealed class FacturacionServicePaymentTests
         var payment = Assert.Single(result.Pagos);
         Assert.Equal(30000m, payment.Monto);
         Assert.Equal("efectivo", payment.MetodoPago);
-        Assert.Equal("aprobado", payment.Estado);
-        Assert.StartsWith("CAJ-", payment.Referencia);
+        Assert.Null(payment.Referencia);
 
         var completed = await service.RegistrarPagoAsync(
             invoice.IdFactura,
@@ -139,7 +138,7 @@ public sealed class FacturacionServicePaymentTests
             CancellationToken.None));
 
         Assert.Contains("pasarela de pago configurada", error.Message);
-        Assert.Empty(await db.PagosFacturas.ToListAsync());
+        Assert.Empty(await db.Pagos.ToListAsync());
     }
 
     [Fact]
@@ -155,7 +154,7 @@ public sealed class FacturacionServicePaymentTests
             7,
             CancellationToken.None));
 
-        Assert.Empty(await db.PagosFacturas.ToListAsync());
+        Assert.Empty(await db.Pagos.ToListAsync());
     }
 
     [Fact]
@@ -180,7 +179,7 @@ public sealed class FacturacionServicePaymentTests
             7,
             CancellationToken.None);
 
-        var listed = Assert.Single(await service.ListarAsync(null, null, null, null, CancellationToken.None));
+        var listed = Assert.Single(await service.ListarAsync(null, null, null, null, null, null, CancellationToken.None));
         var details = await service.ObtenerAsync(invoice.IdFactura, CancellationToken.None);
 
         Assert.Equal(150000m, listed.Total);

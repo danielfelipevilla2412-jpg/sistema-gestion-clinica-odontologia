@@ -84,7 +84,9 @@
     @{
       var pacientesFactura = ViewData["Pacientes"] as List<SmileTrack_MVC.Models.Entities.Paciente> ?? new List<SmileTrack_MVC.Models.Entities.Paciente>();
       var serviciosFactura = ViewData["Servicios"] as List<SmileTrack_MVC.Models.Entities.Servicio> ?? new List<SmileTrack_MVC.Models.Entities.Servicio>();
+      var profesionalesFactura = ViewData["Profesionales"] as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new List<SmileTrack_MVC.Models.Entities.Profesional>();
     }
+    @Html.AntiForgeryToken()
     <!-- Formulario de selección con aria-labels en controles -->
     <div class="form-row no-print">
       <div class="form-group">
@@ -100,9 +102,11 @@
       <div class="form-group">
           <label class="form-label" for="profesionalSelect" data-i18n="citas.professional">Profesional</label>
         <select id="profesionalSelect" class="form-select" aria-label="Seleccionar profesional">
-          <option value="Dr. Carlos Méndez">Dr. Carlos Méndez - Odontología General</option>
-          <option value="Dra. Laura Gómez">Dra. Laura Gómez - Ortodoncia</option>
-          <option value="Dr. Andrés Torres">Dr. Andrés Torres - Endodoncia</option>
+            <option value="">Seleccione un profesional...</option>
+            @foreach (var p in profesionalesFactura)
+            {
+              <option value="@p.IdProfesional">@p.NombreProfesional</option>
+            }
         </select>
       </div>
       <div class="form-group">

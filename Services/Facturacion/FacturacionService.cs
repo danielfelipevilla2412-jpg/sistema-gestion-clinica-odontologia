@@ -225,6 +225,8 @@ public sealed class FacturacionService : IFacturacionService
     public async Task<FacturaDto> CrearAsync(CrearFacturaRequest request, int idUsuario, CancellationToken ct)
     {
         await ValidarPaciente(request.IdPaciente, ct);
+        if (request.IdProfesional.HasValue && !await _db.Profesionales.AnyAsync(p => p.IdProfesional == request.IdProfesional.Value && p.Estado == "activo", ct))
+            throw new InvalidOperationException("El profesional seleccionado no es válido.");
         ValidarDetalles(request.Detalles);
         var detalles = request.Detalles.Select(d => new DetalleFactura { IdServicio = d.IdServicio, Descripcion = d.Descripcion.Trim(), Cantidad = d.Cantidad, PrecioUnitario = d.PrecioUnitario, Descuento = d.Descuento, SubtotalLinea = d.Cantidad * (d.PrecioUnitario - d.Descuento) }).ToList();
         var subtotal = detalles.Sum(x => x.Cantidad * x.PrecioUnitario);
@@ -242,6 +244,8 @@ public sealed class FacturacionService : IFacturacionService
     public async Task<FacturaDto> CrearConPagoAsync(CrearFacturaConPagoRequest request, int idUsuario, CancellationToken ct)
     {
         await ValidarPaciente(request.IdPaciente, ct);
+        if (request.IdProfesional.HasValue && !await _db.Profesionales.AnyAsync(p => p.IdProfesional == request.IdProfesional.Value && p.Estado == "activo", ct))
+            throw new InvalidOperationException("El profesional seleccionado no es válido.");
         ValidarDetalles(request.Detalles);
 
         if (!string.Equals(request.MetodoPago?.Trim(), "efectivo", StringComparison.OrdinalIgnoreCase))
@@ -279,8 +283,8 @@ public sealed class FacturacionService : IFacturacionService
                 Total = total,
                 Estado = request.MontoPagado >= total ? "pagada" : "parcial",
                 IdPaciente = request.IdPaciente,
-                IdCita = request.IdCita,
                 IdProfesional = request.IdProfesional,
+                IdCita = request.IdCita,
                 Notas = Clean(request.Notas),
                 GeneradaPor = idUsuario,
                 MontoPagado = request.MontoPagado,
@@ -431,5 +435,5 @@ public sealed class FacturacionService : IFacturacionService
     }
     private async Task<string> NuevoNumeroAsync(CancellationToken ct) { var year = DateTime.Now.Year; var n = await _db.Facturas.CountAsync(x => x.FechaFactura.Year == year, ct) + 1; string v; do { v = $"FAC-{year}-{n:D5}"; n++; } while (await _db.Facturas.AnyAsync(x => x.NumeroFactura == v, ct)); return v; }
     private static bool EsEstadoFacturable(string? estado) => estado?.Trim().ToLowerInvariant() is "atendida" or "completada" or "finalizada";
-    private static FacturaDto Map(Factura x) => new() { Id=x.IdFactura, Numero=x.NumeroFactura, IdPaciente=x.IdPaciente, IdCita=x.IdCita, IdProfesional=x.IdProfesional, Paciente=x.Paciente==null?"Paciente":$"{x.Paciente.Nombres} {x.Paciente.Apellidos}", Documento=x.Paciente?.Documento??"N/A", Fecha=x.FechaFactura, Subtotal=x.Subtotal, Total=x.Total, MontoPagado=x.MontoPagado, Pendiente=Math.Max(x.Total-x.MontoPagado,0), Estado=x.Estado, Notas=x.Notas, FechaPago=x.FechaPago, Detalles=x.Detalles.Select(d=>new FacturaDetalleDto { Id=d.IdDetalle, IdServicio=d.IdServicio, Descripcion=d.Descripcion, Cantidad=d.Cantidad, PrecioUnitario=d.PrecioUnitario, Subtotal=d.SubtotalLinea }).ToList(), Pagos=x.Pagos.Select(p=>new PagoDto { Id=p.IdPago, Monto=p.Monto, FechaPago=p.FechaPago, MetodoPago=p.MetodoPago, Referencia=p.Referencia, RegistradoPor=p.RegistradoPor, Observaciones=p.Observaciones }).ToList() };
+    private static FacturaDto Map(Factura x) => new() { Id=x.IdFactura, Numero=x.NumeroFactura, IdPaciente=x.IdPaciente, IdCita=x.IdCita, IdProfesional=x.IdProfesional, Paciente=x.Paciente==null?"Paciente":$"{x.Paciente.Nombres} {x.Paciente.Apellidos}", Documento=x.Paciente?.Documento??"N/A", Fecha=x.FechaFactura, Subtotal=x.Subtotal, Descuento=x.Descuento, Total=x.Total, MontoPagado=x.MontoPagado, Pendiente=Math.Max(x.Total-x.MontoPagado,0), Estado=x.Estado, Notas=x.Notas, FechaPago=x.FechaPago, Detalles=x.Detalles.Select(d=>new FacturaDetalleDto { Id=d.IdDetalle, IdServicio=d.IdServicio, Descripcion=d.Descripcion, Cantidad=d.Cantidad, PrecioUnitario=d.PrecioUnitario, Descuento=d.Descuento, Subtotal=d.SubtotalLinea }).ToList(), Pagos=x.Pagos.Select(p=>new PagoDto { Id=p.IdPago, Monto=p.Monto, FechaPago=p.FechaPago, MetodoPago=p.MetodoPago, Referencia=p.Referencia, RegistradoPor=p.RegistradoPor, Observaciones=p.Observaciones }).ToList() };
 }
