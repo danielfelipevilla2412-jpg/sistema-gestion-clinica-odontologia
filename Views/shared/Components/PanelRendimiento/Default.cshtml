@@ -1,0 +1,9 @@
+@model SmileTrack_MVC.Models.ViewModels.Components.PanelRendimientoViewModel
+<link rel="stylesheet" href="~/css/shared/components/panel-rendimiento.css" asp-append-version="true" />
+<section class="panel-rendimiento" data-performance="@Model.Porcentaje" aria-label="@Model.Etiqueta">
+    <div class="performance-ring" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Model.Porcentaje">
+        <span>@Model.Porcentaje%</span>
+    </div>
+    <div><h3>@Model.Etiqueta</h3><p>@Model.Mensaje</p></div>
+</section>
+<script src="~/js/shared/components/PanelRendimiento.js" asp-append-version="true"></script>

@@ -21,7 +21,7 @@
         }
 
         [HttpGet]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Recepcionista")]
         [Route("facturacion-y-pagos/st-adm-12-facturacion")]
         public async Task<IActionResult> Stadm12Facturacion()
         {
@@ -30,16 +30,23 @@
                 .OrderByDescending(f => f.FechaFactura)
                 .ToListAsync();
 
+            var pacientes = await _context.Pacientes.Where(p => p.Estado == "activo").OrderBy(p => p.Nombres).ToListAsync();
+            var servicios = await _context.Servicios.Where(s => s.Estado == "activo").OrderBy(s => s.Nombre).ToListAsync();
+            ViewData["Pacientes"] = pacientes;
+            ViewData["Servicios"] = servicios;
+
             string[] colores = new[] { "blue", "green", "purple", "orange", "red" };
             var facturas = facturasDb.Select((f, idx) => new
             {
                 id = f.IdFactura,
+                idCita = f.IdCita,
+                idProfesional = f.IdProfesional,
                 number = f.NumeroFactura,
                 patient = f.Paciente != null ? $"{f.Paciente.Nombres} {f.Paciente.Apellidos}" : "Paciente",
                 doc = f.Paciente != null ? f.Paciente.Documento : "N/A",
                 date = f.FechaFactura.ToString("yyyy-MM-dd"),
                 total = f.Total,
-                pending = f.Estado == "pagada" ? 0 : f.Estado == "parcial" ? f.Total / 2 : f.Total,
+                pending = Math.Max(f.Total - f.MontoPagado, 0),
                 status = f.Estado,
                 avatar = f.Paciente != null ? $"{f.Paciente.Nombres.FirstOrDefault()}{f.Paciente.Apellidos.FirstOrDefault()}".ToUpper() : "PA",
                 color = colores[idx % colores.Length],
@@ -51,7 +58,7 @@
         }
 
         [HttpGet]
-        [Authorize(Roles = "Recepcionista")]
+        [Authorize(Roles = "Administrador,Recepcionista")]
         [Route("facturacion-y-pagos/st-rec-04-generar-factura")]
         public async Task<IActionResult> Strec04GenerarFactura()
         {

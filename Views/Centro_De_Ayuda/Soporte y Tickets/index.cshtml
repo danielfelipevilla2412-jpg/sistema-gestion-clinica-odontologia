@@ -2,6 +2,15 @@
 @{
     ViewData["Title"] = "SmileTrack - Centro de Ayuda";
     Layout = null;
+    var role = User?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
+    var roleLabel = role switch
+    {
+        "profesional" or "odontologo" or "odontólogo" or "doctor" => "Panel Profesional",
+        "paciente" => "Panel Paciente",
+        "recepcionista" => "Panel Recepcionista",
+        "auxiliar" => "Panel Auxiliar",
+        _ => "Panel Administrador"
+    };
 
     var userName = User?.Identity?.Name ?? "Usuario SmileTrack";
     var nameParts = userName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -51,7 +60,7 @@
 <body>
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+    @{ await Html.RenderPartialAsync("_SidebarDynamic"); }
 
     <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
         <span aria-hidden="true"></span>
@@ -64,7 +73,7 @@
         <header class="page-header">
             <div class="header-left">
                 <nav class="breadcrumb" aria-label="Ruta de navegación">
-                    <span>Administración</span>
+                    <span>@roleLabel</span>
                     <span class="bc-sep" aria-hidden="true">→</span>
                     <span class="bc-active">Centro de Ayuda</span>
                 </nav>
@@ -142,6 +151,7 @@
 
     <script src="@Url.Content("~/js/Centro_De_Ayuda/Guias_Tutoriales_Y_Soporte/app.js")"></script>
     <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
+    @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
 </body>
 </html>
 

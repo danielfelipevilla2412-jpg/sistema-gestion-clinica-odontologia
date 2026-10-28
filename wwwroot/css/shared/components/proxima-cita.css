@@ -1,0 +1,257 @@
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENTE: ProximaCitaWidget
+   Estilos para banner de próxima cita con countdown
+   ═══════════════════════════════════════════════════════════════ */
+
+.proxima-cita-banner {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.proxima-cita-banner:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+}
+
+/* Estado urgente */
+.proxima-cita-banner.urgent {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    animation: pulse-urgent 2s ease-in-out infinite;
+}
+
+@keyframes pulse-urgent {
+    0%, 100% { box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4); }
+    50% { box-shadow: 0 10px 40px rgba(245, 87, 108, 0.6); }
+}
+
+/* Estado upcoming (normal) */
+.proxima-cita-banner.upcoming {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Estado vacío */
+.proxima-cita-banner.empty {
+    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+    color: #475569;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Icono */
+.banner-icon {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    backdrop-filter: blur(10px);
+}
+
+.banner-icon .material-symbols-outlined {
+    font-size: 2rem;
+}
+
+.proxima-cita-banner.empty .banner-icon {
+    background: rgba(100, 116, 139, 0.1);
+}
+
+/* Contenido */
+.banner-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.banner-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0 0 0.5rem 0;
+    opacity: 0.9;
+}
+
+.urgent-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin-right: 0.5rem;
+    animation: blink 1.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.banner-paciente {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+}
+
+.banner-servicio {
+    font-size: 1rem;
+    margin: 0 0 0.5rem 0;
+    opacity: 0.95;
+}
+
+.banner-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.meta-icon {
+    font-size: 1rem;
+}
+
+.meta-separator {
+    opacity: 0.6;
+}
+
+.banner-ultima {
+    font-size: 0.75rem;
+    margin: 0.5rem 0 0 0;
+    opacity: 0.8;
+    font-style: italic;
+}
+
+.banner-subtitle {
+    font-size: 1rem;
+    margin: 0.25rem 0 0 0;
+    opacity: 0.7;
+}
+
+/* Countdown */
+.banner-countdown {
+    flex-shrink: 0;
+    text-align: center;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    min-width: 100px;
+}
+
+.countdown-value {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.countdown-label {
+    display: block;
+    font-size: 0.875rem;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .proxima-cita-banner {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+        padding: 1.25rem;
+    }
+
+    .banner-content {
+        width: 100%;
+    }
+
+    .banner-meta {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .banner-countdown {
+        width: 100%;
+    }
+
+    .banner-icon {
+        width: 56px;
+        height: 56px;
+    }
+
+    .banner-icon .material-symbols-outlined {
+        font-size: 1.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .proxima-cita-banner {
+        padding: 1rem;
+    }
+
+    .banner-paciente {
+        font-size: 1.1rem;
+    }
+
+    .countdown-value {
+        font-size: 2rem;
+    }
+}
+
+/* Accesibilidad */
+@media (prefers-reduced-motion: reduce) {
+    .proxima-cita-banner {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .urgent-badge {
+        animation: none !important;
+    }
+}
+
+/* Alto contraste */
+@media (prefers-contrast: high) {
+    .proxima-cita-banner {
+        border: 2px solid currentColor;
+    }
+}
+
+/* Modo impresión */
+@media print {
+    .proxima-cita-banner {
+        background: white !important;
+        color: black !important;
+        border: 2px solid #333;
+        box-shadow: none !important;
+    }
+
+    .banner-icon {
+        background: #f0f0f0 !important;
+        color: #333 !important;
+    }
+
+    .banner-countdown {
+        background: #f0f0f0 !important;
+    }
+}

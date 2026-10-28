@@ -69,8 +69,10 @@ builder.Configuration
     .AddCommandLine(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
+builder.Services.AddScoped<SmileTrack_MVC.Services.Perfiles.IPerfilPacienteService, SmileTrack_MVC.Services.Perfiles.PerfilPacienteService>();
 
 bool ejecutandoEnContenedor =
     string.Equals(
@@ -118,6 +120,14 @@ builder.Services.AddRateLimiter(options =>
     {
         opt.PermitLimit = 5;
         opt.Window = TimeSpan.FromMinutes(15);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("PerfilPaciente", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 0;
     });
@@ -195,6 +205,11 @@ builder.Services.AddScoped<IPanelOperativoService, PanelOperativoService>();
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.ICitasDashboardService,
     SmileTrack_MVC.Services.CitasDashboardService>();
+
+// Cierre automático de citas vencidas: se ejecuta a diario a las 23:59 y deja la agenda limpia
+// al día siguiente (las citas en espera que ya pasaron pasan a "No asistio").
+builder.Services.AddHostedService<
+    SmileTrack_MVC.Services.GestionDeCitas.CitasVencidasBackgroundService>();
 
 // -----------------------------------------------------------------------------
 // JWT
@@ -804,8 +819,28 @@ app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = context =>
     {
-        context.Context.Response.Headers.CacheControl =
-            "public,max-age=604800";
+        // CORRECCIÓN yeray — Estos dos scripts cambian con el odontograma de
+        // Historia Clínica. Antes todos los estáticos se entregaban por siete
+        // días y el navegador ejecutaba un JS anterior que seguía dibujando el
+        // canvas 2D. Se evita su caché para que una actualización sea visible
+        // inmediatamente después de reiniciar la aplicación.
+        var ruta = context.Context.Request.Path.Value ?? string.Empty;
+        var esScriptOdontogramaHistoria = ruta.EndsWith(
+            "/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js",
+            StringComparison.OrdinalIgnoreCase)
+            || ruta.EndsWith(
+                "/js/Historia_Clinica/components/odontograma-3d-readonly.js",
+                StringComparison.OrdinalIgnoreCase);
+
+        context.Context.Response.Headers.CacheControl = esScriptOdontogramaHistoria
+            ? "no-cache, no-store, must-revalidate"
+            : "public,max-age=604800";
+
+        if (esScriptOdontogramaHistoria)
+        {
+            context.Context.Response.Headers.Pragma = "no-cache";
+            context.Context.Response.Headers.Expires = "0";
+        }
     }
 });
 app.UseRouting();

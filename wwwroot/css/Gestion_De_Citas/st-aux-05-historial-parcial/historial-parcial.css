@@ -155,12 +155,6 @@ img { max-width: 100%; height: auto; display: block; }
 /* Tabla de historial con scroll horizontal en móvil */
 .table-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
 .table-scroll { overflow-x: auto; }
-.hist-table { width: 100%; border-collapse: collapse; font-size: .83rem; min-width: 540px; }
-.hist-table thead { background: var(--bg); border-bottom: 2px solid var(--border); }
-.hist-table th { padding: 12px 16px; text-align: left; font-size: .69rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; }
-.hist-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
-.hist-table tbody tr:last-child td { border-bottom: none; }
-.hist-table tbody tr:hover { background: #f8fafc; }
 .td-fecha { font-weight: 700; color: var(--text); white-space: nowrap; }
 .td-profesional { font-weight: 600; color: var(--text); white-space: nowrap; }
 
@@ -191,24 +185,8 @@ img { max-width: 100%; height: auto; display: block; }
 
 
 
-/* ═══ RESPONSIVE (IDÉNTICO A st-aux-01) ═══ */
-@media (max-width: 700px) {
-  .hist-table thead { display: none; }
-  .hist-table, .hist-table tbody, .hist-table tr, .hist-table td { display: block; width: 100%; }
-  .hist-table tbody tr { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-  .hist-table td { padding: 3px 0; display: flex; gap: 6px; }
-  .hist-table td::before {
-    content: attr(data-label);
-    font-size: .69rem;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    min-width: 90px;
-    flex-shrink: 0;
-    padding-top: 1px;
-  }
-}
+
+
 @media (max-width: 680px) {
   .hamburger { display: flex; }
   .sidebar { transform: translateX(-100%); }

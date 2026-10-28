@@ -29,8 +29,12 @@ const initSidebar = () => {
 
 // ===== CLIENTE API LOCAL (autocontenido, sin depender de wwwroot/js/lib/apiRequest.js) =====
 function getPqrAntiforgeryToken() {
-  const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
-  return match ? decodeURIComponent(match[2]) : null;
+  const meta = document.querySelector('meta[name="csrf-request-token"]');
+  const metaToken = meta?.getAttribute('content');
+  if (metaToken) return metaToken;
+
+  const hidden = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  return hidden || null;
 }
 
 async function pqrApiRequest(path, options = {}) {
@@ -189,9 +193,139 @@ document.addEventListener('DOMContentLoaded', () => {
   renderTable();
   renderStats();
   initResponseForm();
+  initPqrNotifications();
 });
 
-// Show Management (placeholder — ya estamos en la única vista de gestión)
+// ===== NOTIFICACIONES Y ACTUALIZACIÓN AUTOMÁTICA =====
+let pqrFirstRefresh = true;
+
+function updateNotificationBadge(stats) {
+  const badge = safeGetElement('pqrNotificationBadge');
+  if (!badge) return;
+
+  const count = Number(stats?.sinResponder || 0);
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.classList.toggle('is-hidden', count === 0);
+
+  const button = safeGetElement('pqrNotificationBtn');
+  if (button) {
+    const label = count > 0
+      ? `Nuevas solicitudes PQR: ${count}`
+      : 'No hay nuevas solicitudes PQR';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+  }
+}
+
+function applyPqrPayload(payload, { showNewToast = false } = {}) {
+  if (!payload || payload.success !== true || !Array.isArray(payload.pqrs)) return;
+
+  const previousIds = new Set(Object.keys(pqrsData));
+
+  pqrsData = {};
+  payload.pqrs.forEach(p => {
+    pqrsData[p.id] = {
+      radicado: p.ticket,
+      titulo: p.subject,
+      tipo: p.type,
+      estado: p.status,
+      prioridad: p.priority,
+      paciente: p.patient,
+      documento: p.documento,
+      email: p.email,
+      fecha: p.date,
+      fechaCreacionIso: p.fechaCreacionIso,
+      descripcion: p.description,
+      respuesta: p.respuesta,
+      fechaRespuesta: p.fechaRespuesta,
+      atendidaPor: p.atendidaPor,
+      evidenciaAdjunto: p.evidenciaAdjunto
+    };
+  });
+
+  window.RAZOR_PQR_STATS = payload.stats;
+  renderTable();
+  renderStats();
+  updateNotificationBadge(payload.stats);
+  filterTable();
+
+  // Si el detalle ya está abierto, actualizamos únicamente la información
+  // visible de la PQR. No reconstruimos el panel ni tocamos el textarea.
+  if (currentId && pqrsData[currentId]) {
+    const data = pqrsData[currentId];
+    const responseTextarea = safeGetElement('responseTextarea');
+
+    safeGetElement('detailTitle').textContent = data.titulo;
+    safeGetElement('detailRadicado').textContent = data.radicado;
+    safeGetElement('infoRadicado').textContent = data.fecha;
+    safeGetElement('infoTiempo').textContent = formatTiempoAbierto(data.fechaCreacionIso);
+    safeGetElement('infoPaciente').textContent = data.paciente;
+    safeGetElement('infoDocumento').textContent = data.documento;
+    safeGetElement('infoEmail').textContent = data.email;
+    safeGetElement('detailDescripcion').textContent = data.descripcion;
+
+    renderResponseThread(data);
+    updateBadgeColors(data);
+    updateStatusButtons(data.estado);
+
+    // Nunca modificamos el contenido que el administrador esté escribiendo.
+    if (responseTextarea) responseTextarea.focus({ preventScroll: true });
+  } else if (currentId) {
+    closeDetail();
+  }
+
+  if (showNewToast) {
+    const newPqrs = payload.pqrs.filter(p => !previousIds.has(String(p.id)));
+    if (newPqrs.length > 0) {
+      const newest = newPqrs[0];
+      showToast(`Nueva PQR recibida: ${newest.ticket}`, 'warning');
+    }
+  }
+}
+
+async function refreshPqrsFromServer() {
+  try {
+    const response = await fetch('/gestion-de-pqr/api/pqr', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (response.status === 401) {
+      window.location.href = '/acceso-y-seguridad/login';
+      return;
+    }
+
+    if (!response.ok) return;
+
+    const payload = await response.json();
+    applyPqrPayload(payload, { showNewToast: !pqrFirstRefresh });
+    pqrFirstRefresh = false;
+  } catch (error) {
+    console.error('Error actualizando la bandeja de PQR:', error);
+  }
+}
+
+function initPqrNotifications() {
+  const button = safeGetElement('pqrNotificationBtn');
+  button?.addEventListener('click', () => {
+    const select = safeGetElement('filterEstado');
+    if (select) {
+      select.value = 'recibido';
+      filterTable();
+    }
+
+    safeGetElement('pqrsTable')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  updateNotificationBadge(window.RAZOR_PQR_STATS);
+
+  // La vista ya llega cargada con los datos de Razor.
+  // No hacemos una consulta automática al entrar ni al abrir una PQR.
+  // La sincronización con el servidor se realiza después de enviar una respuesta.
+}
+
+// Show Management (la vista actual ya es la bandeja de gestión)
 function showManagement() {}
 
 // Show Detail Panel
@@ -312,7 +446,7 @@ async function changeStatus(btn, estado) {
       return;
     }
 
-    pqrsData[currentId].estado = estado;
+    pqrsData[currentId].estado = result.data?.estado || estado;
     document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     updateBadgeColors(pqrsData[currentId]);
@@ -364,6 +498,7 @@ function initResponseForm() {
       renderStats();
       textarea.value = '';
       showToast('Respuesta enviada correctamente.');
+      await refreshPqrsFromServer();
     } catch (error) {
       console.error('Error enviando respuesta:', error);
       showToast('Error de conexión al enviar la respuesta.', 'error');

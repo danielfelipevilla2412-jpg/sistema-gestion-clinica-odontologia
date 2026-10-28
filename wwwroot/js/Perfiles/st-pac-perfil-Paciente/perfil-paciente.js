@@ -171,6 +171,7 @@ function guardarCambios() {
   */
 
   desactivarEdicion();
+  window.PerfilPacienteService?.invalidateCache();
   showToast('✅ Perfil actualizado correctamente');
 }
 

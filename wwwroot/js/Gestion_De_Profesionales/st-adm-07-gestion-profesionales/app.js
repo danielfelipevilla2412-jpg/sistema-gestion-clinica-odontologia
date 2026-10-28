@@ -1,61 +1,35 @@
 /* ============================================
-SmileTrack — Gestión de Profesionales (st-adm-07-gestion-profesionales)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: Gestión de Profesionales (st-adm-07-gestion-profesionales)
+ * ============================================
+ * Archivo: wwwroot/js/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/app.js
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Administra la interfaz de gestión de odontólogos y especialistas para el Administrador.
+ * Implementa arquitectura híbrida (SSR inicial + operaciones REST asíncronas) para el registro,
+ * modificación de especialidades, cambio de estados operacionales y resúmenes estadísticos.
+ *
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Paginación asíncrona y filtrado reactivo debounced por especialidad y estado.
+ * - Validación en cliente de formatos de Registro Médico, Email y Teléfono antes del envío API.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionProfesionalesController / ProfesionalesApiController (/api/profesionales)
+ * - HTML: Views/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/index.cshtml
+ * ============================================ */
 
-DESCRIPCIÓN:
-Gestiona la interactividad del módulo de administración de profesionales. 
-Este archivo consolida la lógica híbrida actual del módulo:
+// ===================================================================
+// 1. CONSTANTES Y CONFIGURACIÓN
+// ===================================================================
 
-ARQUITECTURA (Fase 2 completada):
-- Carga inicial (SSR): El Controller Razor entrega la vista inicial con los datos de BD 
-  para garantizar una primera carga rápida y SEO-friendly.
-- CRUD vía API REST: Las operaciones de Crear, Editar (GET/PUT), Cambiar estado (PATCH)
-  y Desactivar (DELETE lógico) son asíncronas y consumen `/api/profesionales`.
-- Renderizado Dinámico: Tras buscar, filtrar o realizar operaciones CRUD, la tabla 
-  es actualizada en el cliente mediante JS sin recargar la página entera.
+/** Base URL para la API REST de profesionales */
+const API_BASE_URL = '/api/profesionales';
 
-FUNCIONALIDADES PRINCIPALES:
-- Modales de creación, edición y visualización de detalles, poblados vía API.
-- Filtros asíncronos y búsqueda con `debounce`.
-- Animación progresiva en los contadores de métricas del panel superior.
-- Validación de formularios en cliente antes de enviar la petición API.
+/** Tamaño de página estándar para la paginación de la tabla */
+const ITEMS_PER_PAGE = 10;
 
-DEPENDENCIAS TÉCNICAS:
-- Controller (SSR initial state): GestionProfesionalesController
-- API Controller: ProfesionalesApiController
-- CSS: ~/css/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/styles.css
-- Partial / Otros: index.cshtml
-============================================ */
-
-// Base URL para futuras migraciones a API REST (actualmente no se usa en producción)
-const API_BASE = '/api/profesionales';
-
-// ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES - CENTRALIZADAS EN utils.js
-// ═══════════════════════════════════════════════════════════════════
-// 
-// NOTA: Las funciones siguientes están centralizadas en wwwroot/js/shared/utils.js
-// Importadas bajo el namespace window.SmileTrack.utils
-//
-// Aliases globales disponibles para retrocompatibilidad:
-// - safeGetElement()
-// - debounce()
-// - escapeHtml()
-// - apiRequest()
-// - animateCounter()
-// - showToast()
-// - openModal() / closeModal()
-// - validateForm()
-//
-// Uso recomendado: window.SmileTrack.utils.safeGetElement(id)
-// ═══════════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════════
-//  MAPEO DE COLORES (solo UI, no afecta lógica de negocio)
-// ═══════════════════════════════════════════════════════════════════
-// WHY: Centralizar el mapeo aquí evita repetirlo en Razor y en JS.
-const SPEC_COLORS = {
+/** Mapeo de especialidades a sufijos de clases CSS de badges */
+const SPECIALTY_COLOR_MAP = {
   'Odontología General': 'general',
   'Ortodoncia': 'ortodoncia',
   'Endodoncia': 'endodoncia',
@@ -66,73 +40,68 @@ const SPEC_COLORS = {
   'Rehabilitación Oral': 'rehab',
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  ESTADO DEL MÓDULO
-// ═══════════════════════════════════════════════════════════════════
+/** Días de la semana para la configuración de horarios */
+const WEEK_DAYS = [
+  { key: 'Lunes', label: 'Lunes', short: 'Lun' },
+  { key: 'Martes', label: 'Martes', short: 'Mar' },
+  { key: 'Miercoles', label: 'Miércoles', short: 'Mié' },
+  { key: 'Jueves', label: 'Jueves', short: 'Jue' },
+  { key: 'Viernes', label: 'Viernes', short: 'Vie' },
+  { key: 'Sabado', label: 'Sábado', short: 'Sáb' },
+  { key: 'Domingo', label: 'Domingo', short: 'Dom' },
+];
 
-/** Página actual en la paginación de la tabla (usada por loadProfessionals y goToPage). */
-let currentPage = 1;
+// ===================================================================
+// 2. GESTIÓN DE ESTADO LOCAL
+// ===================================================================
 
-/** Tamaño de página — debe coincidir con el pageSize enviado a la API. */
-const itemsPerPage = 10;
+let currentPageIndex = 1;
+let editingProfessionalId = null;
+let detailProfessionalId = null;
+let professionalAbsenceRecords = [];
+let professionalScheduleRecords = [];
+let lastFocusedElement = null;
+
+// ===================================================================
+// 3. UTILIDADES Y FORMATO DE UI
+// ===================================================================
 
 /**
- * ID del profesional que está siendo editado actualmente.
- * null = ninguno (modo creación). Se limpia al cerrar el modal.
+ * Obtiene un elemento DOM por ID de forma segura con diagnóstico en consola.
+ * @param {string} elementId - ID del elemento DOM.
+ * @returns {HTMLElement|null}
  */
-let editingId = null;
-
-// ═══════════════════════════════════════════════════════════════════
-//  FUNCIONES DE RENDERIZADO Y UTILIDADES DE UI
-// ═══════════════════════════════════════════════════════════════════
+const getElementByIdSafe = (elementId) =>
+  window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
 /**
- * Anima contador numérico de 0 al valor objetivo.
- * WHY: Mejora visual al cargar estadísticas — indica que el número es dinámico.
- * @param {HTMLElement} el
- * @param {number} target
- */
-const animateCounter = (el, target) => {
-  if (!el) return;
-  let cur = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const t = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = cur;
-    if (cur >= target) clearInterval(t);
-  }, 30);
-};
-
-/**
- * Obtiene clase CSS para badge de especialidad.
- * @param {string} specialty
+ * Retorna la clase CSS badge asociada a una especialidad.
+ * @param {string} specialtyName
  * @returns {string}
  */
-const getSpecBadgeClass = (specialty) => SPEC_COLORS[specialty] || 'general';
+const getSpecialtyBadgeClass = (specialtyName) => SPECIALTY_COLOR_MAP[specialtyName] || 'general';
 
 /**
- * Obtiene clase CSS para badge de estado.
- * @param {string} status
+ * Retorna la clase CSS de badge asociada al estado del profesional.
+ * @param {string} statusValue
  * @returns {string}
  */
-const getStatusBadgeClass = (status) => {
-  const map = {
+const getStatusBadgeClass = (statusValue) => {
+  const statusClassMap = {
     'activo': 'activo', 'Activo': 'activo',
     'vacaciones': 'vacaciones', 'Vacaciones': 'vacaciones',
     'inactivo': 'inactivo', 'Inactivo': 'inactivo',
   };
-  return map[status] || 'inactivo';
+  return statusClassMap[statusValue] || 'inactivo';
 };
 
 /**
- * Obtiene color de avatar por especialidad.
- * WHY: Colores deterministas (siempre el mismo por especialidad) mejoran
- *      el reconocimiento visual rápido al escanear la tabla.
- * @param {string} specialty
+ * Obtiene el color de fondo para el avatar del profesional según su especialidad.
+ * @param {string} specialtyName
  * @returns {string}
  */
-const getAvatarColor = (specialty) => {
-  const colors = {
+const getAvatarColorBySpecialty = (specialtyName) => {
+  const avatarColors = {
     'general':    'var(--spec-general)',
     'ortodoncia': 'var(--spec-ortodoncia)',
     'endodoncia': 'var(--spec-endodoncia)',
@@ -142,288 +111,742 @@ const getAvatarColor = (specialty) => {
     'implante':   'var(--spec-implante)',
     'rehab':      'var(--spec-rehab)',
   };
-  return colors[getSpecBadgeClass(specialty)] || 'var(--spec-general)';
+  return avatarColors[getSpecialtyBadgeClass(specialtyName)] || 'var(--spec-general)';
 };
 
-
-
-function renderTableFromApi(result) {
-    const tbody = safeGetElement('professionalsTbody');
-    if (!tbody) return;
-
-    tbody.innerHTML = '';
-    const items = result?.data || []; // API devuelve 'data' como array de items
-
-    if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No se encontraron profesionales con los filtros aplicados.</td></tr>`;
-        return;
-    }
-
-    // Usar escapeHtml centralizado desde utils.js
-    const escapeHtmlLocal = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml || ((s) => s);
-
-    for (const p of items) {
-        const tr = document.createElement('tr');
-        tr.setAttribute('role', 'row');
-
-        const name = `${escapeHtmlLocal(p.nombres)} ${escapeHtmlLocal(p.apellidos)}`.trim();
-
-        // Especialidad principal: primera de la lista
-        const especialidad = p.especialidades && p.especialidades.length > 0
-            ? escapeHtmlLocal(p.especialidades[0].nombre)
-            : '';
-
-        const specClass = getSpecBadgeClass(especialidad);
-        const statusClass = getStatusBadgeClass(p.estado);
-        const avatarColor = getAvatarColor(especialidad);
-
-        const initialN = p.nombres ? p.nombres.charAt(0).toUpperCase() : '';
-        const initialA = p.apellidos ? p.apellidos.charAt(0).toUpperCase() : '';
-        const initials = `${initialN}${initialA}`;
-
-        const telefono = escapeHtmlLocal(p.telefono);
-        const estadoText = escapeHtmlLocal(p.estado);
-        const registroMedico = escapeHtmlLocal(p.registroMedico);
-
-        tr.innerHTML = `
-          <td class="td-profesional">
-            <div class="p-avatar" style="background:${avatarColor}" aria-hidden="true">${initials}</div>
-            <span class="p-name">${name}</span>
-          </td>
-          <td><span class="badge-spec ${specClass}">${especialidad || '—'}</span></td>
-          <td>${registroMedico}</td>
-          <td>${telefono || '—'}</td>
-          <td><span class="badge-status ${statusClass}" role="status" aria-label="Estado: ${estadoText}">${estadoText}</span></td>
-          <td>
-            <div class="actions-cell">
-              <button class="btn-icon action-btn btn-view"
-                      type="button"
-                      data-id="${p.idProfesional}"
-                      data-name="${name}"
-                      data-initials="${initials}"
-                      data-specialty="${especialidad}"
-                      data-registry="${registroMedico}"
-                      data-phone="${telefono}"
-                      data-status="${estadoText}"
-                      data-avatar-color="${avatarColor}"
-                      data-status-class="${statusClass}"
-                      aria-label="Ver detalles del profesional ${name}"
-                      title="Ver detalles del profesional ${name}">
-                👁️ <span class="btn-text">Ver</span>
-              </button>
-              <button class="btn-icon edit action-btn"
-                      type="button"
-                      aria-label="Editar el profesional ${name}"
-                      title="Editar profesional ${name}"
-                      onclick="editProfessional(${p.idProfesional})">
-                ✏️ <span class="btn-text">Editar</span>
-              </button>
-              <button class="btn-icon toggle action-btn btn-delete"
-                      type="button"
-                      data-id="${p.idProfesional}"
-                      data-name="${name}"
-                      aria-label="Desactivar el profesional ${name}"
-                      title="Desactivar profesional ${name}">
-                ❌ <span class="btn-text">Eliminar</span>
-              </button>
-            </div>
-          </td>
-        `;
-
-        // Enlazar el botón Ver al modal de detalle
-        const viewBtn = tr.querySelector('.btn-view');
-        viewBtn?.addEventListener('click', () => {
-            const avatar = safeGetElement('detailAvatar');
-            const nameEl = safeGetElement('detailName');
-            const specialtyEl = safeGetElement('detailSpecialty');
-            const registryEl = safeGetElement('detailRegistry');
-            const phoneEl = safeGetElement('detailPhone');
-            const statusEl = safeGetElement('detailStatus');
-
-            // Leer color y clase del propio dataset del botón — evita el bug
-            // de closure donde avatarColor pertenecía a la última iteración del loop.
-            const btnAvatarColor = viewBtn.dataset.avatarColor || avatarColor;
-            const btnStatusClass = viewBtn.dataset.statusClass || statusClass;
-
-            if (avatar) { avatar.textContent = viewBtn.dataset.initials || '--'; avatar.style.background = btnAvatarColor; }
-            if (nameEl) nameEl.textContent = viewBtn.dataset.name || '--';
-            if (specialtyEl) specialtyEl.textContent = viewBtn.dataset.specialty || '--';
-            if (registryEl) registryEl.textContent = viewBtn.dataset.registry || '--';
-            if (phoneEl) phoneEl.textContent = viewBtn.dataset.phone || '--';
-            if (statusEl) {
-                statusEl.textContent = viewBtn.dataset.status || '--';
-                statusEl.className = `badge-status ${btnStatusClass}`;
-            }
-
-            const modal = safeGetElement('modalDetail');
-            if (modal) {
-                modal.classList.add('open');
-                modal.setAttribute('aria-hidden', 'false');
-                modal.removeAttribute('inert');
-                document.body.style.overflow = 'hidden';
-                safeGetElement('modalDetailClose')?.focus();
-            }
-        });
-
-        // Enlazar el botón Eliminar al modal de confirmación
-        const deleteBtn = tr.querySelector('.btn-delete');
-        deleteBtn?.addEventListener('click', () => {
-            openConfirmDeleteModal(p.idProfesional, name);
-        });
-
-        tbody.appendChild(tr);
-    }
-}
-
-const setProfessionalsLoading = (loading) => {
-  const table = safeGetElement('professionalsTable');
-  if (table) table.setAttribute('aria-busy', String(loading));
-  const buttons = safeGetElement('paginationButtons');
-  if (buttons) buttons.querySelectorAll('button').forEach(button => { button.disabled = loading; });
-};
-
-
+// ===================================================================
+// 4. COMUNICACIÓN CON LA API REST
+// ===================================================================
 
 /**
- * Edita profesional: carga los datos desde la API y llena el modal.
- * - Carga todos los campos editables, incluyendo Categoria (H-02).
- * - Guarda el estado original en data-originalEstado para que saveProfessional
- *   solo dispare el PATCH cuando el estado realmente cambia (H-05).
+ * Realiza la petición para obtener la lista paginada y filtrada de profesionales.
+ * @param {Object} queryParams
+ * @returns {Promise<Object>}
  */
-window.editProfessional = async (id) => {
+const fetchProfessionalsApi = async (queryParams = {}) => {
+  const urlParams = new URLSearchParams();
+  urlParams.set('page', queryParams.page ?? 1);
+  urlParams.set('pageSize', queryParams.pageSize ?? ITEMS_PER_PAGE);
+
+  if (queryParams.search) urlParams.set('search', queryParams.search);
+  if (queryParams.especialidad) urlParams.set('especialidad', queryParams.especialidad);
+  if (queryParams.estado) urlParams.set('estado', queryParams.estado);
+
+  return await apiRequest(`${API_BASE_URL}?${urlParams.toString()}`);
+};
+
+/**
+ * Carga los profesionales y actualiza la tabla y la paginación.
+ */
+const loadProfessionalsList = async () => {
   try {
-    const result = await apiRequest(`${API_BASE}/${id}`);
-    const p = result.data;
-    if (!p) return;
+    const searchKeyword = document.querySelector('#searchInput')?.value?.trim() || '';
+    const selectedSpecialty = document.querySelector('#filterSpecialty')?.value || '';
+    const selectedStatus = document.querySelector('#filterStatus')?.value || '';
 
-    editingId = id;
+    setTableLoadingState(true);
+    const apiResponse = await fetchProfessionalsApi({
+      page: currentPageIndex,
+      pageSize: ITEMS_PER_PAGE,
+      search: searchKeyword,
+      especialidad: selectedSpecialty,
+      estado: selectedStatus
+    });
 
-    // Llenar campos del formulario con los datos de la API
-    const set = (fieldId, value) => { const el = safeGetElement(fieldId); if (el) el.value = value ?? ''; };
-
-    set('formIdProfesional', p.idProfesional);
-    set('formNombres', p.nombres);
-    set('formApellidos', p.apellidos);
-    set('formRegistroMedico', p.registroMedico);
-    set('formCategoria', p.categoria);   // H-02: cargar Categoria al abrir el modal
-    set('formTelefono', p.telefono);
-    set('formCorreoAcceso', p.correoAcceso);
-
-    // Sincronizar el select de Estado.
-    // H-05: también almacenamos el estado original para comparar al guardar y
-    //       no ejecutar un PATCH innecesario cuando no cambió.
-    const estadoNorm = (p.estado || 'activo').toLowerCase();
-    const statusSelect = safeGetElement('formStatus');
-    if (statusSelect) {
-      statusSelect.value = estadoNorm;
-      statusSelect.dataset.originalEstado = estadoNorm;  // H-05: referencia original
+    renderTableFromApi(apiResponse);
+    renderPaginationFromApi(apiResponse);
+  } catch (error) {
+    const tableBody = getElementByIdSafe('professionalsTbody');
+    if (tableBody) {
+      tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No fue posible cargar los profesionales. Intenta nuevamente.</td></tr>`;
     }
-    set('formEstado', estadoNorm);
-
-    // Contraseña: vacía siempre en edición (se conserva si no se cambia)
-    set('formContrasenaAcceso', '');
-    updateProfessionalPasswordRules();
-
-    // Especialidad: asignar por idEspecialidad numérico
-    const formSelect = document.querySelector('select[name="IdEspecialidad"]') || safeGetElement('formIdEspecialidad');
-    if (formSelect && p.especialidades && p.especialidades.length > 0) {
-      formSelect.value = p.especialidades[0].idEspecialidad;
-    } else if (formSelect) {
-      formSelect.value = '';
-    }
-
-    const modalTitle = safeGetElement('modalFormTitle');
-    if (modalTitle) modalTitle.textContent = 'Editar Profesional';
-
-    // Pasar isEditing=true para que openFormModal no resetee el formulario
-    openFormModal(true);
-  } catch (err) {
-    window.ToastService?.error(`❌ No se pudo cargar el profesional: ${err.message}`);
+    window.ToastService?.error?.(`No fue posible cargar los profesionales: ${error.message}`);
+  } finally {
+    setTableLoadingState(false);
   }
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  MODALES
-// ═══════════════════════════════════════════════════════════════════
+/**
+ * Carga el catálogo de especialidades desde la API para llenar los selectores.
+ */
+const loadSpecialtiesCatalog = async () => {
+  try {
+    const apiResult = await apiRequest(`${API_BASE_URL}/especialidades`);
+    const specialtyList = apiResult.data || [];
+
+    const filterSelect = getElementByIdSafe('filterSpecialty');
+    const formSelect = document.querySelector('select[name="IdEspecialidad"]') || getElementByIdSafe('formIdEspecialidad');
+
+    if (filterSelect) {
+      const currentSelectedValue = filterSelect.value;
+      filterSelect.innerHTML = '<option value="">Todas las especialidades</option>' +
+        specialtyList.map(item => `<option value="${item.nombre}">${item.nombre}</option>`).join('');
+      filterSelect.value = currentSelectedValue;
+    }
+
+    if (formSelect) {
+      const currentSelectedValue = formSelect.value;
+      formSelect.innerHTML = '<option value="" disabled selected>Selecciona una especialidad</option>' +
+        specialtyList.map(item => `<option value="${item.idEspecialidad}">${item.nombre}</option>`).join('');
+      if (currentSelectedValue) formSelect.value = currentSelectedValue;
+    }
+  } catch (error) {
+    console.error('Error al cargar especialidades', error);
+  }
+};
 
 /**
- * Abre modal de formulario y registra quién lo abrió.
- * WHY: WCAG 2.4.3 — al cerrar un modal el foco debe regresar al elemento
- *      que lo disparó. Sin esto el foco queda al principio del documento.
- *
- * @param {boolean} [isEditing=false] - true cuando se llama desde editProfessional;
- *   en ese caso NO se resetea el formulario porque los datos ya fueron llenados.
+ * Carga los horarios de atención de un profesional específico.
+ * @param {number} professionalId
+ */
+const loadProfessionalSchedule = async (professionalId) => {
+  detailProfessionalId = Number(professionalId);
+  const loadingIndicator = getElementByIdSafe('scheduleLoading');
+  const statusMessageLabel = getElementByIdSafe('scheduleStatusMsg');
+  if (statusMessageLabel) statusMessageLabel.textContent = '';
+  if (loadingIndicator) loadingIndicator.textContent = 'Cargando horarios de atención...';
+
+  try {
+    const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/horarios`);
+    professionalScheduleRecords = apiResult?.data || [];
+    renderScheduleDays();
+  } catch (error) {
+    professionalScheduleRecords = [];
+    renderScheduleDays();
+    if (statusMessageLabel) {
+      statusMessageLabel.style.color = 'var(--text-muted)';
+      statusMessageLabel.textContent = 'ℹ️ Sin horario personalizado (aplica horario general de la clínica).';
+    }
+  } finally {
+    if (loadingIndicator) loadingIndicator.textContent = '';
+  }
+};
+
+/**
+ * Carga el historial de ausencias de un profesional.
+ * @param {number} professionalId
+ */
+const loadProfessionalAbsences = async (professionalId) => {
+  detailProfessionalId = Number(professionalId);
+  const loadingIndicator = getElementByIdSafe('absenceLoading');
+  if (loadingIndicator) loadingIndicator.textContent = 'Cargando ausencias...';
+  try {
+    const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias`);
+    professionalAbsenceRecords = apiResult?.data || [];
+    renderAbsences();
+  } catch (error) {
+    professionalAbsenceRecords = [];
+    const absenceListContainer = getElementByIdSafe('absenceList');
+    if (absenceListContainer) absenceListContainer.textContent = `No se pudieron cargar las ausencias: ${error.message}`;
+  } finally {
+    if (loadingIndicator) loadingIndicator.textContent = '';
+  }
+};
+
+// ===================================================================
+// 5. MANIPULACIÓN DEL DOM Y RENDERIZADO DE COMPONENTES
+// ===================================================================
+
+/**
+ * Crea el elemento tr para la tabla de profesionales.
+ * @param {Object} professionalRecord
+ * @returns {HTMLTableRowElement}
+ */
+const createProfessionalTableRow = (professionalRecord) => {
+  const escapeHtmlUtil = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml || ((str) => str);
+  const tableRow = document.createElement('tr');
+  tableRow.setAttribute('role', 'row');
+
+  const fullName = `${escapeHtmlUtil(professionalRecord.nombres)} ${escapeHtmlUtil(professionalRecord.apellidos)}`.trim();
+  const primarySpecialty = professionalRecord.especialidades && professionalRecord.especialidades.length > 0
+    ? escapeHtmlUtil(professionalRecord.especialidades[0].nombre)
+    : '';
+
+  const specialtyBadgeClass = getSpecialtyBadgeClass(primarySpecialty);
+  const statusBadgeClass = getStatusBadgeClass(professionalRecord.estado);
+  const avatarBgColor = getAvatarColorBySpecialty(primarySpecialty);
+
+  const initialFirst = professionalRecord.nombres ? professionalRecord.nombres.charAt(0).toUpperCase() : '';
+  const initialLast = professionalRecord.apellidos ? professionalRecord.apellidos.charAt(0).toUpperCase() : '';
+  const initialsText = `${initialFirst}${initialLast}`;
+
+  const phoneText = escapeHtmlUtil(professionalRecord.telefono);
+  const statusText = escapeHtmlUtil(professionalRecord.estado);
+  const medicalLicense = escapeHtmlUtil(professionalRecord.registroMedico);
+
+  const isProfessionalActive = (statusText || '').toLowerCase() === 'activo';
+
+  tableRow.innerHTML = `
+    <td class="td-profesional">
+      <div class="p-avatar" style="background:${avatarBgColor}" aria-hidden="true">${initialsText}</div>
+      <span class="p-name">${fullName}</span>
+    </td>
+    <td><span class="badge-spec ${specialtyBadgeClass}">${primarySpecialty || '—'}</span></td>
+    <td>${medicalLicense}</td>
+    <td>${phoneText || '—'}</td>
+    <td><span class="badge-status ${statusBadgeClass}" role="status" aria-label="Estado: ${statusText}">${statusText}</span></td>
+    <td>
+      <div class="actions-cell">
+        <button class="btn-secondary btn-view view"
+                type="button"
+                data-id="${professionalRecord.idProfesional}"
+                data-name="${fullName}"
+                data-initials="${initialsText}"
+                data-specialty="${primarySpecialty}"
+                data-registry="${medicalLicense}"
+                data-phone="${phoneText}"
+                data-status="${statusText}"
+                data-avatar-color="${avatarBgColor}"
+                data-status-class="${statusBadgeClass}"
+                aria-label="Ver detalles del profesional ${fullName}"
+                title="Ver detalles del profesional ${fullName}">
+          <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
+        </button>
+        <button class="btn-secondary edit"
+                type="button"
+                aria-label="Editar el profesional ${fullName}"
+                title="Editar profesional ${fullName}"
+                onclick="editProfessional(${professionalRecord.idProfesional})">
+          <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
+        </button>
+        <button class="btn-danger btn-delete toggle"
+                type="button"
+                data-id="${professionalRecord.idProfesional}"
+                data-name="${fullName}"
+                data-estado="${statusText || 'inactivo'}"
+                aria-label="${isProfessionalActive ? 'Desactivar' : 'Reactivar'} el profesional ${fullName}"
+                title="${isProfessionalActive ? 'Desactivar' : 'Reactivar'} profesional ${fullName}">
+          <span class="material-symbols-outlined action-icon" aria-hidden="true">${isProfessionalActive ? 'block' : 'check_circle'}</span> <span class="btn-text">${isProfessionalActive ? 'Desactivar' : 'Reactivar'}</span>
+        </button>
+      </div>
+    </td>
+  `;
+
+  // Listener para el botón Ver Detalle
+  const viewButton = tableRow.querySelector('.btn-view');
+  viewButton?.addEventListener('click', () => {
+    openProfessionalDetailView(viewButton, avatarBgColor, statusBadgeClass);
+  });
+
+  // Listener para el botón Desactivar / Reactivar
+  const deleteButton = tableRow.querySelector('.btn-delete');
+  deleteButton?.addEventListener('click', () => {
+    openConfirmToggleEstadoModal(professionalRecord.idProfesional, fullName, deleteButton.dataset.estado || 'activo');
+  });
+
+  return tableRow;
+};
+
+/**
+ * Despliega la información del profesional en el modal de detalle.
+ * @param {HTMLButtonElement} viewButton
+ * @param {string} defaultAvatarBg
+ * @param {string} defaultStatusClass
+ */
+const openProfessionalDetailView = (viewButton, defaultAvatarBg, defaultStatusClass) => {
+  const avatarEl = getElementByIdSafe('detailAvatar');
+  const nameEl = getElementByIdSafe('detailName');
+  const specialtyEl = getElementByIdSafe('detailSpecialty');
+  const registryEl = getElementByIdSafe('detailRegistry');
+  const phoneEl = getElementByIdSafe('detailPhone');
+  const statusEl = getElementByIdSafe('detailStatus');
+
+  const avatarBgColor = viewButton.dataset.avatarColor || defaultAvatarBg;
+  const statusBadgeClass = viewButton.dataset.statusClass || defaultStatusClass;
+
+  if (avatarEl) { avatarEl.textContent = viewButton.dataset.initials || '--'; avatarEl.style.background = avatarBgColor; }
+  if (nameEl) nameEl.textContent = viewButton.dataset.name || '--';
+  if (specialtyEl) specialtyEl.textContent = viewButton.dataset.specialty || '--';
+  if (registryEl) registryEl.textContent = viewButton.dataset.registry || '--';
+  if (phoneEl) phoneEl.textContent = viewButton.dataset.phone || '--';
+  if (statusEl) {
+    statusEl.textContent = viewButton.dataset.status || '--';
+    statusEl.className = `badge-status ${statusBadgeClass}`;
+  }
+
+  const modalElement = getElementByIdSafe('modalDetail');
+  if (modalElement) {
+    modalElement.classList.add('open');
+    modalElement.setAttribute('aria-hidden', 'false');
+    modalElement.removeAttribute('inert');
+    document.body.style.overflow = 'hidden';
+    detailProfessionalId = Number(viewButton.dataset.id);
+    resetAbsenceForm();
+    loadProfessionalAbsences(detailProfessionalId);
+    getElementByIdSafe('modalDetailClose')?.focus();
+  }
+};
+
+/**
+ * Renderiza el listado de profesionales recibido de la API en el tbody.
+ * @param {Object} apiResult
+ */
+function renderTableFromApi(apiResult) {
+  const tableBody = getElementByIdSafe('professionalsTbody');
+  if (!tableBody) return;
+
+  tableBody.innerHTML = '';
+  const professionalList = apiResult?.data || [];
+
+  if (professionalList.length === 0) {
+    tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No se encontraron profesionales con los filtros aplicados.</td></tr>`;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const professionalItem of professionalList) {
+    const tableRowElement = createProfessionalTableRow(professionalItem);
+    fragment.appendChild(tableRowElement);
+  }
+  tableBody.appendChild(fragment);
+}
+
+/**
+ * Configura la indicación visual de carga en la tabla de profesionales.
+ * @param {boolean} isLoading
+ */
+const setTableLoadingState = (isLoading) => {
+  const tableElement = getElementByIdSafe('professionalsTable');
+  if (tableElement) tableElement.setAttribute('aria-busy', String(isLoading));
+  const paginationButtonsContainer = getElementByIdSafe('paginationButtons');
+  if (paginationButtonsContainer) {
+    paginationButtonsContainer.querySelectorAll('button').forEach(button => { button.disabled = isLoading; });
+  }
+};
+
+/**
+ * Renderiza los controles de la grilla de paginación desde la respuesta API.
+ * @param {Object} apiResult
+ */
+const renderPaginationFromApi = (apiResult) => {
+  const infoLabel = getElementByIdSafe('paginationInfo');
+  const buttonsContainer = getElementByIdSafe('paginationButtons');
+  if (!infoLabel || !buttonsContainer || !apiResult.pagination) return;
+
+  const { page, pageSize, totalCount, totalPages } = apiResult.pagination;
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, totalCount);
+  const rangeStartLabel = getElementByIdSafe('paginationRangeStart');
+  const rangeEndLabel = getElementByIdSafe('paginationRangeEnd');
+  const totalLabel = getElementByIdSafe('paginationTotal');
+
+  if (rangeStartLabel) rangeStartLabel.textContent = String(rangeStart);
+  if (rangeEndLabel) rangeEndLabel.textContent = String(rangeEnd);
+  if (totalLabel) totalLabel.textContent = String(totalCount);
+  buttonsContainer.innerHTML = '';
+
+  // Botón página anterior
+  const previousButton = document.createElement('button');
+  previousButton.textContent = '«';
+  previousButton.setAttribute('aria-label', 'Página anterior');
+  previousButton.disabled = page === 1 || totalCount === 0;
+  previousButton.addEventListener('click', () => { if (page > 1) window.goToPage(page - 1); });
+  buttonsContainer.appendChild(previousButton);
+
+  // Botones numéricos
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+    const numberButton = document.createElement('button');
+    numberButton.textContent = pageNumber;
+    numberButton.setAttribute('aria-label', `Ir a página ${pageNumber}`);
+    numberButton.setAttribute('aria-current', pageNumber === page ? 'page' : 'false');
+    if (pageNumber === page) numberButton.classList.add('active');
+    numberButton.addEventListener('click', () => window.goToPage(pageNumber));
+    buttonsContainer.appendChild(numberButton);
+  }
+
+  // Botón página siguiente
+  const nextButton = document.createElement('button');
+  nextButton.textContent = '»';
+  nextButton.setAttribute('aria-label', 'Página siguiente');
+  nextButton.disabled = page >= totalPages || totalCount === 0;
+  nextButton.addEventListener('click', () => { if (page < totalPages) window.goToPage(page + 1); });
+  buttonsContainer.appendChild(nextButton);
+};
+
+/**
+ * Renderiza las filas para la configuración de horarios semanales.
+ */
+const renderScheduleDays = () => {
+  const container = getElementByIdSafe('scheduleDaysContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  WEEK_DAYS.forEach((dayConfig) => {
+    const existingSchedule = professionalScheduleRecords.find(
+      (s) => (s.diaSemana || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
+             dayConfig.key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    );
+
+    const isDayActive = existingSchedule ? existingSchedule.activo : (dayConfig.key !== 'Sabado' && dayConfig.key !== 'Domingo');
+    const startTimeValue = existingSchedule?.horaInicio ? existingSchedule.horaInicio.substring(0, 5) : '08:00';
+    const endTimeValue = existingSchedule?.horaFin ? existingSchedule.horaFin.substring(0, 5) : '17:00';
+
+    const dayRowElement = document.createElement('div');
+    dayRowElement.className = `schedule-row ${isDayActive ? '' : 'inactive'}`;
+    dayRowElement.dataset.day = dayConfig.key;
+
+    dayRowElement.innerHTML = `
+      <div class="schedule-row-day">${dayConfig.label}</div>
+      <label class="schedule-toggle">
+        <input type="checkbox" class="schedule-day-active" ${isDayActive ? 'checked' : ''} data-day="${dayConfig.key}">
+        <span>${isDayActive ? 'Atiende' : 'No atiende'}</span>
+      </label>
+      <div class="schedule-time-group">
+        <span class="schedule-time-label">Inicio:</span>
+        <input type="time" class="form-input schedule-time-start" value="${startTimeValue}" ${isDayActive ? '' : 'disabled'} style="padding:4px 8px;font-size:0.85rem;" required>
+      </div>
+      <div class="schedule-time-group">
+        <span class="schedule-time-label">Fin:</span>
+        <input type="time" class="form-input schedule-time-end" value="${endTimeValue}" ${isDayActive ? '' : 'disabled'} style="padding:4px 8px;font-size:0.85rem;" required>
+      </div>
+    `;
+
+    const activeCheckbox = dayRowElement.querySelector('.schedule-day-active');
+    const labelSpanText = dayRowElement.querySelector('.schedule-toggle span');
+    const startInput = dayRowElement.querySelector('.schedule-time-start');
+    const endInput = dayRowElement.querySelector('.schedule-time-end');
+
+    activeCheckbox.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      dayRowElement.classList.toggle('inactive', !isChecked);
+      labelSpanText.textContent = isChecked ? 'Atiende' : 'No atiende';
+      startInput.disabled = !isChecked;
+      endInput.disabled = !isChecked;
+    });
+
+    container.appendChild(dayRowElement);
+  });
+};
+
+/**
+ * Renderiza el listado de ausencias en el tab del modal.
+ */
+const renderAbsences = () => {
+  const absenceListContainer = getElementByIdSafe('absenceList');
+  if (!absenceListContainer) return;
+  absenceListContainer.replaceChildren();
+
+  if (professionalAbsenceRecords.length === 0) {
+    absenceListContainer.textContent = 'No hay ausencias registradas.';
+    return;
+  }
+
+  const escapeHtmlUtil = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml || ((str) => str);
+
+  professionalAbsenceRecords.forEach((absenceItem) => {
+    const absenceItemCard = document.createElement('div');
+    absenceItemCard.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--border-color,#e5e7eb);padding:10px;border-radius:6px;';
+    
+    const detailsContainer = document.createElement('div');
+    detailsContainer.innerHTML = `<strong>${escapeHtmlUtil(absenceItem.tipo || 'Ausencia')}</strong><br><small>${escapeHtmlUtil(absenceItem.fechaInicio)} a ${escapeHtmlUtil(absenceItem.fechaFin)}</small>${absenceItem.observaciones ? `<br><small>${escapeHtmlUtil(absenceItem.observaciones)}</small>` : ''}`;
+    
+    const actionButtonsContainer = document.createElement('div');
+    const editAbsenceButton = document.createElement('button');
+    editAbsenceButton.type = 'button';
+    editAbsenceButton.className = 'btn-secondary';
+    editAbsenceButton.textContent = 'Editar';
+    editAbsenceButton.addEventListener('click', () => {
+      getElementByIdSafe('absenceId').value = absenceItem.idAusencia;
+      getElementByIdSafe('absenceTipo').value = absenceItem.tipo || 'otro';
+      getElementByIdSafe('absenceFechaInicio').value = absenceItem.fechaInicio;
+      getElementByIdSafe('absenceFechaFin').value = absenceItem.fechaFin;
+      getElementByIdSafe('absenceObservaciones').value = absenceItem.observaciones || '';
+      getElementByIdSafe('absenceSaveButton').textContent = 'Guardar ausencia';
+      getElementByIdSafe('absenceCancelEdit').hidden = false;
+    });
+
+    const deleteAbsenceButton = document.createElement('button');
+    deleteAbsenceButton.type = 'button';
+    deleteAbsenceButton.className = 'btn-secondary';
+    deleteAbsenceButton.textContent = 'Eliminar';
+    deleteAbsenceButton.addEventListener('click', async () => {
+      window.ModalService?.confirm({
+        title: '¿Eliminar ausencia?',
+        message: 'Esta acción eliminará permanentemente el registro de ausencia del profesional y no podrá deshacerse.',
+        confirmText: 'Sí, eliminar',
+        cancelText: 'Cancelar',
+        isDanger: true,
+        onConfirm: async () => {
+          try {
+            const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceItem.idAusencia}`, { method: 'DELETE' });
+            window.ToastService?.success(apiResult.message || 'Ausencia eliminada.');
+            await loadProfessionalAbsences(detailProfessionalId);
+          } catch (error) {
+            window.ToastService?.error(`No se pudo eliminar la ausencia: ${error.message}`);
+          }
+        }
+      });
+    });
+
+    actionButtonsContainer.append(editAbsenceButton, deleteAbsenceButton);
+    absenceItemCard.append(detailsContainer, actionButtonsContainer);
+    absenceListContainer.appendChild(absenceItemCard);
+  });
+};
+
+/**
+ * Anima los contadores numéricos cuando la vista viene renderizada desde el servidor (SSR).
+ */
+const initServerStats = () => {
+  const statElements = [
+    getElementByIdSafe('profesionales-stat-total') || getElementByIdSafe('metricTotal'),
+    getElementByIdSafe('profesionales-stat-activos') || getElementByIdSafe('metricActives'),
+    getElementByIdSafe('profesionales-stat-vacaciones') || getElementByIdSafe('metricVacations'),
+    getElementByIdSafe('profesionales-stat-inactivos') || getElementByIdSafe('metricInactives'),
+  ];
+
+  statElements.forEach(targetEl => {
+    if (!targetEl) return;
+    const targetValue = parseInt(targetEl.getAttribute('data-target') ?? '0', 10);
+    if (!isNaN(targetValue) && targetValue > 0) {
+      animateCounter(targetEl, targetValue);
+    } else {
+      targetEl.textContent = '0';
+    }
+  });
+};
+
+// ===================================================================
+// 6. GESTIÓN DE MODALES Y FORMULARIOS
+// ===================================================================
+
+/**
+ * Resetea el formulario de ausencias a su estado por defecto.
+ */
+const resetAbsenceForm = () => {
+  getElementByIdSafe('absenceForm')?.reset();
+  const absenceIdInput = getElementByIdSafe('absenceId');
+  if (absenceIdInput) absenceIdInput.value = '';
+  const saveBtn = getElementByIdSafe('absenceSaveButton');
+  if (saveBtn) saveBtn.textContent = 'Registrar ausencia';
+  const cancelBtn = getElementByIdSafe('absenceCancelEdit');
+  if (cancelBtn) cancelBtn.hidden = true;
+};
+
+/**
+ * Inicializa las pestañas internas del modal de detalle.
+ */
+const initModalTabs = () => {
+  const tabConfigs = [
+    { btn: 'tabBtnGeneral', pane: 'tabPaneGeneral' },
+    { btn: 'tabBtnHorarios', pane: 'tabPaneHorarios' },
+    { btn: 'tabBtnAusencias', pane: 'tabPaneAusencias' },
+  ];
+
+  tabConfigs.forEach(tabItem => {
+    const buttonElement = getElementByIdSafe(tabItem.btn);
+    buttonElement?.addEventListener('click', () => {
+      tabConfigs.forEach(otherTab => {
+        getElementByIdSafe(otherTab.btn)?.classList.remove('active');
+        getElementByIdSafe(otherTab.btn)?.setAttribute('aria-selected', 'false');
+        getElementByIdSafe(otherTab.pane)?.classList.remove('active');
+      });
+      buttonElement.classList.add('active');
+      buttonElement.setAttribute('aria-selected', 'true');
+      getElementByIdSafe(tabItem.pane)?.classList.add('active');
+    });
+  });
+};
+
+/**
+ * Restablece la pestaña activa del modal de detalle a 'General'.
+ */
+const resetModalTabs = () => {
+  getElementByIdSafe('tabBtnGeneral')?.click();
+};
+
+/**
+ * Abre el modal de formulario para crear o editar profesional.
+ * @param {boolean} [isEditing=false]
  */
 const openFormModal = (isEditing = false) => {
-  // Registrar el botón que abre el modal para devolverle el foco al cerrar
-  lastModalOpener = document.activeElement;
+  lastFocusedElement = document.activeElement;
 
-  // Solo limpiar el formulario al crear un profesional nuevo.
-  // Al editar, editProfessional() ya llenó los campos — no los borramos.
   if (!isEditing) {
-    editingId = null;
-    const form = safeGetElement('formProfessional');
-    if (form) form.reset();
+    editingProfessionalId = null;
+    const formElement = getElementByIdSafe('formProfessional');
+    if (formElement) formElement.reset();
 
-    const modalTitle = safeGetElement('modalFormTitle');
+    const modalTitle = getElementByIdSafe('modalFormTitle');
     if (modalTitle) modalTitle.textContent = 'Nuevo Profesional';
   }
 
-  const modal = safeGetElement('modalForm');
-  if (modal) {
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    modal.removeAttribute('inert');
-    const firstInput = modal.querySelector('input:not([type="hidden"])');
+  const modalElement = getElementByIdSafe('modalForm');
+  if (modalElement) {
+    modalElement.classList.add('open');
+    modalElement.setAttribute('aria-hidden', 'false');
+    modalElement.removeAttribute('inert');
+    const firstInput = modalElement.querySelector('input:not([type="hidden"])');
     if (firstInput) firstInput.focus();
     document.body.style.overflow = 'hidden';
   }
 };
 
 /**
- * Cierra modal de formulario y devuelve el foco al elemento que lo abrió.
- * WHY: WCAG 2.4.3 — el foco debe regresar al botón que disparó el modal
- *      ("+ Nuevo Profesional" o el botón editar ✏️ de la fila correspondiente).
+ * Cierra el modal de formulario y retorna el foco.
  */
 const closeFormModal = () => {
-  const modal = safeGetElement('modalForm');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
+  const modalElement = getElementByIdSafe('modalForm');
+  if (modalElement) {
+    modalElement.classList.remove('open');
+    modalElement.setAttribute('aria-hidden', 'true');
+    modalElement.setAttribute('inert', '');
     document.body.style.overflow = '';
   }
-  editingId = null;
-  // Devolver el foco al elemento que abrió el modal (si sigue en el DOM)
-  if (lastModalOpener && typeof lastModalOpener.focus === 'function') {
-    lastModalOpener.focus();
+  editingProfessionalId = null;
+  if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+    lastFocusedElement.focus();
   }
-  lastModalOpener = null;
+  lastFocusedElement = null;
 };
 
 /**
- * Cierra modal de detalle y devuelve el foco al elemento que lo abrió.
- * WHY: Mismo principio WCAG 2.4.3 que closeFormModal.
+ * Cierra el modal de detalle y retorna el foco.
  */
 const closeDetailModal = () => {
-  const modal = safeGetElement('modalDetail');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
+  const modalElement = getElementByIdSafe('modalDetail');
+  if (modalElement) {
+    modalElement.classList.remove('open');
+    modalElement.setAttribute('aria-hidden', 'true');
+    modalElement.setAttribute('inert', '');
     document.body.style.overflow = '';
   }
-  if (lastModalOpener && typeof lastModalOpener.focus === 'function') {
-    lastModalOpener.focus();
+  if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+    lastFocusedElement.focus();
   }
-  lastModalOpener = null;
+  lastFocusedElement = null;
 };
 
-// Crea o actualiza profesional — submit nativo para que el antiforgery token viaje correctamente
-// setFieldValidity removed in favor of ValidationUtils
+/**
+ * Despliega el modal de confirmación para cambiar el estado (desactivar/reactivar).
+ * @param {number} professionalId
+ * @param {string} fullName
+ * @param {string} currentStatus
+ */
+const openConfirmToggleEstadoModal = (professionalId, fullName, currentStatus) => {
+  lastFocusedElement = document.activeElement;
+  const modalElement = getElementByIdSafe('modalConfirmDelete');
+  const titleLabel = getElementByIdSafe('modalConfirmDeleteTitle');
+  const messageLabel = getElementByIdSafe('modalConfirmDeleteMessage');
+  const warningContainer = document.getElementById('modalConfirmDeleteWarning') || null;
+  const hiddenIdInput = getElementByIdSafe('deleteProfesionalId');
+  const hiddenEstadoInput = getElementByIdSafe('deleteProfesionalEstado');
+  const confirmButton = getElementByIdSafe('modalConfirmDeleteConfirm');
+  const cancelButton = getElementByIdSafe('modalConfirmDeleteCancel');
 
-const validateProfessionalForm = (form) => {
-  let valid = true;
+  const isActiveStatus = (currentStatus || 'activo').toLowerCase() === 'activo';
+
+  if (titleLabel) {
+    titleLabel.textContent = isActiveStatus ? 'Desactivar profesional' : 'Reactivar profesional';
+  }
+  if (messageLabel) {
+    messageLabel.textContent = isActiveStatus
+      ? `¿Estás seguro de desactivar a ${fullName}? El profesional quedará inactivo y no podrá recibir nuevas citas.`
+      : `¿Estás seguro de reactivar a ${fullName}? El profesional pasará a estado activo y volverá a recibir citas.`;
+  }
+  if (warningContainer) {
+    warningContainer.innerHTML = isActiveStatus
+      ? '⚠️ El profesional pasará a estado <strong>inactivo</strong> y no podrá recibir nuevas citas. Esta operación es reversible: puedes reactivarlo desde la misma columna acciones. No es posible desactivar profesionales con citas activas pendientes.'
+      : '✅ El profesional volverá a estado <strong>activo</strong> y estará disponible para agendar nuevas citas. Esta operación es reversible: puedes desactivarlo desde la misma columna acciones.';
+  }
+  if (cancelButton) {
+    cancelButton.textContent = isActiveStatus ? 'Cancelar — no desactivar' : 'Cancelar — no reactivar';
+  }
+  if (confirmButton) {
+    confirmButton.textContent = isActiveStatus ? 'Confirmar desactivación' : 'Confirmar reactivación';
+    confirmButton.style.backgroundColor = isActiveStatus ? 'var(--red)' : 'var(--primary)';
+    confirmButton.style.borderColor = isActiveStatus ? 'var(--red)' : 'var(--primary)';
+    confirmButton.dataset.loadingText = isActiveStatus ? '⏳ Desactivando...' : '⏳ Reactivando...';
+  }
+  if (hiddenIdInput) hiddenIdInput.value = professionalId;
+  if (hiddenEstadoInput) hiddenEstadoInput.value = currentStatus || 'activo';
+
+  if (modalElement) {
+    modalElement.classList.add('open');
+    modalElement.setAttribute('aria-hidden', 'false');
+    modalElement.removeAttribute('inert');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => {
+      getElementByIdSafe('modalConfirmDeleteCancel')?.focus();
+    }, 50);
+  }
+};
+
+/**
+ * Cierra el modal de confirmación de cambio de estado.
+ */
+const closeConfirmDeleteModal = () => {
+  const modalElement = getElementByIdSafe('modalConfirmDelete');
+  if (modalElement) {
+    modalElement.classList.remove('open');
+    modalElement.setAttribute('aria-hidden', 'true');
+    modalElement.setAttribute('inert', '');
+    document.body.style.overflow = '';
+  }
+  if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+    lastFocusedElement.focus();
+  }
+  lastFocusedElement = null;
+};
+
+/**
+ * Carga los datos de un profesional desde la API y llena el formulario de edición.
+ * @param {number} professionalId
+ */
+window.editProfessional = async (professionalId) => {
+  try {
+    const apiResult = await apiRequest(`${API_BASE_URL}/${professionalId}`);
+    const professionalData = apiResult.data;
+    if (!professionalData) return;
+
+    editingProfessionalId = professionalId;
+
+    const setFieldValue = (fieldId, val) => {
+      const fieldElement = getElementByIdSafe(fieldId);
+      if (fieldElement) fieldElement.value = val ?? '';
+    };
+
+    setFieldValue('formIdProfesional', professionalData.idProfesional);
+    setFieldValue('formNombres', professionalData.nombres);
+    setFieldValue('formApellidos', professionalData.apellidos);
+    setFieldValue('formRegistroMedico', professionalData.registroMedico);
+    setFieldValue('formCategoria', professionalData.categoria);
+    setFieldValue('formTelefono', professionalData.telefono);
+    setFieldValue('formCorreoAcceso', professionalData.correoAcceso);
+
+    const normalizedStatus = (professionalData.estado || 'activo').toLowerCase();
+    const statusSelectElement = getElementByIdSafe('formStatus');
+    if (statusSelectElement) {
+      statusSelectElement.value = normalizedStatus;
+      statusSelectElement.dataset.originalEstado = normalizedStatus;
+    }
+    setFieldValue('formEstado', normalizedStatus);
+    setFieldValue('formContrasenaAcceso', '');
+    updateProfessionalPasswordRules();
+
+    const formSelect = document.querySelector('select[name="IdEspecialidad"]') || getElementByIdSafe('formIdEspecialidad');
+    if (formSelect && professionalData.especialidades && professionalData.especialidades.length > 0) {
+      formSelect.value = professionalData.especialidades[0].idEspecialidad;
+    } else if (formSelect) {
+      formSelect.value = '';
+    }
+
+    const modalTitle = getElementByIdSafe('modalFormTitle');
+    if (modalTitle) modalTitle.textContent = 'Editar Profesional';
+
+    openFormModal(true);
+  } catch (error) {
+    window.ToastService?.error(`❌ No se pudo cargar el profesional: ${error.message}`);
+  }
+};
+
+/**
+ * Valida los campos del formulario de profesional.
+ * @param {HTMLFormElement} formElement
+ * @returns {boolean}
+ */
+const validateProfessionalForm = (formElement) => {
+  let isFormValid = true;
 
   const requiredFields = [
     { id: 'formNombres', message: 'Ingresa los nombres.' },
@@ -434,673 +857,539 @@ const validateProfessionalForm = (form) => {
 
   if (window.ValidationUtils) {
     requiredFields.forEach(({ id }) => {
-      const field = safeGetElement(id);
-      if (field) window.ValidationUtils.clearError(field);
+      const fieldElement = getElementByIdSafe(id);
+      if (fieldElement) window.ValidationUtils.clearError(fieldElement);
     });
   }
 
   requiredFields.forEach(({ id, message }) => {
-    const field = safeGetElement(id);
-    const value = field?.value.trim() || '';
-    const fieldValid = Boolean(value);
+    const fieldElement = getElementByIdSafe(id);
+    const fieldValue = fieldElement?.value.trim() || '';
+    const isFieldValid = Boolean(fieldValue);
 
-    if (!fieldValid) {
-      valid = false;
-      if (window.ValidationUtils && field) {
-        window.ValidationUtils.showError(field, null, message);
+    if (!isFieldValid) {
+      isFormValid = false;
+      if (window.ValidationUtils && fieldElement) {
+        window.ValidationUtils.showError(fieldElement, null, message);
       }
     }
   });
 
-  const correo = safeGetElement('formCorreoAcceso');
-  if (correo && correo.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.value.trim())) {
-    valid = false;
+  const emailField = getElementByIdSafe('formCorreoAcceso');
+  if (emailField && emailField.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailField.value.trim())) {
+    isFormValid = false;
     if (window.ValidationUtils) {
-      window.ValidationUtils.showError(correo, null, 'Ingresa un correo de acceso válido.');
+      window.ValidationUtils.showError(emailField, null, 'Ingresa un correo de acceso válido.');
     }
   }
 
-  // Seguridad: la contraseña no se valida ni se envía desde el cliente.
-  // La generación segura se realiza en backend al crear el profesional.
-  return valid;
+  return isFormValid;
 };
 
+/**
+ * Actualiza los indicadores visuales de reglas de contraseña.
+ */
 const updateProfessionalPasswordRules = () => {
-  const input = safeGetElement('formContrasenaAcceso');
-  if (!input) return;
+  const passwordInput = getElementByIdSafe('formContrasenaAcceso');
+  if (!passwordInput) return;
 
-  const value = input.value || '';
-  const rules = {
-    length: value.length >= 8,
-    upper: /[A-Z]/.test(value),
-    lower: /[a-z]/.test(value),
-    number: /\d/.test(value),
-    symbol: /[^A-Za-z\d]/.test(value)
+  const inputValue = passwordInput.value || '';
+  const passwordRules = {
+    length: inputValue.length >= 8,
+    upper: /[A-Z]/.test(inputValue),
+    lower: /[a-z]/.test(inputValue),
+    number: /\d/.test(inputValue),
+    symbol: /[^A-Za-z\d]/.test(inputValue)
   };
 
-  Object.entries(rules).forEach(([key, ok]) => {
-    const row = document.querySelector(`#professionalPasswordRules [data-rule="${key}"]`);
-    if (!row) return;
-    row.textContent = `${ok ? '✓' : '✗'} ${row.textContent.slice(2)}`;
-    row.style.color = ok ? '#15803d' : '#b91c1c';
+  Object.entries(passwordRules).forEach(([ruleKey, isRuleSatisfied]) => {
+    const ruleRow = document.querySelector(`#professionalPasswordRules [data-rule="${ruleKey}"]`);
+    if (!ruleRow) return;
+    const iconSpan = ruleRow.querySelector('.rule-icon');
+    if (iconSpan) iconSpan.textContent = isRuleSatisfied ? '✓' : '✗';
+    ruleRow.style.color = isRuleSatisfied ? '#15803d' : '#b91c1c';
   });
 
-  const formId = safeGetElement('formIdProfesional');
-  const editing = Number(formId?.value || 0) > 0;
-  const help = safeGetElement('formContrasenaHelp');
+  const hiddenFormId = getElementByIdSafe('formIdProfesional');
+  const isEditingMode = Number(hiddenFormId?.value || 0) > 0;
+  const helpTextLabel = getElementByIdSafe('formContrasenaHelp');
 
-  if (help) {
-    if (editing && value.length === 0) {
-      help.textContent = 'La contraseña no se modifica desde esta pantalla.';
-      help.style.color = '#6b7280';
+  if (helpTextLabel) {
+    if (isEditingMode && inputValue.length === 0) {
+      helpTextLabel.textContent = 'La contraseña no se modifica desde esta pantalla.';
+      helpTextLabel.style.color = '#6b7280';
     } else {
-      help.textContent = 'La contraseña se genera automáticamente en el sistema.';
-      help.style.color = '#6b7280';
+      helpTextLabel.textContent = 'La contraseña se genera automáticamente en el sistema.';
+      helpTextLabel.style.color = '#6b7280';
     }
   }
 };
-
-const initProfessionalPassword = () => {
-  const input = safeGetElement('formContrasenaAcceso');
-  const toggle = safeGetElement('toggleProfesionalPassword');
-  if (!input) return;
-
-  input.addEventListener('input', updateProfessionalPasswordRules);
-  updateProfessionalPasswordRules();
-
-  toggle?.addEventListener('click', () => {
-    const visible = input.type === 'text';
-    input.type = visible ? 'password' : 'text';
-    toggle.textContent = visible ? '👁' : '🙈';
-    toggle.setAttribute('aria-label', visible ? 'Mostrar contraseña' : 'Ocultar contraseña');
-  });
-};
-
 
 /**
  * Intercepta el submit del formulario y lo envía a la API (POST o PUT).
- * H-02: el payload incluye ahora el campo 'categoria'.
- * H-05: el PATCH de estado solo se ejecuta cuando el estado cambió respecto
- *        al valor original cargado al abrir el modal (data-originalEstado).
+ * @param {Event} event
  */
-const saveProfessional = async (e) => {
-  e.preventDefault();
+const saveProfessional = async (event) => {
+  event.preventDefault();
 
-  const form = e.currentTarget;
-  const valid = validateProfessionalForm(form);
-  if (!valid) {
+  const formElement = event.currentTarget;
+  const isValid = validateProfessionalForm(formElement);
+  if (!isValid) {
     window.ToastService?.warning('⚠️ Completa los campos obligatorios marcados en rojo.');
-    const firstInvalid = form.querySelector('[aria-invalid="true"]');
-    if (firstInvalid) firstInvalid.focus();
+    const firstInvalidField = formElement.querySelector('[aria-invalid="true"]');
+    if (firstInvalidField) firstInvalidField.focus();
     return;
   }
 
-  const submitBtn = form.querySelector('[type="submit"]');
-  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ Guardando...'; }
+  const submitButton = formElement.querySelector('[type="submit"]');
+  if (submitButton) { submitButton.disabled = true; submitButton.textContent = '⏳ Guardando...'; }
 
-  // Construir el payload que espera ProfesionalApiRequest.
-  // NOTA: 'estado' NO se incluye aquí porque ProfesionalApiRequest no lo expone;
-  //       el cambio de estado se maneja por separado vía PATCH /{id}/estado.
-  const getData = (id) => safeGetElement(id)?.value?.trim() ?? '';
-  const idProfesional = Number(getData('formIdProfesional'));
-  const isEditing = idProfesional > 0;
+  const getFieldValue = (fieldId) => getElementByIdSafe(fieldId)?.value?.trim() ?? '';
+  const professionalId = Number(getFieldValue('formIdProfesional'));
+  const isEditingMode = professionalId > 0;
 
-  // IdEspecialidad viene del select con name="IdEspecialidad"
-  const especialidadEl = form.querySelector('select[name="IdEspecialidad"]') || safeGetElement('formIdEspecialidad');
-  const idEspecialidad = especialidadEl ? Number(especialidadEl.value) || null : null;
+  const specialtySelectElement = formElement.querySelector('select[name="IdEspecialidad"]') || getElementByIdSafe('formIdEspecialidad');
+  const selectedSpecialtyId = specialtySelectElement ? Number(specialtySelectElement.value) || null : null;
 
-  const payload = {
-    nombres:        getData('formNombres'),
-    apellidos:      getData('formApellidos'),
-    registroMedico: getData('formRegistroMedico'),
-    categoria:      getData('formCategoria') || null,  // H-02: conservar Categoria en BD
-    telefono:       getData('formTelefono')  || null,
-    correoAcceso:   getData('formCorreoAcceso'),
-    idEspecialidad: idEspecialidad,
-    estado:         isEditing ? (safeGetElement('formStatus')?.value || safeGetElement('formEstado')?.value || '').trim().toLowerCase() || null : null,
+  const requestPayload = {
+    nombres:        getFieldValue('formNombres'),
+    apellidos:      getFieldValue('formApellidos'),
+    registroMedico: getFieldValue('formRegistroMedico'),
+    categoria:      getFieldValue('formCategoria') || null,
+    telefono:       getFieldValue('formTelefono')  || null,
+    correoAcceso:   getFieldValue('formCorreoAcceso'),
+    idEspecialidad: selectedSpecialtyId,
+    estado:         isEditingMode ? (getElementByIdSafe('formStatus')?.value || getElementByIdSafe('formEstado')?.value || '').trim().toLowerCase() || null : null,
   };
 
-  // Seguridad: la contraseña nunca se envía desde el cliente. El backend genera
-  // una contraseña temporal segura al crear el profesional y la notificación se
-  // gestiona en el servidor, evitando exponer credenciales en la solicitud.
-  if (!isEditing) {
-    delete payload.contrasenaAcceso;
+  if (!isEditingMode) {
+    delete requestPayload.contrasenaAcceso;
   }
 
   try {
-    let result;
-    if (isEditing) {
-      result = await apiRequest(`${API_BASE}/${idProfesional}`, {
+    let apiResult;
+    if (isEditingMode) {
+      apiResult = await apiRequest(`${API_BASE_URL}/${professionalId}`, {
         method: 'PUT',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(requestPayload)
       });
-
     } else {
-      result = await apiRequest(API_BASE, {
+      apiResult = await apiRequest(API_BASE_URL, {
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(requestPayload)
       });
     }
 
-    if (!result || result.success === false) {
-      throw new Error(result?.message || 'No fue posible guardar el profesional.');
+    if (!apiResult || apiResult.success === false) {
+      throw new Error(apiResult?.message || 'No fue posible guardar el profesional.');
     }
 
-    window.ToastService?.success(`✅ ${result.message || 'Profesional guardado correctamente.'}`);
+    window.ToastService?.success(`✅ ${apiResult.message || 'Profesional guardado correctamente.'}`);
     closeFormModal();
-    currentPage = 1;
-    await loadProfessionals();
-  } catch (err) {
-    window.ToastService?.error(`❌ ${err.message}`);
-  } finally {
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '💾 Guardar'; }
-  }
-};
-
-const bindProfessionalFieldValidation = () => {
-  const form = safeGetElement('formProfessional');
-  if (!form) return;
-
-  form.querySelectorAll('input, select').forEach((field) => {
-    field.addEventListener('input', () => {
-      if (field.id === 'formTelefono' && field.value.trim()) {
-        const validPhone = (field.value.match(/\d/g) || []).length >= 7
-          && (field.value.match(/\d/g) || []).length <= 15;
-        if (window.ValidationUtils) {
-          if (!validPhone) window.ValidationUtils.showError(field, null, 'Ingresa un teléfono válido.');
-          else window.ValidationUtils.clearError(field);
-        }
-      } else if (field.id === 'formRegistroMedico' && field.value.trim()) {
-        const validRegistry = /^[A-Za-z0-9\-\. ]{3,30}$/.test(field.value.trim());
-        if (window.ValidationUtils) {
-          if (!validRegistry) window.ValidationUtils.showError(field, null, 'Use solo letras, números y guiones.');
-          else window.ValidationUtils.clearError(field);
-        }
-      } else {
-         if (window.ValidationUtils && field.value.trim()) {
-            window.ValidationUtils.clearError(field);
-         }
-      }
-    });
-  });
-};
-
-
-// ═══════════════════════════════════════════════════════════════════
-//  FILTROS Y BÚSQUEDA
-// ═══════════════════════════════════════════════════════════════════
-
-/**
- * Carga especialidades desde la API y pobla los selects.
- */
-async function loadSpecialties() {
-    try {
-        const result = await apiRequest(`${API_BASE}/especialidades`);
-        const specialties = result.data || [];
-        
-        const filterSelect = safeGetElement('filterSpecialty');
-        // El id exacto en el formulario dependerá de Razor, comúnmente 'IdEspecialidad' o 'formIdEspecialidad'
-        const formSelect = document.querySelector('select[name="IdEspecialidad"]') || safeGetElement('formIdEspecialidad');
-
-        if (filterSelect) {
-            const currentVal = filterSelect.value;
-            filterSelect.innerHTML = '<option value="">Todas las especialidades</option>' +
-                specialties.map(s => `<option value="${s.nombre}">${s.nombre}</option>`).join('');
-            filterSelect.value = currentVal;
-        }
-
-        if (formSelect) {
-            const currentVal = formSelect.value;
-            formSelect.innerHTML = '<option value="" disabled selected>Selecciona una especialidad</option>' +
-                specialties.map(s => `<option value="${s.idEspecialidad}">${s.nombre}</option>`).join('');
-            if (currentVal) formSelect.value = currentVal;
-        }
-    } catch (e) {
-        console.error("Error al cargar especialidades", e);
-    }
-}
-
-/**
- * Navega a una página específica y recarga la tabla.
- */
-window.goToPage = async (page) => {
-    currentPage = page;
-    await loadProfessionals();
-};
-
-/**
- * Renderiza los controles de paginación desde la metadata de la API.
- */
-const renderPaginationFromApi = (result) => {
-    const info = safeGetElement('paginationInfo');
-    const buttons = safeGetElement('paginationButtons');
-    if (!info || !buttons || !result.pagination) return;
-
-    const { page, pageSize, totalCount, totalPages } = result.pagination;
-
-    const start = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
-    const end = Math.min(page * pageSize, totalCount);
-
-    info.textContent = `Mostrando ${start}-${end} de ${totalCount} profesionales`;
-    buttons.innerHTML = '';
-
-    // Botón anterior
-    const btnPrev = document.createElement('button');
-    btnPrev.textContent = '«';
-    btnPrev.setAttribute('aria-label', 'Página anterior');
-    btnPrev.disabled = page === 1 || totalCount === 0;
-    btnPrev.addEventListener('click', () => { if (page > 1) goToPage(page - 1); });
-    buttons.appendChild(btnPrev);
-
-    // Botones numéricos
-    for (let i = 1; i <= totalPages; i++) {
-        const btn = document.createElement('button');
-        btn.textContent = i;
-        btn.setAttribute('aria-label', `Ir a página ${i}`);
-        btn.setAttribute('aria-current', i === page ? 'page' : 'false');
-        if (i === page) btn.classList.add('active');
-        btn.addEventListener('click', () => goToPage(i));
-        buttons.appendChild(btn);
-    }
-
-    // Botón siguiente
-    const btnNext = document.createElement('button');
-    btnNext.textContent = '»';
-    btnNext.setAttribute('aria-label', 'Página siguiente');
-    btnNext.disabled = page >= totalPages || totalCount === 0;
-    btnNext.addEventListener('click', () => { if (page < totalPages) goToPage(page + 1); });
-    buttons.appendChild(btnNext);
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  API CALLS (Listas para conectar al backend C#)
-// ═══════════════════════════════════════════════════════════════════
-
-/**
- * Obtiene lista de profesionales desde el servidor.
- */
-async function fetchProfessionals(params = {}) {
-    const query = new URLSearchParams();
-
-    query.set('page', params.page ?? 1);
-    query.set('pageSize', params.pageSize ?? 10);
-
-    if (params.search) {
-        query.set('search', params.search);
-    }
-
-    if (params.especialidad) {
-        query.set('especialidad', params.especialidad);
-    }
-
-    if (params.estado) {
-        query.set('estado', params.estado);
-    }
-
-    return await apiRequest(`${API_BASE}?${query.toString()}`);
-}
-
-async function loadProfessionals() {
-  try {
-    const search = document.querySelector('#searchInput')?.value?.trim() || '';
-    const especialidad = document.querySelector('#filterSpecialty')?.value || '';
-    const estado = document.querySelector('#filterStatus')?.value || '';
-
-    setProfessionalsLoading(true);
-    const result = await fetchProfessionals({
-        page: currentPage,
-        pageSize: itemsPerPage,
-        search,
-        especialidad,
-        estado
-    });
-
-    renderTableFromApi(result);
-    renderPaginationFromApi(result);
+    currentPageIndex = 1;
+    await loadProfessionalsList();
   } catch (error) {
-    const tbody = safeGetElement('professionalsTbody');
-    if (tbody) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No fue posible cargar los profesionales. Intenta nuevamente.</td></tr>`;
-    }
-    window.ToastService?.error?.(`No fue posible cargar los profesionales: ${error.message}`);
+    window.ToastService?.error(`❌ ${error.message}`);
   } finally {
-    setProfessionalsLoading(false);
+    if (submitButton) { submitButton.disabled = false; submitButton.textContent = '💾 Guardar'; }
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN DE COMPONENTES
-// ═══════════════════════════════════════════════════════════════════
+};
 
 /**
- * Inicializa sidebar móvil con gestión de foco y ARIA.
- * WHY: Mejora accesibilidad — sin esto, el sidebar abierto en móvil no tiene gestión de foco
- *      y un usuario de lector de pantalla no sabe que el menú está abierto.
+ * Carga el horario por defecto en la interfaz.
+ */
+const applyDefaultSchedule = () => {
+  const dayRows = document.querySelectorAll('#scheduleDaysContainer .schedule-row');
+  dayRows.forEach(row => {
+    const dayKey = row.dataset.day;
+    const isWeekday = dayKey !== 'Sabado' && dayKey !== 'Domingo';
+    const activeCheckbox = row.querySelector('.schedule-day-active');
+    const labelSpanText = row.querySelector('.schedule-toggle span');
+    const startInput = row.querySelector('.schedule-time-start');
+    const endInput = row.querySelector('.schedule-time-end');
+
+    if (activeCheckbox) activeCheckbox.checked = isWeekday;
+    if (labelSpanText) labelSpanText.textContent = isWeekday ? 'Atiende' : 'No atiende';
+    row.classList.toggle('inactive', !isWeekday);
+    if (startInput) {
+      startInput.value = '08:00';
+      startInput.disabled = !isWeekday;
+    }
+    if (endInput) {
+      endInput.value = '17:00';
+      endInput.disabled = !isWeekday;
+    }
+  });
+  window.ToastService?.info?.('Horario estándar (Lun-Vie 08:00 - 17:00) cargado en el formulario. Recuerda guardar cambios.');
+};
+
+/**
+ * Guarda la configuración de horarios de atención del profesional.
+ * @param {Event} event
+ */
+const saveSchedule = async (event) => {
+  event.preventDefault();
+  if (!detailProfessionalId) return;
+
+  const dayRows = document.querySelectorAll('#scheduleDaysContainer .schedule-row');
+  const schedulePayload = [];
+
+  for (const row of dayRows) {
+    const dayKey = row.dataset.day;
+    const isActive = row.querySelector('.schedule-day-active').checked;
+    const startTime = row.querySelector('.schedule-time-start').value;
+    const endTime = row.querySelector('.schedule-time-end').value;
+
+    if (isActive) {
+      if (!startTime || !endTime) {
+        window.ToastService?.warning?.(`Debes especificar hora de inicio y fin para el ${dayKey}.`);
+        return;
+      }
+      if (endTime <= startTime) {
+        window.ToastService?.warning?.(`La hora de fin debe ser posterior a la hora de inicio para el ${dayKey}.`);
+        return;
+      }
+    }
+
+    schedulePayload.push({
+      day: dayKey.substring(0, 3),
+      diaSemana: dayKey,
+      dayFull: dayKey,
+      active: isActive,
+      start: startTime,
+      end: endTime
+    });
+  }
+
+  const saveButton = getElementByIdSafe('scheduleSaveButton');
+  const statusMessageLabel = getElementByIdSafe('scheduleStatusMsg');
+  if (saveButton) saveButton.disabled = true;
+  if (statusMessageLabel) {
+    statusMessageLabel.style.color = 'var(--primary)';
+    statusMessageLabel.textContent = '⏳ Guardando horarios en base de datos...';
+  }
+
+  try {
+    const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/horarios`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(schedulePayload)
+    });
+
+    window.ToastService?.success?.(apiResult?.message || 'Horarios actualizados correctamente.');
+    if (statusMessageLabel) {
+      statusMessageLabel.style.color = 'var(--green, #166534)';
+      statusMessageLabel.textContent = '✅ Horarios guardados en base de datos.';
+    }
+    await loadProfessionalSchedule(detailProfessionalId);
+  } catch (error) {
+    window.ToastService?.error?.(`No se pudieron guardar los horarios: ${error.message}`);
+    if (statusMessageLabel) {
+      statusMessageLabel.style.color = 'var(--red, #b91c1c)';
+      statusMessageLabel.textContent = `❌ Error: ${error.message}`;
+    }
+  } finally {
+    if (saveButton) saveButton.disabled = false;
+  }
+};
+
+/**
+ * Registra o edita una ausencia del profesional.
+ * @param {Event} event
+ */
+const saveAbsence = async (event) => {
+  event.preventDefault();
+  const absenceId = getElementByIdSafe('absenceId').value;
+  const absencePayload = {
+    tipo: getElementByIdSafe('absenceTipo').value,
+    fechaInicio: getElementByIdSafe('absenceFechaInicio').value,
+    fechaFin: getElementByIdSafe('absenceFechaFin').value,
+    observaciones: getElementByIdSafe('absenceObservaciones').value || null
+  };
+
+  if (absencePayload.fechaFin < absencePayload.fechaInicio) {
+    window.ToastService?.warning('La fecha de fin debe ser igual o posterior a la fecha de inicio.');
+    return;
+  }
+
+  const submitButton = getElementByIdSafe('absenceSaveButton');
+  submitButton.disabled = true;
+
+  try {
+    const targetEndpoint = absenceId
+      ? `${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceId}`
+      : `${API_BASE_URL}/${detailProfessionalId}/ausencias`;
+    const apiResult = await apiRequest(targetEndpoint, { method: absenceId ? 'PUT' : 'POST', body: absencePayload });
+    window.ToastService?.success(apiResult.message || 'Ausencia guardada.');
+    resetAbsenceForm();
+    await loadProfessionalAbsences(detailProfessionalId);
+  } catch (error) {
+    window.ToastService?.error(`No se pudo guardar la ausencia: ${error.message}`);
+  } finally {
+    submitButton.disabled = false;
+  }
+};
+
+// ===================================================================
+// 7. EVENT LISTENERS E INICIALIZACIÓN PRINCIPAL
+// ===================================================================
+
+/**
+ * Navega a una página específica de la tabla de profesionales.
+ * @param {number} pageNumber
+ */
+window.goToPage = async (pageNumber) => {
+  currentPageIndex = pageNumber;
+  await loadProfessionalsList();
+};
+
+/**
+ * Inicializa el comportamiento del sidebar responsive en dispositivos móviles.
  */
 const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
+  const hamburgerButton = getElementByIdSafe('hamburger');
+  const sidebarElement = getElementByIdSafe('sidebar');
+  const overlayElement = getElementByIdSafe('overlay');
 
-  if (!hamburger || !sidebar || !overlay) return;
+  if (!hamburgerButton || !sidebarElement || !overlayElement) return;
 
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
-    
-    if (show) {
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
+  const toggleMobileMenu = (showMenu) => {
+    sidebarElement.classList.toggle('open', showMenu);
+    overlayElement.classList.toggle('open', showMenu);
+    hamburgerButton.setAttribute('aria-expanded', showMenu);
+    overlayElement.setAttribute('aria-hidden', !showMenu);
+
+    if (showMenu) {
+      const firstNavigationLink = sidebarElement.querySelector('.nav-item');
+      if (firstNavigationLink) firstNavigationLink.focus();
     } else {
-      hamburger.focus();
+      hamburgerButton.focus();
     }
   };
 
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
+  hamburgerButton.addEventListener('click', () => toggleMobileMenu(true));
+  overlayElement.addEventListener('click', () => toggleMobileMenu(false));
 
-  // ✅ Navegación: cerrar menú en móvil, SIN bloquear enlaces
-  sidebar.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
+  sidebarElement.querySelectorAll('.nav-item').forEach(navItem => {
+    navItem.addEventListener('click', () => {
       if (window.innerWidth <= 680) {
-        toggleMenu(false);
+        toggleMobileMenu(false);
       }
     });
   });
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && sidebarElement.classList.contains('open')) {
+      event.preventDefault();
+      toggleMobileMenu(false);
     }
   });
 };
 
 /**
- * Inicializa los filtros para usar la API en lugar de submit de MVC.
+ * Inicializa la lógica de filtrado reactivo debounced y el formulario de búsqueda.
  */
 const initFiltersAPI = () => {
-  const searchInput = safeGetElement('searchInput');
-  const filterSpecialty = safeGetElement('filterSpecialty');
-  const filterStatus = safeGetElement('filterStatus');
+  const searchInputField = getElementByIdSafe('searchInput');
+  const specialtyFilterSelect = getElementByIdSafe('filterSpecialty');
+  const statusFilterSelect = getElementByIdSafe('filterStatus');
 
-  // Prevenir que el formulario recargue la página si el usuario presiona Enter
-  const form = searchInput?.closest('form') || document.querySelector('.filters-section form');
-  if (form) {
-      form.addEventListener('submit', (e) => {
-          e.preventDefault();
-          currentPage = 1;
-          loadProfessionals();
-      });
+  const filterFormElement = searchInputField?.closest('form') || document.querySelector('.filters-section form');
+  if (filterFormElement) {
+    filterFormElement.addEventListener('submit', (e) => {
+      e.preventDefault();
+      currentPageIndex = 1;
+      loadProfessionalsList();
+    });
   }
 
-  searchInput?.addEventListener('input', debounce(() => {
-      currentPage = 1;
-      loadProfessionals();
+  searchInputField?.addEventListener('input', debounce(() => {
+    currentPageIndex = 1;
+    loadProfessionalsList();
   }, 400));
 
-  filterSpecialty?.addEventListener('change', () => {
-      currentPage = 1;
-      loadProfessionals();
+  specialtyFilterSelect?.addEventListener('change', () => {
+    currentPageIndex = 1;
+    loadProfessionalsList();
   });
 
-  filterStatus?.addEventListener('change', () => {
-      currentPage = 1;
-      loadProfessionals();
+  statusFilterSelect?.addEventListener('change', () => {
+    currentPageIndex = 1;
+    loadProfessionalsList();
   });
 };
 
 /**
- * Inicializa modales: eventos de apertura, cierre y teclado.
- * WHY: Centraliza toda la configuración de modales para que initSidebar/initFilters
- *      no necesiten conocer los detalles del modal (separación de responsabilidades).
+ * Asigna la validación visual de campos de entrada.
  */
-// Variables for delete modal
-let lastModalOpener = null;
+const bindProfessionalFieldValidation = () => {
+  const formElement = getElementByIdSafe('formProfessional');
+  if (!formElement) return;
 
-const openConfirmDeleteModal = (id, name) => {
-  lastModalOpener = document.activeElement;
-  const modal = safeGetElement('modalConfirmDelete');
-  const message = safeGetElement('modalConfirmDeleteMessage');
-  const deleteIdInput = safeGetElement('deleteProfesionalId');
-  
-  if (message) {
-    message.textContent = `¿Estás seguro de desactivar a ${name}? El profesional quedará inactivo y no podrá recibir nuevas citas.`;
-  }
-  if (deleteIdInput) {
-    deleteIdInput.value = id;
-  }
-  if (modal) {
-    modal.classList.add('open');
-    // CORRECCIÓN: usar setAttribute con string 'false' en lugar de removeAttribute
-    // para que lectores de pantalla detecten correctamente el cambio de estado ARIA
-    modal.setAttribute('aria-hidden', 'false');
-    modal.removeAttribute('inert');
-    document.body.style.overflow = 'hidden';
-    // Focus en botón Cancelar: previene confirmación accidental (WCAG 2.4.3)
-    setTimeout(() => {
-      const cancelBtn = safeGetElement('modalConfirmDeleteCancel');
-      if (cancelBtn) cancelBtn.focus();
-    }, 50);
-  }
+  formElement.querySelectorAll('input, select').forEach((inputField) => {
+    inputField.addEventListener('input', () => {
+      if (inputField.id === 'formTelefono' && inputField.value.trim()) {
+        const isValidPhone = (inputField.value.match(/\d/g) || []).length >= 7
+          && (inputField.value.match(/\d/g) || []).length <= 15;
+        if (window.ValidationUtils) {
+          if (!isValidPhone) window.ValidationUtils.showError(inputField, null, 'Ingresa un teléfono válido.');
+          else window.ValidationUtils.clearError(inputField);
+        }
+      } else if (inputField.id === 'formRegistroMedico' && inputField.value.trim()) {
+        const isValidMedicalRegistry = /^[A-Za-z0-9\-\. ]{3,30}$/.test(inputField.value.trim());
+        if (window.ValidationUtils) {
+          if (!isValidMedicalRegistry) window.ValidationUtils.showError(inputField, null, 'Use solo letras, números y guiones.');
+          else window.ValidationUtils.clearError(inputField);
+        }
+      } else {
+        if (window.ValidationUtils && inputField.value.trim()) {
+          window.ValidationUtils.clearError(inputField);
+        }
+      }
+    });
+  });
 };
 
-const closeConfirmDeleteModal = () => {
-  const modal = safeGetElement('modalConfirmDelete');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
-    document.body.style.overflow = '';
-  }
-  if (lastModalOpener && typeof lastModalOpener.focus === 'function') {
-    lastModalOpener.focus();
-  }
-  lastModalOpener = null;
+/**
+ * Inicializa los eventos del campo de contraseña.
+ */
+const initProfessionalPassword = () => {
+  const passwordInput = getElementByIdSafe('formContrasenaAcceso');
+  const toggleVisibilityButton = getElementByIdSafe('toggleProfesionalPassword');
+  if (!passwordInput) return;
+
+  passwordInput.addEventListener('input', updateProfessionalPasswordRules);
+  updateProfessionalPasswordRules();
+
+  toggleVisibilityButton?.addEventListener('click', () => {
+    const isPasswordVisible = passwordInput.type === 'text';
+    passwordInput.type = isPasswordVisible ? 'password' : 'text';
+    toggleVisibilityButton.textContent = isPasswordVisible ? '👁' : '🙈';
+    toggleVisibilityButton.setAttribute('aria-label', isPasswordVisible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+  });
 };
 
+/**
+ * Configura los event listeners para abrir, cerrar y procesar modales.
+ */
 const initModals = () => {
-  const btnNew = safeGetElement('profesionales-btn-nuevo') || safeGetElement('btnNewProfessional');
-  const modalFormClose = safeGetElement('modalFormClose');
-  const modalFormCancel = safeGetElement('modalFormCancel');
-  const modalDetailClose = safeGetElement('modalDetailClose');
-  const modalDetailCloseBtn = safeGetElement('modalDetailCloseBtn');
-  const modalConfirmDeleteClose = safeGetElement('modalConfirmDeleteClose');
-  const modalConfirmDeleteCancel = safeGetElement('modalConfirmDeleteCancel');
-  const modalForm = safeGetElement('modalForm');
-  const modalDetail = safeGetElement('modalDetail');
-  const modalConfirmDelete = safeGetElement('modalConfirmDelete');
-  const form = safeGetElement('formProfessional');
+  const newProfessionalButton = getElementByIdSafe('profesionales-btn-nuevo') || getElementByIdSafe('btnNewProfessional');
+  const formModalCloseButton = getElementByIdSafe('modalFormClose');
+  const formModalCancelButton = getElementByIdSafe('modalFormCancel');
+  const detailModalCloseButton = getElementByIdSafe('modalDetailClose');
+  const detailModalCancelButton = getElementByIdSafe('modalDetailCloseBtn');
+  const confirmDeleteCloseButton = getElementByIdSafe('modalConfirmDeleteClose');
+  const confirmDeleteCancelButton = getElementByIdSafe('modalConfirmDeleteCancel');
   
-  // Abrir modal crear
-  btnNew?.addEventListener('click', openFormModal);
+  const formModalElement = getElementByIdSafe('modalForm');
+  const detailModalElement = getElementByIdSafe('modalDetail');
+  const confirmDeleteModalElement = getElementByIdSafe('modalConfirmDelete');
   
-  // Cerrar modales
-  modalFormClose?.addEventListener('click', closeFormModal);
-  modalFormCancel?.addEventListener('click', closeFormModal);
-  modalDetailClose?.addEventListener('click', closeDetailModal);
-  modalDetailCloseBtn?.addEventListener('click', closeDetailModal);
-  modalConfirmDeleteClose?.addEventListener('click', closeConfirmDeleteModal);
-  modalConfirmDeleteCancel?.addEventListener('click', closeConfirmDeleteModal);
-  
-  modalForm?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeFormModal();
-  });
-  modalDetail?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeDetailModal();
-  });
-  modalConfirmDelete?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeConfirmDeleteModal();
-  });
-  
-  // Submit del formulario (POST / PUT via API)
-  form?.addEventListener('submit', saveProfessional);
+  const formElement = getElementByIdSafe('formProfessional');
+  const scheduleFormElement = getElementByIdSafe('scheduleForm');
+  const absenceFormElement = getElementByIdSafe('absenceForm');
 
-  // Delegación de eventos para botones de la tabla SSR y renderTableFromApi.
-  // WHY: los botones de la tabla SSR existen al cargar la página; los de renderTableFromApi
-  //      se crean dinámicamente. La delegación en tbody captura ambos casos sin re-enlazar.
-  const tbody = safeGetElement('professionalsTbody');
-  tbody?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-delete[data-id]');
-    if (btn) {
-      const id = btn.getAttribute('data-id');
-      const name = btn.getAttribute('data-name') || 'este profesional';
-      if (id) openConfirmDeleteModal(id, name);
+  newProfessionalButton?.addEventListener('click', () => openFormModal(false));
+
+  formModalCloseButton?.addEventListener('click', closeFormModal);
+  formModalCancelButton?.addEventListener('click', closeFormModal);
+  detailModalCloseButton?.addEventListener('click', closeDetailModal);
+  detailModalCancelButton?.addEventListener('click', closeDetailModal);
+  confirmDeleteCloseButton?.addEventListener('click', closeConfirmDeleteModal);
+  confirmDeleteCancelButton?.addEventListener('click', closeConfirmDeleteModal);
+
+  formModalElement?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeFormModal(); });
+  detailModalElement?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeDetailModal(); });
+  confirmDeleteModalElement?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeConfirmDeleteModal(); });
+
+  formElement?.addEventListener('submit', saveProfessional);
+  scheduleFormElement?.addEventListener('submit', saveSchedule);
+  getElementByIdSafe('btnApplyDefaultSchedule')?.addEventListener('click', applyDefaultSchedule);
+  absenceFormElement?.addEventListener('submit', saveAbsence);
+  getElementByIdSafe('absenceCancelEdit')?.addEventListener('click', resetAbsenceForm);
+
+  const tableBody = getElementByIdSafe('professionalsTbody');
+  tableBody?.addEventListener('click', (e) => {
+    const deleteButton = e.target.closest('.btn-delete[data-id]');
+    if (deleteButton) {
+      const id = deleteButton.getAttribute('data-id');
+      const name = deleteButton.getAttribute('data-name') || 'este profesional';
+      const estado = deleteButton.getAttribute('data-estado') || 'activo';
+      if (id) openConfirmToggleEstadoModal(id, name, estado);
     }
   });
 
-  // Delegación para botones Ver de la tabla SSR
-  tbody?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-view[data-id]');
-    if (btn) {
-      const avatar = safeGetElement('detailAvatar');
-      const nameEl = safeGetElement('detailName');
-      const specialtyEl = safeGetElement('detailSpecialty');
-      const registryEl = safeGetElement('detailRegistry');
-      const phoneEl = safeGetElement('detailPhone');
-      const statusEl = safeGetElement('detailStatus');
-
-            if (avatar) {
-              avatar.textContent = btn.dataset.initials || '--';
-              // Restaurar el color del avatar desde data-avatar-color si fue generado por la API.
-              // Para filas SSR el dataset puede no tener el atributo; en ese caso usar
-              // el estilo inline que ya trae el avatar del HTML renderizado por Razor.
-              if (btn.dataset.avatarColor) {
-                avatar.style.background = btn.dataset.avatarColor;
-              }
-            }
-      if (nameEl) nameEl.textContent = btn.dataset.name || '--';
-      if (specialtyEl) specialtyEl.textContent = btn.dataset.specialty || '--';
-      if (registryEl) registryEl.textContent = btn.dataset.registry || '--';
-      if (phoneEl) phoneEl.textContent = btn.dataset.phone || '--';
-      if (statusEl) {
-        statusEl.textContent = btn.dataset.status || '--';
-        statusEl.className = `badge-status badge-${(btn.dataset.status || '').toLowerCase()}`;
-      }
-
-      const modal = safeGetElement('modalDetail');
-      if (modal) {
-        modal.classList.add('open');
-        modal.setAttribute('aria-hidden', 'false');
-        modal.removeAttribute('inert');
-        document.body.style.overflow = 'hidden';
-        safeGetElement('modalDetailClose')?.focus();
-      }
+  tableBody?.addEventListener('click', (e) => {
+    const viewButton = e.target.closest('.btn-view[data-id]');
+    if (viewButton) {
+      openProfessionalDetailView(viewButton, getAvatarColorBySpecialty(viewButton.dataset.specialty || ''), getStatusBadgeClass(viewButton.dataset.status || ''));
+      resetModalTabs();
+      resetAbsenceForm();
+      loadProfessionalSchedule(Number(viewButton.dataset.id));
+      loadProfessionalAbsences(Number(viewButton.dataset.id));
     }
   });
 
-  // Botón de confirmación del DELETE lógico
-  // Fase 2D — 2D.2: DELETE /api/profesionales/{id} en lugar de form.submit() al MVC.
-  const btnConfirmDelete = safeGetElement('modalConfirmDeleteConfirm');
-  btnConfirmDelete?.addEventListener('click', async () => {
-    const deleteIdInput = safeGetElement('deleteProfesionalId');
-    const id = Number(deleteIdInput?.value);
-    if (!id) return;
+  const confirmToggleStatusButton = getElementByIdSafe('modalConfirmDeleteConfirm');
+  confirmToggleStatusButton?.addEventListener('click', async () => {
+    const hiddenIdInput = getElementByIdSafe('deleteProfesionalId');
+    const hiddenEstadoInput = getElementByIdSafe('deleteProfesionalEstado');
+    const professionalId = Number(hiddenIdInput?.value);
+    if (!professionalId) return;
 
-    const confirmBtn = btnConfirmDelete;
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = '⏳ Desactivando...';
+    const currentStatus = (hiddenEstadoInput?.value || 'activo').toLowerCase();
+    const isCurrentlyActive = currentStatus === 'activo';
+
+    confirmToggleStatusButton.disabled = true;
+    confirmToggleStatusButton.textContent = confirmToggleStatusButton.dataset.loadingText || (isCurrentlyActive ? '⏳ Desactivando...' : '⏳ Reactivando...');
 
     try {
-      const result = await apiRequest(`${API_BASE}/${id}`, { method: 'DELETE' });
-      window.ToastService?.success(`✅ ${result.message || 'Profesional desactivado correctamente.'}`);
+      let apiResult;
+      if (isCurrentlyActive) {
+        apiResult = await apiRequest(`${API_BASE_URL}/${professionalId}`, { method: 'DELETE' });
+        window.ToastService?.success(`✅ ${apiResult.message || 'Profesional desactivado correctamente.'}`);
+      } else {
+        apiResult = await apiRequest(`${API_BASE_URL}/${professionalId}/estado`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: 'activo' })
+        });
+        window.ToastService?.success(`✅ ${apiResult.message || 'Profesional reactivado correctamente.'}`);
+      }
       closeConfirmDeleteModal();
-      await loadProfessionals();
-    } catch (err) {
-      window.ToastService?.error(`❌ ${err.message}`);
+      window.location.reload();
+    } catch (error) {
+      window.ToastService?.error(`❌ ${error.message}`);
     } finally {
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = '🗑️ Confirmar desactivación';
+      confirmToggleStatusButton.disabled = false;
+      confirmToggleStatusButton.textContent = isCurrentlyActive ? 'Confirmar desactivación' : 'Confirmar reactivación';
     }
   });
-  
-  // Soporte para teclado en modales
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (modalForm?.classList.contains('open')) {
-        e.preventDefault();
-        closeFormModal();
-      }
-      if (modalDetail?.classList.contains('open')) {
-        e.preventDefault();
-        closeDetailModal();
-      }
-      if (modalConfirmDelete?.classList.contains('open')) {
-        e.preventDefault();
-        closeConfirmDeleteModal();
-      }
-    }
-  });
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
-// ═══════════════════════════════════════════════════════════════════
-
-/**
- * Anima los contadores de la sección Stats cuando la tabla viene de SSR.
- * WHY: updateStats() se saltea con SSR (correctamente), pero los data-target
- *      del HTML de Razor contienen los valores reales del servidor. Esta función
- *      los lee y activa la animación 0 → N para que los cards no queden en 0.
- *
- * Flujo:
- *   Razor escribe  <span data-target="42">0</span>
- *   Esta fn lee    data-target = 42
- *   animateCounter anima el span de 0 a 42
- */
-const initServerStats = () => {
-  const statEls = [
-    safeGetElement('profesionales-stat-total') || safeGetElement('metricTotal'),
-    safeGetElement('profesionales-stat-activos') || safeGetElement('metricActives'),
-    safeGetElement('profesionales-stat-vacaciones') || safeGetElement('metricVacations'),
-    safeGetElement('profesionales-stat-inactivos') || safeGetElement('metricInactives'),
-  ];
-
-  statEls.forEach(el => {
-    if (!el) return;
-    const target = parseInt(el.getAttribute('data-target') ?? '0', 10);
-    // Solo animar si el target es válido y mayor que 0
-    if (!isNaN(target) && target > 0) {
-      animateCounter(el, target);
-    } else {
-      // Si el target es 0, mostrar 0 directamente sin animar
-      el.textContent = '0';
+      if (formModalElement?.classList.contains('open')) { e.preventDefault(); closeFormModal(); }
+      if (detailModalElement?.classList.contains('open')) { e.preventDefault(); closeDetailModal(); }
+      if (confirmDeleteModalElement?.classList.contains('open')) { e.preventDefault(); closeConfirmDeleteModal(); }
     }
   });
 };
 
 /**
- * Inicializa todos los componentes al cargar la página.
+ * Función de inicialización principal.
  */
 const init = async () => {
   initSidebar();
   initModals();
+  initModalTabs();
   bindProfessionalFieldValidation();
   initProfessionalPassword();
-
-  // Inicializar filtros via API e interceptar el formulario de búsqueda
   initFiltersAPI();
 
-  // Cargar especialidades desde la API para poblar los selects del formulario
-  await loadSpecialties();
-
-  // Animar contadores del Stats Grid con los valores que Razor ya escribió en data-target.
-  // WHY: la tabla viene renderizada por el servidor (SSR); los contadores ya tienen valores
-  //      reales en data-target — solo necesitamos activar la animación visual.
+  await loadSpecialtiesCatalog();
   initServerStats();
 
-  // NO se llama a loadProfessionals() aquí: la tabla SSR que Razor generó es
-  // la fuente de verdad inicial. loadProfessionals() se invoca únicamente cuando
-  // el usuario usa los filtros de búsqueda o después de operaciones CRUD.
-  // WHY: evita doble renderizado (parpadeo SSR→API) y mejora el tiempo de carga.
-
-  // Limpieza al unload para evitar memory leaks en implementaciones SPA
-  window.addEventListener('beforeunload', () => {
-    // Remover listeners en implementación SPA real
-  });
+  window.addEventListener('beforeunload', () => {});
 };
 
-// Ejecutar al cargar DOM
 document.addEventListener('DOMContentLoaded', init);

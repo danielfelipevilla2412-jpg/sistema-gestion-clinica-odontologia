@@ -8,6 +8,7 @@ namespace SmileTrack_MVC.Models.ViewModels
         public int Edad { get; set; }
         public DateTime UltimaConsulta { get; set; }
         public string Diagnostico { get; set; } = string.Empty;
+        public string Procedimiento { get; set; } = string.Empty;
         public string ProfesionalNombre { get; set; } = string.Empty;
         public DateTime? ProximaCita { get; set; }
         public string? Alerta { get; set; }
@@ -38,6 +39,10 @@ namespace SmileTrack_MVC.Models.ViewModels
         public string HoraFin { get; set; } = string.Empty;
         public string Paciente { get; set; } = string.Empty;
         public string NombreProfesional { get; set; } = string.Empty;
+        public string CorreoProfesional { get; set; } = string.Empty;
+        public string TelefonoProfesional { get; set; } = string.Empty;
+        public string RegistroMedicoProfesional { get; set; } = string.Empty;
+        public string EstadoUsuarioProfesional { get; set; } = string.Empty;
         public string Servicio { get; set; } = string.Empty;
         public string Consultorio { get; set; } = string.Empty;
         public string Estado { get; set; } = string.Empty;

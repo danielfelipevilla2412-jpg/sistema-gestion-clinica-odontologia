@@ -1,0 +1,42 @@
+@* ============================================
+   Componente: AccesosRapidos
+   Panel de accesos rápidos con hover effects
+============================================ *@
+@model SmileTrack_MVC.Models.ViewModels.Components.AccesosRapidosViewModel
+
+<link rel="stylesheet" href="~/css/shared/components/accesos-rapidos.css" asp-append-version="true" />
+
+@if (!string.IsNullOrEmpty(Model.Titulo))
+{
+    <h2 class="panel-accesos-titulo">@Model.Titulo</h2>
+}
+
+<section class="accesos-rapidos-grid" 
+         data-columnas="@Model.Columnas"
+         aria-label="@(Model.Titulo ?? "Accesos rápidos")"
+         role="navigation">
+    @foreach (var acceso in Model.Accesos)
+    {
+        <a href="@acceso.Url" 
+           class="acceso-card acceso-@acceso.Color"
+           target="@(acceso.NuevaVentana ? "_blank" : "_self")"
+           rel="@(acceso.NuevaVentana ? "noopener noreferrer" : "")"
+           aria-label="@acceso.Titulo">
+            <div class="acceso-icon" aria-hidden="true">
+                <span class="material-symbols-outlined">@acceso.Icono</span>
+            </div>
+            <div class="acceso-content">
+                <h4 class="acceso-titulo">@acceso.Titulo</h4>
+                @if (!string.IsNullOrEmpty(acceso.Descripcion))
+                {
+                    <p class="acceso-descripcion">@acceso.Descripcion</p>
+                }
+            </div>
+            <div class="acceso-arrow" aria-hidden="true">
+                <span class="material-symbols-outlined">arrow_forward</span>
+            </div>
+        </a>
+    }
+</section>
+
+<script src="~/js/shared/components/AccesosRapidos.js" asp-append-version="true"></script>

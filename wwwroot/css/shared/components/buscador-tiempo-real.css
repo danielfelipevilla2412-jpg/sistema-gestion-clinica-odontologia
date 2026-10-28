@@ -1,0 +1,2 @@
+.realtime-search, .search-wrapper { display: flex; align-items: center; gap: .5rem; }
+.realtime-search input, .search-wrapper input { width: 100%; min-width: 12rem; }

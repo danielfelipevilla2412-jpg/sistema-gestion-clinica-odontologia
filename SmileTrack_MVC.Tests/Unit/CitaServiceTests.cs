@@ -406,6 +406,21 @@ public class CitaServiceTests
         db.Consultorios.Add(consultorio);
         db.EstadosCita.Add(new EstadoCita { NombreEstado = "Programada" });
         db.SaveChanges();
+
+        string[] dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
+        foreach (var dia in dias)
+        {
+            db.HorariosProfesional.Add(new HorarioProfesional
+            {
+                IdProfesional = profesional.IdProfesional,
+                DiaSemana = dia,
+                HoraInicio = new TimeOnly(0, 0),
+                HoraFin = new TimeOnly(23, 59),
+                Activo = true
+            });
+        }
+        db.SaveChanges();
+
         return (paciente, profesional, servicio, consultorio);
     }
 
@@ -559,6 +574,54 @@ public class CitaServiceTests
         Assert.True(
             string.Equals(citaActualizada?.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase),
             $"Se esperaba 'Cancelada', se obtuvo: '{citaActualizada?.Estado}'");
+    }
+
+    [Fact]
+    public async Task CambiarEstadoAsync_RechazaCancelacionPorFlujoNormal()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = DateTime.Today.AddDays(2).AddHours(9),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CambiarEstadoAsync(cita.IdCita, "Cancelada"));
+
+        Assert.Contains("función de cancelación", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelarAsync_RechazaCitaVencidaAntesDeGuardar()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = DateTime.Now.AddMinutes(-5),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CancelarAsync(cita.IdCita));
+
+        Assert.Contains("fecha y hora anterior", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+        var citaSinCambios = await db.Citas.FindAsync(cita.IdCita);
+        Assert.Equal("Programada", citaSinCambios?.Estado);
     }
 
     [Fact]

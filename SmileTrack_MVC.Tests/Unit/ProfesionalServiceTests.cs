@@ -119,6 +119,64 @@ public sealed class ProfesionalServiceTests
         var usuario = await db.Usuarios.SingleAsync();
         Assert.False(string.IsNullOrWhiteSpace(usuario.Contrasena));
         Assert.NotEqual(string.Empty, usuario.Contrasena);
+        Assert.Equal("activo", usuario.Estado);
+        var profesionalCreado = await db.Profesionales.SingleAsync();
+        Assert.Equal("inactivo", profesionalCreado.Estado);
+        Assert.False(profesionalCreado.CredencialesAprobadas);
+    }
+
+    [Fact]
+    public async Task CrearAsync_RechazaCategoriaFueraDelCatalogo()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+
+        var result = await service.CrearAsync(
+            new ProfesionalApiRequest
+            {
+                Nombres = "María",
+                Apellidos = "García",
+                RegistroMedico = "RM-CAT-001",
+                Categoria = "Categoría inventada",
+                CorreoAcceso = "maria.categoria@smiletrack.test"
+            },
+            operadorId: 1,
+            ipOrigen: "127.0.0.1");
+
+        Assert.False(result.Success);
+        Assert.Equal(422, result.ErrorStatusCode);
+        Assert.Empty(await db.Profesionales.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CambiarEstadoAsync_NoActivaProfesionalSinCredencialesAprobadas()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "inactivo",
+            CredencialesAprobadas = false,
+            RegistroMedico = "RM-PENDING"
+        };
+        db.Profesionales.Add(profesional);
+        await db.SaveChangesAsync();
+
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        var result = await service.CambiarEstadoAsync(
+            profesional.IdProfesional,
+            "activo",
+            operadorId: 1,
+            ipOrigen: "127.0.0.1");
+
+        Assert.False(result.Success);
+        Assert.Equal(409, result.ErrorStatusCode);
+        Assert.Equal("inactivo", (await db.Profesionales.SingleAsync()).Estado);
     }
 
     [Fact]

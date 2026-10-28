@@ -176,6 +176,7 @@ img { max-width: 100%; height: auto; display: block; }
 .agenda-table th { padding: 12px 16px; text-align: left; font-size: .69rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; }
 .agenda-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .agenda-table tbody tr:hover { background: #f8fafc; }
+.td-fecha { font-weight: 700; color: var(--primary); white-space: nowrap; }
 .td-hora { font-weight: 700; color: var(--text); white-space: nowrap; }
 .td-paciente { font-weight: 600; color: var(--text); }
 .td-profesional { color: var(--text-muted); }
@@ -194,6 +195,7 @@ img { max-width: 100%; height: auto; display: block; }
 .badge-atendida { background: var(--badge-atendida); color: var(--badge-atendida-text); }
 .badge-pendiente { background: var(--badge-pendiente); color: var(--badge-pendiente-text); }
 .badge-cancelada { background: var(--badge-cancelada); color: var(--badge-cancelada-text); }
+.badge-no-asistio { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
 
 /* Estado de tabla vacía */
 .table-empty { padding: 28px 20px; text-align: center; font-size: .85rem; color: var(--text-muted); font-style: italic; }

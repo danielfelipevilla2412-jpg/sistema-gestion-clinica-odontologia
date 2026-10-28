@@ -18,6 +18,21 @@ public sealed class PanelOperativoViewModel
 
     [JsonPropertyName("alertas")]
     public IReadOnlyList<PanelOperativoAlertaViewModel> Alertas { get; init; } = [];
+
+    [JsonPropertyName("topProfesionales")]
+    public IReadOnlyList<PanelOperativoTopProfesionalViewModel> TopProfesionales { get; init; } = [];
+}
+
+public sealed class PanelOperativoTopProfesionalViewModel
+{
+    [JsonPropertyName("nombre")]
+    public string Nombre { get; init; } = string.Empty;
+
+    [JsonPropertyName("especialidad")]
+    public string Especialidad { get; init; } = "Sin especialidad";
+
+    [JsonPropertyName("totalCitas")]
+    public int TotalCitas { get; init; }
 }
 
 public sealed class PanelOperativoKpisViewModel

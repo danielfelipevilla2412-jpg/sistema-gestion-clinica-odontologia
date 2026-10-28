@@ -1,3 +1,25 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: MobileSolicitudCitasController
+ * ============================================
+ * Archivo: Controllers/Api/MobileSolicitudCitasController.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Gestiona las solicitudes preliminares de cita realizadas desde la aplicación móvil.
+ * Permite listar los servicios activos disponibles y recepcionar solicitudes de agendamiento
+ * pendientes de aprobación/asignación por parte del personal administrativo o de recepción.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Filtra servicios disponibles únicamente en estado "activo".
+ * - Valida la existencia del paciente autenticado antes de crear la solicitud.
+ * - Registra la cita con estado inicial "Pendiente" asignando valores por defecto según catálogo.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, JwtBearerDefaults, Cita, Servicio
+ * ============================================
+ */
+
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;

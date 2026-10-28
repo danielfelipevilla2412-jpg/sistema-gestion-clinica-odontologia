@@ -1,0 +1,74 @@
+@* ============================================
+   Componente: NotificacionesInteligentes
+   Panel de notificaciones contextuales
+============================================ *@
+@model SmileTrack_MVC.Models.ViewModels.Components.NotificacionesViewModel
+
+<link rel="stylesheet" href="~/css/shared/components/notificaciones.css" asp-append-version="true" />
+
+<section class="notifications-panel" 
+         aria-label="@Model.Titulo"
+         role="region">
+    <div class="panel-header">
+        <h3 class="panel-title">@Model.Titulo</h3>
+        @if (Model.NotificacionesUrgentes > 0)
+        {
+            <span class="notifications-badge urgent" aria-label="@Model.NotificacionesUrgentes notificaciones urgentes">
+                @Model.NotificacionesUrgentes
+            </span>
+        }
+    </div>
+    
+    @if (Model.TieneNotificaciones)
+    {
+        <div class="notifications-list" role="list">
+            @foreach (var notif in Model.Notificaciones)
+            {
+                var tipoClass = notif.Tipo.ToString().ToLower();
+                var iconoNotif = notif.Tipo switch
+                {
+                    SmileTrack_MVC.Models.ViewModels.Components.TipoNotificacion.Urgent => "priority_high",
+                    SmileTrack_MVC.Models.ViewModels.Components.TipoNotificacion.Warning => "warning",
+                    _ => "info"
+                };
+
+                <article class="notification-item notification-@tipoClass" 
+                         data-id="@notif.Id"
+                         data-dismissible="@(notif.Dismissible.ToString().ToLower())"
+                         role="listitem">
+                    <div class="notification-icon" aria-hidden="true">
+                        <span class="material-symbols-outlined">@iconoNotif</span>
+                    </div>
+                    <div class="notification-content">
+                        <h4 class="notification-title">@notif.Titulo</h4>
+                        <p class="notification-message">@notif.Mensaje</p>
+                        @if (!string.IsNullOrEmpty(notif.UrlAccion))
+                        {
+                            <a href="@notif.UrlAccion" class="notification-action">
+                                @(notif.Accion ?? "Ver más")
+                                <span class="material-symbols-outlined">arrow_forward</span>
+                            </a>
+                        }
+                    </div>
+                    @if (notif.Dismissible)
+                    {
+                        <button class="notification-dismiss" 
+                                aria-label="Descartar notificación"
+                                title="Descartar">
+                            <span class="material-symbols-outlined">close</span>
+                        </button>
+                    }
+                </article>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="notifications-empty">
+            <span class="material-symbols-outlined empty-icon" aria-hidden="true">@Model.IconoVacio</span>
+            <p>@Model.MensajeVacio</p>
+        </div>
+    }
+</section>
+
+<script src="~/js/shared/components/NotificacionesInteligentes.js" asp-append-version="true"></script>

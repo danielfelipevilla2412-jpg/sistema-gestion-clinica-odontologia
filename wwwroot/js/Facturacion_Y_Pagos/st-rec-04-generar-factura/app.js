@@ -296,12 +296,14 @@ const initPayment = () => {
       return;
     }
     const pacienteSelect = safeGetElement('pacienteSelect');
+    const profesionalSelect = safeGetElement('profesionalSelect');
     const totalEl = safeGetElement('invoiceTotal');
     const amountReceived = safeGetElement('amountReceived');
     
     
     if (!totalEl || !amountReceived || !pacienteSelect) return;
     const idPaciente = parseInt(pacienteSelect.value, 10);
+    const idProfesional = profesionalSelect?.value ? parseInt(profesionalSelect.value, 10) : null;
     if (!idPaciente) {
       showToast('Seleccione un paciente antes de registrar el pago.', 'error');
       pacienteSelect.focus();
@@ -329,7 +331,7 @@ const initPayment = () => {
       // 1) Crear la factura real en SQL Server.
       const creado = await window.apiRequest('/api/facturas', {
         method: 'POST',
-        body: { idPaciente, notas: null, detalles: items }
+        body: { idPaciente, idProfesional, notas: null, detalles: items }
       });
 
       if (!creado || creado.success !== true) {
