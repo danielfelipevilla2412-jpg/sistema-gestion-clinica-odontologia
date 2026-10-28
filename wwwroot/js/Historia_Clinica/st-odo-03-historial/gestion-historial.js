@@ -828,6 +828,11 @@ const initForm = () => {
   });
 };
 
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> origin/facturacion_ayuda
 const initFormularioClinico = () => {
   const form = safeGetElement('historia-clinica-form');
   if (!form) return;
@@ -841,6 +846,14 @@ const initFormularioClinico = () => {
     }
 
     const value = id => safeGetElement(id)?.value?.trim() || '';
+<<<<<<< HEAD
+=======
+    if (value('diagnostico_principal') === '__otro__' && !value('diagnostico_principal_otro')) {
+      showToast('Escribe el diagnóstico seleccionado como Otro', 'warning');
+      safeGetElement('diagnostico_principal_otro')?.focus();
+      return;
+    }
+>>>>>>> origin/facturacion_ayuda
     const button = form.querySelector('button[type="submit"]');
     if (button) button.disabled = true;
 
@@ -850,17 +863,35 @@ const initFormularioClinico = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+<<<<<<< HEAD
           ...(token ? { 'RequestVerificationToken': token } : {})
+=======
+          ...(token ? { 'X-CSRF-TOKEN': token } : {})
+>>>>>>> origin/facturacion_ayuda
         },
         body: JSON.stringify({
           pacienteId,
           motivoConsulta: value('motivo_consulta'),
           enfermedadActual: value('enfermedad_actual'),
+<<<<<<< HEAD
           habitos: value('habitos'),
           hallazgos: value('hallazgos'),
           odontogramaObservaciones: value('odontograma_observaciones'),
           examenesComplementarios: value('examenes_complementarios'),
           diagnosticoPrincipal: value('diagnostico_principal'),
+=======
+          sintomasSignos: Array.from(document.querySelectorAll('#sintomasSignosGrid input[type="checkbox"]:checked'))
+            .map(input => input.value),
+          antecedentesMedicos: value('antecedentes_medicos'),
+          habitos: value('habitos'),
+          alergias: value('alergias'),
+          hallazgos: value('hallazgos'),
+          odontogramaObservaciones: value('odontograma_observaciones'),
+          examenesComplementarios: value('examenes_complementarios'),
+          diagnosticoPrincipal: value('diagnostico_principal') === '__otro__'
+            ? value('diagnostico_principal_otro')
+            : value('diagnostico_principal'),
+>>>>>>> origin/facturacion_ayuda
           diagnosticoSecundario: value('diagnostico_secundario'),
           evolucionClinica: value('evolucion_clinica'),
           prescripcion: value('prescripcion')
@@ -878,6 +909,7 @@ const initFormularioClinico = () => {
   });
 };
 
+<<<<<<< HEAD
 const initAdjuntosClinicos = () => {
   const button = safeGetElement('btnAdjuntarEstudio');
   const input = safeGetElement('inputArchivosEstudio');
@@ -981,11 +1013,230 @@ const initAdjuntosClinicos = () => {
 
   uploadBox.addEventListener('click', () => input.click());
   uploadBox.addEventListener('keydown', (event) => {
+=======
+const initCamposDinamicosHistoria = () => {
+  const symptomInput = document.getElementById('nuevoSintomaSigno');
+  const addSymptomButton = document.getElementById('btnAgregarSintomaSigno');
+  const diagnosisSelect = document.getElementById('diagnostico_principal');
+  const diagnosisInput = document.getElementById('diagnostico_principal_otro');
+  const diagnosisGroup = document.getElementById('diagnosticoOtroGroup');
+
+  const addSymptom = () => {
+    if (!symptomInput) return;
+    const checkbox = agregarSintomaSigno(symptomInput.value);
+    if (!checkbox) {
+      showToast('Escribe un síntoma o signo antes de agregarlo', 'warning');
+      symptomInput.focus();
+      return;
+    }
+    symptomInput.value = '';
+    symptomInput.focus();
+  };
+
+  addSymptomButton?.addEventListener('click', addSymptom);
+  symptomInput?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addSymptom();
+    }
+  });
+  diagnosisSelect?.addEventListener('change', () => {
+    const isOther = diagnosisSelect.value === '__otro__';
+    if (diagnosisGroup) diagnosisGroup.hidden = !isOther;
+    if (isOther) diagnosisInput?.focus();
+    else if (diagnosisInput) diagnosisInput.value = '';
+  });
+};
+
+const initAdjuntosClinicos = () => {
+  const button = document.getElementById('btnAdjuntarEstudio');
+  const input = document.getElementById('inputArchivosEstudio');
+  const grid = document.getElementById('fileGrid');
+  const dropZone = document.getElementById('uploadBox');
+  const uploadButton = document.getElementById('btnSubirEstudios');
+  const form = document.getElementById('historia-clinica-form');
+  if (!button || !input || !grid || !dropZone || !uploadButton || !form) return;
+
+  const pendingFiles = [];
+  let uploadingPendingFiles = false;
+
+  const formatBytes = bytes => bytes < 1024 * 1024
+    ? `${(bytes / 1024).toFixed(1)} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
+  const renderPendingFiles = () => {
+    grid.querySelectorAll('.pending-file').forEach(item => item.remove());
+    pendingFiles.forEach((file, index) => {
+      const item = document.createElement('article');
+      item.className = 'file-item pending-file';
+      const icon = document.createElement('div');
+      icon.className = 'file-thumb';
+      icon.textContent = file.type === 'application/pdf' ? 'PDF' : 'IMG';
+      const meta = document.createElement('div');
+      meta.className = 'file-meta';
+      const name = document.createElement('strong');
+      name.textContent = file.name;
+      const details = document.createElement('span');
+      details.className = 'file-status';
+      details.textContent = `${formatBytes(file.size)} · Pendiente por subir`;
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'file-remove-btn';
+      removeButton.textContent = '×';
+      removeButton.disabled = uploadingPendingFiles;
+      removeButton.setAttribute('aria-label', `Quitar ${file.name} de la selección`);
+      removeButton.title = 'Quitar archivo';
+      removeButton.addEventListener('click', () => {
+        pendingFiles.splice(index, 1);
+        renderPendingFiles();
+      });
+      meta.append(name, details);
+      item.append(icon, meta, removeButton);
+      grid.insertBefore(item, dropZone);
+    });
+
+    uploadButton.textContent = `Subir seleccionados (${pendingFiles.length})`;
+    uploadButton.disabled = pendingFiles.length === 0 || uploadingPendingFiles;
+    button.disabled = uploadingPendingFiles;
+    dropZone.disabled = uploadingPendingFiles;
+  };
+
+  const stageFiles = files => {
+    const permittedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    let stagedCount = 0;
+    files.forEach(file => {
+      if (file.size > 10 * 1024 * 1024 || !permittedTypes.includes(file.type)) {
+        showToast(`${file.name}: usa JPG, PNG o PDF de máximo 10 MB`, 'error');
+        return;
+      }
+      pendingFiles.push(file);
+      stagedCount += 1;
+    });
+    renderPendingFiles();
+    if (stagedCount) showToast(`${stagedCount} archivo(s) listo(s); puedes quitar los que no quieras`, 'success');
+  };
+
+  const renderAttachedFile = documentInfo => {
+    const item = document.createElement('article');
+    item.className = 'file-item';
+    item.dataset.documentId = documentInfo.id;
+    const icon = document.createElement('div');
+    icon.className = 'file-thumb';
+    icon.textContent = documentInfo.contentType === 'application/pdf' || documentInfo.nombreArchivo?.toLowerCase().endsWith('.pdf')
+      ? 'PDF'
+      : 'IMG';
+    const meta = document.createElement('div');
+    meta.className = 'file-meta';
+    const link = document.createElement('a');
+    link.href = `/historia-clinica/documentos-clinicos/descargar/${encodeURIComponent(documentInfo.id)}`;
+    link.textContent = documentInfo.nombreArchivo || 'Estudio clínico';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    const size = document.createElement('span');
+    size.textContent = formatBytes(documentInfo.tamanoBytes || 0);
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'file-remove-btn';
+    removeButton.textContent = '×';
+    removeButton.setAttribute('aria-label', `Quitar ${link.textContent}`);
+    removeButton.title = 'Quitar archivo adjunto';
+    removeButton.addEventListener('click', async () => {
+      if (!window.confirm(`¿Quieres quitar el estudio "${link.textContent}"?`)) return;
+
+      removeButton.disabled = true;
+      const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+      try {
+        const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/eliminar/${encodeURIComponent(documentInfo.id)}`, {
+          method: 'DELETE',
+          headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token }
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo quitar el estudio');
+        item.remove();
+        showToast('Estudio quitado correctamente', 'success');
+      } catch (error) {
+        console.error('No se pudo quitar el estudio:', error);
+        showToast(error.message || 'No se pudo quitar el estudio', 'error');
+        removeButton.disabled = false;
+      }
+    });
+    meta.append(link, size);
+    item.append(icon, meta, removeButton);
+    grid.insertBefore(item, dropZone);
+  };
+
+  const loadAttachedFiles = async () => {
+    const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+    if (!pacienteId) return;
+    try {
+      const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/data?pacienteId=${encodeURIComponent(pacienteId)}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const documents = await response.json();
+      documents.forEach(renderAttachedFile);
+    } catch (error) {
+      console.error('No se pudieron cargar los estudios adjuntos:', error);
+      showToast('No se pudieron cargar los estudios adjuntos', 'error');
+    }
+  };
+
+  const uploadSelectedFiles = async () => {
+    const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+    if (!pacienteId) {
+      showToast('Selecciona un paciente antes de adjuntar estudios', 'warning');
+      return;
+    }
+    if (!pendingFiles.length) return;
+
+    const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    uploadingPendingFiles = true;
+    renderPendingFiles();
+    for (const file of [...pendingFiles]) {
+      const payload = new FormData();
+      payload.append('pacienteId', pacienteId);
+      payload.append('tipo', 'Estudio clínico');
+      payload.append('observacion', 'Adjunto desde el formulario de historia clínica');
+      payload.append('archivo', file, file.name);
+      try {
+        const response = await fetch('/historia-clinica/st-aux-08-documentos-clinicos/subir', {
+          method: 'POST',
+          headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+          body: payload
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo adjuntar el estudio');
+
+        renderAttachedFile({
+          id: result.id,
+          nombreArchivo: result.nombreArchivo || file.name,
+          contentType: file.type,
+          tamanoBytes: file.size
+        });
+        const pendingIndex = pendingFiles.indexOf(file);
+        if (pendingIndex >= 0) pendingFiles.splice(pendingIndex, 1);
+        showToast(`${file.name} se adjuntó correctamente`, 'success');
+      } catch (error) {
+        console.error('No se pudo adjuntar el estudio:', error);
+        showToast(error.message || 'No se pudo adjuntar el estudio', 'error');
+      }
+      renderPendingFiles();
+    }
+    uploadingPendingFiles = false;
+    renderPendingFiles();
+  };
+
+  button.addEventListener('click', () => input.click());
+  uploadButton.addEventListener('click', uploadSelectedFiles);
+  dropZone.addEventListener('click', () => input.click());
+  dropZone.addEventListener('keydown', event => {
+>>>>>>> origin/facturacion_ayuda
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       input.click();
     }
   });
+<<<<<<< HEAD
   uploadBox.addEventListener('dragover', (event) => {
     event.preventDefault();
     uploadBox.classList.add('dragover');
@@ -1001,6 +1252,26 @@ const initAdjuntosClinicos = () => {
   });
 };
 
+=======
+  input.addEventListener('change', () => {
+    stageFiles(Array.from(input.files || []));
+    input.value = '';
+  });
+  ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, event => {
+    event.preventDefault();
+    dropZone.classList.add('dragover');
+  }));
+  ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, event => {
+    event.preventDefault();
+    dropZone.classList.remove('dragover');
+  }));
+  dropZone.addEventListener('drop', event => stageFiles(Array.from(event.dataTransfer?.files || [])));
+  renderPendingFiles();
+  loadAttachedFiles();
+};
+
+>>>>>>> Stashed changes
+>>>>>>> origin/facturacion_ayuda
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════

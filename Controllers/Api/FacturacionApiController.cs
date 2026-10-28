@@ -46,6 +46,24 @@ public sealed class FacturacionApiController : ControllerBase
     #endregion
 
     #region CRUD - CREATE
+    [HttpPost("registrar-con-pago")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CrearConPago([FromBody] CrearFacturaConPagoRequest request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success=false, message="No se pudo identificar al usuario." });
+        try
+        {
+            var result = await _service.CrearConPagoAsync(request, idUsuario, ct);
+            return CreatedAtAction(nameof(Obtener), new { id = result.Id }, new { success=true, message="Factura y pago registrados correctamente.", data=result });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success=false, message=ex.Message });
+        }
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Crear([FromBody] CrearFacturaRequest request, CancellationToken ct)
@@ -118,7 +136,11 @@ public sealed class FacturacionApiController : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+<<<<<<< HEAD
         if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
+=======
+        if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success=false, message="No se pudo identificar al usuario." });
+>>>>>>> origin/facturacion_ayuda
         try { var r=await _service.RegistrarPagoAsync(id,request,idUsuario,ct); return r==null?NotFound(new{success=false,message="Factura no encontrada."}):Ok(new{success=true,message="Pago registrado correctamente.",data=r}); }
         catch(InvalidOperationException ex){return BadRequest(new{success=false,message=ex.Message});}
     }

@@ -43,6 +43,11 @@ public class HistorialPacienteViewModel
     // El JS las recibe en window.smiletrackHistoriaData.notasClinicas y ya no
     // necesita parsear el JSON de ObservacionesGenerales.
     public List<NotaClinicaHistorialItem> NotasClinicas { get; set; } = [];
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> origin/facturacion_ayuda
 
     /// <summary>
     /// Línea de tiempo unificada, construida desde las tablas clínicas reales.
@@ -55,7 +60,14 @@ public class HistoriaFormularioViewModel
 {
     public string MotivoConsulta { get; set; } = "";
     public string EnfermedadActual { get; set; } = "";
+<<<<<<< HEAD
     public string Habitos { get; set; } = "";
+=======
+    public List<string> SintomasSignos { get; set; } = [];
+    public string? AntecedentesMedicos { get; set; }
+    public string Habitos { get; set; } = "";
+    public string? Alergias { get; set; }
+>>>>>>> origin/facturacion_ayuda
     public string Hallazgos { get; set; } = "";
     public string OdontogramaObservaciones { get; set; } = "";
     public string ExamenesComplementarios { get; set; } = "";
@@ -98,6 +110,10 @@ public class EventoHistoriaClinicaItem
     public string Profesional { get; set; } = "";
     public string Estado { get; set; } = "";
     public string? EnlaceDocumento { get; set; }
+<<<<<<< HEAD
+=======
+>>>>>>> Stashed changes
+>>>>>>> origin/facturacion_ayuda
 }
 
 public class RegistroHistorialItem
