@@ -785,12 +785,19 @@ BEGIN
         referencia VARCHAR(40) NOT NULL,
         registrado_por INT NOT NULL,
         fecha_utc DATETIME2 NOT NULL,
+        observaciones VARCHAR(500) NULL,
         CONSTRAINT UQ_PagoFactura_Referencia UNIQUE (referencia),
         CONSTRAINT FK_PagoFactura_Factura FOREIGN KEY (id_factura) REFERENCES dbo.Factura(id_factura),
         CONSTRAINT FK_PagoFactura_Usuario FOREIGN KEY (registrado_por) REFERENCES dbo.Usuario(id_usuario)
     );
 
     CREATE INDEX IX_PagoFactura_Factura_Fecha ON dbo.Pago_Factura(id_factura, fecha_utc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Pago_Factura') AND name = 'observaciones')
+BEGIN
+    ALTER TABLE dbo.Pago_Factura ADD observaciones VARCHAR(500) NULL;
 END
 GO
 

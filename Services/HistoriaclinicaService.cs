@@ -289,7 +289,7 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
                     return (false, odontogramaMessage);
                 }
 
-                var citaActualizada = await _citaService.CambiarEstadoAsync(request.CitaId, "Atendida", ct);
+                var citaActualizada = await _citaService.CambiarEstadoAsync(request.CitaId, "Atendida", ct: ct);
                 if (citaActualizada is null)
                 {
                     await transaction.RollbackAsync(ct);

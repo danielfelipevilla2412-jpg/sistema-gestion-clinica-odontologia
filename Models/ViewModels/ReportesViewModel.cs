@@ -42,6 +42,7 @@ namespace SmileTrack_MVC.Models.ViewModels
     public class DistribucionServicioViewModel
     {
         public string Nombre { get; set; } = string.Empty;
+        public int Cantidad { get; set; }
         public double Porcentaje { get; set; }
         public string Color { get; set; } = "#6366f1";
     }

@@ -180,7 +180,7 @@ public sealed class FacturacionServicePaymentTests
             7,
             CancellationToken.None);
 
-        var listed = Assert.Single(await service.ListarAsync(null, null, null, null, CancellationToken.None));
+        var listed = Assert.Single(await service.ListarAsync(null, null, null, null, null, null, CancellationToken.None));
         var details = await service.ObtenerAsync(invoice.IdFactura, CancellationToken.None);
 
         Assert.Equal(150000m, listed.Total);

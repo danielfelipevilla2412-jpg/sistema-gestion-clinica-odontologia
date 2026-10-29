@@ -65,6 +65,7 @@ public sealed class FacturaPagoDto
     public string Estado { get; init; } = string.Empty;
     public string Referencia { get; init; } = string.Empty;
     public DateTime FechaUtc { get; init; }
+    public string? Observaciones { get; init; }
 }
 
 public sealed class FacturaDetalleRequest
@@ -125,9 +126,12 @@ public sealed class RegistrarPagoRequest
 {
     [Range(0.01, 999999999)]
     public decimal MontoPagado { get; set; }
-
-    [Required, StringLength(30)]
+    [StringLength(30)]
     public string MetodoPago { get; set; } = "efectivo";
+    [StringLength(40)]
+    public string? Referencia { get; set; }
+    [StringLength(500)]
+    public string? Observaciones { get; set; }
 }
 
 public sealed class AnularFacturaRequest

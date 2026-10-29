@@ -167,7 +167,7 @@ public sealed class FacturacionApiController : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success=false, message="No se pudo identificar al usuario." });
+        if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
         try { var r=await _service.RegistrarPagoAsync(id,request,idUsuario,ct); return r==null?NotFound(new{success=false,message="Factura no encontrada."}):Ok(new{success=true,message="Pago registrado correctamente.",data=r}); }
         catch(InvalidOperationException ex){return BadRequest(new{success=false,message=ex.Message});}
     }

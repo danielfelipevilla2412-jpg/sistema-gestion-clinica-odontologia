@@ -626,30 +626,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<Pago>(entity =>
-        {
-            entity.ToTable("Pago");
-            entity.HasKey(p => p.IdPago);
-            entity.Property(p => p.IdPago).HasColumnName("id_pago");
-            entity.Property(p => p.IdFactura).HasColumnName("id_factura");
-            entity.Property(p => p.Monto).HasColumnName("monto").HasPrecision(12, 2);
-            entity.Property(p => p.FechaPago).HasColumnName("fecha_pago");
-            entity.Property(p => p.MetodoPago).HasColumnName("metodo_pago").HasMaxLength(30);
-            entity.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(100);
-            entity.Property(p => p.RegistradoPor).HasColumnName("registrado_por");
-            entity.Property(p => p.Observaciones).HasColumnName("observaciones").HasMaxLength(500);
-
-            entity.HasOne(p => p.Factura)
-                  .WithMany(f => f.Pagos)
-                  .HasForeignKey(p => p.IdFactura)
-                  .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(p => p.RegistradoPorUsuario)
-                  .WithMany()
-                  .HasForeignKey(p => p.RegistradoPor)
-                  .OnDelete(DeleteBehavior.Restrict);
-        });
-
         modelBuilder.Entity<DetalleFactura>(entity =>
         {
             entity.ToTable("Detalle_Factura");
@@ -681,6 +657,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   entity.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(40).IsRequired();
                   entity.Property(p => p.RegistradoPor).HasColumnName("registrado_por");
                   entity.Property(p => p.FechaUtc).HasColumnName("fecha_utc");
+                  entity.Property(p => p.Observaciones).HasColumnName("observaciones").HasMaxLength(500);
                   entity.HasIndex(p => p.Referencia).IsUnique();
                   entity.HasIndex(p => new { p.IdFactura, p.FechaUtc });
                   entity.HasOne(p => p.Factura)

@@ -33,8 +33,15 @@
 
             var pacientes = await _context.Pacientes.Where(p => p.Estado == "activo").OrderBy(p => p.Nombres).ToListAsync();
             var servicios = await _context.Servicios.Where(s => s.Estado == "activo").OrderBy(s => s.Nombre).ToListAsync();
+            var profesionales = await _context.Profesionales
+                .Include(p => p.Usuario)
+                .Where(p => p.Estado == "activo")
+                .OrderBy(p => p.Nombres)
+                .ThenBy(p => p.Apellidos)
+                .ToListAsync();
             ViewData["Pacientes"] = pacientes;
             ViewData["Servicios"] = servicios;
+            ViewData["Profesionales"] = profesionales;
 
             string[] colores = new[] { "blue", "green", "purple", "orange", "red" };
             var facturas = facturasDb.Select((f, idx) => new
@@ -67,8 +74,15 @@
         {
             var pacientes = await _context.Pacientes.Where(p => p.Estado == "activo").ToListAsync();
             var servicios = await _context.Servicios.Where(s => s.Estado == "activo").ToListAsync();
+            var profesionales = await _context.Profesionales
+                .Include(p => p.Usuario)
+                .Where(p => p.Estado == "activo")
+                .OrderBy(p => p.Nombres)
+                .ThenBy(p => p.Apellidos)
+                .ToListAsync();
             ViewData["Pacientes"] = pacientes;
             ViewData["Servicios"] = servicios;
+            ViewData["Profesionales"] = profesionales;
             return View("~/Views/Facturacion_Y_Pagos/st-rec-04-generar-factura/index.cshtml");
         }
     } 
