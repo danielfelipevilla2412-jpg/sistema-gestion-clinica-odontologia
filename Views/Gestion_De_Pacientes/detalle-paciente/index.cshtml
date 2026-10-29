@@ -475,6 +475,7 @@
 
     const pacienteId   = @Model.Id;
     const pacienteNombre = @Html.Raw(JsonSerializer.Serialize(Model.Name));
+    sessionStorage.setItem('st_paciente_id', String(pacienteId));
 
     const showToast = (msg, type = 'success') => {
       const t = document.getElementById('toast');

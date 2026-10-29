@@ -13,6 +13,7 @@
     var odonto = Model.Odontograma ?? new OdontogramaViewModel();
     var pacienteResumen = Model.Paciente ?? new PacienteResumenClinicoViewModel();
     var nombrePaciente = string.IsNullOrWhiteSpace(odonto.PacienteNombre) ? "" : odonto.PacienteNombre;
+    var pacienteSeleccionado = odonto.PacienteId.HasValue;
     var codigoHC = string.IsNullOrWhiteSpace(odonto.CodigoHC) ? "" : odonto.CodigoHC;
     var documentoPaciente = !string.IsNullOrWhiteSpace(pacienteResumen.Documento)
         ? $"{pacienteResumen.TipoDocumento} {pacienteResumen.Documento}"
@@ -141,29 +142,41 @@
             </div>
         </section>
 
-        <section class="patient-summary-card empty-patient-card">
+        <section class="patient-summary-card @(pacienteSeleccionado ? "" : "empty-patient-card")">
             <div class="patient-summary-inner">
-                <div class="patient-info-block empty-state-block">
-                    <div class="patient-avatar empty-avatar">—</div>
+                <div class="patient-info-block @(pacienteSeleccionado ? "" : "empty-state-block")">
+                    <div class="patient-avatar @(pacienteSeleccionado ? "" : "empty-avatar")">@(pacienteSeleccionado ? nombrePaciente.Trim().FirstOrDefault().ToString().ToUpperInvariant() : "—")</div>
                     <div class="patient-meta">
-                        <div class="patient-title-row empty-title-row">
-                            <h2>Paciente no seleccionado</h2>
-                            <span class="status-pill status-pill--neutral"><span class="status-dot"></span>Sin registro activo</span>
+                        <div class="patient-title-row @(pacienteSeleccionado ? "" : "empty-title-row")">
+                            @if (pacienteSeleccionado)
+                            {
+                                <h2>@nombrePaciente</h2>
+                                <span class="hc-badge">@codigoHC</span>
+                                <span class="status-pill status-pill--neutral"><span class="status-dot"></span>Historia clínica</span>
+                            }
+                            else
+                            {
+                                <h2>Paciente no seleccionado</h2>
+                                <span class="status-pill status-pill--neutral"><span class="status-dot"></span>Sin registro activo</span>
+                            }
                         </div>
                         <div class="patient-details-row empty-details-row">
-                            <span><strong>Documento:</strong> <span class="mono placeholder-line">&nbsp;</span></span>
-                            <span><strong>Edad:</strong> <span class="placeholder-line">&nbsp;</span></span>
-                            <span><strong>Sexo:</strong> <span class="placeholder-line">&nbsp;</span></span>
-                            <span><strong>Grupo:</strong> <span class="placeholder-line">&nbsp;</span></span>
-                            <span><strong>Teléfono:</strong> <span class="placeholder-line">&nbsp;</span></span>
-                            <span><strong>Email:</strong> <span class="placeholder-line">&nbsp;</span></span>
+                            <span><strong>Documento:</strong> <span class="mono">@(pacienteSeleccionado && !string.IsNullOrWhiteSpace(documentoPaciente) ? documentoPaciente : "No registrado")</span></span>
+                            <span><strong>Edad:</strong> @(pacienteSeleccionado && fechaNacimiento.HasValue ? $"{edadPaciente} años" : "No registrada")</span>
+                            <span><strong>Sexo:</strong> @(pacienteSeleccionado ? pacienteResumen.Genero : "No registrado")</span>
+                            <span><strong>Grupo:</strong> @(pacienteSeleccionado ? Model.GrupoSanguineo : "No registrado")</span>
+                            <span><strong>Teléfono:</strong> @(pacienteSeleccionado ? pacienteResumen.Telefono : "No registrado")</span>
+                            <span><strong>Email:</strong> @(pacienteSeleccionado ? pacienteResumen.Correo : "No registrado")</span>
                         </div>
                     </div>
                 </div>
-                <div class="patient-summary-actions">
-                    <button type="button" class="soft-btn subtle">Buscar paciente</button>
-                    <button type="button" class="mini-btn">Nueva historia</button>
-                </div>
+                @if (!pacienteSeleccionado)
+                {
+                    <div class="patient-summary-actions">
+                        <button type="button" class="soft-btn subtle">Buscar paciente</button>
+                        <button type="button" class="mini-btn">Nueva historia</button>
+                    </div>
+                }
             </div>
         </section>
 
@@ -400,11 +413,26 @@
                 <div id="historialList" class="timeline-list" role="list" aria-live="polite"></div>
                 <aside class="odontogram-history" aria-label="Odontograma histórico">
                     <div class="snapshot-controls">
-                        <h3>Odontograma por fecha</h3>
+                        <h3>Odontograma digital por fecha</h3>
                         <button type="button" id="btnVolverHoy" hidden>Volver a hoy</button>
                     </div>
                     <p id="odontogramaSnapshotNotice" class="snapshot-notice" role="status" hidden></p>
-                    <div id="odontogramaHost"></div>
+                    <div id="odontogramaHost" class="history-odontogram-viewer">
+                        <div class="history-viewer-wrap">
+                            <div class="history-viewer-loading" id="historyViewerLoading" role="status">
+                                <span class="history-loading-spinner" aria-hidden="true"></span>
+                                <span>Cargando odontograma 3D...</span>
+                            </div>
+                            <div class="history-viewer-error" id="historyViewerError" role="alert" hidden>
+                                <p>No se pudo cargar el modelo 3D.</p>
+                                <button type="button" id="btnRetryHistoryViewer">Reintentar</button>
+                            </div>
+                            <iframe id="historyOdontogramFrame"
+                                    title="Odontograma digital 3D en modo de solo lectura"
+                                    allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
+                        </div>
+                        <p id="historyToothStatus" class="history-tooth-status" aria-live="polite">Pasa sobre un diente para consultar su estado en la fecha seleccionada.</p>
+                    </div>
                 </aside>
             </div>
         </section>
@@ -423,8 +451,19 @@
 
 <script>
     window.smiletrackHistoriaData = @Html.Raw(historiaDataJson);
+    if (window.smiletrackHistoriaData?.pacienteId == null) {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has('pacienteId')) {
+            const pacienteIdGuardado = sessionStorage.getItem('st_paciente_id');
+            if (/^[1-9]\d*$/.test(pacienteIdGuardado || '')) {
+                url.searchParams.set('pacienteId', pacienteIdGuardado);
+                window.location.replace(url.href);
+            }
+        }
+    }
 </script>
 
 @section Scripts {
+    <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
     <script src="@Url.Content("~/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js")" asp-append-version="true"></script>
 }

@@ -90,12 +90,13 @@ const validateForm = (form) => {
 const parseOdontogramaPersistido = (estadoPersistidoRaw) => {
   const tratamientos = {};
   const observaciones = {};
+  let mapeoFDI = {};
   if (!estadoPersistidoRaw) return { tratamientos, observaciones };
 
   try {
     const persistido = typeof estadoPersistidoRaw === 'string' ? JSON.parse(estadoPersistidoRaw) : estadoPersistidoRaw;
     const registros = persistido?.registros || {};
-    const mapeoFDI = persistido?.mapeoFDI || {};
+    mapeoFDI = persistido?.mapeoFDI || {};
 
     Object.entries(registros).forEach(([instanceID, registro]) => {
       const numeroDiente = mapeoFDI[instanceID];
@@ -112,7 +113,7 @@ const parseOdontogramaPersistido = (estadoPersistidoRaw) => {
     console.warn('No se pudo interpretar el odontograma guardado', e);
   }
 
-  return { tratamientos, observaciones };
+  return { tratamientos, observaciones, mapeoFDI };
 };
 
 // Yeray (2025) - MIGRACIÓN: parseNotasClinicasPersistidas ya no necesita
@@ -132,7 +133,7 @@ const historiaStorage = {
   // El historial que ve el profesional es: notas clínicas de BD + citas pasadas.
   load: () => {
     const server = window.smiletrackHistoriaData || {};
-    const { tratamientos, observaciones } = parseOdontogramaPersistido(server.estadoPersistido);
+    const { tratamientos, observaciones, mapeoFDI } = parseOdontogramaPersistido(server.estadoPersistido);
 
     // Notas clínicas reales desde Nota_Clinica (inyectadas por el servidor)
     const notasClinicas = Array.isArray(server.notasClinicas) ? server.notasClinicas : [];
@@ -159,6 +160,7 @@ const historiaStorage = {
         medicamentos: server.medicamentos || [],
         odontograma: tratamientos,
         observaciones,
+        mapeoFDI,
         // Notas clínicas reales de BD + historial de citas del paciente
         historial: Array.isArray(server.lineaDeTiempo) && server.lineaDeTiempo.length
           ? server.lineaDeTiempo
@@ -549,13 +551,94 @@ const initFinalizarConsulta = () => {
   });
 };
 
+let odontogramaEstadoFecha = { tratamientos: {}, observaciones: {} };
+let odontogramaMapeoFDI = {};
+
+const mostrarEstadoDiente = numeroFdi => {
+  const status = safeGetElement('historyToothStatus');
+  if (!status) return;
+  if (!numeroFdi) {
+    status.textContent = 'Pasa sobre un diente para consultar su estado en la fecha seleccionada.';
+    return;
+  }
+
+  const key = odontogramaEstadoFecha.tratamientos[numeroFdi];
+  const etiquetas = {
+    caries: 'Caries', endodoncia: 'Endodoncia', sellante: 'Sellante',
+    ausente: 'Ausente', placa: 'Placa', sano: 'Sano', corona: 'Corona',
+    restauracion: 'Restauración'
+  };
+  const estado = etiquetas[key] || 'Sin estado registrado';
+  const observacion = odontogramaEstadoFecha.observaciones[numeroFdi];
+  status.textContent = `Diente ${numeroFdi}: ${estado}${observacion ? ` · ${observacion}` : ''}`;
+};
+
 const renderOdontogramaActual = () => {
   const paciente = historiaStorage.load().paciente;
-  renderOdontograma({
-    tipo: tipoDenticion(paciente.fechaNacimiento),
-    nombrePaciente: paciente.nombre,
+  odontogramaEstadoFecha = {
     tratamientos: paciente.odontograma,
     observaciones: paciente.observaciones
+  };
+  odontogramaMapeoFDI = paciente.mapeoFDI;
+  mostrarEstadoDiente(null);
+};
+
+const inicializarVisorOdontograma = () => {
+  const iframe = safeGetElement('historyOdontogramFrame');
+  const loading = safeGetElement('historyViewerLoading');
+  const error = safeGetElement('historyViewerError');
+  if (!iframe || typeof window.Sketchfab !== 'function') {
+    if (loading) loading.hidden = true;
+    if (error) error.hidden = false;
+    return;
+  }
+
+  if (loading) loading.hidden = false;
+  if (error) error.hidden = true;
+
+  const client = new window.Sketchfab('1.12.1', iframe);
+  client.init('7f5b381c66674e0a969e8db04d139666', {
+    ui_infos: 0,
+    ui_watermark: 0,
+    ui_controls: 1,
+    ui_help: 0,
+    ui_settings: 0,
+    ui_vr: 0,
+    ui_fullscreen: 0,
+    ui_annotations: 0,
+    ui_stop: 0,
+    success: api => {
+      api.start();
+      api.addEventListener('viewerready', () => {
+        if (loading) loading.hidden = true;
+        api.getNodeMap((mapError, nodes) => {
+          if (mapError) return;
+          Object.values(nodes || {}).forEach(node => {
+            if (node?.instanceID == null) return;
+            const name = (node.name || '').toLowerCase();
+            if (name.includes('screw') || name.includes('implant') || name.includes('metal')) {
+              api.hide(node.instanceID);
+            }
+          });
+        });
+
+        api.addEventListener('click', info => {
+          const numeroFdi = odontogramaMapeoFDI[info?.instanceID];
+          if (numeroFdi) cargarEvolucionDiente(numeroFdi);
+        }, { pick: 'fast' });
+
+        api.addEventListener('nodeMouseEnter', node => {
+          const numeroFdi = node?.instanceID == null ? null : odontogramaMapeoFDI[node.instanceID];
+          if (numeroFdi) mostrarEstadoDiente(numeroFdi);
+        }, { pick: 'fast' });
+
+        api.addEventListener('nodeMouseLeave', () => mostrarEstadoDiente(null), { pick: 'fast' });
+      });
+    },
+    error: () => {
+      if (loading) loading.hidden = true;
+      if (error) error.hidden = false;
+    }
   });
 };
 
@@ -576,12 +659,8 @@ const cargarOdontogramaHasta = async fecha => {
       tratamientos[registro.numeroFdi] = registro.estado;
       if (registro.observacion) observaciones[registro.numeroFdi] = registro.observacion;
     });
-    renderOdontograma({
-      tipo: tipoDenticion(historiaStorage.load().paciente.fechaNacimiento),
-      nombrePaciente: historiaStorage.load().paciente.nombre,
-      tratamientos,
-      observaciones
-    });
+    odontogramaEstadoFecha = { tratamientos, observaciones };
+    mostrarEstadoDiente(null);
     if (aviso) {
       aviso.hidden = false;
       aviso.textContent = `Estás viendo el estado al ${formatFecha(fecha, true)}.`;
@@ -638,17 +717,8 @@ const initAccionesOdontogramaHistorial = () => {
     const button = event.target.closest('[data-snapshot-date]');
     if (button) cargarOdontogramaHasta(button.dataset.snapshotDate);
   });
-  safeGetElement('odontogramaHost')?.addEventListener('click', event => {
-    const diente = event.target.closest('[data-numero-fdi]');
-    if (diente) cargarEvolucionDiente(diente.dataset.numeroFdi);
-  });
-  safeGetElement('odontogramaHost')?.addEventListener('keydown', event => {
-    const diente = event.target.closest('[data-numero-fdi]');
-    if (diente && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      cargarEvolucionDiente(diente.dataset.numeroFdi);
-    }
-  });
+  inicializarVisorOdontograma();
+  safeGetElement('btnRetryHistoryViewer')?.addEventListener('click', inicializarVisorOdontograma);
   safeGetElement('btnVolverHoy')?.addEventListener('click', () => {
     renderOdontogramaActual();
     setFormularioHistorico(false);
