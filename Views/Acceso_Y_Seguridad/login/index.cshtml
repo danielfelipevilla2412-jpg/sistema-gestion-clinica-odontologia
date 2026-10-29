@@ -248,9 +248,13 @@
         <button type="button" id="authErrorClose" class="modal-close" data-i18n-aria-label="login.auth_error_close_aria" aria-label="Cerrar ventana">×</button>
       </div>
       <div class="modal-body">
-        <p id="authErrorMessage" data-i18n="login.auth_error_message">correo o contraseña incorrectos</p>
+        <p id="authErrorMessage">@(string.IsNullOrWhiteSpace(mensajeErrorServidor) ? "Correo o contraseña incorrectos." : mensajeErrorServidor)</p>
       </div>
       <div class="modal-footer">
+        @if (errorStatus == 403)
+        {
+          <a class="btn-secondary" href="/acceso-y-seguridad/recover">Restablecer contraseña y recuperar acceso</a>
+        }
         <button type="button" id="authErrorCloseBtn" class="btn-secondary" data-i18n="login.auth_error_button">Cerrar</button>
       </div>
     </div>

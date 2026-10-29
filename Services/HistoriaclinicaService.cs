@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Api.HistoriasClinicas;
@@ -23,11 +24,16 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<HistoriaClinicaService> _logger;
+    private readonly ICitaService _citaService;
 
-    public HistoriaClinicaService(AppDbContext context, ILogger<HistoriaClinicaService> logger)
+    public HistoriaClinicaService(
+        AppDbContext context,
+        ILogger<HistoriaClinicaService> logger,
+        ICitaService citaService)
     {
         _context = context;
         _logger = logger;
+        _citaService = citaService;
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -59,16 +65,12 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
     /// <summary>
     /// Guarda el odontograma: cada diente modificado se guarda como fila
     /// individual con trazabilidad real en Registro_Odontograma. Se conserva
-    /// también el JSON en ObservacionesGenerales para compatibilidad con el
-    /// visor 3D mientras se migra completamente.
+    /// también el JSON del odontograma en ObservacionesGenerales para el visor 3D.
     /// </summary>
     /// <remarks>
     /// Yeray (2025) - TRAZABILIDAD: se usa request.CitaId para enlazar cada
     /// RegistroOdontograma con la cita en que se realizó el tratamiento.
-    /// Si CitaId es null (no llega desde el JS) el comportamiento es idéntico
-    /// al anterior — la fila queda con IdCita = null, sin romper nada.
-    /// El campo se valida opcionalmente: si el id de cita llega pero la cita
-    /// no existe en BD, se ignora (se guarda null) para no bloquear el guardado.
+    /// Si CitaId llega, debe pertenecer al paciente; no se descarta silenciosamente.
     /// </remarks>
     public async Task<(bool Success, string Message, int? HistoriaId)> GuardarOdontogramaInternoAsync(
         int pacienteId,
@@ -80,16 +82,20 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa, ct)
             ?? await CrearHistoriaClinicaAsync(pacienteId, ct);
 
-        // Yeray (2025) - Validar CitaId antes de usarlo.
-        // Si llega un valor pero la cita no pertenece al paciente (o no existe),
-        // se descarta silenciosamente para no bloquear el guardado del odontograma.
+        // Una cita inválida no debe perder trazabilidad silenciosamente.
         int? citaIdValidado = null;
-        if (request.CitaId is not null && request.CitaId > 0)
+        if (request.CitaId.HasValue)
         {
+            if (request.CitaId.Value <= 0)
+                return (false, "La cita indicada no es válida.", null);
+
             bool citaValida = await _context.Citas
                 .AnyAsync(c => c.IdCita == request.CitaId.Value && c.IdPaciente == pacienteId, ct);
 
-            citaIdValidado = citaValida ? request.CitaId : null;
+            if (!citaValida)
+                return (false, "La cita no pertenece al paciente indicado.", null);
+
+            citaIdValidado = request.CitaId;
         }
 
         foreach (var (instanceId, registroPieza) in request.Registros)
@@ -110,8 +116,14 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
 
             bool estadoCambio = registroExistente is null
                 || !string.Equals(registroExistente.Estado, ultimo.Key, StringComparison.OrdinalIgnoreCase);
+            bool observacionCambio = !string.Equals(
+                registroExistente?.Observacion ?? "",
+                ultimo.Obs ?? "",
+                StringComparison.Ordinal);
+            bool otraCita = citaIdValidado.HasValue
+                && registroExistente?.IdCita != citaIdValidado;
 
-            if (estadoCambio)
+            if (estadoCambio || observacionCambio || otraCita)
             {
                 _context.RegistrosOdontograma.Add(new RegistroOdontograma
                 {
@@ -157,8 +169,8 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
 
     /// <summary>
     /// Registra una nota clínica: fila real en Nota_Clinica (fuente para la API)
-    /// y, además, entrada en el JSON de ObservacionesGenerales (compatibilidad
-    /// temporal con la vista st-odo-03-historial).
+    /// con vínculo opcional a una cita. Las notas se leen de esta tabla y no se
+    /// duplican en ObservacionesGenerales.
     /// </summary>
     public async Task<(bool Success, string Message, NotaClinicaApiDto? Nota)> RegistrarNotaClinicaAsync(
         int pacienteId,
@@ -167,6 +179,19 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         string doctorNombre,
         CancellationToken ct = default)
     {
+        if (request.CitaId is int citaId)
+        {
+            if (citaId <= 0 || !await _context.Citas.AnyAsync(
+                    c => c.IdCita == citaId && c.IdPaciente == pacienteId,
+                    ct))
+            {
+                return (false, "La cita no pertenece al paciente indicado.", null);
+            }
+
+            if (await _context.NotasClinicas.AnyAsync(n => n.IdCita == citaId, ct))
+                return (false, "Esta cita ya tiene una nota registrada.", null);
+        }
+
         var historia = await _context.HistoriasClinicas
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa, ct)
             ?? await CrearHistoriaClinicaAsync(pacienteId, ct);
@@ -175,6 +200,7 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         {
             IdHistoria = historia.IdHistoria,
             IdProfesional = idProfesional,
+            IdCita = request.CitaId,
             Fecha = DateTime.UtcNow,
             Diagnostico = request.Diagnostico,
             Procedimiento = request.Procedimiento,
@@ -183,30 +209,14 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         };
         _context.NotasClinicas.Add(entidad);
 
-        // Compatibilidad: también se agrega al JSON que lee st-odo-03-historial.
-        var actual = string.IsNullOrWhiteSpace(historia.ObservacionesGenerales)
-            ? new JsonObject()
-            : (JsonNode.Parse(historia.ObservacionesGenerales) as JsonObject) ?? new JsonObject();
-
-        var notas = actual["notasClinicas"] as JsonArray ?? new JsonArray();
-        var nuevaNotaJson = new JsonObject
-        {
-            ["titulo"] = request.Procedimiento ?? request.Diagnostico ?? "Nota clínica",
-            ["fecha"] = entidad.Fecha.ToString("yyyy-MM-dd"),
-            ["doctor"] = doctorNombre,
-            ["diagnostico"] = request.Diagnostico ?? "",
-            ["procedimiento"] = request.Procedimiento ?? "",
-            ["proximaCita"] = request.ProximaCita,
-            ["estado"] = entidad.Estado
-        };
-        notas.Insert(0, nuevaNotaJson);
-        actual["notasClinicas"] = notas;
-        actual["actualizadoEn"] = DateTime.UtcNow;
-        historia.ObservacionesGenerales = actual.ToJsonString();
-
         try
         {
             await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            _logger.LogInformation(ex, "La cita ya tiene una nota clínica (citaId={CitaId}).", request.CitaId);
+            return (false, "Esta cita ya tiene una nota registrada.", null);
         }
         catch (Exception ex)
         {
@@ -217,6 +227,7 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         var dto = new NotaClinicaApiDto
         {
             IdNota = entidad.IdNota,
+            CitaId = entidad.IdCita,
             Fecha = entidad.Fecha,
             Doctor = doctorNombre,
             Diagnostico = entidad.Diagnostico,
@@ -226,6 +237,83 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         };
 
         return (true, "Nota clínica registrada correctamente.", dto);
+    }
+
+    public async Task<(bool Success, string Message)> FinalizarConsultaAsync(
+        FinalizarConsultaRequest request,
+        int? idProfesional,
+        string doctorNombre,
+        CancellationToken ct = default)
+    {
+        bool citaPertenece = await _context.Citas.AnyAsync(
+            c => c.IdCita == request.CitaId && c.IdPaciente == request.PacienteId,
+            ct);
+        if (!citaPertenece)
+            return (false, "La cita no pertenece al paciente indicado.");
+
+        var executionStrategy = _context.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+            try
+            {
+                request.Nota.PacienteId = request.PacienteId;
+                request.Nota.CitaId = request.CitaId;
+                var (notaOk, notaMessage, _) = await RegistrarNotaClinicaAsync(
+                    request.PacienteId,
+                    request.Nota,
+                    idProfesional,
+                    doctorNombre,
+                    ct);
+                if (!notaOk)
+                {
+                    await transaction.RollbackAsync(ct);
+                    return (false, notaMessage);
+                }
+
+                var odontogramaRequest = new OdontogramaGuardarRequest
+                {
+                    PacienteId = request.PacienteId,
+                    CitaId = request.CitaId,
+                    Registros = request.Registros,
+                    MapeoFDI = request.MapeoFDI
+                };
+                var (odontogramaOk, odontogramaMessage, _) = await GuardarOdontogramaInternoAsync(
+                    request.PacienteId,
+                    odontogramaRequest,
+                    idProfesional,
+                    ct);
+                if (!odontogramaOk)
+                {
+                    await transaction.RollbackAsync(ct);
+                    return (false, odontogramaMessage);
+                }
+
+                var citaActualizada = await _citaService.CambiarEstadoAsync(request.CitaId, "Atendida", ct);
+                if (citaActualizada is null)
+                {
+                    await transaction.RollbackAsync(ct);
+                    return (false, "No se encontró la cita para finalizar.");
+                }
+
+                await transaction.CommitAsync(ct);
+                return (true, "Consulta finalizada y guardada correctamente.");
+            }
+            catch (InvalidOperationException ex)
+            {
+                await transaction.RollbackAsync(ct);
+                return (false, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync(ct);
+                _logger.LogError(ex,
+                    "Error al finalizar la consulta (pacienteId={PacienteId}, citaId={CitaId}).",
+                    request.PacienteId,
+                    request.CitaId);
+                return (false, "No fue posible finalizar la consulta.");
+            }
+        });
     }
 
     /// <summary>
@@ -363,6 +451,7 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
             .Select(n => new NotaClinicaApiDto
             {
                 IdNota = n.IdNota,
+                CitaId = n.IdCita,
                 Fecha = n.Fecha,
                 Doctor = n.Profesional != null ? $"Dr(a). {n.Profesional.Nombres} {n.Profesional.Apellidos}" : null,
                 Diagnostico = n.Diagnostico,

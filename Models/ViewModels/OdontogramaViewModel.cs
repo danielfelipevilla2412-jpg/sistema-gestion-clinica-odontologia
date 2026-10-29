@@ -68,9 +68,19 @@ public class OdontogramaTratamientoPayload
 public class NotaClinicaGuardarRequest
 {
     public int? PacienteId { get; set; }
+    public int? CitaId { get; set; }
     public string? Diagnostico { get; set; }
     public string? Procedimiento { get; set; }
     public string? ProximaCita { get; set; }
+}
+
+public class FinalizarConsultaRequest
+{
+    public int PacienteId { get; set; }
+    public int CitaId { get; set; }
+    public NotaClinicaGuardarRequest Nota { get; set; } = new();
+    public Dictionary<string, OdontogramaRegistroPayload> Registros { get; set; } = [];
+    public Dictionary<string, string> MapeoFDI { get; set; } = [];
 }
 
 public class ControlPostoperatorioGuardarRequest

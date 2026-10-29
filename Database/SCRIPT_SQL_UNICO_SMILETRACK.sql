@@ -1234,6 +1234,7 @@ BEGIN
         id_nota        INT IDENTITY(1,1) PRIMARY KEY,
         id_historia    INT NOT NULL,
         id_profesional INT NULL,
+        id_cita        INT NULL,
         fecha          DATETIME NOT NULL DEFAULT GETDATE(),
         diagnostico    VARCHAR(MAX) NULL,
         procedimiento  VARCHAR(MAX) NULL,
@@ -1244,6 +1245,9 @@ BEGIN
             ON DELETE CASCADE,
         CONSTRAINT FK_Nota_Profesional
             FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional)
+            ON DELETE SET NULL,
+        CONSTRAINT FK_NC_Cita
+            FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita)
             ON DELETE SET NULL
     );
     PRINT 'Tabla Nota_Clinica creada correctamente.';
@@ -1252,6 +1256,26 @@ ELSE
 BEGIN
     PRINT 'Tabla Nota_Clinica ya existe — sin cambios.';
 END
+GO
+
+IF COL_LENGTH(N'dbo.Nota_Clinica', N'id_cita') IS NULL
+    ALTER TABLE dbo.Nota_Clinica ADD id_cita INT NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'FK_NC_Cita' AND parent_object_id = OBJECT_ID(N'dbo.Nota_Clinica')
+)
+    ALTER TABLE dbo.Nota_Clinica
+        ADD CONSTRAINT FK_NC_Cita FOREIGN KEY (id_cita)
+        REFERENCES dbo.Cita(id_cita) ON DELETE SET NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'UX_NC_Cita' AND object_id = OBJECT_ID(N'dbo.Nota_Clinica')
+)
+    CREATE UNIQUE INDEX UX_NC_Cita ON dbo.Nota_Clinica(id_cita) WHERE id_cita IS NOT NULL;
 GO
 
 IF NOT EXISTS (
