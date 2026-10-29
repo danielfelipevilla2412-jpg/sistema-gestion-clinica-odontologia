@@ -114,11 +114,15 @@ const initSidebar = () => {
 const initAlertModal = () => {
     const modal     = safeGetElement('reportAlertModal');
     const modalBody = safeGetElement('reportAlertBody');
+    const modalTitle = safeGetElement('reportAlertTitle');
     const closeBtn  = document.querySelector('.report-alert-close');
     if (!modal || !modalBody) return;
 
-    const openModal = text => {
+    const openModal = (text, patient) => {
         modalBody.textContent = text || 'Sin observación registrada.';
+        if (modalTitle) {
+            modalTitle.textContent = patient ? `Alerta clínica · ${patient}` : 'Detalle clínico';
+        }
         modal.classList.add('is-open');
         modal.setAttribute('aria-hidden', 'false');
         // Mover foco al botón de cierre (accesibilidad).
@@ -133,7 +137,7 @@ const initAlertModal = () => {
     // Botones disparadores
     document.querySelectorAll('.alert-trigger').forEach(button => {
         button.addEventListener('click', () =>
-            openModal(button.dataset.alert || 'Sin observación registrada.')
+            openModal(button.dataset.alert, button.dataset.patient)
         );
     });
 

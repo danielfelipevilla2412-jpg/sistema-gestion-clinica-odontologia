@@ -76,7 +76,6 @@ function displayUserErrorMessage(errorMessage) {
   errorBanner.style.display = 'block';
 }
 
-const safeGetElement = (elementId) => {
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 

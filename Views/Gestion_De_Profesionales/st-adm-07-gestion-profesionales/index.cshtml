@@ -34,6 +34,12 @@ NOTAS DE MANTENIMIENTO:
   var profesionales  = ViewData["Profesionales"]  as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
   var credenciales   = ViewData["CredencialesProfesionales"] as List<SmileTrack_MVC.Models.Entities.CredencialProfesional> ?? new();
   var pageResult     = ViewData["ProfesionalesPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Profesional>;
+  var resultItemCount = pageResult?.Items?.Count ?? 0;
+  var resultTotalCount = pageResult?.TotalCount ?? 0;
+  var resultPage = pageResult?.Page ?? 1;
+  var resultPageSize = pageResult?.PageSize ?? 10;
+  var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+  var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
   // Stats globales: vienen del Controller como COUNT() sobre toda la BD (no de la página actual).
   // WHY: si hay 80 profesionales y se muestran 10 por página, los stats deben decir 80, no 10.
   var statTotal      = (int)(ViewData["StatTotal"]      ?? 0);
@@ -319,7 +325,12 @@ NOTAS DE MANTENIMIENTO:
       <!-- WHY: cada click es un GET real al Controller — no se cargan todos los registros en memoria -->
       <div class="pagination" role="navigation" aria-label="Paginación de profesionales" data-i18n-aria-label="gestionprofesionales_pagination_aria">
         @{ }
-      <span id="paginationInfo" aria-live="polite" data-i18n-html="gestionprofesionales_pagination_info" data-i18n-html-params="{\"showing\":\"@(pageResult?.Items.Count ?? 0)\",\"total\":\"@(pageResult?.TotalCount ?? 0)\"}">Mostrando <strong>@(pageResult?.Items.Count ?? 0)</strong> de <strong>@(pageResult?.TotalCount ?? 0)</strong> profesionales registrados</span>
+      <span id="paginationInfo" aria-live="polite">
+        <span data-i18n="gestionprofesionales_pagination_info_prefix">Mostrando</span>
+        <strong id="paginationRangeStart">@resultRangeStart</strong>-<strong id="paginationRangeEnd">@resultRangeEnd</strong>
+        de <strong id="paginationTotal">@resultTotalCount</strong>
+        <span data-i18n="gestionprofesionales_pagination_info_suffix">profesionales registrados</span>
+      </span>
         <div class="pagination-buttons" id="paginationButtons">
           @if (pageResult != null && pageResult.HasPreviousPage)
           {

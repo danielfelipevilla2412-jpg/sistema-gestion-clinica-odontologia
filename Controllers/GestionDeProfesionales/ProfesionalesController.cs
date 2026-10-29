@@ -154,6 +154,7 @@ public partial class GestionProfesionalesController(
                 if (profesional != null)
                 {
                     var hoy = DateTime.Today;
+                    var ahora = DateTime.Now;
                     var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
                     var finMes = inicioMes.AddMonths(1);
 
@@ -172,14 +173,20 @@ public partial class GestionProfesionalesController(
                     ViewData["OdoIngresosMes"] = ingresosMes;
 
                     ViewData["OdoCitasAtendidas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase));
-                    ViewData["OdoCitasProgramadas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase));
+                    // Solo cuentan como "programadas" las citas que todavía no han pasado; las
+                    // vencidas que siguen en espera ya no deben inflar el KPI.
+                    ViewData["OdoCitasProgramadas"] = citasDelMes.Count(c =>
+                        c.FechaHora >= ahora &&
+                        (string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase)));
                     ViewData["OdoCitasCanceladas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase));
                     ViewData["OdoCitasNoAsistio"] = citasDelMes.Count(c => string.Equals(c.Estado, "No asistio", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "no asistió", StringComparison.OrdinalIgnoreCase));
                     ViewData["OdoTotalCitasMes"] = citasDelMes.Count;
 
+                    // "Próximas citas de hoy": se excluyen las que ya pasaron de hora.
                     ViewData["OdoProximasCitas"] = citasDelMes
                         .Where(c =>
                             c.FechaHora.Date == hoy &&
+                            c.FechaHora >= ahora &&
                             (
                                 string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase) ||
@@ -265,17 +272,17 @@ public partial class GestionProfesionalesController(
                     ViewData["OdoProximaCitaUrgente"] = proximaCitaUrgente;
 
                     // 2. CITAS PENDIENTES DE CONFIRMAR (estado "Agendada" o "programada")
+                    //    Solo las que aún no han pasado: una cita vencida ya no está pendiente.
                     var citasPendientesConfirmar = await _context.Citas
                         .AsNoTracking()
                         .CountAsync(c =>
                             c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora >= hoy &&
+                            c.FechaHora >= ahora &&
                             (c.Estado == "Agendada" || c.Estado == "programada"), ct);
 
                     ViewData["CitasPendientesConfirmar"] = citasPendientesConfirmar;
 
                     // 3. PACIENTES EN ESPERA (citas de hoy en estado "Confirmada" y hora ya pasada)
-                    var ahora = DateTime.Now;
                     var pacientesEnEspera = await _context.Citas
                         .AsNoTracking()
                         .CountAsync(c =>

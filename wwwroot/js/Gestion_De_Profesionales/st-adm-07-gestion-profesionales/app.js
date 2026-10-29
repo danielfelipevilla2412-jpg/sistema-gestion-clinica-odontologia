@@ -426,8 +426,13 @@ const renderPaginationFromApi = (apiResult) => {
   const { page, pageSize, totalCount, totalPages } = apiResult.pagination;
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, totalCount);
+  const rangeStartLabel = getElementByIdSafe('paginationRangeStart');
+  const rangeEndLabel = getElementByIdSafe('paginationRangeEnd');
+  const totalLabel = getElementByIdSafe('paginationTotal');
 
-  infoLabel.textContent = `Mostrando ${rangeStart}-${rangeEnd} de ${totalCount} profesionales`;
+  if (rangeStartLabel) rangeStartLabel.textContent = String(rangeStart);
+  if (rangeEndLabel) rangeEndLabel.textContent = String(rangeEnd);
+  if (totalLabel) totalLabel.textContent = String(totalCount);
   buttonsContainer.innerHTML = '';
 
   // Botón página anterior
