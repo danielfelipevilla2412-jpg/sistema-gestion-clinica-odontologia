@@ -296,7 +296,7 @@ const closeInvoiceDetails = () => {
   }
 };
 
-const showInvoiceDetails = (id) => {
+const showInvoiceDetails = async (id) => {
   const invoice = invoicesStorage.getInvoice(id);
   const modal = safeGetElement('invoiceDetailsOverlay');
   if (!invoice || !modal) return;
@@ -309,6 +309,7 @@ const showInvoiceDetails = (id) => {
     invoiceDetailsService: invoice.service || 'No especificado',
     invoiceDetailsStatus: (statusLabels[invoice.status] || statusLabels.pendiente).label,
     invoiceDetailsTotal: fmtCurrency(invoice.total),
+    invoiceDetailsPaid: fmtCurrency(invoice.paid || 0),
     invoiceDetailsPending: invoice.pending > 0 ? fmtCurrency(invoice.pending) : 'Pagada'
   };
   Object.entries(details).forEach(([elementId, value]) => {
@@ -322,6 +323,44 @@ const showInvoiceDetails = (id) => {
   modal.removeAttribute('inert');
   document.body.style.overflow = 'hidden';
   safeGetElement('invoiceDetailsConfirm')?.focus();
+
+  const historyList = safeGetElement('invoicePaymentHistory');
+  if (!historyList) return;
+  historyList.replaceChildren();
+  const loading = document.createElement('li');
+  loading.textContent = 'Cargando transacciones…';
+  historyList.appendChild(loading);
+
+  try {
+    const response = await window.apiRequest(`/api/facturas/${id}`);
+    if (!response?.success || !response.data) throw new Error('No fue posible cargar el historial.');
+
+    const data = response.data;
+    const paid = safeGetElement('invoiceDetailsPaid');
+    const pending = safeGetElement('invoiceDetailsPending');
+    if (paid) paid.textContent = fmtCurrency(data.montoPagado);
+    if (pending) pending.textContent = data.pendiente > 0 ? fmtCurrency(data.pendiente) : 'Pagada';
+
+    historyList.replaceChildren();
+    if (!data.pagos?.length) {
+      const empty = document.createElement('li');
+      empty.textContent = 'Sin transacciones registradas.';
+      historyList.appendChild(empty);
+      return;
+    }
+
+    data.pagos.forEach((payment) => {
+      const item = document.createElement('li');
+      const date = new Date(payment.fechaUtc).toLocaleString('es-CO');
+      item.textContent = `${date} · ${fmtCurrency(payment.monto)} · ${payment.metodoPago} · ${payment.estado} · ${payment.referencia}`;
+      historyList.appendChild(item);
+    });
+  } catch {
+    historyList.replaceChildren();
+    const error = document.createElement('li');
+    error.textContent = 'No fue posible cargar el historial de transacciones.';
+    historyList.appendChild(error);
+  }
 };
 
 const showPaymentSuccess = (amount, patient) => {
@@ -365,14 +404,22 @@ const registerPayment = async (id) => {
       try {
       const result = await window.apiRequest(`/api/facturas/${id}/pagos`, {
       method: 'POST',
-      body: { montoPagado: paymentAmount }
+      body: { montoPagado: paymentAmount, metodoPago: 'efectivo' }
     });
     if (!result || result.success !== true) {
       showToast(result?.message || 'No fue posible registrar el pago.', 'error');
       return;
   }
 
-  invoicesStorage.updateLocalCache(id, { pending: 0, status: result.data.estado });
+  invoicesStorage.updateLocalCache(id, {
+    paid: result.data.montoPagado,
+    pending: result.data.pendiente,
+    status: result.data.estado,
+    history: (result.data.pagos || []).map(payment => ({
+      date: String(payment.fechaUtc).slice(0, 10),
+      type: 'pago'
+    }))
+  });
   renderInvoices();
   updateStats();
   closeDrawer();
@@ -838,10 +885,16 @@ const init = async () => {
     const response = await window.apiRequest('/api/facturas');
     if (response?.success && Array.isArray(response.data)) {
       invoices = response.data.map((f, idx) => ({
+<<<<<<< HEAD
         id: f.id, idCita: f.idCita, idProfesional: f.idProfesional, number: f.numero, patient: f.paciente, doc: f.documento,
         date: String(f.fecha).slice(0, 10), total: f.total, pending: f.pendiente,
+=======
+        id: f.id, number: f.numero, patient: f.paciente, doc: f.documento,
+        date: String(f.fecha).slice(0, 10), total: f.total, paid: f.montoPagado, pending: f.pendiente,
+>>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
         status: f.estado, color: ['blue','green','purple','orange','red'][idx % 5],
-        service: f.notas || 'Servicio Odontológico', history: []
+        service: f.notas || 'Servicio Odontológico',
+        history: f.fechaPago ? [{ date: String(f.fechaPago).slice(0, 10), type: 'pago' }] : []
       }));
     }
   } catch (error) {

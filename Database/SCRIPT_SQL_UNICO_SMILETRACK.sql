@@ -718,6 +718,7 @@ BEGIN
         numero_factura VARCHAR(20) NOT NULL UNIQUE,
         fecha_factura DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
         subtotal DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        descuento DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         estado VARCHAR(10) NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','parcial','pagada','anulada')),
         id_paciente INT NOT NULL,
@@ -737,10 +738,23 @@ BEGIN
       descripcion VARCHAR(200) NOT NULL,
        cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
         precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        descuento DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         subtotal_linea DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         CONSTRAINT FK_DetalleFactura_Factura FOREIGN KEY (id_factura) REFERENCES Factura(id_factura) ON DELETE CASCADE,
         CONSTRAINT FK_DetalleFactura_Servicio FOREIGN KEY (id_servicio) REFERENCES Servicio(id_servicio)
     );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'descuento')
+BEGIN
+    ALTER TABLE dbo.Factura ADD descuento DECIMAL(12,2) NOT NULL CONSTRAINT DF_Factura_Descuento DEFAULT 0.00;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Detalle_Factura') AND name = 'descuento')
+BEGIN
+    ALTER TABLE dbo.Detalle_Factura ADD descuento DECIMAL(12,2) NOT NULL CONSTRAINT DF_DetalleFactura_Descuento DEFAULT 0.00;
 END
 GO
 
@@ -756,6 +770,7 @@ BEGIN
 END
 GO
 
+<<<<<<< HEAD
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'id_cita')
 BEGIN
     ALTER TABLE dbo.Factura ADD id_cita INT NULL;
@@ -809,6 +824,47 @@ BEGIN
 END
 GO
 
+=======
+IF OBJECT_ID(N'dbo.Pago_Factura', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Pago_Factura (
+        id_pago INT IDENTITY(1,1) PRIMARY KEY,
+        id_factura INT NOT NULL,
+        monto DECIMAL(12,2) NOT NULL CHECK (monto > 0),
+        metodo_pago VARCHAR(30) NOT NULL,
+        estado VARCHAR(20) NOT NULL,
+        referencia VARCHAR(40) NOT NULL,
+        registrado_por INT NOT NULL,
+        fecha_utc DATETIME2 NOT NULL,
+        CONSTRAINT UQ_PagoFactura_Referencia UNIQUE (referencia),
+        CONSTRAINT FK_PagoFactura_Factura FOREIGN KEY (id_factura) REFERENCES dbo.Factura(id_factura),
+        CONSTRAINT FK_PagoFactura_Usuario FOREIGN KEY (registrado_por) REFERENCES dbo.Usuario(id_usuario)
+    );
+
+    CREATE INDEX IX_PagoFactura_Factura_Fecha ON dbo.Pago_Factura(id_factura, fecha_utc);
+END
+GO
+
+INSERT INTO dbo.Pago_Factura
+    (id_factura, monto, metodo_pago, estado, referencia, registrado_por, fecha_utc)
+SELECT
+    f.id_factura,
+    f.monto_pagado,
+    'historico',
+    'migrado',
+    CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura)),
+    f.generada_por,
+    COALESCE(CAST(f.fecha_pago AS DATETIME2), CAST(f.fecha_factura AS DATETIME2))
+FROM dbo.Factura f
+WHERE f.monto_pagado > 0
+  AND NOT EXISTS (
+      SELECT 1
+      FROM dbo.Pago_Factura p
+      WHERE p.referencia = CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura))
+  );
+GO
+
+>>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Ticket_Soporte') AND type = N'U')
 BEGIN
     CREATE TABLE Ticket_Soporte (

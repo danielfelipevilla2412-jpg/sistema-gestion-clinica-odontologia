@@ -1,6 +1,6 @@
 @{ Layout = null; }
 
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -42,6 +42,7 @@
         <h1 class="page-title" data-i18n="facturacion.new_invoice">Generar Factura</h1>
         <p class="page-subtitle" id="invoiceSubtitle" data-i18n="common.loading">Cita del 20 Mar 2026 · Pedro Garc&#237;a · Dr. Carlos M&#233;ndez</p>
       </div>
+      <button class="btn-secondary" id="btnSavedInvoices" type="button">Consultar facturas guardadas</button>
       <!-- Badge de estado con role status para anuncio dinámico -->
       <span class="status-badge status-pendiente" id="statusBadge" role="status" aria-live="polite">
         <span aria-hidden="true"></span> Pendiente de pago
@@ -111,12 +112,12 @@
             {
               @foreach (var s in serviciosFactura)
               {
-                <option value="@s.IdServicio" data-price="@s.Precio" data-desc="@s.Descripcion">@s.Nombre - $@(s.Precio.ToString("N0"))</option>
+                <option value="@s.IdServicio" data-price="@s.Precio" data-desc="@s.Descripcion">@s.Nombre - $@(s.Precio.ToString("N0")) COP</option>
               }
             }
             else
             {
-              <option value="consulta" data-price="50000" data-desc="Valoración y diagnóstico">Consulta General - $50.000</option>
+              <option value="consulta" data-price="50000" data-desc="Valoración y diagnóstico">Consulta General - $50.000 COP</option>
             }
           </select>
           <button class="btn-add" id="btnAddService" aria-label="Añadir servicio seleccionado a la factura">➕
@@ -145,19 +146,27 @@
       <div class="totals-box">
         <div class="total-row">
           <span class="label">Subtotal</span>
-          <span class="value" id="invoiceSubtotal">$0</span>
+          <span class="value" id="invoiceSubtotal">$0 COP</span>
         </div>
         <div class="total-row discount">
           <span class="label">Descuento</span>
-          <span class="value" id="invoiceDiscount">$0</span>
+          <span class="value" id="invoiceDiscount">$0 COP</span>
         </div>
         <div class="total-row">
           <span class="label">IVA (0%)</span>
-          <span class="value" id="invoiceIva">$0</span>
+          <span class="value" id="invoiceIva">$0 COP</span>
         </div>
         <div class="total-row final">
           <span class="label">TOTAL</span>
-          <span class="value" id="invoiceTotal" aria-live="polite">$0</span>
+          <span class="value" id="invoiceTotal" aria-live="polite">$0 COP</span>
+        </div>
+        <div class="total-row" id="invoicePaidSummary" hidden>
+          <span class="label">Abonado</span>
+          <span class="value" id="invoicePaidAmount">$0 COP</span>
+        </div>
+        <div class="total-row" id="invoiceBalanceSummary" hidden>
+          <span class="label">Saldo pendiente</span>
+          <span class="value" id="invoiceBalanceAmount">$0 COP</span>
         </div>
       </div>
     </div>
@@ -169,25 +178,108 @@
         <div class="form-group">
           <label class="form-label" for="paymentMethod">Método de pago</label>
           <select id="paymentMethod" class="form-select" aria-label="Seleccionar método de pago">
-            <option value="Efectivo">Efectivo</option>
-            <option value="Transferencia">Transferencia</option>
-            <option value="Tarjeta">Tarjeta</option>
+            <option value="efectivo">Efectivo</option>
+            <option value="tarjeta_debito" disabled>Tarjeta débito (pasarela por configurar)</option>
+            <option value="tarjeta_credito" disabled>Tarjeta crédito (pasarela por configurar)</option>
+            <option value="transferencia" disabled>Transferencia electrónica (proveedor por configurar)</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="amountReceived">Monto recibido</label>
-          <input type="text" id="amountReceived" class="form-input" value="$0" aria-label="Monto recibido para el pago"
+          <label class="form-label" for="amountReceived">Monto del abono</label>
+          <input type="text" id="amountReceived" class="form-input" value="$0 COP" aria-label="Monto del abono en pesos colombianos"
             inputmode="numeric" />
         </div>
       </div>
       <div class="payment-actions">
         <button class="btn-secondary" id="btnPrint" aria-label="Imprimir factura actual">🖨️ Imprimir factura</button>
-        <button class="btn-success" id="btnPay" aria-label="Registrar pago de la factura">✓ Registrar pago — $0</button>
+        <button class="btn-success" id="btnPay" aria-label="Registrar abono a la factura">✓ Registrar abono — $0 COP</button>
       </div>
       <div id="toastContainer" class="toast-container" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
     </section>
 
   </main>
+
+  <div class="payment-confirm-overlay" id="paymentConfirmOverlay" hidden>
+    <section class="payment-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="paymentConfirmTitle" aria-describedby="paymentConfirmDescription">
+      <header class="payment-confirm-header">
+        <h2 id="paymentConfirmTitle">Confirmar pago</h2>
+        <button class="payment-confirm-close" id="paymentConfirmClose" type="button" aria-label="Cerrar confirmación">&times;</button>
+      </header>
+      <div class="payment-confirm-content">
+        <p id="paymentConfirmDescription">Verifica los datos del paciente y los servicios antes de registrar el pago.</p>
+        <dl class="payment-confirm-patient">
+          <div><dt>Paciente</dt><dd id="paymentConfirmPatient"></dd></div>
+          <div><dt>Documento</dt><dd id="paymentConfirmDocument"></dd></div>
+          <div><dt>Método de pago</dt><dd id="paymentConfirmMethod"></dd></div>
+        </dl>
+        <h3>Servicios requeridos</h3>
+        <ul class="payment-confirm-items" id="paymentConfirmItems"></ul>
+        <dl class="payment-confirm-totals">
+          <div><dt>Subtotal</dt><dd id="paymentConfirmSubtotal"></dd></div>
+          <div><dt>Descuento</dt><dd id="paymentConfirmDiscount"></dd></div>
+          <div class="payment-confirm-total"><dt>Total de la factura</dt><dd id="paymentConfirmTotal"></dd></div>
+          <div><dt>Abonado anteriormente</dt><dd id="paymentConfirmPreviousPaid"></dd></div>
+          <div class="payment-confirm-total"><dt>Abono a registrar</dt><dd id="paymentConfirmInstallment"></dd></div>
+          <div><dt>Saldo después del abono</dt><dd id="paymentConfirmBalance"></dd></div>
+        </dl>
+      </div>
+      <footer class="payment-confirm-footer">
+        <button class="btn-secondary" id="paymentConfirmCancel" type="button">Volver</button>
+        <button class="btn-success" id="paymentConfirmSubmit" type="button">Confirmar y registrar</button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="saved-invoices-overlay" id="savedInvoicesOverlay" hidden>
+    <section class="saved-invoices-modal" role="dialog" aria-modal="true" aria-labelledby="savedInvoicesTitle">
+      <header class="saved-invoices-header">
+        <h2 id="savedInvoicesTitle">Facturas guardadas</h2>
+        <button class="saved-invoices-close" id="savedInvoicesClose" type="button" aria-label="Cerrar consulta">&times;</button>
+      </header>
+      <div class="saved-invoices-content">
+        <p class="saved-invoices-message" id="savedInvoicesMessage" role="status" aria-live="polite">Cargando facturas...</p>
+        <div class="saved-invoices-table-wrap">
+          <table class="saved-invoices-table">
+            <thead>
+              <tr>
+                <th scope="col">Factura</th>
+                <th scope="col">Fecha</th>
+                <th scope="col">Paciente</th>
+                <th scope="col">Servicio(s)</th>
+                <th scope="col">Subtotal (COP)</th>
+                <th scope="col">Total (COP)</th>
+                <th scope="col">Abonado (COP)</th>
+                <th scope="col">Pendiente (COP)</th>
+                <th scope="col">Estado</th>
+                <th scope="col"><span class="visually-hidden">Detalle</span></th>
+              </tr>
+            </thead>
+            <tbody id="savedInvoicesRows"></tbody>
+          </table>
+        </div>
+        <section class="saved-invoice-detail" id="savedInvoiceDetail" hidden aria-labelledby="savedInvoiceDetailTitle">
+          <h3 id="savedInvoiceDetailTitle">Detalle de factura</h3>
+          <dl class="saved-invoice-summary">
+            <div><dt>Paciente</dt><dd id="savedInvoicePatient"></dd></div>
+            <div><dt>Documento</dt><dd id="savedInvoiceDocument"></dd></div>
+            <div><dt>Fecha de emisión</dt><dd id="savedInvoiceDate"></dd></div>
+            <div><dt>Subtotal</dt><dd id="savedInvoiceSubtotal"></dd></div>
+            <div><dt>Total</dt><dd id="savedInvoiceTotal"></dd></div>
+            <div><dt>Total abonado</dt><dd id="savedInvoicePaid"></dd></div>
+            <div><dt>Saldo pendiente</dt><dd id="savedInvoicePending"></dd></div>
+            <div><dt>Estado</dt><dd id="savedInvoiceStatus"></dd></div>
+          </dl>
+          <h4>Servicios facturados</h4>
+          <ul id="savedInvoiceServices"></ul>
+          <h4>Historial de abonos</h4>
+          <ol id="savedInvoicePayments"></ol>
+        </section>
+      </div>
+      <footer class="saved-invoices-footer">
+        <button class="btn-secondary" id="savedInvoicesDone" type="button">Cerrar</button>
+      </footer>
+    </section>
+  </div>
 
   <!-- Estilos para contenido solo accesible por screen readers -->
   <style>

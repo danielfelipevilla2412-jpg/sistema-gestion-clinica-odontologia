@@ -534,6 +534,11 @@ public class HistoriaClinicaController(
         });
     }
 
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "Profesional")]
@@ -562,7 +567,18 @@ public class HistoriaClinicaController(
         {
             MotivoConsulta = request.MotivoConsulta?.Trim() ?? "",
             EnfermedadActual = request.EnfermedadActual?.Trim() ?? "",
+<<<<<<< HEAD
             Habitos = request.Habitos?.Trim() ?? "",
+=======
+            SintomasSignos = (request.SintomasSignos ?? [])
+                .Where(sintoma => !string.IsNullOrWhiteSpace(sintoma))
+                .Select(sintoma => sintoma.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            AntecedentesMedicos = request.AntecedentesMedicos?.Trim() ?? "",
+            Habitos = request.Habitos?.Trim() ?? "",
+            Alergias = request.Alergias?.Trim() ?? "",
+>>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
             Hallazgos = request.Hallazgos?.Trim() ?? "",
             OdontogramaObservaciones = request.OdontogramaObservaciones?.Trim() ?? "",
             ExamenesComplementarios = request.ExamenesComplementarios?.Trim() ?? "",
@@ -578,6 +594,10 @@ public class HistoriaClinicaController(
         return Json(new { success = true, message = "Historia clínica guardada correctamente." });
     }
 
+<<<<<<< HEAD
+=======
+>>>>>>> Stashed changes
+>>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("historia-clinica/st-odo-06-pacientes")]

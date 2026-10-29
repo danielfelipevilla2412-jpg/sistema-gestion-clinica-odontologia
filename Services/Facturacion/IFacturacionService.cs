@@ -8,10 +8,18 @@ public interface IFacturacionService
     Task<FacturaDto?> ObtenerAsync(int id, CancellationToken ct);
     Task<CitaFacturacionDto?> ObtenerContextoCitaAsync(int idCita, CancellationToken ct);
     Task<FacturaDto> CrearAsync(CrearFacturaRequest request, int idUsuario, CancellationToken ct);
+<<<<<<< HEAD
     Task<FacturaDto> CrearDesdeCitaAsync(int idCita, int idUsuario, CancellationToken ct);
     Task<FacturaDto?> ActualizarAsync(int id, ActualizarFacturaRequest request, int idUsuario, CancellationToken ct);
     Task<bool> EliminarAsync(int id, int idUsuario, CancellationToken ct);
     Task<IReadOnlyList<PagoDto>?> ListarPagosAsync(int id, CancellationToken ct);
     Task<FacturaDto?> RegistrarPagoAsync(int id, RegistrarPagoRequest request, int idUsuario, CancellationToken ct);
     Task<FacturaDto?> AnularAsync(int id, AnularFacturaRequest? request, int idUsuario, CancellationToken ct);
+=======
+    Task<FacturaDto> CrearConPagoAsync(CrearFacturaConPagoRequest request, int idUsuario, CancellationToken ct);
+    Task<FacturaDto?> ActualizarAsync(int id, ActualizarFacturaRequest request, CancellationToken ct);
+    Task<bool> EliminarAsync(int id, CancellationToken ct);
+    Task<FacturaDto?> RegistrarPagoAsync(int id, RegistrarPagoRequest request, int idUsuario, CancellationToken ct);
+    Task<FacturaDto?> AnularAsync(int id, AnularFacturaRequest? request, CancellationToken ct);
+>>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
 }
