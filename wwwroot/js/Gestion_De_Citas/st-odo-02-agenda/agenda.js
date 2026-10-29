@@ -18,13 +18,18 @@
  * - HTML: Views/Gestion_De_Citas/st-odo-02-agenda/index.cshtml
  * ============================================ */
 
-<<<<<<< Updated upstream
 document.addEventListener('DOMContentLoaded', () => {
     initWeekNavigation();
     initFilterOffice();
     initAppointmentModals();
     initNewAppointmentModal();
-});
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeAgendaDashboard);
+} else {
+    initializeAgendaDashboard();
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // NAVEGACIÓN SEMANAL Y NAVEGACIÓN POR FECHAS
@@ -103,11 +108,13 @@ function initAppointmentModals() {
     if (!modal || !modalContent) return;
 
     let selectedApptId = null;
+    let selectedPatientId = null;
 
     // Escuchar clic en tarjetas de cita
     document.querySelectorAll('.appointment:not(.available)').forEach(card => {
         card.addEventListener('click', () => {
             selectedApptId = card.getAttribute('data-id');
+            selectedPatientId = card.getAttribute('data-patient-id');
             const patientName = card.getAttribute('data-patient-name') || 'Paciente sin nombre';
             const serviceName = card.getAttribute('data-service-name') || 'Servicio no especificado';
             const officeName = card.getAttribute('data-office-name') || 'Sin consultorio';
@@ -139,7 +146,7 @@ function initAppointmentModals() {
                     <div style="background:var(--primary-light); padding:12px; border-radius:var(--radius-sm);">
                         <h3 style="font-size:1.1rem; color:var(--primary-dark); margin:0;">${escapeHtml(patientName)}</h3>
                         <p style="font-size:0.82rem; color:var(--text-muted); margin-top:2px;">
-                            📅 ${escapeHtml(dateStr)} | ⏰ ${escapeHtml(startTime)} - ${escapeHtml(endTime)}
+                            ${selectedPatientId ? `<strong>ID:</strong> ${escapeHtml(selectedPatientId)} · ` : ''}📅 ${escapeHtml(dateStr)} | ⏰ ${escapeHtml(startTime)} - ${escapeHtml(endTime)}
                         </p>
                     </div>
                     ${bloqueProfesional}
@@ -157,16 +164,41 @@ function initAppointmentModals() {
                 </div>
             `;
 
+            const historialUrl = selectedPatientId ? `/historia-clinica/st-odo-03-historial?pacienteId=${encodeURIComponent(selectedPatientId)}&citaId=${encodeURIComponent(selectedApptId || '')}` : '/historia-clinica/st-odo-06-pacientes';
+            const odontogramaUrl = selectedPatientId ? `/historia-clinica/st-odo-03-historial?pacienteId=${encodeURIComponent(selectedPatientId)}&citaId=${encodeURIComponent(selectedApptId || '')}` : '/historia-clinica/st-odo-06-pacientes';
+
+            const btnVerHistorial = document.createElement('button');
+            btnVerHistorial.type = 'button';
+            btnVerHistorial.className = 'btn-secondary';
+            btnVerHistorial.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">history</span> Ver historial';
+            btnVerHistorial.addEventListener('click', () => {
+                window.location.href = historialUrl;
+            });
+
+            const modalActions = modal.querySelector('.modal-actions-grid');
+            if (modalActions) {
+                const existingHistoryButton = modalActions.querySelector('[data-history-patient="true"]');
+                if (existingHistoryButton) existingHistoryButton.remove();
+                btnVerHistorial.setAttribute('data-history-patient', 'true');
+                modalActions.insertBefore(btnVerHistorial, modalActions.firstChild);
+            }
+
             // Configurar enlace "Iniciar Atención" hacia odontograma/historia clínica
             if (btnIniciarAtencion) {
                 btnIniciarAtencion.onclick = (e) => {
                     e.preventDefault();
+                    if (!puedeCambiarEstadoPorFecha(dateStr, 'En consulta')) {
+                        showToast('⚠️ No puedes iniciar atención antes del día programado de la cita.', 'error');
+                        return;
+                    }
                     cambiarEstadoCita(selectedApptId, 'En consulta', () => {
-                        window.location.href = `/historia-clinica/st-odo-04-odontograma?citaId=${selectedApptId}`;
+                        window.location.href = historialUrl;
                     });
                 };
             }
 
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
             modal.removeAttribute('hidden');
             modal.removeAttribute('inert');
         });
@@ -182,7 +214,13 @@ function initAppointmentModals() {
 
     if (btnMarcarAtendida) {
         btnMarcarAtendida.addEventListener('click', () => {
-            if (selectedApptId) cambiarEstadoCita(selectedApptId, 'Atendida', () => {
+            if (!selectedApptId) return;
+            const citaFecha = (document.querySelector('.appointment[data-id="' + selectedApptId + '"]') || document.querySelector('[data-id="' + selectedApptId + '"]'))?.getAttribute('data-date');
+            if (!puedeCambiarEstadoPorFecha(citaFecha, 'Atendida')) {
+                showToast('⚠️ Solo puedes marcar la cita como atendida desde el día programado o después.', 'error');
+                return;
+            }
+            cambiarEstadoCita(selectedApptId, 'Atendida', () => {
                 cerrarModal(modal);
                 window.location.reload();
             });
@@ -191,7 +229,13 @@ function initAppointmentModals() {
 
     if (btnCancelar) {
         btnCancelar.addEventListener('click', () => {
-            if (selectedApptId) cambiarEstadoCita(selectedApptId, 'Cancelada', () => {
+            if (!selectedApptId) return;
+            const citaFecha = (document.querySelector('.appointment[data-id="' + selectedApptId + '"]') || document.querySelector('[data-id="' + selectedApptId + '"]'))?.getAttribute('data-date');
+            if (!puedeCambiarEstadoPorFecha(citaFecha, 'No asistió')) {
+                showToast('⚠️ Solo puedes registrar inasistencia desde el día de la cita o después.', 'error');
+                return;
+            }
+            cambiarEstadoCita(selectedApptId, 'No asistió', () => {
                 cerrarModal(modal);
                 window.location.reload();
             });
@@ -202,6 +246,26 @@ function initAppointmentModals() {
 // ═══════════════════════════════════════════════════════════════════
 // CAMBIAR ESTADO DE CITA VÍA API REST / FORM POST
 // ═══════════════════════════════════════════════════════════════════
+function puedeCambiarEstadoPorFecha(fechaCita, nuevoEstado) {
+    if (!fechaCita) return false;
+
+    const estadosBloqueados = ['Atendida', 'No asistió', 'No asistida'];
+    const estado = String(nuevoEstado || '').trim();
+    if (estado !== 'En consulta' && !estadosBloqueados.includes(estado)) {
+        return true;
+    }
+
+    const fechaProgramada = new Date(`${fechaCita}T00:00:00`);
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    if (fechaProgramada < hoy) {
+        return false;
+    }
+
+    return true;
+}
+
 async function cambiarEstadoCita(idCita, nuevoEstado, callback) {
     if (!idCita) return;
 
@@ -276,6 +340,8 @@ function initNewAppointmentModal() {
             const dateInput = document.getElementById('newApptDate');
             if (dateInput) dateInput.value = dateStr;
         }
+        modalNew.classList.add('open');
+        modalNew.setAttribute('aria-hidden', 'false');
         modalNew.removeAttribute('hidden');
         modalNew.removeAttribute('inert');
     };
@@ -299,6 +365,8 @@ function initNewAppointmentModal() {
 
 function cerrarModal(modalEl) {
     if (!modalEl) return;
+    modalEl.classList.remove('open');
+    modalEl.setAttribute('aria-hidden', 'true');
     modalEl.setAttribute('hidden', 'true');
     modalEl.setAttribute('inert', 'true');
 }
