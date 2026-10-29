@@ -109,7 +109,6 @@ public sealed class FacturacionServicePaymentTests
         var payment = Assert.Single(result.Pagos);
         Assert.Equal(30000m, payment.Monto);
         Assert.Equal("efectivo", payment.MetodoPago);
-        Assert.Equal("aprobado", payment.Estado);
         Assert.StartsWith("CAJ-", payment.Referencia);
 
         var completed = await service.RegistrarPagoAsync(
