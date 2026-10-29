@@ -60,14 +60,17 @@ NOTAS DE MANTENIMIENTO:
         <!-- Stats Grid -->
         <section class="stats-grid" aria-label="Resumen clínico" data-i18n-aria-label="reportesclinicos_stats_aria">
             <div class="stat-card" data-color="blue">
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">groups</span>
                 <span class="stat-number" id="metricTotal" data-target="@(ViewData["TotalPacientesReportes"] ?? 0)" aria-live="polite">0</span>
                 <span class="stat-label" data-i18n="reportesclinicos_stat_pacientes">Pacientes Registrados</span>
             </div>
             <div class="stat-card" data-color="green">
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_note</span>
                 <span class="stat-number" id="metricActivos" data-target="@(ViewData["ConsultasMes"] ?? 0)" aria-live="polite">0</span>
                 <span class="stat-label" data-i18n="reportesclinicos_stat_consultas">Consultas Este Mes</span>
             </div>
             <div class="stat-card" data-color="purple">
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">monitoring</span>
                 <span class="stat-number" id="metricAttendanceRate" data-target="@(ViewData["TasaAsistencia"] ?? 0)" aria-live="polite">0</span>
                 <span class="stat-label" data-i18n="reportesclinicos_stat_asistencia">Tasa de asistencia</span>
             </div>
@@ -384,4 +387,3 @@ NOTAS DE MANTENIMIENTO:
 @section Scripts {
     <script src="~/js/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/reportes.js" asp-append-version="true" defer></script>
 }
-

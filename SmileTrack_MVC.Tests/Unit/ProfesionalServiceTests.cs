@@ -92,6 +92,41 @@ public sealed class ProfesionalServiceTests
     }
 
     [Fact]
+    public async Task ObtenerPorIdAsync_UsaNombresDeLaCuentaVinculada()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Roles.Add(new Rol { IdRol = 1, NombreRol = "Profesional" });
+        db.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 42,
+            Nombre = "Nombre correcto",
+            Apellidos = "Apellido correcto",
+            Correo = "profesional@test.local",
+            Contrasena = "hash",
+            IdRol = 1,
+            Estado = "activo"
+        });
+        var profesional = new Profesional
+        {
+            IdUsuario = 42,
+            Nombres = "Nombre desactualizado",
+            Apellidos = "Apellido desactualizado",
+            Estado = "activo",
+            RegistroMedico = "RM-NAME"
+        };
+        db.Profesionales.Add(profesional);
+        await db.SaveChangesAsync();
+
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        var result = await service.ObtenerPorIdAsync(profesional.IdProfesional);
+
+        Assert.NotNull(result);
+        Assert.Equal("Nombre correcto", result.Nombres);
+        Assert.Equal("Apellido correcto", result.Apellidos);
+    }
+
+    [Fact]
     public async Task CrearAsync_GeneraContrasenaAutomaticaCuandoNoSeEnvioUna()
     {
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()

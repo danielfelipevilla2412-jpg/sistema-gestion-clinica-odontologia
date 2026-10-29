@@ -74,18 +74,22 @@
     <!-- Stats Grid -->
     <section class="stats-grid" aria-label="Resumen de citas del día" data-i18n-aria-label="citas.dashboard_title">
       <div class="stat-card" data-color="blue">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event</span>
         <span class="stat-number" id="metricToday" data-target="@statRecHoy" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
       </div>
       <div class="stat-card" data-color="green">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
         <span class="stat-number" id="metricConfirmed" data-target="@statRecConfirmadas" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.confirmed">Confirmadas</span>
       </div>
       <div class="stat-card" data-color="orange">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule</span>
         <span class="stat-number" id="metricPending" data-target="@statRecPendientes" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.pending">Pendientes</span>
       </div>
       <div class="stat-card" data-color="purple">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
         <span class="stat-number" id="metricCancelled" data-target="@statRecCanceladasHoy" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas hoy</span>
       </div>

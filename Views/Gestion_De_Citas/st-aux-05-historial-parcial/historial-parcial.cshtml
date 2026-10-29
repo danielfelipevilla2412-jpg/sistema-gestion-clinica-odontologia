@@ -30,8 +30,11 @@
     var historialParcialDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["HistorialParcialData"] ?? new object());
     var pacientes = ViewData["Pacientes"] as List<SmileTrack_MVC.Models.Entities.Paciente> ?? new();
     var pacienteSeleccionado = System.Text.Json.JsonDocument.Parse(historialParcialDataJson).RootElement;
-    var pacienteSeleccionadoId = pacienteSeleccionado.TryGetProperty("paciente", out var pacienteJson) && pacienteJson.TryGetProperty("id", out var idJson)
-      ? idJson.GetInt32()
+    var pacienteSeleccionadoId = pacienteSeleccionado.TryGetProperty("paciente", out var pacienteJson) &&
+      pacienteJson.TryGetProperty("id", out var idJson) &&
+      idJson.ValueKind == System.Text.Json.JsonValueKind.Number &&
+      idJson.TryGetInt32(out var idSeleccionado)
+      ? idSeleccionado
       : 0;
 }
 
@@ -118,4 +121,3 @@
 @section Scripts {
     <script src="~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js" asp-append-version="true" defer></script>
 }
-

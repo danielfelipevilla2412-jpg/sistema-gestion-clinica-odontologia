@@ -18,14 +18,18 @@ public class UsuarioPreferenciaConsultorio
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    [Column("id_preferencia")]
     public int IdPreferencia { get; set; }
 
     [Required]
+    [Column("id_usuario")]
     public int IdUsuario { get; set; }
 
     [Required]
+    [Column("id_consultorio")]
     public int IdConsultorio { get; set; }
 
+    [Column("actualizado_en")]
     public DateTime ActualizadoEn { get; set; }
 
     // Navegación

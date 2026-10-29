@@ -1474,6 +1474,7 @@ public sealed class CambiarEstadoCitaDto
 
         return new
         {
+            fecha = inicio.ToString("yyyy-MM-dd"),
             fechaInicio =
                 inicio.ToString(
                     "ddd d MMM yyyy",
@@ -1540,9 +1541,7 @@ public sealed class CambiarEstadoCitaDto
                 .FirstOrDefaultAsync(
                     p => p.IdPaciente == pacienteId,
                     ct)
-            : await _context.Pacientes
-                .OrderBy(p => p.IdPaciente)
-                .FirstOrDefaultAsync(ct);
+            : null;
 
         if (paciente is null)
         {
@@ -1565,14 +1564,22 @@ public sealed class CambiarEstadoCitaDto
             };
         }
 
+        string[] estadosAtendidos =
+        [
+            "atendida", "atendido", "completada", "completado",
+            "realizada", "realizado", "finalizada", "finalizado"
+        ];
+
         var consultasBase = await _context.Citas
             .AsNoTracking()
             .Include(c => c.Profesional)
+                .ThenInclude(p => p!.Usuario)
             .Include(c => c.Servicio)
             .Where(
                 c =>
                     c.IdPaciente == paciente.IdPaciente &&
-                    c.FechaHora <= DateTime.Now)
+                    c.FechaHora <= DateTime.Now &&
+                    estadosAtendidos.Contains(c.Estado.ToLower()))
             .OrderByDescending(c => c.FechaHora)
             .Take(limite)
             .Select(
@@ -1583,7 +1590,7 @@ public sealed class CambiarEstadoCitaDto
 
                     profesional =
                         c.Profesional != null
-                            ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}"
+                            ? $"Dr(a). {(c.Profesional.Usuario != null && c.Profesional.Usuario.Nombre != "" ? c.Profesional.Usuario.Nombre : c.Profesional.Nombres)} {(c.Profesional.Usuario != null && c.Profesional.Usuario.Apellidos != "" ? c.Profesional.Usuario.Apellidos : c.Profesional.Apellidos)}"
                             : "Sin asignar",
 
                     diagnostico =
@@ -1596,23 +1603,33 @@ public sealed class CambiarEstadoCitaDto
                 })
             .ToListAsync(ct);
 
-        var notaClinica = await _context.NotasClinicas
+        var consultaIds = consultasBase.Select(c => c.id).ToArray();
+        var notasPorCita = await _context.NotasClinicas
             .AsNoTracking()
-            .Include(n => n.HistoriaClinica)
-            .Where(n => n.HistoriaClinica != null && n.HistoriaClinica.IdPaciente == paciente.IdPaciente)
+            .Where(n => n.IdCita.HasValue && consultaIds.Contains(n.IdCita.Value))
             .OrderByDescending(n => n.Fecha)
-            .FirstOrDefaultAsync(ct);
+            .ToListAsync(ct);
+
+        var notaRecientePorCita = notasPorCita
+            .GroupBy(n => n.IdCita.GetValueOrDefault())
+            .ToDictionary(grupo => grupo.Key, grupo => grupo.First());
 
         var consultas = consultasBase
-            .Select(c => new
+            .Select(c =>
             {
-                c.id,
-                c.fecha,
-                c.profesional,
-                diagnostico = notaClinica is null || string.IsNullOrWhiteSpace(notaClinica.Diagnostico)
-                    ? "Sin notas clínicas registradas"
-                    : notaClinica.Diagnostico,
-                c.procedimiento
+                notaRecientePorCita.TryGetValue(c.id, out var nota);
+                return new
+                {
+                    c.id,
+                    c.fecha,
+                    c.profesional,
+                    diagnostico = string.IsNullOrWhiteSpace(nota?.Diagnostico)
+                        ? (string.IsNullOrWhiteSpace(c.diagnostico) ? "Sin notas clínicas registradas" : c.diagnostico)
+                        : nota.Diagnostico,
+                    procedimiento = string.IsNullOrWhiteSpace(nota?.Procedimiento)
+                        ? c.procedimiento
+                        : nota.Procedimiento
+                };
             })
             .ToList();
 

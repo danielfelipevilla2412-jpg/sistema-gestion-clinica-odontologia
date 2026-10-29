@@ -18,6 +18,15 @@
     Layout = "_Layout";
     ViewData["Title"] = "Agenda de Apoyo Clínico";
     var agendaApoyoDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["AgendaApoyoData"] ?? new object());
+    var agendaApoyoCitas = new List<System.Text.Json.JsonElement>();
+    using (var agendaDocument = System.Text.Json.JsonDocument.Parse(agendaApoyoDataJson))
+    {
+        if (agendaDocument.RootElement.TryGetProperty("citas", out var agendaCitas) &&
+            agendaCitas.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            agendaApoyoCitas.AddRange(agendaCitas.EnumerateArray().Select(cita => cita.Clone()));
+        }
+    }
     var fechaAgenda = Context.Request.Query["fecha"].FirstOrDefault() ?? DateTime.Today.ToString("yyyy-MM-dd");
     var inicioSemana = Context.Request.Query["weekStart"].FirstOrDefault() ?? fechaAgenda;
     var fechaActual = DateTime.Parse(fechaAgenda);
@@ -124,25 +133,27 @@
               </tr>
             </thead>
             <tbody id="agendaBody" aria-live="polite">
-              <tr class="skeleton-row" aria-hidden="true">
-                <td><div class="skeleton-cell" style="width:65px"></div></td>
-                <td><div class="skeleton-cell" style="width:50px"></div></td>
-                <td><div class="skeleton-cell" style="width:140px"></div></td>
-                <td><div class="skeleton-cell" style="width:120px"></div></td>
-                <td><div class="skeleton-cell" style="width:90px"></div></td>
-                <td><div class="skeleton-cell" style="width:80px"></div></td>
-                <td><div class="skeleton-cell" style="width:70px"></div></td>
-              </tr>
-              <tr class="skeleton-row" aria-hidden="true">
-                <td><div class="skeleton-cell" style="width:65px"></div></td>
-                <td><div class="skeleton-cell" style="width:50px"></div></td>
-                <td><div class="skeleton-cell" style="width:160px"></div></td>
-                <td><div class="skeleton-cell" style="width:100px"></div></td>
-                <td><div class="skeleton-cell" style="width:90px"></div></td>
-                <td><div class="skeleton-cell" style="width:80px"></div></td>
-                <td><div class="skeleton-cell" style="width:70px"></div></td>
-              </tr>
-              <!-- Las filas se generan dinámicamente por JavaScript -->
+              @if (agendaApoyoCitas.Count == 0)
+              {
+                <tr>
+                  <td colspan="7" style="text-align:center;padding:24px;">No hay citas programadas para este período.</td>
+                </tr>
+              }
+              else
+              {
+                @foreach (var cita in agendaApoyoCitas)
+                {
+                  <tr>
+                    <td>@cita.GetProperty("fecha").GetString()</td>
+                    <td>@cita.GetProperty("hora").GetString()</td>
+                    <td>@cita.GetProperty("paciente").GetString()</td>
+                    <td>@cita.GetProperty("profesional").GetString()</td>
+                    <td>@cita.GetProperty("tipo").GetString()</td>
+                    <td>@(cita.GetProperty("alergia").ValueKind == System.Text.Json.JsonValueKind.Null ? "—" : cita.GetProperty("alergia").GetString())</td>
+                    <td>@cita.GetProperty("estado").GetString()</td>
+                  </tr>
+                }
+              }
             </tbody>
           </table>
         </div>

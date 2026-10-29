@@ -16,6 +16,7 @@
 }
 
 .stat-card {
+    position: relative;
     background: var(--white);
     border-radius: var(--radius);
     padding: 16px 20px;
@@ -23,6 +24,22 @@
     border-left: 4px solid transparent;
     transition: transform var(--tr), box-shadow var(--tr);
     cursor: default;
+}
+
+.stat-icon {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--text-muted);
+    opacity: .35;
+    pointer-events: none;
 }
 
 .stat-card:hover {

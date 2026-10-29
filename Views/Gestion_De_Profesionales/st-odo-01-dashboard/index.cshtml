@@ -148,18 +148,22 @@ NOTAS DE MANTENIMIENTO:
     <!-- Stats Grid -->
     <section class="stats-grid" aria-label="Métricas principales" data-i18n-aria-label="facturacion.title">
       <div class="stat-card" data-color="blue">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">groups</span>
         <span class="stat-number" id="statPacientes" data-target="@(ViewData["OdoPacientesActivos"] ?? 0)" aria-live="polite">0</span>
         <span class="stat-label">Pacientes del mes</span>
       </div>
       <div class="stat-card" data-color="green">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event</span>
         <span class="stat-number" id="statCitas" data-target="@(ViewData["OdoCitasHoy"] ?? 0)" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
       </div>
       <div class="stat-card" data-color="orange">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
         <span class="stat-number" id="statProfesionales" data-target="@(ViewData["OdoCitasAtendidas"] ?? 0)" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.attended">Citas atendidas</span>
       </div>
       <div class="stat-card" data-color="purple">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
         <span class="stat-number" id="statIngresos" data-format="currency-cop" data-target="@(Convert.ToDecimal(ViewData["OdoIngresosMes"] ?? 0))" aria-live="polite">0</span>
         <span class="stat-label">Ingresos del mes</span>
       </div>

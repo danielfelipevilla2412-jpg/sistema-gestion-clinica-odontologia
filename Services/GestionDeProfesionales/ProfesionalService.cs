@@ -1277,8 +1277,12 @@ public partial class ProfesionalService : IProfesionalService
     {
         IdProfesional = p.IdProfesional,
         IdUsuario = p.IdUsuario ?? 0,
-        Nombres = p.Nombres,
-        Apellidos = p.Apellidos,
+        Nombres = p.Usuario is { Nombre: { } nombres } && !string.IsNullOrWhiteSpace(nombres)
+            ? nombres.Trim()
+            : p.Nombres,
+        Apellidos = p.Usuario is { Apellidos: { } apellidos } && !string.IsNullOrWhiteSpace(apellidos)
+            ? apellidos.Trim()
+            : p.Apellidos,
         RegistroMedico = p.RegistroMedico,
         Categoria = p.Categoria,
         Telefono = p.Telefono,

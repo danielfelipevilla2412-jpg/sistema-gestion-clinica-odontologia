@@ -437,6 +437,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   entity.HasOne(e => e.Usuario).WithMany().HasForeignKey(e => e.ActualizadoPor).OnDelete(DeleteBehavior.SetNull);
             });
 
+            modelBuilder.Entity<UsuarioPreferenciaConsultorio>(entity =>
+            {
+                  entity.ToTable("UsuariosPreferenciasConsultorio");
+                  entity.HasKey(p => p.IdPreferencia);
+                  entity.Property(p => p.IdPreferencia).HasColumnName("id_preferencia");
+                  entity.Property(p => p.IdUsuario).HasColumnName("id_usuario");
+                  entity.Property(p => p.IdConsultorio).HasColumnName("id_consultorio");
+                  entity.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en");
+                  entity.HasIndex(p => p.IdUsuario).IsUnique();
+                  entity.HasOne(p => p.Usuario).WithMany().HasForeignKey(p => p.IdUsuario).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(p => p.Consultorio).WithMany().HasForeignKey(p => p.IdConsultorio).OnDelete(DeleteBehavior.NoAction);
+            });
+
         modelBuilder.Entity<HistoriaClinica>(entity =>
         {
             entity.ToTable("Historia_Clinica");

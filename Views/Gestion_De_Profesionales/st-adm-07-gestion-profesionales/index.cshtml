@@ -77,18 +77,22 @@ NOTAS DE MANTENIMIENTO:
     -->
     <section class="stats-grid" aria-label="Estadísticas de profesionales" data-i18n-aria-label="gestionprofesionales_stats_aria">
       <div class="stat-card" data-color="blue">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">groups</span>
         <span class="stat-number" id="profesionales-stat-total" data-target="@statTotal" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="gestionprofesionales_stat_total">Total Profesionales</span>
       </div>
       <div class="stat-card" data-color="green">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">person_check</span>
         <span class="stat-number" id="profesionales-stat-activos" data-target="@statActivos" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="gestionprofesionales_stat_activos">Activos</span>
       </div>
       <div class="stat-card" data-color="orange">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">beach_access</span>
         <span class="stat-number" id="profesionales-stat-vacaciones" data-target="@statVacaciones" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="gestionprofesionales_stat_vacaciones">En vacaciones</span>
       </div>
       <div class="stat-card" data-color="red">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">person_off</span>
         <span class="stat-number" id="profesionales-stat-inactivos" data-target="@statInactivos" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="gestionprofesionales_stat_inactivos">Inactivos</span>
       </div>
@@ -244,7 +248,7 @@ NOTAS DE MANTENIMIENTO:
               <tr>
                 <td class="td-profesional">
                   @{
-                    var name = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
+                    var name = profesional.NombreProfesional;
                     var initials = string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
                   }
                   <span class="p-avatar p-avatar--color-@(profesional.IdProfesional % 5)">@initials</span>
@@ -256,7 +260,7 @@ NOTAS DE MANTENIMIENTO:
                 <td><span class="badge-status badge-@((profesional.Estado ?? string.Empty).ToLowerInvariant())">@profesional.Estado</span></td>
                 <td>
           @{
-            var profNombreCompleto = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
+            var profNombreCompleto = profesional.NombreProfesional;
             var profIniciales = string.Concat(profNombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
             var avatarColorIdx = profesional.IdProfesional % 5;
             var avatarColorPalette = new[] { "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6" };

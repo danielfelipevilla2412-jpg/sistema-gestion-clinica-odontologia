@@ -502,6 +502,23 @@ BEGIN
 END
 GO
 
+-- Preferencia del consultorio activo por usuario auxiliar.
+IF OBJECT_ID(N'dbo.UsuariosPreferenciasConsultorio', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.UsuariosPreferenciasConsultorio (
+        id_preferencia INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        id_usuario INT NOT NULL,
+        id_consultorio INT NOT NULL,
+        actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT UQ_UsuariosPreferenciasConsultorio_Usuario UNIQUE (id_usuario),
+        CONSTRAINT FK_UsuariosPreferenciasConsultorio_Usuario
+            FOREIGN KEY (id_usuario) REFERENCES dbo.Usuario(id_usuario) ON DELETE CASCADE,
+        CONSTRAINT FK_UsuariosPreferenciasConsultorio_Consultorio
+            FOREIGN KEY (id_consultorio) REFERENCES dbo.Consultorio(id_consultorio)
+    );
+END
+GO
+
 -- ============================================================
 -- 5) CITAS
 -- ============================================================
