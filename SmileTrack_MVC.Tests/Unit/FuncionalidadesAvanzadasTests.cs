@@ -36,6 +36,22 @@ public class FuncionalidadesAvanzadasTests
         db.EstadosCita.Add(new EstadoCita { IdEstado = 3, NombreEstado = "Cancelada" });
         db.EstadosCita.Add(new EstadoCita { IdEstado = 4, NombreEstado = "Atendida" });
 
+        string[] dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
+        foreach (var profId in new[] { 1, 2 })
+        {
+            foreach (var dia in dias)
+            {
+                db.HorariosProfesional.Add(new HorarioProfesional
+                {
+                    IdProfesional = profId,
+                    DiaSemana = dia,
+                    HoraInicio = new TimeOnly(0, 0),
+                    HoraFin = new TimeOnly(23, 59),
+                    Activo = true
+                });
+            }
+        }
+
         db.SaveChanges();
         return db;
     }

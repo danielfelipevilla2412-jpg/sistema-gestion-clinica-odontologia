@@ -252,9 +252,6 @@ img { max-width: 100%; height: auto; display: block; }
 .stat-card[data-color="orange"] .stat-number { color: var(--orange); }
 .stat-card[data-color="purple"] .stat-number { color: var(--purple); }
 .stat-label { font-size: .77rem; color: var(--text-muted); font-weight: 500; }
-.stat-vs { font-size: .71rem; font-weight: 600; display: block; margin-top: 2px; }
-.stat-vs.up { color: var(--green); }
-.stat-vs.down { color: var(--danger); }
 
 /* ═══ CONTENT GRID ═══ */
 .content-grid {
@@ -342,7 +339,6 @@ img { max-width: 100%; height: auto; display: block; }
   background: var(--bg); color: var(--text-muted);
 }
 .td-strong { font-weight: 700; color: var(--text); }
-.td-success { font-weight: 700; color: var(--green); text-align: right; }
 
 /* ═══ ESTADO DE CITAS ═══ */
 .status-chart { display: flex; flex-direction: column; gap: 12px; }
@@ -391,14 +387,6 @@ img { max-width: 100%; height: auto; display: block; }
 .invoice-item.danger .invoice-amount { color: var(--invoice-danger-text); }
 .invoice-item.muted { background: var(--invoice-muted-bg); border-color: var(--border); }
 .invoice-item.muted .invoice-amount { color: var(--invoice-muted-text); }
-.invoices-total {
-  margin-top: 16px; padding: 12px;
-  background: var(--invoice-danger-bg); border: 1px dashed var(--danger);
-  border-radius: var(--radius-sm); text-align: center;
-  font-size: .85rem; color: var(--invoice-danger-text);
-}
-.invoices-total strong { font-size: 1rem; }
-
 
 /* ═══ MOBILE NAV ═══ */
 .mobile-nav {

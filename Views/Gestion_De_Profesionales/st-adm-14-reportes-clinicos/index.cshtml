@@ -31,6 +31,12 @@ NOTAS DE MANTENIMIENTO:
     var profesionales = ViewData["ProfesionalesReportes"] as List<string> ?? new();
     var reportes = ViewData["ReportesClinicos"] as List<SmileTrack_MVC.Models.ViewModels.ReporteClinicoViewModel> ?? new();
     var pageResult = ViewData["ReportesClinicosPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.ViewModels.ReporteClinicoViewModel>;
+    var resultItemCount = pageResult?.Items?.Count ?? 0;
+    var resultTotalCount = pageResult?.TotalCount ?? 0;
+    var resultPage = pageResult?.Page ?? 1;
+    var resultPageSize = pageResult?.PageSize ?? 10;
+    var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+    var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
 }
 
 
@@ -165,13 +171,13 @@ NOTAS DE MANTENIMIENTO:
                                     @if (!string.IsNullOrWhiteSpace(reporte.Alerta))
                                     {
                                         var alertText = reporte.Alerta.Trim();
-                                        var alertLabel = alertText.Length > 26 ? alertText[..23] + "..." : alertText;
                                         <button type="button"
                                                 class="alert-trigger"
                                                 data-alert="@Html.Encode(alertText)"
-                                                aria-label="Ver observación clínica de @reporte.NombrePaciente">
+                                                data-patient="@Html.Encode(reporte.NombrePaciente)"
+                                                aria-label="Ver alerta de @reporte.NombrePaciente">
                                             <span aria-hidden="true">⚠️</span>
-                                            @alertLabel
+                                            Ver alerta
                                         </button>
                                     }
                                     else
@@ -187,7 +193,7 @@ NOTAS DE MANTENIMIENTO:
 
             <!-- Paginación -->
             <div class="pagination" role="navigation" aria-label="Paginación de reportes">
-                <span id="paginationInfo" aria-live="polite">Mostrando <strong>@(pageResult?.Items.Count ?? 0)</strong> de <strong>@(pageResult?.TotalCount ?? 0)</strong> reportes clínicos</span>
+                <span id="paginationInfo" aria-live="polite">Mostrando @resultRangeStart-@resultRangeEnd de @resultTotalCount reportes clínicos</span>
                 <div class="pagination-buttons" id="paginationButtons">
                     @if (pageResult != null && pageResult.HasPreviousPage)
                     {
@@ -219,15 +225,15 @@ NOTAS DE MANTENIMIENTO:
     <!-- Mobile bottom nav -->
     <nav class="mobile-nav" aria-label="Navegación móvil">
         <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" class="mobile-nav-item">
-            <span class="mobile-nav-icon" aria-hidden="true">📊</span>
+            <span class="mobile-nav-icon" aria-hidden="true"><span class="material-symbols-outlined">query_stats</span></span>
             <span>Dashboard</span>
         </a>
         <a href="#" class="mobile-nav-item active" aria-current="page">
-            <span class="mobile-nav-icon" aria-hidden="true">📋</span>
+            <span class="mobile-nav-icon" aria-hidden="true"><span class="material-symbols-outlined">description</span></span>
             <span>Reportes</span>
         </a>
         <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
-            <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+            <span class="mobile-nav-icon" aria-hidden="true"><span class="material-symbols-outlined">calendar_month</span></span>
             <span>Agenda</span>
         </a>
     </nav>
@@ -377,5 +383,5 @@ NOTAS DE MANTENIMIENTO:
 
 @section Scripts {
     <script src="~/js/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/reportes.js" asp-append-version="true" defer></script>
-    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
 }
+

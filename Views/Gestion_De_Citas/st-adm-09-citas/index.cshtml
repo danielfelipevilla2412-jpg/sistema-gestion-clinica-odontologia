@@ -1,30 +1,21 @@
 @* ============================================
-   SmileTrack — Gestión Integral de Citas (st-adm-09-citas)
+   SmileTrack — Módulo: Gestión de Citas
+   Vista: Gestión Integral de Citas (st-adm-09-citas)
    ============================================
-   Autor: Johan Santamaria
-   Fecha: 29/07/2026
+   Archivo: Views/Gestion_De_Citas/st-adm-09-citas/index.cshtml
 
-   DESCRIPCIÓN:
-   Vista principal de administración de citas con listado paginado,
-   filtros avanzados, modales para CRUD y cambio rápido de estado.
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Interfaz principal de administración de citas con tabla de gestión paginada, filtros multicriterio,
+   diálogos modales para la creación/edición de turnos y acciones de actualización directa de estado.
 
-   FUNCIONALIDADES PRINCIPALES:
-   - Listado de citas con paginación server-side
-   - Filtros dinámicos por paciente, estado, profesional y fecha
-   - Modal de creación y edición con validación CSRF
-   - Cambio rápido de estado directo en la tabla
-   - Panel de estadísticas con contadores animados
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Renderiza datos paginados mediante `PagedResult<Cita>` o `IEnumerable<CitaViewModel>`.
+   - Incluye tokens Antiforgery para la protección de formularios POST/PUT/DELETE.
 
-   DEPENDENCIAS TÉCNICAS:
-   - Controller: GestionCitasController y Stadm09Citas
+   DEPENDENCIAS:
    - CSS: ~/css/Gestion_De_Citas/st-adm-09-citas/gestionintegral.css
    - JS: ~/js/Gestion_De_Citas/st-adm-09-citas/gestionintegral.js
-   - Partial / Otros: _SidebarAdmin.cshtml
-
-   NOTAS DE MANTENIMIENTO:
-   - Comentarios internos explican el "por qué" de decisiones de diseño
-   - El formulario modal reutiliza ViewData del backend para selectores
-============================================ *@
+   ============================================ *@
 
 @{ Layout = "_Layout"; ViewData["Title"] = "Gestión de Citas"; }
 
@@ -41,6 +32,12 @@
     var profesionalesFilterOptions = ViewData["ProfesionalesFilterOptions"] as
 List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
     var pageResult = ViewData["CitasPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Cita>;
+    var resultItemCount = pageResult?.Items?.Count ?? 0;
+    var resultTotalCount = pageResult?.TotalCount ?? 0;
+    var resultPage = pageResult?.Page ?? 1;
+    var resultPageSize = pageResult?.PageSize ?? 10;
+    var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+    var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
 
     // Datos para modal de edición
     var editingCita = ViewData["EditingCita"] as SmileTrack_MVC.Models.Entities.Cita;
@@ -60,8 +57,9 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                 <h1 class="page-title" data-i18n="adm09_title">Gestión Integral de Citas</h1>
                 <p class="page-subtitle" data-i18n="adm09_subtitle">Supervisión y control</p>
             </div>
-            <button class="btn-primary" id="citas-btn-nueva" aria-label="Programar nueva cita" onclick="openModalCita(this)" data-i18n-aria-label="adm09_nueva_cita_aria" data-i18n="adm09_btn_nueva_cita">
-                + Nueva Cita
+            <button type="button" class="btn-primary" id="citas-btn-nueva" aria-label="Programar nueva cita" onclick="openModalCita(this)" data-i18n-aria-label="adm09_nueva_cita_aria">
+                <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                <span data-i18n="adm09_btn_nueva_cita">Nueva Cita</span>
             </button>
         </header>
 
@@ -167,12 +165,19 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             </div>
 
                             <input type="hidden" name="page" value="1" />
-                            <button class="btn-primary" type="submit" data-i18n="form.search">Aplicar</button>
-                            <a class="btn-secondary" href="@Url.Action("Stadm09Citas", "GestionCitas")" data-i18n="form.clear">Limpiar</a>
+                            <button class="btn-primary" type="submit" aria-label="Aplicar filtros">
+                                <span class="material-symbols-outlined" aria-hidden="true">filter_alt</span>
+                                <span data-i18n="form.search">Aplicar</span>
+                            </button>
+                            <a class="btn-secondary" href="@Url.Action("Stadm09Citas", "GestionCitas")" aria-label="Limpiar filtros">
+                                <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+                                <span data-i18n="form.clear">Limpiar</span>
+                            </a>
                         </form>
                     </section>
 
                     <!-- Tabla ACCESIBLE con semántica HTML nativa -->
+                    <div class="table-wrap">
                     <table class="table-appointments" aria-label="Tabla de citas" role="grid" data-i18n-aria-label="adm09_table_aria">
                         <thead>
                             <tr role="row">
@@ -240,7 +245,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 var cNotas = cita.NotasPrevias ?? "";
 
 
-                                <tr role="row">
+                                <tr role="row" class="table-row">
                                     <td role="cell" data-label="Fecha" class="col-fecha">
                                         @cita.Fecha.ToString("dd/MM/yyyy")
                                     </td>
@@ -269,8 +274,15 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                             </div>
                                             <div style="display:flex; flex-direction:column; align-items:flex-start;">
                                                 <span class="patient-name">
-                                                    @(string.IsNullOrEmpty(profesionalNombre) ? "<span data-i18n=\"adm09_no_profesional\">Sin asignar</span>" : profesionalNombre)
-                                                </span>
+                                                     @if (string.IsNullOrEmpty(profesionalNombre))
+                                                     {
+                                                         <span data-i18n="adm09_no_profesional">Sin asignar</span>
+                                                     }
+                                                     else
+                                                     {
+                                                         @profesionalNombre
+                                                     }
+                                                 </span>
                                                 @if (!string.IsNullOrEmpty(profesionalNombre))
                                                 {
                                                     <span class="badge-spec @especialidadPrincipal.ToLowerInvariant()"
@@ -312,7 +324,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                     <!-- Acciones -->
                                     <td role="cell" data-label="Acciones" class="col-acciones text-right">
                                         <div class="actions-cell">
-                                            <button type="button" class="action-btn btn-secondary btn-view view"
+                                            <button type="button" class="action-btn btn-secondary btn-view"
                                                     aria-label="@Html.Encode($"Ver detalles de la cita de {cPaciente}")"
                                                     title="Ver detalles de la cita de @Html.Encode(cPaciente)" data-id="@cita.IdCita"
                                                     data-fecha="@Html.Encode(cFecha)" data-hora="@Html.Encode(cHora)"
@@ -322,14 +334,14 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                 <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
                                                 <span class="btn-text">Ver</span>
                                             </button>
-                                            <a class="action-btn btn-secondary edit"
+                                            <a class="action-btn btn-secondary btn-edit"
                                                href="@Url.Action("Stadm09Citas", "GestionCitas", new { editId = cita.IdCita })"
                                                aria-label="Editar la cita de @cPaciente"
                                                title="Editar la cita de @Html.Encode(cPaciente)">
                                                 <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
                                                 <span class="btn-text">Editar</span>
                                             </a>
-                                            <button type="button" class="action-btn btn-danger btn-delete toggle"
+                                            <button type="button" class="action-btn btn-danger btn-delete"
                                                     aria-label="Eliminar la cita de @cPaciente"
                                                     title="Eliminar la cita de @Html.Encode(cPaciente)"
                                                     onclick="openConfirmDeleteCita(@cita.IdCita, '@cPaciente.Replace("'", "\\'")', this)">
@@ -343,15 +355,12 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             }
                         </tbody>
                     </table>
+                    </div>
 
                     <!-- Paginación accesible -->
                     <footer class="table-footer" aria-label="Navegación de páginas">
-                        @{
-                            var mostrando = Math.Min(pageResult?.PageSize ?? 10, pageResult?.Items?.Count ?? 0);
-                            var total = pageResult?.TotalCount ?? 0;
-                        }
                         <span>
-                            Mostrando <strong id="pageShowing">@mostrando</strong> de <strong id="pageTotal">@total</strong>
+                            Mostrando <strong id="pageRangeStart">@resultRangeStart</strong>-<strong id="pageShowing">@resultRangeEnd</strong> de <strong id="pageTotal">@resultTotalCount</strong>
                             citas
                         </span>
                         <nav class="pagination" aria-label="Páginas de resultados">
@@ -423,10 +432,14 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                     <h2 class="modal-title" id="modalAppointmentTitle">Detalle de Cita</h2>
                     <div id="modalAppointmentContent" class="modal-content" role="document"></div>
                     <div class="modal-footer">
-                        <button class="btn-secondary" id="modalAppointmentCancel"
-                                aria-label="Cerrar detalles de la cita actual">Cerrar</button>
-                        <button class="btn-primary" id="modalAppointmentEdit"
-                                aria-label="Abrir formulario de edición de la cita actual">Editar</button>
+                        <button type="button" class="btn-secondary" id="modalAppointmentCancel"
+                                aria-label="Cerrar detalles de la cita actual">
+                            <span class="material-symbols-outlined" aria-hidden="true">close</span> Cerrar
+                        </button>
+                        <button type="button" class="btn-primary" id="modalAppointmentEdit"
+                                aria-label="Abrir formulario de edición de la cita actual">
+                            <span class="material-symbols-outlined" aria-hidden="true">edit</span> Editar
+                        </button>
                     </div>
                 </div>
             </div>
@@ -696,10 +709,18 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                        style="margin:16px 0 24px; line-height:1.5; color:var(--text-muted, #64748b);">
                                         ¿Está seguro de eliminar esta cita? Esta acción no se puede deshacer.
                                     </p>
-                                    <form id="formDeleteCita" method="post" action="/gestion-de-citas/eliminar-cita">
+                            <form id="formDeleteCita" method="post" action="/gestion-de-citas/eliminar-cita">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" id="deleteCitaId" name="IdCita" value="" />
                                         <input type="hidden" id="deleteCitaReturnUrl" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
+                                        <!-- A1/B1: motivo obligatorio en ruta MVC (RN-23) -->
+                                        <div class="form-group" style="margin-bottom:16px;">
+                                            <label class="form-label" for="deleteCitaMotivo" style="font-size:0.82rem;font-weight:600;">
+                                                Motivo de cancelación <span style="color:var(--danger)">*</span>
+                                            </label>
+                                            <textarea id="deleteCitaMotivo" name="MotivoCancelacion" class="form-input" rows="2"
+                                                      maxlength="500" required placeholder="Indique el motivo..." style="resize:vertical;"></textarea>
+                                        </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn-secondary" id="modalConfirmDeleteCitaCancel">Cancelar</button>
                                             <button type="submit" class="btn-primary"
@@ -893,10 +914,6 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                         }
                                     });
                                 });
-                                modalAppEl.setAttribute('aria-hidden', 'false');
-                                modalAppEl.removeAttribute('inert');
-                                document.body.style.overflow = 'hidden';
-                                modalAppCloseBtn?.focus();
                                 }
                                 });
                                 });

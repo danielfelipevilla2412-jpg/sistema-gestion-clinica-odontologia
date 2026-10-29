@@ -1,3 +1,22 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: ReportesProfesionalViewModel (Modelo de Vista)
+ * ============================================
+ * Archivo: Models/ViewModels/GestionDeProfesionales/ReportesProfesionalViewModel.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Encapsula la información estadística de producción clínica y KPIs de desempeño individual
+ * para la vista de reportes del profesional odontológico (`st-adm-14-reportes-clinicos`).
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Calcula tendencias de ingresos, tasas de inasistencia/cancelación y distribución por tratamiento.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - ActividadClinicaItem, DistribuciónTratamientoItem
+ * ============================================
+ */
+
 namespace SmileTrack_MVC.Models.ViewModels
 {
     public class ReportesProfesionalViewModel

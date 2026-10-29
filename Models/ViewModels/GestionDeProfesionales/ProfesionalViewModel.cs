@@ -1,3 +1,22 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: ProfesionalViewModel (Modelo de Vista)
+ * ============================================
+ * Archivo: Models/ViewModels/GestionDeProfesionales/ProfesionalViewModel.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * ViewModel para la creación y modificación de profesionales odontológicos.
+ * Define las reglas de validación en cliente/servidor para Registro Médico, Correo, Teléfono y Estado.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Valida expresión regular en Registro Médico para evitar inyecciones o formatos erróneos.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - DataAnnotations
+ * ============================================
+ */
+
 using System.ComponentModel.DataAnnotations;
 
 namespace SmileTrack_MVC.Models.ViewModels

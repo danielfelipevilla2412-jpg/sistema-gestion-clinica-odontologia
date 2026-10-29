@@ -21,8 +21,10 @@ namespace SmileTrack_MVC.Models.DTOs
         public DateTime FechaFin { get; set; }
         public int TotalCitasAtendidas { get; set; }
         public decimal MontoTotalFacturado { get; set; }
+        public decimal MontoTotalRecaudado { get; set; }
         public decimal PorcentajeComision { get; set; }
         public decimal MontoTotalHonorarios { get; set; }
+        public decimal MontoComisionPendiente { get; set; }
         public List<ReporteComisionServicioDto> DetalleServicios { get; set; } = new();
     }
 }

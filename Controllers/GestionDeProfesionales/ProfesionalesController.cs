@@ -1,3 +1,27 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: GestionProfesionalesController
+ * ============================================
+ * Archivo: Controllers/GestionDeProfesionales/ProfesionalesController.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Controlador MVC responsable de la gestión integral del cuerpo profesional (odontólogos,
+ * especialistas y auxiliares). Administra la interfaz de usuario para el registro, edición,
+ * consulta de perfiles y reportes clínicos de profesionales de la clínica.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Requiere rol "Administrador" para la edición/creación de perfiles y asignación de credenciales.
+ * - Validación estricta de Registro Médico único y formato de correo corporativo/teléfono.
+ * - Sincronización automática de credenciales de usuario (Hash de contraseña vía BCrypt/Helper)
+ *   para garantizar la integridad entre la entidad Profesional y la entidad Usuario de acceso.
+ * - Integración con IProfesionalService para separar la persistencia de la lógica de presentación.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, IProfesionalService, ProfesionalEstadoHelper, ILogger
+ * ============================================
+ */
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -16,11 +40,17 @@ namespace SmileTrack_MVC.Controllers;
 public partial class GestionProfesionalesController(
     AppDbContext context,
     ILogger<GestionProfesionalesController> logger,
-    IProfesionalService profesionalService) : Controller
+    IProfesionalService profesionalService,
+    IWebHostEnvironment environment) : Controller
 {
     private readonly AppDbContext _context = context;
     private readonly ILogger<GestionProfesionalesController> _logger = logger;
     private readonly IProfesionalService _profesionalService = profesionalService;
+    private readonly IWebHostEnvironment _environment = environment;
+    private static readonly HashSet<string> TiposCredencial = new(StringComparer.Ordinal)
+    {
+        "Certificado médico", "Título de especialidad", "Estudios complementarios", "Registro profesional"
+    };
 
     private const string MensajeErrorFallback =
         "Ocurrió un error inesperado al cargar la página. Por favor intente nuevamente. Si el problema persiste, contacte al soporte.";
@@ -47,6 +77,11 @@ public partial class GestionProfesionalesController(
                 Estado = estado,
                 Profesional = especialidad
             }, ct);
+            ViewData["CredencialesProfesionales"] = await _context.CredencialesProfesionales
+                .AsNoTracking()
+                .Include(d => d.Profesional)
+                .OrderByDescending(d => d.FechaSubida)
+                .ToListAsync(ct);
             return View("~/Views/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/index.cshtml");
         }
         catch (Exception ex)
@@ -62,10 +97,37 @@ public partial class GestionProfesionalesController(
     [Route("gestion-de-profesionales/st-adm-14-reportes-clinicos")]
     public async Task<IActionResult> Stadm14ReportesClinicos([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null, [FromQuery] string? profesional = null, [FromQuery] string? mes = null, CancellationToken ct = default)
     {
+        // ── A6: Control de acceso por rol para reportes clínicos (RN-18) ────
+        // Profesional solo puede ver sus propios datos.
+        // Si no tiene fila asociada en la tabla Profesionales, se deniega.
+        int? idProfesionalForzado = null;
+        if (User.IsInRole("Profesional"))
+        {
+            string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId))
+            {
+                TempData["ErrorValidacion"] = "No fue posible identificar al profesional autenticado.";
+                return View("~/Views/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/index.cshtml");
+            }
+
+            var profCheck = await _context.Profesionales.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
+
+            if (profCheck is null)
+            {
+                TempData["ErrorValidacion"] = "Su cuenta no está vinculada a un profesional activo. Contacte al administrador.";
+                return View("~/Views/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/index.cshtml");
+            }
+
+            // Forzar filtro al propio profesional; ignorar cualquier ?profesional= externo
+            idProfesionalForzado = profCheck.IdProfesional;
+            profesional = null;
+        }
+
         try
         {
             await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
-            await CargarDatosReportesClinicos(page, pageSize, search, profesional, mes, ct);
+            await CargarDatosReportesClinicos(page, pageSize, search, profesional, mes, idProfesionalForzado, ct);
             return View("~/Views/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/index.cshtml");
         }
         catch (Exception ex)
@@ -92,6 +154,7 @@ public partial class GestionProfesionalesController(
                 if (profesional != null)
                 {
                     var hoy = DateTime.Today;
+                    var ahora = DateTime.Now;
                     var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
                     var finMes = inicioMes.AddMonths(1);
 
@@ -110,14 +173,20 @@ public partial class GestionProfesionalesController(
                     ViewData["OdoIngresosMes"] = ingresosMes;
 
                     ViewData["OdoCitasAtendidas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase));
-                    ViewData["OdoCitasProgramadas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase));
+                    // Solo cuentan como "programadas" las citas que todavía no han pasado; las
+                    // vencidas que siguen en espera ya no deben inflar el KPI.
+                    ViewData["OdoCitasProgramadas"] = citasDelMes.Count(c =>
+                        c.FechaHora >= ahora &&
+                        (string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase)));
                     ViewData["OdoCitasCanceladas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase));
                     ViewData["OdoCitasNoAsistio"] = citasDelMes.Count(c => string.Equals(c.Estado, "No asistio", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "no asistió", StringComparison.OrdinalIgnoreCase));
                     ViewData["OdoTotalCitasMes"] = citasDelMes.Count;
 
+                    // "Próximas citas de hoy": se excluyen las que ya pasaron de hora.
                     ViewData["OdoProximasCitas"] = citasDelMes
                         .Where(c =>
                             c.FechaHora.Date == hoy &&
+                            c.FechaHora >= ahora &&
                             (
                                 string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase) ||
@@ -203,17 +272,17 @@ public partial class GestionProfesionalesController(
                     ViewData["OdoProximaCitaUrgente"] = proximaCitaUrgente;
 
                     // 2. CITAS PENDIENTES DE CONFIRMAR (estado "Agendada" o "programada")
+                    //    Solo las que aún no han pasado: una cita vencida ya no está pendiente.
                     var citasPendientesConfirmar = await _context.Citas
                         .AsNoTracking()
                         .CountAsync(c =>
                             c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora >= hoy &&
+                            c.FechaHora >= ahora &&
                             (c.Estado == "Agendada" || c.Estado == "programada"), ct);
 
                     ViewData["CitasPendientesConfirmar"] = citasPendientesConfirmar;
 
                     // 3. PACIENTES EN ESPERA (citas de hoy en estado "Confirmada" y hora ya pasada)
-                    var ahora = DateTime.Now;
                     var pacientesEnEspera = await _context.Citas
                         .AsNoTracking()
                         .CountAsync(c =>
@@ -296,6 +365,12 @@ public partial class GestionProfesionalesController(
                     .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
 
                 ViewData["LoggedProfesional"] = profesional;
+                ViewData["CredencialesProfesional"] = profesional is null
+                    ? new List<CredencialProfesional>()
+                    : await _context.CredencialesProfesionales.AsNoTracking()
+                        .Where(d => d.IdProfesional == profesional.IdProfesional)
+                        .OrderByDescending(d => d.FechaSubida)
+                        .ToListAsync(ct);
             }
 
             return View("~/Views/Gestion_De_Profesionales/st-odo-09-perfil-profesional/index.cshtml");
@@ -308,12 +383,191 @@ public partial class GestionProfesionalesController(
         }
     }
 
+    [HttpPost]
+    [Authorize(Roles = "Profesional")]
+    [ValidateAntiForgeryToken]
+    [Route("gestion-de-profesionales/credenciales/subir")]
+    public async Task<IActionResult> SubirCredencialProfesional(
+        IFormFile? archivo,
+        string? tipo,
+        CancellationToken ct = default)
+    {
+        if (!int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int userId))
+            return Forbid();
+
+        var profesional = await _context.Profesionales
+            .Include(p => p.Usuario)
+            .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
+        if (profesional is null)
+            return NotFound();
+
+        if (archivo is null || archivo.Length is <= 0 or > 10_485_760 ||
+            string.IsNullOrWhiteSpace(tipo) || !TiposCredencial.Contains(tipo) ||
+            Path.GetFileName(archivo.FileName).Length > 255)
+        {
+            TempData["ErrorValidacion"] = "Selecciona un tipo de credencial y un archivo PDF o imagen de hasta 10 MB.";
+            return RedirectToAction(nameof(Stodo09PerfilProfesional));
+        }
+
+        string extension = Path.GetExtension(archivo.FileName).ToLowerInvariant();
+        string contentType = extension switch
+        {
+            ".pdf" => "application/pdf",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            _ => string.Empty
+        };
+        if (contentType.Length == 0)
+        {
+            TempData["ErrorValidacion"] = "Solo se permiten archivos PDF, JPG, JPEG o PNG.";
+            return RedirectToAction(nameof(Stodo09PerfilProfesional));
+        }
+
+        await using var source = archivo.OpenReadStream();
+        var header = new byte[8];
+        int read = await source.ReadAsync(header, ct);
+        bool validSignature = extension switch
+        {
+            ".pdf" => read >= 5 && header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46 && header[4] == 0x2D,
+            ".png" => read >= 8 && header.AsSpan(0, 8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
+            ".jpg" or ".jpeg" => read >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF,
+            _ => false
+        };
+        if (!validSignature)
+        {
+            TempData["ErrorValidacion"] = "El contenido del archivo no coincide con un PDF o una imagen válida.";
+            return RedirectToAction(nameof(Stodo09PerfilProfesional));
+        }
+
+        source.Position = 0;
+        string fileName = $"{Guid.NewGuid():N}{extension}";
+        string relativePath = Path.Combine("private_uploads", "credenciales-profesionales", profesional.IdProfesional.ToString(), fileName);
+        string fullPath = Path.Combine(_environment.ContentRootPath, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+
+        try
+        {
+            await using (var destination = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                await source.CopyToAsync(destination, ct);
+
+            _context.CredencialesProfesionales.Add(new CredencialProfesional
+            {
+                IdProfesional = profesional.IdProfesional,
+                SubidoPor = userId,
+                Tipo = tipo,
+                NombreOriginal = Path.GetFileName(archivo.FileName),
+                RutaPrivada = relativePath,
+                ContentType = contentType,
+                TamanoBytes = archivo.Length,
+                EstadoRevision = "pendiente",
+                FechaSubida = DateTime.UtcNow
+            });
+            profesional.CredencialesAprobadas = false;
+            profesional.Estado = "inactivo";
+            await _context.SaveChangesAsync(ct);
+            TempData["Mensaje"] = "Documento cargado. El administrador revisará tus credenciales antes de activar tu perfil.";
+        }
+        catch
+        {
+            if (System.IO.File.Exists(fullPath))
+                System.IO.File.Delete(fullPath);
+            throw;
+        }
+
+        return RedirectToAction(nameof(Stodo09PerfilProfesional));
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Administrador,Profesional")]
+    [Route("gestion-de-profesionales/credenciales/{id:int}/archivo")]
+    public async Task<IActionResult> DescargarCredencialProfesional(int id, CancellationToken ct = default)
+    {
+        var documento = await _context.CredencialesProfesionales
+            .Include(d => d.Profesional)
+            .FirstOrDefaultAsync(d => d.IdCredencial == id, ct);
+        if (documento is null)
+            return NotFound();
+
+        if (User.IsInRole("Profesional") && !User.IsInRole("Administrador") &&
+            (!int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int userId) ||
+             documento.Profesional?.IdUsuario != userId))
+            return Forbid();
+
+        string credentialsRoot = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, "private_uploads", "credenciales-profesionales")) + Path.DirectorySeparatorChar;
+        string fullPath = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, documento.RutaPrivada));
+        if (!fullPath.StartsWith(credentialsRoot, StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(fullPath))
+            return NotFound();
+
+        return PhysicalFile(fullPath, documento.ContentType, documento.NombreOriginal);
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Administrador")]
+    [ValidateAntiForgeryToken]
+    [Route("gestion-de-profesionales/credenciales/{id:int}/revisar")]
+    public async Task<IActionResult> RevisarCredencialProfesional(
+        int id,
+        string? decision,
+        string? observacion,
+        CancellationToken ct = default)
+    {
+        string estado = decision?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (estado is not ("aprobado" or "rechazado"))
+            return BadRequest();
+
+        var documento = await _context.CredencialesProfesionales
+            .Include(d => d.Profesional)
+                .ThenInclude(p => p!.Usuario)
+            .FirstOrDefaultAsync(d => d.IdCredencial == id, ct);
+        if (documento?.Profesional is null)
+            return NotFound();
+
+        documento.EstadoRevision = estado;
+        documento.ObservacionRevision = string.IsNullOrWhiteSpace(observacion) ? null : observacion.Trim();
+        documento.RevisadoPor = int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int reviewerId)
+            ? reviewerId
+            : null;
+        documento.FechaRevision = DateTime.UtcNow;
+
+        var profesional = documento.Profesional;
+        if (estado == "rechazado")
+        {
+            profesional.CredencialesAprobadas = false;
+            profesional.Estado = "inactivo";
+        }
+        else
+        {
+            bool tieneDocumentosSinAprobar = await _context.CredencialesProfesionales.AnyAsync(d =>
+                d.IdProfesional == profesional.IdProfesional &&
+                d.IdCredencial != documento.IdCredencial &&
+                d.EstadoRevision == "pendiente", ct);
+            if (!tieneDocumentosSinAprobar)
+            {
+                profesional.CredencialesAprobadas = true;
+                profesional.Estado = "activo";
+                if (profesional.Usuario is not null)
+                    profesional.Usuario.Estado = "activo";
+
+                var bloqueos = await _context.BloqueosProfesional
+                    .Where(b => b.IdProfesional == profesional.IdProfesional && b.Motivo == "Profesional inactivo / desactivado")
+                    .ToListAsync(ct);
+                _context.BloqueosProfesional.RemoveRange(bloqueos);
+            }
+        }
+
+        await _context.SaveChangesAsync(ct);
+        TempData["Mensaje"] = estado == "aprobado"
+            ? "Credencial aprobada."
+            : "Credencial rechazada; el perfil permanece inactivo.";
+        return RedirectToAction(nameof(Stadm07GestionProfesionales));
+    }
+
     // ─── CRUD MIGRADO A LA API ──────────────────────────────────────────────
     // Las operaciones GuardarProfesional (POST/PUT) y EliminarProfesional (DELETE/PATCH)
     // fueron eliminadas en la Fase 2E porque el frontend ahora consume directamente
     // ProfesionalesApiController.cs.
 
-    private async Task CargarDatosReportesClinicos(int page, int pageSize, string? search = null, string? profesional = null, string? mes = null, CancellationToken ct = default)
+    private async Task CargarDatosReportesClinicos(int page, int pageSize, string? search = null, string? profesional = null, string? mes = null, int? idProfesionalForzado = null, CancellationToken ct = default)
     {
         try
         {
@@ -330,18 +584,17 @@ public partial class GestionProfesionalesController(
                 .AsNoTracking()
                 .AsQueryable();
 
-            if (User.IsInRole("Profesional"))
+            // A6: si viene idProfesionalForzado (rol Profesional) lo usamos directamente;
+            // si no (rol Administrador), permitir filtro por nombre desde el parámetro.
+            if (idProfesionalForzado.HasValue)
             {
-                string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (int.TryParse(userIdStr, out int userId))
-                {
-                    var prof = await _context.Profesionales.AsNoTracking()
-                        .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
-                    if (prof != null)
-                    {
-                        citasQuery = citasQuery.Where(c => c.IdProfesional == prof.IdProfesional);
-                    }
-                }
+                citasQuery = citasQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
+            }
+            else if (User.IsInRole("Profesional"))
+            {
+                // Fallback de seguridad: si llegamos aquí sin idProfesionalForzado siendo
+                // Profesional, es un escenario no esperado — filtramos por 0 (sin resultados).
+                citasQuery = citasQuery.Where(c => c.IdProfesional == 0);
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -518,18 +771,13 @@ public partial class GestionProfesionalesController(
             ViewData["TotalPacientesReportes"] = await _context.Pacientes.CountAsync(ct);
 
             var consultasQuery = _context.Citas.AsNoTracking();
-            if (User.IsInRole("Profesional"))
+            if (idProfesionalForzado.HasValue)
             {
-                string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (int.TryParse(userIdStr, out int userId))
-                {
-                    var prof = await _context.Profesionales.AsNoTracking()
-                        .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
-                    if (prof != null)
-                    {
-                        consultasQuery = consultasQuery.Where(c => c.IdProfesional == prof.IdProfesional);
-                    }
-                }
+                consultasQuery = consultasQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
+            }
+            else if (User.IsInRole("Profesional"))
+            {
+                consultasQuery = consultasQuery.Where(c => c.IdProfesional == 0);
             }
 
             ViewData["ConsultasMes"] = await consultasQuery.CountAsync(c => c.FechaHora >= inicioMes && c.FechaHora < finMes, ct);

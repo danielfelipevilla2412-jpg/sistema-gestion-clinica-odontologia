@@ -1,3 +1,25 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: ICitaService (Interfaz de Servicio)
+ * ============================================
+ * Archivo: Services/GestionDeCitas/ICitaService.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Contrato principal que define los métodos de negocio para la gestión integral de citas.
+ * Establece la abstracción desacoplada de la capa de persistencia para permitir inyección
+ * de dependencias, pruebas unitarias y consistencia operativa entre MVC y API Controllers.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Operaciones CRUD con validación de conflictos en profesional, paciente y consultorio.
+ * - Cálculo de KPIs de dashboard de citas en tiempo real.
+ * - Soporte para operaciones administrativas (cancelación, reagendamiento) y solicitudes móviles.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Cita, CitasKpiDto, CitaFormDto, CancellationToken
+ * ============================================
+ */
+
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
 
@@ -41,6 +63,7 @@ public interface ICitaService
     Task<Cita?> CambiarEstadoAsync(
         int id,
         string nuevoEstado,
+        int? idUsuarioActor = null,
         CancellationToken ct = default);
 
     Task<Cita?> ActualizarNotasAsync(
@@ -159,5 +182,17 @@ public interface ICitaService
     Task<(bool EsValido, string? Mensaje)> ValidarHorarioClinicaAsync(
         DateTime fechaHora,
         int duracionMinutos = 60,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// M7 (RF-24): Devuelve los candidatos de la lista de espera cuyo rango de fechas
+    /// deseadas cubre la franja indicada, junto con los profesionales disponibles para
+    /// esa misma franja. No modifica ninguna cita — la asignación requiere confirmación
+    /// de recepción (CU-CIT-06).
+    /// </summary>
+    Task<List<SugerenciaListaEsperaDto>> ObtenerSugerenciasListaEsperaAsync(
+        DateTime fechaHoraLiberada,
+        int? idServicio,
+        int? idProfesional,
         CancellationToken ct = default);
 }

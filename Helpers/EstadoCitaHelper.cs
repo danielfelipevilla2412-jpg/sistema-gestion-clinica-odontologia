@@ -1,3 +1,24 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: EstadoCitaHelper (Clase Helper)
+ * ============================================
+ * Archivo: Helpers/EstadoCitaHelper.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Centraliza la normalización y resolución de estados de las citas odontológicas. Evita
+ * inconsistencias de formato (mayúsculas, tildes, sinónimos como "completada" vs "atendida")
+ * entre la base de datos, los servicios backend y la interfaz gráfica.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Normaliza sinónimos de estados a las claves canónicas reconocidas por la BD ("programada", "en_proceso", "atendida", "cancelada", etc.).
+ * - Elimina tildes, convierte a minúsculas y reemplaza guiones/espacios por guiones bajos.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - System.Globalization, System.Text
+ * ============================================
+ */
+
 using System.Globalization;
 using System.Text;
 
@@ -5,6 +26,27 @@ namespace SmileTrack_MVC.Helpers;
 
 public static class EstadoCitaHelper
 {
+    /// <summary>
+    /// Estados que representan el cierre definitivo de una cita (ya no requiere seguimiento).
+    /// Se expone como arreglo para poder usarlo directamente en consultas EF: .Contains(...) se
+    /// traduce a una cláusula IN en SQL.
+    /// </summary>
+    public static readonly string[] EstadosFinales =
+    [
+        "atendida", "atendido", "completada", "completado", "realizada", "realizado",
+        "finalizada", "finalizado",
+        "cancelada", "cancelado",
+        "no asistio", "no asistió", "no_asistida", "no-show", "no_show"
+    ];
+
+    /// <summary>
+    /// Indica si la cita ya está cerrada (atendida, cancelada o no asistió) y por tanto no debe
+    /// considerarse "en espera" aunque su fecha ya haya pasado.
+    /// </summary>
+    public static bool EsEstadoFinal(string? estado)
+        => !string.IsNullOrWhiteSpace(estado)
+           && EstadosFinales.Contains(estado.Trim().ToLowerInvariant());
+
     public static string Normalize(string? estado)
     {
         string normalized = string.Concat((estado ?? string.Empty).Trim().Normalize(NormalizationForm.FormD)

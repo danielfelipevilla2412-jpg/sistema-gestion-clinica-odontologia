@@ -14,8 +14,8 @@ namespace SmileTrack_MVC.Controllers;
 ///
 /// RUTAS ACTIVAS (referenciadas desde los sidebars de Admin, Profesional, Auxiliar y Recepcionista):
 ///   GET /centro-de-ayuda/guias-tutoriales   → vista Guías, Tutoriales y Soporte (Admin + todos los roles autenticados)
-///   GET /centro-de-ayuda/como-programar-cita → vista Cómo programar una cita (Admin)
-///   GET /centro-de-ayuda/soporte             → vista de Soporte / Ticket (Admin)
+///   GET /centro-de-ayuda/como-programar-cita → vista Cómo programar una cita (todos los roles autenticados)
+///   GET /centro-de-ayuda/soporte             → vista de Soporte / Ticket (todos los roles autenticados)
 ///
 /// RUTAS LEGACY (redirigen a la principal para no romper enlaces existentes):
 ///   GET /centro-de-ayuda/st-rec-01-preguntas-frecuentes
@@ -44,12 +44,11 @@ public class CentroDeAyudaController : Controller
     public IActionResult GuiasTutoriales()
     {
         var vm = BuildGuiasTutorialesViewModel();
-        return View("~/Views/Centro_De_Ayuda/Soporte y Tickets/index.cshtml", vm);
+        return View("~/Views/Centro_De_Ayuda/Guias_Tutoriales_y_Soporte/index.cshtml", vm);
     }
 
     // ─── Cómo programar una cita ──────────────────────────────────────────────
     [HttpGet]
-    [Authorize(Roles = "Administrador")]
     [Route("centro-de-ayuda/como-programar-cita")]
     public IActionResult ComoProgramarCita()
     {
@@ -58,7 +57,6 @@ public class CentroDeAyudaController : Controller
 
     // ─── Soporte / Ticket ─────────────────────────────────────────────────────
     [HttpGet]
-    [Authorize(Roles = "Administrador")]
     [Route("centro-de-ayuda/soporte")]
     public IActionResult Soporte()
     {
@@ -96,7 +94,6 @@ public class CentroDeAyudaController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administrador")]
     [Route("centro-de-ayuda/soporte")]
     public async Task<IActionResult> CreateTicket(SupportTicketViewModel model, CancellationToken ct)
     {
@@ -116,9 +113,9 @@ public class CentroDeAyudaController : Controller
         var request = new CentroAyudaTicketRequest
         {
             Asunto = model.Subject,
-            Categoria = model.Category.ToString().ToLowerInvariant(),
-            ModuloAfectado = model.Module.ToString().ToLowerInvariant(),
-            Severidad = model.Severity.ToLowerInvariant(),
+            Categoria = model.Category?.ToString().ToLowerInvariant() ?? "errortecnico",
+            ModuloAfectado = model.Module?.ToString().ToLowerInvariant() ?? "otronoestoyseguro",
+            Severidad = model.Severity?.ToLowerInvariant() ?? "baja",
             Descripcion = model.Description,
             CapturaPantalla = model.Screenshot
         };
@@ -295,7 +292,7 @@ public class CentroDeAyudaController : Controller
             },
             new() {
                 Titulo      = "Facturación y pagos",
-                Descripcion = "Guía para generar facturas, registrar pagos y exportar reportes financieros.",
+                Descripcion = "Guía para generar facturas, registrar pagos y consultar información de facturación.",
                 Categoria   = "Facturación",
                 Icono       = "💳",
                 Url         = "/facturacion-y-pagos/st-adm-12-facturacion"

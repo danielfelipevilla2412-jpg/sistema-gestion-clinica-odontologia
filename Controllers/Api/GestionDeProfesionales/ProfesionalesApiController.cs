@@ -1,3 +1,26 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Profesionales
+ * Componente: ProfesionalesApiController
+ * ============================================
+ * Archivo: Controllers/Api/GestionDeProfesionales/ProfesionalesApiController.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Expone la API RESTful para el mantenimiento de datos de profesionales odontológicos,
+ * consulta de catálogos de especialidades y gestión de disponibilidad de horarios semanales.
+ * Permite que los clientes frontend (JS SPA y modal de perfil) consuman y actualicen la información
+ * con validación de seguridad (JWT/Cookie + CSRF).
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Soporte para actualización diferida de agenda semanal por día con horas inicio/fin.
+ * - Restricción de permisos: solo administradores o el propio profesional pueden modificar su perfil.
+ * - Mapeo normalizado entre DTOs de API REST y capas de servicio subyacentes (IProfesionalService).
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - IProfesionalService, CookieAwareValidateAntiforgeryToken, HorarioSemanalDto
+ * ============================================
+ */
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmileTrack_MVC.Api.Controllers;

@@ -1,3 +1,25 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: AgendaService
+ * ============================================
+ * Archivo: Services/GestionDeCitas/AgendaService.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Servicio encargado de construir la estructura de datos jerárquica para la vista de la agenda
+ * médica (semanal y diaria). Transforma las entidades Cita y Profesional en DTOs amigables para la matriz
+ * visual de turnos de la clínica.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Calcula automáticamente el inicio de semana fijando Lunes como primer día de la semana laboral.
+ * - Integra duraciones de citas dinámicas obtenidas desde ICitaService.
+ * - Filtra eventos excluyendo registros soft-deleted ("cancelada" / "eliminada").
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AppDbContext, ICitaService, AgendaViewModel, CitaAgendaDto
+ * ============================================
+ */
+
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
@@ -24,22 +46,6 @@ public sealed class AgendaService(
             .ObtenerDuracionCitaMinutosAsync(cancellationToken);
         var diasAtencion = await ObtenerDiasAtencionAsync(cancellationToken);
         var horario = await ObtenerHorarioClinicaAsync(cancellationToken);
-
-        // Si no se especificó un filtro de profesional (carga inicial al iniciar sesión),
-        // se establece por defecto el profesional correspondiente a prof@smiletrack.co.
-        if (!professionalId.HasValue)
-        {
-            var defaultProfId = await _context.Profesionales
-                .AsNoTracking()
-                .Where(p => p.Usuario != null && p.Usuario.Correo == "prof@smiletrack.co")
-                .Select(p => (int?)p.IdProfesional)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (defaultProfId.HasValue && defaultProfId.Value > 0)
-            {
-                professionalId = defaultProfId;
-            }
-        }
 
         var query = _context.Citas
             .AsNoTracking()

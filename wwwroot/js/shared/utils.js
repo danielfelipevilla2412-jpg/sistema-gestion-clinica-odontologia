@@ -131,23 +131,49 @@ window.SmileTrack.utils = {
    * @param {number} target - Valor final del contador
    * @param {number} duration - Duración en milisegundos (default: 800)
    */
-  animateCounter: function(el, target, duration = 800) {
+  _counterIntervals: new WeakMap(),
+  animateCounter: function(el, target, duration) {
     if (!el || typeof target !== 'number' || target < 0) {
       return;
     }
 
+    if (el.dataset.animated === '1') {
+      return;
+    }
+    el.dataset.animated = '1';
+
+    const counterIntervals = window.SmileTrack.utils._counterIntervals;
+
+    if (counterIntervals.has(el)) {
+      clearInterval(counterIntervals.get(el));
+    }
+
+    const dur = duration ?? Number(el?.dataset?.duration) ?? 800;
     let current = 0;
     const step = Math.max(1, Math.ceil(target / 30));
-    const stepDuration = duration / (target / step);
+    const stepDuration = target > 0 ? dur / (target / step) : 40;
+
+    const fmtAttr = (el.getAttribute('data-format') || '').toLowerCase();
+    const isCurrencyCop = fmtAttr === 'currency-cop';
+    const fmt = isCurrencyCop
+      ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+      : null;
 
     const interval = setInterval(() => {
       current += step;
       if (current >= target) {
         current = target;
         clearInterval(interval);
+        window.SmileTrack.utils._counterIntervals.delete(el);
       }
-      el.textContent = current.toLocaleString('es-CO'); // Formato con separador de miles
+      if (fmt) {
+        el.textContent = fmt.format(current);
+      } else {
+        el.textContent = current.toLocaleString('es-CO');
+      }
     }, stepDuration);
+
+    counterIntervals.set(el, interval);
   },
 
   /**

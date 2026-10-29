@@ -69,8 +69,10 @@ builder.Configuration
     .AddCommandLine(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
+builder.Services.AddScoped<SmileTrack_MVC.Services.Perfiles.IPerfilPacienteService, SmileTrack_MVC.Services.Perfiles.PerfilPacienteService>();
 
 bool ejecutandoEnContenedor =
     string.Equals(
@@ -97,6 +99,7 @@ if (ejecutandoEnContenedor)
             new DirectoryInfo("/root/.aspnet/DataProtection-Keys"));
 }
 
+
 // -----------------------------------------------------------------------------
 // RATE LIMITING
 // -----------------------------------------------------------------------------
@@ -117,6 +120,14 @@ builder.Services.AddRateLimiter(options =>
     {
         opt.PermitLimit = 5;
         opt.Window = TimeSpan.FromMinutes(15);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("PerfilPaciente", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 0;
     });
@@ -194,6 +205,11 @@ builder.Services.AddScoped<IPanelOperativoService, PanelOperativoService>();
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.ICitasDashboardService,
     SmileTrack_MVC.Services.CitasDashboardService>();
+
+// Cierre automático de citas vencidas: se ejecuta a diario a las 23:59 y deja la agenda limpia
+// al día siguiente (las citas en espera que ya pasaron pasan a "No asistio").
+builder.Services.AddHostedService<
+    SmileTrack_MVC.Services.GestionDeCitas.CitasVencidasBackgroundService>();
 
 // -----------------------------------------------------------------------------
 // JWT
@@ -501,8 +517,7 @@ if (ejecutandoEnContenedor)
     selectedUrl =
         "http://0.0.0.0:80";
 
-    builder.WebHost.UseUrls(
-        selectedUrl);
+    builder.WebHost.UseUrls(selectedUrl);
 }
 else
 {

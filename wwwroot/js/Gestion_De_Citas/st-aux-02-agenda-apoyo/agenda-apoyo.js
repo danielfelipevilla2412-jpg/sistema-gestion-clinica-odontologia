@@ -1,69 +1,50 @@
 /* ============================================
-SmileTrack — Agenda de Apoyo Clínico (st-aux-02-agenda-apoyo)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
-
-DESCRIPCIÓN:
-Maneja el comportamiento interactivo de la agenda de apoyo del auxiliar: filtrado combinado por profesional y tipo de cita, renderizado de badges, y soporte de teclado para navegación del dropdown.
-
-FUNCIONALIDADES PRINCIPALES:
-- Carga de citas y almacenamiento temporal mediante controlador
-- Filtrado combinado dinámico (profesional + tipo de cita) con actualizaciones inmediatas de la interfaz
-- Despliegue interactivo y accesible del menú de selección de profesionales (soporte de flechas y Escape)
-- Renderizado de badges temáticos de alergias críticas y estado de la cita odontológica
-
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y Stadm08Agenda
-- CSS: ~/css/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.css
-- JS: ~/js/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.js
-- Partial / Otros: agenda-apoyo.cshtml
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- El dropdown de selección de profesionales implementa un patrón completo de focus trap y navegación por teclado ARIA.
-============================================ */
-
-// WHY: safeGetElement previene excepciones fatales en la inicialización si un elemento no existe en el DOM
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  return el;
-};
-
-// WHY: Debounce evita saturar la API con peticiones redundantes ante cambios veloces del usuario
-const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
-};
-
-// WHY: Las notificaciones no bloqueantes brindan retroalimentación al usuario sin entorpecer el flujo de trabajo
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: Agenda de Apoyo Clínico (st-aux-02-agenda-apoyo)
+ * ============================================
+ * Archivo: wwwroot/js/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.js
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Maneja el comportamiento interactivo de la agenda de apoyo para el equipo auxiliar.
+ * Permite filtrar por profesional y tipo de tratamiento, resaltar pacientes con alergias críticas
+ * y gestionar la asistencia a sillón o soporte quirúrgico.
+ *
+ * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
+ * - Filtrado combinado dinámico con soporte accesible ARIA para navegación por teclado.
+ * - Resaltado visual de advertencias de salud (alergias, observaciones) para seguridad del paciente.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - Controller: GestionCitasController -> Staux02AgendaApoyo
+ * - HTML: Views/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.cshtml
+ * ============================================ */
 
 // ═══════════════════════════════════════════════════════════════════
-//  AGENDA CONTROLLER CON PERSISTENCIA
+// 1. CONSTANTES Y CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════
-class AgendaController {
+
+const DEFAULT_FILTER_ALL = 'todos';
+
+// ═══════════════════════════════════════════════════════════════════
+// 2. ESTADO DE LA APLICACIÓN
+// ═══════════════════════════════════════════════════════════════════
+
+class AgendaSupportController {
   constructor() {
     const data = window.smiletrackAgendaApoyoData || {};
     this._fechaHoy = data.fechaHoy || '';
     this._citasBase = data.citas || [];
-    this._filtroProfesional = 'todos';
-    this._filtroTipo = 'todos';
+    this._filtroProfesional = DEFAULT_FILTER_ALL;
+    this._filtroTipo = DEFAULT_FILTER_ALL;
   }
 
-  // Datos reales inyectados por el servidor (ver ConstruirAgendaApoyoAsync en
-  // GestionCitasController.cs); el filtrado se hace en memoria sobre esos datos.
-  async getCitas(profesional = 'todos', tipo = 'todos') {
+  async getCitas(profesional = DEFAULT_FILTER_ALL, tipo = DEFAULT_FILTER_ALL) {
     let resultado = [...this._citasBase];
     
-    if (profesional !== 'todos') {
+    if (profesional !== DEFAULT_FILTER_ALL) {
       const normalizar = (valor) => String(valor || '').trim().toLocaleLowerCase('es-CO');
       resultado = resultado.filter(c => normalizar(c.profesional) === normalizar(profesional));
     }
-    if (tipo !== 'todos') {
+    if (tipo !== DEFAULT_FILTER_ALL) {
       resultado = resultado.filter(c => c.tipo === tipo);
     }
     return resultado;
@@ -72,288 +53,282 @@ class AgendaController {
   getFechaHoy() { return this._fechaHoy; }
 }
 
-// Instancia única del controlador
-const agendaCtrl = new AgendaController();
+const agendaSupportControllerInstance = new AgendaSupportController();
 
 // ═══════════════════════════════════════════════════════════════════
-//  SIDEBAR MÓVIL CON GESTIÓN DE FOCO Y ARIA
+// 3. UTILIDADES Y HELPERS
 // ═══════════════════════════════════════════════════════════════════
-const initMobileMenu = () => {
-  // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
+
+const safeGetElement = (elementId) =>
+  window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
+
+const debounce = (fn, delay) =>
+  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
+
+const formatDateSpanishLabel = (valueString) => {
+  if (!valueString) return '—';
+  const dateObj = new Date(valueString + 'T00:00:00');
+  return Number.isNaN(dateObj.getTime()) ? valueString : dateObj.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const createBadgeElement = (classNameText, labelText, ariaLabelText) => {
+  const badgeSpan = document.createElement('span');
+  badgeSpan.className = classNameText;
+  badgeSpan.setAttribute('role', 'status');
+  badgeSpan.setAttribute('aria-label', ariaLabelText);
+  badgeSpan.textContent = labelText;
+  return badgeSpan;
+};
+
+const createTypeBadge = (typeString) => {
+  const badgeMap = {
+    consulta: ['badge-consulta', 'Consulta'],
+    procedimiento: ['badge-procedimiento', 'Procedimiento'],
+    urgencia: ['badge-urgencia', 'Urgencia'],
+  };
+  const [cssClass, labelText] = badgeMap[typeString] || ['', typeString || 'Sin tipo'];
+  return createBadgeElement(`badge-tipo ${cssClass}`, labelText, `Tipo: ${labelText}`);
+};
+
+const createAllergiesBadge = (allergyText) => {
+  if (allergyText) {
+    return createBadgeElement('badge-alergia', `Alerta: ${allergyText}`, `Alergia: ${allergyText}`);
+  }
+  const emptyBadge = document.createElement('span');
+  emptyBadge.style.color = 'var(--text-muted)';
+  emptyBadge.setAttribute('aria-label', 'Sin alergias registradas');
+  emptyBadge.textContent = '—';
+  return emptyBadge;
+};
+
+const createStatusBadge = (statusString) => {
+  const normalizedStatus = CommonUtils.normalizeAppointmentStatus(statusString);
+  const statusCssMap = {
+    atendida: 'badge-atendida',
+    pendiente: 'badge-pendiente',
+    cancelada: 'badge-cancelada',
+    no_asistida: 'badge-no-asistio'
+  };
+  return createBadgeElement(`badge-estado ${statusCssMap[normalizedStatus] || 'badge-pendiente'}`, `● ${statusString}`, `Estado: ${statusString}`);
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  RENDER: Tabla de citas con atributos ARIA
+// 4. SERVICIOS Y API
 // ═══════════════════════════════════════════════════════════════════
-const renderTabla = (citas) => {
-  const tbody = safeGetElement('agendaBody');
-  const empty = safeGetElement('tableEmpty');
-  if (!tbody) return;
 
-  if (!citas.length) {
-    tbody.replaceChildren();
-    if (empty) {
-      empty.style.display = 'block';
-      empty.setAttribute('aria-label', 'No hay citas que coincidan con los filtros aplicados');
+const applyCombinedFilters = async () => {
+  const appointmentsData = await agendaSupportControllerInstance.getCitas(
+    agendaSupportControllerInstance._filtroProfesional,
+    agendaSupportControllerInstance._filtroTipo
+  );
+  renderAgendaSupportTable(appointmentsData);
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 5. RENDERIZADO Y DOM
+// ═══════════════════════════════════════════════════════════════════
+
+const renderAgendaSupportTable = (appointmentsList) => {
+  const tableBody = safeGetElement('agendaBody');
+  const emptyStateElement = safeGetElement('tableEmpty');
+  if (!tableBody) return;
+
+  if (!appointmentsList.length) {
+    tableBody.replaceChildren();
+    if (emptyStateElement) {
+      emptyStateElement.style.display = 'block';
+      emptyStateElement.setAttribute('aria-label', 'No hay citas que coincidan con los filtros aplicados');
     }
     return;
   }
-  if (empty) empty.style.display = 'none';
+  if (emptyStateElement) emptyStateElement.style.display = 'none';
 
-  // WHY: Funciones auxiliares para aislar la lógica de renderizado de insignias y asegurar la inyección de atributos de accesibilidad
-  const crearBadge = (className, label, ariaLabel) => {
-    const badge = document.createElement('span');
-    badge.className = className;
-    badge.setAttribute('role', 'status');
-    badge.setAttribute('aria-label', ariaLabel);
-    badge.textContent = label;
-    return badge;
+  const createTableCell = (classNameText, cellText) => {
+    const tableCell = document.createElement('td');
+    tableCell.className = classNameText;
+    tableCell.textContent = cellText || '';
+    return tableCell;
   };
 
-  const badgeTipo = (tipo) => {
-    const map = {
-      consulta: ['badge-consulta', 'Consulta'],
-      procedimiento: ['badge-procedimiento', 'Procedimiento'],
-      urgencia: ['badge-urgencia', 'Urgencia'],
-    };
-    const [cls, label] = map[tipo] || ['', tipo || 'Sin tipo'];
-    return crearBadge(`badge-tipo ${cls}`, label, `Tipo: ${label}`);
-  };
-
-  const badgeAlergia = (a) => {
-    if (a) {
-      return crearBadge('badge-alergia', `Alerta: ${a}`, `Alergia: ${a}`);
-    }
-    const badge = document.createElement('span');
-    badge.style.color = 'var(--text-muted)';
-    badge.setAttribute('aria-label', 'Sin alergias registradas');
-    badge.textContent = '—';
-    return badge;
-  };
-
-  const badgeEstado = (e) => {
-    const estado = CommonUtils.normalizeAppointmentStatus(e);
-    const map = {
-      atendida: 'badge-atendida',
-      pendiente: 'badge-pendiente',
-      cancelada: 'badge-cancelada',
-      no_asistida: 'badge-no-asistio'
-    };
-    return crearBadge(`badge-estado ${map[estado] || 'badge-pendiente'}`, `● ${e}`, `Estado: ${e}`);
-  };
-
-  const crearCelda = (className, text) => {
-    const cell = document.createElement('td');
-    cell.className = className;
-    cell.textContent = text || '';
-    return cell;
-  };
-
-  tbody.replaceChildren(...citas.map(c => {
-    const row = document.createElement('tr');
-    row.setAttribute('role', 'row');
-    row.append(
-      crearCelda('td-fecha', c.fecha || '—'),
-      crearCelda('td-hora', c.hora || '—'),
-      crearCelda('td-paciente', c.paciente || 'Paciente sin datos'),
-      crearCelda('td-profesional', c.profesional || 'Sin asignar')
+  tableBody.replaceChildren(...appointmentsList.map(item => {
+    const tableRow = document.createElement('tr');
+    tableRow.setAttribute('role', 'row');
+    tableRow.append(
+      createTableCell('td-fecha', item.fecha || '—'),
+      createTableCell('td-hora', item.hora || '—'),
+      createTableCell('td-paciente', item.paciente || 'Paciente sin datos'),
+      createTableCell('td-profesional', item.profesional || 'Sin asignar')
     );
-    const tipoCell = document.createElement('td');
-    tipoCell.appendChild(badgeTipo(c.tipo));
-    const alergiaCell = document.createElement('td');
-    alergiaCell.appendChild(badgeAlergia(c.alergia));
-    const estadoCell = document.createElement('td');
-    estadoCell.appendChild(badgeEstado(c.estado));
-    row.append(tipoCell, alergiaCell, estadoCell);
-    return row;
+    const typeCell = document.createElement('td');
+    typeCell.appendChild(createTypeBadge(item.tipo));
+    const allergyCell = document.createElement('td');
+    allergyCell.appendChild(createAllergiesBadge(item.alergia));
+    const statusCell = document.createElement('td');
+    statusCell.appendChild(createStatusBadge(item.estado));
+    tableRow.append(typeCell, allergyCell, statusCell);
+    return tableRow;
   }));
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  FILTROS CON PERSISTENCIA Y ACCESIBILIDAD
-// ═══════════════════════════════════════════════════════════════════
-const aplicarFiltros = async () => {
-  const citas = await agendaCtrl.getCitas(agendaCtrl._filtroProfesional, agendaCtrl._filtroTipo);
-  renderTabla(citas);
+const updateHeaderMetadata = () => {
+  const metaElement = safeGetElement('phMeta');
+  if (metaElement) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const dateParam = urlParams.get('fecha') || agendaSupportControllerInstance.getFechaHoy();
+    const weekStartParam = urlParams.get('weekStart');
+
+    const metaDescriptionText = weekStartParam
+      ? `Semana del ${formatDateSpanishLabel(weekStartParam)} al ${formatDateSpanishLabel(new Date(new Date(weekStartParam + 'T00:00:00').getTime() + 6 * 86400000).toISOString().slice(0, 10))}`
+      : `Citas del día ${formatDateSpanishLabel(dateParam)}`;
+
+    metaElement.textContent = metaDescriptionText;
+    metaElement.setAttribute('data-meta-text', metaDescriptionText);
+    metaElement.setAttribute('aria-label', `Información: ${metaDescriptionText}`);
+  }
 };
 
-// WHY: Los filtros tipo radio simulan un comportamiento excluyente, garantizando una única selección activa a la vez
-const initTipoFiltros = () => {
-  const buttons = document.querySelectorAll('.filter-btn[data-value]');
+// ═══════════════════════════════════════════════════════════════════
+// 6. MANEJO DE MODALES Y FORMULARIOS
+// ═══════════════════════════════════════════════════════════════════
+
+const setupTypeFilterButtons = () => {
+  const filterButtonsList = document.querySelectorAll('.filter-btn[data-value]');
   
-  buttons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const value = btn.dataset.value;
-      agendaCtrl._filtroTipo = value;
+  filterButtonsList.forEach(buttonElement => {
+    buttonElement.addEventListener('click', () => {
+      const filterValue = buttonElement.dataset.value;
+      agendaSupportControllerInstance._filtroTipo = filterValue;
       
-      // Actualiza estado visual y ARIA
-      buttons.forEach(b => {
-        b.classList.remove('active');
-        b.setAttribute('aria-checked', 'false');
+      filterButtonsList.forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-checked', 'false');
       });
-      btn.classList.add('active');
-      btn.setAttribute('aria-checked', 'true');
+      buttonElement.classList.add('active');
+      buttonElement.setAttribute('aria-checked', 'true');
       
-      // Aplica filtros
-      aplicarFiltros();
+      applyCombinedFilters();
       
-      // Feedback visual
-      window.ToastService.success(`Filtro aplicado: ${btn.textContent.trim()}`, 'info');
+      if (window.ToastService) window.ToastService.success(`Filtro aplicado: ${buttonElement.textContent.trim()}`, 'info');
     });
     
-    // WHY: Habilita activación mediante Enter o Barra Espaciadora para usuarios sin ratón
-    btn.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        btn.click();
+    buttonElement.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        buttonElement.click();
       }
     });
   });
 };
 
-// WHY: Habilita el control por teclado en el menú desplegable (focusing, ArrowDown, ArrowUp, Escape) para cumplir normas WCAG 2.1 AA
-const initProfesionalDropdown = () => {
-  const btn = safeGetElement('btnProfesional');
-  const menu = safeGetElement('dropdownMenu');
-  const items = menu?.querySelectorAll('.dd-item');
+const setupProfessionalDropdownMenu = () => {
+  const dropdownBtn = safeGetElement('btnProfesional');
+  const dropdownMenu = safeGetElement('dropdownMenu');
+  const menuItemsList = dropdownMenu?.querySelectorAll('.dd-item');
   
-  if (!btn || !menu || !items) return;
+  if (!dropdownBtn || !dropdownMenu || !menuItemsList) return;
   
-  // Toggle dropdown con click
-  btn.addEventListener('click', () => {
-    const isOpen = menu.classList.toggle('open');
-    btn.setAttribute('aria-expanded', isOpen);
-    if (isOpen) {
-      // Enfocar primer item al abrir
-      items[0]?.focus();
+  dropdownBtn.addEventListener('click', () => {
+    const isCurrentlyOpen = dropdownMenu.classList.toggle('open');
+    dropdownBtn.setAttribute('aria-expanded', isCurrentlyOpen);
+    if (isCurrentlyOpen) {
+      menuItemsList[0]?.focus();
     }
   });
   
-  // Cerrar al hacer click fuera
-  document.addEventListener('click', (e) => {
-    const wrap = document.querySelector('.dropdown-wrap');
-    if (wrap && !wrap.contains(e.target)) {
-      menu.classList.remove('open');
-      btn.setAttribute('aria-expanded', 'false');
+  document.addEventListener('click', (event) => {
+    const dropdownWrap = document.querySelector('.dropdown-wrap');
+    if (dropdownWrap && !dropdownWrap.contains(event.target)) {
+      dropdownMenu.classList.remove('open');
+      dropdownBtn.setAttribute('aria-expanded', 'false');
     }
   });
   
-  // Manejo de selección de items
-  items.forEach(item => {
-    item.addEventListener('click', () => {
-      const value = item.dataset.value;
-      agendaCtrl._filtroProfesional = value;
+  menuItemsList.forEach(itemElement => {
+    itemElement.addEventListener('click', () => {
+      const professionalValue = itemElement.dataset.value;
+      agendaSupportControllerInstance._filtroProfesional = professionalValue;
       
-      // Actualiza texto del botón
-      const arrow = document.createElement('span');
-      arrow.className = 'dd-arrow';
-      arrow.setAttribute('aria-hidden', 'true');
-      arrow.textContent = '▼';
-      btn.replaceChildren(document.createTextNode(item.textContent.trim() + ' '), arrow);
+      const arrowSpan = document.createElement('span');
+      arrowSpan.className = 'dd-arrow';
+      arrowSpan.setAttribute('aria-hidden', 'true');
+      arrowSpan.textContent = '▼';
+      dropdownBtn.replaceChildren(document.createTextNode(itemElement.textContent.trim() + ' '), arrowSpan);
       
-      // Actualiza estado visual
-      items.forEach(i => i.classList.remove('active'));
-      item.classList.add('active');
+      menuItemsList.forEach(item => item.classList.remove('active'));
+      itemElement.classList.add('active');
       
-      // Cierra dropdown
-      menu.classList.remove('open');
-      btn.setAttribute('aria-expanded', 'false');
+      dropdownMenu.classList.remove('open');
+      dropdownBtn.setAttribute('aria-expanded', 'false');
       
-      // Aplica filtros
-      aplicarFiltros();
-      
-      // Feedback visual
-      window.ToastService.success(`Profesional: ${item.textContent.trim()}`, 'info');
+      applyCombinedFilters();
+      if (window.ToastService) window.ToastService.success(`Profesional: ${itemElement.textContent.trim()}`, 'info');
     });
     
-    // Soporte para teclado en items
-    item.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        item.click();
-      } else if (e.key === 'Escape') {
-        menu.classList.remove('open');
-        btn.setAttribute('aria-expanded', 'false');
-        btn.focus();
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        const currentIndex = Array.from(items).indexOf(item);
-        const nextIndex = e.key === 'ArrowDown' 
-          ? (currentIndex + 1) % items.length 
-          : (currentIndex - 1 + items.length) % items.length;
-        items[nextIndex]?.focus();
+    itemElement.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        itemElement.click();
+      } else if (event.key === 'Escape') {
+        dropdownMenu.classList.remove('open');
+        dropdownBtn.setAttribute('aria-expanded', 'false');
+        dropdownBtn.focus();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const currentIndex = Array.from(menuItemsList).indexOf(itemElement);
+        const nextIndex = event.key === 'ArrowDown' 
+          ? (currentIndex + 1) % menuItemsList.length 
+          : (currentIndex - 1 + menuItemsList.length) % menuItemsList.length;
+        menuItemsList[nextIndex]?.focus();
       }
     });
   });
   
-  // Soporte para teclado en botón
-  btn.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      btn.click();
-    } else if (e.key === 'ArrowDown' && menu.classList.contains('open')) {
-      e.preventDefault();
-      items[0]?.focus();
+  dropdownBtn.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      dropdownBtn.click();
+    } else if (event.key === 'ArrowDown' && dropdownMenu.classList.contains('open')) {
+      event.preventDefault();
+      menuItemsList[0]?.focus();
     }
   });
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  INIT: Función principal de inicialización
+// 7. INICIALIZACIÓN Y EVENT LISTENERS
 // ═══════════════════════════════════════════════════════════════════
-const init = async () => {
-  // Inicializar componentes de UI
-  initMobileMenu();
-  initTipoFiltros();
-  initProfesionalDropdown();
+
+const setupMobileNavigationMenu = () => {
+  // El menú móvil es gestionado centralizadamente por ~/js/shared/sidebar.js
+};
+
+const initializeAgendaApoyoModule = async () => {
+  setupMobileNavigationMenu();
+  setupTypeFilterButtons();
+  setupProfessionalDropdownMenu();
 
   document.querySelector('.toggle-vistas')?.addEventListener('viewchange', (event) => {
-    const params = new URLSearchParams(window.location.search);
-    const current = params.get('fecha') || new Date().toISOString().slice(0, 10);
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentDate = urlParams.get('fecha') || new Date().toISOString().slice(0, 10);
     if (event.detail.view === 'semana') {
-      params.delete('fecha');
-      params.set('weekStart', params.get('weekStart') || current);
+      urlParams.delete('fecha');
+      urlParams.set('weekStart', urlParams.get('weekStart') || currentDate);
     } else if (event.detail.view === 'dia') {
-      params.delete('weekStart');
-      params.set('fecha', current);
+      urlParams.delete('weekStart');
+      urlParams.set('fecha', currentDate);
     } else {
-      params.delete('weekStart');
-      params.set('fecha', current);
+      urlParams.delete('weekStart');
+      urlParams.set('fecha', currentDate);
     }
-    window.location.search = params.toString();
+    window.location.search = urlParams.toString();
   });
   
-  // Actualiza metadatos del header según la vista activa (día o semana)
-  const metaEl = safeGetElement('phMeta');
-  if (metaEl) {
-    const params = new URLSearchParams(window.location.search);
-    const fecha = params.get('fecha') || agendaCtrl.getFechaHoy();
-    const weekStart = params.get('weekStart');
-
-    const formatoFecha = (value) => {
-      if (!value) return '—';
-      const d = new Date(value + 'T00:00:00');
-      return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
-
-    const metaText = weekStart
-      ? `Semana del ${formatoFecha(weekStart)} al ${formatoFecha(new Date(new Date(weekStart + 'T00:00:00').getTime() + 6 * 86400000).toISOString().slice(0, 10))}`
-      : `Citas del día ${formatoFecha(fecha)}`;
-
-    metaEl.textContent = metaText;
-    metaEl.setAttribute('data-meta-text', metaText);
-    metaEl.setAttribute('aria-label', `Información: ${metaText}`);
-  }
+  updateHeaderMetadata();
   
-  // WHY: Dispara la primera carga de datos al iniciar el módulo
-  const citas = await agendaCtrl.getCitas();
-  renderTabla(citas);
+  const initialAppointments = await agendaSupportControllerInstance.getCitas();
+  renderAgendaSupportTable(initialAppointments);
   
-  // Limpieza de listeners al unload para evitar memory leaks
-  window.addEventListener('beforeunload', () => {
-    // Remover listeners en implementación SPA real
-  });
+  window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
 };
 
-// Ejecutar al cargar DOM
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', initializeAgendaApoyoModule);

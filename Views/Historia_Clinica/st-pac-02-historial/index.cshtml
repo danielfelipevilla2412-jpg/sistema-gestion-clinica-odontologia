@@ -66,6 +66,7 @@
     }
   </style>
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/perfil-paciente-ui.css")" />
 </head>
 
 <body>
@@ -87,6 +88,7 @@
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
+    <div data-perfil-paciente-header></div>
 
     <!-- Page header -->
     <header class="page-header">
@@ -242,11 +244,14 @@
     <script src="@Url.Content("~/js/footer.js")"></script>
     <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
+  <script src="@Url.Content("~/js/shared/perfil-paciente-service.js")"></script>
+  <script src="@Url.Content("~/js/shared/perfil-paciente-ui.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
   <script src="@Url.Content("~/js/i18n-core.js")"></script>
   <script src="@Url.Content("~/js/i18n.config.js")"></script>
+  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
 </body>
 
 </html>

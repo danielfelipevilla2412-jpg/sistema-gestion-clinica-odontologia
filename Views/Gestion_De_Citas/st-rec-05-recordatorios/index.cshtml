@@ -48,14 +48,14 @@ NOTAS DE MANTENIMIENTO:
       <a href="/gestion-de-citas/st-rec-03-gestion-citas" class="btn-primary" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new">+ Nueva cita</a>
     </header>
 
-    <!-- Stats con aria-label para sección de estadÍdsticas -->
-    <section class="stats-container" aria-label="Resumen de recordatorios" data-i18n-aria-label="common.notifications">
-      <div class="stat-card success-card">
-        <span class="stat-value" id="statsSentCount" aria-live="polite">0</span>
+    <!-- Stats con aria-label para sección de estadÍdsticas (patrón canónico st-adm-09) -->
+    <section class="stats-grid" aria-label="Resumen de recordatorios" data-i18n-aria-label="common.notifications">
+      <div class="stat-card" data-color="green">
+        <span class="stat-number" id="statsSentCount" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.sent">Enviados hoy</span>
       </div>
-      <div class="stat-card warning-card">
-        <span class="stat-value" id="statsPendingCount" aria-live="polite">@pendientes.Count()</span>
+      <div class="stat-card" data-color="orange">
+        <span class="stat-number" id="statsPendingCount" data-target="@pendientes.Count()" aria-live="polite">@pendientes.Count()</span>
         <span class="stat-label" data-i18n="status.pending">Pendientes de envío</span>
       </div>
     </section>

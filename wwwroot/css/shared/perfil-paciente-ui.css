@@ -1,0 +1,24 @@
+.perfil-paciente-header {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border, #d7dee8);
+  border-left: 4px solid var(--primary, #2563eb);
+  border-radius: 8px;
+  background: var(--white, #fff);
+  box-shadow: 0 4px 14px rgba(20, 35, 60, .07);
+}
+
+.perfil-paciente-header__identity { display: flex; align-items: center; gap: .85rem; }
+.perfil-paciente-header__avatar {
+  display: grid; place-items: center; flex: 0 0 3rem; width: 3rem; height: 3rem;
+  border-radius: 50%; background: #0f766e; color: #fff; font-weight: 700;
+}
+.perfil-paciente-header__eyebrow { margin: 0; color: var(--text-muted, #64748b); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
+.perfil-paciente-header h2 { margin: .15rem 0; color: var(--text, #172033); font-size: 1.2rem; }
+.perfil-paciente-header__meta { margin: 0; color: var(--text-muted, #64748b); font-size: .85rem; }
+.perfil-paciente-header__stats { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; color: var(--text-muted, #64748b); font-size: .85rem; }
+.perfil-paciente-header__stats strong { color: var(--primary, #2563eb); font-size: 1.05rem; }
+.perfil-paciente-header__next { margin: 0; padding-top: .75rem; border-top: 1px solid var(--border, #d7dee8); color: var(--text, #172033); font-size: .88rem; }
+@media (max-width: 600px) { .perfil-paciente-header__stats { display: grid; grid-template-columns: repeat(3, 1fr); } }

@@ -20,3 +20,6 @@ obj/
 # OS
 .DS_Store
 Thumbs.db
+
+# Serena (MCP toolkit cache)
+.serena/

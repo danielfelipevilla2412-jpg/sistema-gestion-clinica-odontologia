@@ -406,6 +406,21 @@ public class CitaServiceTests
         db.Consultorios.Add(consultorio);
         db.EstadosCita.Add(new EstadoCita { NombreEstado = "Programada" });
         db.SaveChanges();
+
+        string[] dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
+        foreach (var dia in dias)
+        {
+            db.HorariosProfesional.Add(new HorarioProfesional
+            {
+                IdProfesional = profesional.IdProfesional,
+                DiaSemana = dia,
+                HoraInicio = new TimeOnly(0, 0),
+                HoraFin = new TimeOnly(23, 59),
+                Activo = true
+            });
+        }
+        db.SaveChanges();
+
         return (paciente, profesional, servicio, consultorio);
     }
 

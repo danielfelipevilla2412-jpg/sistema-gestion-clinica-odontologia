@@ -1,3 +1,22 @@
+/**
+ * ============================================
+ * SmileTrack — Módulo: Gestión de Citas
+ * Componente: AgendaViewModel (Modelo de Vista)
+ * ============================================
+ * Archivo: Models/ViewModels/GestionDeCitas/AgendaViewModel.cs
+ *
+ * PROPÓSITO Y JUSTIFICACIÓN:
+ * Encapsula la información requerida por la vista de agenda general y agenda odontólogo/apoyo,
+ * incluyendo filtros cargados (profesionales, consultorios, pacientes, servicios) y parametrización horaria.
+ *
+ * REGLAS DE NEGOCIO PRINCIPALES:
+ * - Provee configuración de días de atención y rango de horas de apertura/cierre de la clínica.
+ *
+ * DEPENDENCIAS TÉCNICAS:
+ * - AgendaDiaViewModel, SelectOptionViewModel
+ * ============================================
+ */
+
 namespace SmileTrack_MVC.Models.ViewModels;
 
 public sealed class AgendaViewModel

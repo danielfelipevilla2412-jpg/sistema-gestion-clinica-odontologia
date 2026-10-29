@@ -484,31 +484,36 @@
 
     /** Claves canónicas de estado del servidor (snake_case) */
     const APPOINTMENT_STATUS = Object.freeze({
-        PROGRAMADA: 'programada',
-        CONFIRMADA: 'confirmada',
-        EN_PROCESO: 'en_proceso',
-        FINALIZADA: 'finalizada',
-        ATENDIDA: 'atendida',
-        CANCELADA: 'cancelada',
+        SOLICITADA:  'solicitada',   // M8: estado canónico para solicitudes de paciente (RF-23)
+        PROGRAMADA:  'programada',
+        CONFIRMADA:  'confirmada',
+        EN_PROCESO:  'en_proceso',
+        FINALIZADA:  'finalizada',
+        ATENDIDA:    'atendida',
+        CANCELADA:   'cancelada',
         NO_ASISTIDA: 'no_asistida',
-        NO_SHOW: 'no-show'
+        NO_SHOW:     'no-show'
     });
 
     /** Mapa Server → {label, cls} UI. */
     const STATUS_MAP_SERVER = Object.freeze({
         [APPOINTMENT_STATUS.PROGRAMADA]:  { label: 'Agendada',   cls: 'badge-agendada'   },
         [APPOINTMENT_STATUS.CONFIRMADA]:  { label: 'Confirmada', cls: 'badge-confirmada' },
+        // M8: Solicitada es el estado inicial de solicitudes de paciente (RF-23)
+        [APPOINTMENT_STATUS.SOLICITADA]:  { label: 'Solicitada', cls: 'badge-solicitada' },
         [APPOINTMENT_STATUS.EN_PROCESO]:  { label: 'En curso',   cls: 'badge-confirmada' },
         [APPOINTMENT_STATUS.FINALIZADA]:  { label: 'Completada', cls: 'badge-completada' },
         [APPOINTMENT_STATUS.ATENDIDA]:    { label: 'Completada', cls: 'badge-completada' },
         [APPOINTMENT_STATUS.CANCELADA]:   { label: 'Cancelada',  cls: 'badge-cancelada'  },
-        [APPOINTMENT_STATUS.NO_ASISTIDA]: { label: 'No asistió', cls: 'badge-cancelada'  },
-        [APPOINTMENT_STATUS.NO_SHOW]:     { label: 'No asistió', cls: 'badge-cancelada'  }
+        // M5 (RN-30): 'No asistió' es un estado independiente de 'Cancelada';
+        // usa su propia clase CSS para distinguirse visualmente (RF-27).
+        [APPOINTMENT_STATUS.NO_ASISTIDA]: { label: 'No asistió', cls: 'badge-no-asistio' },
+        [APPOINTMENT_STATUS.NO_SHOW]:     { label: 'No asistió', cls: 'badge-no-asistio' }
     });
 
     /** Mapa Label UI → Clave Server (para selects/filters cliente → server) */
     const STATUS_MAP_CLIENTE = Object.freeze({
-        'Solicitada':  'solicitada',
+        'Solicitada': APPOINTMENT_STATUS.SOLICITADA,  // M8: mapeo canónico
         'Agendada':   APPOINTMENT_STATUS.PROGRAMADA,
         'Confirmada': APPOINTMENT_STATUS.CONFIRMADA,
         'En curso':   APPOINTMENT_STATUS.EN_PROCESO,
@@ -542,6 +547,8 @@
     /** Normaliza valor de estado server al key canónico. */
     function mapEstadoServerToClient(estado) {
         const normalized = normalizeAppointmentStatus(estado);
+        // M8: solicitada tiene su propio estado canónico
+        if (normalized === 'solicitada') return APPOINTMENT_STATUS.SOLICITADA;
         if (normalized === APPOINTMENT_STATUS.FINALIZADA || normalized === APPOINTMENT_STATUS.ATENDIDA || normalized === APPOINTMENT_STATUS.EN_PROCESO) return APPOINTMENT_STATUS.FINALIZADA;
         if (STATUS_MAP_SERVER[normalized]) return normalized;
         return APPOINTMENT_STATUS.PROGRAMADA;

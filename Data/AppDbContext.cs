@@ -42,6 +42,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AuditoriaRecuperacion> AuditoriasRecuperacion => Set<AuditoriaRecuperacion>();
     public DbSet<Factura> Facturas => Set<Factura>();
     public DbSet<DetalleFactura> DetallesFactura => Set<DetalleFactura>();
+      public DbSet<PagoFactura> PagosFacturas => Set<PagoFactura>();
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
     public DbSet<TicketSoporte> TicketsSoporte => Set<TicketSoporte>();
@@ -60,6 +61,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // no existía ninguna tabla de documentos. Ahora cada archivo subido (radiografía,
     // PDF, consentimiento, etc.) se persiste como fila real consultable con SQL.
     public DbSet<DocumentoClinico> DocumentosClinicos => Set<DocumentoClinico>();
+      public DbSet<CredencialProfesional> CredencialesProfesionales => Set<CredencialProfesional>();
 
     // ── Disponibilidad y servicios de Profesional (P-01 / U-06) ──────────────
     // Estas cuatro tablas existían en el script SQL pero carecían de entidades,
@@ -158,7 +160,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.FechaRegistro).HasColumnName("fecha_registro");
             entity.Property(p => p.Estado).HasColumnName("estado");
             entity.Property(p => p.ArchivoAdjunto).HasColumnName("archivo_adjunto");
-        });
+            entity.Property(p => p.EstadoCivil).HasColumnName("estado_civil");
+            entity.Property(p => p.Departamento).HasColumnName("departamento");
+            entity.Property(p => p.ParentescoEmergencia).HasColumnName("parentesco_emergencia");
+            entity.Property(p => p.EpsAseguradora).HasColumnName("eps_aseguradora");
+            entity.Property(p => p.NumeroPoliza).HasColumnName("numero_poliza");
+            entity.Property(p => p.TipoAfiliacion).HasColumnName("tipo_afiliacion");
+            entity.Property(p => p.MedicamentosActuales).HasColumnName("medicamentos_actuales");
+            entity.Property(p => p.AntecedentesFamiliares).HasColumnName("antecedentes_familiares");
+            entity.Property(p => p.IdProfesionalAsignado).HasColumnName("id_profesional_asignado");
+
+            entity.HasOne(p => p.ProfesionalAsignado)
+                  .WithMany()
+                  .HasForeignKey(p => p.IdProfesionalAsignado)
+                  .OnDelete(DeleteBehavior.SetNull);
+            });
 
         modelBuilder.Entity<Profesional>(entity =>
         {
@@ -173,6 +189,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.Categoria).HasColumnName("categoria");
             entity.Property(p => p.Telefono).HasColumnName("telefono");
             entity.Property(p => p.Estado).HasColumnName("estado");
+            entity.Property(p => p.CredencialesAprobadas).HasColumnName("credenciales_aprobadas").HasDefaultValue(true);
             entity.Property(p => p.FechaIngreso).HasColumnName("fecha_ingreso");
 
             entity.HasOne(p => p.Usuario)
@@ -492,15 +509,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(n => n.IdNota).HasColumnName("id_nota");
             entity.Property(n => n.IdHistoria).HasColumnName("id_historia");
             entity.Property(n => n.IdProfesional).HasColumnName("id_profesional");
-            entity.Property(n => n.IdCita).HasColumnName("id_cita");
+                  entity.Property(n => n.IdCita).HasColumnName("id_cita");
             entity.Property(n => n.Fecha).HasColumnName("fecha");
             entity.Property(n => n.Diagnostico).HasColumnName("diagnostico");
             entity.Property(n => n.Procedimiento).HasColumnName("procedimiento");
             entity.Property(n => n.ProximaCita).HasColumnName("proxima_cita").HasMaxLength(50);
             entity.Property(n => n.Estado).HasColumnName("estado").HasMaxLength(20);
-            entity.HasIndex(n => n.IdCita)
-                  .IsUnique()
-                  .HasFilter("[id_cita] IS NOT NULL");
+                  entity.HasIndex(n => n.IdCita)
+                          .IsUnique()
+                          .HasFilter("[id_cita] IS NOT NULL");
 
             entity.HasOne(n => n.HistoriaClinica)
                   .WithMany()
@@ -569,17 +586,35 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(f => f.NumeroFactura).HasColumnName("numero_factura");
             entity.Property(f => f.FechaFactura).HasColumnName("fecha_factura");
             entity.Property(f => f.Subtotal).HasColumnName("subtotal").HasPrecision(12, 2);
+            entity.Property(f => f.Descuento).HasColumnName("descuento").HasPrecision(12, 2);
             entity.Property(f => f.Total).HasColumnName("total").HasPrecision(12, 2);
             entity.Property(f => f.Estado).HasColumnName("estado");
             entity.Property(f => f.IdPaciente).HasColumnName("id_paciente");
+            entity.Property(f => f.IdCita).HasColumnName("id_cita");
+            entity.Property(f => f.IdProfesional).HasColumnName("id_profesional");
             entity.Property(f => f.Notas).HasColumnName("notas");
             entity.Property(f => f.GeneradaPor).HasColumnName("generada_por");
-            entity.Property(f => f.MontoPagado).HasColumnName("monto_pagado").HasPrecision(12, 2);
+            entity.Property(f => f.MontoPagado).HasColumnName("monto_pagado").HasPrecision(12, 2).IsConcurrencyToken();
             entity.Property(f => f.FechaPago).HasColumnName("fecha_pago");
             entity.HasOne(f => f.Paciente)
                   .WithMany()
                   .HasForeignKey(f => f.IdPaciente)
                   .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(f => f.Cita)
+                  .WithMany(c => c.Facturas)
+                  .HasForeignKey(f => f.IdCita)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(f => f.Profesional)
+                  .WithMany()
+                  .HasForeignKey(f => f.IdProfesional)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(f => f.IdCita)
+                  .HasDatabaseName("UX_Factura_Cita_Activa")
+                  .IsUnique()
+                  .HasFilter("[id_cita] IS NOT NULL AND [estado] <> 'anulada'");
 
             entity.HasOne(f => f.GeneradaPorUsuario)
                   .WithMany()
@@ -589,6 +624,32 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                  .WithOne(d => d.Factura)
                   .HasForeignKey(d => d.IdFactura)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PagoFactura>(entity =>
+        {
+            entity.ToTable("Pago_Factura");
+            entity.HasKey(p => p.IdPago);
+            entity.Property(p => p.IdPago).HasColumnName("id_pago");
+            entity.Property(p => p.IdFactura).HasColumnName("id_factura");
+            entity.Property(p => p.Monto).HasColumnName("monto").HasPrecision(12, 2);
+            entity.Property(p => p.MetodoPago).HasColumnName("metodo_pago").HasMaxLength(30).IsRequired();
+            entity.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20).IsRequired();
+            entity.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(40).IsRequired();
+            entity.Property(p => p.RegistradoPor).HasColumnName("registrado_por");
+            entity.Property(p => p.FechaUtc).HasColumnName("fecha_utc");
+            entity.HasIndex(p => p.Referencia).IsUnique();
+            entity.HasIndex(p => new { p.IdFactura, p.FechaUtc });
+
+            entity.HasOne(p => p.Factura)
+                  .WithMany(f => f.Pagos)
+                  .HasForeignKey(p => p.IdFactura)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(p => p.Usuario)
+                  .WithMany()
+                  .HasForeignKey(p => p.RegistradoPor)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<DetalleFactura>(entity =>
@@ -601,6 +662,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(d => d.Descripcion).HasColumnName("descripcion");
             entity.Property(d => d.Cantidad).HasColumnName("cantidad");
             entity.Property(d => d.PrecioUnitario).HasColumnName("precio_unitario").HasPrecision(12, 2);
+            entity.Property(d => d.Descuento).HasColumnName("descuento").HasPrecision(12, 2);
             entity.Property(d => d.SubtotalLinea).HasColumnName("subtotal_linea").HasPrecision(12, 2);
 
             entity.HasOne(d => d.Servicio)
@@ -611,7 +673,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<PqrEntity>(entity =>
         {
-            entity.ToTable("PQR");
+            entity.ToTable("PQR", tableBuilder => tableBuilder.UseSqlOutputClause(false));
             entity.HasKey(p => p.IdPqr);
             entity.Property(p => p.IdPqr).HasColumnName("id_pqr");
             entity.Property(p => p.IdPaciente).HasColumnName("id_paciente");
@@ -739,6 +801,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(d => d.SubidoPor)
                   .OnDelete(DeleteBehavior.SetNull);
         });
+
+            modelBuilder.Entity<CredencialProfesional>(entity =>
+            {
+                  entity.ToTable("Credencial_Profesional");
+                  entity.HasKey(d => d.IdCredencial);
+                  entity.Property(d => d.IdCredencial).HasColumnName("id_credencial");
+                  entity.Property(d => d.IdProfesional).HasColumnName("id_profesional");
+                  entity.Property(d => d.SubidoPor).HasColumnName("subido_por");
+                  entity.Property(d => d.Tipo).HasColumnName("tipo").HasMaxLength(50);
+                  entity.Property(d => d.NombreOriginal).HasColumnName("nombre_original").HasMaxLength(255);
+                  entity.Property(d => d.RutaPrivada).HasColumnName("ruta_privada").HasMaxLength(500);
+                  entity.Property(d => d.ContentType).HasColumnName("content_type").HasMaxLength(100);
+                  entity.Property(d => d.TamanoBytes).HasColumnName("tamano_bytes");
+                  entity.Property(d => d.EstadoRevision).HasColumnName("estado_revision").HasMaxLength(15);
+                  entity.Property(d => d.ObservacionRevision).HasColumnName("observacion_revision").HasMaxLength(500);
+                  entity.Property(d => d.FechaSubida).HasColumnName("fecha_subida");
+                  entity.Property(d => d.RevisadoPor).HasColumnName("revisado_por");
+                  entity.Property(d => d.FechaRevision).HasColumnName("fecha_revision");
+                  entity.HasIndex(d => new { d.IdProfesional, d.EstadoRevision }).HasDatabaseName("IX_Credencial_Profesional_Revision");
+                  entity.HasOne(d => d.Profesional).WithMany().HasForeignKey(d => d.IdProfesional).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(d => d.UsuarioSubida).WithMany().HasForeignKey(d => d.SubidoPor).OnDelete(DeleteBehavior.SetNull);
+                  entity.HasOne(d => d.UsuarioRevision).WithMany().HasForeignKey(d => d.RevisadoPor).OnDelete(DeleteBehavior.NoAction);
+            });
 
         // Yeray (2025) - Configuración Fluent API para Alergia_Paciente.
         // Tabla nueva que convierte las alergias de texto libre en filas consultables.
