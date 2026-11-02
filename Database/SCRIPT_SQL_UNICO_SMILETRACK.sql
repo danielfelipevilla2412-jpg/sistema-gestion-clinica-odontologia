@@ -791,6 +791,42 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'id_cita')
+BEGIN
+    ALTER TABLE dbo.Factura ADD id_cita INT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'id_profesional')
+BEGIN
+    ALTER TABLE dbo.Factura ADD id_profesional INT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Factura_Cita')
+BEGIN
+    ALTER TABLE dbo.Factura
+        ADD CONSTRAINT FK_Factura_Cita
+        FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Factura_Profesional')
+BEGIN
+    ALTER TABLE dbo.Factura
+        ADD CONSTRAINT FK_Factura_Profesional
+        FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Factura_Cita_Activa' AND object_id = OBJECT_ID(N'dbo.Factura'))
+BEGIN
+    CREATE UNIQUE INDEX UX_Factura_Cita_Activa
+        ON dbo.Factura(id_cita)
+        WHERE id_cita IS NOT NULL AND estado <> 'anulada';
+END
+GO
+
 IF OBJECT_ID(N'dbo.Pago_Factura', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Pago_Factura (

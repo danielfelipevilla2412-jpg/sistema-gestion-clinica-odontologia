@@ -33,8 +33,9 @@
         codigoHC = codigoHC,
         fechaNacimiento = fechaNacimiento,
         grupoSanguineo = Model.GrupoSanguineo,
-        alergias = Model.Alergias,
-        medicamentos = Array.Empty<string>(),
+        alergias = Model.Formulario.Alergias is null ? Model.Alergias.ToArray() : Array.Empty<string>(),
+        alergiasTexto = Model.Formulario.Alergias,
+        medicamentos = Model.Medicamentos,
         antecedentesMedicos = Model.AntecedentesMedicos,
         motivoConsulta = Model.Formulario.MotivoConsulta,
         enfermedadActual = Model.Formulario.EnfermedadActual,
@@ -137,7 +138,7 @@
             </div>
             <div class="page-hero-actions">
                 <button type="button" class="soft-btn">Exportar</button>
-                <button type="button" class="primary-btn">Guardar</button>
+                <button type="submit" form="historia-clinica-form" class="primary-btn">Guardar</button>
             </div>
         </section>
 
@@ -444,4 +445,3 @@
   <script src="@Url.Content("~/js/i18n-core.js")"></script>
   <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-

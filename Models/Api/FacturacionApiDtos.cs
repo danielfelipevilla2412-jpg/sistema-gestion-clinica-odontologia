@@ -126,7 +126,7 @@ public sealed class RegistrarPagoRequest
 {
     [Range(0.01, 999999999)]
     public decimal MontoPagado { get; set; }
-    [StringLength(30)]
+    [Required, StringLength(30)]
     public string MetodoPago { get; set; } = "efectivo";
     [StringLength(40)]
     public string? Referencia { get; set; }

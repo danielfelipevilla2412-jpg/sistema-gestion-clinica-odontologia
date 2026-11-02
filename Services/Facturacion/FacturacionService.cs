@@ -381,6 +381,7 @@ public sealed class FacturacionService : IFacturacionService
             : request.Referencia.Trim();
         if (await _db.PagosFacturas.AnyAsync(p => p.Referencia == referencia, ct))
             throw new InvalidOperationException("La referencia del pago ya está registrada.");
+
         var pago = new PagoFactura
         {
             IdFactura = id,
@@ -395,9 +396,18 @@ public sealed class FacturacionService : IFacturacionService
         _db.PagosFacturas.Add(pago);
         f.MontoPagado += request.MontoPagado; f.FechaPago = pago.FechaUtc.ToLocalTime(); f.Estado = f.MontoPagado >= f.Total ? "pagada" : "parcial";
         AgregarNotificacion(f.IdPaciente, f.IdCita, f.Estado == "pagada" ? "Factura pagada" : "Pago registrado", $"Se registró un pago de {request.MontoPagado:C} para la factura {f.NumeroFactura}.");
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new InvalidOperationException("La factura cambió mientras registrabas el pago. Actualiza la información e inténtalo de nuevo.");
+        }
+
         AgregarAuditoria(idUsuario, f.IdFactura, "PAYMENT", null, $"Pago registrado para factura {f.NumeroFactura}: {request.MontoPagado:C}.");
-        await _db.SaveChangesAsync(ct); return await ObtenerAsync(id, ct);
+        await _db.SaveChangesAsync(ct);
+        return await ObtenerAsync(id, ct);
     }
 
     public async Task<FacturaDto?> AnularAsync(int id, AnularFacturaRequest? request, int idUsuario, CancellationToken ct)

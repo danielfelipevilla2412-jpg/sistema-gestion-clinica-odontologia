@@ -1222,6 +1222,7 @@ const initFormularioClinico = () => {
           enfermedadActual: value('enfermedad_actual'),
           sintomasSignos: Array.from(document.querySelectorAll('#sintomasSignosGrid input[type="checkbox"]:checked')).map(input => input.value),
           habitos: value('habitos'),
+          alergias: value('alergias'),
           hallazgos: value('hallazgos'),
           odontogramaObservaciones: value('odontograma_observaciones'),
           examenesComplementarios: value('examenes_complementarios'),
@@ -1274,158 +1275,172 @@ const initCamposDinamicosHistoria = () => {
 };
 
 const initAdjuntosClinicos = () => {
-      const button = document.getElementById('btnAdjuntarEstudio');
-      const input = document.getElementById('inputArchivosEstudio');
-      const grid = document.getElementById('fileGrid');
-      const dropZone = document.getElementById('uploadBox');
-      const uploadButton = document.getElementById('btnSubirEstudios');
-      const form = document.getElementById('historia-clinica-form');
-      if (!button || !input || !grid || !dropZone || !uploadButton || !form) return;
+  const button = document.getElementById('btnAdjuntarEstudio');
+  const input = document.getElementById('inputArchivosEstudio');
+  const grid = document.getElementById('fileGrid');
+  const dropZone = document.getElementById('uploadBox');
+  const uploadButton = document.getElementById('btnSubirEstudios');
+  const form = document.getElementById('historia-clinica-form');
+  if (!button || !input || !grid || !dropZone || !uploadButton || !form) return;
 
-      const pendingFiles = [];
-      let uploading = false;
-      const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-      const formatBytes = bytes => bytes < 1024 * 1024
-        ? `${(bytes / 1024).toFixed(1)} KB`
-        : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const pendingFiles = [];
+  let uploading = false;
+  const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+  const formatBytes = bytes => bytes < 1024 * 1024
+    ? `${(bytes / 1024).toFixed(1)} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
-      const renderPendingFiles = () => {
-        grid.querySelectorAll('.pending-file').forEach(item => item.remove());
-        pendingFiles.forEach((file, index) => {
-          const item = document.createElement('article');
-          item.className = 'file-item pending-file';
-          const name = document.createElement('strong');
-          name.textContent = file.name;
-          const details = document.createElement('span');
-          details.textContent = `${formatBytes(file.size)} · Pendiente por subir`;
-          const remove = document.createElement('button');
-          remove.type = 'button';
-          remove.className = 'file-remove-btn';
-          remove.textContent = '×';
-          remove.disabled = uploading;
-          remove.setAttribute('aria-label', `Quitar ${file.name}`);
-          remove.addEventListener('click', () => {
-            pendingFiles.splice(index, 1);
-            renderPendingFiles();
-          });
-          item.append(name, details, remove);
-          grid.insertBefore(item, dropZone);
-        });
-        uploadButton.textContent = `Subir seleccionados (${pendingFiles.length})`;
-        uploadButton.disabled = pendingFiles.length === 0 || uploading;
-        button.disabled = uploading;
-        dropZone.setAttribute('aria-disabled', String(uploading));
-      };
-
-      const renderAttachedFile = documentInfo => {
-        const item = document.createElement('article');
-        item.className = 'file-item';
-        const meta = document.createElement('div');
-        meta.className = 'file-meta';
-        const link = document.createElement('a');
-        link.href = `/historia-clinica/documentos-clinicos/descargar/${encodeURIComponent(documentInfo.id)}`;
-        link.textContent = documentInfo.nombreArchivo || 'Estudio clínico';
-        link.target = '_blank';
-        link.rel = 'noopener';
-        const size = document.createElement('span');
-        size.textContent = formatBytes(documentInfo.tamanoBytes || 0);
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'file-remove-btn';
-        remove.textContent = '×';
-        remove.setAttribute('aria-label', `Quitar ${link.textContent}`);
-        remove.addEventListener('click', async () => {
-          if (!window.confirm(`¿Quieres quitar el estudio "${link.textContent}"?`)) return;
-          remove.disabled = true;
-          try {
-            const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/eliminar/${encodeURIComponent(documentInfo.id)}`, {
-              method: 'DELETE',
-              headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token }
-            });
-            const result = await response.json().catch(() => ({}));
-            if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo quitar el estudio');
-            item.remove();
-            showToast('Estudio quitado correctamente', 'success');
-          } catch (error) {
-            showToast(error.message || 'No se pudo quitar el estudio', 'error');
-            remove.disabled = false;
-          }
-        });
-        meta.append(link, size);
-        item.append(meta, remove);
-        grid.insertBefore(item, dropZone);
-      };
-
-      const loadAttachedFiles = async () => {
-        const pacienteId = window.smiletrackHistoriaData?.pacienteId;
-        if (!pacienteId) return;
-        try {
-          const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/data?pacienteId=${encodeURIComponent(pacienteId)}`);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          (await response.json()).forEach(renderAttachedFile);
-        } catch (error) {
-          showToast(error.message || 'No se pudieron cargar los estudios adjuntos', 'error');
-        }
-      };
-
-      const stageFiles = files => {
-        const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
-        files.forEach(file => {
-          if (file.size > 10 * 1024 * 1024 || !allowed.includes(file.type)) {
-            showToast(`${file.name}: usa JPG, PNG o PDF de máximo 10 MB`, 'error');
-            return;
-          }
-          pendingFiles.push(file);
-        });
+  const renderPendingFiles = () => {
+    grid.querySelectorAll('.pending-file').forEach(item => item.remove());
+    pendingFiles.forEach((file, index) => {
+      const item = document.createElement('article');
+      item.className = 'file-item pending-file';
+      const name = document.createElement('strong');
+      name.textContent = file.name;
+      const details = document.createElement('span');
+      details.textContent = `${formatBytes(file.size)} · Pendiente por subir`;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'file-remove-btn';
+      remove.textContent = '×';
+      remove.disabled = uploading;
+      remove.setAttribute('aria-label', `Quitar ${file.name}`);
+      remove.addEventListener('click', () => {
+        pendingFiles.splice(index, 1);
         renderPendingFiles();
-      };
-
-      const uploadSelectedFiles = async () => {
-        const pacienteId = window.smiletrackHistoriaData?.pacienteId;
-        if (!pacienteId || !pendingFiles.length) return;
-        uploading = true;
-        renderPendingFiles();
-        for (const file of [...pendingFiles]) {
-          const payload = new FormData();
-          payload.append('pacienteId', pacienteId);
-          payload.append('tipo', 'Estudio clínico');
-          payload.append('observacion', 'Adjunto desde el formulario de historia clínica');
-          payload.append('archivo', file, file.name);
-          try {
-            const response = await fetch('/historia-clinica/st-aux-08-documentos-clinicos/subir', {
-              method: 'POST',
-              headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
-              body: payload
-            });
-            const result = await response.json().catch(() => ({}));
-            if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo adjuntar el estudio');
-            renderAttachedFile({ id: result.id, nombreArchivo: result.nombreArchivo || file.name, tamanoBytes: file.size });
-            pendingFiles.splice(pendingFiles.indexOf(file), 1);
-            showToast(`${file.name} se adjuntó correctamente`, 'success');
-          } catch (error) {
-            showToast(error.message || 'No se pudo adjuntar el estudio', 'error');
-          }
-          renderPendingFiles();
-        }
-        uploading = false;
-        renderPendingFiles();
-      };
-
-      button.addEventListener('click', () => input.click());
-      uploadButton.addEventListener('click', uploadSelectedFiles);
-      dropZone.addEventListener('click', () => input.click());
-      input.addEventListener('change', () => {
-        stageFiles(Array.from(input.files || []));
-        input.value = '';
       });
-      dropZone.addEventListener('drop', event => {
-        event.preventDefault();
-        stageFiles(Array.from(event.dataTransfer?.files || []));
-      });
-      dropZone.addEventListener('dragover', event => event.preventDefault());
+      item.append(name, details, remove);
+      grid.insertBefore(item, dropZone);
+    });
+    uploadButton.textContent = `Subir seleccionados (${pendingFiles.length})`;
+    uploadButton.disabled = pendingFiles.length === 0 || uploading;
+    button.disabled = uploading;
+    dropZone.setAttribute('aria-disabled', String(uploading));
+  };
+
+  const renderAttachedFile = documentInfo => {
+    const item = document.createElement('article');
+    item.className = 'file-item';
+    const meta = document.createElement('div');
+    meta.className = 'file-meta';
+    const link = document.createElement('a');
+    link.href = `/historia-clinica/documentos-clinicos/descargar/${encodeURIComponent(documentInfo.id)}`;
+    link.textContent = documentInfo.nombreArchivo || 'Estudio clínico';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    const size = document.createElement('span');
+    size.textContent = formatBytes(documentInfo.tamanoBytes || 0);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'file-remove-btn';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', `Quitar ${link.textContent}`);
+    remove.addEventListener('click', async () => {
+      if (!window.confirm(`¿Quieres quitar el estudio "${link.textContent}"?`)) return;
+      remove.disabled = true;
+      try {
+        const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/eliminar/${encodeURIComponent(documentInfo.id)}`, {
+          method: 'DELETE',
+          headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token }
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo quitar el estudio');
+        item.remove();
+        showToast('Estudio quitado correctamente', 'success');
+      } catch (error) {
+        showToast(error.message || 'No se pudo quitar el estudio', 'error');
+        remove.disabled = false;
+      }
+    });
+    meta.append(link, size);
+    item.append(meta, remove);
+    grid.insertBefore(item, dropZone);
+  };
+
+  const loadAttachedFiles = async () => {
+    const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+    if (!pacienteId) return;
+    try {
+      const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/data?pacienteId=${encodeURIComponent(pacienteId)}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      (await response.json()).forEach(renderAttachedFile);
+    } catch (error) {
+      showToast(error.message || 'No se pudieron cargar los estudios adjuntos', 'error');
+    }
+  };
+
+  const stageFiles = files => {
+    const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
+    files.forEach(file => {
+      if (file.size > 10 * 1024 * 1024 || !allowed.includes(file.type)) {
+        showToast(`${file.name}: usa JPG, PNG o PDF de máximo 10 MB`, 'error');
+        return;
+      }
+      pendingFiles.push(file);
+    });
+    renderPendingFiles();
+  };
+
+  const uploadSelectedFiles = async () => {
+    const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+    if (!pacienteId || !pendingFiles.length) return;
+    uploading = true;
+    renderPendingFiles();
+    for (const file of [...pendingFiles]) {
+      const payload = new FormData();
+      payload.append('pacienteId', pacienteId);
+      payload.append('tipo', 'Estudio clínico');
+      payload.append('observacion', 'Adjunto desde el formulario de historia clínica');
+      payload.append('archivo', file, file.name);
+      try {
+        const response = await fetch('/historia-clinica/st-aux-08-documentos-clinicos/subir', {
+          method: 'POST',
+          headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+          body: payload
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo adjuntar el estudio');
+        renderAttachedFile({ id: result.id, nombreArchivo: result.nombreArchivo || file.name, tamanoBytes: file.size });
+        pendingFiles.splice(pendingFiles.indexOf(file), 1);
+        showToast(`${file.name} se adjuntó correctamente`, 'success');
+      } catch (error) {
+        showToast(error.message || 'No se pudo adjuntar el estudio', 'error');
+      }
       renderPendingFiles();
-      loadAttachedFiles();
-    };
+    }
+    uploading = false;
+    renderPendingFiles();
+  };
+
+  button.addEventListener('click', () => input.click());
+  uploadButton.addEventListener('click', uploadSelectedFiles);
+  dropZone.addEventListener('click', () => input.click());
+  dropZone.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      input.click();
+    }
+  });
+  input.addEventListener('change', () => {
+    stageFiles(Array.from(input.files || []));
+    input.value = '';
+  });
+  ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, event => {
+    event.preventDefault();
+    dropZone.classList.add('dragover');
+  }));
+  ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, event => {
+    event.preventDefault();
+    dropZone.classList.remove('dragover');
+  }));
+  dropZone.addEventListener('drop', event => stageFiles(Array.from(event.dataTransfer?.files || [])));
+  renderPendingFiles();
+  loadAttachedFiles();
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
+// ═══════════════════════════════════════════════════════════════════
 const init = async () => {
   initSidebar();
   initScrollToForm();

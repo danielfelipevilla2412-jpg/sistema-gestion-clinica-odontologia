@@ -520,6 +520,15 @@ const initPayment = () => {
       metodoPago: safeGetElement('paymentMethod')?.value || 'efectivo'
     });
   });
+  confirmButton?.addEventListener('click', confirmPayment);
+  cancelButton?.addEventListener('click', closePaymentConfirmation);
+  closeButton?.addEventListener('click', closePaymentConfirmation);
+  overlay?.addEventListener('click', (event) => {
+    if (event.target === overlay) closePaymentConfirmation();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && overlay && !overlay.hidden) closePaymentConfirmation();
+  });
 };
 
 const formatInvoiceDate = (value, includeTime = false) => {
