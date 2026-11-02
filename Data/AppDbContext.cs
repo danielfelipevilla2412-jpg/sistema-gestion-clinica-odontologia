@@ -42,7 +42,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AuditoriaRecuperacion> AuditoriasRecuperacion => Set<AuditoriaRecuperacion>();
     public DbSet<Factura> Facturas => Set<Factura>();
     public DbSet<DetalleFactura> DetallesFactura => Set<DetalleFactura>();
-    public DbSet<PagoFactura> PagosFacturas => Set<PagoFactura>();
+      public DbSet<PagoFactura> PagosFacturas => Set<PagoFactura>();
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
     public DbSet<TicketSoporte> TicketsSoporte => Set<TicketSoporte>();
@@ -522,15 +522,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(n => n.IdNota).HasColumnName("id_nota");
             entity.Property(n => n.IdHistoria).HasColumnName("id_historia");
             entity.Property(n => n.IdProfesional).HasColumnName("id_profesional");
-            entity.Property(n => n.IdCita).HasColumnName("id_cita");
+                  entity.Property(n => n.IdCita).HasColumnName("id_cita");
             entity.Property(n => n.Fecha).HasColumnName("fecha");
             entity.Property(n => n.Diagnostico).HasColumnName("diagnostico");
             entity.Property(n => n.Procedimiento).HasColumnName("procedimiento");
             entity.Property(n => n.ProximaCita).HasColumnName("proxima_cita").HasMaxLength(50);
             entity.Property(n => n.Estado).HasColumnName("estado").HasMaxLength(20);
-            entity.HasIndex(n => n.IdCita)
-                  .IsUnique()
-                  .HasFilter("[id_cita] IS NOT NULL");
+                  entity.HasIndex(n => n.IdCita)
+                          .IsUnique()
+                          .HasFilter("[id_cita] IS NOT NULL");
 
             entity.HasOne(n => n.HistoriaClinica)
                   .WithMany()
@@ -637,6 +637,32 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                  .WithOne(d => d.Factura)
                   .HasForeignKey(d => d.IdFactura)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PagoFactura>(entity =>
+        {
+            entity.ToTable("Pago_Factura");
+            entity.HasKey(p => p.IdPago);
+            entity.Property(p => p.IdPago).HasColumnName("id_pago");
+            entity.Property(p => p.IdFactura).HasColumnName("id_factura");
+            entity.Property(p => p.Monto).HasColumnName("monto").HasPrecision(12, 2);
+            entity.Property(p => p.MetodoPago).HasColumnName("metodo_pago").HasMaxLength(30).IsRequired();
+            entity.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20).IsRequired();
+            entity.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(40).IsRequired();
+            entity.Property(p => p.RegistradoPor).HasColumnName("registrado_por");
+            entity.Property(p => p.FechaUtc).HasColumnName("fecha_utc");
+            entity.HasIndex(p => p.Referencia).IsUnique();
+            entity.HasIndex(p => new { p.IdFactura, p.FechaUtc });
+
+            entity.HasOne(p => p.Factura)
+                  .WithMany(f => f.Pagos)
+                  .HasForeignKey(p => p.IdFactura)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(p => p.Usuario)
+                  .WithMany()
+                  .HasForeignKey(p => p.RegistradoPor)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<DetalleFactura>(entity =>

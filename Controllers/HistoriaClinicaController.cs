@@ -700,7 +700,6 @@ public class HistoriaClinicaController(
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList(),
             Habitos = request.Habitos?.Trim() ?? "",
-            Alergias = request.Alergias?.Trim() ?? "",
             Hallazgos = request.Hallazgos?.Trim() ?? "",
             OdontogramaObservaciones = request.OdontogramaObservaciones?.Trim() ?? "",
             ExamenesComplementarios = request.ExamenesComplementarios?.Trim() ?? "",

@@ -470,14 +470,12 @@ const initPayment = () => {
       return;
     }
     const pacienteSelect = safeGetElement('pacienteSelect');
-    const profesionalSelect = safeGetElement('profesionalSelect');
     const totalEl = safeGetElement('invoiceTotal');
     const amountReceived = safeGetElement('amountReceived');
     
     
     if (!totalEl || !amountReceived || !pacienteSelect) return;
     const idPaciente = parseInt(pacienteSelect.value, 10);
-    const idProfesional = profesionalSelect?.value ? parseInt(profesionalSelect.value, 10) : null;
     if (!idPaciente) {
       showToast('Seleccione un paciente antes de registrar el pago.', 'error');
       pacienteSelect.focus();
@@ -520,6 +518,7 @@ const initPayment = () => {
       metodoPago: safeGetElement('paymentMethod')?.value || 'efectivo'
     });
   });
+
   confirmButton?.addEventListener('click', confirmPayment);
   cancelButton?.addEventListener('click', closePaymentConfirmation);
   closeButton?.addEventListener('click', closePaymentConfirmation);
