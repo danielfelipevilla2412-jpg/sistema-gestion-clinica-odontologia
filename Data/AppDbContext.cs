@@ -242,6 +242,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(s => s.Estado).HasColumnName("estado");
             entity.Property(s => s.Categoria).HasColumnName("categoria");
             entity.Property(s => s.DuracionMinutos).HasColumnName("duracion_minutos");
+            entity.Property(s => s.IdEspecialidad).HasColumnName("id_especialidad");
+            entity.HasIndex(s => s.IdEspecialidad).HasDatabaseName("IX_Servicio_IdEspecialidad");
+            entity.HasOne(s => s.Especialidad)
+                  .WithMany(e => e.Servicios)
+                  .HasForeignKey(s => s.IdEspecialidad)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Consultorio>(entity =>

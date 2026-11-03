@@ -166,6 +166,7 @@ NOTAS DE MANTENIMIENTO:
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
         <span class="stat-number" id="statIngresos" data-format="currency-cop" data-target="@(Convert.ToDecimal(ViewData["OdoIngresosMes"] ?? 0))" aria-live="polite">0</span>
         <span class="stat-label">Ingresos del mes</span>
+        <small>Fórmula: suma del precio de los servicios asociados a citas atendidas este mes; no equivale a comisión neta.</small>
       </div>
     </section>
 
@@ -395,6 +396,10 @@ NOTAS DE MANTENIMIENTO:
                             <p class="invoice-desc">Paciente: @(cita.Paciente?.Nombres ?? "N/A") @(cita.Paciente?.Apellidos ?? "")</p>
                           </div>
                           <p class="invoice-amount" style="font-size: 0.9rem; font-weight: 500;">@(cita.Servicio?.Nombre ?? "Consulta")</p>
+                          <a class="btn-secondary btn-sm"
+                             href="@Url.Action("Stodo04Odontograma", "HistoriaClinica", new { pacienteId = cita.IdPaciente, citaId = cita.IdCita })">
+                            Abrir odontograma
+                          </a>
                         </div>
                     }
                 }

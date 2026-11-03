@@ -244,6 +244,9 @@
                             {
                                 var ariaLabel = $"Cita {cita.Estado}: {cita.Paciente}, {cita.Hora}, {cita.Servicio}, {cita.Consultorio}";
                                 var dateTimeValue = $"{dia.Fecha.ToString("yyyy-MM-dd")}T{cita.Hora}:00";
+                                var esReagendable = cita.Estado.Equals("agendada", StringComparison.OrdinalIgnoreCase)
+                                    || cita.Estado.Equals("programada", StringComparison.OrdinalIgnoreCase)
+                                    || cita.Estado.Equals("confirmada", StringComparison.OrdinalIgnoreCase);
                                 <div class="appointment @cita.ClaseEstado" tabindex="0" role="button"
                                      aria-label="@ariaLabel"
                                      data-id="@cita.Id" data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
@@ -257,7 +260,8 @@
                                      data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
                                      data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
                                      data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)"
-                                     draggable="true">
+                                     data-reschedulable="@esReagendable.ToString().ToLowerInvariant()"
+                                     draggable="@esReagendable.ToString().ToLowerInvariant()">
                                     <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
                                     <span class="appt-patient">@cita.Paciente</span>
                                     <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
@@ -303,6 +307,7 @@
         <h2 class="modal-title" id="modalApptTitle">Detalle de Cita</h2>
         <div class="modal-content" id="modalApptContent" aria-live="polite"></div>
         <div class="modal-footer modal-actions-grid">
+            <button type="button" class="btn-secondary" id="modalApptReagendar" hidden>Reagendar</button>
             <a href="/historia-clinica/st-odo-04-odontograma" class="btn-primary" id="btnIniciarAtencion">
                 <span class="material-symbols-outlined" aria-hidden="true">medical_services</span>
                 Iniciar Atención
@@ -426,7 +431,10 @@
     <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
 </footer>
 
+@await Html.PartialAsync("~/Views/Shared/_ReagendarCitaModal.cshtml")
+
 @section Scripts {
+     <script src="~/js/shared/reagendamiento-agenda.js" asp-append-version="true" defer></script>
      <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
      <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
      <script src="~/js/Gestion_De_Citas/st-odo-02-agenda/agenda.js" asp-append-version="true" defer></script>

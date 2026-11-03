@@ -840,14 +840,6 @@ public class CitaService : ICitaService
 
     public async Task<bool> CancelarAsync(
         int id,
-        TimeSpan? anticipacionMinima = null,
-        CancellationToken ct = default)
-    {
-        return await CancelarAsync(id, motivo: "Cancelación de cita", anticipacionMinima: anticipacionMinima, ct: ct);
-    }
-
-    public async Task<bool> CancelarAsync(
-        int id,
         string? motivo,
         TimeSpan? anticipacionMinima = null,
         CancellationToken ct = default)
@@ -871,10 +863,12 @@ public class CitaService : ICitaService
         int    idPacienteCancelar     = cita.IdPaciente;
         DateTime fechaHoraCancelar    = cita.FechaHora;
 
-        // RN-23: motivo obligatorio, no puede estar vacío, máximo 500 caracteres
+        // RN-23: motivo obligatorio, mínimo 5 y máximo 500 caracteres
         var motivoCancelacion = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim();
         if (string.IsNullOrWhiteSpace(motivoCancelacion))
             throw new InvalidOperationException("El motivo de cancelación es obligatorio (RN-23). Debe indicar la razón de la cancelación.");
+        if (motivoCancelacion.Length < 5)
+            throw new InvalidOperationException("El motivo de cancelación debe tener al menos 5 caracteres.");
         if (motivoCancelacion.Length > 500)
             throw new InvalidOperationException("El motivo de cancelación no puede superar 500 caracteres.");
 
@@ -1310,22 +1304,25 @@ public class CitaService : ICitaService
         // servicio de esa especialidad.
         if (idServicio > 0)
         {
-            bool tieneServiciosAsignados = await _context.ProfesionalServicios
+            bool deshabilitadoManualmente = await _context.ProfesionalServicios
                 .AsNoTracking()
-                .AnyAsync(ps => ps.IdProfesional == idProfesional && ps.Activo, ct);
+                .AnyAsync(ps => ps.IdProfesional == idProfesional
+                             && ps.IdServicio == idServicio
+                             && !ps.Activo, ct);
 
-            if (tieneServiciosAsignados)
+            if (deshabilitadoManualmente)
             {
-                bool estaAsignado = await _context.ProfesionalServicios
-                    .AsNoTracking()
-                    .AnyAsync(ps => ps.IdProfesional == idProfesional && ps.IdServicio == idServicio && ps.Activo, ct);
-
-                if (!estaAsignado)
-                {
-                    return (false, "El servicio seleccionado no está asignado a este profesional.");
-                }
+                return (false, "Este procedimiento está deshabilitado manualmente para el profesional seleccionado.");
             }
-            else
+
+            var servicio = await _context.Servicios
+                .AsNoTracking()
+                .Where(s => s.IdServicio == idServicio && s.Estado == "activo")
+                .Select(s => new { s.IdEspecialidad })
+                .FirstOrDefaultAsync(ct);
+            if (servicio is null)
+                return (false, "El servicio seleccionado no está activo.");
+            if (servicio.IdEspecialidad is int especialidadServicio)
             {
                 var idsEspProf = await _context.ProfesionalEspecialidades
                     .AsNoTracking()
@@ -1342,15 +1339,8 @@ public class CitaService : ICitaService
                         idsEspProf.Add(espGeneral.IdEspecialidad);
                 }
 
-                if (idsEspProf.Count > 0)
-                {
-                    bool servicioPermitido = await _context.Servicios
-                        .AsNoTracking()
-                        .AnyAsync(s => s.IdServicio == idServicio && s.Estado == "activo", ct);
-
-                    if (!servicioPermitido)
-                        return (false, "El servicio seleccionado no está habilitado para este profesional según sus especialidades.");
-                }
+                if (!idsEspProf.Contains(especialidadServicio))
+                    return (false, "El servicio seleccionado no está habilitado para las especialidades de este profesional.");
             }
         }
 
@@ -1659,7 +1649,9 @@ public class CitaService : ICitaService
                 fechaHoraCita,
                 nombreProfesional,
                 servicio,
-                "Cancelada");
+                "Cancelada",
+                cancellationToken: ct,
+                motivoCancelacion: motivo);
         }
         catch (Exception ex)
         {

@@ -10,7 +10,7 @@
  *
  * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
  * - Privacidad y Ownership estricto: El backend valida el claim de identidad del paciente en cada petición.
- * - Validación cliente de tiempo mínimo para cancelar citas (24 horas de anticipación requeridas).
+ * - Validación cliente del límite de 2 horas y motivo obligatorio al cancelar.
  *
  * DEPENDENCIAS TÉCNICAS:
  * - Controller: GestionCitasController -> Stpac01MisCitas / CitasApiController
@@ -180,19 +180,25 @@ const confirmAppointmentCancellation = async () => {
   const appointmentItem = appointmentsList.find(item => item.id === pendingCancelAppointmentId);
   if (!appointmentItem) return;
 
-  const previousStatus = appointmentItem.estado;
-  appointmentItem.estado = 'Cancelada';
-  appointmentItem.active = false;
-  updateAppointmentStats();
-  renderAppointmentsTable();
-  notifyUser('success', 'Éxito', 'Cita cancelada correctamente');
+  const reasonInput = safeGetElement('cancelarMotivo');
+  const cancellationReason = reasonInput?.value?.trim() || '';
+  const errorBox = safeGetElement('cancelarError');
+  if (cancellationReason.length < 5) {
+    if (errorBox) {
+      errorBox.textContent = 'El motivo de cancelación debe tener al menos 5 caracteres.';
+      errorBox.classList.remove('hidden');
+    }
+    reasonInput?.focus();
+    return;
+  }
 
   let operationSuccess = false;
   let statusMessage = null;
   try {
     const response = await fetch(`${API_BASE_URL}/citas/${pendingCancelAppointmentId}`, {
       method: 'DELETE',
-      headers: buildAuthHeaders()
+      headers: buildAuthHeaders(),
+      body: JSON.stringify({ motivo: cancellationReason })
     });
     let payload;
     try { payload = await response.json(); } catch { payload = { success: response.ok }; }
@@ -205,14 +211,17 @@ const confirmAppointmentCancellation = async () => {
   }
 
   if (operationSuccess) {
-    closeCancelAppointmentModal();
-  } else {
-    appointmentItem.estado = previousStatus;
-    appointmentItem.active = previousStatus === 'Agendada' || previousStatus === 'Confirmada';
+    appointmentItem.estado = 'Cancelada';
+    appointmentItem.active = false;
     updateAppointmentStats();
     renderAppointmentsTable();
-    const errorBox = safeGetElement('cancelarError');
-    if (errorBox) errorBox.textContent = statusMessage || 'No fue posible cancelar la cita. Intente más tarde o contacte recepción.';
+    notifyUser('success', 'Éxito', 'Cita cancelada correctamente');
+    closeCancelAppointmentModal();
+  } else {
+    if (errorBox) {
+      errorBox.textContent = statusMessage || 'No fue posible cancelar la cita. Intente más tarde o contacte recepción.';
+      errorBox.classList.remove('hidden');
+    }
   }
 };
 
@@ -411,6 +420,10 @@ const renderAppointmentsTable = () => {
     if (item.active) tr.classList.add('row-active');
     if (item.estado === 'Cancelada') tr.classList.add('row-cancelada');
     const canCancel = item.estado === 'Agendada' || item.estado === 'Confirmada';
+    const minutesUntilAppointment = new Date(item.fechaHoraISO).getTime() - Date.now();
+    const cancellationBlocked = canCancel &&
+      (!Number.isFinite(minutesUntilAppointment) || minutesUntilAppointment < 2 * 60 * 60 * 1000);
+    const cancellationNotice = 'Para cancelaciones con menos de 2 horas de anticipación, por favor comuníquese directamente con recepción.';
     tr.innerHTML = `
       <td class="td-fecha">${escapeHtml(item.fecha)}</td>
       <td><span class="pill-hora">${escapeHtml(item.hora)}</span></td>
@@ -424,9 +437,10 @@ const renderAppointmentsTable = () => {
             <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">visibility</span> <span class="btn-text">Ver</span>
           </button>
           ${canCancel ? `<button class="btn-danger btn-delete" type="button" id="btn-cancelar-${item.id}"
-                  title="Cancelar cita" data-action="cancelar" data-id="${item.id}" aria-label="Cancelar cita">
+                  title="${cancellationBlocked ? cancellationNotice : 'Cancelar cita'}" data-action="cancelar" data-id="${item.id}" aria-label="Cancelar cita"
+                  ${cancellationBlocked ? `disabled aria-describedby="cancelacionAnticipacionAviso-${item.id}"` : ''}>
             <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">cancel</span> <span class="btn-text">Cancelar</span>
-          </button>` : ''}
+          </button>${cancellationBlocked ? `<small class="cancellation-notice" id="cancelacionAnticipacionAviso-${item.id}">${cancellationNotice}</small>` : ''}` : ''}
         </div>
       </td>`;
     tableBody.appendChild(tr);
@@ -480,11 +494,16 @@ const openCancelAppointmentModal = (appointmentId) => {
   const descriptionText = safeGetElement('cancelarDesc');
   const warningBox = safeGetElement('cancelarAdvertencia');
   const errorBox = safeGetElement('cancelarError');
+  const reasonInput = safeGetElement('cancelarMotivo');
 
-  if (errorBox) errorBox.textContent = '';
+  if (errorBox) {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+  if (reasonInput) reasonInput.value = '';
 
   if (hoursRemaining < 24 && item.estado !== 'Cancelada' && item.estado !== 'Completada') {
-    if (warningBox) warningBox.textContent = `⚠️ Esta cita es en ${Math.max(1, Math.round(hoursRemaining))} horas. La clínica recomienda cancelar con al menos 24h de anticipación.`;
+    if (warningBox) warningBox.textContent = `Esta cita es en ${Math.max(1, Math.round(hoursRemaining))} horas.`;
     warningBox?.classList.remove('hidden');
   } else {
     warningBox?.classList.add('hidden');

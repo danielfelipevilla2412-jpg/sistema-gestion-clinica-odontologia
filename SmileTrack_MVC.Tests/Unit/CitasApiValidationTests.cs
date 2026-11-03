@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Controllers;
@@ -34,7 +35,8 @@ public class CitasApiValidationTests
             db,
             NullLogger<CitasApiController>.Instance,
             new NoOpEmailService(),
-            service);
+            service,
+            new MemoryCache(new MemoryCacheOptions()));
 
         controller.ModelState.AddModelError("IdPaciente", "El paciente es obligatorio.");
 
@@ -69,7 +71,7 @@ public class CitasApiValidationTests
     {
         public Task SendRecoveryCodeAsync(string recipientEmail, string code, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task SendCitaNotificacionAsync(string recipientEmail, string nombrePaciente, DateTime fechaCita, string profesional, string servicio, string nuevoEstado, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SendCitaNotificacionAsync(string recipientEmail, string nombrePaciente, DateTime fechaCita, string profesional, string servicio, string nuevoEstado, CancellationToken cancellationToken = default, string? motivoCancelacion = null) => Task.CompletedTask;
 
         public Task<(bool Exito, string Detalle)> ProbarConfiguracionSmtpAsync(string correoDestino, CancellationToken cancellationToken = default) => Task.FromResult((true, "OK"));
     }

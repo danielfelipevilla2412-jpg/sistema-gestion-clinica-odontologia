@@ -708,10 +708,10 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                  aria-labelledby="modalConfirmDeleteCitaTitle" aria-hidden="true" inert>
                                 <div class="modal modal--sm">
                                     <button class="modal-close" id="modalConfirmDeleteCitaClose" aria-label="Cerrar ventana">×</button>
-                                    <h2 class="modal-title" id="modalConfirmDeleteCitaTitle">Confirmar eliminación</h2>
+                                    <h2 class="modal-title" id="modalConfirmDeleteCitaTitle">Confirmar cancelación</h2>
                                     <p id="modalConfirmDeleteCitaMessage"
                                        style="margin:16px 0 24px; line-height:1.5; color:var(--text-muted, #64748b);">
-                                        ¿Está seguro de eliminar esta cita? Esta acción no se puede deshacer.
+                                        ¿Está seguro de cancelar esta cita? Esta acción no se puede deshacer.
                                     </p>
                             <form id="formDeleteCita" method="post" action="/gestion-de-citas/eliminar-cita">
                                         @Html.AntiForgeryToken()
@@ -723,13 +723,13 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                 Motivo de cancelación <span style="color:var(--danger)">*</span>
                                             </label>
                                             <textarea id="deleteCitaMotivo" name="MotivoCancelacion" class="form-input" rows="2"
-                                                      maxlength="500" required placeholder="Indique el motivo..." style="resize:vertical;"></textarea>
+                                                      minlength="5" maxlength="500" required placeholder="Indique el motivo..." style="resize:vertical;"></textarea>
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn-secondary" id="modalConfirmDeleteCitaCancel">Cancelar</button>
                                             <button type="submit" class="btn-primary"
                                                     style="background:var(--red,#ef4444); border-color:var(--red,#ef4444);">
-                                                Eliminar
+                                                Cancelar cita
                                             </button>
                                         </div>
                                     </form>

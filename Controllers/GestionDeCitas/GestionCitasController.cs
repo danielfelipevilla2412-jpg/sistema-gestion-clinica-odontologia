@@ -37,6 +37,7 @@ using SmileTrack_MVC.Services.Email;
 using System.Net;
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -51,7 +52,8 @@ public class GestionCitasController(
     IPanelOperativoService panelOperativoService,
     IAntiforgery antiforgery,
     ICitasDashboardService citasDashboardService,
-    IAgendaService agendaService) : Controller
+    IAgendaService agendaService,
+    IMemoryCache memoryCache) : Controller
 {
     private readonly AppDbContext _context = context;
     private readonly ILogger<GestionCitasController> _logger = logger;
@@ -61,6 +63,7 @@ public class GestionCitasController(
     private readonly IAntiforgery _antiforgery = antiforgery;
     private readonly ICitasDashboardService _citasDashboardService = citasDashboardService;
     private readonly IAgendaService _agendaService = agendaService;
+    private readonly IMemoryCache _memoryCache = memoryCache;
 
     /*
      * REGLA DE NEGOCIO:
@@ -348,8 +351,20 @@ public class GestionCitasController(
             bool esActualizacion = dto.IdCita.HasValue && dto.IdCita.Value > 0;
             Cita cita;
 
+            string? datosAnteriores = null;
             if (esActualizacion)
             {
+                var citaAnterior = await _citaService.ObtenerPorIdAsync(dto.IdCita!.Value, ct)
+                    ?? throw new InvalidOperationException("La cita que intenta actualizar no existe.");
+                datosAnteriores = JsonSerializer.Serialize(new
+                {
+                    citaAnterior.Estado,
+                    citaAnterior.FechaHora,
+                    citaAnterior.IdPaciente,
+                    citaAnterior.IdProfesional,
+                    citaAnterior.IdServicio,
+                    citaAnterior.IdConsultorio
+                });
                 var updateDto = new Models.DTOs.CitaApiUpdateDto
                 {
                     IdCita = dto.IdCita!.Value,
@@ -390,13 +405,16 @@ public class GestionCitasController(
                     $"IdPaciente={cita.IdPaciente}, " +
                     $"IdProfesional={cita.IdProfesional}, " +
                     $"FechaHora={cita.FechaHora:yyyy-MM-dd HH:mm}",
-                datosNuevos:
-                    $"{{\"Estado\":\"{cita.Estado}\"," +
-                    $"\"FechaHora\":\"{cita.FechaHora:O}\"," +
-                    $"\"IdPaciente\":{cita.IdPaciente}," +
-                    $"\"IdProfesional\":{cita.IdProfesional}," +
-                    $"\"IdServicio\":{cita.IdServicio}," +
-                    $"\"IdConsultorio\":{cita.IdConsultorio}}}",
+                datosAnteriores: datosAnteriores,
+                datosNuevos: JsonSerializer.Serialize(new
+                {
+                    cita.Estado,
+                    cita.FechaHora,
+                    cita.IdPaciente,
+                    cita.IdProfesional,
+                    cita.IdServicio,
+                    cita.IdConsultorio
+                }),
                 ct: ct);
 
             _logger.LogInformation(
@@ -1117,6 +1135,7 @@ public sealed class CambiarEstadoCitaDto
     [Route("gestion-de-citas/eliminar-cita")]
     public async Task<IActionResult> EliminarCita(
         [FromForm] int IdCita,
+        [FromForm] string? MotivoCancelacion,
         [FromForm] string? ReturnUrl,
         CancellationToken ct = default)
     {
@@ -1142,10 +1161,28 @@ public sealed class CambiarEstadoCitaDto
             // y actualiza soft delete en una sola operación.
             // ------------------------------------------------------------
 
+            var citaAnterior = await _citaService.ObtenerPorIdAsync(IdCita, ct);
+            if (citaAnterior is null)
+            {
+                TempData["ErrorValidacion"] =
+                    "La cita que intenta cancelar no existe.";
+
+                return Redirect(returnUrlSafe);
+            }
+            string datosAnteriores = JsonSerializer.Serialize(new
+            {
+                citaAnterior.Estado,
+                citaAnterior.FechaHora,
+                citaAnterior.IdPaciente,
+                citaAnterior.IdProfesional,
+                citaAnterior.IdServicio,
+                citaAnterior.IdConsultorio
+            });
+
             bool ok;
             try
             {
-                ok = await _citaService.CancelarAsync(IdCita, ct: ct);
+                ok = await _citaService.CancelarAsync(IdCita, MotivoCancelacion, ct: ct);
             }
             catch (InvalidOperationException ioex)
                 when (ioex.Message.Contains("cancelada",
@@ -1176,15 +1213,19 @@ public sealed class CambiarEstadoCitaDto
                 descripcion:
                     $"Cita cancelada via MVC. IdPaciente={cita.IdPaciente}, " +
                     $"FechaHora={cita.FechaHora:yyyy-MM-dd HH:mm}",
+                datosAnteriores: datosAnteriores,
                 datosNuevos:
-                    $"{{\"Estado\":\"cancelada\"," +
-                    $"\"FechaHora\":\"{cita.FechaHora:O}\"}}",
+                    JsonSerializer.Serialize(new
+                    {
+                        Estado = cita.Estado,
+                        cita.FechaHora,
+                        cita.IdPaciente,
+                        cita.IdProfesional,
+                        cita.IdServicio,
+                        cita.IdConsultorio,
+                        MotivoCancelacion = MotivoCancelacion?.Trim()
+                    }),
                 ct: ct);
-
-            await EnviarNotificacionCitaAsync(
-                cita.IdCita,
-                "cancelada",
-                ct);
 
             TempData["MensajeExito"] =
                 "La cita fue cancelada exitosamente.";
@@ -2733,11 +2774,43 @@ public sealed class CambiarEstadoCitaDto
                                     actions: new[] { "pencil" }
                                 ),
 
+                            "confirmada"
+                                => (
+                                    status: "Confirmada",
+                                    statusClass: "status-confirmada",
+                                    actions: new[] { "pencil", "eye" }
+                                ),
+
+                            "en_sala_de_espera" or
+                            "en_espera" or
+                            "sala_de_espera"
+                                => (
+                                    status: "En sala de espera",
+                                    statusClass: "status-espera",
+                                    actions: new[] { "eye" }
+                                ),
+
                             "cancelada"
                                 => (
                                     status: "Cancelada",
-                                    statusClass: "status-pendiente",
+                                    statusClass: "status-cancelada",
                                     actions: new[] { "eye" }
+                                ),
+
+                            "no_asistio" or
+                            "no_asistida"
+                                => (
+                                    status: "No asistió",
+                                    statusClass: "status-no-asistio",
+                                    actions: new[] { "eye" }
+                                ),
+
+                            "programada" or
+                            "agendada"
+                                => (
+                                    status: "Programada",
+                                    statusClass: "status-programada",
+                                    actions: new[] { "pencil", "file-invoice" }
                                 ),
 
                             _
@@ -3607,33 +3680,42 @@ public sealed class CambiarEstadoCitaDto
                     .ToListAsync(ct);
 
             ViewData["Consultorios"] =
-                await _context.Consultorios
-                    .AsNoTracking()
-                    .Where(
-                        c =>
-                            c.Estado ==
-                                "disponible" ||
-                            c.Estado ==
-                                "activo")
-                    .OrderBy(c => c.Nombre)
-                    .ToListAsync(ct);
+                await _memoryCache.GetOrCreateAsync(
+                    CatalogCacheKeys.ConsultoriosDisponibles,
+                    async entry =>
+                    {
+                        entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                        return await _context.Consultorios
+                            .AsNoTracking()
+                            .Where(c => c.Estado == "disponible" || c.Estado == "activo")
+                            .OrderBy(c => c.Nombre)
+                            .ToListAsync(ct);
+                    }) ?? throw new InvalidOperationException("No se pudo cargar el catálogo de consultorios.");
 
             ViewData["EstadosCita"] =
-                await _context.EstadosCita
-                    .AsNoTracking()
-                    .OrderBy(
-                        e => e.NombreEstado)
-                    .ToListAsync(ct);
+                await _memoryCache.GetOrCreateAsync(
+                    CatalogCacheKeys.EstadosCita,
+                    async entry =>
+                    {
+                        entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                        return await _context.EstadosCita
+                            .AsNoTracking()
+                            .OrderBy(e => e.NombreEstado)
+                            .ToListAsync(ct);
+                    }) ?? throw new InvalidOperationException("No se pudo cargar el catálogo de estados de cita.");
 
             ViewData["Servicios"] =
-                await _context.Servicios
-                    .AsNoTracking()
-                    .Where(
-                        s =>
-                            s.Estado ==
-                            "activo")
-                    .OrderBy(s => s.Nombre)
-                    .ToListAsync(ct);
+                await _memoryCache.GetOrCreateAsync(
+                    CatalogCacheKeys.Servicios,
+                    async entry =>
+                    {
+                        entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                        return await _context.Servicios
+                            .AsNoTracking()
+                            .Where(s => s.Estado == "activo")
+                            .OrderBy(s => s.Nombre)
+                            .ToListAsync(ct);
+                    }) ?? throw new InvalidOperationException("No se pudo cargar el catálogo de servicios.");
 
             ViewData["ReturnUrl"] =
                 returnUrl;
@@ -4079,16 +4161,30 @@ public sealed class CambiarEstadoCitaDto
     {
         try
         {
-            string? userIdStr =
-                User.FindFirstValue(
-                    ClaimTypes.NameIdentifier);
-
-            int? idUsuario =
-                int.TryParse(
-                    userIdStr,
-                    out int uid)
-                    ? uid
+            string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int? idUsuario = int.TryParse(userIdStr, out int uid) && uid > 0
+                ? uid
+                : int.TryParse(User.FindFirstValue("IdUsuario"), out int sessionUserId) && sessionUserId > 0
+                    ? sessionUserId
                     : null;
+
+            if (idUsuario is null && !string.IsNullOrWhiteSpace(User.Identity?.Name))
+            {
+                idUsuario = await _context.Usuarios
+                    .AsNoTracking()
+                    .Where(usuario => usuario.Correo == User.Identity.Name)
+                    .Select(usuario => (int?)usuario.IdUsuario)
+                    .FirstOrDefaultAsync(ct);
+            }
+
+            if (idUsuario is null)
+            {
+                _logger.LogError(
+                    "No se pudo resolver el IdUsuario autenticado para registrar auditoría de {TablaAfectada} {IdRegistro}.",
+                    tablaAfectada,
+                    idRegistro);
+                return;
+            }
 
             string ipOrigen =
                 HttpContext.Connection

@@ -19,6 +19,9 @@ public sealed class ServicioRequest
         ErrorMessage = "Categoría inválida.")]
     public string Category { get; set; } = "general";
 
+    [Range(1, int.MaxValue, ErrorMessage = "La especialidad seleccionada no es válida.")]
+    public int? IdEspecialidad { get; set; }
+
     [Range(5, 480, ErrorMessage = "La duración debe estar entre 5 y 480 minutos.")]
     public int Duration { get; set; } = 30;
 }

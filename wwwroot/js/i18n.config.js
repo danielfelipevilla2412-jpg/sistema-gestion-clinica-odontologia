@@ -196,6 +196,9 @@
       "gestionprofesionales_form_registro_ph": "Ej. RM-2026-001",
       "gestionprofesionales_form_registro_error": "Por favor ingresa el registro médico.",
       "gestionprofesionales_form_especialidad_label": "Especialidad",
+      "gestionprofesionales_form_especialidad_primary": "Especialidad principal",
+      "gestionprofesionales_form_especialidad_secondary": "Especialidades secundarias",
+      "gestionprofesionales_form_especialidad_help": "Mantén Ctrl (Windows) o Cmd (Mac) para seleccionar varias especialidades.",
       "gestionprofesionales_form_especialidad_none": "Sin especialidad",
       "gestionprofesionales_form_categoria_label": "Categoría",
       "gestionprofesionales_form_categoria_ph": "Ej. Odontología General",
@@ -1558,6 +1561,9 @@
       "gestionprofesionales_form_registro_ph": "Ex. ML-2026-001",
       "gestionprofesionales_form_registro_error": "Please enter medical license.",
       "gestionprofesionales_form_especialidad_label": "Specialty",
+      "gestionprofesionales_form_especialidad_primary": "Primary specialty",
+      "gestionprofesionales_form_especialidad_secondary": "Secondary specialties",
+      "gestionprofesionales_form_especialidad_help": "Hold Ctrl (Windows) or Cmd (Mac) to select multiple specialties.",
       "gestionprofesionales_form_especialidad_none": "No specialty",
       "gestionprofesionales_form_categoria_label": "Category",
       "gestionprofesionales_form_categoria_ph": "Ex. General Dentistry",
@@ -2738,5 +2744,3 @@
 
   window.I18N = i18n;
 })();
-
-

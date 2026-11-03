@@ -384,7 +384,10 @@ BEGIN
         nombre VARCHAR(150) NOT NULL,
         descripcion VARCHAR(500) NULL,
         precio DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-        estado VARCHAR(10) NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactivo'))
+        estado VARCHAR(10) NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactivo')),
+        id_especialidad INT NULL,
+        CONSTRAINT FK_Servicio_Especialidad FOREIGN KEY (id_especialidad)
+            REFERENCES Especialidad(id_especialidad) ON DELETE NO ACTION
     );
 END
 GO
@@ -801,6 +804,29 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Servi
 BEGIN
     ALTER TABLE dbo.Servicio ADD duracion_minutos INT NOT NULL DEFAULT 30;
 END
+GO
+
+IF COL_LENGTH(N'dbo.Servicio', N'id_especialidad') IS NULL
+    ALTER TABLE dbo.Servicio ADD id_especialidad INT NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'FK_Servicio_Especialidad'
+      AND parent_object_id = OBJECT_ID(N'dbo.Servicio')
+)
+    ALTER TABLE dbo.Servicio
+        ADD CONSTRAINT FK_Servicio_Especialidad
+        FOREIGN KEY (id_especialidad) REFERENCES dbo.Especialidad(id_especialidad)
+        ON DELETE NO ACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Servicio_IdEspecialidad'
+      AND object_id = OBJECT_ID(N'dbo.Servicio')
+)
+    CREATE INDEX IX_Servicio_IdEspecialidad ON dbo.Servicio(id_especialidad);
 GO
 
 

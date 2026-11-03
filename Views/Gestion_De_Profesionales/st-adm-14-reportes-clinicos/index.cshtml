@@ -84,17 +84,20 @@ NOTAS DE MANTENIMIENTO:
                     <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
                     <input type="search" id="searchInput" name="search" class="search-input" placeholder="Buscar por nombre o documento..." aria-label="Buscar paciente" data-i18n-ph="reportesclinicos_search_ph" data-i18n-aria-label="reportesclinicos_search_aria" value="@ViewData["SearchFilter"]">
                 </div>
-                <div class="filter-wrap">
-                    <label for="filterProfessional" class="visually-hidden" data-i18n="reportesclinicos_filter_profesional_label">Filtrar por profesional</label>
-                    <select id="filterProfessional" name="profesional" class="status-select" aria-label="Filtrar por profesional" data-i18n-aria-label="reportesclinicos_filter_profesional_aria">
-                        <option value="" data-i18n="reportesclinicos_filter_profesional_all">Todos los profesionales</option>
-                        @foreach (var prof in profesionales)
-                        {
-                            var profSelected = ViewData["ProfesionalFilter"]?.ToString() == prof;
-                            <option value="@prof" @(profSelected ? "selected" : null)>@prof</option>
-                        }
-                    </select>
-                </div>
+                @if (!User.IsInRole("Profesional"))
+                {
+                    <div class="filter-wrap">
+                        <label for="filterProfessional" class="visually-hidden" data-i18n="reportesclinicos_filter_profesional_label">Filtrar por profesional</label>
+                        <select id="filterProfessional" name="profesional" class="status-select" aria-label="Filtrar por profesional" data-i18n-aria-label="reportesclinicos_filter_profesional_aria">
+                            <option value="" data-i18n="reportesclinicos_filter_profesional_all">Todos los profesionales</option>
+                            @foreach (var prof in profesionales)
+                            {
+                                var profSelected = ViewData["ProfesionalFilter"]?.ToString() == prof;
+                                <option value="@prof" @(profSelected ? "selected" : null)>@prof</option>
+                            }
+                        </select>
+                    </div>
+                }
                 <div class="filter-wrap">
                     <label for="filterMes" class="visually-hidden" data-i18n="reportesclinicos_filter_mes_label">Filtrar por mes</label>
                     <select id="filterMes" name="mes" class="status-select" aria-label="Filtrar por mes" data-i18n-aria-label="reportesclinicos_filter_mes_aria">

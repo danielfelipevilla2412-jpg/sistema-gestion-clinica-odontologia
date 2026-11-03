@@ -151,7 +151,7 @@ public class FuncionalidadesAvanzadasTests
         var cita = await citaService.CrearAsync(citaReq);
 
         // Paciente 1 cancela su cita
-        bool cancelado = await citaService.CancelarAsync(cita.IdCita);
+        bool cancelado = await citaService.CancelarAsync(cita.IdCita, "Cancelación solicitada");
 
         Assert.True(cancelado);
 

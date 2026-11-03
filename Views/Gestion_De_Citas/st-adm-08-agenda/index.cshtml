@@ -165,7 +165,7 @@
                     if (dia.EsHoy) diaClasses += " current";
                     if (dia.Cerrado) diaClasses += " closed";
                     var diaId = $"day-{dia.Fecha.ToString("yyyyMMdd")}";
-                    <div class="@diaClasses" role="row" aria-labelledby="@diaId">
+                    <div class="@diaClasses" role="row" aria-labelledby="@diaId" data-date="@dia.Fecha.ToString("yyyy-MM-dd")">
                         <span id="@diaId" class="visually-hidden">@dia.NombreDia @dia.Fecha.Day de @dia.Fecha.ToString("MMMM")</span>
                         @if (dia.Cerrado)
                         {
@@ -180,6 +180,9 @@
                             {
                                 var ariaLabel = $"Cita {cita.Estado}: {cita.Paciente}, {cita.Hora}, {cita.Servicio}, {cita.Consultorio}";
                                 var dateTimeValue = $"{dia.Fecha.ToString("yyyy-MM-dd")}T{cita.Hora}:00";
+                                var esReagendable = cita.Estado.Equals("agendada", StringComparison.OrdinalIgnoreCase)
+                                    || cita.Estado.Equals("programada", StringComparison.OrdinalIgnoreCase)
+                                    || cita.Estado.Equals("confirmada", StringComparison.OrdinalIgnoreCase);
                                 <div class="appointment @cita.ClaseEstado" tabindex="0" role="button"
                                     aria-label="@ariaLabel"
                                     data-id="@cita.Id" data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
@@ -192,7 +195,9 @@
                                     data-professional-email="@Html.Encode(cita.CorreoProfesional)"
                                     data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
                                     data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
-                                    data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)">
+                                    data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)"
+                                    data-reschedulable="@esReagendable.ToString().ToLowerInvariant()"
+                                    draggable="@esReagendable.ToString().ToLowerInvariant()">
                                     <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
                                     <span class="appt-patient">@cita.Paciente</span>
                                     <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
@@ -239,6 +244,7 @@
         <div class="modal-footer">
             <button type="button" class="btn-secondary" id="modalApptCancel" data-i18n="form.close">Cerrar</button>
             <button type="button" class="btn-secondary btn-danger" id="modalApptCancelar" data-i18n="citas.cancel">Cancelar Cita</button>
+            <button type="button" class="btn-secondary" id="modalApptReagendar" hidden>Reagendar</button>
             <button type="button" class="btn-primary" id="modalApptEdit" data-i18n="form.edit">Editar</button>
         </div>
     </div>
@@ -357,7 +363,10 @@
     <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
 </footer>
 
+@await Html.PartialAsync("~/Views/Shared/_ReagendarCitaModal.cshtml")
+
 @section Scripts {
+    <script src="~/js/shared/reagendamiento-agenda.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
     <script src="~/js/Gestion_De_Citas/st-adm-08-agenda/agendageneral.js" asp-append-version="true" defer></script>

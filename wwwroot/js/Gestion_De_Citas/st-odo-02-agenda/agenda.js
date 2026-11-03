@@ -95,6 +95,7 @@ function initAppointmentModals() {
     const btnIniciarAtencion = document.getElementById('btnIniciarAtencion');
     const btnMarcarAtendida = document.getElementById('btnMarcarAtendida');
     const btnCancelar = document.getElementById('modalApptCancelar');
+    const btnReagendar = document.getElementById('modalApptReagendar');
 
     if (!modal || !modalContent) return;
 
@@ -119,6 +120,17 @@ function initAppointmentModals() {
             const professionalPhone = card.getAttribute('data-professional-phone') || '';
             const professionalRegistry = card.getAttribute('data-professional-registry') || '';
             const professionalUserStatus = card.getAttribute('data-professional-user-status') || '';
+            if (btnReagendar) {
+                btnReagendar.hidden = card.dataset.reschedulable !== 'true';
+                Object.assign(btnReagendar.dataset, {
+                    id: selectedApptId,
+                    date: dateStr,
+                    startTime: startTime,
+                    patientName: patientName,
+                    serviceName: serviceName,
+                    reschedulable: card.dataset.reschedulable || 'false'
+                });
+            }
 
             const extraProfesional = [];
             if (professionalEmail) extraProfesional.push(`<div><strong>Correo:</strong> ${escapeHtml(professionalEmail)}</div>`);
@@ -586,112 +598,6 @@ const actualizarIndicadoresTiempo = () => {
 };
 
 /**
- * Drag & Drop para Reagendar Citas
- */
-const inicializarDragAndDrop = () => {
-    let draggedAppointment = null;
-
-    // Hacer citas arrastrables
-    const appointments = document.querySelectorAll('.appointment[draggable="true"]');
-    appointments.forEach(appt => {
-        appt.addEventListener('dragstart', (e) => {
-            draggedAppointment = e.target;
-            e.target.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', e.target.dataset.id);
-            
-            console.log(`🔄 Arrastrando cita ID: ${e.target.dataset.id}`);
-        });
-        
-        appt.addEventListener('dragend', (e) => {
-            e.target.classList.remove('dragging');
-            draggedAppointment = null;
-        });
-    });
-
-    // Hacer días como drop targets
-    const days = document.querySelectorAll('.calendar-day:not(.closed)');
-    days.forEach(day => {
-        day.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            day.classList.add('drag-over');
-        });
-        
-        day.addEventListener('dragleave', (e) => {
-            if (e.target === day) {
-                day.classList.remove('drag-over');
-            }
-        });
-        
-        day.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            day.classList.remove('drag-over');
-            
-            if (!draggedAppointment) return;
-            
-            const nuevaFecha = day.dataset.date;
-            const citaId = draggedAppointment.dataset.id;
-            const fechaOriginal = draggedAppointment.dataset.date;
-            const paciente = draggedAppointment.dataset.patientName;
-            const horaOriginal = draggedAppointment.dataset.startTime || '09:00';
-            
-            if (nuevaFecha === fechaOriginal) {
-                mostrarToast('La cita ya está en esa fecha', 'info');
-                return;
-            }
-            
-            const confirmar = confirm(
-                `¿Reagendar cita de ${paciente} para el ${formatearFecha(nuevaFecha)}?`
-            );
-            
-            if (confirmar) {
-                await reagendarCita(citaId, `${nuevaFecha}T${horaOriginal}:00`);
-            }
-        });
-    });
-};
-
-/**
- * Reagendar Cita (API Call)
- */
-const reagendarCita = async (citaId, fechaHora) => {
-    try {
-        mostrarLoading(true);
-        
-        const response = await fetch(`/api/citas/${citaId}/reagendar`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'RequestVerificationToken': obtenerAntiForgeryToken()
-            },
-            body: JSON.stringify({ fechaHora })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Error ${response.status}: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        
-        mostrarToast('✅ Cita reagendada exitosamente', 'success');
-        
-        // Recargar la página después de un delay
-        setTimeout(() => {
-            window.location.reload();
-        }, 1500);
-        
-        console.log('✅ Cita reagendada:', result);
-        
-    } catch (error) {
-        console.error('❌ Error reagendando cita:', error);
-        mostrarToast('Error al reagendar la cita. Intente nuevamente.', 'error');
-    } finally {
-        mostrarLoading(false);
-    }
-};
-
-/**
  * Actualizar Estadísticas Dinámicamente
  */
 const actualizarEstadisticas = () => {
@@ -892,7 +798,6 @@ const inicializarMejorasAgenda = () => {
     inicializarToggleVistas();
     inicializarBusquedaPacientes();
     inicializarFiltroEstado();
-    inicializarDragAndDrop();
     configurarExportacionPDF();
     configurarAtajosTeclado();
     

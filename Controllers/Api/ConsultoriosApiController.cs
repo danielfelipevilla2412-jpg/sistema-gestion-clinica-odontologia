@@ -12,8 +12,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api;
 using SmileTrack_MVC.Models.Entities;
 using System.Security.Claims;
@@ -29,13 +31,16 @@ public sealed class ConsultoriosApiController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly ILogger<ConsultoriosApiController> _logger;
+    private readonly IMemoryCache _memoryCache;
 
     public ConsultoriosApiController(
         AppDbContext context,
-        ILogger<ConsultoriosApiController> logger)
+        ILogger<ConsultoriosApiController> logger,
+        IMemoryCache memoryCache)
     {
         _context = context;
         _logger = logger;
+        _memoryCache = memoryCache;
     }
 
     /// <summary>
@@ -45,17 +50,23 @@ public sealed class ConsultoriosApiController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> ObtenerConsultorios(CancellationToken ct = default)
     {
-        var consultorios = await _context.Consultorios
-            .AsNoTracking()
-            .OrderBy(c => c.IdConsultorio)
-            .Select(c => new
+        var consultorios = await _memoryCache.GetOrCreateAsync(
+            CatalogCacheKeys.Consultorios,
+            async entry =>
             {
-                id = c.IdConsultorio,
-                nombre = c.Nombre ?? $"Consultorio {c.IdConsultorio}",
-                ubicacion = c.Ubicacion ?? string.Empty,
-                estado = c.Estado ?? "disponible"
-            })
-            .ToListAsync(ct);
+                entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                return await _context.Consultorios
+                    .AsNoTracking()
+                    .OrderBy(c => c.IdConsultorio)
+                    .Select(c => new
+                    {
+                        id = c.IdConsultorio,
+                        nombre = c.Nombre ?? $"Consultorio {c.IdConsultorio}",
+                        ubicacion = c.Ubicacion ?? string.Empty,
+                        estado = c.Estado ?? "disponible"
+                    })
+                    .ToListAsync(ct);
+            });
 
         return Ok(new { success = true, data = consultorios });
     }
@@ -109,6 +120,8 @@ public sealed class ConsultoriosApiController : ControllerBase
         }
 
         await _context.SaveChangesAsync(ct);
+        _memoryCache.Remove(CatalogCacheKeys.Consultorios);
+        _memoryCache.Remove(CatalogCacheKeys.ConsultoriosDisponibles);
 
         _logger.LogInformation(
             "Usuario {UserId} guardó preferencia de consultorio: {ConsultorioId}",
@@ -148,6 +161,8 @@ public sealed class ConsultoriosApiController : ControllerBase
                 _               => consultorio.Estado
             };
             await _context.SaveChangesAsync(ct);
+            _memoryCache.Remove(CatalogCacheKeys.Consultorios);
+            _memoryCache.Remove(CatalogCacheKeys.ConsultoriosDisponibles);
         }
 
         _logger.LogInformation(
@@ -237,6 +252,9 @@ public sealed class ConsultoriosApiController : ControllerBase
             FechaCambio = operativo.ActualizadoEn
         });
         await _context.SaveChangesAsync(ct);
+        _memoryCache.Remove(CatalogCacheKeys.Consultorios);
+        _memoryCache.Remove(CatalogCacheKeys.ConsultoriosDisponibles);
+        _memoryCache.Remove(CatalogCacheKeys.ConsultoriosDisponibles);
 
         return Ok(new { success = true, message = "Estado operativo guardado correctamente." });
     }

@@ -409,7 +409,7 @@ NOTAS DE MANTENIMIENTO:
           <input type="tel" id="formTelefono" name="Telefono" class="form-input" placeholder="Ej. 300 123 4567" value="" data-i18n-ph="gestionprofesionales_form_telefono_ph">
         </div>
         <div class="form-group">
-          <label class="form-label" for="formEspecialidad" data-i18n="gestionprofesionales_form_especialidad_label">Especialidad</label>
+          <label class="form-label" for="formEspecialidad" data-i18n="gestionprofesionales_form_especialidad_primary">Especialidad principal</label>
           <select id="formEspecialidad" name="IdEspecialidad" class="form-input">
             <option value="" data-i18n="gestionprofesionales_form_especialidad_none">Sin especialidad</option>
             @foreach (var especialidad in especialidades)
@@ -417,6 +417,20 @@ NOTAS DE MANTENIMIENTO:
               <option value="@especialidad.IdEspecialidad">@especialidad.Nombre</option>
             }
           </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="gestionprofesionales_form_especialidad_secondary">Especialidades secundarias</label>
+          <div id="selectedSpecialtyChips" class="specialty-chip-list" aria-live="polite"></div>
+          <div id="secondarySpecialtyOptions" class="specialty-options" role="group"
+               aria-label="Especialidades secundarias disponibles"></div>
+          <select id="formEspecialidadesSecundarias" name="IdsEspecialidadesSecundarias"
+                  class="specialty-select-native" multiple tabindex="-1" aria-hidden="true">
+            @foreach (var especialidad in especialidades)
+            {
+              <option value="@especialidad.IdEspecialidad">@especialidad.Nombre</option>
+            }
+          </select>
+          <small id="formEspecialidadesSecundariasHelp">Selecciona una o varias especialidades. La principal se define arriba.</small>
         </div>
         <div class="form-group">
           <label class="form-label" for="formCorreoAcceso" data-i18n="gestionprofesionales_form_correo_label">Correo de acceso *</label>
@@ -565,6 +579,20 @@ NOTAS DE MANTENIMIENTO:
 
       <div class="modal-footer">
         <button type="button" class="btn-secondary" id="modalDetailCloseBtn" data-i18n="common.close">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="absenceConflictModal" role="dialog" aria-modal="true"
+       aria-labelledby="absenceConflictTitle" aria-hidden="true" inert>
+    <div class="modal">
+      <h2 class="modal-title" id="absenceConflictTitle">Citas dentro del período</h2>
+      <p id="absenceConflictSummary"></p>
+      <ul id="absenceConflictAppointments"></ul>
+      <p>¿Deseas continuar? El sistema reasignará las citas con profesionales disponibles y cancelará las que no tengan reemplazo.</p>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="absenceConflictCancel">Volver</button>
+        <button type="button" class="btn-primary" id="absenceConflictContinue">Continuar y reasignar</button>
       </div>
     </div>
   </div>

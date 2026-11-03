@@ -141,6 +141,7 @@ const renderServices = () => {
         </div>
         <div class="table-col col-categoria" role="cell" data-label="Categoría">
           <span class="category-badge ${category.class}" role="status" aria-label="Categoría: ${category.label}">${category.label}</span>
+          <small class="service-specialty">${s.specialtyName || 'General · cualquier profesional'}</small>
         </div>
         <div class="table-col col-duracion" role="cell" data-label="Duración">${s.duration} min</div>
         <div class="table-col col-costo" role="cell" data-label="Costo">${fmtCost(s.cost)}</div>
@@ -198,6 +199,7 @@ const openDrawer = (id = null) => {
     safeGetElement('serviceName').value = service.name;
     safeGetElement('serviceDescription').value = service.description || '';
     safeGetElement('serviceCategory').value = service.category;
+    safeGetElement('serviceSpecialty').value = service.specialtyId || '';
     safeGetElement('serviceCost').value = service.cost;
     safeGetElement('serviceDuration').value = service.duration;
 
@@ -208,6 +210,7 @@ const openDrawer = (id = null) => {
     // Modo nuevo
     title.textContent = 'Nuevo Servicio';
     form.reset();
+    safeGetElement('serviceSpecialty').value = '';
     toggle.setAttribute('aria-checked', 'true');
     toggle.classList.add('active');
   }
@@ -258,6 +261,8 @@ const saveService = async (e) => {
     name: safeGetElement('serviceName')?.value?.trim(),
     description: safeGetElement('serviceDescription')?.value?.trim(),
     category: safeGetElement('serviceCategory')?.value,
+    specialtyId: safeGetElement('serviceSpecialty')?.value || null,
+    specialtyName: safeGetElement('serviceSpecialty')?.selectedOptions?.[0]?.textContent || null,
     cost: parseFloat(safeGetElement('serviceCost')?.value) || 0,
     duration: parseInt(safeGetElement('serviceDuration')?.value) || 0,
     active: safeGetElement('serviceActiveToggle')?.getAttribute('aria-checked') === 'true'
@@ -273,6 +278,7 @@ const saveService = async (e) => {
     descripcion: service.description,
     precio: service.cost,
     category: service.category,
+    idEspecialidad: service.specialtyId ? Number(service.specialtyId) : null,
     duration: service.duration
   };
 
@@ -306,7 +312,13 @@ const saveService = async (e) => {
         return;
       }
 
-      services.unshift({ ...service, id: result.data.id, icon: '🦷' });
+      const selectedSpecialty = safeGetElement('serviceSpecialty')?.selectedOptions?.[0];
+      services.unshift({
+        ...service,
+        specialtyName: service.specialtyId ? selectedSpecialty?.textContent : null,
+        id: result.data.id,
+        icon: '🦷'
+      });
       renderServices();
       updateStats();
       closeDrawer();

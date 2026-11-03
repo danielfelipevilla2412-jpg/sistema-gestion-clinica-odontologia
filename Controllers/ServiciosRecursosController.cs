@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 
@@ -11,11 +13,16 @@ public class ServiciosRecursosController : Controller
 {
     private readonly AppDbContext _context;
     private readonly ILogger<ServiciosRecursosController> _logger;
+    private readonly IMemoryCache _memoryCache;
 
-    public ServiciosRecursosController(AppDbContext context, ILogger<ServiciosRecursosController> logger)
+    public ServiciosRecursosController(
+        AppDbContext context,
+        ILogger<ServiciosRecursosController> logger,
+        IMemoryCache memoryCache)
     {
         _context = context;
         _logger = logger;
+        _memoryCache = memoryCache;
     }
 
     [HttpGet]
@@ -23,7 +30,28 @@ public class ServiciosRecursosController : Controller
     [Route("servicios-y-recursos/st-adm-10-servicios")]
     public async Task<IActionResult> Stadm10Servicios()
     {
-        var serviciosDb = await _context.Servicios.OrderBy(s => s.Nombre).ToListAsync();
+        var serviciosDb = await _memoryCache.GetOrCreateAsync(
+            CatalogCacheKeys.ServiciosAdministracion,
+            async entry =>
+            {
+                entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                return await _context.Servicios
+                    .AsNoTracking()
+                    .Include(s => s.Especialidad)
+                    .OrderBy(s => s.Nombre)
+                    .ToListAsync();
+            }) ?? throw new InvalidOperationException("No se pudo cargar el catálogo de servicios.");
+        var especialidades = await _memoryCache.GetOrCreateAsync(
+            CatalogCacheKeys.Especialidades,
+            async entry =>
+            {
+                entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                return await _context.Especialidades
+                    .AsNoTracking()
+                    .OrderBy(e => e.Nombre)
+                    .ToListAsync();
+            }) ?? throw new InvalidOperationException("No se pudo cargar el catálogo de especialidades.");
+        ViewData["EspecialidadesServicio"] = especialidades;
 
         // El ícono es puramente decorativo y no se persiste; categoría, duración,
         // precio y estado ya vienen de la tabla Servicio en SQL Server.
@@ -33,6 +61,8 @@ public class ServiciosRecursosController : Controller
             name = s.Nombre,
             description = string.IsNullOrWhiteSpace(s.Descripcion) ? "Sin descripción registrada." : s.Descripcion,
             category = s.Categoria,
+            specialtyId = s.IdEspecialidad,
+            specialtyName = s.Especialidad?.Nombre,
             duration = s.DuracionMinutos,
             cost = s.Precio,
             active = s.Estado == "activo",
@@ -137,6 +167,11 @@ public class ServiciosRecursosController : Controller
             {
                 return BadRequest(new { success = false, message = "Ya existe un servicio con ese nombre." });
             }
+            if (request.IdEspecialidad.HasValue &&
+                !await _context.Especialidades.AnyAsync(e => e.IdEspecialidad == request.IdEspecialidad.Value, ct))
+            {
+                return BadRequest(new { success = false, message = "La especialidad seleccionada no existe." });
+            }
 
             var servicio = new Servicio
             {
@@ -145,11 +180,13 @@ public class ServiciosRecursosController : Controller
                 Precio = request.Precio,
                 Categoria = request.Category,
                 DuracionMinutos = request.Duration,
+                IdEspecialidad = request.IdEspecialidad,
                 Estado = "activo"
             };
 
             _context.Servicios.Add(servicio);
             await _context.SaveChangesAsync(ct);
+            InvalidarCatalogosServicios();
 
             return Ok(new
             {
@@ -162,6 +199,10 @@ public class ServiciosRecursosController : Controller
                     descripcion = servicio.Descripcion,
                     precio = servicio.Precio,
                     categoria = servicio.Categoria,
+                    specialtyId = servicio.IdEspecialidad,
+                    specialtyName = servicio.IdEspecialidad.HasValue
+                        ? await _context.Especialidades.Where(e => e.IdEspecialidad == servicio.IdEspecialidad.Value).Select(e => e.Nombre).FirstOrDefaultAsync(ct)
+                        : null,
                     duracion = servicio.DuracionMinutos,
                     estado = servicio.Estado
                 }
@@ -200,14 +241,21 @@ public class ServiciosRecursosController : Controller
             {
                 return BadRequest(new { success = false, message = "Ya existe otro servicio con ese nombre." });
             }
+            if (request.IdEspecialidad.HasValue &&
+                !await _context.Especialidades.AnyAsync(e => e.IdEspecialidad == request.IdEspecialidad.Value, ct))
+            {
+                return BadRequest(new { success = false, message = "La especialidad seleccionada no existe." });
+            }
 
             servicio.Nombre = request.Nombre.Trim();
             servicio.Descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim();
             servicio.Precio = request.Precio;
             servicio.Categoria = request.Category;
             servicio.DuracionMinutos = request.Duration;
+            servicio.IdEspecialidad = request.IdEspecialidad;
 
             await _context.SaveChangesAsync(ct);
+            InvalidarCatalogosServicios();
 
             return Ok(new { success = true, message = "Servicio actualizado correctamente.", data = new { id = servicio.IdServicio } });
         }
@@ -239,6 +287,7 @@ public class ServiciosRecursosController : Controller
 
             servicio.Estado = request.Estado;
             await _context.SaveChangesAsync(ct);
+            InvalidarCatalogosServicios();
 
             return Ok(new { success = true, message = $"Servicio marcado como {request.Estado}.", data = new { id, estado = servicio.Estado } });
         }
@@ -271,6 +320,7 @@ public class ServiciosRecursosController : Controller
                 // este servicio); se desactiva en su lugar para no romper el historial.
                 servicio.Estado = "inactivo";
                 await _context.SaveChangesAsync(ct);
+                InvalidarCatalogosServicios();
                 return Ok(new
                 {
                     success = true,
@@ -281,6 +331,7 @@ public class ServiciosRecursosController : Controller
 
             _context.Servicios.Remove(servicio);
             await _context.SaveChangesAsync(ct);
+            InvalidarCatalogosServicios();
 
             return Ok(new { success = true, message = "Servicio eliminado correctamente.", data = new { id } });
         }
@@ -289,5 +340,12 @@ public class ServiciosRecursosController : Controller
             _logger.LogError(ex, "Error eliminando el servicio {IdServicio}.", id);
             return StatusCode(500, new { success = false, message = "No fue posible eliminar el servicio." });
         }
+    }
+
+    private void InvalidarCatalogosServicios()
+    {
+        _memoryCache.Remove(CatalogCacheKeys.Servicios);
+        _memoryCache.Remove(CatalogCacheKeys.ServiciosApi);
+        _memoryCache.Remove(CatalogCacheKeys.ServiciosAdministracion);
     }
 }

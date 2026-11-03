@@ -58,6 +58,7 @@ const WEEK_DAYS = [
 let currentPageIndex = 1;
 let editingProfessionalId = null;
 let detailProfessionalId = null;
+let pendingAbsenceDecisionResolve = null;
 let professionalAbsenceRecords = [];
 let professionalScheduleRecords = [];
 let lastFocusedElement = null;
@@ -166,6 +167,81 @@ const loadProfessionalsList = async () => {
   }
 };
 
+const syncSecondarySpecialtyOptions = () => {
+  const primarySelect = document.querySelector('select[name="IdEspecialidad"]');
+  const secondarySelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+  if (!primarySelect || !secondarySelect) return;
+
+  const primaryId = primarySelect.value;
+  Array.from(secondarySelect.options).forEach(option => {
+    const isPrimary = option.value !== '' && option.value === primaryId;
+    option.disabled = isPrimary;
+    if (isPrimary) option.selected = false;
+  });
+  document.querySelectorAll('#secondarySpecialtyOptions input[type="checkbox"]').forEach(checkbox => {
+    const option = Array.from(secondarySelect.options).find(item => item.value === checkbox.value);
+    checkbox.checked = Boolean(option?.selected);
+    checkbox.disabled = checkbox.value === primaryId;
+  });
+  renderSelectedSpecialtyChips();
+};
+
+const renderSecondarySpecialtyOptions = (specialtyList) => {
+  const optionsContainer = getElementByIdSafe('secondarySpecialtyOptions');
+  const secondarySelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+  if (!optionsContainer || !secondarySelect) return;
+
+  optionsContainer.replaceChildren();
+  specialtyList.forEach(specialty => {
+    const specialtyId = String(specialty.idEspecialidad);
+    const option = Array.from(secondarySelect.options).find(item => item.value === specialtyId);
+    const label = document.createElement('label');
+    label.className = 'specialty-option';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = specialtyId;
+    checkbox.checked = Boolean(option?.selected);
+    checkbox.addEventListener('change', () => {
+      if (option) option.selected = checkbox.checked;
+      renderSelectedSpecialtyChips();
+    });
+
+    const name = document.createElement('span');
+    name.textContent = specialty.nombre;
+    label.append(checkbox, name);
+    optionsContainer.appendChild(label);
+  });
+  syncSecondarySpecialtyOptions();
+};
+
+const renderSelectedSpecialtyChips = () => {
+  const chipsContainer = getElementByIdSafe('selectedSpecialtyChips');
+  const primarySelect = document.querySelector('select[name="IdEspecialidad"]');
+  const secondarySelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+  if (!chipsContainer || !primarySelect || !secondarySelect) return;
+
+  chipsContainer.replaceChildren();
+  Array.from(secondarySelect.selectedOptions).forEach(option => {
+    const chip = document.createElement('span');
+    chip.className = 'specialty-chip';
+    chip.append(document.createTextNode(option.text));
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'specialty-chip-remove';
+    removeButton.setAttribute('aria-label', `Quitar especialidad ${option.text}`);
+    removeButton.textContent = '×';
+    removeButton.addEventListener('click', () => {
+      option.selected = false;
+      syncSecondarySpecialtyOptions();
+    });
+
+    chip.appendChild(removeButton);
+    chipsContainer.appendChild(chip);
+  });
+};
+
 /**
  * Carga el catálogo de especialidades desde la API para llenar los selectores.
  */
@@ -175,7 +251,8 @@ const loadSpecialtiesCatalog = async () => {
     const specialtyList = apiResult.data || [];
 
     const filterSelect = getElementByIdSafe('filterSpecialty');
-    const formSelect = document.querySelector('select[name="IdEspecialidad"]') || getElementByIdSafe('formIdEspecialidad');
+    const formSelect = document.querySelector('select[name="IdEspecialidad"]');
+    const secondarySpecialtiesSelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
 
     if (filterSelect) {
       const currentSelectedValue = filterSelect.value;
@@ -186,10 +263,29 @@ const loadSpecialtiesCatalog = async () => {
 
     if (formSelect) {
       const currentSelectedValue = formSelect.value;
-      formSelect.innerHTML = '<option value="" disabled selected>Selecciona una especialidad</option>' +
-        specialtyList.map(item => `<option value="${item.idEspecialidad}">${item.nombre}</option>`).join('');
-      if (currentSelectedValue) formSelect.value = currentSelectedValue;
+      const placeholderOption = formSelect.querySelector('option[value=""]')?.outerHTML
+        || '<option value="">Sin especialidad</option>';
+      formSelect.innerHTML = placeholderOption + specialtyList
+        .map(item => `<option value="${item.idEspecialidad}">${item.nombre}</option>`)
+        .join('');
+      formSelect.value = currentSelectedValue;
+      formSelect.onchange = syncSecondarySpecialtyOptions;
     }
+
+    if (secondarySpecialtiesSelect) {
+      const currentSelectedValues = new Set(
+        Array.from(secondarySpecialtiesSelect.selectedOptions, option => option.value)
+      );
+      secondarySpecialtiesSelect.innerHTML = specialtyList
+        .map(item => `<option value="${item.idEspecialidad}">${item.nombre}</option>`)
+        .join('');
+      Array.from(secondarySpecialtiesSelect.options).forEach(option => {
+        option.selected = currentSelectedValues.has(option.value);
+      });
+      secondarySpecialtiesSelect.addEventListener('change', renderSelectedSpecialtyChips);
+      renderSecondarySpecialtyOptions(specialtyList);
+    }
+    syncSecondarySpecialtyOptions();
   } catch (error) {
     console.error('Error al cargar especialidades', error);
   }
@@ -666,6 +762,7 @@ const openFormModal = (isEditing = false) => {
     editingProfessionalId = null;
     const formElement = getElementByIdSafe('formProfessional');
     if (formElement) formElement.reset();
+    syncSecondarySpecialtyOptions();
 
     const modalTitle = getElementByIdSafe('modalFormTitle');
     if (modalTitle) modalTitle.textContent = 'Nuevo Profesional';
@@ -824,12 +921,25 @@ window.editProfessional = async (professionalId) => {
     setFieldValue('formContrasenaAcceso', '');
     updateProfessionalPasswordRules();
 
-    const formSelect = document.querySelector('select[name="IdEspecialidad"]') || getElementByIdSafe('formIdEspecialidad');
-    if (formSelect && professionalData.especialidades && professionalData.especialidades.length > 0) {
-      formSelect.value = professionalData.especialidades[0].idEspecialidad;
-    } else if (formSelect) {
-      formSelect.value = '';
+    const primarySpecialty = (professionalData.especialidades || [])
+      .find(specialty => specialty.principal) || professionalData.especialidades?.[0];
+    const primarySpecialtySelect = document.querySelector('select[name="IdEspecialidad"]');
+    const secondarySpecialtiesSelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+    if (primarySpecialtySelect) {
+      primarySpecialtySelect.value = primarySpecialty?.idEspecialidad ?? '';
     }
+    if (secondarySpecialtiesSelect) {
+      const primarySpecialtyId = primarySpecialty?.idEspecialidad;
+      const secondarySpecialtyIds = new Set(
+        (professionalData.especialidades || [])
+          .filter(specialty => specialty.idEspecialidad !== primarySpecialtyId)
+          .map(specialty => String(specialty.idEspecialidad))
+      );
+      Array.from(secondarySpecialtiesSelect.options).forEach(option => {
+        option.selected = secondarySpecialtyIds.has(option.value);
+      });
+    }
+    syncSecondarySpecialtyOptions();
 
     const modalTitle = getElementByIdSafe('modalFormTitle');
     if (modalTitle) modalTitle.textContent = 'Editar Profesional';
@@ -941,15 +1051,28 @@ const saveProfessional = async (event) => {
     return;
   }
 
-  const submitButton = formElement.querySelector('[type="submit"]');
-  if (submitButton) { submitButton.disabled = true; submitButton.textContent = '⏳ Guardando...'; }
-
   const getFieldValue = (fieldId) => getElementByIdSafe(fieldId)?.value?.trim() ?? '';
   const professionalId = Number(getFieldValue('formIdProfesional'));
   const isEditingMode = professionalId > 0;
 
-  const specialtySelectElement = formElement.querySelector('select[name="IdEspecialidad"]') || getElementByIdSafe('formIdEspecialidad');
-  const selectedSpecialtyId = specialtySelectElement ? Number(specialtySelectElement.value) || null : null;
+  const primarySpecialtySelect = formElement.querySelector('select[name="IdEspecialidad"]');
+  const secondarySpecialtiesSelect = formElement.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+  const primarySpecialtyId = primarySpecialtySelect ? Number(primarySpecialtySelect.value) || null : null;
+  const secondarySpecialtyIds = secondarySpecialtiesSelect
+    ? Array.from(secondarySpecialtiesSelect.selectedOptions)
+      .map(option => Number(option.value))
+      .filter(id => Number.isInteger(id) && id > 0 && id !== primarySpecialtyId)
+    : [];
+  if (!primarySpecialtyId && secondarySpecialtyIds.length > 0) {
+    window.ToastService?.warning('Selecciona una especialidad principal antes de agregar especialidades secundarias.');
+    primarySpecialtySelect?.focus();
+    return;
+  }
+  const selectedSpecialtyIds = [...new Set(
+    [primarySpecialtyId, ...secondarySpecialtyIds].filter(id => id !== null)
+  )];
+  const submitButton = formElement.querySelector('[type="submit"]');
+  if (submitButton) { submitButton.disabled = true; submitButton.textContent = '⏳ Guardando...'; }
 
   const requestPayload = {
     nombres:        getFieldValue('formNombres'),
@@ -958,7 +1081,8 @@ const saveProfessional = async (event) => {
     categoria:      getFieldValue('formCategoria') || null,
     telefono:       getFieldValue('formTelefono')  || null,
     correoAcceso:   getFieldValue('formCorreoAcceso'),
-    idEspecialidad: selectedSpecialtyId,
+    idEspecialidad: primarySpecialtyId,
+    especialidadesIds: selectedSpecialtyIds,
     estado:         isEditingMode ? (getElementByIdSafe('formStatus')?.value || getElementByIdSafe('formEstado')?.value || '').trim().toLowerCase() || null : null,
   };
 
@@ -1116,10 +1240,32 @@ const saveAbsence = async (event) => {
   submitButton.disabled = true;
 
   try {
-    const targetEndpoint = absenceId
-      ? `${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceId}`
-      : `${API_BASE_URL}/${detailProfessionalId}/ausencias`;
-    const apiResult = await apiRequest(targetEndpoint, { method: absenceId ? 'PUT' : 'POST', body: absencePayload });
+    let apiResult;
+    if (!absenceId) {
+      const query = new URLSearchParams({
+        fechaInicio: absencePayload.fechaInicio,
+        fechaFin: absencePayload.fechaFin
+      });
+      const preview = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias/preview?${query}`);
+      if (preview.count > 0) {
+        const debeReasignar = await confirmAbsenceReassignment(preview.data || []);
+        if (!debeReasignar) return;
+        apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias-reasignar`, {
+          method: 'POST',
+          body: absencePayload
+        });
+      } else {
+        apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias`, {
+          method: 'POST',
+          body: absencePayload
+        });
+      }
+    } else {
+      apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceId}`, {
+        method: 'PUT',
+        body: absencePayload
+      });
+    }
     window.ToastService?.success(apiResult.message || 'Ausencia guardada.');
     resetAbsenceForm();
     await loadProfessionalAbsences(detailProfessionalId);
@@ -1128,6 +1274,42 @@ const saveAbsence = async (event) => {
   } finally {
     submitButton.disabled = false;
   }
+};
+
+const confirmAbsenceReassignment = (appointments) => {
+  const modal = getElementByIdSafe('absenceConflictModal');
+  const summary = getElementByIdSafe('absenceConflictSummary');
+  const list = getElementByIdSafe('absenceConflictAppointments');
+  if (!modal || !summary || !list) {
+    throw new Error('No se pudo abrir la confirmación de citas afectadas.');
+  }
+
+  summary.textContent = `Se encontraron ${appointments.length} cita(s) que se cruzan con estas fechas:`;
+  list.replaceChildren(...appointments.map(appointment => {
+    const item = document.createElement('li');
+    const date = new Date(appointment.fechaHora).toLocaleString();
+    item.textContent = `${date} — ${appointment.paciente} — ${appointment.servicio}`;
+    return item;
+  }));
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+
+  return new Promise(resolve => {
+    pendingAbsenceDecisionResolve = resolve;
+    getElementByIdSafe('absenceConflictContinue')?.focus();
+  });
+};
+
+const resolveAbsenceReassignment = (confirmed) => {
+  if (!pendingAbsenceDecisionResolve) return;
+  const resolve = pendingAbsenceDecisionResolve;
+  pendingAbsenceDecisionResolve = null;
+  const modal = getElementByIdSafe('absenceConflictModal');
+  modal?.classList.remove('open');
+  modal?.setAttribute('aria-hidden', 'true');
+  modal?.setAttribute('inert', '');
+  resolve(confirmed);
 };
 
 // ===================================================================
@@ -1224,6 +1406,8 @@ const initFiltersAPI = () => {
  */
 const bindProfessionalFieldValidation = () => {
   const formElement = getElementByIdSafe('formProfessional');
+  document.querySelector('select[name="IdEspecialidad"]')
+    ?.addEventListener('change', syncSecondarySpecialtyOptions);
   if (!formElement) return;
 
   formElement.querySelectorAll('input, select').forEach((inputField) => {
@@ -1284,6 +1468,7 @@ const initModals = () => {
   const formModalElement = getElementByIdSafe('modalForm');
   const detailModalElement = getElementByIdSafe('modalDetail');
   const confirmDeleteModalElement = getElementByIdSafe('modalConfirmDelete');
+  const absenceConflictModal = getElementByIdSafe('absenceConflictModal');
   
   const formElement = getElementByIdSafe('formProfessional');
   const scheduleFormElement = getElementByIdSafe('scheduleForm');
@@ -1297,10 +1482,15 @@ const initModals = () => {
   detailModalCancelButton?.addEventListener('click', closeDetailModal);
   confirmDeleteCloseButton?.addEventListener('click', closeConfirmDeleteModal);
   confirmDeleteCancelButton?.addEventListener('click', closeConfirmDeleteModal);
+  getElementByIdSafe('absenceConflictCancel')?.addEventListener('click', () => resolveAbsenceReassignment(false));
+  getElementByIdSafe('absenceConflictContinue')?.addEventListener('click', () => resolveAbsenceReassignment(true));
 
   formModalElement?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeFormModal(); });
   detailModalElement?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeDetailModal(); });
   confirmDeleteModalElement?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeConfirmDeleteModal(); });
+  absenceConflictModal?.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) resolveAbsenceReassignment(false);
+  });
 
   formElement?.addEventListener('submit', saveProfessional);
   scheduleFormElement?.addEventListener('submit', saveSchedule);
@@ -1368,6 +1558,11 @@ const initModals = () => {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (absenceConflictModal?.classList.contains('open')) {
+        e.preventDefault();
+        resolveAbsenceReassignment(false);
+        return;
+      }
       if (formModalElement?.classList.contains('open')) { e.preventDefault(); closeFormModal(); }
       if (detailModalElement?.classList.contains('open')) { e.preventDefault(); closeDetailModal(); }
       if (confirmDeleteModalElement?.classList.contains('open')) { e.preventDefault(); closeConfirmDeleteModal(); }

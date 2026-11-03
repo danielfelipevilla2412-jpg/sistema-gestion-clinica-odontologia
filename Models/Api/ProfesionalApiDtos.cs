@@ -39,11 +39,18 @@ public sealed class ProfesionalApiRequest
     public int? IdEspecialidad { get; set; }
 
     /// <summary>
-    /// Lista de IDs de especialidades a asignar al profesional (RF-11).
+    /// Lista ordenada de IDs de especialidades del profesional (principal primero).
+    /// Tiene prioridad sobre los alias de compatibilidad cuando contiene elementos.
+    /// </summary>
+    public List<int>? EspecialidadesIds { get; set; }
+
+    /// <summary>
+    /// Lista ordenada de IDs de especialidades a asignar al profesional (RF-11).
+    /// El primer ID queda como especialidad principal y los siguientes como secundarias.
     /// Si se envía <see cref="IdsEspecialidades"/> con al menos un elemento,
     /// tiene prioridad sobre <see cref="IdEspecialidad"/> (mantenido por
     /// compatibilidad con clientes anteriores).
-    /// Si ambos están vacíos, el servicio aplica la especialidad por defecto
+    /// Si todas las listas están vacías, el servicio aplica la especialidad por defecto
     /// "Odontología General" (RN-15).
     /// </summary>
     public List<int>? IdsEspecialidades { get; set; }
@@ -83,6 +90,16 @@ public sealed class AusenciaProfesionalApiDto
     public string FechaFin { get; set; } = string.Empty;
     public int? Duracion { get; set; }
     public string? Observaciones { get; set; }
+    public List<CitaAfectadaAusenciaApiDto> CitasAfectadas { get; set; } = [];
+}
+
+public sealed class CitaAfectadaAusenciaApiDto
+{
+    public int IdCita { get; set; }
+    public DateTime FechaHora { get; set; }
+    public string Paciente { get; set; } = string.Empty;
+    public string Servicio { get; set; } = string.Empty;
+    public string Estado { get; set; } = string.Empty;
 }
 
 public sealed class AusenciaProfesionalApiRequest
@@ -160,6 +177,7 @@ public sealed class ProfesionalEspecialidadApiDto
 {
     public int IdEspecialidad { get; set; }
     public string Nombre { get; set; } = string.Empty;
+    public bool Principal { get; set; }
 }
 
 public sealed class ProfesionalApiDto

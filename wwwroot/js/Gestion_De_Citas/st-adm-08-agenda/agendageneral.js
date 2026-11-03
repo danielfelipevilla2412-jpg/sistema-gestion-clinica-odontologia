@@ -747,6 +747,18 @@ const initializeAppointmentDetailModal = () => {
             rowParagraph.append(strongTag, document.createTextNode(value));
             contentElement.appendChild(rowParagraph);
         });
+        const rescheduleButton = safeGetElement('modalApptReagendar');
+        if (rescheduleButton) {
+            rescheduleButton.hidden = targetElement.dataset.reschedulable !== 'true';
+            Object.assign(rescheduleButton.dataset, {
+                id: selectedAppointmentData.id,
+                date: selectedAppointmentData.date,
+                startTime: selectedAppointmentData.startTime,
+                patientName: selectedAppointmentData.patientName,
+                serviceName: selectedAppointmentData.serviceName,
+                reschedulable: targetElement.dataset.reschedulable || 'false'
+            });
+        }
         lastFocusedElement = document.activeElement;
         modalElement.classList.add('open');
         modalElement.setAttribute('aria-hidden', 'false');

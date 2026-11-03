@@ -126,7 +126,10 @@ public partial class GestionProfesionalesController(
 
         try
         {
-            await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
+            if (User.IsInRole("Profesional"))
+                ViewData["ProfesionalesReportes"] = new List<string>();
+            else
+                await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
             await CargarDatosReportesClinicos(page, pageSize, search, profesional, mes, idProfesionalForzado, ct);
             return View("~/Views/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/index.cshtml");
         }
@@ -683,14 +686,16 @@ public partial class GestionProfesionalesController(
                     .ToList()
             };
 
-            var profesionalesOptions = await _context.Profesionales
-                .Where(p => p.Estado == "activo")
-                .Select(p => (p.Nombres ?? "") + " " + (p.Apellidos ?? ""))
-                .Select(n => n.Trim())
-                .Where(n => n.Length > 0)
-                .Distinct()
-                .OrderBy(name => name)
-                .ToListAsync(ct);
+            var profesionalesOptions = idProfesionalForzado.HasValue
+                ? new List<string>()
+                : await _context.Profesionales
+                    .Where(p => p.Estado == "activo")
+                    .Select(p => (p.Nombres ?? "") + " " + (p.Apellidos ?? ""))
+                    .Select(n => n.Trim())
+                    .Where(n => n.Length > 0)
+                    .Distinct()
+                    .OrderBy(name => name)
+                    .ToListAsync(ct);
 
             var reportes = pagedCitas.Items.Select(cita =>
             {
@@ -768,7 +773,14 @@ public partial class GestionProfesionalesController(
             ViewData["ReportesClinicos"] = reportes;
             ViewData["ReportesClinicosPage"] = pagedReportes;
             ViewData["ProfesionalesReportes"] = profesionalesOptions;
-            ViewData["TotalPacientesReportes"] = await _context.Pacientes.CountAsync(ct);
+            var pacientesReportesQuery = _context.Citas
+                .AsNoTracking()
+                .Where(c => c.Paciente != null);
+            if (idProfesionalForzado.HasValue)
+                pacientesReportesQuery = pacientesReportesQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
+            ViewData["TotalPacientesReportes"] = idProfesionalForzado.HasValue
+                ? await pacientesReportesQuery.Select(c => c.IdPaciente).Distinct().CountAsync(ct)
+                : await _context.Pacientes.CountAsync(ct);
 
             var consultasQuery = _context.Citas.AsNoTracking();
             if (idProfesionalForzado.HasValue)

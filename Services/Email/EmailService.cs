@@ -266,7 +266,8 @@ Este es un mensaje automatico, por favor no respondas a este correo.
         string profesional,
         string servicio,
         string nuevoEstado,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? motivoCancelacion = null)
     {
         if (string.IsNullOrWhiteSpace(recipientEmail)) return; // silencioso: paciente sin correo
 
@@ -291,8 +292,27 @@ Este es un mensaje automatico, por favor no respondas a este correo.
         string nombreSafe   = WebUtility.HtmlEncode(nombrePaciente);
         string profSafe     = WebUtility.HtmlEncode(profesional);
         string servicioSafe = WebUtility.HtmlEncode(servicio);
+        string motivoSafe   = WebUtility.HtmlEncode(motivoCancelacion ?? string.Empty);
         string fechaStr     = fechaCita.ToString("dddd d 'de' MMMM 'de' yyyy 'a las' HH:mm",
                                new System.Globalization.CultureInfo("es-CO"));
+        string contenidoFinalHtml = esConfirmada
+            ? """
+              <p style="margin:0 0 8px;font-size:14px;">Recuerda:</p>
+              <ul style="margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.7;">
+                <li>Llega 10 minutos antes de tu cita.</li>
+                <li>Trae tu documento de identidad.</li>
+                <li>Si necesitas cancelar, avísanos con al menos 24 horas de anticipación.</li>
+              </ul>
+              """
+            : $"""
+              <p style="margin:0 0 20px;font-size:14px;">
+                Para reagendar tu cita, comunícate con nuestro equipo de recepción o ingresa al portal de SmileTrack.
+              </p>
+              {(string.IsNullOrWhiteSpace(motivoSafe) ? string.Empty : $"<p style=\"margin:0 0 20px;font-size:14px;\"><strong>Motivo de cancelación:</strong> {motivoSafe}</p>")}
+              """;
+        string contenidoFinalTexto = esConfirmada
+            ? "Recuerda llegar 10 minutos antes y traer tu documento de identidad."
+            : $"Para reagendar contáctanos o ingresa al portal SmileTrack.{(string.IsNullOrWhiteSpace(motivoCancelacion) ? string.Empty : $"\nMotivo de cancelación: {motivoCancelacion}")}";
 
         string htmlBody = $"""
 <html>
@@ -342,18 +362,7 @@ Este es un mensaje automatico, por favor no respondas a este correo.
         </table>
       </div>
 
-      {(esConfirmada ? """
-      <p style="margin:0 0 8px;font-size:14px;">Recuerda:</p>
-      <ul style="margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.7;">
-        <li>Llega 10 minutos antes de tu cita.</li>
-        <li>Trae tu documento de identidad.</li>
-        <li>Si necesitas cancelar, avísanos con al menos 24 horas de anticipación.</li>
-      </ul>
-      """ : """
-      <p style="margin:0 0 20px;font-size:14px;">
-        Para reagendar tu cita, comunícate con nuestro equipo de recepción o ingresa al portal de SmileTrack.
-      </p>
-      """)}
+      {contenidoFinalHtml}
     </div>
 
     <!-- Footer -->
@@ -378,9 +387,7 @@ Detalles:
   Servicio     : {servicio}
   Estado       : {estadoLabel}
 
-{(esConfirmada
-    ? "Recuerda llegar 10 minutos antes y traer tu documento de identidad."
-    : "Para reagendar contáctanos o ingresa al portal SmileTrack.")}
+{contenidoFinalTexto}
 
 SmileTrack | Sistema de Gestión Odontológica
 Este es un mensaje automático, no respondas a este correo.

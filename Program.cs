@@ -11,6 +11,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Services;
@@ -69,6 +70,7 @@ builder.Configuration
     .AddCommandLine(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
@@ -198,6 +200,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryCount: 3,
             maxRetryDelay: TimeSpan.FromSeconds(3),
             errorNumbersToAdd: null)));
+builder.Services.AddHealthChecks()
+    .AddSqlServer(connectionString, name: "sqlserver", timeout: TimeSpan.FromSeconds(5));
 
 builder.Services.AddScoped<ICitaService, CitaService>();
 builder.Services.AddScoped<IAgendaService, AgendaService>();
@@ -856,6 +860,7 @@ app.UseAuthorization();
 // ROUTING
 // -----------------------------------------------------------------------------
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.MapControllerRoute(

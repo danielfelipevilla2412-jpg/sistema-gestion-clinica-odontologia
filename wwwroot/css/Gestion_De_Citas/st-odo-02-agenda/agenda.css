@@ -1007,7 +1007,7 @@ img {
 
 /* ═══ DRAG & DROP STYLES ═══ */
 .appointment[draggable="true"] {
-    cursor: move;
+    cursor: grab;
 }
 
 .appointment.dragging {
