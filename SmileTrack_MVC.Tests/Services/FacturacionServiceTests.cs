@@ -61,8 +61,8 @@ public sealed class FacturacionServiceTests
         var service = new FacturacionService(context);
         var factura = await service.CrearDesdeCitaAsync(1, 99, default);
 
-        var parcial = await service.RegistrarPagoAsync(factura.Id, new() { MontoPagado = 50000, MetodoPago = "tarjeta" }, 99, default);
-        var pagada = await service.RegistrarPagoAsync(factura.Id, new() { MontoPagado = 75000, MetodoPago = "transferencia" }, 99, default);
+        var parcial = await service.RegistrarPagoAsync(factura.Id, new() { MontoPagado = 50000, MetodoPago = "efectivo" }, 99, default);
+        var pagada = await service.RegistrarPagoAsync(factura.Id, new() { MontoPagado = 75000, MetodoPago = "efectivo" }, 99, default);
 
         Assert.Equal("parcial", parcial!.Estado);
         Assert.Equal("pagada", pagada!.Estado);

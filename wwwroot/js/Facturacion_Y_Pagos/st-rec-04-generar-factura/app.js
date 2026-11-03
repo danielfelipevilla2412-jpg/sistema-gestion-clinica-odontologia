@@ -18,6 +18,16 @@ const formatCurrency = (num) => {
   return `$${formattedAmount} COP`;
 };
 
+const getApiErrorMessage = (response, fallback) => {
+  if (response?.message) return response.message;
+  if (response?.detail) return response.detail;
+  if (response?.errors && typeof response.errors === 'object') {
+    const errors = Object.values(response.errors).flat().filter(Boolean);
+    if (errors.length) return errors.join(' ');
+  }
+  return fallback;
+};
+
 // Extrae valor numérico de string con formato de moneda
 const parseCurrency = (str) => {
   const normalized = String(str).trim().replace(/[^0-9,.-]/g, '');
@@ -68,6 +78,82 @@ const showToast = (message, type = 'success') => {
   toast._autoCloseTimeout = autoCloseTimeout;
 };
 
+const setPaymentError = (elementId, message = '') => {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  element.textContent = message;
+  element.hidden = !message;
+};
+
+const getPaymentPendingAmount = () => {
+  const totalEl = safeGetElement('invoiceTotal');
+  const total = totalEl ? parseCurrency(totalEl.textContent) : 0;
+  return window.currentInvoiceId ? window.currentInvoicePending : total;
+};
+
+const getPaymentPercentage = () => {
+  const percentageInput = document.getElementById('paymentPercentage');
+  if (!percentageInput || !percentageInput.value.trim()) return null;
+  const percentage = Number(percentageInput.value);
+  return Number.isFinite(percentage) && percentage > 0 && percentage <= 100
+    ? percentage
+    : null;
+};
+
+const validatePaymentPercentage = () => {
+  const input = document.getElementById('paymentPercentage');
+  if (!input || !input.value.trim()) {
+    setPaymentError('paymentPercentageError');
+    input?.setAttribute('aria-invalid', 'false');
+    return true;
+  }
+
+  const percentage = Number(input.value);
+  const message = !Number.isFinite(percentage) || percentage <= 0 || percentage > 100
+    ? 'Ingrese un porcentaje mayor que 0 y hasta 100.'
+    : '';
+  setPaymentError('paymentPercentageError', message);
+  input.setAttribute('aria-invalid', String(Boolean(message)));
+  return !message;
+};
+
+const validatePaymentAmount = (amount) => {
+  const input = safeGetElement('amountReceived');
+  let message = '';
+  if (amount <= 0) {
+    message = 'El monto del abono debe ser mayor que cero.';
+  } else {
+    const pending = getPaymentPendingAmount();
+    if (amount > pending) {
+      message = `El abono ingresado (${formatCurrency(amount)}) supera el saldo pendiente (${formatCurrency(pending)}). Ajusta el valor e inténtalo de nuevo.`;
+    }
+  }
+
+  setPaymentError('paymentAmountError', message);
+  input?.setAttribute('aria-invalid', String(Boolean(message)));
+  return !message;
+};
+
+const updatePaymentCalculation = () => {
+  const amountInput = document.getElementById('amountReceived');
+  const calculation = document.getElementById('paymentCalculation');
+  const button = document.getElementById('btnPay');
+  if (!amountInput || !calculation) return;
+
+  const pending = getPaymentPendingAmount();
+  const amount = parseCurrency(amountInput.value);
+  const percentage = getPaymentPercentage();
+  const paymentText = percentage === null
+    ? `Abono: ${formatCurrency(amount)}.`
+    : `Abono (${percentage}% del saldo): ${formatCurrency(amount)}.`;
+  calculation.textContent = `${paymentText} Saldo después del abono: ${formatCurrency(Math.max(pending - amount, 0))}.`;
+
+  if (button && !window.isPaid) {
+    button.textContent = `✓ Registrar abono — ${formatCurrency(amount)}`;
+    button.setAttribute('aria-label', `Registrar abono de ${formatCurrency(amount)}`);
+  }
+};
+
 // Recalcula subtotal, descuentos y total de la factura
 const recalculateInvoice = () => {
   let subtotal = 0;
@@ -99,9 +185,11 @@ const recalculateInvoice = () => {
 
   if (amountReceived && btnPay && !window.isPaid) {
     const pending = window.currentInvoiceId ? window.currentInvoicePending : total;
-    amountReceived.value = formatCurrency(pending);
-    btnPay.textContent = `✓ Registrar abono — ${formatCurrency(pending)}`;
-    btnPay.setAttribute('aria-label', `Registrar abono de ${formatCurrency(pending)}`);
+    const percentage = getPaymentPercentage();
+    amountReceived.value = formatCurrency(
+      percentage === null ? pending : Math.round(pending * percentage / 100)
+    );
+    updatePaymentCalculation();
   }
 };
 
@@ -237,23 +325,27 @@ const initProfessionalSelect = () => {
 // Normaliza el abono y valida que esté dentro del saldo pendiente.
 const initAmountValidation = () => {
   const amountReceived = safeGetElement('amountReceived');
-  if (!amountReceived) return;
+  const percentageInput = safeGetElement('paymentPercentage');
 
-  amountReceived.addEventListener('blur', (e) => {
+  amountReceived?.addEventListener('blur', (e) => {
     const val = parseCurrency(e.target.value);
     e.target.value = formatCurrency(val);
 
     if (!window.isPaid) {
-      const totalEl = safeGetElement('invoiceTotal');
-      const total = totalEl ? parseCurrency(totalEl.textContent) : 0;
-      const pending = window.currentInvoiceId ? window.currentInvoicePending : total;
-
-      if (val <= 0) {
-        showToast('El monto del abono debe ser mayor que cero.', 'error');
-      } else if (val > pending) {
-        showToast(`El abono no puede superar el saldo pendiente de ${formatCurrency(pending)}.`, 'error');
-      }
+      validatePaymentAmount(val);
+      updatePaymentCalculation();
     }
+  });
+
+  percentageInput?.addEventListener('input', () => {
+    if (!validatePaymentPercentage()) return;
+
+    const percentage = getPaymentPercentage();
+    if (percentage !== null && amountReceived) {
+      amountReceived.value = formatCurrency(Math.round(getPaymentPendingAmount() * percentage / 100));
+      validatePaymentAmount(parseCurrency(amountReceived.value));
+    }
+    updatePaymentCalculation();
   });
 };
 
@@ -319,6 +411,13 @@ const openPaymentConfirmation = (payment) => {
   safeGetElement('paymentConfirmPreviousPaid').textContent = formatCurrency(payment.previousPaid);
   safeGetElement('paymentConfirmInstallment').textContent = formatCurrency(payment.amount);
   safeGetElement('paymentConfirmBalance').textContent = formatCurrency(payment.pendingBefore - payment.amount);
+  const percentageRow = safeGetElement('paymentConfirmPercentageRow');
+  if (percentageRow) {
+    percentageRow.hidden = payment.percentage === null;
+    safeGetElement('paymentConfirmPercentage').textContent = payment.percentage === null
+      ? ''
+      : `${payment.percentage}% (${formatCurrency(payment.pendingBefore)} × ${payment.percentage}%)`;
+  }
 
   const list = safeGetElement('paymentConfirmItems');
   list.replaceChildren();
@@ -372,6 +471,7 @@ const confirmPayment = async () => {
   cancelButton.disabled = true;
   confirmButton.textContent = 'Registrando...';
   btnPay.disabled = true;
+  setPaymentError('paymentConfirmError');
 
   try {
     const result = window.currentInvoiceId
@@ -391,7 +491,7 @@ const confirmPayment = async () => {
       });
 
     if (!result || result.success !== true) {
-      throw new Error(result?.message || 'No fue posible guardar la factura y el abono.');
+      throw new Error(getApiErrorMessage(result, 'No fue posible guardar la factura y el abono.'));
     }
 
     const invoice = result.data;
@@ -424,10 +524,15 @@ const confirmPayment = async () => {
     safeGetElement('invoicePaidAmount').textContent = formatCurrency(invoice.montoPagado);
     safeGetElement('invoiceBalanceAmount').textContent = formatCurrency(invoice.pendiente);
     const amountInput = safeGetElement('amountReceived');
+    const percentageInput = safeGetElement('paymentPercentage');
     const methodSelect = safeGetElement('paymentMethod');
     if (amountInput) {
       amountInput.disabled = window.isPaid;
       if (!window.isPaid) amountInput.value = formatCurrency(invoice.pendiente);
+    }
+    if (percentageInput) {
+      percentageInput.value = '';
+      percentageInput.disabled = window.isPaid;
     }
     if (methodSelect) methodSelect.disabled = window.isPaid;
 
@@ -435,6 +540,7 @@ const confirmPayment = async () => {
     btnPay.textContent = window.isPaid ? 'Factura pagada' : `Registrar abono — ${formatCurrency(invoice.pendiente)}`;
     btnPay.disabled = window.isPaid;
     btnPay.setAttribute('aria-disabled', String(window.isPaid));
+    updatePaymentCalculation();
     overlay.hidden = true;
     overlay.setAttribute('aria-hidden', 'true');
     paymentConfirmationData = null;
@@ -443,7 +549,9 @@ const confirmPayment = async () => {
       ? `Factura ${invoice.numero} pagada. Saldo pendiente: ${formatCurrency(invoice.pendiente)}.`
       : `Abono registrado en ${invoice.numero}. Saldo pendiente: ${formatCurrency(invoice.pendiente)}.`, 'success');
   } catch (error) {
-    showToast(error.message || 'Error al registrar la factura.', 'error');
+    const message = error.message || 'No fue posible registrar el pago. Verifica los datos e inténtalo de nuevo.';
+    setPaymentError('paymentConfirmError', message);
+    showToast(message, 'error');
   } finally {
     confirmButton.disabled = false;
     cancelButton.disabled = false;
@@ -461,6 +569,19 @@ const initPayment = () => {
   const cancelButton = safeGetElement('paymentConfirmCancel');
   const closeButton = safeGetElement('paymentConfirmClose');
 
+  const amountInput = safeGetElement('amountReceived');
+  const percentageInput = safeGetElement('paymentPercentage');
+  amountInput?.addEventListener('input', () => {
+    setPaymentError('paymentAmountError');
+    amountInput.setAttribute('aria-invalid', 'false');
+    if (percentageInput) {
+      percentageInput.value = '';
+      setPaymentError('paymentPercentageError');
+      percentageInput.setAttribute('aria-invalid', 'false');
+    }
+    updatePaymentCalculation();
+  });
+
   btnPay.addEventListener('click', () => {
     if (window.isPaid) {
       showToast('Esta factura ya ha sido pagada', 'info');
@@ -473,6 +594,10 @@ const initPayment = () => {
     
     
     if (!totalEl || !amountReceived || !pacienteSelect) return;
+    if (!validatePaymentPercentage()) {
+      percentageInput.focus();
+      return;
+    }
     const idPaciente = parseInt(pacienteSelect.value, 10);
     const idProfesional = profesionalSelect?.value ? parseInt(profesionalSelect.value, 10) : null;
     if (!idPaciente) {
@@ -490,13 +615,8 @@ const initPayment = () => {
     const amount = parseCurrency(amountReceived.value);
     const pendingBefore = window.currentInvoiceId ? window.currentInvoicePending : total;
 
-    if (amount <= 0) {
-      showToast('El monto del abono debe ser mayor que cero.', 'error');
-      amountReceived.focus();
-      return;
-    }
-    if (amount > pendingBefore) {
-      showToast(`El abono no puede superar el saldo pendiente de ${formatCurrency(pendingBefore)}.`, 'error');
+    if (!validatePaymentAmount(amount)) {
+      setPaymentError('paymentConfirmError');
       amountReceived.focus();
       return;
     }
@@ -508,18 +628,11 @@ const initPayment = () => {
       amount,
       previousPaid: window.currentInvoicePaid || 0,
       pendingBefore,
+      percentage: getPaymentPercentage(),
       metodoPago: safeGetElement('paymentMethod')?.value || 'efectivo'
     });
   });
 
-<<<<<<< HEAD
-    try {
-      // 1) Crear la factura real en SQL Server.
-      const creado = await window.apiRequest('/api/facturas', {
-        method: 'POST',
-        body: { idPaciente, idProfesional, notas: null, detalles: items }
-      });
-=======
   confirmButton?.addEventListener('click', confirmPayment);
   cancelButton?.addEventListener('click', closePaymentConfirmation);
   closeButton?.addEventListener('click', closePaymentConfirmation);
@@ -530,7 +643,6 @@ const initPayment = () => {
     if (event.key === 'Escape' && overlay && !overlay.hidden) closePaymentConfirmation();
   });
 };
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
 
 const formatInvoiceDate = (value, includeTime = false) => {
   if (!value) return '—';
@@ -580,7 +692,7 @@ const renderSavedInvoiceDetail = (invoice) => {
   payments.replaceChildren();
   (invoice.pagos || []).forEach((payment) => {
     const item = document.createElement('li');
-    item.textContent = `${formatInvoiceDate(payment.fechaUtc, true)} · ${formatCurrency(payment.monto)} · ${payment.metodoPago} · ${payment.estado} · Ref. ${payment.referencia}`;
+    item.textContent = `${formatInvoiceDate(payment.fechaPago, true)} · ${formatCurrency(payment.monto)} · ${payment.metodoPago} · ${payment.estado} · Ref. ${payment.referencia}`;
     payments.appendChild(item);
   });
   if (!invoice.pagos?.length) {
@@ -597,7 +709,7 @@ const loadSavedInvoiceDetail = async (invoiceId, button) => {
   message.textContent = 'Cargando detalle de la factura...';
   try {
     const response = await window.apiRequest(`/api/facturas/${invoiceId}`);
-    if (!response?.success || !response.data) throw new Error(response?.message || 'No fue posible consultar el detalle.');
+    if (!response?.success || !response.data) throw new Error(getApiErrorMessage(response, 'No fue posible consultar el detalle.'));
     renderSavedInvoiceDetail(response.data);
     message.textContent = `Detalle de la factura ${response.data.numero}.`;
   } catch (error) {
@@ -617,7 +729,7 @@ const loadSavedInvoices = async () => {
 
   try {
     const response = await window.apiRequest('/api/facturas');
-    if (!response?.success || !Array.isArray(response.data)) throw new Error(response?.message || 'No fue posible consultar las facturas.');
+    if (!response?.success || !Array.isArray(response.data)) throw new Error(getApiErrorMessage(response, 'No fue posible consultar las facturas.'));
 
     if (response.data.length === 0) {
       message.textContent = 'No hay facturas guardadas.';
@@ -723,6 +835,7 @@ const initMobileMenu = () => {
     }
   });
 };
+
 
 
 // Función principal de inicialización

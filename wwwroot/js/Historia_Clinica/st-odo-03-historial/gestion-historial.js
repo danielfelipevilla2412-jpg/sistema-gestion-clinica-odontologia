@@ -326,11 +326,23 @@ const poblarFormularioHistoria = (datosHistoria = window.smiletrackHistoriaData 
   setValue('enfermedad_actual', datosHistoria.enfermedadActual || origenEvolucion || '');
   setValue('antecedentes_medicos', datosHistoria.antecedentesMedicos || '');
   setValue('habitos', datosHistoria.habitos || '');
-  setValue('alergias', alergias.length ? alergias.join(', ') : datosHistoria.alergiasTexto || '');
+  setValue('alergias_form', alergias.length ? alergias.join(', ') : datosHistoria.alergiasTexto || '');
   setValue('hallazgos', datosHistoria.hallazgos || '');
   setValue('odontograma_observaciones', datosHistoria.odontogramaObservaciones || textoObservacionesOdonto || '');
   setValue('examenes_complementarios', datosHistoria.examenesComplementarios || '');
-  setValue('diagnostico_principal', datosHistoria.diagnosticoPrincipal || '');
+  const diagnosisSelect = document.getElementById('diagnostico_principal');
+  const diagnosis = datosHistoria.diagnosticoPrincipal || '';
+  const hasDiagnosisOption = Array.from(diagnosisSelect?.options || [])
+    .some(option => option.value === diagnosis);
+  setValue('diagnostico_principal', hasDiagnosisOption ? diagnosis : diagnosis ? '__otro__' : '');
+  setValue('diagnostico_principal_otro', hasDiagnosisOption ? '' : diagnosis);
+  diagnosisSelect?.dispatchEvent(new Event('change'));
+  const symptoms = Array.isArray(datosHistoria.sintomasSignos) ? datosHistoria.sintomasSignos : [];
+  symptoms.forEach(agregarSintomaSigno);
+  const symptomValues = new Set(symptoms.map(value => String(value).trim().toLocaleLowerCase()));
+  document.querySelectorAll('#sintomasSignosGrid input[type="checkbox"]').forEach(input => {
+    input.checked = symptomValues.has(input.value.trim().toLocaleLowerCase());
+  });
   setValue('diagnostico_secundario', datosHistoria.diagnosticoSecundario || '');
   setValue('evolucion_clinica', datosHistoria.evolucionClinica || origenEvolucion || '');
   setValue('prescripcion', datosHistoria.prescripcion || '');
@@ -828,11 +840,6 @@ const initForm = () => {
   });
 };
 
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
 const initFormularioClinico = () => {
   const form = safeGetElement('historia-clinica-form');
   if (!form) return;
@@ -846,14 +853,11 @@ const initFormularioClinico = () => {
     }
 
     const value = id => safeGetElement(id)?.value?.trim() || '';
-<<<<<<< HEAD
-=======
     if (value('diagnostico_principal') === '__otro__' && !value('diagnostico_principal_otro')) {
       showToast('Escribe el diagnóstico seleccionado como Otro', 'warning');
       safeGetElement('diagnostico_principal_otro')?.focus();
       return;
     }
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
     const button = form.querySelector('button[type="submit"]');
     if (button) button.disabled = true;
 
@@ -863,35 +867,23 @@ const initFormularioClinico = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-<<<<<<< HEAD
-          ...(token ? { 'RequestVerificationToken': token } : {})
-=======
           ...(token ? { 'X-CSRF-TOKEN': token } : {})
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
         },
         body: JSON.stringify({
           pacienteId,
           motivoConsulta: value('motivo_consulta'),
           enfermedadActual: value('enfermedad_actual'),
-<<<<<<< HEAD
-          habitos: value('habitos'),
-          hallazgos: value('hallazgos'),
-          odontogramaObservaciones: value('odontograma_observaciones'),
-          examenesComplementarios: value('examenes_complementarios'),
-          diagnosticoPrincipal: value('diagnostico_principal'),
-=======
           sintomasSignos: Array.from(document.querySelectorAll('#sintomasSignosGrid input[type="checkbox"]:checked'))
             .map(input => input.value),
           antecedentesMedicos: value('antecedentes_medicos'),
           habitos: value('habitos'),
-          alergias: value('alergias'),
+          alergias: value('alergias_form'),
           hallazgos: value('hallazgos'),
           odontogramaObservaciones: value('odontograma_observaciones'),
           examenesComplementarios: value('examenes_complementarios'),
           diagnosticoPrincipal: value('diagnostico_principal') === '__otro__'
             ? value('diagnostico_principal_otro')
             : value('diagnostico_principal'),
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
           diagnosticoSecundario: value('diagnostico_secundario'),
           evolucionClinica: value('evolucion_clinica'),
           prescripcion: value('prescripcion')
@@ -909,111 +901,6 @@ const initFormularioClinico = () => {
   });
 };
 
-<<<<<<< HEAD
-const initAdjuntosClinicos = () => {
-  const button = safeGetElement('btnAdjuntarEstudio');
-  const input = safeGetElement('inputArchivosEstudio');
-  const fileGrid = safeGetElement('fileGrid');
-  const uploadBox = safeGetElement('uploadBox');
-
-  if (!button || !input || !fileGrid || !uploadBox) return;
-
-  const archivos = [];
-
-  const formatBytes = (bytes) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const getIcon = (fileName = '') => {
-    const extension = fileName.split('.').pop()?.toLowerCase();
-    if (['jpg', 'jpeg', 'png'].includes(extension)) return '🖼️';
-    if (extension === 'pdf') return '📄';
-    return '📎';
-  };
-
-  const renderArchivos = () => {
-    const cards = archivos.map((file, index) => `
-      <div class="file-item" data-index="${index}">
-        <div class="file-thumb">${getIcon(file.name)}</div>
-        <div class="file-meta">
-          <strong>${escaparHtml(file.name)}</strong>
-          <span>${formatBytes(file.size)}</span>
-        </div>
-        <button type="button" class="soft-btn subtle remove-attachment" data-index="${index}" style="margin-top:10px;">Quitar</button>
-      </div>
-    `).join('');
-
-    fileGrid.innerHTML = `${cards}${`
-      <div class="upload-box" id="uploadBox" tabindex="0" role="button" aria-label="Arrastra o selecciona estudios">
-        <div class="upload-ghost">⇪</div>
-        <strong>Arrastra o selecciona estudios</strong>
-        <span>Radiografías, fotos intraorales o documentos anexos</span>
-      </div>
-    `}`;
-
-    const freshUploadBox = safeGetElement('uploadBox');
-    if (!freshUploadBox) return;
-
-    freshUploadBox.addEventListener('click', () => input.click());
-    freshUploadBox.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        input.click();
-      }
-    });
-    freshUploadBox.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      freshUploadBox.classList.add('dragover');
-    });
-    freshUploadBox.addEventListener('dragleave', () => {
-      freshUploadBox.classList.remove('dragover');
-    });
-    freshUploadBox.addEventListener('drop', (event) => {
-      event.preventDefault();
-      freshUploadBox.classList.remove('dragover');
-      const dropped = Array.from(event.dataTransfer?.files || []);
-      if (dropped.length) addArchivos(dropped);
-    });
-
-    fileGrid.querySelectorAll('.remove-attachment').forEach((removeButton) => {
-      removeButton.addEventListener('click', (event) => {
-        const { index } = event.currentTarget.dataset;
-        archivos.splice(Number(index), 1);
-        renderArchivos();
-      });
-    });
-  };
-
-  const addArchivos = (nuevosArchivos) => {
-    const validFiles = Array.from(nuevosArchivos).filter((file) => {
-      const isAllowed = ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-      const extension = file.name.split('.').pop()?.toLowerCase();
-      const allowedExt = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
-      return isAllowed.includes(file.type) || (extension && allowedExt.includes(extension));
-    });
-
-    if (!validFiles.length) {
-      showToast('Tipo de archivo no permitido. Usa JPG, PNG, PDF o DOCX', 'warning');
-      input.value = '';
-      return;
-    }
-
-    validFiles.forEach(file => archivos.push(file));
-    renderArchivos();
-    input.value = '';
-  };
-
-  button.addEventListener('click', () => input.click());
-  input.addEventListener('change', (event) => {
-    if (!event.target.files?.length) return;
-    addArchivos(event.target.files);
-  });
-
-  uploadBox.addEventListener('click', () => input.click());
-  uploadBox.addEventListener('keydown', (event) => {
-=======
 const initCamposDinamicosHistoria = () => {
   const symptomInput = document.getElementById('nuevoSintomaSigno');
   const addSymptomButton = document.getElementById('btnAgregarSintomaSigno');
@@ -1046,6 +933,31 @@ const initCamposDinamicosHistoria = () => {
     if (isOther) diagnosisInput?.focus();
     else if (diagnosisInput) diagnosisInput.value = '';
   });
+};
+
+const agregarSintomaSigno = (texto) => {
+  const valor = String(texto || '').trim();
+  const grid = document.getElementById('sintomasSignosGrid');
+  if (!valor || !grid) return null;
+
+  const existente = Array.from(grid.querySelectorAll('input[type="checkbox"]'))
+    .find(input => input.value.trim().toLocaleLowerCase() === valor.toLocaleLowerCase());
+  if (existente) {
+    existente.checked = true;
+    return existente;
+  }
+
+  const label = document.createElement('label');
+  label.className = 'check-option';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.value = valor;
+  checkbox.checked = true;
+  const span = document.createElement('span');
+  span.textContent = valor;
+  label.append(checkbox, span);
+  grid.appendChild(label);
+  return checkbox;
 };
 
 const initAdjuntosClinicos = () => {
@@ -1230,29 +1142,11 @@ const initAdjuntosClinicos = () => {
   uploadButton.addEventListener('click', uploadSelectedFiles);
   dropZone.addEventListener('click', () => input.click());
   dropZone.addEventListener('keydown', event => {
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       input.click();
     }
   });
-<<<<<<< HEAD
-  uploadBox.addEventListener('dragover', (event) => {
-    event.preventDefault();
-    uploadBox.classList.add('dragover');
-  });
-  uploadBox.addEventListener('dragleave', () => {
-    uploadBox.classList.remove('dragover');
-  });
-  uploadBox.addEventListener('drop', (event) => {
-    event.preventDefault();
-    uploadBox.classList.remove('dragover');
-    const dropped = Array.from(event.dataTransfer?.files || []);
-    if (dropped.length) addArchivos(dropped);
-  });
-};
-
-=======
   input.addEventListener('change', () => {
     stageFiles(Array.from(input.files || []));
     input.value = '';
@@ -1270,8 +1164,6 @@ const initAdjuntosClinicos = () => {
   loadAttachedFiles();
 };
 
->>>>>>> Stashed changes
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
@@ -1281,6 +1173,7 @@ const init = async () => {
   initSidebar();
   initScrollToForm();
   initForm();
+  initCamposDinamicosHistoria();
   initFormularioClinico();
   initAdjuntosClinicos();
   //  — Registrar los filtros antes de renderizar los datos clínicos.

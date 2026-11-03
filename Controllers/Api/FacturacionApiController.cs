@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
@@ -15,7 +16,13 @@ public sealed class FacturacionApiController : ControllerBase
 {
     private readonly IFacturacionService _service;
     private readonly AppDbContext _db;
-    public FacturacionApiController(IFacturacionService service, AppDbContext db) { _service = service; _db = db; }
+    private readonly ILogger<FacturacionApiController> _logger;
+    public FacturacionApiController(IFacturacionService service, AppDbContext db, ILogger<FacturacionApiController> logger)
+    {
+        _service = service;
+        _db = db;
+        _logger = logger;
+    }
 
     // ============================================================
     // CRUD DE FACTURACIÓN
@@ -61,6 +68,15 @@ public sealed class FacturacionApiController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { success=false, message=ex.Message });
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "No se pudo guardar la factura con el pago inicial.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                success = false,
+                message = "No se pudo guardar la factura y el abono por un error de base de datos. No se registraron los cambios; contacte al administrador."
+            });
         }
     }
 
@@ -136,13 +152,18 @@ public sealed class FacturacionApiController : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-<<<<<<< HEAD
         if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
-=======
-        if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success=false, message="No se pudo identificar al usuario." });
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
         try { var r=await _service.RegistrarPagoAsync(id,request,idUsuario,ct); return r==null?NotFound(new{success=false,message="Factura no encontrada."}):Ok(new{success=true,message="Pago registrado correctamente.",data=r}); }
         catch(InvalidOperationException ex){return BadRequest(new{success=false,message=ex.Message});}
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "No se pudo guardar el abono de la factura {FacturaId}.", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                success = false,
+                message = "No se pudo guardar el abono por un error de base de datos. No se registraron los cambios; contacte al administrador."
+            });
+        }
     }
 
     [HttpGet("{id:int}/pagos")]

@@ -24,9 +24,5 @@ public class Factura
     public Profesional? Profesional { get; set; }
     public Usuario? GeneradaPorUsuario { get; set; }
     public List<DetalleFactura> Detalles { get; set; } = new();
-<<<<<<< HEAD
     public List<Pago> Pagos { get; set; } = new();
-=======
-    public List<PagoFactura> Pagos { get; set; } = new();
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
 }

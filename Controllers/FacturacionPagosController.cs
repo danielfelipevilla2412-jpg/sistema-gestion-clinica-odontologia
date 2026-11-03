@@ -47,17 +47,13 @@
                 doc = f.Paciente != null ? f.Paciente.Documento : "N/A",
                 date = f.FechaFactura.ToString("yyyy-MM-dd"),
                 total = f.Total,
-<<<<<<< HEAD
-                pending = Math.Max(f.Total - f.MontoPagado, 0),
-=======
                 paid = f.MontoPagado,
                 pending = Math.Max(f.Total - f.MontoPagado, 0),
                 fechaPago = f.FechaPago,
->>>>>>> 5127e5b84100a38bec6ad93e3ace33e77e57339a
                 status = f.Estado,
                 avatar = f.Paciente != null ? $"{f.Paciente.Nombres.FirstOrDefault()}{f.Paciente.Apellidos.FirstOrDefault()}".ToUpper() : "PA",
                 color = colores[idx % colores.Length],
-                history = f.Pagos.Select(p => new { date = p.FechaUtc.ToString("yyyy-MM-dd"), type = "pago" }).ToList()
+                history = f.Pagos.Select(p => new { date = p.FechaPago.ToString("yyyy-MM-dd"), type = "pago" }).ToList()
             }).ToList();
 
             ViewData["FacturasJson"] = System.Text.Json.JsonSerializer.Serialize(facturas);
