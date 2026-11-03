@@ -62,4 +62,6 @@ public interface IHistoriaClinicaService
     // ── Ownership (rol Paciente) ────────────────────────────────────────────
 
     Task<bool> EsPropioPacienteAsync(int pacienteId, int idUsuario, CancellationToken ct = default);
+    Task<bool> ProfesionalPuedeAccederPacienteAsync(int pacienteId, int idUsuario, CancellationToken ct = default);
+    Task<bool> ProfesionalPuedeAccederHistoriaAsync(int historiaId, int idUsuario, CancellationToken ct = default);
 }

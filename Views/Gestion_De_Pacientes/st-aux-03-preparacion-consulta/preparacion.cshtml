@@ -204,7 +204,24 @@
           }
           else
           {
-            @if (Model.AlergiasLista.Count > 0)
+            @if (Model.AlergiasEstructuradas.Count > 0)
+            {
+              foreach (var alergia in Model.AlergiasEstructuradas)
+              {
+                <div class="alert-item" role="listitem">
+                  <span class="alert-icon" aria-hidden="true">🚨</span>
+                  <span>
+                    <strong>Alergia:</strong> @alergia.Sustancia
+                    — @alergia.Tipo — severidad @alergia.Severidad
+                    @if (!string.IsNullOrWhiteSpace(alergia.Reaccion))
+                    {
+                      <text>— reacción: @alergia.Reaccion</text>
+                    }
+                  </span>
+                </div>
+              }
+            }
+            else if (Model.AlergiasLista.Count > 0)
             {
               foreach (var a in Model.AlergiasLista)
               {

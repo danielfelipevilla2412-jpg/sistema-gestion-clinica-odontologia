@@ -19,10 +19,9 @@ namespace SmileTrack_MVC.Models.Entities;
 //   - Documento_Clinico → Usuario           (SET NULL si el usuario se elimina)
 //
 // ALMACENAMIENTO:
-//   Los archivos físicos se guardan en wwwroot/uploads/documentos-clinicos/<idHistoria>/.
-//   El campo RutaRelativa guarda la ruta relativa desde wwwroot,
-//   p.ej. "uploads/documentos-clinicos/3/radiografia_20250831.pdf".
-//   Así se puede construir la URL de descarga con IWebHostEnvironment.WebRootPath.
+//   Los archivos físicos se guardan fuera de wwwroot, en el almacenamiento
+//   privado configurado para la aplicación. RutaRelativa identifica el archivo
+//   dentro de ese almacenamiento y nunca se publica como una URL directa.
 //
 // TIPOS PERMITIDOS (validados en el controlador):
 //   image/jpeg, image/png, application/pdf  — máximo 10 MB por archivo.
@@ -72,8 +71,7 @@ public class DocumentoClinico
     public string NombreOriginal { get; set; } = string.Empty;
 
     /// <summary>
-    /// Ruta relativa desde wwwroot donde se guardó el archivo físico.
-    /// Ejemplo: "uploads/documentos-clinicos/5/radiografia_20250831_142310.pdf"
+    /// Ruta relativa dentro del almacenamiento privado de documentos clínicos.
     /// </summary>
     [Required]
     [Column("ruta_relativa")]
@@ -94,6 +92,10 @@ public class DocumentoClinico
     [Required]
     [Column("fecha_subida")]
     public DateTime FechaSubida { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Fecha de expedición indicada para el documento, si se conoce.</summary>
+    [Column("fecha_documento", TypeName = "date")]
+    public DateOnly? FechaDocumento { get; set; }
 
     /// <summary>Observación libre sobre el documento (opcional).</summary>
     [Column("observacion")]

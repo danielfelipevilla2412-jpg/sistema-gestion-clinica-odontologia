@@ -203,15 +203,47 @@ BEGIN
         ciudad VARCHAR(100) NULL,
         grupo_sanguineo VARCHAR(5) NULL,
         alergias VARCHAR(MAX) NULL,
+        medicamentos VARCHAR(MAX) NULL,
         antecedentes_medicos VARCHAR(MAX) NULL,
         contacto_emergencia VARCHAR(100) NULL,
         telefono_emergencia VARCHAR(20) NULL,
+        estado_civil VARCHAR(20) NULL,
+        departamento VARCHAR(100) NULL,
+        parentesco_emergencia VARCHAR(50) NULL,
+        eps_aseguradora VARCHAR(150) NULL,
+        numero_poliza VARCHAR(50) NULL,
+        tipo_afiliacion VARCHAR(50) NULL,
+        medicamentos_actuales VARCHAR(MAX) NULL,
+        antecedentes_familiares VARCHAR(MAX) NULL,
+        id_profesional_asignado INT NULL,
         fecha_registro DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
         estado VARCHAR(10) NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactivo','retirado')),
         archivo_adjunto VARCHAR(255) NULL,
         CONSTRAINT FK_Paciente_Usuario FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario)
     );
 END
+GO
+
+IF COL_LENGTH('dbo.Paciente', 'medicamentos') IS NULL
+    ALTER TABLE dbo.Paciente ADD medicamentos VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'estado_civil') IS NULL
+    ALTER TABLE dbo.Paciente ADD estado_civil VARCHAR(20) NULL;
+IF COL_LENGTH('dbo.Paciente', 'departamento') IS NULL
+    ALTER TABLE dbo.Paciente ADD departamento VARCHAR(100) NULL;
+IF COL_LENGTH('dbo.Paciente', 'parentesco_emergencia') IS NULL
+    ALTER TABLE dbo.Paciente ADD parentesco_emergencia VARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Paciente', 'eps_aseguradora') IS NULL
+    ALTER TABLE dbo.Paciente ADD eps_aseguradora VARCHAR(150) NULL;
+IF COL_LENGTH('dbo.Paciente', 'numero_poliza') IS NULL
+    ALTER TABLE dbo.Paciente ADD numero_poliza VARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Paciente', 'tipo_afiliacion') IS NULL
+    ALTER TABLE dbo.Paciente ADD tipo_afiliacion VARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Paciente', 'medicamentos_actuales') IS NULL
+    ALTER TABLE dbo.Paciente ADD medicamentos_actuales VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'antecedentes_familiares') IS NULL
+    ALTER TABLE dbo.Paciente ADD antecedentes_familiares VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'id_profesional_asignado') IS NULL
+    ALTER TABLE dbo.Paciente ADD id_profesional_asignado INT NULL;
 GO
 
 -- ============================================================
@@ -1182,7 +1214,8 @@ GO
 -- MOTIVO: la vista st-aux-08-documentos-clinicos devolvía un array vacío
 -- porque no había tabla de documentos. Esta tabla almacena los metadatos
 -- de cada archivo clínico subido (radiografías, PDFs, consentimientos, etc.).
--- El archivo físico se guarda en wwwroot/uploads/documentos-clinicos/<idHistoria>/.
+-- El archivo físico se guarda fuera de wwwroot, en almacenamiento privado
+-- configurado y persistido por la aplicación web.
 --
 -- RELACIONES:
 --   - id_historia → Historia_Clinica (CASCADE delete)
@@ -1203,6 +1236,7 @@ BEGIN
         content_type    VARCHAR(100) NOT NULL,
         tamano_bytes    BIGINT NOT NULL DEFAULT 0,
         fecha_subida    DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        fecha_documento DATE NULL,
         observacion     VARCHAR(500) NULL,
 
         CONSTRAINT FK_DocClinico_Historia
@@ -1221,6 +1255,13 @@ END
 ELSE
 BEGIN
     PRINT 'Tabla Documento_Clinico ya existe — sin cambios.';
+END
+GO
+
+IF COL_LENGTH(N'dbo.Documento_Clinico', N'fecha_documento') IS NULL
+BEGIN
+    ALTER TABLE dbo.Documento_Clinico ADD fecha_documento DATE NULL;
+    PRINT 'Columna fecha_documento agregada a Documento_Clinico.';
 END
 GO
 

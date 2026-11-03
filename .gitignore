@@ -23,3 +23,6 @@ Thumbs.db
 
 # Serena (MCP toolkit cache)
 .serena/
+
+# Private clinical documents
+/App_Data/clinical-documents/

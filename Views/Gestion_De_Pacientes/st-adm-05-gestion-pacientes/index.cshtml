@@ -202,6 +202,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <script>
   window.RAZOR_PATIENTS = @Html.Raw(pacientesJson);
+  window.canEditPatientIdentity = @User.IsInRole("Administrador").ToString().ToLowerInvariant() || @User.IsInRole("Recepcionista").ToString().ToLowerInvariant();
 </script>
 <script src="@Url.Content("~/js/Gestion_De_Pacientes/st-adm-05-gestion-pacientes/script.js?v=2")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
@@ -212,4 +213,3 @@
   @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
 </body>
 </html>
-

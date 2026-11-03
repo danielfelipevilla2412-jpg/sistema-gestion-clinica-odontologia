@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Services;
+using System.ComponentModel.DataAnnotations;
 
 namespace SmileTrack_MVC.Controllers;
 
@@ -32,7 +35,7 @@ public class GestionPacientesController : Controller
     [HttpGet]
     [Authorize(Roles = "Administrador,Recepcionista,Profesional")]
     [Route("gestion-de-pacientes/st-adm-05-gestion-pacientes")]
-    public async Task<IActionResult> Stadm05GestionPacientes()
+    public async Task<IActionResult> Stadm05GestionPacientes([FromQuery] int? editar = null)
     {
         string[] colores = ["blue", "green", "yellow", "purple", "slate"];
         var ahora = DateTime.Now;
@@ -45,8 +48,8 @@ public class GestionPacientesController : Controller
         int sinAlergias    = await _context.Pacientes.CountAsync(p =>
             p.Estado == "activo" &&
             (p.Alergias == null || p.Alergias == ""));
-        int conHistorial   = await _context.Citas
-            .Select(c => c.IdPaciente).Distinct().CountAsync();
+        int conHistorial   = await _context.HistoriasClinicas
+            .Select(h => h.IdPaciente).Distinct().CountAsync();
 
         // Primera página de pacientes activos
         var pacientesDb = await _context.Pacientes
@@ -54,6 +57,14 @@ public class GestionPacientesController : Controller
             .OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres)
             .Take(pageSize)
             .ToListAsync();
+
+        if (editar.HasValue && pacientesDb.All(p => p.IdPaciente != editar.Value))
+        {
+            var pacienteSolicitado = await _context.Pacientes
+                .FirstOrDefaultAsync(p => p.IdPaciente == editar.Value);
+            if (pacienteSolicitado is not null)
+                pacientesDb.Add(pacienteSolicitado);
+        }
 
         var idsPagina = pacientesDb.Select(p => p.IdPaciente).ToList();
 
@@ -100,6 +111,11 @@ public class GestionPacientesController : Controller
                 Correo          = p.Correo,
                 Ciudad          = p.Ciudad,
                 GrupoSanguineo  = p.GrupoSanguineo,
+                Direccion       = p.Direccion,
+                ContactoEmergencia = p.ContactoEmergencia,
+                TelefonoEmergencia = p.TelefonoEmergencia,
+                AntecedentesMedicos = p.AntecedentesMedicos,
+                MedicamentosTexto = p.Medicamentos,
                 AlergiasTexto   = p.Alergias,
                 Estado          = p.Estado,
                 LastVisit       = ultima?.FechaHora,
@@ -161,6 +177,10 @@ public class GestionPacientesController : Controller
     public async Task<IActionResult> BuscarPacientes(
         [FromQuery] string? search,
         [FromQuery] string? estado,
+        [FromQuery] string? alergias,
+        [FromQuery] string? cita,
+        [FromQuery] string? historial,
+        [FromQuery] int? editar,
         [FromQuery] int page     = 1,
         [FromQuery] int pageSize = 20)
     {
@@ -169,6 +189,9 @@ public class GestionPacientesController : Controller
 
         IQueryable<SmileTrack_MVC.Models.Entities.Paciente> query =
             _context.Pacientes.AsNoTracking();
+
+        if (editar.HasValue)
+            query = query.Where(p => p.IdPaciente == editar.Value);
 
         // Filtro de estado: por defecto solo activos
         if (string.IsNullOrWhiteSpace(estado) ||
@@ -189,8 +212,31 @@ public class GestionPacientesController : Controller
             query = query.Where(p =>
                 p.Nombres.Contains(txt)   ||
                 p.Apellidos.Contains(txt) ||
-                p.Documento.Contains(txt));
+                p.Documento.Contains(txt) ||
+                _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                    (c.Notas != null && c.Notas.Contains(txt) ||
+                     c.Servicio != null && c.Servicio.Nombre.Contains(txt))));
         }
+
+        if (string.Equals(alergias, "con", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(p => p.Alergias != null && p.Alergias != "");
+        else if (string.Equals(alergias, "sin", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(p => p.Alergias == null || p.Alergias == "");
+
+        var ahora = DateTime.Now;
+        if (string.Equals(cita, "con", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(p => _context.Citas.Any(c =>
+                c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
+                c.Estado != "Cancelada" && c.Estado != "cancelada"));
+        else if (string.Equals(cita, "sin", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(p => !_context.Citas.Any(c =>
+                c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
+                c.Estado != "Cancelada" && c.Estado != "cancelada"));
+
+        if (string.Equals(historial, "con", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(p => _context.Citas.Any(c => c.IdPaciente == p.IdPaciente));
+        else if (string.Equals(historial, "sin", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(p => !_context.Citas.Any(c => c.IdPaciente == p.IdPaciente));
 
         int total = await query.CountAsync();
 
@@ -204,7 +250,6 @@ public class GestionPacientesController : Controller
         var idsPagina = pacientesDb.Select(p => p.IdPaciente).ToList();
 
         // Citas en una sola consulta para la página (evita N+1)
-        var ahora = DateTime.Now;
         var citas = await _context.Citas
             .Include(c => c.Servicio)
             .Include(c => c.Profesional)
@@ -244,8 +289,13 @@ public class GestionPacientesController : Controller
                 Telefono       = p.Telefono,
                 Correo         = p.Correo,
                 Ciudad         = p.Ciudad,
+                Direccion      = p.Direccion,
                 GrupoSanguineo = p.GrupoSanguineo,
                 AlergiasTexto  = p.Alergias,
+                AntecedentesMedicos = p.AntecedentesMedicos,
+                ContactoEmergencia = p.ContactoEmergencia,
+                TelefonoEmergencia = p.TelefonoEmergencia,
+                MedicamentosTexto = p.Medicamentos,
                 Estado         = p.Estado,
                 LastVisit      = ultima?.FechaHora,
                 Diagnosis      = ultima?.Servicio?.Nombre ?? ultima?.Notas ?? string.Empty,
@@ -458,6 +508,20 @@ public class GestionPacientesController : Controller
                 ? []
                 : pac.Alergias.Split(',', StringSplitOptions.RemoveEmptyEntries |
                                           StringSplitOptions.TrimEntries).ToList();
+            vm.AlergiasEstructuradas = await _context.AlergiasPaciente
+                .AsNoTracking()
+                .Where(a => a.IdPaciente == pac.IdPaciente && a.Activa)
+                .OrderByDescending(a => a.Severidad == "grave")
+                .ThenByDescending(a => a.Severidad == "moderada")
+                .ThenBy(a => a.Sustancia)
+                .Select(a => new AlergiaClinicaViewModel
+                {
+                    Sustancia = a.Sustancia,
+                    Tipo = a.Tipo,
+                    Severidad = a.Severidad,
+                    Reaccion = a.Reaccion
+                })
+                .ToListAsync();
         }
 
         // Profesional
@@ -483,7 +547,8 @@ public class GestionPacientesController : Controller
                 var ultimaNota = await _context.NotasClinicas
                     .AsNoTracking()
                     .Include(n => n.Profesional)
-                    .Where(n => n.IdHistoria == historia.IdHistoria)
+                    .Where(n => n.IdHistoria == historia.IdHistoria &&
+                                n.Estado != "Preparación")
                     .OrderByDescending(n => n.Fecha)
                     .FirstOrDefaultAsync();
 
@@ -638,7 +703,7 @@ public class GestionPacientesController : Controller
         return Ok(new
         {
             success = true,
-            message = "Preparación confirmada y registrada en la historia clínica.",
+            message = "Preparación confirmada y registrada.",
             idNota  = nota.IdNota
         });
     }
@@ -666,71 +731,15 @@ public class GestionPacientesController : Controller
         return await Stadm05GestionPacientes();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    //
-    // ANTES: devolvía View() sin ningún ViewModel. Todas las listas del formulario
-    //        (profesionales, servicios, consultorios) estaban hardcodeadas en el
-    //        HTML con datos inventados.
-    //
-    // AHORA: construye RegistrarPacienteViewModel leyendo de BD los profesionales,
-    //        servicios y consultorios activos para el Paso 2 (agendar primera cita).
-    //        Los tipos de documento, géneros, grupos sanguíneos y ciudades se
-    //        definen en el ViewModel como listas estáticas (no tienen tabla en BD).
-    // ─────────────────────────────────────────────────────────────────────────
+    // Los catálogos estáticos del formulario se definen en el ViewModel.
     [HttpGet]
     [Authorize(Roles = "Recepcionista")]
     [Route("gestion-de-pacientes/st-rec-02-registrar-paciente")]
-    public async Task<IActionResult> Strec02RegistrarPaciente()
+    public IActionResult Strec02RegistrarPaciente()
     {
-        // Profesionales activos con su primera especialidad para el label
-        var profesionales = await _context.Profesionales
-            .AsNoTracking()
-            .Include(p => p.Especialidades)
-                .ThenInclude(pe => pe.Especialidad)
-            .Where(p => p.Estado == "activo")
-            .OrderBy(p => p.Apellidos)
-            .ThenBy(p => p.Nombres)
-            .Select(p => new ProfesionalOpcionDto
-            {
-                Id      = p.IdProfesional,
-                Etiqueta = $"Dr(a). {p.Nombres} {p.Apellidos}"
-            })
-            .ToListAsync();
-
-        // Servicios activos con precio formateado
-        var servicios = await _context.Servicios
-            .AsNoTracking()
-            .Where(s => s.Estado == "activo")
-            .OrderBy(s => s.Nombre)
-            .Select(s => new ServicioOpcionDto
-            {
-                Id      = s.IdServicio,
-                Etiqueta = $"{s.Nombre} — ${s.Precio:N0}"
-            })
-            .ToListAsync();
-
-        // Consultorios activos
-        var consultorios = await _context.Consultorios
-            .AsNoTracking()
-            .Where(c => c.Estado == "activo")
-            .OrderBy(c => c.Nombre)
-            .Select(c => new ConsultorioOpcionDto
-            {
-                Id      = c.IdConsultorio,
-                Etiqueta = c.Nombre + (c.Ubicacion != null ? $" — {c.Ubicacion}" : "")
-            })
-            .ToListAsync();
-
-        var vm = new RegistrarPacienteViewModel
-        {
-            Profesionales = profesionales,
-            Servicios     = servicios,
-            Consultorios  = consultorios
-        };
-
         return View(
             "~/Views/Gestion_De_Pacientes/st-rec-02-registrar-paciente/nuevo_paciente.cshtml",
-            vm);
+            new RegistrarPacienteViewModel());
     }
 
     // =========================================================================
@@ -798,8 +807,8 @@ public class GestionPacientesController : Controller
         [FromForm] string severidad,
         [FromForm] string? reaccion)
     {
-        if (string.IsNullOrWhiteSpace(sustancia))
-            return BadRequest(new { ok = false, message = "La sustancia es obligatoria." });
+        if (string.IsNullOrWhiteSpace(sustancia) || sustancia.Trim().Length > 150)
+            return BadRequest(new { ok = false, message = "La sustancia es obligatoria y no puede superar 150 caracteres." });
 
         // Validar valores contra los CHECK de la BD
         string[] tiposValidos      = ["medicamento", "alimento", "ambiental", "latex", "otro"];
@@ -807,6 +816,8 @@ public class GestionPacientesController : Controller
 
         string tipoNorm      = tipo?.Trim().ToLowerInvariant()      ?? "otro";
         string severidadNorm = severidad?.Trim().ToLowerInvariant() ?? "leve";
+        if (reaccion?.Trim().Length > 300)
+            return BadRequest(new { ok = false, message = "La reacción no puede superar 300 caracteres." });
 
         if (!tiposValidos.Contains(tipoNorm))
             return BadRequest(new { ok = false, message = "Tipo de alergia no válido." });
@@ -859,13 +870,12 @@ public class GestionPacientesController : Controller
         {
             await _context.SaveChangesAsync();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, new
             {
                 ok      = false,
-                message = "No fue posible registrar la alergia.",
-                detail  = ex.Message
+                message = "No fue posible registrar la alergia."
             });
         }
 
@@ -923,13 +933,12 @@ public class GestionPacientesController : Controller
         {
             await _context.SaveChangesAsync();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, new
             {
                 ok      = false,
-                message = "No fue posible desactivar la alergia.",
-                detail  = ex.Message
+                message = "No fue posible desactivar la alergia."
             });
         }
 
@@ -945,10 +954,10 @@ public class GestionPacientesController : Controller
     [Route("gestion-de-pacientes/crear")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CrearPaciente(
-        [FromForm] string tipoDoc,
-        [FromForm] string documento,
-        [FromForm] string nombres,
-        [FromForm] string apellidos,
+        [FromForm] string? tipoDoc,
+        [FromForm] string? documento,
+        [FromForm] string? nombres,
+        [FromForm] string? apellidos,
         [FromForm] DateTime fechaNacimiento,
         [FromForm] string? genero,
         [FromForm] string? telefono,
@@ -956,23 +965,63 @@ public class GestionPacientesController : Controller
         [FromForm] string? grupoSanguineo,
         [FromForm] string? ciudad,
         [FromForm] string? alergias,
-        [FromForm] string? medicamentos)
+        [FromForm] string? medicamentos,
+        [FromForm] string? direccion,
+        [FromForm] string? contactoEmergencia,
+        [FromForm] string? telefonoEmergencia,
+        [FromForm] string? antecedentesMedicos)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(documento))
+            var tipoDocumento = tipoDoc?.Trim().ToUpperInvariant();
+            var documentoNormalizado = documento?.Trim().ToUpperInvariant();
+            var nombresNormalizados = nombres?.Trim();
+            var apellidosNormalizados = apellidos?.Trim();
+
+            if (tipoDocumento is not ("CC" or "TI" or "CE" or "PAS" or "NIT"))
+                return BadRequest(new { ok = false, message = "El tipo de documento no es válido." });
+
+            if (string.IsNullOrWhiteSpace(documentoNormalizado) ||
+                documentoNormalizado.Length > 20 ||
+                (tipoDocumento == "PAS"
+                    ? !System.Text.RegularExpressions.Regex.IsMatch(documentoNormalizado, "^[A-Z0-9]{5,20}$")
+                    : !System.Text.RegularExpressions.Regex.IsMatch(documentoNormalizado, "^[0-9]{7,15}$")))
             {
-                return BadRequest(
-                    new
-                    {
-                        ok = false,
-                        message =
-                            "El documento es obligatorio."
-                    });
+                return BadRequest(new { ok = false, message = "El documento no es válido para el tipo seleccionado." });
             }
 
-            string documentoNormalizado =
-                documento.Trim();
+            if (string.IsNullOrWhiteSpace(nombresNormalizados) || nombresNormalizados.Length > 100 ||
+                string.IsNullOrWhiteSpace(apellidosNormalizados) || apellidosNormalizados.Length > 100)
+                return BadRequest(new { ok = false, message = "Nombres y apellidos son obligatorios y deben tener hasta 100 caracteres." });
+
+            if (fechaNacimiento.Date < new DateTime(1900, 1, 1) || fechaNacimiento.Date > DateTime.Today)
+                return BadRequest(new { ok = false, message = "La fecha de nacimiento no es válida." });
+
+            if ((tipoDocumento == "TI" || fechaNacimiento.Date > DateTime.Today.AddYears(-18)) &&
+                (string.IsNullOrWhiteSpace(contactoEmergencia) ||
+                 !System.Text.RegularExpressions.Regex.IsMatch(
+                     (telefonoEmergencia ?? "").Replace(" ", ""),
+                     "^[0-9]{7,15}$")))
+                return BadRequest(new { ok = false, message = "Los menores de edad y pacientes con documento TI requieren un acudiente y su teléfono." });
+
+            if (!string.IsNullOrWhiteSpace(correo) &&
+                (correo.Trim().Length > 150 || !new EmailAddressAttribute().IsValid(correo.Trim())))
+                return BadRequest(new { ok = false, message = "El correo electrónico no es válido." });
+
+            if (telefono?.Trim().Length > 20 || telefonoEmergencia?.Trim().Length > 20 ||
+                direccion?.Trim().Length > 255 || ciudad?.Trim().Length > 100 ||
+                contactoEmergencia?.Trim().Length > 100)
+                return BadRequest(new { ok = false, message = "Uno o más datos de contacto superan la longitud permitida." });
+
+            var grupoNormalizado = string.IsNullOrWhiteSpace(grupoSanguineo)
+                ? null
+                : grupoSanguineo.Trim().ToUpperInvariant();
+            if (grupoNormalizado is not null &&
+                grupoNormalizado is not ("O+" or "O-" or "A+" or "A-" or "B+" or "B-" or "AB+" or "AB-"))
+                return BadRequest(new { ok = false, message = "El grupo sanguíneo no es válido." });
+
+            if (TieneSustanciaAlergiaNoValida(alergias))
+                return BadRequest(new { ok = false, message = "Cada alergia debe tener como máximo 150 caracteres." });
 
             bool existe =
                 await _context.Pacientes.AnyAsync(
@@ -1015,16 +1064,16 @@ public class GestionPacientesController : Controller
                 new SmileTrack_MVC.Models.Entities.Paciente
                 {
                     TipoDocumento =
-                        tipoDoc.Trim(),
+                        tipoDocumento,
 
                     Documento =
                         documentoNormalizado,
 
                     Nombres =
-                        nombres.Trim(),
+                        nombresNormalizados,
 
                     Apellidos =
-                        apellidos.Trim(),
+                        apellidosNormalizados,
 
                     FechaNacimiento =
                         fechaNacimiento,
@@ -1043,14 +1092,27 @@ public class GestionPacientesController : Controller
                             : correo.Trim(),
 
                     GrupoSanguineo =
-                        string.IsNullOrWhiteSpace(grupoSanguineo)
-                            ? null
-                            : grupoSanguineo.Trim(),
+                        grupoNormalizado,
 
                     Ciudad =
                         string.IsNullOrWhiteSpace(ciudad)
                             ? null
                             : ciudad.Trim(),
+
+                    Direccion =
+                        string.IsNullOrWhiteSpace(direccion)
+                            ? null
+                            : direccion.Trim(),
+
+                    ContactoEmergencia =
+                        string.IsNullOrWhiteSpace(contactoEmergencia)
+                            ? null
+                            : contactoEmergencia.Trim(),
+
+                    TelefonoEmergencia =
+                        string.IsNullOrWhiteSpace(telefonoEmergencia)
+                            ? null
+                            : telefonoEmergencia.Trim(),
 
                     Alergias =
                         string.IsNullOrWhiteSpace(alergias)
@@ -1062,6 +1124,11 @@ public class GestionPacientesController : Controller
                             ? null
                             : medicamentos.Trim(),
 
+                    AntecedentesMedicos =
+                        string.IsNullOrWhiteSpace(antecedentesMedicos)
+                            ? null
+                            : antecedentesMedicos.Trim(),
+
                     Estado =
                         "activo",
 
@@ -1069,10 +1136,23 @@ public class GestionPacientesController : Controller
                         DateTime.UtcNow.Date
                 };
 
+            await using var transaction = await _context.Database.BeginTransactionAsync();
             _context.Pacientes.Add(
                 paciente);
 
             await _context.SaveChangesAsync();
+
+            await PacienteAlergiaSync.SynchronizeAsync(_context, paciente, paciente.Alergias);
+            var historia = new HistoriaClinica
+            {
+                IdPaciente = paciente.IdPaciente,
+                FechaApertura = DateTime.UtcNow,
+                Activa = true,
+                ObservacionesGenerales = string.Empty
+            };
+            _context.HistoriasClinicas.Add(historia);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             return Ok(
                 new
@@ -1081,11 +1161,17 @@ public class GestionPacientesController : Controller
                     idPaciente =
                         paciente.IdPaciente,
 
+                    codigoHistoria = $"HC-{historia.IdHistoria:D6}",
+
                     message =
                         "Paciente registrado correctamente."
                 });
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex) when (EsConflictoDocumento(ex))
+        {
+            return Conflict(new { ok = false, message = "Ya existe un paciente con ese documento." });
+        }
+        catch (Exception)
         {
             return StatusCode(
                 StatusCodes.Status500InternalServerError,
@@ -1093,11 +1179,7 @@ public class GestionPacientesController : Controller
                 {
                     ok = false,
                     message =
-                        "No fue posible registrar el paciente.",
-
-                    detail =
-                        ex.InnerException?.Message ??
-                        ex.Message
+                        "No fue posible registrar el paciente."
                 });
         }
     }
@@ -1137,7 +1219,12 @@ public class GestionPacientesController : Controller
         // Yeray (2025) - campos nuevos que antes solo actualizaba la API REST
         [FromForm] string? contactoEmergencia,
         [FromForm] string? telefonoEmergencia,
-        [FromForm] string? antecedentesMedicos)
+        [FromForm] string? antecedentesMedicos,
+        [FromForm] string? tipoDoc,
+        [FromForm] string? documento,
+        [FromForm] DateTime? fechaNacimiento,
+        [FromForm] string? grupoSanguineo,
+        [FromForm] string? direccion)
     {
         try
         {
@@ -1157,6 +1244,87 @@ public class GestionPacientesController : Controller
                         message =
                             "Paciente no encontrado."
                     });
+            }
+
+            if ((!string.IsNullOrWhiteSpace(correo) &&
+                 (correo.Trim().Length > 150 || !new EmailAddressAttribute().IsValid(correo.Trim()))) ||
+                nombres?.Trim().Length > 100 ||
+                apellidos?.Trim().Length > 100 ||
+                telefono?.Trim().Length > 20 ||
+                telefonoEmergencia?.Trim().Length > 20 ||
+                ciudad?.Trim().Length > 100 ||
+                direccion?.Trim().Length > 255 ||
+                contactoEmergencia?.Trim().Length > 100)
+                return BadRequest(new { ok = false, message = "Uno o más datos de contacto no son válidos." });
+
+            if (((tipoDoc?.Trim().ToUpperInvariant() ?? paciente.TipoDocumento) == "TI" ||
+                 (fechaNacimiento ?? paciente.FechaNacimiento).Date > DateTime.Today.AddYears(-18)) &&
+                (string.IsNullOrWhiteSpace(contactoEmergencia ?? paciente.ContactoEmergencia) ||
+                 !System.Text.RegularExpressions.Regex.IsMatch(
+                     ((telefonoEmergencia ?? paciente.TelefonoEmergencia) ?? "").Replace(" ", ""),
+                     "^[0-9]{7,15}$")))
+                return BadRequest(new { ok = false, message = "Los menores de edad y pacientes con documento TI requieren un acudiente y su teléfono." });
+
+            var puedeEditarIdentificacion =
+                User.IsInRole("Administrador") || User.IsInRole("Recepcionista");
+
+            if (!puedeEditarIdentificacion &&
+                (tipoDoc is not null || documento is not null || fechaNacimiento.HasValue ||
+                 grupoSanguineo is not null || direccion is not null))
+                return Forbid();
+
+            if (puedeEditarIdentificacion)
+            {
+                if (tipoDoc is not null)
+                {
+                    var tipoNormalizado = tipoDoc.Trim().ToUpperInvariant();
+                    if (tipoNormalizado is not ("CC" or "TI" or "CE" or "PAS" or "NIT"))
+                        return BadRequest(new { ok = false, message = "El tipo de documento no es válido." });
+                    paciente.TipoDocumento = tipoNormalizado;
+                }
+
+                if (documento is not null)
+                {
+                    var documentoNormalizado = documento.Trim().ToUpperInvariant();
+                    var tipoValidar = tipoDoc?.Trim().ToUpperInvariant() ?? paciente.TipoDocumento;
+                    if (documentoNormalizado.Length > 20 ||
+                        (tipoValidar == "PAS"
+                            ? !System.Text.RegularExpressions.Regex.IsMatch(documentoNormalizado, "^[A-Z0-9]{5,20}$")
+                            : !System.Text.RegularExpressions.Regex.IsMatch(documentoNormalizado, "^[0-9]{7,15}$")))
+                        return BadRequest(new { ok = false, message = "El documento no es válido para el tipo seleccionado." });
+
+                    if (await _context.Pacientes.AnyAsync(p =>
+                            p.IdPaciente != idPaciente && p.Documento == documentoNormalizado))
+                        return Conflict(new { ok = false, message = "Ya existe un paciente con ese documento." });
+
+                    paciente.Documento = documentoNormalizado;
+                }
+
+                if (fechaNacimiento.HasValue)
+                {
+                    if (fechaNacimiento.Value.Date < new DateTime(1900, 1, 1) ||
+                        fechaNacimiento.Value.Date > DateTime.Today)
+                        return BadRequest(new { ok = false, message = "La fecha de nacimiento no es válida." });
+                    paciente.FechaNacimiento = fechaNacimiento.Value.Date;
+                }
+
+                if (grupoSanguineo is not null)
+                {
+                    var grupoNormalizado = string.IsNullOrWhiteSpace(grupoSanguineo)
+                        ? null
+                        : grupoSanguineo.Trim().ToUpperInvariant();
+                    if (grupoNormalizado is not null &&
+                        grupoNormalizado is not ("O+" or "O-" or "A+" or "A-" or "B+" or "B-" or "AB+" or "AB-"))
+                        return BadRequest(new { ok = false, message = "El grupo sanguíneo no es válido." });
+                    paciente.GrupoSanguineo = grupoNormalizado;
+                }
+
+                if (direccion is not null)
+                {
+                    if (direccion.Trim().Length > 255)
+                        return BadRequest(new { ok = false, message = "La dirección supera la longitud permitida." });
+                    paciente.Direccion = string.IsNullOrWhiteSpace(direccion) ? null : direccion.Trim();
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(nombres))
@@ -1206,10 +1374,9 @@ public class GestionPacientesController : Controller
                     generoNormalizado;
             }
 
-            paciente.Alergias =
-                string.IsNullOrWhiteSpace(alergias)
-                    ? null
-                    : alergias.Trim();
+            if (TieneSustanciaAlergiaNoValida(alergias))
+                return BadRequest(new { ok = false, message = "Cada alergia debe tener como máximo 150 caracteres." });
+            await PacienteAlergiaSync.SynchronizeAsync(_context, paciente, alergias);
 
             if (medicamentos is not null)
                 paciente.Medicamentos = string.IsNullOrWhiteSpace(medicamentos)
@@ -1235,25 +1402,40 @@ public class GestionPacientesController : Controller
                     ? null
                     : antecedentesMedicos.Trim();
 
-            if (!string.IsNullOrWhiteSpace(estado))
+            if (User.IsInRole("Administrador") || User.IsInRole("Recepcionista"))
             {
-                var estadoNormalizado =
-                    estado.Trim().ToLowerInvariant();
-
-                if (estadoNormalizado is not
-                    ("activo" or "inactivo" or "retirado"))
+                if (!string.IsNullOrWhiteSpace(estado))
                 {
-                    return BadRequest(
-                        new
+                    var estadoNormalizado =
+                        estado.Trim().ToLowerInvariant();
+
+                    if (estadoNormalizado is not
+                        ("activo" or "inactivo" or "retirado"))
+                    {
+                        return BadRequest(
+                            new
+                            {
+                                ok = false,
+                                message =
+                                    "El estado enviado no es válido."
+                            });
+                    }
+
+                    if (estadoNormalizado != "activo" &&
+                        await _context.Citas.AnyAsync(c =>
+                            c.IdPaciente == idPaciente &&
+                            c.FechaHora > DateTime.Now &&
+                            c.Estado != "Cancelada" &&
+                            c.Estado != "cancelada"))
+                        return Conflict(new
                         {
                             ok = false,
-                            message =
-                                "El estado enviado no es válido."
+                            message = "No se puede desactivar al paciente mientras tenga citas futuras activas. Cancela o reprograma las citas primero."
                         });
-                }
 
-                paciente.Estado =
-                    estadoNormalizado;
+                    paciente.Estado =
+                        estadoNormalizado;
+                }
             }
 
             await _context.SaveChangesAsync();
@@ -1270,7 +1452,11 @@ public class GestionPacientesController : Controller
                         paciente.IdPaciente
                 });
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex) when (EsConflictoDocumento(ex))
+        {
+            return Conflict(new { ok = false, message = "Ya existe un paciente con ese documento." });
+        }
+        catch (Exception)
         {
             return StatusCode(
                 StatusCodes.Status500InternalServerError,
@@ -1279,14 +1465,18 @@ public class GestionPacientesController : Controller
                     ok = false,
 
                     message =
-                        "No fue posible actualizar el paciente.",
-
-                    detail =
-                        ex.InnerException?.Message ??
-                        ex.Message
+                        "No fue posible actualizar el paciente."
                 });
         }
     }
+
+    private static bool EsConflictoDocumento(DbUpdateException exception) =>
+        exception.GetBaseException() is SqlException { Number: 2601 or 2627 };
+
+    private static bool TieneSustanciaAlergiaNoValida(string? alergias) =>
+        (alergias ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(sustancia => sustancia.Length > 150);
 
     // =========================================================================
     // ARCHIVO ADJUNTO — Upload del documento/foto del paciente
@@ -1504,8 +1694,19 @@ public class GestionPacientesController : Controller
                     });
             }
 
+            if (await _context.Citas.AnyAsync(c =>
+                        c.IdPaciente == idPaciente &&
+                        c.FechaHora > DateTime.Now &&
+                        c.Estado != "Cancelada" &&
+                        c.Estado != "cancelada"))
+                    return Conflict(new
+                    {
+                        ok = false,
+                        message = "No se puede desactivar al paciente mientras tenga citas futuras activas. Cancela o reprograma las citas primero."
+                    });
+
             paciente.Estado =
-                "inactivo";
+                    "inactivo";
 
             await _context.SaveChangesAsync();
 

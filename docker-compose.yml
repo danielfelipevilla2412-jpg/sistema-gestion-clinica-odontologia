@@ -32,9 +32,11 @@ services:
     environment:
       ASPNETCORE_URLS: "http://+:80"
       ASPNETCORE_ENVIRONMENT: "Development"
+      Storage__ClinicalDocumentsPath: "/app/App_Data/clinical-documents"
       ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SmileTrackDB;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Debes configurar MSSQL_SA_PASSWORD en .env};TrustServerCertificate=True;"
     volumes:
       - smiletrack-dataprotection:/root/.aspnet/DataProtection-Keys
+      - smiletrack-clinical-files:/app/App_Data/clinical-documents
     restart: unless-stopped
 
 volumes:
@@ -44,3 +46,4 @@ volumes:
   smiletrack-dataprotection:
     external: true
     name: sistema-gestion-clinica-odontologia_smiletrack-dataprotection
+  smiletrack-clinical-files:

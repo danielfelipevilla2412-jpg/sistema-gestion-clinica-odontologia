@@ -25,10 +25,6 @@
   --font-display: 'Syne', sans-serif;
   --tr: .18s ease;
 
-  /* === VARIABLES ESPECÍFICAS DE REGISTRO (preservadas) === */
-  --step-active: #3b82f6;
-  --step-completed: #22c55e;
-  --step-inactive: #e2e8f0;
   --input-error: #fee2e2;
   --input-error-border: #ef4444;
   
@@ -120,28 +116,7 @@ img { max-width: 100%; height: auto; display: block; }
   outline-offset: 2px;
 }
 
-/* ═══ FORMULARIO MULTIPASO ═══ */
-
-/* Stepper */
-.stepper { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; padding: 12px 0; }
-.step-btn { display: flex; align-items: center; gap: 8px; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm); transition: background var(--tr); }
-.step-btn:hover { background: var(--primary-light); }
-/* [MEJORA]: Focus visible para navegación por teclado del stepper */
-.step-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .8rem; transition: background var(--tr), color var(--tr); }
-.step-num.active { background: var(--step-active); color: #fff; }
-.step-num.completed { background: var(--step-completed); color: #fff; }
-.step-num.inactive { background: var(--step-inactive); color: var(--text-muted); }
-.step-label { font-size: .84rem; font-weight: 500; transition: color var(--tr); }
-.step-label.active { color: var(--primary); }
-.step-label.completed { color: var(--green); }
-.step-label.inactive { color: var(--text-muted); }
-.step-connector { flex: 1; height: 2px; background: var(--step-inactive); transition: background var(--tr); max-width: 60px; }
-.step-connector.active { background: var(--step-completed); }
-
-/* Contenido de pasos */
-.step-content { display: none; }
-.step-content.active { display: block; animation: fadeIn .3s ease; }
+/* ═══ FORMULARIO ═══ */
 
 /* Cards de formulario */
 .form-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); }

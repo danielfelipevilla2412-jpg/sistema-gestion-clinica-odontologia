@@ -51,6 +51,7 @@ public class PreparacionConsultaViewModel
 
     /// <summary>Alergias parseadas como lista para renderizar badges.</summary>
     public List<string> AlergiasLista { get; set; } = [];
+    public List<AlergiaClinicaViewModel> AlergiasEstructuradas { get; set; } = [];
 
     /// <summary>Antecedentes médicos relevantes.</summary>
     public string? AntecedentesMedicos { get; set; }
@@ -86,6 +87,14 @@ public class PreparacionConsultaViewModel
 
     /// <summary>true cuando no hay ninguna cita programada para hoy.</summary>
     public bool SinCitasHoy => CitaId is null;
+}
+
+public class AlergiaClinicaViewModel
+{
+    public string Sustancia { get; set; } = string.Empty;
+    public string Tipo { get; set; } = string.Empty;
+    public string Severidad { get; set; } = string.Empty;
+    public string? Reaccion { get; set; }
 }
 
 /// <summary>

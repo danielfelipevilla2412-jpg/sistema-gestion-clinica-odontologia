@@ -93,8 +93,14 @@ const FIELD_VALIDATORS = {
     errorMessage: 'Por favor selecciona un tipo de documento.'
   },
   documento: {
-    validate: (value) => /^[0-9]{7,15}$/.test(value.trim()),
-    errorMessage: 'Por favor ingresa un número válido (solo números).'
+    validate: (value) => {
+      const documentType = document.getElementById('tipoDoc')?.value;
+      const normalized = value.trim();
+      return documentType === 'PAS'
+        ? /^[A-Za-z0-9]{5,20}$/.test(normalized)
+        : /^[0-9]{7,15}$/.test(normalized);
+    },
+    errorMessage: 'Por favor ingresa un documento válido para el tipo seleccionado.'
   },
   fechaNacimiento: {
     validate: (value) => {
@@ -107,25 +113,16 @@ const FIELD_VALIDATORS = {
   },
   telefono: {
     validate: (value) => {
+      if (!value.trim()) return true;
       const clean = value.replace(/\s+/g, '');
       return /^[0-9]{7,15}$/.test(clean);
     },
     errorMessage: 'Por favor ingresa un teléfono válido (mínimo 7 dígitos).'
   },
   correo: {
-    validate: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()),
+    validate: (value) => !value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()),
     errorMessage: 'Por favor ingresa un correo válido.'
   },
-  fechaCita: {
-    validate: (value) => {
-      if (!value) return true; // Campo opcional
-      const selected = new Date(value);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return selected >= today;
-    },
-    errorMessage: 'La fecha no puede ser en el pasado.'
-  }
 };
 
 /**
@@ -171,11 +168,11 @@ const validateField = (input) => {
 };
 
 /**
- * Valida todos los campos del Paso 1
+ * Valida los campos del formulario de registro
  * @returns {boolean} true si todos los campos son válidos
  */
-const validateStep1 = () => {
-  const requiredFields = ['nombres', 'apellidos', 'tipoDoc', 'documento', 'fechaNacimiento', 'telefono', 'correo'];
+const validateRegistrationForm = () => {
+  const requiredFields = ['nombres', 'apellidos', 'tipoDoc', 'documento', 'fechaNacimiento'];
   let allValid = true;
 
   requiredFields.forEach(fieldId => {
@@ -184,6 +181,25 @@ const validateStep1 = () => {
       allValid = false;
     }
   });
+
+  const birthDate = safeGetElement('fechaNacimiento')?.value;
+  const isMinor = birthDate && new Date(`${birthDate}T00:00:00`) > new Date(new Date().setFullYear(new Date().getFullYear() - 18));
+  const requiresResponsible = safeGetElement('tipoDoc')?.value === 'TI' || isMinor;
+  if (requiresResponsible) {
+    const responsibleName = safeGetElement('contactoEmergencia');
+    const responsiblePhone = safeGetElement('telefonoEmergencia');
+    const nameValid = Boolean(responsibleName?.value.trim());
+    const phoneValid = /^[0-9]{7,15}$/.test((responsiblePhone?.value ?? '').replace(/\s+/g, ''));
+
+    [[responsibleName, 'error-contactoEmergencia', nameValid],
+      [responsiblePhone, 'error-telefonoEmergencia', phoneValid]].forEach(([field, errorId, valid]) => {
+      if (!field) return;
+      field.classList.toggle('error', !valid);
+      field.setAttribute('aria-invalid', String(!valid));
+      document.getElementById(errorId)?.classList.toggle('visible', !valid);
+      if (!valid) allValid = false;
+    });
+  }
 
   return allValid;
 };
@@ -209,79 +225,6 @@ const setupFieldValidation = (fieldId) => {
       validateField(field);
     }
   });
-};
-
-// ═══ STEPPER MULTIPASO ═══
-
-/**
- * Actualiza el estado visual y ARIA del stepper
- * @param {1|2} step - Número del paso a activar
- */
-const updateStepper = (step) => {
-  const stepNum1 = safeGetElement('stepNum1');
-  const stepNum2 = safeGetElement('stepNum2');
-  const stepLabel1 = safeGetElement('stepLabel1');
-  const stepLabel2 = safeGetElement('stepLabel2');
-  const stepConnector = safeGetElement('stepConnector');
-  const stepContent1 = safeGetElement('stepContent1');
-  const stepContent2 = safeGetElement('stepContent2');
-  const stepBtn1 = safeGetElement('stepBtn1');
-  const stepBtn2 = safeGetElement('stepBtn2');
-
-  if (!stepNum1 || !stepNum2) return;
-
-  if (step === 1) {
-    // Paso 1 activo
-    stepNum1.className = 'step-num active';
-    stepLabel1?.classList.remove('completed', 'inactive');
-    stepLabel1?.classList.add('active');
-    stepNum2.className = 'step-num inactive';
-    stepLabel2?.classList.remove('active', 'completed');
-    stepLabel2?.classList.add('inactive');
-    stepConnector?.classList.remove('active');
-
-    stepContent1?.classList.add('active');
-    stepContent2?.classList.remove('active');
-    stepContent2?.setAttribute('aria-hidden', 'true');
-    stepContent1?.removeAttribute('aria-hidden');
-
-    stepBtn1?.setAttribute('aria-selected', 'true');
-    stepBtn1?.setAttribute('tabindex', '0');
-    stepBtn2?.setAttribute('aria-selected', 'false');
-    stepBtn2?.setAttribute('tabindex', '-1');
-
-    // [MEJORA]: Enfocar primer campo del paso al activarlo
-    requestAnimationFrame(() => {
-      const firstInput = stepContent1?.querySelector('.form-input, .form-select');
-      if (firstInput) firstInput.focus();
-    });
-
-  } else if (step === 2) {
-    // Paso 2 activo, paso 1 completado
-    stepNum1.className = 'step-num completed';
-    stepLabel1?.classList.remove('active', 'inactive');
-    stepLabel1?.classList.add('completed');
-    stepNum2.className = 'step-num active';
-    stepLabel2?.classList.remove('inactive', 'completed');
-    stepLabel2?.classList.add('active');
-    stepConnector?.classList.add('active');
-
-    stepContent1?.classList.remove('active');
-    stepContent2?.classList.add('active');
-    stepContent1?.setAttribute('aria-hidden', 'true');
-    stepContent2?.removeAttribute('aria-hidden');
-
-    stepBtn1?.setAttribute('aria-selected', 'false');
-    stepBtn1?.setAttribute('tabindex', '-1');
-    stepBtn2?.setAttribute('aria-selected', 'true');
-    stepBtn2?.setAttribute('tabindex', '0');
-
-    // [MEJORA]: Enfocar primer campo del paso 2 al activarlo
-    requestAnimationFrame(() => {
-      const firstInput = stepContent2?.querySelector('.form-input, .form-select');
-      if (firstInput) firstInput.focus();
-    });
-  }
 };
 
 // ═══ MANEJO DEL MENÚ MÓVIL ═══
@@ -348,98 +291,30 @@ const initMobileMenu = () => {
  * Función principal de inicialización del formulario de registro
  */
 const init = () => {
-  // Generar número de historia clínica aleatorio
   const autoHC = safeGetElement('autoHC');
-  if (autoHC) {
-    const year = new Date().getFullYear();
-    const random = Math.floor(1000 + Math.random() * 9000);
-    autoHC.textContent = `HC-${year}-${random}`;
-  }
 
   // Configurar fechas mínimas/máximas
   const today = new Date().toISOString().split('T')[0];
   const fechaNac = safeGetElement('fechaNacimiento');
-  const fechaCita = safeGetElement('fechaCita');
-
   if (fechaNac) {
     fechaNac.max = today;
     // [MEJORA]: Valor por defecto solo si está vacío
     if (!fechaNac.value) fechaNac.value = '1995-08-15';
   }
-  if (fechaCita) fechaCita.min = today;
-
   // Inicializar componentes de UI
   initMobileMenu();
 
-  // Configurar validación en tiempo real para campos del Paso 1
+  // Configurar validación en tiempo real para los campos del formulario
   Object.keys(FIELD_VALIDATORS).forEach(setupFieldValidation);
-
-  // ── Navegación entre pasos ──
-  const nextBtn = safeGetElement('nextBtn');
-  const prevBtn = safeGetElement('prevBtn');
-  const stepBtn1 = safeGetElement('stepBtn1');
-  const stepBtn2 = safeGetElement('stepBtn2');
-
-  if (nextBtn) {
-    nextBtn.addEventListener('click', () => {
-      if (validateStep1()) {
-        updateStepper(2);
-        // [MEJORA]: Scroll suave al inicio del paso
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        showToast('Por favor corrige los errores del formulario.', 'error');
-        // [MEJORA]: Enfocar primer campo con error
-        const firstError = document.querySelector('.form-input.error, .form-select.error');
-        if (firstError) firstError.focus();
-      }
-    });
-  }
-
-  if (prevBtn) {
-    prevBtn.addEventListener('click', () => {
-      updateStepper(1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-  }
-
-  // Navegación directa por botones del stepper (accesibilidad keyboard)
-  if (stepBtn1) {
-    stepBtn1.addEventListener('click', () => updateStepper(1));
-    stepBtn1.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        updateStepper(1);
-      }
-    });
-  }
-
-  if (stepBtn2) {
-    stepBtn2.addEventListener('click', () => {
-      if (validateStep1()) {
-        updateStepper(2);
-      } else {
-        showToast('Completa el Paso 1 antes de continuar.', 'error');
-      }
-    });
-    stepBtn2.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        if (validateStep1()) updateStepper(2);
-        else showToast('Completa el Paso 1 antes de continuar.', 'error');
-      }
-    });
-  }
 
   // Botones de cancelar
   const cancelBtn1 = safeGetElement('cancelBtn1');
-  const cancelBtn2 = safeGetElement('cancelBtn2');
   const handleCancel = () => {
     if (confirm('¿Estás seguro de cancelar? Los datos no guardados se perderán.')) {
       window.history.back();
     }
   };
   if (cancelBtn1) cancelBtn1.addEventListener('click', handleCancel);
-  if (cancelBtn2) cancelBtn2.addEventListener('click', handleCancel);
 
   // ── Envío del formulario ──
   const patientForm = safeGetElement('patientForm');
@@ -447,8 +322,7 @@ const init = () => {
     patientForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      if (!validateStep1()) {
-        updateStepper(1);
+      if (!validateRegistrationForm()) {
         showToast('Corrige los errores antes de guardar.', 'error');
         const firstError = document.querySelector('.form-input.error, .form-select.error');
         if (firstError) firstError.focus();
@@ -492,6 +366,7 @@ const init = () => {
         }
 
         showToast(`✓ ${result.message}`, 'success');
+        if (autoHC && result.codigoHistoria) autoHC.textContent = result.codigoHistoria;
 
         saveBtn.disabled = false;
         saveBtn.removeAttribute('aria-busy');

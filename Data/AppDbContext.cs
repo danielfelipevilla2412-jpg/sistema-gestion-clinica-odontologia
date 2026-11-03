@@ -827,6 +827,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(d => d.ContentType).HasColumnName("content_type").HasMaxLength(100);
             entity.Property(d => d.TamanoBytes).HasColumnName("tamano_bytes");
             entity.Property(d => d.FechaSubida).HasColumnName("fecha_subida");
+            entity.Property(d => d.FechaDocumento).HasColumnName("fecha_documento").HasColumnType("date");
             entity.Property(d => d.Observacion).HasColumnName("observacion").HasMaxLength(500);
 
             // Índice para listar documentos de una HC sin full-scan

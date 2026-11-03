@@ -136,15 +136,16 @@ public sealed class PacienteService : IPacienteService
     {
         try
         {
-            string documentoNormalizado = dto.Documento.Trim();
+            string documentoNormalizado = dto.Documento.Trim().ToUpperInvariant();
 
             bool existe = await _context.Pacientes.AnyAsync(p => p.Documento == documentoNormalizado, ct);
             if (existe)
                 return PacienteApiOperationResult.Conflict("Ya existe un paciente con ese documento.");
 
+            await using var transaction = await _context.Database.BeginTransactionAsync(ct);
             var paciente = new Paciente
             {
-                TipoDocumento = string.IsNullOrWhiteSpace(dto.TipoDocumento) ? "CC" : dto.TipoDocumento.Trim(),
+                TipoDocumento = dto.TipoDocumento.Trim().ToUpperInvariant(),
                 Documento = documentoNormalizado,
                 Nombres = dto.Nombres.Trim(),
                 Apellidos = dto.Apellidos.Trim(),
@@ -153,7 +154,8 @@ public sealed class PacienteService : IPacienteService
                 Telefono = string.IsNullOrWhiteSpace(dto.Telefono) ? null : dto.Telefono.Trim(),
                 Correo = string.IsNullOrWhiteSpace(dto.Correo) ? null : dto.Correo.Trim(),
                 Ciudad = string.IsNullOrWhiteSpace(dto.Ciudad) ? null : dto.Ciudad.Trim(),
-                GrupoSanguineo = string.IsNullOrWhiteSpace(dto.GrupoSanguineo) ? null : dto.GrupoSanguineo.Trim(),
+                Direccion = string.IsNullOrWhiteSpace(dto.Direccion) ? null : dto.Direccion.Trim(),
+                GrupoSanguineo = string.IsNullOrWhiteSpace(dto.GrupoSanguineo) ? null : dto.GrupoSanguineo.Trim().ToUpperInvariant(),
                 Alergias = string.IsNullOrWhiteSpace(dto.Alergias) ? null : dto.Alergias.Trim(),
                 AntecedentesMedicos = string.IsNullOrWhiteSpace(dto.AntecedentesMedicos) ? null : dto.AntecedentesMedicos.Trim(),
                 ContactoEmergencia = string.IsNullOrWhiteSpace(dto.ContactoEmergencia) ? null : dto.ContactoEmergencia.Trim(),
@@ -173,6 +175,17 @@ public sealed class PacienteService : IPacienteService
                 _logger.LogWarning(dbEx, "Documento duplicado detectado por la restricción UNIQUE (concurrencia) al crear paciente.");
                 return PacienteApiOperationResult.Conflict("Ya existe un paciente con ese documento.");
             }
+
+            await PacienteAlergiaSync.SynchronizeAsync(_context, paciente, paciente.Alergias, ct);
+            _context.HistoriasClinicas.Add(new HistoriaClinica
+            {
+                IdPaciente = paciente.IdPaciente,
+                FechaApertura = DateTime.UtcNow,
+                Activa = true,
+                ObservacionesGenerales = string.Empty
+            });
+            await _context.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
 
             return PacienteApiOperationResult.Ok(
                 "Paciente registrado correctamente.",
@@ -211,10 +224,10 @@ public sealed class PacienteService : IPacienteService
                 paciente.Correo = string.IsNullOrWhiteSpace(dto.Correo) ? null : dto.Correo.Trim();
             if (dto.Ciudad is not null)
                 paciente.Ciudad = string.IsNullOrWhiteSpace(dto.Ciudad) ? null : dto.Ciudad.Trim();
-            if (dto.GrupoSanguineo is not null)
-                paciente.GrupoSanguineo = string.IsNullOrWhiteSpace(dto.GrupoSanguineo) ? null : dto.GrupoSanguineo.Trim();
+            if (dto.Direccion is not null)
+                paciente.Direccion = string.IsNullOrWhiteSpace(dto.Direccion) ? null : dto.Direccion.Trim();
             if (dto.Alergias is not null)
-                paciente.Alergias = string.IsNullOrWhiteSpace(dto.Alergias) ? null : dto.Alergias.Trim();
+                await PacienteAlergiaSync.SynchronizeAsync(_context, paciente, dto.Alergias, ct);
             if (dto.AntecedentesMedicos is not null)
                 paciente.AntecedentesMedicos = string.IsNullOrWhiteSpace(dto.AntecedentesMedicos) ? null : dto.AntecedentesMedicos.Trim();
             if (dto.ContactoEmergencia is not null)
@@ -224,11 +237,49 @@ public sealed class PacienteService : IPacienteService
             if (!string.IsNullOrWhiteSpace(dto.Genero))
                 paciente.Genero = dto.Genero.Trim().ToUpperInvariant();
 
+            var tipoDocumento = dto.TipoDocumento?.Trim().ToUpperInvariant() ?? paciente.TipoDocumento;
+            if (dto.Documento is not null)
+            {
+                var documento = dto.Documento.Trim().ToUpperInvariant();
+                var patronDocumento = tipoDocumento == "PAS" ? "^[A-Z0-9]{5,20}$" : "^[0-9]{7,15}$";
+                if (!System.Text.RegularExpressions.Regex.IsMatch(documento, patronDocumento))
+                    return PacienteApiOperationResult.Fail("El documento no es válido para el tipo seleccionado.", 422);
+
+                if (await _context.Pacientes.AnyAsync(p => p.IdPaciente != id && p.Documento == documento, ct))
+                    return PacienteApiOperationResult.Conflict("Ya existe un paciente con ese documento.");
+                paciente.Documento = documento;
+            }
+
+            if (dto.TipoDocumento is not null)
+                paciente.TipoDocumento = tipoDocumento;
+            if (dto.FechaNacimiento.HasValue)
+                paciente.FechaNacimiento = dto.FechaNacimiento.Value.Date;
+
+            if (dto.GrupoSanguineo is not null)
+                paciente.GrupoSanguineo = string.IsNullOrWhiteSpace(dto.GrupoSanguineo)
+                    ? null
+                    : dto.GrupoSanguineo.Trim().ToUpperInvariant();
+
+            if ((paciente.TipoDocumento == "TI" ||
+                 paciente.FechaNacimiento.Date > DateTime.Today.AddYears(-18)) &&
+                (string.IsNullOrWhiteSpace(paciente.ContactoEmergencia) ||
+                 !System.Text.RegularExpressions.Regex.IsMatch(
+                     (paciente.TelefonoEmergencia ?? "").Replace(" ", ""),
+                     "^[0-9]{7,15}$")))
+                return PacienteApiOperationResult.Fail(
+                    "Los menores de edad y pacientes con documento TI requieren un acudiente y su teléfono.",
+                    422);
+
             await _context.SaveChangesAsync(ct);
 
             return PacienteApiOperationResult.Ok(
                 "Paciente actualizado correctamente.",
                 MapearDto(paciente, null, null));
+        }
+        catch (DbUpdateException dbEx) when (EsViolacionDeDocumentoDuplicado(dbEx))
+        {
+            _logger.LogWarning(dbEx, "Documento duplicado detectado por la restricción UNIQUE al actualizar el paciente {Id}.", id);
+            return PacienteApiOperationResult.Conflict("Ya existe un paciente con ese documento.");
         }
         catch (Exception ex)
         {
@@ -251,7 +302,18 @@ public sealed class PacienteService : IPacienteService
             if (paciente is null)
                 return PacienteApiOperationResult.NotFound();
 
-            paciente.Estado = estado.Trim().ToLowerInvariant();
+            var estadoNormalizado = estado.Trim().ToLowerInvariant();
+            if (estadoNormalizado != "activo" &&
+                await _context.Citas.AnyAsync(c =>
+                    c.IdPaciente == id &&
+                    c.FechaHora > DateTime.Now &&
+                    c.Estado != "Cancelada" &&
+                    c.Estado != "cancelada", ct))
+                return PacienteApiOperationResult.Fail(
+                    "No se puede desactivar al paciente mientras tenga citas futuras activas. Cancela o reprograma las citas primero.",
+                    409);
+
+            paciente.Estado = estadoNormalizado;
             await _context.SaveChangesAsync(ct);
 
             return PacienteApiOperationResult.Ok(
@@ -294,6 +356,7 @@ public sealed class PacienteService : IPacienteService
         Telefono = p.Telefono,
         Correo = p.Correo,
         Ciudad = p.Ciudad,
+        Direccion = p.Direccion,
         GrupoSanguineo = p.GrupoSanguineo,
         Alergias = string.IsNullOrWhiteSpace(p.Alergias)
             ? []
