@@ -35,6 +35,12 @@ public sealed class ConsultorioEstadoOperativoApiDto
 
 public sealed class ConsultorioHistorialApiDto
 {
+    public byte? IdEstadoAnterior { get; set; }
+    public string? EstadoAnterior { get; set; }
+    public byte? IdEstadoNuevo { get; set; }
+    public string? EstadoNuevo { get; set; }
+    public int? IdUsuario { get; set; }
+    public string? Usuario { get; set; }
     public string Estado { get; set; } = string.Empty;
     public string? Motivo { get; set; }
     public DateTime FechaCambio { get; set; }

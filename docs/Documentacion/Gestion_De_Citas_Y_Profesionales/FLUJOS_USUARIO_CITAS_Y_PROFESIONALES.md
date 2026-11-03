@@ -31,9 +31,9 @@ El proyecto ya cuenta con las vistas principales del recorrido real de negocio. 
 | Gestión de citas | `/gestion-de-citas/st-adm-09-citas` | Administración detallada y acciones masivas | ✅ Existe |
 | Panel operativo | `/gestion-de-citas/st-aux-01-panel-operativo` | Supervisión operativa y contexto inmediato | ✅ Existe |
 | Agenda de apoyo | `/gestion-de-citas/st-aux-02-agenda-apoyo` | Coordinación de asistencia y llamadas | ✅ Existe |
-| Historial parcial | `/gestion-de-citas/st-aux-05-historial-parcial` | Seguimiento clínico breve | ✅ Existe |
+| Historial del paciente | `/gestion-de-pacientes/st-aux-05-historial-parcial` | Seguimiento clínico breve | ✅ Existe |
 | Asistencia procedural | `/gestion-de-citas/st-aux-06-asistencia-procedi` | Registro operativo de procedimientos | ✅ Existe |
-| Estado de consultorio | `/gestion-de-citas/st-aux-09-estado-consultorio` | Monitoreo de ocupación por consultorio | ✅ Existe |
+| Estado de consultorio | `/gestion-de-citas/st-aux-09-estado-consultorio` | Monitoreo de citas y estado operativo por consultorio | ✅ Existe |
 | Citas finalizadas | `/gestion-de-citas/st-aux-10-citas-finalizadas` | Cierre y cierre operativo del día | ✅ Existe |
 | Mi agenda profesional | `/gestion-de-citas/st-odo-02-agenda` | Gestión diaria de la agenda del odontólogo | ✅ Existe |
 | Mis citas | `/gestion-de-citas/st-pac-01-mis-citas` | Vista del paciente | ✅ Existe |

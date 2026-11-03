@@ -430,7 +430,7 @@ BEGIN
         tipo VARCHAR(50) NULL,
         nombre_estado VARCHAR(50) NULL,
         capacidad INT NULL,
-        estado VARCHAR(15) NOT NULL DEFAULT 'disponible' CHECK (estado IN ('disponible','ocupado','mantenimiento'))
+        estado VARCHAR(15) NOT NULL DEFAULT 'disponible' CHECK (estado IN ('disponible','ocupado','mantenimiento','no-disponible','no_disponible','activo'))
     );
 END
 GO
@@ -1599,16 +1599,29 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BloqueoProfesion
 GO
 
 -- La interfaz usa no-disponible; se conserva mantenimiento como estado válido.
-DECLARE @ck_consultorio NVARCHAR(256);
-SELECT @ck_consultorio = name
-FROM sys.check_constraints
-WHERE parent_object_id = OBJECT_ID(N'dbo.Consultorio')
-  AND definition LIKE '%estado%';
-IF @ck_consultorio IS NOT NULL
-    EXEC(N'ALTER TABLE dbo.Consultorio DROP CONSTRAINT [' + @ck_consultorio + N']');
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Consultorio_Estado')
-    ALTER TABLE dbo.Consultorio ADD CONSTRAINT CK_Consultorio_Estado
-        CHECK (estado IN ('disponible','ocupado','mantenimiento','no-disponible'));
+DECLARE @consultorioEstadoCheck sysname;
+DECLARE @consultorioEstadoSql NVARCHAR(MAX);
+WHILE EXISTS (
+    SELECT 1
+    FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.Consultorio')
+      AND (parent_column_id = COLUMNPROPERTY(OBJECT_ID(N'dbo.Consultorio'), N'estado', 'ColumnId')
+           OR OBJECT_DEFINITION(object_id) LIKE N'%estado%')
+)
+BEGIN
+    SELECT TOP (1) @consultorioEstadoCheck = name
+    FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.Consultorio')
+      AND (parent_column_id = COLUMNPROPERTY(OBJECT_ID(N'dbo.Consultorio'), N'estado', 'ColumnId')
+           OR OBJECT_DEFINITION(object_id) LIKE N'%estado%');
+
+    SET @consultorioEstadoSql =
+        N'ALTER TABLE dbo.Consultorio DROP CONSTRAINT ' + QUOTENAME(@consultorioEstadoCheck);
+    EXEC(@consultorioEstadoSql);
+END
+
+ALTER TABLE dbo.Consultorio ADD CONSTRAINT CK_Consultorio_Estado
+    CHECK (estado IN ('disponible','ocupado','mantenimiento','no-disponible','no_disponible','activo'));
 GO
 
 -- Historial funcional de cambios de estado, asistencia y reasignaciones.
@@ -1735,19 +1748,79 @@ END
 GO
 
 -- Historial del estado físico del consultorio.
+IF OBJECT_ID(N'dbo.Estado_Consultorio', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Estado_Consultorio (
+        id_estado_consultorio TINYINT NOT NULL PRIMARY KEY,
+        codigo VARCHAR(30) NOT NULL UNIQUE,
+        nombre VARCHAR(50) NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 1)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (1, 'disponible', 'Disponible');
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 2)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (2, 'ocupado', 'Ocupado');
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 3)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (3, 'mantenimiento', 'En mantenimiento');
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 4)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (4, 'no-disponible', 'No disponible');
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 5)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (5, 'activo', 'Activo');
+GO
+
 IF OBJECT_ID(N'dbo.Consultorio_Historial', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Consultorio_Historial (
         id_historial INT IDENTITY(1,1) PRIMARY KEY,
         id_consultorio INT NOT NULL,
         estado VARCHAR(20) NOT NULL,
+        id_estado_anterior TINYINT NULL,
+        id_estado_nuevo TINYINT NULL,
         id_usuario INT NULL,
         motivo VARCHAR(500) NULL,
         fecha_cambio DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         CONSTRAINT FK_ConsultorioHistorial_Consultorio FOREIGN KEY (id_consultorio) REFERENCES dbo.Consultorio(id_consultorio) ON DELETE CASCADE,
+        CONSTRAINT FK_ConsultorioHistorial_EstadoAnterior FOREIGN KEY (id_estado_anterior) REFERENCES dbo.Estado_Consultorio(id_estado_consultorio),
+        CONSTRAINT FK_ConsultorioHistorial_EstadoNuevo FOREIGN KEY (id_estado_nuevo) REFERENCES dbo.Estado_Consultorio(id_estado_consultorio),
         CONSTRAINT FK_ConsultorioHistorial_Usuario FOREIGN KEY (id_usuario) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
     );
-    CREATE INDEX IX_ConsultorioHistorial_Consultorio_Fecha ON dbo.Consultorio_Historial(id_consultorio, fecha_cambio DESC);
+END
+GO
+
+IF COL_LENGTH(N'dbo.Consultorio_Historial', N'id_estado_anterior') IS NULL
+    ALTER TABLE dbo.Consultorio_Historial ADD id_estado_anterior TINYINT NULL;
+IF COL_LENGTH(N'dbo.Consultorio_Historial', N'id_estado_nuevo') IS NULL
+    ALTER TABLE dbo.Consultorio_Historial ADD id_estado_nuevo TINYINT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ConsultorioHistorial_EstadoAnterior')
+    ALTER TABLE dbo.Consultorio_Historial ADD CONSTRAINT FK_ConsultorioHistorial_EstadoAnterior
+        FOREIGN KEY (id_estado_anterior) REFERENCES dbo.Estado_Consultorio(id_estado_consultorio);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ConsultorioHistorial_EstadoNuevo')
+    ALTER TABLE dbo.Consultorio_Historial ADD CONSTRAINT FK_ConsultorioHistorial_EstadoNuevo
+        FOREIGN KEY (id_estado_nuevo) REFERENCES dbo.Estado_Consultorio(id_estado_consultorio);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ConsultorioHistorial_Consultorio_Fecha')
+    CREATE INDEX IX_ConsultorioHistorial_Consultorio_Fecha
+        ON dbo.Consultorio_Historial(id_consultorio, fecha_cambio DESC);
+GO
+
+-- Auditoría de reasignación de consultorio en una cita.
+IF OBJECT_ID(N'dbo.Cita_Consultorio_Historial', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Cita_Consultorio_Historial (
+        id_historial INT IDENTITY(1,1) PRIMARY KEY,
+        id_cita INT NOT NULL,
+        id_consultorio_anterior INT NULL,
+        id_consultorio_nuevo INT NULL,
+        id_usuario INT NULL,
+        fecha_cambio DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_CitaConsultorioHistorial_Cita FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita) ON DELETE CASCADE,
+        CONSTRAINT FK_CitaConsultorioHistorial_ConsultorioAnterior FOREIGN KEY (id_consultorio_anterior) REFERENCES dbo.Consultorio(id_consultorio),
+        CONSTRAINT FK_CitaConsultorioHistorial_ConsultorioNuevo FOREIGN KEY (id_consultorio_nuevo) REFERENCES dbo.Consultorio(id_consultorio),
+        CONSTRAINT FK_CitaConsultorioHistorial_Usuario FOREIGN KEY (id_usuario) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
+    );
+    CREATE INDEX IX_CitaConsultorioHistorial_Cita_Fecha
+        ON dbo.Cita_Consultorio_Historial(id_cita, fecha_cambio DESC);
 END
 GO
 

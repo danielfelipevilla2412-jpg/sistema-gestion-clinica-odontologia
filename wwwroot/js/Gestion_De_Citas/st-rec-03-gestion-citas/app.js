@@ -294,25 +294,28 @@ const createAppointmentRow = (appt) => {
     <td class="col-servicio">${escapeHtml(appt.service)}</td>
     <td class="col-consultorio">${escapeHtml(appt.office)}</td>
     <td><span class="status-badge ${appt.statusClass}" role="status" aria-label="Estado: ${escapeHtml(appt.status)}">${escapeHtml(appt.status)}</span></td>
-    <td>
+    <td class="col-acciones text-right" data-label="Acciones">
       <div class="actions-cell" role="group" aria-label="Acciones para ${escapeHtml(appt.patient)}">
-        <button class="btn-secondary btn-view" type="button"
+        <button class="action-btn btn-secondary btn-view" type="button"
                 data-action="view" data-id="${appt.id}"
                 aria-label="Ver detalles de ${escapeHtml(appt.patient)}"
                 title="Ver detalles de ${escapeHtml(appt.patient)}">
-          👁️ <span class="btn-text">Ver</span>
+          <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
+          <span class="btn-text">Ver</span>
         </button>
-        <button class="btn-secondary edit" type="button"
+        <button class="action-btn btn-secondary btn-edit edit" type="button"
                 data-action="edit" data-id="${appt.id}"
                 aria-label="Editar cita de ${escapeHtml(appt.patient)}"
                 title="Editar cita de ${escapeHtml(appt.patient)}">
-          ✏️ <span class="btn-text">Editar</span>
+          <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
+          <span class="btn-text">Editar</span>
         </button>
-        <button class="btn-danger btn-delete" type="button"
+        <button class="action-btn btn-danger btn-delete" type="button"
                 data-action="cancel" data-id="${appt.id}"
                 aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
                 title="Cancelar cita de ${escapeHtml(appt.patient)}">
-          ✕ <span class="btn-text">Cancelar</span>
+          <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span>
+          <span class="btn-text">Cancelar</span>
         </button>
       </div>
     </td>

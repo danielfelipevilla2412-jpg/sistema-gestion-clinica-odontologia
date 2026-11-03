@@ -388,6 +388,49 @@ public class CitaServiceTests
         Assert.Contains("finalizada", excepcion.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task ActualizarAsync_RegistraCambioDeConsultorioConUsuarioYFecha()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var consultorioNuevo = new Consultorio { Nombre = "Consultorio 2", Estado = "activo" };
+        db.Consultorios.Add(consultorioNuevo);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = ProximaFecha(DayOfWeek.Monday).AddHours(9),
+            Estado = "Programada",
+            IdEstado = 1
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        DateTime antesDeActualizar = DateTime.UtcNow;
+        await CrearServicio(db).ActualizarAsync(cita.IdCita, new CitaApiUpdateDto
+        {
+            IdCita = cita.IdCita,
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = consultorioNuevo.IdConsultorio,
+            FechaHora = cita.FechaHora,
+            Estado = "Programada",
+            IdEstado = 1,
+            IdUsuarioModificacion = 17
+        });
+        DateTime despuesDeActualizar = DateTime.UtcNow;
+
+        var historial = await db.CitasConsultoriosHistorial.SingleAsync();
+        Assert.Equal(cita.IdCita, historial.IdCita);
+        Assert.Equal(datos.Consultorio.IdConsultorio, historial.IdConsultorioAnterior);
+        Assert.Equal(consultorioNuevo.IdConsultorio, historial.IdConsultorioNuevo);
+        Assert.Equal(17, historial.IdUsuario);
+        Assert.InRange(historial.FechaCambio, antesDeActualizar, despuesDeActualizar);
+    }
+
     private static CitaService CrearServicio(AppDbContext db) =>
         new(db, NullLogger<CitaService>.Instance);
 

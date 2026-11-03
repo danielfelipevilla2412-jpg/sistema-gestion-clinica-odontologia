@@ -148,6 +148,15 @@ img { max-width: 100%; height: auto; display: block; }
 .content-right { display: flex; flex-direction: column; gap: 20px; }
 .card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
 .card-title { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--primary); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.appointments-card { margin-bottom: 20px; }
+.today-appointments { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; list-style: none; }
+.today-appointment { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.today-appointment.selected { border-color: var(--primary); background: var(--primary-light); }
+.appointment-link { display: flex; flex-direction: column; gap: 3px; padding: 12px; color: inherit; text-decoration: none; }
+.appointment-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+.appointment-time { color: var(--primary); font-size: .85rem; }
+.appointment-details { color: var(--text); font-size: .82rem; font-weight: 600; }
+.appointment-professional, .empty-appointments, .empty-history { color: var(--text-muted); font-size: .75rem; }
 .checklist-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .progress-info { font-size: .8rem; font-weight: 600; color: var(--orange); }
 

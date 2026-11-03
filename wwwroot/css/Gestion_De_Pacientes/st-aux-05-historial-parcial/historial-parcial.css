@@ -1,5 +1,5 @@
 /* ============================================
-SmileTrack — Historial Clínico Parcial (st-aux-05-historial-parcial)
+SmileTrack — Historial del Paciente (st-aux-05-historial-parcial)
 ============================================
 Autor: Johan Santamaria
 Fecha: 29/07/2026
@@ -15,8 +15,8 @@ FUNCIONALIDADES PRINCIPALES:
 
 DEPENDENCIAS TÉCNICAS:
 - Controller: GestionCitasController y Stadm09Citas
-- CSS: ~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css
-- JS: ~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js
+- CSS: ~/css/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.css
+- JS: ~/js/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.js
 - Partial / Otros: historial-parcial.cshtml
 
 NOTAS DE MANTENIMIENTO:

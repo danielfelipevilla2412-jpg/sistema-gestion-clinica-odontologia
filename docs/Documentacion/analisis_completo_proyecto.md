@@ -138,9 +138,9 @@ El sistema utiliza enrutamiento basado en atributos en los controladores. A cont
 | **GET** | `/gestion-de-citas/st-pac-03-notificaciones`| Paciente | Centro de notificaciones para el paciente. |
 | **GET** | `/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo` | Auxiliar | Panel del auxiliar clínico para ver citas en curso. |
 | **GET** | `/gestion-de-citas/st-aux-02-agenda-apoyo` | Auxiliar | Agenda de apoyo clínico. |
-| **GET** | `/gestion-de-citas/st-aux-05-historial-parcial`| Auxiliar | Historial clínico simplificado. |
+| **GET** | `/gestion-de-pacientes/st-aux-05-historial-parcial`| Auxiliar | Historial clínico simplificado. |
 | **GET** | `/gestion-de-citas/st-aux-06-asistencia-procedi`| Auxiliar | Registro de asistencia del auxiliar a cirugías. |
-| **GET** | `/gestion-de-citas/st-aux-09-estado-consultorio`| Auxiliar | Control de limpieza y desinfección de Boxes. |
+| **GET** | `/gestion-de-citas/st-aux-09-estado-consultorio`| Auxiliar | Control de limpieza, desinfección y citas del consultorio. |
 | **GET** | `/gestion-de-citas/st-aux-10-citas-finalizadas`| Auxiliar | Citas atendidas del día. |
 | **POST**| `/gestion-de-citas/guardar-cita` | Recepcionista, Admin, Paciente | Guarda o actualiza una cita (Form tradicional). |
 | **POST**| `/gestion-de-citas/eliminar-cita` | Recepcionista, Admin | Elimina o cancela una cita (Form tradicional). |
@@ -169,7 +169,6 @@ El sistema utiliza enrutamiento basado en atributos en los controladores. A cont
 | :--- | :--- | :--- | :--- |
 | **GET** | `/gestion-de-pacientes/st-adm-05-gestion-pacientes` | Admin, Recepcionista, Profesional | Lista, filtra y busca pacientes activos. |
 | **GET** | `/gestion-de-pacientes/st-rec-02-registrar-paciente`| Recepcionista | Formulario para ingresar nuevos pacientes. |
-| **GET** | `/gestion-de-pacientes/st-aux-03-preparacion-consulta`| Auxiliar | Interfaz de triage y preparación de pacientes. |
 
 ### Módulo: Gestión de Profesionales (`GestionProfesionalesController`)
 | Método | Ruta | Rol Requerido | Descripción |

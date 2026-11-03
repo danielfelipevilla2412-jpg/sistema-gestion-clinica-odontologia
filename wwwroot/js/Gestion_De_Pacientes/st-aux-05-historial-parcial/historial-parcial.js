@@ -1,8 +1,8 @@
 /* ============================================
- * SmileTrack — Módulo: Gestión de Citas
- * Componente: Historial Parcial de Citas (st-aux-05-historial-parcial)
+ * SmileTrack — Módulo: Gestión de Pacientes
+ * Componente: Historial del Paciente (st-aux-05-historial-parcial)
  * ============================================
- * Archivo: wwwroot/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js
+ * Archivo: wwwroot/js/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.js
  *
  * PROPÓSITO Y JUSTIFICACIÓN:
  * Visualización del resumen de citas anteriores y observaciones clínicas del paciente en atención.
@@ -14,7 +14,7 @@
  *
  * DEPENDENCIAS TÉCNICAS:
  * - Controller: GestionCitasController -> Staux05HistorialParcial
- * - HTML: Views/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.cshtml
+ * - HTML: Views/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.cshtml
  * ============================================ */
 
 // ═══════════════════════════════════════════════════════════════════

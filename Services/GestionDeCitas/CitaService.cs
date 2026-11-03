@@ -724,6 +724,18 @@ public class CitaService : ICitaService
             if (conflicto.HayConflicto)
                 throw new InvalidOperationException(conflicto.Mensaje);
 
+            if (cita.IdConsultorio != request.IdConsultorio)
+            {
+                _context.CitasConsultoriosHistorial.Add(new CitaConsultorioHistorial
+                {
+                    IdCita = cita.IdCita,
+                    IdConsultorioAnterior = cita.IdConsultorio,
+                    IdConsultorioNuevo = request.IdConsultorio,
+                    IdUsuario = request.IdUsuarioModificacion,
+                    FechaCambio = DateTime.UtcNow
+                });
+            }
+
             cita.IdPaciente = request.IdPaciente;
             cita.IdProfesional = request.IdProfesional;
             cita.IdServicio = request.IdServicio;

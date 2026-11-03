@@ -383,7 +383,7 @@ const createProfessionalTableRow = (professionalRecord) => {
     <td><span class="badge-status ${statusBadgeClass}" role="status" aria-label="Estado: ${statusText}">${statusText}</span></td>
     <td>
       <div class="actions-cell">
-        <button class="btn-secondary btn-view view"
+        <button class="btn-secondary action-btn btn-view view"
                 type="button"
                 data-id="${professionalRecord.idProfesional}"
                 data-name="${fullName}"
@@ -398,14 +398,14 @@ const createProfessionalTableRow = (professionalRecord) => {
                 title="Ver detalles del profesional ${fullName}">
           <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
         </button>
-        <button class="btn-secondary edit"
+        <button class="btn-secondary action-btn edit"
                 type="button"
                 aria-label="Editar el profesional ${fullName}"
                 title="Editar profesional ${fullName}"
                 onclick="editProfessional(${professionalRecord.idProfesional})">
           <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
         </button>
-        <button class="btn-danger btn-delete toggle"
+        <button class="${isProfessionalActive ? 'btn-danger' : 'btn-success'} action-btn btn-delete toggle"
                 type="button"
                 data-id="${professionalRecord.idProfesional}"
                 data-name="${fullName}"

@@ -1,8 +1,8 @@
 @* ============================================
-   SmileTrack — Módulo: Gestión de Citas
+   SmileTrack — Módulo: Gestión de Pacientes
    Vista: Historial Clínico Parcial (st-aux-05-historial-parcial)
    ============================================
-   Archivo: Views/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.cshtml
+   Archivo: Views/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.cshtml
 
    PROPÓSITO Y JUSTIFICACIÓN:
    Vista en modo lectura para que el personal de auxilio consulte de forma segura antecedentes médicos, alergias y notas resumidas.
@@ -11,8 +11,8 @@
    - Limita por privacidad a las evoluciones relevantes y resalta alertas médicas críticas.
 
    DEPENDENCIAS:
-   - CSS: ~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css
-   - JS: ~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js
+   - CSS: ~/css/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.css
+   - JS: ~/js/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.js
    ============================================ *@
 @*
   span interno (#alergia, #medicamentos, #grupoSang), lo que según la spec de ARIA (comportamiento
@@ -39,7 +39,7 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.css" asp-append-version="true" />
 }
 
   <!-- ----- MAIN ----- -->
@@ -119,5 +119,5 @@
     });
   </script>
 @section Scripts {
-    <script src="~/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js" asp-append-version="true" defer></script>
+    <script src="~/js/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.js" asp-append-version="true" defer></script>
 }
