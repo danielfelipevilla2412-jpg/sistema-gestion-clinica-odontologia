@@ -282,7 +282,8 @@
     <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
   <script>
-      window.RAZOR_SERVICIOS = @Html.Raw(ViewData["ServiciosJson"] ?? "[]");
+       window.RAZOR_SERVICIOS = @Html.Raw(ViewData["ServiciosJson"] ?? "[]");
+    window.RAZOR_ESPECIALIDADES = @Html.Raw(ViewData["EspecialidadesJson"] ?? "[]");
   </script>
   <script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
   <script src="@Url.Content("~/js/Servicios_Y_Recursos/st-adm-10-servicios/catalogoservicios.js")"></script>

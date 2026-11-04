@@ -24,23 +24,52 @@ public class ServiciosRecursosController : Controller
     [Route("servicios-y-recursos/st-adm-10-servicios")]
     public async Task<IActionResult> Stadm10Servicios(CancellationToken ct)
     {
-        var serviciosDb = await _context.Servicios.AsNoTracking()
-            .OrderBy(s => s.Nombre).ToListAsync(ct);
+        // Consultar servicios incluyendo su especialidad.
+        var serviciosDb = await _context.Servicios
+            .AsNoTracking()
+            .Include(s => s.Especialidad)
+            .OrderBy(s => s.Nombre)
+            .ToListAsync(ct);
 
+        // Preparar los servicios para JavaScript.
         var servicios = serviciosDb.Select(s => new
         {
             id = s.IdServicio,
             name = s.Nombre,
-            description = string.IsNullOrWhiteSpace(s.Descripcion) ? "Sin descripción registrada." : s.Descripcion,
+            description = string.IsNullOrWhiteSpace(s.Descripcion)
+                ? "Sin descripción registrada."
+                : s.Descripcion,
             category = s.Categoria,
             duration = s.DuracionMinutos,
             cost = s.Precio,
             active = s.Estado == "activo",
+            specialtyId = s.IdEspecialidad,
+            specialtyName = s.Especialidad?.Nombre,
             icon = "🦷"
         }).ToList();
 
-        ViewData["ServiciosJson"] = System.Text.Json.JsonSerializer.Serialize(servicios);
-        return View("~/Views/Servicios_Y_Recursos/st-adm-10-servicios/catalogoservicios.cshtml", serviciosDb);
+        // Consultar las especialidades disponibles.
+        var especialidades = await _context.Especialidades
+            .AsNoTracking()
+            .OrderBy(e => e.Nombre)
+            .Select(e => new
+            {
+                id = e.IdEspecialidad,
+                nombre = e.Nombre
+            })
+            .ToListAsync(ct);
+
+        // Enviar ambos catálogos a Razor.
+        ViewData["ServiciosJson"] =
+            System.Text.Json.JsonSerializer.Serialize(servicios);
+
+        ViewData["EspecialidadesJson"] =
+            System.Text.Json.JsonSerializer.Serialize(especialidades);
+
+        return View(
+            "~/Views/Servicios_Y_Recursos/st-adm-10-servicios/catalogoservicios.cshtml",
+            serviciosDb
+        );
     }
 
     [HttpGet]
@@ -122,13 +151,16 @@ public class ServiciosRecursosController : Controller
         {
             var descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim();
             await _context.Database.ExecuteSqlInterpolatedAsync(
-                $"EXEC dbo.sp_Servicio_Crear @Nombre={request.Nombre.Trim()}, @Descripcion={descripcion}, @Precio={request.Precio}, @Categoria={request.Category}, @DuracionMinutos={request.Duration}", ct);
+                $"EXEC dbo.sp_Servicio_Crear @Nombre={request.Nombre.Trim()}, @Descripcion={descripcion}, @Precio={request.Precio}, @Categoria={request.Category}, @DuracionMinutos={request.Duration}, @IdEspecialidad={request.IdEspecialidad}",
+                ct);
 
             // Se consulta por el nombre normalizado después de ejecutar el procedimiento.
             // Esto evita que EF Core intente materializar el SELECT del procedimiento,
             // cuyos alias pueden variar entre versiones del script SQL.
             var nombreNormalizado = request.Nombre.Trim();
-            var creado = await _context.Servicios.AsNoTracking()
+            var creado = await _context.Servicios
+                .AsNoTracking()
+                .Include(s => s.Especialidad)
                 .SingleAsync(s => s.Nombre == nombreNormalizado, ct);
             return Ok(new
             {
@@ -142,7 +174,9 @@ public class ServiciosRecursosController : Controller
                     precio = creado.Precio,
                     categoria = creado.Categoria,
                     duracion = creado.DuracionMinutos,
-                    estado = creado.Estado
+                    estado = creado.Estado,
+                    idEspecialidad = creado.IdEspecialidad,
+                    especialidad = creado.Especialidad?.Nombre
                 }
             });
         }
@@ -173,7 +207,8 @@ public class ServiciosRecursosController : Controller
         {
             var descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim();
             await _context.Database.ExecuteSqlInterpolatedAsync(
-                $"EXEC dbo.sp_Servicio_Actualizar @IdServicio={id}, @Nombre={request.Nombre.Trim()}, @Descripcion={descripcion}, @Precio={request.Precio}, @Categoria={request.Category}, @DuracionMinutos={request.Duration}", ct);
+                $"EXEC dbo.sp_Servicio_Actualizar @IdServicio={id}, @Nombre={request.Nombre.Trim()}, @Descripcion={descripcion}, @Precio={request.Precio}, @Categoria={request.Category}, @DuracionMinutos={request.Duration}, @IdEspecialidad={request.IdEspecialidad}",
+                ct);
 
             return Ok(new { success = true, message = "Servicio actualizado correctamente.", data = new { id } });
         }
