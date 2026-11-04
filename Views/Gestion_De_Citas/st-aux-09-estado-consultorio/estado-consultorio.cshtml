@@ -16,6 +16,7 @@
    ============================================ *@
 @{
     Layout = "_Layout";
+    ViewData["UseGestionModulesDesignSystem"] = true;
     ViewData["Title"] = "Estado del Consultorio";
     var estadoConsultorioJson = System.Text.Json.JsonSerializer.Serialize(ViewData["EstadoConsultorioData"] ?? new object());
 }
@@ -47,6 +48,13 @@
         </select>
       </div>
     </header>
+
+    <section class="card appointments-card" aria-labelledby="todayAppointmentsTitle">
+      <h2 class="card-title" id="todayAppointmentsTitle">Citas de hoy en este consultorio</h2>
+      <ul class="today-appointments" id="todayAppointments" aria-live="polite">
+        <li class="empty-appointments">Cargando citas...</li>
+      </ul>
+    </section>
 
     <!-- Layout de contenido -->
     <div class="content-layout">
@@ -181,19 +189,8 @@
         <!-- Historial de estados -->
         <div class="card history-card">
           <h3 class="card-title" id="historyTitle">Historial de estados</h3>
-          <ul class="history-list" role="list" aria-labelledby="historyTitle">
-            <li role="listitem">
-              <p class="history-time"><time datetime="2026-03-20T11:00">20 Mar 11:00</time></p>
-              <p class="history-detail">Sara Jiménez · Limpieza completada</p>
-            </li>
-            <li role="listitem">
-              <p class="history-time"><time datetime="2026-03-20T09:30">20 Mar 09:30</time></p>
-              <p class="history-detail">Sara Jiménez · Preparación iniciada</p>
-            </li>
-            <li role="listitem">
-              <p class="history-time"><time datetime="2026-03-19T17:00">19 Mar 17:00</time></p>
-              <p class="history-detail">Carlos Pérez · Fin de jornada</p>
-            </li>
+          <ul class="history-list" id="consultorioHistory" role="list" aria-labelledby="historyTitle">
+            <li class="empty-history">Aún no hay cambios de estado registrados.</li>
           </ul>
         </div>
 
@@ -250,4 +247,3 @@
 @section Scripts {
     <script src="~/js/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.js" asp-append-version="true" defer></script>
 }
-

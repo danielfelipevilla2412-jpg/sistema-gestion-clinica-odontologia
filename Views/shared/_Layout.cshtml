@@ -51,6 +51,11 @@
     @* CSS propio de la vista (nombre del módulo + vista) *@
     @await RenderSectionAsync("Styles", required: false)
 
+    @if (ViewData["UseGestionModulesDesignSystem"] is true)
+    {
+        <link rel="stylesheet" href="~/css/shared/gestion-modules.css" asp-append-version="true" />
+    }
+
     @* Sidebar y layout compartidos *@
     <link rel="stylesheet" href="~/css/shared/sidebar.css" asp-append-version="true" />
 

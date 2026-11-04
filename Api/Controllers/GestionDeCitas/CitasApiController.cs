@@ -273,7 +273,10 @@ public sealed class CitasApiController : ControllerBase
                     IdConsultorio = request.IdConsultorio,
                     FechaHora = request.FechaHora,
                     Estado = request.Estado,
-                    Notas = request.Notas
+                    Notas = request.Notas,
+                    IdUsuarioModificacion = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int usuarioActual)
+                        ? usuarioActual
+                        : null
                 }, ct) ?? throw new InvalidOperationException("La cita no existe.")
                 : await _citaService.CrearAsync(request, ct);
 
@@ -304,6 +307,11 @@ public sealed class CitasApiController : ControllerBase
 
         try
         {
+            dto.IdUsuarioModificacion = int.TryParse(
+                User.FindFirstValue(ClaimTypes.NameIdentifier),
+                out int usuarioActual)
+                    ? usuarioActual
+                    : null;
             var actualizada = await _citaService.ActualizarAsync(id, dto, ct);
             if (actualizada is null)
                 return NotFound(new { success = false, message = "Cita no encontrada." });
@@ -358,7 +366,10 @@ public sealed class CitasApiController : ControllerBase
                 FechaHora = request.FechaHora,
                 Estado = existente.Estado,
                 IdEstado = existente.IdEstado,
-                Notas = existente.Notas
+                Notas = existente.Notas,
+                IdUsuarioModificacion = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int usuarioActual)
+                    ? usuarioActual
+                    : null
             }, ct);
 
             if (actualizada is null)
@@ -656,7 +667,10 @@ public sealed class CitasApiController : ControllerBase
                 FechaHora = dto.FechaHora,
                 Estado = cita.Estado,
                 Notas = cita.Notas,
-                IdEstado = cita.IdEstado
+                IdEstado = cita.IdEstado,
+                IdUsuarioModificacion = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int usuarioActual)
+                    ? usuarioActual
+                    : null
             }, ct);
 
             if (actualizada is null)

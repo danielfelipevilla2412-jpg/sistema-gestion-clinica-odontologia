@@ -5,7 +5,7 @@
  * PROPÓSITO:
  * Expone endpoints REST para operaciones sobre consultorios.
  * Actualmente soporta el registro del estado confirmado por el auxiliar
- * desde la vista st-aux-09-estado-consultorio.
+ * desde la vista de estado del consultorio en Gestión de Pacientes.
  * ============================================
  */
 
@@ -136,30 +136,53 @@ public sealed class ConsultoriosApiController : ControllerBase
     /// Registra el estado operativo del consultorio confirmado por el auxiliar.
     /// </summary>
     [HttpPost("{id:int}/confirmar-estado")]
+    [CookieAwareValidateAntiforgeryToken]
     public async Task<IActionResult> ConfirmarEstado(
         int id,
         [FromBody] ConfirmarEstadoRequest request,
         CancellationToken ct = default)
     {
-        if (id <= 0)
+        if (id <= 0 || request is null)
             return BadRequest(new { success = false, message = "ID de consultorio inválido." });
 
         var consultorio = await _context.Consultorios.FindAsync(new object[] { id }, ct);
         if (consultorio is null)
             return NotFound(new { success = false, message = "Consultorio no encontrado." });
 
-        // Actualizar el estado del consultorio si se proporciona un valor válido
+        int? userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsedUserId)
+            ? parsedUserId
+            : null;
+
         if (!string.IsNullOrWhiteSpace(request.Estado))
         {
-            var estadoNormalizado = request.Estado.Trim().ToLowerInvariant();
-            // Mapear los valores del selector de la UI al dominio de la entidad
-            consultorio.Estado = estadoNormalizado switch
+            string estadoAnterior = NormalizeConsultorioStatus(consultorio.Estado);
+            string estadoNuevo = request.Estado.Trim().ToLowerInvariant() switch
             {
                 "disponible"    => "disponible",
+                "ocupado" => "ocupado",
                 "mantenimiento" => "mantenimiento",
-                "no-disponible" => "no_disponible",
-                _               => consultorio.Estado
+                "no-disponible" or "no_disponible" => "no-disponible",
+                _ => string.Empty
             };
+            if (string.IsNullOrEmpty(estadoNuevo))
+                return BadRequest(new { success = false, message = "El estado del consultorio no es válido." });
+
+            consultorio.Estado = estadoNuevo;
+            bool statusChanged = !string.Equals(estadoAnterior, estadoNuevo, StringComparison.Ordinal);
+            if (statusChanged)
+            {
+                _context.ConsultoriosHistorial.Add(new ConsultorioHistorial
+                {
+                    IdConsultorio = id,
+                    Estado = estadoNuevo,
+                    IdEstadoAnterior = ConsultorioStatusId(estadoAnterior),
+                    IdEstadoNuevo = ConsultorioStatusId(estadoNuevo),
+                    IdUsuario = userId,
+                    Motivo = request.Observaciones?.Trim(),
+                    FechaCambio = DateTime.UtcNow
+                });
+            }
+
             await _context.SaveChangesAsync(ct);
             _memoryCache.Remove(CatalogCacheKeys.Consultorios);
             _memoryCache.Remove(CatalogCacheKeys.ConsultoriosDisponibles);
@@ -188,10 +211,24 @@ public sealed class ConsultoriosApiController : ControllerBase
         var operativo = await _context.EstadosOperativosConsultorio.AsNoTracking()
             .FirstOrDefaultAsync(e => e.IdConsultorio == id, ct);
         var historial = await _context.ConsultoriosHistorial.AsNoTracking()
+            .Include(h => h.Usuario)
+            .Include(h => h.EstadoAnterior)
+            .Include(h => h.EstadoNuevo)
             .Where(h => h.IdConsultorio == id)
             .OrderByDescending(h => h.FechaCambio)
             .Take(20)
-            .Select(h => new ConsultorioHistorialApiDto { Estado = h.Estado, Motivo = h.Motivo, FechaCambio = h.FechaCambio })
+            .Select(h => new ConsultorioHistorialApiDto
+            {
+                IdEstadoAnterior = h.IdEstadoAnterior,
+                EstadoAnterior = h.EstadoAnterior == null ? null : h.EstadoAnterior.Nombre,
+                IdEstadoNuevo = h.IdEstadoNuevo,
+                EstadoNuevo = h.EstadoNuevo == null ? h.Estado : h.EstadoNuevo.Nombre,
+                IdUsuario = h.IdUsuario,
+                Usuario = h.Usuario == null ? null : $"{h.Usuario.Nombre} {h.Usuario.Apellidos}",
+                Estado = h.Estado,
+                Motivo = h.Motivo,
+                FechaCambio = h.FechaCambio
+            })
             .ToListAsync(ct);
 
         return Ok(new { success = true, data = new ConsultorioEstadoOperativoApiDto
@@ -222,8 +259,9 @@ public sealed class ConsultoriosApiController : ControllerBase
         string estado = request.Estado.Trim().ToLowerInvariant() switch
         {
             "disponible" => "disponible",
+            "ocupado" => "ocupado",
             "mantenimiento" => "mantenimiento",
-            "no-disponible" or "no_disponible" => "no_disponible",
+            "no-disponible" or "no_disponible" => "no-disponible",
             _ => string.Empty
         };
         if (string.IsNullOrEmpty(estado))
@@ -238,26 +276,55 @@ public sealed class ConsultoriosApiController : ControllerBase
             _context.EstadosOperativosConsultorio.Add(operativo);
         }
 
-        consultorio.Estado = estado;
+        string estadoAnterior = NormalizeConsultorioStatus(consultorio.Estado);
+        string estadoNuevo = NormalizeConsultorioStatus(estado);
+        bool statusChanged = !string.Equals(estadoAnterior, estadoNuevo, StringComparison.Ordinal);
+        consultorio.Estado = estadoNuevo;
         operativo.ChecklistJson = JsonSerializer.Serialize(request.Checklist ?? []);
         operativo.Observaciones = request.Observaciones?.Trim();
         operativo.ActualizadoPor = userId;
         operativo.ActualizadoEn = DateTime.UtcNow;
-        _context.ConsultoriosHistorial.Add(new ConsultorioHistorial
+        if (statusChanged)
         {
-            IdConsultorio = id,
-            Estado = estado,
-            IdUsuario = userId,
-            Motivo = operativo.Observaciones,
-            FechaCambio = operativo.ActualizadoEn
-        });
+            _context.ConsultoriosHistorial.Add(new ConsultorioHistorial
+            {
+                IdConsultorio = id,
+                Estado = estadoNuevo,
+                IdEstadoAnterior = ConsultorioStatusId(estadoAnterior),
+                IdEstadoNuevo = ConsultorioStatusId(estadoNuevo),
+                IdUsuario = userId,
+                Motivo = operativo.Observaciones,
+                FechaCambio = operativo.ActualizadoEn
+            });
+        }
         await _context.SaveChangesAsync(ct);
         _memoryCache.Remove(CatalogCacheKeys.Consultorios);
         _memoryCache.Remove(CatalogCacheKeys.ConsultoriosDisponibles);
-        _memoryCache.Remove(CatalogCacheKeys.ConsultoriosDisponibles);
 
-        return Ok(new { success = true, message = "Estado operativo guardado correctamente." });
+        return Ok(new { success = true, statusChanged, message = "Estado operativo guardado correctamente." });
     }
+
+    private static string NormalizeConsultorioStatus(string? status) =>
+        status?.Trim().ToLowerInvariant() switch
+        {
+            "disponible" => "disponible",
+            "ocupado" => "ocupado",
+            "mantenimiento" => "mantenimiento",
+            "no-disponible" or "no_disponible" => "no-disponible",
+            "activo" => "activo",
+            _ => status?.Trim().ToLowerInvariant() ?? string.Empty
+        };
+
+    private static byte? ConsultorioStatusId(string status) =>
+        status switch
+        {
+            "disponible" => 1,
+            "ocupado" => 2,
+            "mantenimiento" => 3,
+            "no-disponible" => 4,
+            "activo" => 5,
+            _ => null
+        };
 }
 
 /// <summary>Request body para POST /api/consultorios/{id}/confirmar-estado.</summary>

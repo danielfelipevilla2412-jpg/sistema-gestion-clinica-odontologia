@@ -1,7 +1,7 @@
 # Implementación: Selector de Consultorio para Auxiliar
 
 **Fecha:** 16 de septiembre de 2026  
-**Módulo:** Gestión de Citas - Estado del Consultorio (st-aux-09)  
+**Módulo:** Gestión de Citas - Estado del Consultorio (st-aux-09)
 **Propósito:** Permitir al auxiliar seleccionar y cambiar de consultorio, guardando la preferencia en base de datos.
 
 ---

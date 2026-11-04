@@ -30,7 +30,11 @@
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb" data-i18n="rec01_breadcrumb">Recepción ? Panel</div>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
+          <span data-i18n="common_role_recepcionista">Recepción</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" data-i18n="rec01_title">Panel de Recepción</span>
+        </nav>
         <h1 class="page-title" data-i18n="rec01_title">Panel de Recepción</h1>
         <!-- [MEJORA]: time datetime para accesibilidad de fecha/hora -->
         <p class="page-subtitle" id="pageSubtitleDate" data-i18n="common.loading">Cargando…</p>

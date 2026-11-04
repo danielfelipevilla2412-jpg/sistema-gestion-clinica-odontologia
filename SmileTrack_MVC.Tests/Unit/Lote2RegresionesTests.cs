@@ -51,7 +51,7 @@ public sealed class Lote2RegresionesTests
         {
             RepoFile("wwwroot", "js", "Gestion_De_Citas", "st-aux-01-panel-operativo", "panel-operativo.js"),
             RepoFile("wwwroot", "js", "Gestion_De_Citas", "st-aux-02-agenda-apoyo", "agenda-apoyo.js"),
-            RepoFile("wwwroot", "js", "Gestion_De_Citas", "st-aux-05-historial-parcial", "historial-parcial.js")
+            RepoFile("wwwroot", "js", "Gestion_De_Pacientes", "st-aux-05-historial-parcial", "historial-parcial.js")
         };
 
         foreach (var script in scripts)

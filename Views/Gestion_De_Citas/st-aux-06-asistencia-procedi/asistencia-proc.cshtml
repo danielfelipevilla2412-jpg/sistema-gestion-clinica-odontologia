@@ -23,6 +23,13 @@
     var citaSeleccionadaId = asistenciaJson.TryGetProperty("citaId", out var citaIdJson) && citaIdJson.ValueKind == System.Text.Json.JsonValueKind.Number
       ? citaIdJson.GetInt32()
       : 0;
+    var citaSeleccionadaConsultorioId = asistenciaJson.TryGetProperty("consultorioId", out var consultorioIdJson) && consultorioIdJson.ValueKind == System.Text.Json.JsonValueKind.Number
+      ? consultorioIdJson.GetInt32()
+      : 0;
+    var estadoConsultorioUrl = citaSeleccionadaId > 0
+      ? $"/gestion-de-citas/st-aux-09-estado-consultorio?citaId={citaSeleccionadaId}" +
+        (citaSeleccionadaConsultorioId > 0 ? $"&consultorioId={citaSeleccionadaConsultorioId}" : string.Empty)
+      : "/gestion-de-citas/st-aux-09-estado-consultorio";
 }
 
 @section Styles {
@@ -54,6 +61,10 @@
             </option>
           }
         </select>
+        <a class="btn-secondary" id="officeStatusLink" href="@estadoConsultorioUrl">
+          <span class="material-symbols-outlined" aria-hidden="true">medical_services</span>
+          Ver consultorio
+        </a>
       </div>
     </header>
 
@@ -161,7 +172,7 @@
       <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
       <span>Agenda</span>
     </a>
-    <a href="/gestion-de-citas/st-aux-05-historial-parcial" class="mobile-nav-item">
+    <a href="/gestion-de-pacientes/st-aux-05-historial-parcial" class="mobile-nav-item">
       <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">history</span>
       <span>Historial</span>
     </a>

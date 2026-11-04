@@ -15,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Profesional_Especialidad> ProfesionalEspecialidades => Set<Profesional_Especialidad>();
     public DbSet<Servicio> Servicios => Set<Servicio>();
     public DbSet<Consultorio> Consultorios => Set<Consultorio>();
+    public DbSet<EstadoConsultorio> EstadosConsultorio => Set<EstadoConsultorio>();
     public DbSet<EstadoCita> EstadosCita => Set<EstadoCita>();
     public DbSet<Cita> Citas => Set<Cita>();
             public DbSet<NotificacionLeida> NotificacionesLeidas => Set<NotificacionLeida>();
@@ -23,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             public DbSet<RecordatorioCita> RecordatoriosCita => Set<RecordatorioCita>();
             public DbSet<ListaEsperaCita> ListaEsperaCitas => Set<ListaEsperaCita>();
             public DbSet<ConsultorioHistorial> ConsultoriosHistorial => Set<ConsultorioHistorial>();
+            public DbSet<CitaConsultorioHistorial> CitasConsultoriosHistorial => Set<CitaConsultorioHistorial>();
             public DbSet<AsistenciaProcedimiento> AsistenciasProcedimiento => Set<AsistenciaProcedimiento>();
             public DbSet<ConsultorioEstadoOperativo> EstadosOperativosConsultorio => Set<ConsultorioEstadoOperativo>();
     public DbSet<HistoriaClinica> HistoriasClinicas => Set<HistoriaClinica>();
@@ -74,7 +76,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     // ── Preferencias de Consultorio por Usuario ──────────────────────────────
     // Permite a cada auxiliar guardar el consultorio que está gestionando actualmente.
-    // Se usa en st-aux-09-estado-consultorio para recordar el consultorio seleccionado.
+    // Se usa en Gestión de Pacientes para recordar el consultorio seleccionado.
     public DbSet<UsuarioPreferenciaConsultorio> UsuariosPreferenciasConsultorio => Set<UsuarioPreferenciaConsultorio>();
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -263,6 +265,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(c => c.Estado).HasColumnName("estado");
         });
 
+        modelBuilder.Entity<EstadoConsultorio>(entity =>
+        {
+            entity.ToTable("Estado_Consultorio");
+            entity.HasKey(e => e.IdEstadoConsultorio);
+            entity.Property(e => e.IdEstadoConsultorio).HasColumnName("id_estado_consultorio");
+            entity.Property(e => e.Codigo).HasColumnName("codigo").HasMaxLength(30);
+            entity.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(50);
+            entity.HasIndex(e => e.Codigo).IsUnique();
+        });
+
         modelBuilder.Entity<EstadoCita>(entity =>
         {
             entity.ToTable("Estado_Cita");
@@ -403,11 +415,32 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   entity.Property(h => h.IdHistorial).HasColumnName("id_historial");
                   entity.Property(h => h.IdConsultorio).HasColumnName("id_consultorio");
                   entity.Property(h => h.Estado).HasColumnName("estado");
+                  entity.Property(h => h.IdEstadoAnterior).HasColumnName("id_estado_anterior");
+                  entity.Property(h => h.IdEstadoNuevo).HasColumnName("id_estado_nuevo");
                   entity.Property(h => h.IdUsuario).HasColumnName("id_usuario");
                   entity.Property(h => h.Motivo).HasColumnName("motivo");
                   entity.Property(h => h.FechaCambio).HasColumnName("fecha_cambio");
                   entity.HasOne(h => h.Consultorio).WithMany().HasForeignKey(h => h.IdConsultorio).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(h => h.EstadoAnterior).WithMany().HasForeignKey(h => h.IdEstadoAnterior).OnDelete(DeleteBehavior.NoAction);
+                  entity.HasOne(h => h.EstadoNuevo).WithMany().HasForeignKey(h => h.IdEstadoNuevo).OnDelete(DeleteBehavior.NoAction);
                   entity.HasOne(h => h.Usuario).WithMany().HasForeignKey(h => h.IdUsuario).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<CitaConsultorioHistorial>(entity =>
+            {
+                  entity.ToTable("Cita_Consultorio_Historial");
+                  entity.HasKey(h => h.IdHistorial);
+                  entity.Property(h => h.IdHistorial).HasColumnName("id_historial");
+                  entity.Property(h => h.IdCita).HasColumnName("id_cita");
+                  entity.Property(h => h.IdConsultorioAnterior).HasColumnName("id_consultorio_anterior");
+                  entity.Property(h => h.IdConsultorioNuevo).HasColumnName("id_consultorio_nuevo");
+                  entity.Property(h => h.IdUsuario).HasColumnName("id_usuario");
+                  entity.Property(h => h.FechaCambio).HasColumnName("fecha_cambio");
+                  entity.HasOne(h => h.Cita).WithMany().HasForeignKey(h => h.IdCita).OnDelete(DeleteBehavior.Cascade);
+                  entity.HasOne(h => h.ConsultorioAnterior).WithMany().HasForeignKey(h => h.IdConsultorioAnterior).OnDelete(DeleteBehavior.NoAction);
+                  entity.HasOne(h => h.ConsultorioNuevo).WithMany().HasForeignKey(h => h.IdConsultorioNuevo).OnDelete(DeleteBehavior.NoAction);
+                  entity.HasOne(h => h.Usuario).WithMany().HasForeignKey(h => h.IdUsuario).OnDelete(DeleteBehavior.SetNull);
+                  entity.HasIndex(h => new { h.IdCita, h.FechaCambio });
             });
 
             modelBuilder.Entity<AsistenciaProcedimiento>(entity =>

@@ -495,43 +495,6 @@ img {
 .stat-card[data-color="confirmed"] .stat-number { color: #10b981; }
 .stat-card[data-color="cancelled"] .stat-number { color: #dc2626; }
 
-.appointment-state-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  list-style: none;
-  margin: -12px 0 24px;
-}
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: .72rem;
-  font-weight: 700;
-}
-.status-confirmada { color: #065f46; background: #d1fae5; }
-.status-espera { color: #0e7490; background: #cffafe; }
-.status-atendida { color: #1e3a8a; background: #dbeafe; }
-.status-cancelada { color: #991b1b; background: #fee2e2; border: 1px solid #ef4444; }
-.status-no-asistio { color: #475569; background: #e2e8f0; }
-.status-programada { color: #92400e; background: #fef3c7; }
-.status-espera::after {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: waiting-pulse 1.4s ease-in-out infinite;
-}
-@keyframes waiting-pulse {
-  50% { opacity: .35; transform: scale(.75); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .status-espera::after { animation: none; }
-}
-
 .stat-number {
   display: block;
   font-family: var(--font-display);

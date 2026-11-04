@@ -260,7 +260,7 @@
                 <td>
                   <span class="status-badge @estadoCls" role="status" aria-label="Estado: @citaEstado">@citaEstado</span>
                 </td>
-                <td>
+                <td class="col-acciones text-right" data-label="Acciones">
                   <div class="actions-cell" role="group" aria-label="Acciones para @Html.Encode(citaPaciente)">
                     <button type="button"
                             class="action-btn btn-secondary btn-view"
@@ -276,17 +276,16 @@
                             data-consultorio="@Html.Encode(citaConsultorio)"
                             data-estado="@Html.Encode(citaEstado)"
                             data-notas="@Html.Encode(citaNotas)">
-                      <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                      <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
                       <span class="btn-text">Ver</span>
                     </button>
                     <button type="button"
-                            class="action-btn btn-secondary edit"
+                            class="action-btn btn-secondary btn-edit edit"
                             data-action="edit"
                             data-id="@cita.IdCita"
                             aria-label="Editar la cita de @Html.Encode(citaPaciente)"
-                            title="Editar la cita de @Html.Encode(citaPaciente)"
-                            role="button">
-                      <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                            title="Editar la cita de @Html.Encode(citaPaciente)">
+                      <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
                       <span class="btn-text">Editar</span>
                     </button>
                     @if (estadoLower != "cancelada" && estadoLower != "cancelado")
@@ -298,7 +297,7 @@
                               data-paciente="@Html.Encode(citaPaciente)"
                               aria-label="Cancelar cita de @Html.Encode(citaPaciente)"
                               title="Cancelar cita de @Html.Encode(citaPaciente)">
-                        <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                        <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span>
                         <span class="btn-text">Cancelar</span>
                       </button>
                     }

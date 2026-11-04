@@ -22,7 +22,6 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const SYNC_DEBOUNCE_MS = 400;
-const MAX_HISTORY_ENTRIES = 10;
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. ESTADO DE LA APLICACIÓN
@@ -94,8 +93,13 @@ async function saveConsultorioState() {
       })
     });
     if (!response.ok) throw new Error(`status ${response.status}`);
+    const result = await response.json();
+    if (result.statusChanged) {
+      await refreshConsultorioHistory(serverData.consultorioId);
+    }
   } catch (error) {
     console.warn('[SmileTrack] No se pudo sincronizar el estado del consultorio:', error);
+    if (window.ToastService) window.ToastService.error('Error', 'No se pudo guardar el estado del consultorio.');
   }
 }
 
@@ -164,7 +168,10 @@ async function handleConsultorioChange(event) {
       throw new Error(errorData.message || 'Error al guardar preferencia');
     }
 
-    window.location.href = `/gestion-de-citas/st-aux-09-estado-consultorio?consultorioId=${newConsultorioId}`;
+    const citaId = new URLSearchParams(window.location.search).get('citaId');
+    const query = new URLSearchParams({ consultorioId: String(newConsultorioId) });
+    if (citaId) query.set('citaId', citaId);
+    window.location.href = `/gestion-de-citas/st-aux-09-estado-consultorio?${query}`;
 
   } catch (error) {
     console.error('[SmileTrack] Error al cambiar consultorio:', error);
@@ -208,8 +215,7 @@ const consultorioStorage = {
         { text: 'Consultorio ventilado', checked: false }
       ],
       status: 'disponible',
-      observations: '',
-      history: []
+      observations: ''
     };
   },
   
@@ -253,17 +259,6 @@ const consultorioStorage = {
     scheduleConsultorioSync();
   },
   
-  addToHistory: (user, detail) => {
-    const state = consultorioStorage.load();
-    state.history.unshift({
-      time: new Date().toISOString(),
-      user,
-      detail
-    });
-    if (state.history.length > MAX_HISTORY_ENTRIES) state.history.pop();
-    consultorioStorage.save(state);
-    scheduleConsultorioSync();
-  }
 };
 
 const updateProgressUI = () => {
@@ -500,26 +495,110 @@ const initObservations = () => {
 };
 
 const initHistoryList = () => {
-  const historyListContainer = document.querySelector('.history-list');
+  const historyListContainer = safeGetElement('consultorioHistory');
   if (!historyListContainer) return;
-  
-  const state = consultorioStorage.load();
-  
-  historyListContainer.replaceChildren(...state.history.map(entry => {
+
+  renderConsultorioHistory(
+    window.smiletrackEstadoConsultorioData?.historial || [],
+    historyListContainer
+  );
+};
+
+const renderConsultorioHistory = (entries, container) => {
+  const items = entries.map(entry => {
+    const time = entry.time || entry.fechaCambio || entry.FechaCambio;
+    const oldState = entry.estadoAnterior || entry.EstadoAnterior || '';
+    const newState = entry.estadoNuevo || entry.EstadoNuevo || entry.estado || entry.Estado || '';
+    const oldStateId = entry.idEstadoAnterior ?? entry.IdEstadoAnterior;
+    const newStateId = entry.idEstadoNuevo ?? entry.IdEstadoNuevo;
+    const user = entry.user || entry.usuario || entry.Usuario || 'Usuario no disponible';
+    const detail = entry.detail || entry.motivo || entry.Motivo || '';
     const itemElement = document.createElement('li');
     itemElement.setAttribute('role', 'listitem');
     const timeParagraph = document.createElement('p');
     timeParagraph.className = 'history-time';
     const timeElement = document.createElement('time');
-    timeElement.dateTime = entry.time;
-    timeElement.textContent = formatHistoryTimestamp(entry.time);
+    timeElement.dateTime = time;
+    timeElement.textContent = formatHistoryTimestamp(time);
     timeParagraph.appendChild(timeElement);
     const detailParagraph = document.createElement('p');
     detailParagraph.className = 'history-detail';
-    detailParagraph.textContent = `${entry.user} · ${entry.detail}`;
+    detailParagraph.textContent = `${oldState || 'Estado inicial'}${oldStateId ? ` (#${oldStateId})` : ''} → ${newState}${newStateId ? ` (#${newStateId})` : ''} · ${user}${detail ? ` · ${detail}` : ''}`;
     itemElement.append(timeParagraph, detailParagraph);
     return itemElement;
-  }));
+  });
+
+  if (items.length === 0) {
+    const emptyElement = document.createElement('li');
+    emptyElement.className = 'empty-history';
+    emptyElement.textContent = 'Aún no hay cambios de estado registrados.';
+    items.push(emptyElement);
+  }
+  container.replaceChildren(...items);
+};
+
+const initTodayAppointments = () => {
+  const listElement = safeGetElement('todayAppointments');
+  if (!listElement) return;
+
+  const data = window.smiletrackEstadoConsultorioData || {};
+  const selectedAppointmentId = Number(data.citaSeleccionadaId || 0);
+  const appointments = Array.isArray(data.citas) ? data.citas : [];
+  const items = appointments.map(appointment => {
+    const item = document.createElement('li');
+    item.className = Number(appointment.id) === selectedAppointmentId
+      ? 'today-appointment selected'
+      : 'today-appointment';
+
+    const appointmentLink = document.createElement('a');
+    appointmentLink.href = `/gestion-de-citas/st-aux-06-asistencia-procedi?citaId=${encodeURIComponent(appointment.id)}`;
+    appointmentLink.className = 'appointment-link';
+
+    const time = document.createElement('strong');
+    time.className = 'appointment-time';
+    time.textContent = appointment.hora || '';
+
+    const details = document.createElement('span');
+    details.className = 'appointment-details';
+    details.textContent = `${appointment.paciente || 'Paciente'} · ${appointment.servicio || 'Sin servicio'}`;
+
+    const professional = document.createElement('span');
+    professional.className = 'appointment-professional';
+    professional.textContent = `${appointment.profesional || 'Sin asignar'} · ${appointment.estado || ''}`;
+
+    appointmentLink.append(time, details, professional);
+    item.appendChild(appointmentLink);
+    return item;
+  });
+
+  if (items.length === 0) {
+    const emptyElement = document.createElement('li');
+    emptyElement.className = 'empty-appointments';
+    emptyElement.textContent = 'No hay citas activas para hoy en este consultorio.';
+    items.push(emptyElement);
+  }
+  listElement.replaceChildren(...items);
+};
+
+const refreshConsultorioHistory = async (consultorioId) => {
+  if (!consultorioId) return false;
+  try {
+    const response = await fetch(`/api/consultorios/${consultorioId}/estado-operativo`, {
+      credentials: 'same-origin',
+      headers: getRequestHeaders()
+    });
+    if (!response.ok) throw new Error(`status ${response.status}`);
+    const result = await response.json();
+    const history = result.data?.historial || result.data?.Historial || [];
+    const historyList = safeGetElement('consultorioHistory');
+    if (!historyList) return false;
+    renderConsultorioHistory(history, historyList);
+    return true;
+  } catch (error) {
+    console.error('[SmileTrack] No se pudo actualizar el historial del consultorio:', error);
+    if (window.ToastService) window.ToastService.warning('El cambio se guardó, pero no se pudo actualizar el historial en pantalla.');
+    return false;
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -561,8 +640,7 @@ const initConfirmButtons = () => {
           }
         }
 
-        consultorioStorage.addToHistory('Auxiliar', 'Preparación del consultorio confirmada');
-        initHistoryList();
+        await refreshConsultorioHistory(serverData2?.consultorioId);
 
         if (window.ToastService) window.ToastService.success('Preparación del consultorio confirmada');
         btnPreparation.textContent = '✓ Confirmado';
@@ -607,8 +685,7 @@ const initConfirmButtons = () => {
           }
         }
 
-        consultorioStorage.addToHistory('Auxiliar', `Estado actualizado a: ${statusLabelText}`);
-        initHistoryList();
+        await refreshConsultorioHistory(serverData2?.consultorioId);
 
         if (window.ToastService) window.ToastService.success(`Estado actualizado: ${statusLabelText}`);
         btnStatus.textContent = '✓ Confirmado';
@@ -648,6 +725,7 @@ const initializeEstadoConsultorioModule = async () => {
     initObservations();
     initConfirmButtons();
     initHistoryList();
+    initTodayAppointments();
 
     const serverData = window.smiletrackEstadoConsultorioData;
     if (serverData) {
