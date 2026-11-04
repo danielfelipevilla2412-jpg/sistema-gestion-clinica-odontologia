@@ -756,48 +756,100 @@ BEGIN
 END
 GO
 
-IF OBJECT_ID(N'dbo.Pago_Factura', N'U') IS NULL
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'id_cita')
 BEGIN
-    CREATE TABLE dbo.Pago_Factura (
+    ALTER TABLE dbo.Factura ADD id_cita INT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'id_profesional')
+BEGIN
+    ALTER TABLE dbo.Factura ADD id_profesional INT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Factura_Cita')
+BEGIN
+    ALTER TABLE dbo.Factura
+        ADD CONSTRAINT FK_Factura_Cita
+        FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Factura_Profesional')
+BEGIN
+    ALTER TABLE dbo.Factura
+        ADD CONSTRAINT FK_Factura_Profesional
+        FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Factura_Cita_Activa' AND object_id = OBJECT_ID(N'dbo.Factura'))
+BEGIN
+    CREATE UNIQUE INDEX UX_Factura_Cita_Activa
+        ON dbo.Factura(id_cita)
+        WHERE id_cita IS NOT NULL AND estado <> 'anulada';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Pago') AND type = N'U')
+BEGIN
+    CREATE TABLE dbo.Pago (
         id_pago INT IDENTITY(1,1) PRIMARY KEY,
         id_factura INT NOT NULL,
         monto DECIMAL(12,2) NOT NULL CHECK (monto > 0),
-        metodo_pago VARCHAR(30) NOT NULL,
-        estado VARCHAR(20) NOT NULL,
-        referencia VARCHAR(40) NOT NULL,
+        fecha_pago DATETIME NOT NULL DEFAULT GETDATE(),
+        metodo_pago VARCHAR(30) NOT NULL DEFAULT 'efectivo',
+        referencia VARCHAR(100) NULL,
         registrado_por INT NOT NULL,
-        fecha_utc DATETIME2 NOT NULL,
         observaciones VARCHAR(500) NULL,
-        CONSTRAINT UQ_PagoFactura_Referencia UNIQUE (referencia),
-        CONSTRAINT FK_PagoFactura_Factura FOREIGN KEY (id_factura) REFERENCES dbo.Factura(id_factura),
-        CONSTRAINT FK_PagoFactura_Usuario FOREIGN KEY (registrado_por) REFERENCES dbo.Usuario(id_usuario)
+        CONSTRAINT FK_Pago_Factura FOREIGN KEY (id_factura) REFERENCES dbo.Factura(id_factura) ON DELETE CASCADE,
+        CONSTRAINT FK_Pago_RegistradoPor FOREIGN KEY (registrado_por) REFERENCES dbo.Usuario(id_usuario)
     );
-
-    CREATE INDEX IX_PagoFactura_Factura_Fecha ON dbo.Pago_Factura(id_factura, fecha_utc);
 END
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Pago_Factura') AND name = 'observaciones')
+IF OBJECT_ID(N'dbo.Pago_Factura', N'U') IS NOT NULL
 BEGIN
-    ALTER TABLE dbo.Pago_Factura ADD observaciones VARCHAR(500) NULL;
+    INSERT INTO dbo.Pago
+        (id_factura, monto, fecha_pago, metodo_pago, referencia, registrado_por, observaciones)
+    SELECT
+        p.id_factura,
+        p.monto,
+        CAST(p.fecha_utc AS DATETIME),
+        'efectivo',
+        p.referencia,
+        p.registrado_por,
+        CONCAT('Migrado desde Pago_Factura (método original: ', p.metodo_pago, '; estado: ', p.estado, ').')
+    FROM dbo.Pago_Factura p
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM dbo.Pago actual
+        WHERE actual.referencia = p.referencia
+    );
 END
 GO
 
-INSERT INTO dbo.Pago_Factura
-    (id_factura, monto, metodo_pago, estado, referencia, registrado_por, fecha_utc)
+INSERT INTO dbo.Pago
+    (id_factura, monto, fecha_pago, metodo_pago, referencia, registrado_por, observaciones)
 SELECT
     f.id_factura,
-    f.monto_pagado,
-    'historico',
-    'migrado',
+    f.monto_pagado - COALESCE(pagos.total, 0),
+    COALESCE(f.fecha_pago, f.fecha_factura),
+    'efectivo',
     CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura)),
     f.generada_por,
-    COALESCE(CAST(f.fecha_pago AS DATETIME2), CAST(f.fecha_factura AS DATETIME2))
+    'Saldo histórico migrado desde Factura.'
 FROM dbo.Factura f
-WHERE f.monto_pagado > 0
+OUTER APPLY (
+    SELECT SUM(p.monto) AS total
+    FROM dbo.Pago p
+    WHERE p.id_factura = f.id_factura
+) pagos
+WHERE f.monto_pagado > COALESCE(pagos.total, 0)
   AND NOT EXISTS (
       SELECT 1
-      FROM dbo.Pago_Factura p
+      FROM dbo.Pago p
       WHERE p.referencia = CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura))
   );
 GO

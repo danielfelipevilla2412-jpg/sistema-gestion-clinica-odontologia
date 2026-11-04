@@ -12,7 +12,7 @@
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-rec-04-generar-factura/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/scrollbars.css")" asp-append-version="true" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 
 <body>
@@ -43,7 +43,6 @@
         <h1 class="page-title" data-i18n="facturacion.new_invoice">Generar Factura</h1>
         <p class="page-subtitle" id="invoiceSubtitle" data-i18n="common.loading">Cita del 20 Mar 2026 · Pedro Garc&#237;a · Dr. Carlos M&#233;ndez</p>
       </div>
-      <button class="btn-secondary" id="btnSavedInvoices" type="button">Consultar facturas guardadas</button>
       <!-- Badge de estado con role status para anuncio dinámico -->
       <span class="status-badge status-pendiente" id="statusBadge" role="status" aria-live="polite">
         <span aria-hidden="true"></span> Pendiente de pago
@@ -192,11 +191,20 @@
         <div class="form-group">
           <label class="form-label" for="amountReceived">Monto del abono</label>
           <input type="text" id="amountReceived" class="form-input" value="$0 COP" aria-label="Monto del abono en pesos colombianos"
-            inputmode="numeric" />
+            inputmode="numeric" aria-describedby="paymentAmountError" />
+          <p class="payment-error-message" id="paymentAmountError" role="alert" hidden></p>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="paymentPercentage">Porcentaje del saldo pendiente</label>
+          <input type="number" id="paymentPercentage" class="form-input" min="0.01" max="100" step="0.01"
+            inputmode="decimal" placeholder="Ej. 30" aria-describedby="paymentPercentageError" />
+          <p class="payment-error-message" id="paymentPercentageError" role="alert" hidden></p>
         </div>
       </div>
+      <p class="payment-calculation" id="paymentCalculation" role="status" aria-live="polite"></p>
       <div class="payment-actions">
         <button class="btn-secondary" id="btnPrint" aria-label="Imprimir factura actual">🖨️ Imprimir factura</button>
+        <button class="btn-secondary" id="btnSavedInvoices" type="button">Consultar facturas guardadas</button>
         <button class="btn-success" id="btnPay" aria-label="Registrar abono a la factura">✓ Registrar abono — $0 COP</button>
       </div>
       <div id="toastContainer" class="toast-container" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
@@ -212,6 +220,7 @@
       </header>
       <div class="payment-confirm-content">
         <p id="paymentConfirmDescription">Verifica los datos del paciente y los servicios antes de registrar el pago.</p>
+        <p class="payment-error-message" id="paymentConfirmError" role="alert" hidden></p>
         <dl class="payment-confirm-patient">
           <div><dt>Paciente</dt><dd id="paymentConfirmPatient"></dd></div>
           <div><dt>Documento</dt><dd id="paymentConfirmDocument"></dd></div>
@@ -224,6 +233,7 @@
           <div><dt>Descuento</dt><dd id="paymentConfirmDiscount"></dd></div>
           <div class="payment-confirm-total"><dt>Total de la factura</dt><dd id="paymentConfirmTotal"></dd></div>
           <div><dt>Abonado anteriormente</dt><dd id="paymentConfirmPreviousPaid"></dd></div>
+          <div id="paymentConfirmPercentageRow" hidden><dt>Porcentaje del saldo pendiente</dt><dd id="paymentConfirmPercentage"></dd></div>
           <div class="payment-confirm-total"><dt>Abono a registrar</dt><dd id="paymentConfirmInstallment"></dd></div>
           <div><dt>Saldo después del abono</dt><dd id="paymentConfirmBalance"></dd></div>
         </dl>
@@ -312,7 +322,7 @@
   </footer>
 
  <script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
- <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-rec-04-generar-factura/app.js")"></script>
+ <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-rec-04-generar-factura/app.js")" asp-append-version="true"></script>
    <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   <script src="@Url.Content("~/js/i18n-core.js")"></script>
   <script src="@Url.Content("~/js/i18n.config.js")"></script>
