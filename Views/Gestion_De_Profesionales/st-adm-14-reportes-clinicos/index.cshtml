@@ -31,6 +31,12 @@ NOTAS DE MANTENIMIENTO:
     var profesionales = ViewData["ProfesionalesReportes"] as List<string> ?? new();
     var reportes = ViewData["ReportesClinicos"] as List<SmileTrack_MVC.Models.ViewModels.ReporteClinicoViewModel> ?? new();
     var pageResult = ViewData["ReportesClinicosPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.ViewModels.ReporteClinicoViewModel>;
+    var resultItemCount = pageResult?.Items?.Count ?? 0;
+    var resultTotalCount = pageResult?.TotalCount ?? 0;
+    var resultPage = pageResult?.Page ?? 1;
+    var resultPageSize = pageResult?.PageSize ?? 10;
+    var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+    var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
 }
 
 
@@ -54,14 +60,17 @@ NOTAS DE MANTENIMIENTO:
         <!-- Stats Grid -->
         <section class="stats-grid" aria-label="Resumen clínico" data-i18n-aria-label="reportesclinicos_stats_aria">
             <div class="stat-card" data-color="blue">
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">groups</span>
                 <span class="stat-number" id="metricTotal" data-target="@(ViewData["TotalPacientesReportes"] ?? 0)" aria-live="polite">0</span>
                 <span class="stat-label" data-i18n="reportesclinicos_stat_pacientes">Pacientes Registrados</span>
             </div>
             <div class="stat-card" data-color="green">
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_note</span>
                 <span class="stat-number" id="metricActivos" data-target="@(ViewData["ConsultasMes"] ?? 0)" aria-live="polite">0</span>
                 <span class="stat-label" data-i18n="reportesclinicos_stat_consultas">Consultas Este Mes</span>
             </div>
             <div class="stat-card" data-color="purple">
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">monitoring</span>
                 <span class="stat-number" id="metricAttendanceRate" data-target="@(ViewData["TasaAsistencia"] ?? 0)" aria-live="polite">0</span>
                 <span class="stat-label" data-i18n="reportesclinicos_stat_asistencia">Tasa de asistencia</span>
             </div>
@@ -75,17 +84,20 @@ NOTAS DE MANTENIMIENTO:
                     <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
                     <input type="search" id="searchInput" name="search" class="search-input" placeholder="Buscar por nombre o documento..." aria-label="Buscar paciente" data-i18n-ph="reportesclinicos_search_ph" data-i18n-aria-label="reportesclinicos_search_aria" value="@ViewData["SearchFilter"]">
                 </div>
-                <div class="filter-wrap">
-                    <label for="filterProfessional" class="visually-hidden" data-i18n="reportesclinicos_filter_profesional_label">Filtrar por profesional</label>
-                    <select id="filterProfessional" name="profesional" class="status-select" aria-label="Filtrar por profesional" data-i18n-aria-label="reportesclinicos_filter_profesional_aria">
-                        <option value="" data-i18n="reportesclinicos_filter_profesional_all">Todos los profesionales</option>
-                        @foreach (var prof in profesionales)
-                        {
-                            var profSelected = ViewData["ProfesionalFilter"]?.ToString() == prof;
-                            <option value="@prof" @(profSelected ? "selected" : null)>@prof</option>
-                        }
-                    </select>
-                </div>
+                @if (!User.IsInRole("Profesional"))
+                {
+                    <div class="filter-wrap">
+                        <label for="filterProfessional" class="visually-hidden" data-i18n="reportesclinicos_filter_profesional_label">Filtrar por profesional</label>
+                        <select id="filterProfessional" name="profesional" class="status-select" aria-label="Filtrar por profesional" data-i18n-aria-label="reportesclinicos_filter_profesional_aria">
+                            <option value="" data-i18n="reportesclinicos_filter_profesional_all">Todos los profesionales</option>
+                            @foreach (var prof in profesionales)
+                            {
+                                var profSelected = ViewData["ProfesionalFilter"]?.ToString() == prof;
+                                <option value="@prof" @(profSelected ? "selected" : null)>@prof</option>
+                            }
+                        </select>
+                    </div>
+                }
                 <div class="filter-wrap">
                     <label for="filterMes" class="visually-hidden" data-i18n="reportesclinicos_filter_mes_label">Filtrar por mes</label>
                     <select id="filterMes" name="mes" class="status-select" aria-label="Filtrar por mes" data-i18n-aria-label="reportesclinicos_filter_mes_aria">
@@ -165,13 +177,13 @@ NOTAS DE MANTENIMIENTO:
                                     @if (!string.IsNullOrWhiteSpace(reporte.Alerta))
                                     {
                                         var alertText = reporte.Alerta.Trim();
-                                        var alertLabel = alertText.Length > 26 ? alertText[..23] + "..." : alertText;
                                         <button type="button"
                                                 class="alert-trigger"
                                                 data-alert="@Html.Encode(alertText)"
-                                                aria-label="Ver observación clínica de @reporte.NombrePaciente">
+                                                data-patient="@Html.Encode(reporte.NombrePaciente)"
+                                                aria-label="Ver alerta de @reporte.NombrePaciente">
                                             <span aria-hidden="true">⚠️</span>
-                                            @alertLabel
+                                            Ver alerta
                                         </button>
                                     }
                                     else
@@ -187,7 +199,7 @@ NOTAS DE MANTENIMIENTO:
 
             <!-- Paginación -->
             <div class="pagination" role="navigation" aria-label="Paginación de reportes">
-                <span id="paginationInfo" aria-live="polite">Mostrando <strong>@(pageResult?.Items.Count ?? 0)</strong> de <strong>@(pageResult?.TotalCount ?? 0)</strong> reportes clínicos</span>
+                <span id="paginationInfo" aria-live="polite">Mostrando @resultRangeStart-@resultRangeEnd de @resultTotalCount reportes clínicos</span>
                 <div class="pagination-buttons" id="paginationButtons">
                     @if (pageResult != null && pageResult.HasPreviousPage)
                     {
@@ -378,4 +390,3 @@ NOTAS DE MANTENIMIENTO:
 @section Scripts {
     <script src="~/js/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/reportes.js" asp-append-version="true" defer></script>
 }
-

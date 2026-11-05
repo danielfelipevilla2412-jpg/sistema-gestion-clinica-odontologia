@@ -142,8 +142,10 @@ window.SmileTrack.utils = {
     }
     el.dataset.animated = '1';
 
-    if (this._counterIntervals.has(el)) {
-      clearInterval(this._counterIntervals.get(el));
+    const counterIntervals = window.SmileTrack.utils._counterIntervals;
+
+    if (counterIntervals.has(el)) {
+      clearInterval(counterIntervals.get(el));
     }
 
     const dur = duration ?? Number(el?.dataset?.duration) ?? 800;
@@ -171,7 +173,7 @@ window.SmileTrack.utils = {
       }
     }, stepDuration);
 
-    this._counterIntervals.set(el, interval);
+    counterIntervals.set(el, interval);
   },
 
   /**

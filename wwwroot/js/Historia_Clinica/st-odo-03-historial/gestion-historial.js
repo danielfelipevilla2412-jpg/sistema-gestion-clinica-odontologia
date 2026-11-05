@@ -90,12 +90,13 @@ const validateForm = (form) => {
 const parseOdontogramaPersistido = (estadoPersistidoRaw) => {
   const tratamientos = {};
   const observaciones = {};
+  let mapeoFDI = {};
   if (!estadoPersistidoRaw) return { tratamientos, observaciones };
 
   try {
     const persistido = typeof estadoPersistidoRaw === 'string' ? JSON.parse(estadoPersistidoRaw) : estadoPersistidoRaw;
     const registros = persistido?.registros || {};
-    const mapeoFDI = persistido?.mapeoFDI || {};
+    mapeoFDI = persistido?.mapeoFDI || {};
 
     Object.entries(registros).forEach(([instanceID, registro]) => {
       const numeroDiente = mapeoFDI[instanceID];
@@ -112,7 +113,7 @@ const parseOdontogramaPersistido = (estadoPersistidoRaw) => {
     console.warn('No se pudo interpretar el odontograma guardado', e);
   }
 
-  return { tratamientos, observaciones };
+  return { tratamientos, observaciones, mapeoFDI };
 };
 
 // Yeray (2025) - MIGRACIÓN: parseNotasClinicasPersistidas ya no necesita
@@ -132,7 +133,7 @@ const historiaStorage = {
   // El historial que ve el profesional es: notas clínicas de BD + citas pasadas.
   load: () => {
     const server = window.smiletrackHistoriaData || {};
-    const { tratamientos, observaciones } = parseOdontogramaPersistido(server.estadoPersistido);
+    const { tratamientos, observaciones, mapeoFDI } = parseOdontogramaPersistido(server.estadoPersistido);
 
     // Notas clínicas reales desde Nota_Clinica (inyectadas por el servidor)
     const notasClinicas = Array.isArray(server.notasClinicas) ? server.notasClinicas : [];
@@ -159,6 +160,7 @@ const historiaStorage = {
         medicamentos: server.medicamentos || [],
         odontograma: tratamientos,
         observaciones,
+        mapeoFDI,
         // Notas clínicas reales de BD + historial de citas del paciente
         historial: Array.isArray(server.lineaDeTiempo) && server.lineaDeTiempo.length
           ? server.lineaDeTiempo
@@ -248,9 +250,14 @@ const renderHistorial = (historial, filtro = 'todo') => {
   if (!list) return;
 
   lineaDeTiempoActual = Array.isArray(historial) ? historial : [];
-  const eventos = filtro === 'todo'
-    ? lineaDeTiempoActual
-    : lineaDeTiempoActual.filter(h => h.categoria === filtro);
+  const desde = safeGetElement('timelineFrom')?.value || '';
+  const hasta = safeGetElement('timelineTo')?.value || '';
+  const profesional = safeGetElement('timelineProfessional')?.value || '';
+  const eventos = lineaDeTiempoActual.filter(evento => (filtro === 'todo'
+    || evento.categoria === filtro)
+    && (!desde || String(evento.fecha).slice(0, 10) >= desde)
+    && (!hasta || String(evento.fecha).slice(0, 10) <= hasta)
+    && (!profesional || (evento.profesional || evento.doctor || '') === profesional));
   
   if (!eventos.length) {
     list.innerHTML = '<p style="font-size:.85rem;color:var(--text-muted);padding:12px 0;text-align:center;">No hay eventos clínicos para este filtro.</p>';
@@ -264,6 +271,9 @@ const renderHistorial = (historial, filtro = 'todo') => {
     const enlaceDocumento = typeof h.enlaceDocumento === 'string' && h.enlaceDocumento.startsWith('/')
       ? `<a class="hist-link" href="${escaparHtml(h.enlaceDocumento)}" target="_blank" rel="noopener">Abrir documento</a>`
       : '';
+    const verOdontograma = categoria === 'consulta' && h.citaId !== null && h.citaId !== undefined
+      ? `<button type="button" class="hist-link snapshot-link" data-snapshot-date="${escaparHtml(String(h.fecha).slice(0, 10))}">Ver odontograma de esa fecha</button>`
+      : '';
     return `
       <div class="hist-item" role="listitem">
         <div class="hist-bullet" aria-hidden="true">🦷</div>
@@ -275,6 +285,7 @@ const renderHistorial = (historial, filtro = 'todo') => {
           <div class="hist-meta"><time datetime="${escaparHtml(h.fecha)}">${fecha}</time> · ${escaparHtml(h.profesional || h.doctor || 'Sin asignar')} · <span class="hist-category">${etiquetaCategoria(categoria)}</span></div>
           ${desc ? `<div class="hist-desc">${escaparHtml(desc)}</div>` : ''}
           ${enlaceDocumento}
+          ${verOdontograma}
         </div>
       </div>`;
   }).join('');
@@ -324,6 +335,28 @@ const poblarFormularioHistoria = (datosHistoria = window.smiletrackHistoriaData 
 
   setValue('motivo_consulta', datosHistoria.motivoConsulta || '');
   setValue('enfermedad_actual', datosHistoria.enfermedadActual || origenEvolucion || '');
+  const diagnosticoSelect = document.getElementById('diagnostico_principal');
+  const diagnosticoOtro = document.getElementById('diagnostico_principal_otro');
+  const diagnosticoOtroGroup = document.getElementById('diagnosticoOtroGroup');
+  const diagnosticoGuardado = datosHistoria.diagnosticoPrincipal || '';
+  if (diagnosticoSelect) {
+    const opcionExistente = Array.from(diagnosticoSelect.options)
+      .find(opcion => opcion.value === diagnosticoGuardado);
+    if (opcionExistente) {
+      diagnosticoSelect.value = diagnosticoGuardado;
+    } else if (diagnosticoGuardado) {
+      diagnosticoSelect.value = '__otro__';
+      if (diagnosticoOtro) diagnosticoOtro.value = diagnosticoGuardado;
+      if (diagnosticoOtroGroup) diagnosticoOtroGroup.hidden = false;
+    }
+  }
+  const sintomasGuardados = Array.isArray(datosHistoria.sintomasSignos) ? datosHistoria.sintomasSignos : [];
+  sintomasGuardados.forEach(sintoma => {
+    let checkbox = Array.from(document.querySelectorAll('#sintomasSignosGrid input[type="checkbox"]'))
+      .find(input => input.value.toLocaleLowerCase() === sintoma.toLocaleLowerCase());
+    if (!checkbox) checkbox = agregarSintomaSigno(sintoma, false);
+    if (checkbox) checkbox.checked = true;
+  });
   setValue('antecedentes_medicos', datosHistoria.antecedentesMedicos || '');
   setValue('habitos', datosHistoria.habitos || '');
   setValue('alergias_form', alergias.length ? alergias.join(', ') : datosHistoria.alergiasTexto || '');
@@ -346,6 +379,31 @@ const poblarFormularioHistoria = (datosHistoria = window.smiletrackHistoriaData 
   setValue('diagnostico_secundario', datosHistoria.diagnosticoSecundario || '');
   setValue('evolucion_clinica', datosHistoria.evolucionClinica || origenEvolucion || '');
   setValue('prescripcion', datosHistoria.prescripcion || '');
+};
+
+const agregarSintomaSigno = (texto, marcado = true) => {
+  const grid = document.getElementById('sintomasSignosGrid');
+  const nombre = texto.trim();
+  if (!grid || !nombre) return null;
+
+  const existente = Array.from(grid.querySelectorAll('input[type="checkbox"]'))
+    .find(input => input.value.toLocaleLowerCase() === nombre.toLocaleLowerCase());
+  if (existente) {
+    existente.checked = marcado || existente.checked;
+    return existente;
+  }
+
+  const label = document.createElement('label');
+  label.className = 'check-option';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.value = nombre;
+  checkbox.checked = marcado;
+  const span = document.createElement('span');
+  span.textContent = nombre;
+  label.append(checkbox, span);
+  grid.append(label);
+  return checkbox;
 };
 
 const renderPacienteInfoShell = (paciente) => {
@@ -408,11 +466,278 @@ const initFiltrosLineaDeTiempo = () => {
   const contenedor = safeGetElement('timelineFilters');
   if (!contenedor) return;
 
+  let filtroActual = 'todo';
   contenedor.addEventListener('click', event => {
     const boton = event.target.closest('[data-filter]');
     if (!boton) return;
     contenedor.querySelectorAll('[data-filter]').forEach(item => item.classList.toggle('active', item === boton));
-    renderHistorial(lineaDeTiempoActual, boton.dataset.filter || 'todo');
+    filtroActual = boton.dataset.filter || 'todo';
+    renderHistorial(lineaDeTiempoActual, filtroActual);
+  });
+
+  ['timelineFrom', 'timelineTo', 'timelineProfessional'].forEach(id => {
+    safeGetElement(id)?.addEventListener('change', () => renderHistorial(lineaDeTiempoActual, filtroActual));
+  });
+};
+
+const initObservacionesCita = async () => {
+  const data = window.smiletrackHistoriaData || {};
+  const citaId = data.citaId || Number(new URLSearchParams(window.location.search).get('citaId'));
+  if (!data.pacienteId || !citaId) return;
+
+  try {
+    const query = new URLSearchParams({ pacienteId: data.pacienteId, citaId });
+    const response = await fetch(`/historia-clinica/st-odo-03-historial/observaciones-cita?${query}`);
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.message || 'No se pudieron cargar las observaciones de la cita.');
+
+    const panel = safeGetElement('observacionesCitaPanel');
+    const list = safeGetElement('observacionesCitaList');
+    if (!panel || !list || !result.registros.length) return;
+    list.innerHTML = result.registros.map(registro =>
+      `<li><strong>${escaparHtml(registro.numeroFdi)} — ${escaparHtml(registro.estado)}</strong>${registro.observacion ? ` · ${escaparHtml(registro.observacion)}` : ''}</li>`
+    ).join('');
+    panel.hidden = false;
+
+    const procedure = safeGetElement('evolucion_clinica');
+    if (procedure && !procedure.value.trim()) {
+      procedure.value = result.registros
+        .map(registro => `${registro.numeroFdi} — ${registro.estado}${registro.observacion ? ` · ${registro.observacion}` : ''}`)
+        .join('\n');
+    }
+  } catch (error) {
+    showToast(error.message || 'No se pudieron cargar las observaciones de la cita.', 'error');
+  }
+};
+
+const initFinalizarConsulta = () => {
+  const button = safeGetElement('btnFinalizarConsulta');
+  if (!button) return;
+
+  button.addEventListener('click', async () => {
+    const data = window.smiletrackHistoriaData || {};
+    const citaId = data.citaId || Number(new URLSearchParams(window.location.search).get('citaId'));
+    if (!data.pacienteId || !citaId) {
+      showToast('Abre el historial desde una cita para finalizar la consulta.', 'warning');
+      return;
+    }
+
+    const value = id => safeGetElement(id)?.value?.trim() || '';
+    const diagnostico = value('diagnostico_principal') === '__otro__'
+      ? value('diagnostico_principal_otro')
+      : value('diagnostico_principal');
+    const procedimiento = value('evolucion_clinica') || value('odontograma_observaciones');
+    let odontograma = {};
+    try {
+      odontograma = typeof data.estadoPersistido === 'string'
+        ? JSON.parse(data.estadoPersistido || '{}')
+        : (data.estadoPersistido || {});
+    } catch {
+      odontograma = {};
+    }
+
+    button.disabled = true;
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+    try {
+      const response = await fetch('/historia-clinica/st-odo-03-historial/finalizar-consulta', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'X-CSRF-TOKEN': token } : {})
+        },
+        body: JSON.stringify({
+          pacienteId: data.pacienteId,
+          citaId,
+          nota: { diagnostico, procedimiento },
+          registros: odontograma.registros || {},
+          mapeoFDI: odontograma.mapeoFDI || {}
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo finalizar la consulta.');
+      button.textContent = 'Consulta finalizada';
+      showToast(result.message, 'success');
+    } catch (error) {
+      showToast(error.message || 'No se pudo finalizar la consulta.', 'error');
+      button.disabled = false;
+    }
+  });
+};
+
+let odontogramaEstadoFecha = { tratamientos: {}, observaciones: {} };
+let odontogramaMapeoFDI = {};
+
+const mostrarEstadoDiente = numeroFdi => {
+  const status = safeGetElement('historyToothStatus');
+  if (!status) return;
+  if (!numeroFdi) {
+    status.textContent = 'Pasa sobre un diente para consultar su estado en la fecha seleccionada.';
+    return;
+  }
+
+  const key = odontogramaEstadoFecha.tratamientos[numeroFdi];
+  const etiquetas = {
+    caries: 'Caries', endodoncia: 'Endodoncia', sellante: 'Sellante',
+    ausente: 'Ausente', placa: 'Placa', sano: 'Sano', corona: 'Corona',
+    restauracion: 'Restauración'
+  };
+  const estado = etiquetas[key] || 'Sin estado registrado';
+  const observacion = odontogramaEstadoFecha.observaciones[numeroFdi];
+  status.textContent = `Diente ${numeroFdi}: ${estado}${observacion ? ` · ${observacion}` : ''}`;
+};
+
+const renderOdontogramaActual = () => {
+  const paciente = historiaStorage.load().paciente;
+  odontogramaEstadoFecha = {
+    tratamientos: paciente.odontograma,
+    observaciones: paciente.observaciones
+  };
+  odontogramaMapeoFDI = paciente.mapeoFDI;
+  mostrarEstadoDiente(null);
+};
+
+const inicializarVisorOdontograma = () => {
+  const iframe = safeGetElement('historyOdontogramFrame');
+  const loading = safeGetElement('historyViewerLoading');
+  const error = safeGetElement('historyViewerError');
+  if (!iframe || typeof window.Sketchfab !== 'function') {
+    if (loading) loading.hidden = true;
+    if (error) error.hidden = false;
+    return;
+  }
+
+  if (loading) loading.hidden = false;
+  if (error) error.hidden = true;
+
+  const client = new window.Sketchfab('1.12.1', iframe);
+  client.init('7f5b381c66674e0a969e8db04d139666', {
+    ui_infos: 0,
+    ui_watermark: 0,
+    ui_controls: 1,
+    ui_help: 0,
+    ui_settings: 0,
+    ui_vr: 0,
+    ui_fullscreen: 0,
+    ui_annotations: 0,
+    ui_stop: 0,
+    success: api => {
+      api.start();
+      api.addEventListener('viewerready', () => {
+        if (loading) loading.hidden = true;
+        api.getNodeMap((mapError, nodes) => {
+          if (mapError) return;
+          Object.values(nodes || {}).forEach(node => {
+            if (node?.instanceID == null) return;
+            const name = (node.name || '').toLowerCase();
+            if (name.includes('screw') || name.includes('implant') || name.includes('metal')) {
+              api.hide(node.instanceID);
+            }
+          });
+        });
+
+        api.addEventListener('click', info => {
+          const numeroFdi = odontogramaMapeoFDI[info?.instanceID];
+          if (numeroFdi) cargarEvolucionDiente(numeroFdi);
+        }, { pick: 'fast' });
+
+        api.addEventListener('nodeMouseEnter', node => {
+          const numeroFdi = node?.instanceID == null ? null : odontogramaMapeoFDI[node.instanceID];
+          if (numeroFdi) mostrarEstadoDiente(numeroFdi);
+        }, { pick: 'fast' });
+
+        api.addEventListener('nodeMouseLeave', () => mostrarEstadoDiente(null), { pick: 'fast' });
+      });
+    },
+    error: () => {
+      if (loading) loading.hidden = true;
+      if (error) error.hidden = false;
+    }
+  });
+};
+
+const cargarOdontogramaHasta = async fecha => {
+  const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+  if (!pacienteId || !fecha) return;
+
+  const aviso = safeGetElement('odontogramaSnapshotNotice');
+  try {
+    const query = new URLSearchParams({ pacienteId, hasta: fecha });
+    const response = await fetch(`/historia-clinica/st-odo-03-historial/odontograma?${query}`);
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo consultar el odontograma.');
+
+    const tratamientos = {};
+    const observaciones = {};
+    result.registros.forEach(registro => {
+      tratamientos[registro.numeroFdi] = registro.estado;
+      if (registro.observacion) observaciones[registro.numeroFdi] = registro.observacion;
+    });
+    odontogramaEstadoFecha = { tratamientos, observaciones };
+    mostrarEstadoDiente(null);
+    if (aviso) {
+      aviso.hidden = false;
+      aviso.textContent = `Estás viendo el estado al ${formatFecha(fecha, true)}.`;
+    }
+    const volver = safeGetElement('btnVolverHoy');
+    if (volver) volver.hidden = false;
+    setFormularioHistorico(true);
+  } catch (error) {
+    showToast(error.message || 'No se pudo consultar el odontograma.', 'error');
+  }
+};
+
+const setFormularioHistorico = historico => {
+  const form = safeGetElement('historia-clinica-form');
+  if (!form) return;
+  form.querySelectorAll('input, textarea, select, button').forEach(element => {
+    if (historico) {
+      element.dataset.disabledBeforeSnapshot = String(element.disabled);
+      element.disabled = true;
+    } else {
+      element.disabled = element.dataset.disabledBeforeSnapshot === 'true';
+      delete element.dataset.disabledBeforeSnapshot;
+    }
+  });
+};
+
+const cargarEvolucionDiente = async numeroFdi => {
+  const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+  if (!pacienteId) return;
+
+  const dialog = safeGetElement('toothHistoryDialog');
+  const title = safeGetElement('toothHistoryTitle');
+  const records = safeGetElement('toothHistoryRecords');
+  if (!dialog || !records) return;
+  title.textContent = `Evolución del diente ${numeroFdi}`;
+  records.textContent = 'Cargando historial…';
+  dialog.showModal();
+
+  try {
+    const query = new URLSearchParams({ pacienteId, numerofdi: numeroFdi });
+    const response = await fetch(`/historia-clinica/st-odo-04-odontograma/diente-info?${query}`);
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo consultar el historial del diente.');
+    records.innerHTML = result.registros.length
+      ? result.registros.map(registro => `<article class="tooth-history-item"><strong>${escaparHtml(registro.estado)}</strong><time>${escaparHtml(registro.fecha)}</time><p>${escaparHtml(registro.observacion || 'Sin observaciones')}</p><small>${escaparHtml(registro.profesional)}</small></article>`).join('')
+      : '<p>No hay cambios registrados para este diente.</p>';
+  } catch (error) {
+    records.textContent = error.message || 'No se pudo consultar el historial del diente.';
+  }
+};
+
+const initAccionesOdontogramaHistorial = () => {
+  safeGetElement('historialList')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-snapshot-date]');
+    if (button) cargarOdontogramaHasta(button.dataset.snapshotDate);
+  });
+  inicializarVisorOdontograma();
+  safeGetElement('btnRetryHistoryViewer')?.addEventListener('click', inicializarVisorOdontograma);
+  safeGetElement('btnVolverHoy')?.addEventListener('click', () => {
+    renderOdontogramaActual();
+    setFormularioHistorico(false);
+    const aviso = safeGetElement('odontogramaSnapshotNotice');
+    if (aviso) aviso.hidden = true;
+    safeGetElement('btnVolverHoy').hidden = true;
   });
 };
 
@@ -620,7 +945,11 @@ const renderOdontograma = (dto) => {
       r.nums.forEach(num => {
         const cv = document.createElement('canvas');
         cv.width = cfg.TW; cv.height = cfg.TH;
-        cv.style.cssText = 'display:block;border-radius:3px;cursor:default;';
+        cv.dataset.numeroFdi = num;
+        cv.setAttribute('role', 'button');
+        cv.setAttribute('tabindex', '0');
+        cv.setAttribute('aria-label', `Ver evolución del diente ${num}`);
+        cv.style.cssText = 'display:block;border-radius:3px;cursor:pointer;';
         drawTooth(cv, num, dto.tratamientos, dto.observaciones[num]||null);
         half.appendChild(cv);
       });
@@ -727,7 +1056,7 @@ const initScrollToForm = () => {
   }
 };
 
-// Inicializa formulario con validación y persistencia
+/*
 const initForm = () => {
   const form = safeGetElement('historialForm');
   if (!form) return;
@@ -736,109 +1065,80 @@ const initForm = () => {
   form.querySelectorAll('input[required], textarea[required]').forEach(input => {
     input.addEventListener('blur', () => validateField(input));
     input.addEventListener('input', () => {
-      if (input.classList.contains('error')) validateField(input);
-    });
-  });
-  
-  // Manejo de envío del formulario
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm(form)) {
-      showToast('Completa los campos requeridos', 'warning');
-      return;
-    }
-    
-    const fDiag = safeGetElement('fDiag');
-    const fProc = safeGetElement('fProc');
-    const fCita = safeGetElement('fCita');
-    const btn = safeGetElement('btnGuardar');
-    
-    const diag = fDiag?.value.trim();
-    const proc = fProc?.value.trim();
-    const cita = fCita?.value;
-    
-    const pacienteId = window.smiletrackHistoriaData?.pacienteId;
-    if (!pacienteId) {
-      showToast('No hay un paciente seleccionado para guardar la nota', 'error');
-      return;
-    }
+      const initForm = () => {
+        const button = safeGetElement('btnGuardarNota');
+        if (!button) return;
 
-    try {
-      btn.disabled = true;
-      btn.textContent = 'Guardando...';
+        button.addEventListener('click', async () => {
+          const data = window.smiletrackHistoriaData || {};
+          const pacienteId = data.pacienteId;
+          if (!pacienteId) {
+            showToast('No hay un paciente seleccionado para guardar la nota.', 'error');
+            return;
+          }
 
-      const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-      const resp = await fetch('/historia-clinica/st-odo-03-historial/guardar-nota', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'X-CSRF-TOKEN': token } : {})
-        },
-        body: JSON.stringify({
-          pacienteId,
-          diagnostico: diag,
-          procedimiento: proc,
-          proximaCita: cita || null
-        })
-      });
-      const result = await resp.json();
-      if (!result.success) throw new Error(result.message || 'No se pudo guardar la nota');
+          const diagnosticoElement = safeGetElement('diagnostico_principal');
+          const diagnostico = diagnosticoElement?.value === '__otro__'
+            ? safeGetElement('diagnostico_principal_otro')?.value.trim()
+            : diagnosticoElement?.value.trim();
+          const procedimiento = safeGetElement('evolucion_clinica')?.value.trim()
+            || safeGetElement('odontograma_observaciones')?.value.trim()
+            || '';
+          const citaId = data.citaId || Number(new URLSearchParams(window.location.search).get('citaId')) || null;
 
-      // Yeray (2025) - MIGRACIÓN: antes se actualizaba el JSON de estadoPersistido
-      // para reflejar la nota en memoria (parseNotasClinicasPersistidas lo leía).
-      // Ahora se actualiza directamente server.notasClinicas, que es el array
-      // que historiaStorage.load() usa desde la migración a tablas reales.
-      window.smiletrackHistoriaData = window.smiletrackHistoriaData || {};
-      window.smiletrackHistoriaData.notasClinicas = [
-        result.nota,
-        ...(window.smiletrackHistoriaData.notasClinicas || [])
-      ];
-      //  — Reflejar inmediatamente la nota recién guardada en la línea
-      // de tiempo; al recargar, la misma nota se vuelve a obtener desde BD.
-      window.smiletrackHistoriaData.lineaDeTiempo = [
-        {
-          fecha: `${result.nota.fecha}T12:00:00`,
-          categoria: 'nota',
-          titulo: result.nota.titulo,
-          descripcion: [result.nota.diagnostico, result.nota.procedimiento].filter(Boolean).join(' · '),
-          profesional: result.nota.doctor,
-          estado: result.nota.estado,
-          enlaceDocumento: null
-        },
-        ...(window.smiletrackHistoriaData.lineaDeTiempo || [])
-      ];
-
-      const data = historiaStorage.load();
-      renderHistorial(data.paciente.historial);
-
-      // Limpiar formulario
-      if (fDiag) fDiag.value = '';
-      if (fProc) fProc.value = '';
-      if (fCita) fCita.value = '';
-
-      // Feedback visual
-      btn.textContent = '✓ Guardado';
-      btn.style.background = 'var(--green)';
-      showToast('Entrada clínica guardada', 'success');
-      
-      setTimeout(() => {
-        btn.textContent = 'Guardar entrada clínica';
-        btn.style.background = '';
-        btn.disabled = false;
-      }, 2200);
-
-      // Scroll al historial
-      safeGetElement('cardHist')?.scrollIntoView({ behavior:'smooth', block:'start' });
-
-    } catch (err) {
-      console.error('Error al guardar:', err);
-      showToast('Error al guardar entrada', 'error');
-      btn.disabled = false;
-      btn.textContent = 'Guardar entrada clínica';
-    }
-  });
-};
+          button.disabled = true;
+          const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+          try {
+            const response = await fetch('/historia-clinica/st-odo-03-historial/guardar-nota', {
+              method: 'POST',
+            const initForm = () => {
+              const button = safeGetElement('btnGuardarNota');
+              if (!button) return;
+              button.addEventListener('click', async () => {
+                const data = window.smiletrackHistoriaData || {};
+                const pacienteId = data.pacienteId;
+                if (!pacienteId) {
+                  showToast('No hay un paciente seleccionado para guardar la nota.', 'error');
+                  return;
+                }
+                const diagnosticoElement = safeGetElement('diagnostico_principal');
+                const diagnostico = diagnosticoElement?.value === '__otro__'
+                  ? safeGetElement('diagnostico_principal_otro')?.value.trim()
+                  : diagnosticoElement?.value.trim();
+                const procedimiento = safeGetElement('evolucion_clinica')?.value.trim()
+                  || safeGetElement('odontograma_observaciones')?.value.trim()
+                  || '';
+                const citaId = data.citaId || Number(new URLSearchParams(window.location.search).get('citaId')) || null;
+                button.disabled = true;
+                const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+                try {
+                  const response = await fetch('/historia-clinica/st-odo-03-historial/guardar-nota', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...(token ? { 'X-CSRF-TOKEN': token } : {}) },
+                    body: JSON.stringify({ pacienteId, citaId, diagnostico, procedimiento })
+                  });
+                  const result = await response.json();
+                  if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo guardar la nota.');
+                  const nuevaNota = {
+                    ...result.nota,
+                    categoria: 'nota',
+                    fecha: `${result.nota.fecha}T12:00:00`,
+                    profesional: result.nota.doctor,
+                    citaId
+                  };
+                  data.lineaDeTiempo = [nuevaNota, ...(data.lineaDeTiempo || [])];
+                  data.notasClinicas = [nuevaNota, ...(data.notasClinicas || [])];
+                  renderHistorial(data.lineaDeTiempo);
+                  showToast('Nota clínica registrada.', 'success');
+                  if (diagnosticoElement) diagnosticoElement.value = '';
+                  if (safeGetElement('evolucion_clinica')) safeGetElement('evolucion_clinica').value = '';
+                } catch (error) {
+                  showToast(error.message || 'No se pudo guardar la nota.', 'error');
+                } finally {
+                  button.disabled = false;
+                }
+              });
+            };
 
 const initFormularioClinico = () => {
   const form = safeGetElement('historia-clinica-form');
@@ -907,11 +1207,9 @@ const initCamposDinamicosHistoria = () => {
   const diagnosisSelect = document.getElementById('diagnostico_principal');
   const diagnosisInput = document.getElementById('diagnostico_principal_otro');
   const diagnosisGroup = document.getElementById('diagnosticoOtroGroup');
-
   const addSymptom = () => {
     if (!symptomInput) return;
-    const checkbox = agregarSintomaSigno(symptomInput.value);
-    if (!checkbox) {
+    if (!agregarSintomaSigno(symptomInput.value)) {
       showToast('Escribe un síntoma o signo antes de agregarlo', 'warning');
       symptomInput.focus();
       return;
@@ -919,7 +1217,6 @@ const initCamposDinamicosHistoria = () => {
     symptomInput.value = '';
     symptomInput.focus();
   };
-
   addSymptomButton?.addEventListener('click', addSymptom);
   symptomInput?.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
@@ -961,182 +1258,142 @@ const agregarSintomaSigno = (texto) => {
 };
 
 const initAdjuntosClinicos = () => {
-  const button = document.getElementById('btnAdjuntarEstudio');
-  const input = document.getElementById('inputArchivosEstudio');
-  const grid = document.getElementById('fileGrid');
-  const dropZone = document.getElementById('uploadBox');
-  const uploadButton = document.getElementById('btnSubirEstudios');
-  const form = document.getElementById('historia-clinica-form');
-  if (!button || !input || !grid || !dropZone || !uploadButton || !form) return;
+      const button = document.getElementById('btnAdjuntarEstudio');
+      const input = document.getElementById('inputArchivosEstudio');
+      const grid = document.getElementById('fileGrid');
+      const dropZone = document.getElementById('uploadBox');
+      const uploadButton = document.getElementById('btnSubirEstudios');
+      const form = document.getElementById('historia-clinica-form');
+      if (!button || !input || !grid || !dropZone || !uploadButton || !form) return;
 
-  const pendingFiles = [];
-  let uploadingPendingFiles = false;
-
-  const formatBytes = bytes => bytes < 1024 * 1024
-    ? `${(bytes / 1024).toFixed(1)} KB`
-    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-
-  const renderPendingFiles = () => {
-    grid.querySelectorAll('.pending-file').forEach(item => item.remove());
-    pendingFiles.forEach((file, index) => {
-      const item = document.createElement('article');
-      item.className = 'file-item pending-file';
-      const icon = document.createElement('div');
-      icon.className = 'file-thumb';
-      icon.textContent = file.type === 'application/pdf' ? 'PDF' : 'IMG';
-      const meta = document.createElement('div');
-      meta.className = 'file-meta';
-      const name = document.createElement('strong');
-      name.textContent = file.name;
-      const details = document.createElement('span');
-      details.className = 'file-status';
-      details.textContent = `${formatBytes(file.size)} · Pendiente por subir`;
-      const removeButton = document.createElement('button');
-      removeButton.type = 'button';
-      removeButton.className = 'file-remove-btn';
-      removeButton.textContent = '×';
-      removeButton.disabled = uploadingPendingFiles;
-      removeButton.setAttribute('aria-label', `Quitar ${file.name} de la selección`);
-      removeButton.title = 'Quitar archivo';
-      removeButton.addEventListener('click', () => {
-        pendingFiles.splice(index, 1);
-        renderPendingFiles();
-      });
-      meta.append(name, details);
-      item.append(icon, meta, removeButton);
-      grid.insertBefore(item, dropZone);
-    });
-
-    uploadButton.textContent = `Subir seleccionados (${pendingFiles.length})`;
-    uploadButton.disabled = pendingFiles.length === 0 || uploadingPendingFiles;
-    button.disabled = uploadingPendingFiles;
-    dropZone.disabled = uploadingPendingFiles;
-  };
-
-  const stageFiles = files => {
-    const permittedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-    let stagedCount = 0;
-    files.forEach(file => {
-      if (file.size > 10 * 1024 * 1024 || !permittedTypes.includes(file.type)) {
-        showToast(`${file.name}: usa JPG, PNG o PDF de máximo 10 MB`, 'error');
-        return;
-      }
-      pendingFiles.push(file);
-      stagedCount += 1;
-    });
-    renderPendingFiles();
-    if (stagedCount) showToast(`${stagedCount} archivo(s) listo(s); puedes quitar los que no quieras`, 'success');
-  };
-
-  const renderAttachedFile = documentInfo => {
-    const item = document.createElement('article');
-    item.className = 'file-item';
-    item.dataset.documentId = documentInfo.id;
-    const icon = document.createElement('div');
-    icon.className = 'file-thumb';
-    icon.textContent = documentInfo.contentType === 'application/pdf' || documentInfo.nombreArchivo?.toLowerCase().endsWith('.pdf')
-      ? 'PDF'
-      : 'IMG';
-    const meta = document.createElement('div');
-    meta.className = 'file-meta';
-    const link = document.createElement('a');
-    link.href = `/historia-clinica/documentos-clinicos/descargar/${encodeURIComponent(documentInfo.id)}`;
-    link.textContent = documentInfo.nombreArchivo || 'Estudio clínico';
-    link.target = '_blank';
-    link.rel = 'noopener';
-    const size = document.createElement('span');
-    size.textContent = formatBytes(documentInfo.tamanoBytes || 0);
-    const removeButton = document.createElement('button');
-    removeButton.type = 'button';
-    removeButton.className = 'file-remove-btn';
-    removeButton.textContent = '×';
-    removeButton.setAttribute('aria-label', `Quitar ${link.textContent}`);
-    removeButton.title = 'Quitar archivo adjunto';
-    removeButton.addEventListener('click', async () => {
-      if (!window.confirm(`¿Quieres quitar el estudio "${link.textContent}"?`)) return;
-
-      removeButton.disabled = true;
+      const pendingFiles = [];
+      let uploading = false;
       const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-      try {
-        const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/eliminar/${encodeURIComponent(documentInfo.id)}`, {
-          method: 'DELETE',
-          headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token }
+      const formatBytes = bytes => bytes < 1024 * 1024
+        ? `${(bytes / 1024).toFixed(1)} KB`
+        : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
+      const renderPendingFiles = () => {
+        grid.querySelectorAll('.pending-file').forEach(item => item.remove());
+        pendingFiles.forEach((file, index) => {
+          const item = document.createElement('article');
+          item.className = 'file-item pending-file';
+          const name = document.createElement('strong');
+          name.textContent = file.name;
+          const details = document.createElement('span');
+          details.textContent = `${formatBytes(file.size)} · Pendiente por subir`;
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'file-remove-btn';
+          remove.textContent = '×';
+          remove.disabled = uploading;
+          remove.setAttribute('aria-label', `Quitar ${file.name}`);
+          remove.addEventListener('click', () => {
+            pendingFiles.splice(index, 1);
+            renderPendingFiles();
+          });
+          item.append(name, details, remove);
+          grid.insertBefore(item, dropZone);
         });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo quitar el estudio');
-        item.remove();
-        showToast('Estudio quitado correctamente', 'success');
-      } catch (error) {
-        console.error('No se pudo quitar el estudio:', error);
-        showToast(error.message || 'No se pudo quitar el estudio', 'error');
-        removeButton.disabled = false;
-      }
-    });
-    meta.append(link, size);
-    item.append(icon, meta, removeButton);
-    grid.insertBefore(item, dropZone);
-  };
+        uploadButton.textContent = `Subir seleccionados (${pendingFiles.length})`;
+        uploadButton.disabled = pendingFiles.length === 0 || uploading;
+        button.disabled = uploading;
+        dropZone.setAttribute('aria-disabled', String(uploading));
+      };
 
-  const loadAttachedFiles = async () => {
-    const pacienteId = window.smiletrackHistoriaData?.pacienteId;
-    if (!pacienteId) return;
-    try {
-      const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/data?pacienteId=${encodeURIComponent(pacienteId)}`, {
-        headers: { 'Accept': 'application/json' }
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const documents = await response.json();
-      documents.forEach(renderAttachedFile);
-    } catch (error) {
-      console.error('No se pudieron cargar los estudios adjuntos:', error);
-      showToast('No se pudieron cargar los estudios adjuntos', 'error');
-    }
-  };
-
-  const uploadSelectedFiles = async () => {
-    const pacienteId = window.smiletrackHistoriaData?.pacienteId;
-    if (!pacienteId) {
-      showToast('Selecciona un paciente antes de adjuntar estudios', 'warning');
-      return;
-    }
-    if (!pendingFiles.length) return;
-
-    const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    uploadingPendingFiles = true;
-    renderPendingFiles();
-    for (const file of [...pendingFiles]) {
-      const payload = new FormData();
-      payload.append('pacienteId', pacienteId);
-      payload.append('tipo', 'Estudio clínico');
-      payload.append('observacion', 'Adjunto desde el formulario de historia clínica');
-      payload.append('archivo', file, file.name);
-      try {
-        const response = await fetch('/historia-clinica/st-aux-08-documentos-clinicos/subir', {
-          method: 'POST',
-          headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
-          body: payload
+      const renderAttachedFile = documentInfo => {
+        const item = document.createElement('article');
+        item.className = 'file-item';
+        const meta = document.createElement('div');
+        meta.className = 'file-meta';
+        const link = document.createElement('a');
+        link.href = `/historia-clinica/documentos-clinicos/descargar/${encodeURIComponent(documentInfo.id)}`;
+        link.textContent = documentInfo.nombreArchivo || 'Estudio clínico';
+        link.target = '_blank';
+        link.rel = 'noopener';
+        const size = document.createElement('span');
+        size.textContent = formatBytes(documentInfo.tamanoBytes || 0);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'file-remove-btn';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', `Quitar ${link.textContent}`);
+        remove.addEventListener('click', async () => {
+          if (!window.confirm(`¿Quieres quitar el estudio "${link.textContent}"?`)) return;
+          remove.disabled = true;
+          try {
+            const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/eliminar/${encodeURIComponent(documentInfo.id)}`, {
+              method: 'DELETE',
+              headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token }
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo quitar el estudio');
+            item.remove();
+            showToast('Estudio quitado correctamente', 'success');
+          } catch (error) {
+            showToast(error.message || 'No se pudo quitar el estudio', 'error');
+            remove.disabled = false;
+          }
         });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo adjuntar el estudio');
+        meta.append(link, size);
+        item.append(meta, remove);
+        grid.insertBefore(item, dropZone);
+      };
 
-        renderAttachedFile({
-          id: result.id,
-          nombreArchivo: result.nombreArchivo || file.name,
-          contentType: file.type,
-          tamanoBytes: file.size
+      const loadAttachedFiles = async () => {
+        const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+        if (!pacienteId) return;
+        try {
+          const response = await fetch(`/historia-clinica/st-aux-08-documentos-clinicos/data?pacienteId=${encodeURIComponent(pacienteId)}`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          (await response.json()).forEach(renderAttachedFile);
+        } catch (error) {
+          showToast(error.message || 'No se pudieron cargar los estudios adjuntos', 'error');
+        }
+      };
+
+      const stageFiles = files => {
+        const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
+        files.forEach(file => {
+          if (file.size > 10 * 1024 * 1024 || !allowed.includes(file.type)) {
+            showToast(`${file.name}: usa JPG, PNG o PDF de máximo 10 MB`, 'error');
+            return;
+          }
+          pendingFiles.push(file);
         });
-        const pendingIndex = pendingFiles.indexOf(file);
-        if (pendingIndex >= 0) pendingFiles.splice(pendingIndex, 1);
-        showToast(`${file.name} se adjuntó correctamente`, 'success');
-      } catch (error) {
-        console.error('No se pudo adjuntar el estudio:', error);
-        showToast(error.message || 'No se pudo adjuntar el estudio', 'error');
-      }
-      renderPendingFiles();
-    }
-    uploadingPendingFiles = false;
-    renderPendingFiles();
-  };
+        renderPendingFiles();
+      };
+
+      const uploadSelectedFiles = async () => {
+        const pacienteId = window.smiletrackHistoriaData?.pacienteId;
+        if (!pacienteId || !pendingFiles.length) return;
+        uploading = true;
+        renderPendingFiles();
+        for (const file of [...pendingFiles]) {
+          const payload = new FormData();
+          payload.append('pacienteId', pacienteId);
+          payload.append('tipo', 'Estudio clínico');
+          payload.append('observacion', 'Adjunto desde el formulario de historia clínica');
+          payload.append('archivo', file, file.name);
+          try {
+            const response = await fetch('/historia-clinica/st-aux-08-documentos-clinicos/subir', {
+              method: 'POST',
+              headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+              body: payload
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo adjuntar el estudio');
+            renderAttachedFile({ id: result.id, nombreArchivo: result.nombreArchivo || file.name, tamanoBytes: file.size });
+            pendingFiles.splice(pendingFiles.indexOf(file), 1);
+            showToast(`${file.name} se adjuntó correctamente`, 'success');
+          } catch (error) {
+            showToast(error.message || 'No se pudo adjuntar el estudio', 'error');
+          }
+          renderPendingFiles();
+        }
+        uploading = false;
+        renderPendingFiles();
+      };
 
   button.addEventListener('click', () => input.click());
   uploadButton.addEventListener('click', uploadSelectedFiles);
@@ -1169,15 +1426,17 @@ const initAdjuntosClinicos = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 const init = async () => {
-  // Inicializar componentes de UI
   initSidebar();
   initScrollToForm();
   initForm();
   initCamposDinamicosHistoria();
   initFormularioClinico();
+  initCamposDinamicosHistoria();
   initAdjuntosClinicos();
   //  — Registrar los filtros antes de renderizar los datos clínicos.
   initFiltrosLineaDeTiempo();
+  initAccionesOdontogramaHistorial();
+  initFinalizarConsulta();
   
   // Cargar datos desde localStorage
   const data = historiaStorage.load();
@@ -1209,8 +1468,19 @@ const init = async () => {
   });
   // Mostrar ficha completa antes del odontograma y la línea de tiempo.
   renderResumenPaciente(p);
-  
+  renderOdontogramaActual();
   renderHistorial([...p.historial].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)));
+  const profesionales = [...new Set(lineaDeTiempoActual
+    .map(evento => evento.profesional || evento.doctor)
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+  const filtroProfesional = safeGetElement('timelineProfessional');
+  profesionales.forEach(nombre => {
+    const option = document.createElement('option');
+    option.value = nombre;
+    option.textContent = nombre;
+    filtroProfesional?.appendChild(option);
+  });
+  await initObservacionesCita();
   
   // Limpieza al unload
   window.addEventListener('beforeunload', () => {

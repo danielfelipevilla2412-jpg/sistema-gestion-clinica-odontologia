@@ -26,6 +26,27 @@ namespace SmileTrack_MVC.Helpers;
 
 public static class EstadoCitaHelper
 {
+    /// <summary>
+    /// Estados que representan el cierre definitivo de una cita (ya no requiere seguimiento).
+    /// Se expone como arreglo para poder usarlo directamente en consultas EF: .Contains(...) se
+    /// traduce a una cláusula IN en SQL.
+    /// </summary>
+    public static readonly string[] EstadosFinales =
+    [
+        "atendida", "atendido", "completada", "completado", "realizada", "realizado",
+        "finalizada", "finalizado",
+        "cancelada", "cancelado",
+        "no asistio", "no asistió", "no_asistida", "no-show", "no_show"
+    ];
+
+    /// <summary>
+    /// Indica si la cita ya está cerrada (atendida, cancelada o no asistió) y por tanto no debe
+    /// considerarse "en espera" aunque su fecha ya haya pasado.
+    /// </summary>
+    public static bool EsEstadoFinal(string? estado)
+        => !string.IsNullOrWhiteSpace(estado)
+           && EstadosFinales.Contains(estado.Trim().ToLowerInvariant());
+
     public static string Normalize(string? estado)
     {
         string normalized = string.Concat((estado ?? string.Empty).Trim().Normalize(NormalizationForm.FormD)
@@ -80,10 +101,10 @@ public static class EstadoCitaHelper
         return (actual, siguiente) switch
         {
             ("solicitada", "programada") => true,
-            ("programada", "confirmada" or "en_sala_de_espera") => true,
-            ("confirmada", "en_sala_de_espera" or "en_proceso") => true,
-            ("en_sala_de_espera", "en_proceso") => true,
-            ("en_proceso", "atendida") => true,
+            ("programada", "confirmada" or "en_sala_de_espera" or "en_proceso" or "atendida" or "no_asistida") => true,
+            ("confirmada", "en_sala_de_espera" or "en_proceso" or "atendida" or "no_asistida") => true,
+            ("en_sala_de_espera", "en_proceso" or "atendida" or "no_asistida") => true,
+            ("en_proceso", "atendida" or "no_asistida") => true,
             _ => false
         };
     }

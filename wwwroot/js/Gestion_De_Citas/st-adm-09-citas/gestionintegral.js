@@ -168,15 +168,17 @@ window.openConfirmDeleteCita = (id, patientName, triggerEl) => {
     const modal = document.getElementById('modalConfirmDeleteCita');
     const msgEl = document.getElementById('modalConfirmDeleteCitaMessage');
     const idInput = document.getElementById('deleteCitaId');
+    const reasonInput = document.getElementById('deleteCitaMotivo');
     const returnUrlInput = document.getElementById('deleteCitaReturnUrl');
 
     if (!modal) return;
 
     if (msgEl) {
         const nombre = patientName ? ` de ${patientName}` : '';
-        msgEl.textContent = `¿Está seguro de eliminar esta cita${nombre}? Esta acción no se puede deshacer.`;
+        msgEl.textContent = `¿Está seguro de cancelar esta cita${nombre}? Esta acción no se puede deshacer.`;
     }
     if (idInput) idInput.value = id;
+    if (reasonInput) reasonInput.value = '';
     if (returnUrlInput) returnUrlInput.value = window.location.pathname + window.location.search;
 
     modal.classList.add('open');
@@ -453,11 +455,16 @@ const renderAppointmentsTable = () => {
 };
 
 const updatePaginationDisplay = (totalItems) => {
-    const showing = Math.min(DEFAULT_ITEMS_PER_PAGE, Math.max(0, totalItems - (currentPageNumber - 1) * DEFAULT_ITEMS_PER_PAGE));
+    const startIndex = (currentPageNumber - 1) * DEFAULT_ITEMS_PER_PAGE;
+    const showing = Math.min(DEFAULT_ITEMS_PER_PAGE, Math.max(0, totalItems - startIndex));
+    const rangeStart = showing > 0 ? startIndex + 1 : 0;
+    const rangeEnd = showing > 0 ? startIndex + showing : 0;
+    const pageRangeStartElement = safeGetElement('pageRangeStart');
     const pageShowingElement = safeGetElement('pageShowing');
     const pageTotalElement = safeGetElement('pageTotal');
 
-    if (pageShowingElement) pageShowingElement.textContent = showing;
+    if (pageRangeStartElement) pageRangeStartElement.textContent = rangeStart;
+    if (pageShowingElement) pageShowingElement.textContent = rangeEnd;
     if (pageTotalElement) pageTotalElement.textContent = totalItems;
 };
 

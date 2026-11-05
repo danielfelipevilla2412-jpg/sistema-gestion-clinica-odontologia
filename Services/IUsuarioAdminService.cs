@@ -20,4 +20,7 @@ public interface IUsuarioAdminService
         CambiarEstadoUsuarioRequest request,
         int? usuarioOperador,
         CancellationToken ct = default);
+        Task<(bool Success, string Message, object? Data)> CambiarBloqueoAsync(
+        int idUsuario, CambiarBloqueoUsuarioRequest request,
+        int? usuarioOperador, CancellationToken ct = default);
 }

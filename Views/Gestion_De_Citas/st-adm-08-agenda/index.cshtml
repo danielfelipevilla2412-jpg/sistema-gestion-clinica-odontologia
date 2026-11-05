@@ -37,6 +37,10 @@
             <p class="page-subtitle" data-i18n="adm08_subtitle">Gestión de citas y horarios</p>
         </div>
         <div class="header-actions">
+            <button type="button" class="btn-primary" id="btnNewAppointment" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new_aria">
+                <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                <span data-i18n="adm09_btn_nueva_cita">Nueva Cita</span>
+            </button>
             <a class="btn-secondary" href="/gestion-de-citas/st-adm-09-citas" aria-label="Abrir tabla integral de citas">
                 <span class="material-symbols-outlined" aria-hidden="true">table_view</span>
                 <span>Tabla integral</span>
@@ -93,6 +97,43 @@
         </div>
     </section>
 
+    <section class="agenda-availability" aria-labelledby="availabilityTitle">
+        <div class="agenda-availability-heading">
+            <div>
+                <h2 id="availabilityTitle">Consultar disponibilidad</h2>
+                <p>Elige un servicio y horario para ver profesionales calificados y libres.</p>
+            </div>
+            <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
+        </div>
+        <div class="agenda-availability-controls">
+            <div class="filter-group">
+                <label class="filter-label" for="availabilityDate">Fecha</label>
+                <input class="status-select" type="date" id="availabilityDate" min="@DateTime.Today.ToString("yyyy-MM-dd")" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="availabilityTime">Hora</label>
+                <input class="status-select" type="time" id="availabilityTime" value="09:00" />
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="availabilityService">Servicio</label>
+                <select class="status-select" id="availabilityService">
+                    <option value="">Selecciona un servicio</option>
+                    @foreach (var servicio in Model.Servicios)
+                    {
+                        <option value="@servicio.Id">@servicio.Text</option>
+                    }
+                </select>
+            </div>
+            <button type="button" class="btn-primary" id="checkAvailabilityButton">
+                <span class="material-symbols-outlined" aria-hidden="true">search</span>
+                Consultar
+            </button>
+        </div>
+        <div class="availability-results" id="agendaAvailabilityResults" aria-live="polite" role="status">
+            Selecciona fecha, hora y servicio para consultar profesionales.
+        </div>
+    </section>
+
     <div class="agenda-print-actions no-print">
         <button type="button" class="btn-secondary" onclick="window.print()" aria-label="Imprimir agenda semanal" data-i18n-aria-label="adm08_print_aria">
             <span class="material-symbols-outlined" aria-hidden="true">print</span>
@@ -124,7 +165,7 @@
                     if (dia.EsHoy) diaClasses += " current";
                     if (dia.Cerrado) diaClasses += " closed";
                     var diaId = $"day-{dia.Fecha.ToString("yyyyMMdd")}";
-                    <div class="@diaClasses" role="row" aria-labelledby="@diaId">
+                    <div class="@diaClasses" role="row" aria-labelledby="@diaId" data-date="@dia.Fecha.ToString("yyyy-MM-dd")">
                         <span id="@diaId" class="visually-hidden">@dia.NombreDia @dia.Fecha.Day de @dia.Fecha.ToString("MMMM")</span>
                         @if (dia.Cerrado)
                         {
@@ -139,6 +180,9 @@
                             {
                                 var ariaLabel = $"Cita {cita.Estado}: {cita.Paciente}, {cita.Hora}, {cita.Servicio}, {cita.Consultorio}";
                                 var dateTimeValue = $"{dia.Fecha.ToString("yyyy-MM-dd")}T{cita.Hora}:00";
+                                var esReagendable = cita.Estado.Equals("agendada", StringComparison.OrdinalIgnoreCase)
+                                    || cita.Estado.Equals("programada", StringComparison.OrdinalIgnoreCase)
+                                    || cita.Estado.Equals("confirmada", StringComparison.OrdinalIgnoreCase);
                                 <div class="appointment @cita.ClaseEstado" tabindex="0" role="button"
                                     aria-label="@ariaLabel"
                                     data-id="@cita.Id" data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
@@ -151,7 +195,9 @@
                                     data-professional-email="@Html.Encode(cita.CorreoProfesional)"
                                     data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
                                     data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
-                                    data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)">
+                                    data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)"
+                                    data-reschedulable="@esReagendable.ToString().ToLowerInvariant()"
+                                    draggable="@esReagendable.ToString().ToLowerInvariant()">
                                     <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
                                     <span class="appt-patient">@cita.Paciente</span>
                                     <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
@@ -198,6 +244,7 @@
         <div class="modal-footer">
             <button type="button" class="btn-secondary" id="modalApptCancel" data-i18n="form.close">Cerrar</button>
             <button type="button" class="btn-secondary btn-danger" id="modalApptCancelar" data-i18n="citas.cancel">Cancelar Cita</button>
+            <button type="button" class="btn-secondary" id="modalApptReagendar" hidden>Reagendar</button>
             <button type="button" class="btn-primary" id="modalApptEdit" data-i18n="form.edit">Editar</button>
         </div>
     </div>
@@ -291,11 +338,6 @@
     </div>
 </div>
 
-<!-- FAB nueva cita -->
-<button class="fab" id="btnNewAppointment" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new_aria">
-    <span class="material-symbols-outlined" aria-hidden="true">add</span>
-</button>
-
 <!-- Navegación móvil -->
 <nav class="mobile-nav" aria-label="Navegación móvil" data-i18n-aria-label="adm08_mobile_nav_aria">
     <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
@@ -321,7 +363,10 @@
     <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
 </footer>
 
+@await Html.PartialAsync("~/Views/Shared/_ReagendarCitaModal.cshtml")
+
 @section Scripts {
+    <script src="~/js/shared/reagendamiento-agenda.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
     <script src="~/js/Gestion_De_Citas/st-adm-08-agenda/agendageneral.js" asp-append-version="true" defer></script>

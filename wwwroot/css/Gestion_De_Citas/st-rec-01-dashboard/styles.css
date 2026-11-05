@@ -226,12 +226,24 @@ img { max-width: 100%; height: auto; display: block; }
 /* Status badges para tabla */
 .status-badge { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
 .status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.status-atendida { background: var(--status-atendida); color: #15803d; }
-.status-atendida::before { background: var(--green); }
+.status-atendida { background: #dbeafe; color: #1e3a8a; }
+.status-atendida::before { content: "✓"; width: auto; height: auto; color: #1e3a8a; background: none; font-size: .78rem; }
 .status-consulta { background: var(--status-consulta); color: #1d4ed8; }
 .status-consulta::before { background: #3b82f6; }
 .status-pendiente { background: var(--status-pendiente); color: #c2410c; }
 .status-pendiente::before { background: var(--orange); }
+.status-confirmada { background: #d1fae5; color: #065f46; }
+.status-confirmada::before { background: #10b981; }
+.status-espera { background: #cffafe; color: #0e7490; }
+.status-espera::before { background: #06b6d4; animation: waiting-pulse 1.4s ease-in-out infinite; }
+.status-cancelada { background: #fee2e2; color: #991b1b; outline: 1px solid #ef4444; }
+.status-cancelada::before { background: #ef4444; }
+.status-no-asistio { background: #e2e8f0; color: #475569; }
+.status-no-asistio::before { background: #64748b; }
+.status-programada { background: #fef3c7; color: #92400e; }
+.status-programada::before { background: #f59e0b; }
+@keyframes waiting-pulse { 50% { opacity: .35; transform: scale(.75); } }
+@media (prefers-reduced-motion: reduce) { .status-espera::before { animation: none; } }
 
 /* Acciones en tabla */
 .actions-cell { display: flex; align-items: center; gap: 4px; }

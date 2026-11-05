@@ -22,6 +22,7 @@
 
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
@@ -37,6 +38,7 @@ public partial class ProfesionalService : IProfesionalService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<ProfesionalService> _logger;
+    private readonly IMemoryCache? _memoryCache;
 
     // ── Reglas de negocio — delegan al Helper centralizado (P-04, P-05) ─────
 
@@ -66,10 +68,14 @@ public partial class ProfesionalService : IProfesionalService
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    public ProfesionalService(AppDbContext context, ILogger<ProfesionalService> logger)
+    public ProfesionalService(
+        AppDbContext context,
+        ILogger<ProfesionalService> logger,
+        IMemoryCache? memoryCache = null)
     {
         _context = context;
         _logger = logger;
+        _memoryCache = memoryCache;
     }
 
     // ── Listado paginado ──────────────────────────────────────────────────────
@@ -232,7 +238,12 @@ public partial class ProfesionalService : IProfesionalService
     public async Task<List<ProfesionalEspecialidadApiDto>> ObtenerEspecialidadesAsync(
         CancellationToken ct = default)
     {
-        return await _context.Especialidades
+        if (_memoryCache is not null &&
+            _memoryCache.TryGetValue(CatalogCacheKeys.EspecialidadesApi, out List<ProfesionalEspecialidadApiDto>? cached) &&
+            cached is not null)
+            return cached;
+
+        var especialidades = await _context.Especialidades
             .AsNoTracking()
             .OrderBy(e => e.Nombre)
             .Select(e => new ProfesionalEspecialidadApiDto
@@ -241,6 +252,13 @@ public partial class ProfesionalService : IProfesionalService
                 Nombre = e.Nombre
             })
             .ToListAsync(ct);
+
+        _memoryCache?.Set(
+            CatalogCacheKeys.EspecialidadesApi,
+            especialidades,
+            new MemoryCacheEntryOptions { SlidingExpiration = CatalogCacheKeys.SlidingExpiration });
+
+        return especialidades;
     }
 
     // ── Crear ─────────────────────────────────────────────────────────────────
@@ -255,6 +273,8 @@ public partial class ProfesionalService : IProfesionalService
         var (valido, errorMsg) = ValidarRequest(request, esCreacion: true);
         if (!valido)
             return ProfesionalApiOperationResult.Fail(errorMsg!, 422);
+        if (!await EsCategoriaValidaAsync(request.Categoria, ct))
+            return ProfesionalApiOperationResult.Fail("La categoría seleccionada no pertenece al catálogo de especialidades.", 422);
 
         string nombres = request.Nombres.Trim();
         string apellidos = request.Apellidos.Trim();
@@ -315,7 +335,8 @@ public partial class ProfesionalService : IProfesionalService
                         Categoria = request.Categoria?.Trim(),
                         Telefono = request.Telefono?.Trim(),
                         Descripcion = request.Descripcion?.Trim(),
-                        Estado = "activo",
+                        Estado = "inactivo",
+                        CredencialesAprobadas = false,
                         FechaIngreso = DateTime.Today
                     };
 
@@ -323,21 +344,24 @@ public partial class ProfesionalService : IProfesionalService
                     await _context.SaveChangesAsync(ct);
 
                     // ── Especialidades (RF-11 + RN-15) ──────────────────────────────
-                    // Resolvemos la lista canónica de IDs: IdsEspecialidades tiene
-                    // prioridad; si está vacía, usamos IdEspecialidad (compat.);
-                    // si ambos están vacíos, asignamos Odontología General por defecto.
-                    var idsEspRaw = (request.IdsEspecialidades?.Where(x => x > 0).Distinct().ToList())
-                                    ?? (request.IdEspecialidad is > 0
-                                        ? new List<int> { request.IdEspecialidad.Value }
-                                        : new List<int>());
+                    // La lista ordenada nueva lleva la especialidad principal en la primera posición.
+                    var idsEspRaw = request.EspecialidadesIds is { Count: > 0 }
+                        ? request.EspecialidadesIds.Where(x => x > 0).Distinct().ToList()
+                        : request.IdsEspecialidades is { Count: > 0 }
+                            ? request.IdsEspecialidades.Where(x => x > 0).Distinct().ToList()
+                            : request.IdEspecialidad is > 0
+                                ? new List<int> { request.IdEspecialidad.Value }
+                                : new List<int>();
 
                     if (idsEspRaw.Count == 0)
                     {
                         // RN-15: sin selección → Odontología General
                         var espDefault = await _context.Especialidades
-                            .FirstOrDefaultAsync(e => e.Nombre.ToLower().Contains("general"), ct);
-                        if (espDefault != null)
-                            idsEspRaw.Add(espDefault.IdEspecialidad);
+                            .FirstOrDefaultAsync(e => e.Nombre == "Odontología General", ct);
+                        if (espDefault is null)
+                            throw new InvalidOperationException(
+                                "No existe la especialidad 'Odontología General' para aplicar el valor predeterminado (RN-15).");
+                        idsEspRaw.Add(espDefault.IdEspecialidad);
                     }
 
                     for (int espIdx = 0; espIdx < idsEspRaw.Count; espIdx++)
@@ -396,7 +420,7 @@ public partial class ProfesionalService : IProfesionalService
             // Recargar con navegación para devolver DTO completo
             var dto = await ObtenerPorIdAsync(profesional!.IdProfesional, ct);
             return ProfesionalApiOperationResult.Ok(
-                "El profesional y su cuenta de acceso fueron creados correctamente. La contraseña temporal segura fue generada automáticamente.", dto);
+                "La cuenta fue creada y la contraseña temporal segura fue generada automáticamente. El perfil profesional permanecerá inactivo hasta que el administrador apruebe las credenciales cargadas.", dto);
         }
         catch (CorreoDuplicadoException)
         {
@@ -432,6 +456,8 @@ public partial class ProfesionalService : IProfesionalService
         var (valido, errorMsg) = ValidarRequest(request, esCreacion: false);
         if (!valido)
             return ProfesionalApiOperationResult.Fail(errorMsg!, 422);
+        if (!await EsCategoriaValidaAsync(request.Categoria, ct))
+            return ProfesionalApiOperationResult.Fail("La categoría seleccionada no pertenece al catálogo de especialidades.", 422);
 
         string nombres = request.Nombres.Trim();
         string apellidos = request.Apellidos.Trim();
@@ -511,6 +537,9 @@ public partial class ProfesionalService : IProfesionalService
                     profesional.Descripcion = request.Descripcion?.Trim();
                     profesional.FechaIngreso ??= DateTime.Today;
 
+                    if (estadoSolicitado is "activo" or "vacaciones" && !profesional.CredencialesAprobadas)
+                        throw new InvalidOperationException("El profesional no puede activarse hasta que el administrador apruebe sus credenciales.");
+
                     if (estadoSolicitado == "inactivo" && profesional.Estado != "inactivo")
                     {
                         bool tieneCitasActivas = await _context.Citas.AnyAsync(c =>
@@ -525,7 +554,9 @@ public partial class ProfesionalService : IProfesionalService
                         profesional.Estado = estadoSolicitado;
 
                     // Sincronizar estado de la cuenta
-                    usuario.Estado = profesional.Estado == "inactivo" ? "inactivo" : "activo";
+                    usuario.Estado = profesional.Estado == "inactivo" && profesional.CredencialesAprobadas
+                        ? "inactivo"
+                        : "activo";
 
                     await _context.SaveChangesAsync(ct);
 
@@ -537,18 +568,23 @@ public partial class ProfesionalService : IProfesionalService
                     if (relaciones.Count > 0)
                         _context.ProfesionalEspecialidades.RemoveRange(relaciones);
 
-                    var idsEspUpd = (request.IdsEspecialidades?.Where(x => x > 0).Distinct().ToList())
-                                    ?? (request.IdEspecialidad is > 0
-                                        ? new List<int> { request.IdEspecialidad.Value }
-                                        : new List<int>());
+                    var idsEspUpd = request.EspecialidadesIds is { Count: > 0 }
+                        ? request.EspecialidadesIds.Where(x => x > 0).Distinct().ToList()
+                        : request.IdsEspecialidades is { Count: > 0 }
+                            ? request.IdsEspecialidades.Where(x => x > 0).Distinct().ToList()
+                            : request.IdEspecialidad is > 0
+                                ? new List<int> { request.IdEspecialidad.Value }
+                                : new List<int>();
 
                     if (idsEspUpd.Count == 0)
                     {
                         // RN-15: sin selección → Odontología General
                         var espDefault = await _context.Especialidades
-                            .FirstOrDefaultAsync(e => e.Nombre.ToLower().Contains("general"), ct);
-                        if (espDefault != null)
-                            idsEspUpd.Add(espDefault.IdEspecialidad);
+                            .FirstOrDefaultAsync(e => e.Nombre == "Odontología General", ct);
+                        if (espDefault is null)
+                            throw new InvalidOperationException(
+                                "No existe la especialidad 'Odontología General' para aplicar el valor predeterminado (RN-15).");
+                        idsEspUpd.Add(espDefault.IdEspecialidad);
                     }
 
                     for (int espIdx = 0; espIdx < idsEspUpd.Count; espIdx++)
@@ -663,6 +699,9 @@ public partial class ProfesionalService : IProfesionalService
 
                     string estadoAnterior = profesional.Estado;
 
+                    if (estadoNorm is "activo" or "vacaciones" && !profesional.CredencialesAprobadas)
+                        throw new InvalidOperationException("El profesional no puede activarse hasta que el administrador apruebe sus credenciales.");
+
                     // Si se va a inactivar, verificar citas pendientes
                     if (estadoNorm == "inactivo" && estadoAnterior != "inactivo")
                     {
@@ -683,7 +722,9 @@ public partial class ProfesionalService : IProfesionalService
 
                     // Sincronizar la cuenta de usuario
                     if (profesional.Usuario != null)
-                        profesional.Usuario.Estado = estadoNorm == "inactivo" ? "inactivo" : "activo";
+                        profesional.Usuario.Estado = estadoNorm == "inactivo" && profesional.CredencialesAprobadas
+                            ? "inactivo"
+                            : "activo";
 
                     // Sincronizar bloqueo en Bloqueo_Profesional según el estado
                     if (estadoNorm == "inactivo")
@@ -1036,6 +1077,52 @@ public partial class ProfesionalService : IProfesionalService
         return ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>.Ok(ausencias);
     }
 
+    public async Task<ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>> ObtenerCitasAfectadasPorAusenciaAsync(
+        int id,
+        DateOnly fechaInicio,
+        DateOnly fechaFin,
+        CancellationToken ct = default)
+    {
+        if (id <= 0 || fechaInicio == default || fechaFin == default || fechaFin < fechaInicio)
+            return ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>.Fail(
+                "Indica un rango de fechas de ausencia válido.", 400);
+
+        bool existe = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+        if (!existe)
+            return ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>.Fail(
+                "Profesional no encontrado.", 404);
+
+        DateTime inicio = fechaInicio.ToDateTime(TimeOnly.MinValue);
+        DateTime fin = fechaFin.ToDateTime(TimeOnly.MaxValue);
+        var citasAfectadas = await _context.Citas
+            .AsNoTracking()
+            .Include(c => c.Paciente)
+            .Include(c => c.Servicio)
+            .Where(c => c.IdProfesional == id
+                     && c.FechaHora <= fin
+                     && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > inicio
+                     && c.Estado != null
+                     && c.Estado.ToLower() != "cancelada"
+                     && c.Estado.ToLower() != "cancelado"
+                     && c.Estado.ToLower() != "atendida"
+                     && c.Estado.ToLower() != "no_asistida"
+                     && c.Estado.ToLower() != "no asistió"
+                     && c.Estado.ToLower() != "no asistio")
+            .OrderBy(c => c.FechaHora)
+            .Select(c => new CitaAfectadaAusenciaApiDto
+            {
+                IdCita = c.IdCita,
+                FechaHora = c.FechaHora,
+                Paciente = c.Paciente == null ? "Paciente" : (c.Paciente.Nombres + " " + c.Paciente.Apellidos).Trim(),
+                Servicio = c.Servicio == null ? "Consulta" : c.Servicio.Nombre,
+                Estado = c.Estado ?? string.Empty
+            })
+            .ToListAsync(ct);
+
+        return ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>.Ok(citasAfectadas);
+    }
+
     public async Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> CrearAusenciaAsync(
         int id,
         AusenciaProfesionalApiRequest request,
@@ -1057,17 +1144,22 @@ public partial class ProfesionalService : IProfesionalService
             AprobadoPor = operadorId
         };
 
+        var citasAfectadas = await ObtenerCitasAfectadasPorAusenciaAsync(id, request.FechaInicio, request.FechaFin, ct);
+        if (!citasAfectadas.Success)
+            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(
+                citasAfectadas.Message, citasAfectadas.ErrorStatusCode ?? 500);
+
         _context.AusenciasProfesional.Add(ausencia);
         await _context.SaveChangesAsync(ct);
 
-        // M1: Detectar citas afectadas por el rango de ausencia (RF-15/CU-PRO-06)
-        var citasAfectadas = await DetectarCitasEnRangoAusenciaAsync(id, request.FechaInicio, request.FechaFin, ct);
-        string mensaje = citasAfectadas.Count == 0
+        string mensaje = citasAfectadas.Data.Count == 0
             ? "Ausencia registrada correctamente."
-            : $"Ausencia registrada. ADVERTENCIA: existen {citasAfectadas.Count} cita(s) programada(s) en este período que requieren gestión: {string.Join(", ", citasAfectadas.Select(c => c.FechaHora.ToString("dd/MM/yyyy HH:mm")))}";
+            : $"Ausencia registrada. ADVERTENCIA: existen {citasAfectadas.Data.Count} cita(s) programada(s) que requieren gestión.";
 
+        var ausenciaDto = MapAusencia(ausencia);
+        ausenciaDto.CitasAfectadas = citasAfectadas.Data;
         return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Ok(
-            mensaje, [MapAusencia(ausencia)]);
+            mensaje, [ausenciaDto]);
     }
 
     public async Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> ActualizarAusenciaAsync(
@@ -1086,6 +1178,11 @@ public partial class ProfesionalService : IProfesionalService
         if (ausencia is null)
             return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail("Ausencia no encontrada.", 404);
 
+        var citasAfectadas = await ObtenerCitasAfectadasPorAusenciaAsync(id, request.FechaInicio, request.FechaFin, ct);
+        if (!citasAfectadas.Success)
+            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(
+                citasAfectadas.Message, citasAfectadas.ErrorStatusCode ?? 500);
+
         ausencia.Tipo = request.Tipo.Trim().ToLowerInvariant();
         ausencia.FechaInicio = request.FechaInicio;
         ausencia.FechaFin = request.FechaFin;
@@ -1094,14 +1191,14 @@ public partial class ProfesionalService : IProfesionalService
         ausencia.AprobadoPor = operadorId;
         await _context.SaveChangesAsync(ct);
 
-        // M1: Detectar citas afectadas por el rango de ausencia actualizado (RF-15/CU-PRO-06)
-        var citasAfectadas = await DetectarCitasEnRangoAusenciaAsync(id, request.FechaInicio, request.FechaFin, ct);
-        string mensaje = citasAfectadas.Count == 0
+        string mensaje = citasAfectadas.Data.Count == 0
             ? "Ausencia actualizada correctamente."
-            : $"Ausencia actualizada. ADVERTENCIA: existen {citasAfectadas.Count} cita(s) programada(s) en este período que requieren gestión: {string.Join(", ", citasAfectadas.Select(c => c.FechaHora.ToString("dd/MM/yyyy HH:mm")))}";
+            : $"Ausencia actualizada. ADVERTENCIA: existen {citasAfectadas.Data.Count} cita(s) programada(s) que requieren gestión.";
 
+        var ausenciaDto = MapAusencia(ausencia);
+        ausenciaDto.CitasAfectadas = citasAfectadas.Data;
         return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Ok(
-            mensaje, [MapAusencia(ausencia)]);
+            mensaje, [ausenciaDto]);
     }
 
     public async Task<ProfesionalApiOperationResult> EliminarAusenciaAsync(
@@ -1154,38 +1251,6 @@ public partial class ProfesionalService : IProfesionalService
     /// con el rango de ausencia indicado. No modifica ningún dato; solo consulta para
     /// que la capa de presentación pueda mostrar una advertencia accionable.
     /// </summary>
-    private async Task<List<Cita>> DetectarCitasEnRangoAusenciaAsync(
-        int idProfesional,
-        DateOnly fechaInicio,
-        DateOnly fechaFin,
-        CancellationToken ct)
-    {
-        try
-        {
-            DateTime inicio = fechaInicio.ToDateTime(TimeOnly.MinValue);
-            DateTime fin    = fechaFin.ToDateTime(TimeOnly.MaxValue);
-
-            var estadosCancelados = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                { "cancelada", "cancelado", "no asistio", "no asistió", "no_asistida" };
-
-            return await _context.Citas
-                .AsNoTracking()
-                .Where(c =>
-                    c.IdProfesional == idProfesional &&
-                    c.FechaHora >= inicio &&
-                    c.FechaHora <= fin &&
-                    !estadosCancelados.Contains(c.Estado ?? string.Empty))
-                .OrderBy(c => c.FechaHora)
-                .ToListAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex,
-                "No se pudo consultar citas afectadas para ausencia del profesional {Id}", idProfesional);
-            return [];
-        }
-    }
-
     public async Task<ProfesionalApiCollectionResult<ServicioProfesionalApiDto>> ObtenerServiciosAsync(
         int id,
         CancellationToken ct = default)
@@ -1223,18 +1288,26 @@ public partial class ProfesionalService : IProfesionalService
         {
             var serviciosPorEsp = await _context.Servicios
                 .AsNoTracking()
-                .Where(s => s.Estado == "activo")
+                .Where(s => s.Estado == "activo"
+                         && (!s.IdEspecialidad.HasValue || idsEsp.Contains(s.IdEspecialidad.Value)))
                 .ToListAsync(ct);
 
-            // Precios personalizados para este profesional (si existen)
-            var preciosPersonalizados = await _context.ProfesionalServicios
+            var asignacionesExcepcionales = await _context.ProfesionalServicios
                 .AsNoTracking()
                 .Where(ps => ps.IdProfesional == id && ps.Activo)
-                .ToDictionaryAsync(ps => ps.IdServicio, ps => ps.PrecioPersonalizado, ct);
+                .ToDictionaryAsync(ps => ps.IdServicio, ct);
+            var serviciosDeshabilitados = await _context.ProfesionalServicios
+                .AsNoTracking()
+                .Where(ps => ps.IdProfesional == id && !ps.Activo)
+                .Select(ps => ps.IdServicio)
+                .ToListAsync(ct);
 
-            servicios = serviciosPorEsp.Select(s =>
+            servicios = serviciosPorEsp
+                .Where(s => !serviciosDeshabilitados.Contains(s.IdServicio))
+                .Select(s =>
             {
-                preciosPersonalizados.TryGetValue(s.IdServicio, out decimal? precioPersonalizado);
+                asignacionesExcepcionales.TryGetValue(s.IdServicio, out var asignacion);
+                decimal? precioPersonalizado = asignacion?.PrecioPersonalizado;
                 return new ServicioProfesionalApiDto
                 {
                     IdProfesional       = id,
@@ -1262,8 +1335,12 @@ public partial class ProfesionalService : IProfesionalService
     {
         IdProfesional = p.IdProfesional,
         IdUsuario = p.IdUsuario ?? 0,
-        Nombres = p.Nombres,
-        Apellidos = p.Apellidos,
+        Nombres = p.Usuario is { Nombre: { } nombres } && !string.IsNullOrWhiteSpace(nombres)
+            ? nombres.Trim()
+            : p.Nombres,
+        Apellidos = p.Usuario is { Apellidos: { } apellidos } && !string.IsNullOrWhiteSpace(apellidos)
+            ? apellidos.Trim()
+            : p.Apellidos,
         RegistroMedico = p.RegistroMedico,
         Categoria = p.Categoria,
         Telefono = p.Telefono,
@@ -1272,11 +1349,14 @@ public partial class ProfesionalService : IProfesionalService
         FechaIngreso = p.FechaIngreso,
         CorreoAcceso = p.Usuario?.Correo,
         Especialidades = p.Especialidades
+            .OrderByDescending(pe => pe.Principal)
+            .ThenBy(pe => pe.IdEspecialidad)
             .Where(pe => pe.Especialidad != null)
             .Select(pe => new ProfesionalEspecialidadApiDto
             {
                 IdEspecialidad = pe.Especialidad!.IdEspecialidad,
-                Nombre = pe.Especialidad.Nombre
+                Nombre = pe.Especialidad.Nombre,
+                Principal = pe.Principal
             })
             .ToList()
     };
@@ -1306,6 +1386,12 @@ public partial class ProfesionalService : IProfesionalService
 
         return (true, null);
     }
+
+    private Task<bool> EsCategoriaValidaAsync(string? categoria, CancellationToken ct) =>
+        string.IsNullOrWhiteSpace(categoria)
+            ? Task.FromResult(true)
+            : _context.Especialidades.AsNoTracking()
+                .AnyAsync(e => e.Nombre == categoria.Trim(), ct);
 
     private static string GenerarContrasenaTemporal()
     {
@@ -1476,6 +1562,8 @@ public partial class ProfesionalService : IProfesionalService
         DateTime fechaInicio,
         DateTime fechaFin,
         string motivo,
+        int? operadorId = null,
+        string? observaciones = null,
         CancellationToken ct = default)
     {
         var profesional = await _context.Profesionales.FirstOrDefaultAsync(p => p.IdProfesional == idProfesional, ct);
@@ -1484,6 +1572,11 @@ public partial class ProfesionalService : IProfesionalService
 
         var dateInicio = DateOnly.FromDateTime(fechaInicio);
         var dateFin = DateOnly.FromDateTime(fechaFin);
+        if (dateFin < dateInicio)
+            throw new InvalidOperationException("La fecha de fin de la ausencia no puede ser anterior a la fecha de inicio.");
+
+        var inicioAusencia = dateInicio.ToDateTime(TimeOnly.MinValue);
+        var finAusencia = dateFin.ToDateTime(TimeOnly.MaxValue);
 
         // 1. Registrar la ausencia del profesional
         var ausencia = new AusenciaProfesional
@@ -1492,16 +1585,24 @@ public partial class ProfesionalService : IProfesionalService
             FechaInicio = dateInicio,
             FechaFin = dateFin,
             Tipo = string.IsNullOrWhiteSpace(motivo) ? "incapacidad" : motivo.Trim(),
-            Observaciones = "Registrado dinámicamente con motor de reasignación masiva."
+            Observaciones = string.IsNullOrWhiteSpace(observaciones)
+                ? "Registrado con reasignación automática de citas."
+                : observaciones.Trim(),
+            AprobadoPor = operadorId
         };
         _context.AusenciasProfesional.Add(ausencia);
 
         // 2. Buscar citas afectadas no canceladas
         var citasAfectadas = await _context.Citas
             .Where(c => c.IdProfesional == idProfesional
-                     && c.FechaHora >= fechaInicio
-                     && c.FechaHora <= fechaFin
-                     && c.Estado.ToLower() != "cancelada")
+                     && c.FechaHora <= finAusencia
+                     && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > inicioAusencia
+                     && c.Estado.ToLower() != "cancelada"
+                     && c.Estado.ToLower() != "cancelado"
+                     && c.Estado.ToLower() != "atendida"
+                     && c.Estado.ToLower() != "no_asistida"
+                     && c.Estado.ToLower() != "no asistió"
+                     && c.Estado.ToLower() != "no asistio")
             .ToListAsync(ct);
 
         var resultado = new SmileTrack_MVC.Models.DTOs.ResultadoReasignacionAusenciaDto
@@ -1515,6 +1616,22 @@ public partial class ProfesionalService : IProfesionalService
         var profesionalesActivos = await _context.Profesionales
             .Where(p => p.IdProfesional != idProfesional && p.Estado == "activo")
             .ToListAsync(ct);
+        var idsProfesionalesCandidatos = profesionalesActivos.Select(p => p.IdProfesional).ToList();
+        var especialidadesCandidatas = await _context.ProfesionalEspecialidades
+            .AsNoTracking()
+            .Where(pe => idsProfesionalesCandidatos.Contains(pe.IdProfesional))
+            .ToListAsync(ct);
+        var especialidadesPorProfesional = especialidadesCandidatas
+            .GroupBy(item => item.IdProfesional)
+            .ToDictionary(group => group.Key, group => group.Select(item => item.IdEspecialidad).ToList());
+        int? idEspecialidadGeneral = await _context.Especialidades
+            .AsNoTracking()
+            .Where(e => e.Nombre.ToLower().Contains("general"))
+            .Select(e => (int?)e.IdEspecialidad)
+            .FirstOrDefaultAsync(ct);
+        var especialidadPorServicio = await _context.Servicios
+            .AsNoTracking()
+            .ToDictionaryAsync(s => s.IdServicio, s => s.IdEspecialidad, ct);
 
         int reasignadas = 0;
         int canceladas = 0;
@@ -1524,20 +1641,40 @@ public partial class ProfesionalService : IProfesionalService
             int duracion = cita.DuracionMinutos > 0 ? cita.DuracionMinutos : 30;
             DateTime finCita = cita.FechaHora.AddMinutes(duracion);
             DateOnly dateCita = DateOnly.FromDateTime(cita.FechaHora);
+            DateOnly ultimoDiaCita = DateOnly.FromDateTime(finCita.AddTicks(-1));
 
             Profesional? candidatoElegido = null;
 
             foreach (var candidato in profesionalesActivos)
             {
-                // Verificar si ofrece el servicio si hay especificación de servicios
-                bool ofreceServicio = !await _context.ProfesionalServicios.AnyAsync(ps => ps.IdProfesional == candidato.IdProfesional, ct)
-                                   || await _context.ProfesionalServicios.AnyAsync(ps => ps.IdProfesional == candidato.IdProfesional && ps.IdServicio == cita.IdServicio && ps.Activo, ct);
+                if (cita.IdServicio is int idServicio)
+                {
+                    bool deshabilitadoManualmente = await _context.ProfesionalServicios
+                        .AsNoTracking()
+                        .AnyAsync(ps => ps.IdProfesional == candidato.IdProfesional
+                                     && ps.IdServicio == idServicio
+                                     && !ps.Activo, ct);
+                    if (deshabilitadoManualmente) continue;
 
-                if (!ofreceServicio) continue;
+                    if (especialidadPorServicio.TryGetValue(idServicio, out int? especialidadServicio)
+                        && especialidadServicio.HasValue)
+                    {
+                        var idsEspecialidadesCandidato = especialidadesPorProfesional.TryGetValue(
+                            candidato.IdProfesional, out var idsCandidato)
+                            ? idsCandidato
+                            : new List<int>();
+                        if (idsEspecialidadesCandidato.Count == 0 && idEspecialidadGeneral.HasValue)
+                            idsEspecialidadesCandidato = [idEspecialidadGeneral.Value];
+                        if (!idsEspecialidadesCandidato.Contains(especialidadServicio.Value))
+                            continue;
+                    }
+                }
 
                 // Verificar ausencias del candidato
                 bool candidatoConAusencia = await _context.AusenciasProfesional
-                    .AnyAsync(a => a.IdProfesional == candidato.IdProfesional && a.FechaInicio <= dateCita && a.FechaFin >= dateCita, ct);
+                    .AnyAsync(a => a.IdProfesional == candidato.IdProfesional
+                                && a.FechaInicio <= ultimoDiaCita
+                                && a.FechaFin >= dateCita, ct);
 
                 if (candidatoConAusencia) continue;
 

@@ -47,22 +47,6 @@ public sealed class AgendaService(
         var diasAtencion = await ObtenerDiasAtencionAsync(cancellationToken);
         var horario = await ObtenerHorarioClinicaAsync(cancellationToken);
 
-        // Si no se especificó un filtro de profesional (carga inicial al iniciar sesión),
-        // se establece por defecto el profesional correspondiente a prof@smiletrack.co.
-        if (!professionalId.HasValue)
-        {
-            var defaultProfId = await _context.Profesionales
-                .AsNoTracking()
-                .Where(p => p.Usuario != null && p.Usuario.Correo == "prof@smiletrack.co")
-                .Select(p => (int?)p.IdProfesional)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (defaultProfId.HasValue && defaultProfId.Value > 0)
-            {
-                professionalId = defaultProfId;
-            }
-        }
-
         var query = _context.Citas
             .AsNoTracking()
             .Where(c => c.FechaHora >= inicioSemana && c.FechaHora < finSemana);

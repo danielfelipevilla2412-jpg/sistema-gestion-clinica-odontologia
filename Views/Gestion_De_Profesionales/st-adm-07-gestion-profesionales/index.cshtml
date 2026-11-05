@@ -32,7 +32,14 @@ NOTAS DE MANTENIMIENTO:
   // Extraer datos del ViewBag con fallback para evitar null reference en caso de error del Controller
   var especialidades = ViewData["Especialidades"] as List<SmileTrack_MVC.Models.Entities.Especialidad> ?? new();
   var profesionales  = ViewData["Profesionales"]  as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
+  var credenciales   = ViewData["CredencialesProfesionales"] as List<SmileTrack_MVC.Models.Entities.CredencialProfesional> ?? new();
   var pageResult     = ViewData["ProfesionalesPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Profesional>;
+  var resultItemCount = pageResult?.Items?.Count ?? 0;
+  var resultTotalCount = pageResult?.TotalCount ?? 0;
+  var resultPage = pageResult?.Page ?? 1;
+  var resultPageSize = pageResult?.PageSize ?? 10;
+  var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+  var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
   // Stats globales: vienen del Controller como COUNT() sobre toda la BD (no de la página actual).
   // WHY: si hay 80 profesionales y se muestran 10 por página, los stats deben decir 80, no 10.
   var statTotal      = (int)(ViewData["StatTotal"]      ?? 0);
@@ -70,21 +77,70 @@ NOTAS DE MANTENIMIENTO:
     -->
     <section class="stats-grid" aria-label="Estadísticas de profesionales" data-i18n-aria-label="gestionprofesionales_stats_aria">
       <div class="stat-card" data-color="blue">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">groups</span>
         <span class="stat-number" id="profesionales-stat-total" data-target="@statTotal" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="gestionprofesionales_stat_total">Total Profesionales</span>
       </div>
       <div class="stat-card" data-color="green">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">person_check</span>
         <span class="stat-number" id="profesionales-stat-activos" data-target="@statActivos" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="gestionprofesionales_stat_activos">Activos</span>
       </div>
       <div class="stat-card" data-color="orange">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">beach_access</span>
         <span class="stat-number" id="profesionales-stat-vacaciones" data-target="@statVacaciones" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="gestionprofesionales_stat_vacaciones">En vacaciones</span>
       </div>
       <div class="stat-card" data-color="red">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">person_off</span>
         <span class="stat-number" id="profesionales-stat-inactivos" data-target="@statInactivos" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="gestionprofesionales_stat_inactivos">Inactivos</span>
       </div>
+    </section>
+
+    <section class="table-card" aria-labelledby="credentialsReviewTitle" style="margin:1.25rem 0;padding:1.25rem;">
+      <h2 id="credentialsReviewTitle">Verificación de credenciales</h2>
+      @if (!credenciales.Any())
+      {
+        <p>No hay documentos profesionales cargados para revisión.</p>
+      }
+      else
+      {
+        <div class="table-wrap">
+          <table class="table-base">
+            <thead>
+              <tr><th>PROFESIONAL</th><th>DOCUMENTO</th><th>ARCHIVO</th><th>ESTADO</th><th>REVISIÓN</th></tr>
+            </thead>
+            <tbody>
+              @foreach (var credencial in credenciales)
+              {
+                <tr>
+                  <td>@credencial.Profesional?.NombreProfesional</td>
+                  <td>@credencial.Tipo</td>
+                  <td><a href="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/archivo">@credencial.NombreOriginal</a></td>
+                  <td>@credencial.EstadoRevision</td>
+                  <td>
+                    @if (credencial.EstadoRevision == "pendiente")
+                    {
+                      <form method="post" action="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/revisar">
+                        @Html.AntiForgeryToken()
+                        <label class="visually-hidden" for="review-@credencial.IdCredencial">Observación de revisión</label>
+                        <input id="review-@credencial.IdCredencial" name="observacion" maxlength="500" placeholder="Observación (opcional)" />
+                        <button class="btn-primary" type="submit" name="decision" value="aprobado">Aprobar</button>
+                        <button class="btn-danger" type="submit" name="decision" value="rechazado">Rechazar</button>
+                      </form>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(credencial.ObservacionRevision))
+                    {
+                      @credencial.ObservacionRevision
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     </section>
 
     <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
@@ -192,7 +248,7 @@ NOTAS DE MANTENIMIENTO:
               <tr>
                 <td class="td-profesional">
                   @{
-                    var name = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
+                    var name = profesional.NombreProfesional;
                     var initials = string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
                   }
                   <span class="p-avatar p-avatar--color-@(profesional.IdProfesional % 5)">@initials</span>
@@ -204,7 +260,7 @@ NOTAS DE MANTENIMIENTO:
                 <td><span class="badge-status badge-@((profesional.Estado ?? string.Empty).ToLowerInvariant())">@profesional.Estado</span></td>
                 <td>
           @{
-            var profNombreCompleto = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
+            var profNombreCompleto = profesional.NombreProfesional;
             var profIniciales = string.Concat(profNombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
             var avatarColorIdx = profesional.IdProfesional % 5;
             var avatarColorPalette = new[] { "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6" };
@@ -273,7 +329,12 @@ NOTAS DE MANTENIMIENTO:
       <!-- WHY: cada click es un GET real al Controller — no se cargan todos los registros en memoria -->
       <div class="pagination" role="navigation" aria-label="Paginación de profesionales" data-i18n-aria-label="gestionprofesionales_pagination_aria">
         @{ }
-      <span id="paginationInfo" aria-live="polite" data-i18n-html="gestionprofesionales_pagination_info" data-i18n-html-params="{\"showing\":\"@(pageResult?.Items.Count ?? 0)\",\"total\":\"@(pageResult?.TotalCount ?? 0)\"}">Mostrando <strong>@(pageResult?.Items.Count ?? 0)</strong> de <strong>@(pageResult?.TotalCount ?? 0)</strong> profesionales registrados</span>
+      <span id="paginationInfo" aria-live="polite">
+        <span data-i18n="gestionprofesionales_pagination_info_prefix">Mostrando</span>
+        <strong id="paginationRangeStart">@resultRangeStart</strong>-<strong id="paginationRangeEnd">@resultRangeEnd</strong>
+        de <strong id="paginationTotal">@resultTotalCount</strong>
+        <span data-i18n="gestionprofesionales_pagination_info_suffix">profesionales registrados</span>
+      </span>
         <div class="pagination-buttons" id="paginationButtons">
           @if (pageResult != null && pageResult.HasPreviousPage)
           {
@@ -335,14 +396,20 @@ NOTAS DE MANTENIMIENTO:
         </div>
         <div class="form-group">
           <label class="form-label" for="formCategoria" data-i18n="gestionprofesionales_form_categoria_label">Categoría</label>
-          <input type="text" id="formCategoria" name="Categoria" class="form-input" placeholder="Ej. Odontología General" value="" data-i18n-ph="gestionprofesionales_form_categoria_ph">
+          <select id="formCategoria" name="Categoria" class="form-input">
+            <option value="">Seleccionar categoría</option>
+            @foreach (var especialidad in especialidades)
+            {
+              <option value="@especialidad.Nombre">@especialidad.Nombre</option>
+            }
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label" for="formTelefono" data-i18n="gestionprofesionales_form_telefono_label">Teléfono</label>
           <input type="tel" id="formTelefono" name="Telefono" class="form-input" placeholder="Ej. 300 123 4567" value="" data-i18n-ph="gestionprofesionales_form_telefono_ph">
         </div>
         <div class="form-group">
-          <label class="form-label" for="formEspecialidad" data-i18n="gestionprofesionales_form_especialidad_label">Especialidad</label>
+          <label class="form-label" for="formEspecialidad" data-i18n="gestionprofesionales_form_especialidad_primary">Especialidad principal</label>
           <select id="formEspecialidad" name="IdEspecialidad" class="form-input">
             <option value="" data-i18n="gestionprofesionales_form_especialidad_none">Sin especialidad</option>
             @foreach (var especialidad in especialidades)
@@ -350,6 +417,20 @@ NOTAS DE MANTENIMIENTO:
               <option value="@especialidad.IdEspecialidad">@especialidad.Nombre</option>
             }
           </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="gestionprofesionales_form_especialidad_secondary">Especialidades secundarias</label>
+          <div id="selectedSpecialtyChips" class="specialty-chip-list" aria-live="polite"></div>
+          <div id="secondarySpecialtyOptions" class="specialty-options" role="group"
+               aria-label="Especialidades secundarias disponibles"></div>
+          <select id="formEspecialidadesSecundarias" name="IdsEspecialidadesSecundarias"
+                  class="specialty-select-native" multiple tabindex="-1" aria-hidden="true">
+            @foreach (var especialidad in especialidades)
+            {
+              <option value="@especialidad.IdEspecialidad">@especialidad.Nombre</option>
+            }
+          </select>
+          <small id="formEspecialidadesSecundariasHelp">Selecciona una o varias especialidades. La principal se define arriba.</small>
         </div>
         <div class="form-group">
           <label class="form-label" for="formCorreoAcceso" data-i18n="gestionprofesionales_form_correo_label">Correo de acceso *</label>
@@ -498,6 +579,20 @@ NOTAS DE MANTENIMIENTO:
 
       <div class="modal-footer">
         <button type="button" class="btn-secondary" id="modalDetailCloseBtn" data-i18n="common.close">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="absenceConflictModal" role="dialog" aria-modal="true"
+       aria-labelledby="absenceConflictTitle" aria-hidden="true" inert>
+    <div class="modal">
+      <h2 class="modal-title" id="absenceConflictTitle">Citas dentro del período</h2>
+      <p id="absenceConflictSummary"></p>
+      <ul id="absenceConflictAppointments"></ul>
+      <p>¿Deseas continuar? El sistema reasignará las citas con profesionales disponibles y cancelará las que no tengan reemplazo.</p>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="absenceConflictCancel">Volver</button>
+        <button type="button" class="btn-primary" id="absenceConflictContinue">Continuar y reasignar</button>
       </div>
     </div>
   </div>

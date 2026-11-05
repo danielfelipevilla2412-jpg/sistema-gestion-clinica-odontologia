@@ -31,7 +31,13 @@ const DEFAULT_FILTER_ALL = 'todos';
 class AgendaSupportController {
   constructor() {
     const data = window.smiletrackAgendaApoyoData || {};
-    this._fechaHoy = data.fechaHoy || '';
+    const hoy = new Date();
+    const fechaLocal = [
+      hoy.getFullYear(),
+      String(hoy.getMonth() + 1).padStart(2, '0'),
+      String(hoy.getDate()).padStart(2, '0')
+    ].join('-');
+    this._fechaHoy = data.fecha || fechaLocal;
     this._citasBase = data.citas || [];
     this._filtroProfesional = DEFAULT_FILTER_ALL;
     this._filtroTipo = DEFAULT_FILTER_ALL;
@@ -309,7 +315,7 @@ const initializeAgendaApoyoModule = async () => {
 
   document.querySelector('.toggle-vistas')?.addEventListener('viewchange', (event) => {
     const urlParams = new URLSearchParams(window.location.search);
-    const currentDate = urlParams.get('fecha') || new Date().toISOString().slice(0, 10);
+    const currentDate = urlParams.get('fecha') || agendaSupportControllerInstance.getFechaHoy();
     if (event.detail.view === 'semana') {
       urlParams.delete('fecha');
       urlParams.set('weekStart', urlParams.get('weekStart') || currentDate);

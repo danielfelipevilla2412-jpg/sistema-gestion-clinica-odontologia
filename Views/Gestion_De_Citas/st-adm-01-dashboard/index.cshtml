@@ -63,7 +63,7 @@
             <span class="stat-sub" data-i18n="adm01_stat_pacientes_sub">Total registrados</span>
         </article>
 
-        <article class="stat-card" data-color="green">
+        <article class="stat-card" data-color="attended">
             <span class="stat-number" id="statCitasHoy" data-target="@Model.Kpis.CitasHoy" aria-live="polite">
                 @Model.Kpis.CitasHoy
             </span>
@@ -121,7 +121,7 @@
             </span>
         </article>
 
-        <article class="stat-card" data-color="blue">
+        <article class="stat-card" data-color="confirmed">
             <span class="stat-number" data-target="@Model.Estados.Confirmadas" aria-live="polite">@Model.Estados.Confirmadas</span>
             <span class="stat-label" data-i18n="adm01_dist_confirmed">Confirmadas</span>
             <span class="stat-sub">@Model.Estados.PorcentajeConfirmadas% <span data-i18n="adm01_dist_of_total">del total</span></span>
@@ -133,12 +133,20 @@
             <span class="stat-sub">@Model.Estados.PorcentajeProgramadas% <span data-i18n="adm01_dist_of_total">del total</span></span>
         </article>
 
-        <article class="stat-card" data-color="red">
+        <article class="stat-card" data-color="cancelled">
             <span class="stat-number" data-target="@Model.Estados.Canceladas" aria-live="polite">@Model.Estados.Canceladas</span>
             <span class="stat-label" data-i18n="adm01_dist_cancelled">Canceladas</span>
             <span class="stat-sub">@Model.Estados.PorcentajeCanceladas% <span data-i18n="adm01_dist_of_total">del total</span></span>
         </article>
     </section>
+    <ul class="appointment-state-legend" aria-label="Leyenda de estados de citas">
+        <li><span class="status-badge status-confirmada">Confirmada</span></li>
+        <li><span class="status-badge status-espera">En sala de espera</span></li>
+        <li><span class="status-badge status-atendida">Atendida</span></li>
+        <li><span class="status-badge status-cancelada">Cancelada</span></li>
+        <li><span class="status-badge status-no-asistio">No asistió</span></li>
+        <li><span class="status-badge status-programada">Programada</span></li>
+    </ul>
 
     <!-- ── Contenido principal ─────────────────────────────────── -->
     <section class="content-grid" aria-label="Contenido principal del dashboard">

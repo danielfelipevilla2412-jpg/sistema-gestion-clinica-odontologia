@@ -1,4 +1,6 @@
-﻿﻿@{ Layout = null; }
+﻿@{
+  Layout = null;
+}
 
 <!DOCTYPE html>
 <html lang="es">
@@ -11,21 +13,25 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
+  href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
+  rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Servicios_Y_Recursos/st-adm-10-servicios/catalogoservicios.css")" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 
 <body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+  @{
+    await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml");
+  }
 
   <!-- Enlace para saltar al contenido principal (accesibilidad) -->
   <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
 
   <!-- ----- SIDEBAR UNIFICADO (Activo: Servicios) ----- -->
   
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+  @{
+    await Html.RenderPartialAsync("_SidebarAdmin");
+  }
 
 
   <!-- ----- HAMBURGER (mÓvil) ----- -->
@@ -77,9 +83,10 @@
         <div class="search-wrap">
           <span class="search-icon material-symbols-outlined" aria-hidden="true">search</span>
           <input type="search" id="searchServices" class="search-input" placeholder="Buscar por nombre..."
-            aria-label="Buscar servicio" data-i18n-ph="table.search" data-i18n-aria-label="servicios.name">
+                 aria-label="Buscar servicio" data-i18n-ph="table.search" data-i18n-aria-label="servicios.name">
         </div>
-        <select id="filterCategory" class="filter-select" aria-label="Filtrar por categoría" data-i18n-aria-label="servicios.category">
+        <select id="filterCategory" class="filter-select" aria-label="Filtrar por categoría"
+                data-i18n-aria-label="servicios.category">
           <option value="" data-i18n="table.filter">Todas las Categorías</option>
           <option value="prevencion">Prevención</option>
           <option value="estetica">Estética</option>
@@ -88,13 +95,16 @@
           <option value="endodoncia">Endodoncia</option>
           <option value="general">General</option>
         </select>
-        <select id="filterStatus" class="filter-select" aria-label="Filtrar por estado" data-i18n-aria-label="facturacion.status">
+        <select id="filterStatus" class="filter-select" aria-label="Filtrar por estado"
+                data-i18n-aria-label="facturacion.status">
           <option value="" data-i18n="table.filter">Estado: Todos</option>
           <option value="activo" data-i18n="servicios.active">Activo</option>
           <option value="inactivo" data-i18n="status.inactive">Inactivo</option>
         </select>
-        <button class="btn-primary" id="btnNewService" aria-label="Crear nuevo servicio" data-i18n-aria-label="servicios.new">
-          <span class="material-symbols-outlined" aria-hidden="true">add</span> <span data-i18n="servicios.new">Nuevo servicio</span>
+        <button class="btn-primary" id="btnNewService" aria-label="Crear nuevo servicio"
+                data-i18n-aria-label="servicios.new">
+          <span class="material-symbols-outlined" aria-hidden="true">add</span> <span data-i18n="servicios.new">Nuevo
+          servicio</span>
         </button>
       </div>
     </section>
@@ -135,13 +145,14 @@
 
   <!-- Drawer: Editar Servicio (accesible) -->
   <div class="drawer-overlay" id="drawerOverlay" role="dialog" aria-modal="true" aria-labelledby="drawerTitle"
-    aria-hidden="true" inert>
+       aria-hidden="true" inert>
     <div class="drawer-panel" id="drawerPanel">
       <header class="drawer-header">
         <h3 class="drawer-title" id="drawerTitle" data-i18n="servicios.edit">Editar Servicio</h3>
         <button class="drawer-close" id="drawerClose" aria-label="Cerrar panel">—</button>
       </header>
       <form id="serviceForm" class="drawer-form" role="form">
+        @Html.AntiForgeryToken()
         <div class="form-group">
           <label for="serviceName" class="form-label">Nombre del Servicio</label>
           <input type="text" id="serviceName" class="form-input" required>
@@ -161,6 +172,19 @@
             <option value="general">General</option>
           </select>
         </div>
+        <div class="form-group">
+          <label for="serviceSpecialty" class="form-label">
+            Especialidad clínica
+          </label>
+
+          <select id="serviceSpecialty" class="form-select">
+            <option value="">Odontología General / Cualquier profesional</option>
+          </select>
+
+          <small class="form-hint">
+            Selecciona una especialidad si el servicio requiere un profesional específico.
+          </small>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label for="serviceCost" class="form-label">Costo ($)</label>
@@ -177,7 +201,7 @@
             <small>Habilitar visibilidad para citas</small>
           </span>
           <button type="button" class="toggle-switch" id="serviceActiveToggle" role="switch" aria-checked="true"
-            aria-label="Activar o desactivar servicio">
+                  aria-label="Activar o desactivar servicio">
             <span class="toggle-dot"></span>
           </button>
         </div>
@@ -218,34 +242,34 @@
 
   <!-- Estilos para screen readers -->
   <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
+      .skip-link {
+        position: absolute;
+        top: -40px;
+        left: 0;
+        background: var(--primary);
+        color: #fff;
+        padding: 8px 16px;
+        z-index: 1000;
+        transition: top var(--tr);
+      }
 
-    .skip-link:focus {
-      top: 0;
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
+      .skip-link:focus {
+        top: 0;
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+      }
 
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
   </style>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">
@@ -257,17 +281,24 @@
     <script src="@Url.Content("~/js/footer.js")"></script>
     <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
   </footer>
-<script>
-  window.RAZOR_SERVICIOS = @Html.Raw(ViewData["ServiciosJson"] ?? "[]");
-</script>
-<script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
-<script src="@Url.Content("~/js/Servicios_Y_Recursos/st-adm-10-servicios/catalogoservicios.js")"></script>
-<script src="@Url.Content("~/js/i18n-core.js")"></script>
-<script src="@Url.Content("~/js/i18n.config.js")"></script>
+  <script>
+       window.RAZOR_SERVICIOS = @Html.Raw(ViewData["ServiciosJson"] ?? "[]");
+    window.RAZOR_ESPECIALIDADES = @Html.Raw(ViewData["EspecialidadesJson"] ?? "[]");
+  </script>
+  <script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
+  <script src="@Url.Content("~/js/Servicios_Y_Recursos/st-adm-10-servicios/catalogoservicios.js")"></script>
+  <script src="@Url.Content("~/js/i18n-core.js")"></script>
+  <script src="@Url.Content("~/js/i18n.config.js")"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
+  @{
+    await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml");
+  }
+  @{
+    await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml");
+  }
+  @{
+    await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml");
+  }
 </body>
 
 </html>

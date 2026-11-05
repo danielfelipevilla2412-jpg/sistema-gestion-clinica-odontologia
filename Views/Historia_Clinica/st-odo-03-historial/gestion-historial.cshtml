@@ -13,6 +13,7 @@
     var odonto = Model.Odontograma ?? new OdontogramaViewModel();
     var pacienteResumen = Model.Paciente ?? new PacienteResumenClinicoViewModel();
     var nombrePaciente = string.IsNullOrWhiteSpace(odonto.PacienteNombre) ? "" : odonto.PacienteNombre;
+    var pacienteSeleccionado = odonto.PacienteId.HasValue;
     var codigoHC = string.IsNullOrWhiteSpace(odonto.CodigoHC) ? "" : odonto.CodigoHC;
     var documentoPaciente = !string.IsNullOrWhiteSpace(pacienteResumen.Documento)
         ? $"{pacienteResumen.TipoDocumento} {pacienteResumen.Documento}"
@@ -28,6 +29,7 @@
     {
         pacienteId = odonto.PacienteId,
         historiaId = odonto.HistoriaId,
+        citaId = odonto.CitaId,
         nombre = nombrePaciente,
         codigoHC = codigoHC,
         fechaNacimiento = fechaNacimiento,
@@ -67,6 +69,7 @@
         estadoPersistido = odonto.EstadoPersistido ?? odonto.ObservacionesGenerales,
         notasClinicas = Model.NotasClinicas.Select(n => new
         {
+            citaId = n.CitaId,
             titulo = n.Titulo,
             fecha = n.Fecha,
             doctor = n.Doctor,
@@ -83,7 +86,8 @@
             diagnostico = "",
             procedimiento = r.Descripcion,
             estado = r.Estado,
-            proximaCita = (string?)null
+            proximaCita = (string?)null,
+            citaId = r.CitaId
         }),
         lineaDeTiempo = Model.LineaDeTiempo.Select(e => new
         {
@@ -93,7 +97,8 @@
             descripcion = e.Descripcion,
             profesional = e.Profesional,
             estado = e.Estado,
-            enlaceDocumento = e.EnlaceDocumento
+            enlaceDocumento = e.EnlaceDocumento,
+            citaId = e.CitaId
         })
     });
 }
@@ -138,22 +143,31 @@
             </div>
         </section>
 
-        <section class="patient-summary-card empty-patient-card">
+        <section class="patient-summary-card @(pacienteSeleccionado ? "" : "empty-patient-card")">
             <div class="patient-summary-inner">
-                <div class="patient-info-block empty-state-block">
-                    <div class="patient-avatar empty-avatar">—</div>
+                <div class="patient-info-block @(pacienteSeleccionado ? "" : "empty-state-block")">
+                    <div class="patient-avatar @(pacienteSeleccionado ? "" : "empty-avatar")">@(pacienteSeleccionado ? nombrePaciente.Trim().FirstOrDefault().ToString().ToUpperInvariant() : "—")</div>
                     <div class="patient-meta">
-                        <div class="patient-title-row empty-title-row">
-                            <h2>Paciente no seleccionado</h2>
-                            <span class="status-pill status-pill--neutral"><span class="status-dot"></span>Sin registro activo</span>
+                        <div class="patient-title-row @(pacienteSeleccionado ? "" : "empty-title-row")">
+                            @if (pacienteSeleccionado)
+                            {
+                                <h2>@nombrePaciente</h2>
+                                <span class="hc-badge">@codigoHC</span>
+                                <span class="status-pill status-pill--neutral"><span class="status-dot"></span>Historia clínica</span>
+                            }
+                            else
+                            {
+                                <h2>Paciente no seleccionado</h2>
+                                <span class="status-pill status-pill--neutral"><span class="status-dot"></span>Sin registro activo</span>
+                            }
                         </div>
                         <div class="patient-details-row empty-details-row">
-                            <span><strong>Documento:</strong> <span class="mono placeholder-line">&nbsp;</span></span>
-                            <span><strong>Edad:</strong> <span class="placeholder-line">&nbsp;</span></span>
-                            <span><strong>Sexo:</strong> <span class="placeholder-line">&nbsp;</span></span>
-                            <span><strong>Grupo:</strong> <span class="placeholder-line">&nbsp;</span></span>
-                            <span><strong>Teléfono:</strong> <span class="placeholder-line">&nbsp;</span></span>
-                            <span><strong>Email:</strong> <span class="placeholder-line">&nbsp;</span></span>
+                            <span><strong>Documento:</strong> <span class="mono">@(pacienteSeleccionado && !string.IsNullOrWhiteSpace(documentoPaciente) ? documentoPaciente : "No registrado")</span></span>
+                            <span><strong>Edad:</strong> @(pacienteSeleccionado && fechaNacimiento.HasValue ? $"{edadPaciente} años" : "No registrada")</span>
+                            <span><strong>Sexo:</strong> @(pacienteSeleccionado ? pacienteResumen.Genero : "No registrado")</span>
+                            <span><strong>Grupo:</strong> @(pacienteSeleccionado ? Model.GrupoSanguineo : "No registrado")</span>
+                            <span><strong>Teléfono:</strong> @(pacienteSeleccionado ? pacienteResumen.Telefono : "No registrado")</span>
+                            <span><strong>Email:</strong> @(pacienteSeleccionado ? pacienteResumen.Correo : "No registrado")</span>
                         </div>
                     </div>
                 </div>
@@ -310,6 +324,10 @@
                     <div class="field-group">
                         <label for="odontograma_observaciones">Observaciones del Odontograma</label>
                         <textarea id="odontograma_observaciones" rows="3" placeholder="Indica piezas afectadas, tratamiento recomendado, restauraciones o cambios observados..."></textarea>
+                        <div id="observacionesCitaPanel" class="appointment-observations" hidden>
+                            <strong>Observaciones registradas en esta cita</strong>
+                            <ul id="observacionesCitaList"></ul>
+                        </div>
                     </div>
 
                     <div class="field-group">
@@ -337,6 +355,10 @@
                             <label for="diagnostico_principal">Diagnóstico Principal (CIE-10) <span class="required-mark">*</span></label>
                             <select id="diagnostico_principal">
                                 <option value="">Seleccione un diagnóstico</option>
+                                <option value="K02.1 - Caries de la dentina">K02.1 - Caries de la dentina</option>
+                                <option value="K04.4 - Periodontitis apical">K04.4 - Periodontitis apical</option>
+                                <option value="K05.1 - Gingivitis marginal">K05.1 - Gingivitis marginal</option>
+                                <option value="__otro__">Otro</option>
                                 <option value="K02.1 - Caries de la dentina">K02.1 - Caries de la dentina</option>
                                 <option value="K04.4 - Periodontitis apical">K04.4 - Periodontitis apical</option>
                                 <option value="K05.1 - Gingivitis marginal">K05.1 - Gingivitis marginal</option>
@@ -380,12 +402,12 @@
                 </div>
 
                 <div class="card-body file-area">
-                    <div class="file-grid" id="fileGrid" aria-live="polite">
-                        <div class="upload-box full-span" id="uploadBox" tabindex="0" role="button" aria-label="Arrastra o selecciona estudios">
+                    <div class="file-grid empty-file-grid" id="fileGrid" aria-live="polite">
+                        <button type="button" class="upload-box full-span" id="uploadBox" tabindex="0" aria-label="Arrastra o selecciona estudios">
                             <div class="upload-ghost">⇪</div>
                             <strong>Arrastra o selecciona estudios</strong>
-                            <span>Radiografías, fotos intraorales o documentos anexos</span>
-                        </div>
+                            <span>Radiografías, fotos intraorales o documentos anexos · JPG, PNG o PDF · Máx. 10 MB</span>
+                        </button>
                     </div>
                 </div>
             </section>
@@ -394,17 +416,94 @@
                 <label class="remember-toggle"><input type="checkbox" /> <span>Autoguardado automático habilitado</span></label>
                 <div class="bottom-actions-right">
                     <button type="button" class="soft-btn subtle">Restablecer Valores</button>
+                    @if (odonto.CitaId.HasValue)
+                    {
+                        <button type="button" class="soft-btn" id="btnFinalizarConsulta">Finalizar consulta</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="soft-btn" id="btnGuardarNota">Guardar nota clínica</button>
+                    }
                     <button type="submit" class="primary-btn">Guardar Historia Clínica</button>
                 </div>
             </div>
         </form>
+
+        <section class="history-workspace" aria-labelledby="timelineTitle">
+            <header class="history-workspace-header">
+                <div>
+                    <h2 id="timelineTitle">Evolución clínica</h2>
+                    <p>Consulta notas, citas y cambios del odontograma por fecha.</p>
+                </div>
+                @if (odonto.CitaId.HasValue)
+                {
+                    <span class="active-appointment">Cita activa #@odonto.CitaId</span>
+                }
+            </header>
+            <div class="timeline-controls" id="timelineFilters">
+                <div class="timeline-categories" aria-label="Filtrar eventos por categoría">
+                    <button type="button" class="active" data-filter="todo">Todo</button>
+                    <button type="button" data-filter="nota">Notas</button>
+                    <button type="button" data-filter="consulta">Citas</button>
+                    <button type="button" data-filter="odontograma">Odontograma</button>
+                    <button type="button" data-filter="documento">Documentos</button>
+                </div>
+                <label>Desde <input type="date" id="timelineFrom"></label>
+                <label>Hasta <input type="date" id="timelineTo"></label>
+                <label>Profesional <select id="timelineProfessional"><option value="">Todos</option></select></label>
+            </div>
+            <div class="history-workspace-grid">
+                <div id="historialList" class="timeline-list" role="list" aria-live="polite"></div>
+                <aside class="odontogram-history" aria-label="Odontograma histórico">
+                    <div class="snapshot-controls">
+                        <h3>Odontograma digital por fecha</h3>
+                        <button type="button" id="btnVolverHoy" hidden>Volver a hoy</button>
+                    </div>
+                    <p id="odontogramaSnapshotNotice" class="snapshot-notice" role="status" hidden></p>
+                    <div id="odontogramaHost" class="history-odontogram-viewer">
+                        <div class="history-viewer-wrap">
+                            <div class="history-viewer-loading" id="historyViewerLoading" role="status">
+                                <span class="history-loading-spinner" aria-hidden="true"></span>
+                                <span>Cargando odontograma 3D...</span>
+                            </div>
+                            <div class="history-viewer-error" id="historyViewerError" role="alert" hidden>
+                                <p>No se pudo cargar el modelo 3D.</p>
+                                <button type="button" id="btnRetryHistoryViewer">Reintentar</button>
+                            </div>
+                            <iframe id="historyOdontogramFrame"
+                                    title="Odontograma digital 3D en modo de solo lectura"
+                                    allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
+                        </div>
+                        <p id="historyToothStatus" class="history-tooth-status" aria-live="polite">Pasa sobre un diente para consultar su estado en la fecha seleccionada.</p>
+                    </div>
+                </aside>
+            </div>
+        </section>
     </div>
+
+    <dialog id="toothHistoryDialog" class="tooth-history-dialog">
+        <form method="dialog" class="tooth-history-header">
+            <h2 id="toothHistoryTitle">Evolución del diente</h2>
+            <button type="submit" aria-label="Cerrar">×</button>
+        </form>
+        <div id="toothHistoryRecords" class="tooth-history-records" aria-live="polite"></div>
+    </dialog>
 
     <div id="holo-tooltip-historial" role="status" aria-live="polite"></div>
 </main>
 
 <script>
     window.smiletrackHistoriaData = @Html.Raw(historiaDataJson);
+    if (window.smiletrackHistoriaData?.pacienteId == null) {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has('pacienteId')) {
+            const pacienteIdGuardado = sessionStorage.getItem('st_paciente_id');
+            if (/^[1-9]\d*$/.test(pacienteIdGuardado || '')) {
+                url.searchParams.set('pacienteId', pacienteIdGuardado);
+                window.location.replace(url.href);
+            }
+        }
+    }
 </script>
 
   <footer id="dynamic-footer" class="site-footer" role="contentinfo">

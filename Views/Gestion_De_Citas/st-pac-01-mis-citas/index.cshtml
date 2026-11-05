@@ -42,18 +42,22 @@
     <!-- Stats Grid: estadísticas animadas del paciente -->
     <section class="stats-grid" aria-label="Resumen de mis citas" data-i18n-aria-label="citas.stats_aria">
       <div class="stat-card" data-color="blue">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_note</span>
         <span class="stat-number" id="cnt-total" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="citas.stat_total">Total citas</span>
       </div>
       <div class="stat-card" data-color="green">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">check_circle</span>
         <span class="stat-number" id="cnt-completadas" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.completed">Completadas</span>
       </div>
       <div class="stat-card" data-color="orange">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule</span>
         <span class="stat-number" id="cnt-pendientes" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.pending">Pendientes</span>
       </div>
       <div class="stat-card" data-color="red">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
         <span class="stat-number" id="cnt-canceladas" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
       </div>
@@ -155,6 +159,10 @@
       <p class="modal-desc" id="cancelarDesc"></p>
       <p class="modal-note modal-warning hidden" id="cancelarAdvertencia" aria-live="polite"></p>
       <p class="modal-note modal-error hidden" id="cancelarError" aria-live="assertive"></p>
+      <label class="form-label" for="cancelarMotivo">Motivo de cancelación *</label>
+      <textarea class="form-input" id="cancelarMotivo" rows="3" minlength="5" maxlength="500"
+                required aria-describedby="cancelarMotivoAyuda"></textarea>
+      <small id="cancelarMotivoAyuda">Describe brevemente el motivo (mínimo 5 caracteres).</small>
       <div class="modal-footer">
         <button class="btn-secondary" id="cancelarNo" data-i18n="common.back">Volver</button>
         <button class="btn-danger" id="cancelarSi" data-i18n="citas.btn_confirm_cancel">Sí, cancelar</button>

@@ -10,6 +10,7 @@ public sealed class PagoFactura
     public string Referencia { get; set; } = string.Empty;
     public int RegistradoPor { get; set; }
     public DateTime FechaUtc { get; set; }
+    public string? Observaciones { get; set; }
 
     public Factura? Factura { get; set; }
     public Usuario? Usuario { get; set; }

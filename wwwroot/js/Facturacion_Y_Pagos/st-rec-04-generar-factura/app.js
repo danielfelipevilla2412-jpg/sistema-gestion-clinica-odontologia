@@ -315,10 +315,12 @@ const initProfessionalSelect = () => {
   const invoiceProfessional = safeGetElement('invoiceProfessional');
 
   if (profesionalSelect && invoiceProfessional) {
-    profesionalSelect.addEventListener('change', (e) => {
-      invoiceProfessional.textContent = e.target.value;
-      showToast(`Profesional: ${e.target.value}`, 'info');
-    });
+    const updateProfessional = () => {
+      const option = profesionalSelect.options[profesionalSelect.selectedIndex];
+      invoiceProfessional.textContent = option.value ? option.textContent.trim() : 'Seleccione un profesional';
+    };
+    profesionalSelect.addEventListener('change', updateProfessional);
+    updateProfessional();
   }
 };
 
@@ -483,6 +485,7 @@ const confirmPayment = async () => {
         method: 'POST',
         body: {
           idPaciente: payment.idPaciente,
+          idProfesional: payment.idProfesional,
           notas: null,
           detalles: payment.items,
           montoPagado: payment.amount,
@@ -588,7 +591,6 @@ const initPayment = () => {
       return;
     }
     const pacienteSelect = safeGetElement('pacienteSelect');
-    const profesionalSelect = safeGetElement('profesionalSelect');
     const totalEl = safeGetElement('invoiceTotal');
     const amountReceived = safeGetElement('amountReceived');
     
@@ -599,10 +601,14 @@ const initPayment = () => {
       return;
     }
     const idPaciente = parseInt(pacienteSelect.value, 10);
-    const idProfesional = profesionalSelect?.value ? parseInt(profesionalSelect.value, 10) : null;
     if (!idPaciente) {
       showToast('Seleccione un paciente antes de registrar el pago.', 'error');
       pacienteSelect.focus();
+      return;
+    }
+    if (!idProfesional) {
+      showToast('Seleccione un profesional antes de registrar el pago.', 'error');
+      profesionalSelect?.focus();
       return;
     }
 
@@ -623,6 +629,7 @@ const initPayment = () => {
 
     openPaymentConfirmation({
       idPaciente,
+      idProfesional,
       items,
       total,
       amount,

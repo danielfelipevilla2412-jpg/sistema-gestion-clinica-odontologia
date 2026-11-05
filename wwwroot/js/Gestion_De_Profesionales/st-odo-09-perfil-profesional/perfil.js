@@ -274,7 +274,7 @@ const submitPasswordChangeApi = async (event) => {
     return;
   }
 
-  const updateSubmitButton = event.target.querySelector('.btn-update');
+  const updateSubmitButton = event.target.querySelector('.btn-primary');
   if (updateSubmitButton) {
     updateSubmitButton.disabled = true;
     updateSubmitButton.textContent = '⏳ Actualizando...';
@@ -462,7 +462,7 @@ const renderScheduleDayCard = (dayData, index) => {
            tabindex="0"
            aria-label="${dayData.dayFull}: ${dayData.active ? `${hours} horas, ${dayData.start} a ${dayData.end}` : 'No disponible'}"
            data-index="${index}">
-        <div class="day-name">${dayData.day}</div>
+        <div class="day-name">${dayData.dayFull}</div>
         <div class="time-blocks">${timeSlotsHtml}</div>
         <div class="hours-badge" aria-label="${hours} horas">${hoursBadgeText}</div>
       </div>
@@ -811,10 +811,21 @@ const initScheduleModalEvents = () => {
 /**
  * Función principal de inicialización del módulo de perfil profesional.
  */
+const initCredentialFilePicker = () => {
+  const fileInput = getElementByIdSafe('credentialFile');
+  const fileName = getElementByIdSafe('credentialFileName');
+  if (!fileInput || !fileName) return;
+
+  fileInput.addEventListener('change', () => {
+    fileName.textContent = fileInput.files?.[0]?.name ?? 'Sin archivo seleccionado';
+  });
+};
+
 const init = async () => {
   initMobileSidebarMenu();
   initPasswordChangeForm();
   initScheduleModalEvents();
+  initCredentialFilePicker();
 
   setScheduleSaveButtonEnabledState(false);
 

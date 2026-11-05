@@ -1,0 +1,73 @@
+/* Shared scrollbar appearance for page and nested scroll regions. */
+:root {
+  --scrollbar-track: #e9eef5;
+  --scrollbar-thumb: #8b9bb3;
+  --scrollbar-thumb-hover: #64748b;
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  border-color: var(--scrollbar-track);
+}
+
+.sidebar {
+  scrollbar-color: rgba(226, 232, 240, .45) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: 6px;
+  background: rgba(226, 232, 240, .35);
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(226, 232, 240, .6);
+}
+
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: auto;
+  }
+}

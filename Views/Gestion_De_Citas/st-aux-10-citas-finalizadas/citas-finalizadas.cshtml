@@ -49,14 +49,17 @@
          Antes usaba summary-cards/summary-card.green que era un diseño ad-hoc distinto. -->
     <section class="stats-grid" aria-label="Resumen de citas por estado" data-i18n-aria-label="citas.status">
       <div class="stat-card" data-color="green">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
         <span class="stat-number" id="countAtendidas" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.attended">Atendidas</span>
       </div>
       <div class="stat-card" data-color="red">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
         <span class="stat-number" id="countCanceladas" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
       </div>
       <div class="stat-card" data-color="orange">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">person_off</span>
         <span class="stat-number" id="countNoAsistio" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.no_show">No asistió</span>
       </div>
@@ -83,7 +86,7 @@
     </div>
 
     <!-- Tabla de citas con estructura accesible -->
-    <div class="table-card">
+    <div class="table-wrap">
       <table class="table-base" aria-label="Listado de citas finalizadas del día" data-i18n-aria-label="citas.title">
         <thead>
           <tr>
@@ -99,6 +102,15 @@
         </tbody>
       </table>
     </div>
+
+    <nav class="pagination" aria-label="Paginación de citas finalizadas">
+      <span class="pagination-info" id="finalizedPaginationInfo" aria-live="polite">Mostrando 0 de 0 citas</span>
+      <div class="pagination-buttons">
+        <button type="button" class="pagination-btn" id="finalizedPreviousPage" aria-label="Página anterior" disabled>← Anterior</button>
+        <div class="pagination-numbers" id="finalizedPageNumbers" role="list" aria-label="Números de página"></div>
+        <button type="button" class="pagination-btn" id="finalizedNextPage" aria-label="Página siguiente" disabled>Siguiente →</button>
+      </div>
+    </nav>
 
   </main>
 

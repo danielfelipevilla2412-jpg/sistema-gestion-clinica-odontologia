@@ -229,8 +229,36 @@ const setupAlertButtonsListeners = () => {
   }
 
   if (overdueAlertBtn) {
-    overdueAlertBtn.addEventListener('click', () => {
-      if (window.ToastService) window.ToastService.warning('Los recordatorios de pago no están conectados a un contrato de facturación disponible.');
+    overdueAlertBtn.addEventListener('click', async () => {
+      overdueAlertBtn.disabled = true;
+      overdueAlertBtn.textContent = 'Enviando…';
+      try {
+        const response = await fetch('/api/facturas/recordatorios-vencidas', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: buildApiAuthHeaders()
+        });
+
+        let payload;
+        try { payload = await response.json(); } catch { payload = { success: response.ok }; }
+
+        if (response.ok && payload.success !== false) {
+          const notifyHandler = (payload.enviados ?? 0) > 0
+            ? window.ToastService?.success
+            : window.ToastService?.warning;
+          if (notifyHandler) notifyHandler(payload.message || 'Recordatorios de pago procesados.');
+        } else {
+          if (window.ToastService) {
+            window.ToastService.error(payload.message || 'No fue posible enviar los recordatorios de pago.');
+          }
+        }
+      } catch (err) {
+        console.warn('[SmileTrack] Error al enviar recordatorios de pago:', err);
+        if (window.ToastService) window.ToastService.error('Error de conexión al enviar los recordatorios de pago.');
+      } finally {
+        overdueAlertBtn.disabled = false;
+        overdueAlertBtn.textContent = 'Notificar';
+      }
     });
   }
 };

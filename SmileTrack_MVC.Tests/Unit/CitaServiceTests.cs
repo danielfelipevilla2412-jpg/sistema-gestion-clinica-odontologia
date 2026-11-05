@@ -218,15 +218,20 @@ public class CitaServiceTests
     }
 
     [Fact]
-    public async Task CrearAsync_RechazaServicioNoAsignadoAlProfesional()
+    public async Task CrearAsync_RechazaServicioDeOtraEspecialidad()
     {
         await using var db = CrearDb();
         var datos = SeedBase(db);
-        db.ProfesionalServicios.Add(new ProfesionalServicio
+        var especialidadProfesional = new Especialidad { Nombre = "Ortodoncia" };
+        var especialidadServicio = new Especialidad { Nombre = "Endodoncia" };
+        db.Especialidades.AddRange(especialidadProfesional, especialidadServicio);
+        await db.SaveChangesAsync();
+        datos.Servicio.IdEspecialidad = especialidadServicio.IdEspecialidad;
+        db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
         {
             IdProfesional = datos.Profesional.IdProfesional,
-            IdServicio = datos.Servicio.IdServicio + 1,
-            Activo = true
+            IdEspecialidad = especialidadProfesional.IdEspecialidad,
+            Principal = true
         });
         await db.SaveChangesAsync();
 
@@ -241,7 +246,7 @@ public class CitaServiceTests
         });
 
         var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(accion);
-        Assert.Contains("asignado", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("especialidades", excepcion.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -437,7 +442,7 @@ public class CitaServiceTests
     // =========================================================================
 
     [Fact]
-    public async Task ObtenerProfesionalesDisponiblesAsync_RechazaServicioNoAsignadoCuandoHayCatalogoActivo()
+    public async Task ObtenerProfesionalesDisponiblesAsync_AceptaServicioGeneralAunqueExistanExcepcionesDePrecio()
     {
         await using var db = CrearDb();
         var datos = SeedBase(db);
@@ -455,7 +460,8 @@ public class CitaServiceTests
         db.ProfesionalServicios.Add(new ProfesionalServicio
         {
             IdProfesional = datos.Profesional.IdProfesional,
-            IdServicio = datos.Servicio.IdServicio + 1,
+            IdServicio = datos.Servicio.IdServicio,
+            PrecioPersonalizado = 125000m,
             Activo = true
         });
 
@@ -467,7 +473,7 @@ public class CitaServiceTests
             duracionMinutos: 60,
             idServicio: datos.Servicio.IdServicio);
 
-        Assert.Empty(disponibles);
+        Assert.Single(disponibles);
     }
 
     [Fact]
@@ -566,7 +572,7 @@ public class CitaServiceTests
         await db.SaveChangesAsync();
 
         // Act
-        bool resultado = await CrearServicio(db).CancelarAsync(cita.IdCita);
+        bool resultado = await CrearServicio(db).CancelarAsync(cita.IdCita, "Cancelación administrativa");
 
         // Assert
         Assert.True(resultado);
@@ -574,6 +580,103 @@ public class CitaServiceTests
         Assert.True(
             string.Equals(citaActualizada?.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase),
             $"Se esperaba 'Cancelada', se obtuvo: '{citaActualizada?.Estado}'");
+        Assert.Equal("Cancelación administrativa", citaActualizada?.MotivoCancelacion);
+    }
+
+    [Fact]
+    public async Task CancelarAsync_RechazaMotivoVacio()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = DateTime.Today.AddDays(5).AddHours(10),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CancelarAsync(cita.IdCita, "   "));
+
+        Assert.Contains("motivo de cancelación es obligatorio", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Programada", (await db.Citas.FindAsync(cita.IdCita))?.Estado);
+    }
+
+    [Fact]
+    public async Task CancelarAsync_RechazaMotivoConMenosDeCincoCaracteres()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = DateTime.Today.AddDays(5).AddHours(10),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CancelarAsync(cita.IdCita, "abc"));
+
+        Assert.Contains("al menos 5 caracteres", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Programada", (await db.Citas.FindAsync(cita.IdCita))?.Estado);
+    }
+
+    [Fact]
+    public void CitaCancelacionDto_RechazaMotivoMenorDeCincoCaracteres()
+    {
+        var dto = new CitaCancelacionDto { Motivo = "abc" };
+        var results = new List<ValidationResult>();
+
+        bool isValid = Validator.TryValidateObject(
+            dto,
+            new ValidationContext(dto),
+            results,
+            validateAllProperties: true);
+
+        Assert.False(isValid);
+        Assert.Contains(results, result => result.ErrorMessage!.Contains("5 caracteres"));
+    }
+
+    [Fact]
+    public async Task VerificarConflictoCompletoAsync_RechazaSolapamientosPorProfesionalPacienteYConsultorio()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        db.Citas.Add(new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = new DateTime(2026, 12, 10, 9, 0, 0),
+            DuracionMinutos = 60,
+            Estado = "Programada"
+        });
+        await db.SaveChangesAsync();
+
+        var service = CrearServicio(db);
+        var inicioSolapado = new DateTime(2026, 12, 10, 9, 30, 0);
+
+        var conflictoProfesional = await service.VerificarConflictoCompletoAsync(
+            datos.Profesional.IdProfesional, 0, null, inicioSolapado);
+        var conflictoPaciente = await service.VerificarConflictoCompletoAsync(
+            null, datos.Paciente.IdPaciente, null, inicioSolapado);
+        var conflictoConsultorio = await service.VerificarConflictoCompletoAsync(
+            null, 0, datos.Consultorio.IdConsultorio, inicioSolapado);
+
+        Assert.Equal(TipoConflictoCita.Profesional, conflictoProfesional.Tipo);
+        Assert.Equal(TipoConflictoCita.Paciente, conflictoPaciente.Tipo);
+        Assert.Equal(TipoConflictoCita.Consultorio, conflictoConsultorio.Tipo);
     }
 
     [Fact]
@@ -617,7 +720,7 @@ public class CitaServiceTests
         await db.SaveChangesAsync();
 
         var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            CrearServicio(db).CancelarAsync(cita.IdCita));
+            CrearServicio(db).CancelarAsync(cita.IdCita, "La cita ya venció"));
 
         Assert.Contains("fecha y hora anterior", excepcion.Message, StringComparison.OrdinalIgnoreCase);
         var citaSinCambios = await db.Citas.FindAsync(cita.IdCita);
@@ -640,6 +743,7 @@ public class CitaServiceTests
 
         var accion = () => CrearServicio(db).CancelarAsync(
             cita.IdCita,
+            "Solicitud del paciente",
             TimeSpan.FromHours(2));
 
         var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(accion);
@@ -665,6 +769,7 @@ public class CitaServiceTests
 
         var resultado = await CrearServicio(db).CancelarAsync(
             cita.IdCita,
+            "Solicitud del paciente",
             TimeSpan.FromHours(2));
 
         Assert.True(resultado);
@@ -680,7 +785,7 @@ public class CitaServiceTests
         _ = SeedBase(db);
 
         // Act
-        bool resultado = await CrearServicio(db).CancelarAsync(99999);
+        bool resultado = await CrearServicio(db).CancelarAsync(99999, "Cita inexistente");
 
         // Assert
         Assert.False(resultado);

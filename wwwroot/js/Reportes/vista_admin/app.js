@@ -64,7 +64,7 @@
     const label = group.querySelector('.bar-group__label')?.textContent || '';
 
     group.addEventListener('mouseenter', () => {
-      tooltip.innerHTML = `<strong>${label}</strong><br>Este año: ${curr}% · Anterior: ${prev}%`;
+      tooltip.innerHTML = `<strong>${label}</strong><br>Este año: ${curr} citas · Anterior: ${prev} citas`;
       tooltip.style.opacity = '1';
     });
     group.addEventListener('mousemove', e => {

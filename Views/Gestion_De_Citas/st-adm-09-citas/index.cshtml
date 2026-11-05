@@ -32,6 +32,12 @@
     var profesionalesFilterOptions = ViewData["ProfesionalesFilterOptions"] as
 List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
     var pageResult = ViewData["CitasPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Cita>;
+    var resultItemCount = pageResult?.Items?.Count ?? 0;
+    var resultTotalCount = pageResult?.TotalCount ?? 0;
+    var resultPage = pageResult?.Page ?? 1;
+    var resultPageSize = pageResult?.PageSize ?? 10;
+    var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+    var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
 
     // Datos para modal de edición
     var editingCita = ViewData["EditingCita"] as SmileTrack_MVC.Models.Entities.Cita;
@@ -69,11 +75,13 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                 var statKpiTasaAsis = ViewData["StatKpiTasaAsistencia"] ?? 0;
             }
             <div class="stat-card" data-color="blue">
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_note</span>
                 <span class="stat-number" id="citas-stat-total" data-target="@statKpiTotal" aria-live="polite">0</span>
                 <span class="stat-label" data-i18n="adm09_stat_total">Total Citas</span>
                 <span class="stat-sub" data-i18n="adm09_stat_total_sub">Este mes</span>
             </div>
             <div class="stat-card" data-color="green">
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
                 <span class="stat-number" id="citas-stat-programadas" data-target="@statKpiProgramadas"
                       aria-live="polite">0</span>
                 <span class="stat-label" data-i18n="adm09_stat_programadas">Programadas</span>
@@ -81,12 +89,14 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                                                                                                             : $"↓ {statKpiDifSemana}")) <span data-i18n="adm09_stat_vs_week">vs semana pasada</span></span>
                 </div>
                 <div class="stat-card" data-color="red">
+                    <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
                     <span class="stat-number" id="citas-stat-canceladas" data-target="@statKpiCanceladas"
                           aria-live="polite">0</span>
                     <span class="stat-label" data-i18n="adm09_stat_canceladas">Canceladas</span>
                     <span class="stat-sub"><span data-i18n="adm09_stat_rate">Tasa:</span> @statKpiTasaCancel%</span>
                 </div>
                 <div class="stat-card" data-color="orange">
+                    <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
                     <span class="stat-number" id="citas-stat-atendidas" data-target="@statKpiAtendidas" aria-live="polite">0</span>
                     <span class="stat-label" data-i18n="adm09_stat_atendidas">Atendidas</span>
                     <span class="stat-sub">↓ @statKpiTasaAsis% <span data-i18n="adm09_stat_attendance">asistencia</span></span>
@@ -171,6 +181,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                     </section>
 
                     <!-- Tabla ACCESIBLE con semántica HTML nativa -->
+                    <div class="table-wrap">
                     <table class="table-appointments" aria-label="Tabla de citas" role="grid" data-i18n-aria-label="adm09_table_aria">
                         <thead>
                             <tr role="row">
@@ -348,15 +359,12 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             }
                         </tbody>
                     </table>
+                    </div>
 
                     <!-- Paginación accesible -->
                     <footer class="table-footer" aria-label="Navegación de páginas">
-                        @{
-                            var mostrando = Math.Min(pageResult?.PageSize ?? 10, pageResult?.Items?.Count ?? 0);
-                            var total = pageResult?.TotalCount ?? 0;
-                        }
                         <span>
-                            Mostrando <strong id="pageShowing">@mostrando</strong> de <strong id="pageTotal">@total</strong>
+                            Mostrando <strong id="pageRangeStart">@resultRangeStart</strong>-<strong id="pageShowing">@resultRangeEnd</strong> de <strong id="pageTotal">@resultTotalCount</strong>
                             citas
                         </span>
                         <nav class="pagination" aria-label="Páginas de resultados">
@@ -700,10 +708,10 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                  aria-labelledby="modalConfirmDeleteCitaTitle" aria-hidden="true" inert>
                                 <div class="modal modal--sm">
                                     <button class="modal-close" id="modalConfirmDeleteCitaClose" aria-label="Cerrar ventana">×</button>
-                                    <h2 class="modal-title" id="modalConfirmDeleteCitaTitle">Confirmar eliminación</h2>
+                                    <h2 class="modal-title" id="modalConfirmDeleteCitaTitle">Confirmar cancelación</h2>
                                     <p id="modalConfirmDeleteCitaMessage"
                                        style="margin:16px 0 24px; line-height:1.5; color:var(--text-muted, #64748b);">
-                                        ¿Está seguro de eliminar esta cita? Esta acción no se puede deshacer.
+                                        ¿Está seguro de cancelar esta cita? Esta acción no se puede deshacer.
                                     </p>
                             <form id="formDeleteCita" method="post" action="/gestion-de-citas/eliminar-cita">
                                         @Html.AntiForgeryToken()
@@ -715,13 +723,13 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                 Motivo de cancelación <span style="color:var(--danger)">*</span>
                                             </label>
                                             <textarea id="deleteCitaMotivo" name="MotivoCancelacion" class="form-input" rows="2"
-                                                      maxlength="500" required placeholder="Indique el motivo..." style="resize:vertical;"></textarea>
+                                                      minlength="5" maxlength="500" required placeholder="Indique el motivo..." style="resize:vertical;"></textarea>
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn-secondary" id="modalConfirmDeleteCitaCancel">Cancelar</button>
                                             <button type="submit" class="btn-primary"
                                                     style="background:var(--red,#ef4444); border-color:var(--red,#ef4444);">
-                                                Eliminar
+                                                Cancelar cita
                                             </button>
                                         </div>
                                     </form>
@@ -910,10 +918,6 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                         }
                                     });
                                 });
-                                modalAppEl.setAttribute('aria-hidden', 'false');
-                                modalAppEl.removeAttribute('inert');
-                                document.body.style.overflow = 'hidden';
-                                modalAppCloseBtn?.focus();
                                 }
                                 });
                                 });

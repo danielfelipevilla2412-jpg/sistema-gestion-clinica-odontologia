@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = null;
     var mensajeErrorServidor = string.Empty;
     foreach (var estadoModelo in ViewData.ModelState.Values)
@@ -8,6 +8,18 @@
             mensajeErrorServidor = error.ErrorMessage;
         }
     }
+
+    // El enlace "Volver al inicio" debe devolver al usuario al dashboard de SU rol
+    // (mismos destinos que usa el login en AccesoYSeguridadController).
+    var rolActual = User?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
+    var urlInicio = rolActual switch
+    {
+        "administrador" or "admin" => "/gestion-de-citas/st-adm-01-dashboard",
+        "recepcionista" => "/gestion-de-citas/st-rec-01-dashboard",
+        "auxiliar" => "/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo",
+        "paciente" => "/gestion-de-citas/st-pac-01-mis-citas",
+        _ => "/gestion-de-profesionales/st-odo-01-dashboard"
+    };
 }
 
 <!DOCTYPE html>
@@ -22,6 +34,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/login/login.css")">
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/scrollbars.css")" asp-append-version="true">
 </head>
 <body>
     @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
@@ -36,7 +49,7 @@
                 <div class="logo-wrap">
                     <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="Logo SmileTrack" class="logo-img">
                 </div>
-                <h1 class="login-title" data-i18n="common.password">Cambiar Contraseña</h1>
+                <h1 class="login-title" data-i18n="nav.item_cambiar_contrasena">Cambiar Contraseña</h1>
                 <p class="login-subtitle">Protege tu cuenta con una nueva contraseña segura.</p>
             </div>
 
@@ -49,7 +62,10 @@
                     </label>
                     <div class="input-wrap">
                         <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
-                        <input class="form-input" id="contrasenaActual" name="contrasenaActual" type="password" autocomplete="current-password" required minlength="8" />
+                        <input class="form-input" id="contrasenaActual" name="contrasenaActual" type="password" autocomplete="current-password" placeholder="••••••••" required minlength="8" />
+                        <button type="button" class="toggle-pass" data-i18n-aria-label="login.show_password" aria-label="Mostrar contraseña" aria-pressed="false">
+                            <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                        </button>
                     </div>
                 </div>
 
@@ -59,7 +75,10 @@
                     </label>
                     <div class="input-wrap">
                         <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
-                        <input class="form-input" id="nuevaContrasena" name="nuevaContrasena" type="password" autocomplete="new-password" required minlength="8" />
+                        <input class="form-input" id="nuevaContrasena" name="nuevaContrasena" type="password" autocomplete="new-password" placeholder="••••••••" required minlength="8" />
+                        <button type="button" class="toggle-pass" data-i18n-aria-label="login.show_password" aria-label="Mostrar contraseña" aria-pressed="false">
+                            <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                        </button>
                     </div>
                     <div class="password-requirements">
                         <p id="reqLength" class="text-xs text-white/60">• Al menos 8 caracteres</p>
@@ -74,7 +93,10 @@
                     </label>
                     <div class="input-wrap">
                         <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
-                        <input class="form-input" id="confirmarContrasena" name="confirmarContrasena" type="password" autocomplete="new-password" required minlength="8" />
+                        <input class="form-input" id="confirmarContrasena" name="confirmarContrasena" type="password" autocomplete="new-password" placeholder="••••••••" required minlength="8" />
+                        <button type="button" class="toggle-pass" data-i18n-aria-label="login.show_password" aria-label="Mostrar contraseña" aria-pressed="false">
+                            <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                        </button>
                     </div>
                     <span id="confirmError" class="error-msg"></span>
                 </div>
@@ -89,12 +111,12 @@
 
                 <button id="changePasswordBtn" class="btn-login" type="submit" disabled aria-busy="false" data-i18n="common.save">
                     <span class="material-symbols-outlined" aria-hidden="true">lock_open</span>
-                    <span data-i18n="common.password">Cambiar contraseña</span>
+                    <span data-i18n="nav.item_cambiar_contrasena">Cambiar contraseña</span>
                 </button>
 
                 <div class="form-footer">
-                    <p class="footer-text" data-i18n="common.back_to_home">
-                        <a class="link-register" href="/acceso-y-seguridad/login">Volver al inicio de sesión</a>
+                    <p class="footer-text">
+                        <a class="link-register" href="@urlInicio" data-i18n="common.back_to_home">Volver al inicio</a>
                     </p>
                 </div>
             </form>

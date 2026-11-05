@@ -37,6 +37,7 @@ using SmileTrack_MVC.Services.Email;
 using System.Net;
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -51,7 +52,8 @@ public class GestionCitasController(
     IPanelOperativoService panelOperativoService,
     IAntiforgery antiforgery,
     ICitasDashboardService citasDashboardService,
-    IAgendaService agendaService) : Controller
+    IAgendaService agendaService,
+    IMemoryCache memoryCache) : Controller
 {
     private readonly AppDbContext _context = context;
     private readonly ILogger<GestionCitasController> _logger = logger;
@@ -61,6 +63,7 @@ public class GestionCitasController(
     private readonly IAntiforgery _antiforgery = antiforgery;
     private readonly ICitasDashboardService _citasDashboardService = citasDashboardService;
     private readonly IAgendaService _agendaService = agendaService;
+    private readonly IMemoryCache _memoryCache = memoryCache;
 
     /*
      * REGLA DE NEGOCIO:
@@ -226,6 +229,7 @@ public class GestionCitasController(
 
     [HttpGet]
     [Authorize(Roles = "Administrador,Recepcionista")]
+    [Route("gestion-de-citas/agenda-profesionales")]
     [Route("gestion-de-citas/st-adm-08-agenda")]
     public async Task<IActionResult> Stadm08Agenda(
         [FromQuery] DateTime? weekStart,
@@ -347,8 +351,20 @@ public class GestionCitasController(
             bool esActualizacion = dto.IdCita.HasValue && dto.IdCita.Value > 0;
             Cita cita;
 
+            string? datosAnteriores = null;
             if (esActualizacion)
             {
+                var citaAnterior = await _citaService.ObtenerPorIdAsync(dto.IdCita!.Value, ct)
+                    ?? throw new InvalidOperationException("La cita que intenta actualizar no existe.");
+                datosAnteriores = JsonSerializer.Serialize(new
+                {
+                    citaAnterior.Estado,
+                    citaAnterior.FechaHora,
+                    citaAnterior.IdPaciente,
+                    citaAnterior.IdProfesional,
+                    citaAnterior.IdServicio,
+                    citaAnterior.IdConsultorio
+                });
                 var updateDto = new Models.DTOs.CitaApiUpdateDto
                 {
                     IdCita = dto.IdCita!.Value,
@@ -389,13 +405,16 @@ public class GestionCitasController(
                     $"IdPaciente={cita.IdPaciente}, " +
                     $"IdProfesional={cita.IdProfesional}, " +
                     $"FechaHora={cita.FechaHora:yyyy-MM-dd HH:mm}",
-                datosNuevos:
-                    $"{{\"Estado\":\"{cita.Estado}\"," +
-                    $"\"FechaHora\":\"{cita.FechaHora:O}\"," +
-                    $"\"IdPaciente\":{cita.IdPaciente}," +
-                    $"\"IdProfesional\":{cita.IdProfesional}," +
-                    $"\"IdServicio\":{cita.IdServicio}," +
-                    $"\"IdConsultorio\":{cita.IdConsultorio}}}",
+                datosAnteriores: datosAnteriores,
+                datosNuevos: JsonSerializer.Serialize(new
+                {
+                    cita.Estado,
+                    cita.FechaHora,
+                    cita.IdPaciente,
+                    cita.IdProfesional,
+                    cita.IdServicio,
+                    cita.IdConsultorio
+                }),
                 ct: ct);
 
             _logger.LogInformation(
@@ -1116,6 +1135,7 @@ public sealed class CambiarEstadoCitaDto
     [Route("gestion-de-citas/eliminar-cita")]
     public async Task<IActionResult> EliminarCita(
         [FromForm] int IdCita,
+        [FromForm] string? MotivoCancelacion,
         [FromForm] string? ReturnUrl,
         CancellationToken ct = default)
     {
@@ -1141,10 +1161,28 @@ public sealed class CambiarEstadoCitaDto
             // y actualiza soft delete en una sola operación.
             // ------------------------------------------------------------
 
+            var citaAnterior = await _citaService.ObtenerPorIdAsync(IdCita, ct);
+            if (citaAnterior is null)
+            {
+                TempData["ErrorValidacion"] =
+                    "La cita que intenta cancelar no existe.";
+
+                return Redirect(returnUrlSafe);
+            }
+            string datosAnteriores = JsonSerializer.Serialize(new
+            {
+                citaAnterior.Estado,
+                citaAnterior.FechaHora,
+                citaAnterior.IdPaciente,
+                citaAnterior.IdProfesional,
+                citaAnterior.IdServicio,
+                citaAnterior.IdConsultorio
+            });
+
             bool ok;
             try
             {
-                ok = await _citaService.CancelarAsync(IdCita, ct: ct);
+                ok = await _citaService.CancelarAsync(IdCita, MotivoCancelacion, ct: ct);
             }
             catch (InvalidOperationException ioex)
                 when (ioex.Message.Contains("cancelada",
@@ -1175,15 +1213,19 @@ public sealed class CambiarEstadoCitaDto
                 descripcion:
                     $"Cita cancelada via MVC. IdPaciente={cita.IdPaciente}, " +
                     $"FechaHora={cita.FechaHora:yyyy-MM-dd HH:mm}",
+                datosAnteriores: datosAnteriores,
                 datosNuevos:
-                    $"{{\"Estado\":\"cancelada\"," +
-                    $"\"FechaHora\":\"{cita.FechaHora:O}\"}}",
+                    JsonSerializer.Serialize(new
+                    {
+                        Estado = cita.Estado,
+                        cita.FechaHora,
+                        cita.IdPaciente,
+                        cita.IdProfesional,
+                        cita.IdServicio,
+                        cita.IdConsultorio,
+                        MotivoCancelacion = MotivoCancelacion?.Trim()
+                    }),
                 ct: ct);
-
-            await EnviarNotificacionCitaAsync(
-                cita.IdCita,
-                "cancelada",
-                ct);
 
             TempData["MensajeExito"] =
                 "La cita fue cancelada exitosamente.";
@@ -1473,6 +1515,7 @@ public sealed class CambiarEstadoCitaDto
 
         return new
         {
+            fecha = inicio.ToString("yyyy-MM-dd"),
             fechaInicio =
                 inicio.ToString(
                     "ddd d MMM yyyy",
@@ -1539,9 +1582,7 @@ public sealed class CambiarEstadoCitaDto
                 .FirstOrDefaultAsync(
                     p => p.IdPaciente == pacienteId,
                     ct)
-            : await _context.Pacientes
-                .OrderBy(p => p.IdPaciente)
-                .FirstOrDefaultAsync(ct);
+            : null;
 
         if (paciente is null)
         {
@@ -1564,14 +1605,22 @@ public sealed class CambiarEstadoCitaDto
             };
         }
 
+        string[] estadosAtendidos =
+        [
+            "atendida", "atendido", "completada", "completado",
+            "realizada", "realizado", "finalizada", "finalizado"
+        ];
+
         var consultasBase = await _context.Citas
             .AsNoTracking()
             .Include(c => c.Profesional)
+                .ThenInclude(p => p!.Usuario)
             .Include(c => c.Servicio)
             .Where(
                 c =>
                     c.IdPaciente == paciente.IdPaciente &&
-                    c.FechaHora <= DateTime.Now)
+                    c.FechaHora <= DateTime.Now &&
+                    estadosAtendidos.Contains(c.Estado.ToLower()))
             .OrderByDescending(c => c.FechaHora)
             .Take(limite)
             .Select(
@@ -1582,7 +1631,7 @@ public sealed class CambiarEstadoCitaDto
 
                     profesional =
                         c.Profesional != null
-                            ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}"
+                            ? $"Dr(a). {(c.Profesional.Usuario != null && c.Profesional.Usuario.Nombre != "" ? c.Profesional.Usuario.Nombre : c.Profesional.Nombres)} {(c.Profesional.Usuario != null && c.Profesional.Usuario.Apellidos != "" ? c.Profesional.Usuario.Apellidos : c.Profesional.Apellidos)}"
                             : "Sin asignar",
 
                     diagnostico =
@@ -1595,23 +1644,33 @@ public sealed class CambiarEstadoCitaDto
                 })
             .ToListAsync(ct);
 
-        var notaClinica = await _context.NotasClinicas
+        var consultaIds = consultasBase.Select(c => c.id).ToArray();
+        var notasPorCita = await _context.NotasClinicas
             .AsNoTracking()
-            .Include(n => n.HistoriaClinica)
-            .Where(n => n.HistoriaClinica != null && n.HistoriaClinica.IdPaciente == paciente.IdPaciente)
+            .Where(n => n.IdCita.HasValue && consultaIds.Contains(n.IdCita.Value))
             .OrderByDescending(n => n.Fecha)
-            .FirstOrDefaultAsync(ct);
+            .ToListAsync(ct);
+
+        var notaRecientePorCita = notasPorCita
+            .GroupBy(n => n.IdCita.GetValueOrDefault())
+            .ToDictionary(grupo => grupo.Key, grupo => grupo.First());
 
         var consultas = consultasBase
-            .Select(c => new
+            .Select(c =>
             {
-                c.id,
-                c.fecha,
-                c.profesional,
-                diagnostico = notaClinica is null || string.IsNullOrWhiteSpace(notaClinica.Diagnostico)
-                    ? "Sin notas clínicas registradas"
-                    : notaClinica.Diagnostico,
-                c.procedimiento
+                notaRecientePorCita.TryGetValue(c.id, out var nota);
+                return new
+                {
+                    c.id,
+                    c.fecha,
+                    c.profesional,
+                    diagnostico = string.IsNullOrWhiteSpace(nota?.Diagnostico)
+                        ? (string.IsNullOrWhiteSpace(c.diagnostico) ? "Sin notas clínicas registradas" : c.diagnostico)
+                        : nota.Diagnostico,
+                    procedimiento = string.IsNullOrWhiteSpace(nota?.Procedimiento)
+                        ? c.procedimiento
+                        : nota.Procedimiento
+                };
             })
             .ToList();
 
@@ -1987,7 +2046,6 @@ public sealed class CambiarEstadoCitaDto
                 .Include(c => c.Profesional)
                 .Include(c => c.Servicio)
                 .OrderByDescending(c => c.FechaHora)
-                .Take(25)
                 .ToListAsync(ct);
         }
 
@@ -2716,11 +2774,43 @@ public sealed class CambiarEstadoCitaDto
                                     actions: new[] { "pencil" }
                                 ),
 
+                            "confirmada"
+                                => (
+                                    status: "Confirmada",
+                                    statusClass: "status-confirmada",
+                                    actions: new[] { "pencil", "eye" }
+                                ),
+
+                            "en_sala_de_espera" or
+                            "en_espera" or
+                            "sala_de_espera"
+                                => (
+                                    status: "En sala de espera",
+                                    statusClass: "status-espera",
+                                    actions: new[] { "eye" }
+                                ),
+
                             "cancelada"
                                 => (
                                     status: "Cancelada",
-                                    statusClass: "status-pendiente",
+                                    statusClass: "status-cancelada",
                                     actions: new[] { "eye" }
+                                ),
+
+                            "no_asistio" or
+                            "no_asistida"
+                                => (
+                                    status: "No asistió",
+                                    statusClass: "status-no-asistio",
+                                    actions: new[] { "eye" }
+                                ),
+
+                            "programada" or
+                            "agendada"
+                                => (
+                                    status: "Programada",
+                                    statusClass: "status-programada",
+                                    actions: new[] { "pencil", "file-invoice" }
                                 ),
 
                             _
@@ -3497,6 +3587,29 @@ public sealed class CambiarEstadoCitaDto
                             c.FechaHora < fin);
             }
 
+            // POR QUÉ: las citas que ya vencieron y siguen en un estado no final (en espera /
+            // pendiente) no deben listarse. Solo se muestran si el usuario filtra por fecha o por
+            // estado, de modo que el histórico sigue siendo auditable.
+            if (string.IsNullOrWhiteSpace(pagination.Fecha) &&
+                string.IsNullOrWhiteSpace(pagination.Estado))
+            {
+                var ahoraFiltro = DateTime.Now;
+                string[] estadosFinales =
+                    EstadoCitaHelper.EstadosFinales;
+
+                citasQuery =
+                    citasQuery.Where(
+                        c =>
+                            c.FechaHora >= ahoraFiltro ||
+                            (c.Estado != null &&
+                             estadosFinales.Contains(
+                                 c.Estado.ToLower())) ||
+                            (c.EstadoCita != null &&
+                             c.EstadoCita.NombreEstado != null &&
+                             estadosFinales.Contains(
+                                 c.EstadoCita.NombreEstado.ToLower())));
+            }
+
             citasQuery =
                 citasQuery
                     .OrderByDescending(
@@ -3567,33 +3680,42 @@ public sealed class CambiarEstadoCitaDto
                     .ToListAsync(ct);
 
             ViewData["Consultorios"] =
-                await _context.Consultorios
-                    .AsNoTracking()
-                    .Where(
-                        c =>
-                            c.Estado ==
-                                "disponible" ||
-                            c.Estado ==
-                                "activo")
-                    .OrderBy(c => c.Nombre)
-                    .ToListAsync(ct);
+                await _memoryCache.GetOrCreateAsync(
+                    CatalogCacheKeys.ConsultoriosDisponibles,
+                    async entry =>
+                    {
+                        entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                        return await _context.Consultorios
+                            .AsNoTracking()
+                            .Where(c => c.Estado == "disponible" || c.Estado == "activo")
+                            .OrderBy(c => c.Nombre)
+                            .ToListAsync(ct);
+                    }) ?? throw new InvalidOperationException("No se pudo cargar el catálogo de consultorios.");
 
             ViewData["EstadosCita"] =
-                await _context.EstadosCita
-                    .AsNoTracking()
-                    .OrderBy(
-                        e => e.NombreEstado)
-                    .ToListAsync(ct);
+                await _memoryCache.GetOrCreateAsync(
+                    CatalogCacheKeys.EstadosCita,
+                    async entry =>
+                    {
+                        entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                        return await _context.EstadosCita
+                            .AsNoTracking()
+                            .OrderBy(e => e.NombreEstado)
+                            .ToListAsync(ct);
+                    }) ?? throw new InvalidOperationException("No se pudo cargar el catálogo de estados de cita.");
 
             ViewData["Servicios"] =
-                await _context.Servicios
-                    .AsNoTracking()
-                    .Where(
-                        s =>
-                            s.Estado ==
-                            "activo")
-                    .OrderBy(s => s.Nombre)
-                    .ToListAsync(ct);
+                await _memoryCache.GetOrCreateAsync(
+                    CatalogCacheKeys.Servicios,
+                    async entry =>
+                    {
+                        entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                        return await _context.Servicios
+                            .AsNoTracking()
+                            .Where(s => s.Estado == "activo")
+                            .OrderBy(s => s.Nombre)
+                            .ToListAsync(ct);
+                    }) ?? throw new InvalidOperationException("No se pudo cargar el catálogo de servicios.");
 
             ViewData["ReturnUrl"] =
                 returnUrl;
@@ -4039,16 +4161,30 @@ public sealed class CambiarEstadoCitaDto
     {
         try
         {
-            string? userIdStr =
-                User.FindFirstValue(
-                    ClaimTypes.NameIdentifier);
-
-            int? idUsuario =
-                int.TryParse(
-                    userIdStr,
-                    out int uid)
-                    ? uid
+            string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int? idUsuario = int.TryParse(userIdStr, out int uid) && uid > 0
+                ? uid
+                : int.TryParse(User.FindFirstValue("IdUsuario"), out int sessionUserId) && sessionUserId > 0
+                    ? sessionUserId
                     : null;
+
+            if (idUsuario is null && !string.IsNullOrWhiteSpace(User.Identity?.Name))
+            {
+                idUsuario = await _context.Usuarios
+                    .AsNoTracking()
+                    .Where(usuario => usuario.Correo == User.Identity.Name)
+                    .Select(usuario => (int?)usuario.IdUsuario)
+                    .FirstOrDefaultAsync(ct);
+            }
+
+            if (idUsuario is null)
+            {
+                _logger.LogError(
+                    "No se pudo resolver el IdUsuario autenticado para registrar auditoría de {TablaAfectada} {IdRegistro}.",
+                    tablaAfectada,
+                    idRegistro);
+                return;
+            }
 
             string ipOrigen =
                 HttpContext.Connection

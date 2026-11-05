@@ -29,36 +29,80 @@ public class ReportesController : Controller
         var citasCompletadas = await _context.Citas.CountAsync(c => c.Estado == "Atendida" || c.Estado == "Completada");
         var totalIngresos = await _context.Facturas.Where(f => f.Estado == "pagada").SumAsync(f => (decimal?)f.Total) ?? 0m;
 
-        // Distribución de servicios de BD
+       // Distribución de servicios: citas reales agrupadas por servicio
         var serviciosDb = await _context.Servicios.ToListAsync();
-        var totalServicios = serviciosDb.Count;
-        var distribucion = serviciosDb.Select((s, idx) => new DistribucionServicioViewModel
+        var colores = new[] { "#6366f1", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#0ea5e9" };
+
+        var citasPorServicio = await _context.Citas
+            .Where(c => c.IdServicio != null && c.Estado != "Cancelada")
+            .GroupBy(c => c.Servicio!.Nombre)
+            .Select(g => new { Nombre = g.Key, Cantidad = g.Count() })
+            .OrderByDescending(x => x.Cantidad)
+            .ToListAsync();
+
+        var totalCitasServicio = citasPorServicio.Sum(x => x.Cantidad);
+
+        // Top 5 servicios + "Otros" con el resto
+        var top = citasPorServicio.Take(5).ToList();
+        var otros = citasPorServicio.Skip(5).Sum(x => x.Cantidad);
+        if (otros > 0) top.Add(new { Nombre = "Otros", Cantidad = otros });
+
+        var distribucion = top.Select((x, idx) => new DistribucionServicioViewModel
         {
-            Nombre = s.Nombre,
-            Porcentaje = totalServicios > 0 ? Math.Round(100.0 / totalServicios, 1) : 0,
-            Color = idx % 5 == 0 ? "#6366f1" : idx % 5 == 1 ? "#10b981" : idx % 5 == 2 ? "#f59e0b" : idx % 5 == 3 ? "#8b5cf6" : "#ec4899"
+            Nombre = x.Nombre,
+            Cantidad = x.Cantidad,
+            Porcentaje = totalCitasServicio > 0 ? Math.Round(x.Cantidad * 100.0 / totalCitasServicio, 1) : 0,
+            Color = colores[idx % colores.Length]
         }).ToList();
-
-        if (!distribucion.Any())
-        {
-            distribucion = new List<DistribucionServicioViewModel>
-            {
-                new() { Nombre = "Limpieza dental", Porcentaje = 35, Color = "#6366f1" },
-                new() { Nombre = "Ortodoncia", Porcentaje = 25, Color = "#10b981" },
-                new() { Nombre = "Endodoncia", Porcentaje = 20, Color = "#f59e0b" },
-                new() { Nombre = "Blanqueamiento", Porcentaje = 12, Color = "#8b5cf6" },
-                new() { Nombre = "Otros", Porcentaje = 8, Color = "#ec4899" }
-            };
-        }
-
         // Ingresos por profesional
+        // Ingresos por profesional: facturas pagadas agrupadas por profesional
+        // (si la factura no tiene profesional directo, se toma el de su cita)
+        var ingresosPorProfDb = await _context.Facturas
+            .Where(f => f.Estado == "pagada")
+            .Select(f => new { IdProf = f.IdProfesional ?? f.Cita!.IdProfesional, f.Total })
+            .Where(x => x.IdProf != null)
+            .GroupBy(x => x.IdProf)
+            .Select(g => new { IdProfesional = g.Key, Monto = g.Sum(x => x.Total) })
+            .ToListAsync();
+
         var profesionales = await _context.Profesionales.ToListAsync();
-        var ingresosProf = profesionales.Select(p => new IngresoProfesionalViewModel
-        {
-            Nombre = $"{p.Nombres} {p.Apellidos}",
-            Monto = totalIngresos > 0 ? Math.Round(totalIngresos / Math.Max(1, profesionales.Count), 2) : 15000000m,
-            Porcentaje = profesionales.Count > 0 ? Math.Round(100.0 / profesionales.Count, 1) : 33.3
-        }).ToList();
+        var totalAtribuido = ingresosPorProfDb.Sum(x => x.Monto);
+
+        var ingresosProf = ingresosPorProfDb
+            .Join(profesionales,
+                i => i.IdProfesional!.Value,
+                p => p.IdProfesional,
+                (i, p) => new IngresoProfesionalViewModel
+                {
+                    Nombre = $"{p.Nombres} {p.Apellidos}",
+                    Monto = i.Monto,
+                    Porcentaje = totalAtribuido > 0 ? Math.Round((double)(i.Monto * 100m / totalAtribuido), 1) : 0
+                })
+            .OrderByDescending(x => x.Monto)
+            .ToList();
+
+            // 1. Año actual (ej. 2026)
+            var anioActual = DateTime.Today.Year;
+
+            // 2. Traer de la BD cuántas citas hubo en cada mes, solo de este año y el pasado
+            var citasMensuales = await _context.Citas
+                .Where(c => c.Estado != "Cancelada"
+                        && c.FechaHora.Year >= anioActual - 1
+                        && c.FechaHora.Year <= anioActual)
+                .GroupBy(c => new { c.FechaHora.Year, c.FechaHora.Month })
+                .Select(g => new { g.Key.Year, g.Key.Month, Cantidad = g.Count() })
+                .ToListAsync();
+
+            // 3. Nombres de los meses para mostrar en el eje del gráfico
+            var nombresMes = new[] { "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic" };
+
+            // 4. Armar una fila por mes (de enero hasta el mes actual)
+            var crecimiento = Enumerable.Range(1, DateTime.Today.Month).Select(m => new CrecimientoItemViewModel
+            {
+                Mes = nombresMes[m - 1],
+                ValorActual = citasMensuales.FirstOrDefault(x => x.Year == anioActual && x.Month == m)?.Cantidad ?? 0,
+                ValorAnterior = citasMensuales.FirstOrDefault(x => x.Year == anioActual - 1 && x.Month == m)?.Cantidad ?? 0
+            }).ToList();
 
         var model = new ReportesViewModel
         {
@@ -82,17 +126,7 @@ public class ReportesController : Controller
 
             FiltroCategoria = string.IsNullOrWhiteSpace(categoria) ? "todos" : categoria.ToLower(),
 
-            CrecimientoClinica = new List<CrecimientoItemViewModel>
-            {
-                new() { Mes = "Ene", ValorActual = 65, ValorAnterior = 50 },
-                new() { Mes = "Feb", ValorActual = 72, ValorAnterior = 55 },
-                new() { Mes = "Mar", ValorActual = 80, ValorAnterior = 60 },
-                new() { Mes = "Abr", ValorActual = 78, ValorAnterior = 62 },
-                new() { Mes = "May", ValorActual = 88, ValorAnterior = 70 },
-                new() { Mes = "Jun", ValorActual = 95, ValorAnterior = 75 },
-                new() { Mes = "Jul", ValorActual = 92, ValorAnterior = 80 }
-            },
-
+            CrecimientoClinica = crecimiento,
             DistribucionServicios = distribucion,
             IngresosPorProfesional = ingresosProf,
 

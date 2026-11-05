@@ -133,7 +133,7 @@ public class CitaHistorialYNotificacionesTests
         };
         var cita = await service.CrearAsync(request);
 
-        bool cancelado = await service.CancelarAsync(cita.IdCita);
+        bool cancelado = await service.CancelarAsync(cita.IdCita, "Cancelación solicitada");
 
         Assert.True(cancelado);
 

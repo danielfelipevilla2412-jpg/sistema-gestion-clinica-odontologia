@@ -255,10 +255,29 @@ body {
 /* ✅ CORREGIDO: Eliminado el estilo :invalid que causaba la barra roja */
 
 .error-msg {
-  display: none;
+  display: block;
   font-size: 0.875rem;
   color: var(--error);
 }
+/* El JS muestra/oculta el mensaje alternando la clase .hidden */
+.error-msg.hidden { display: none; }
+
+/* ── Requisitos de contraseña (vista Cambiar Contraseña) ──
+   POR QUÉ: La tarjeta usa fondo azul oscuro (--card-bg). Sin un color propio,
+   el texto heredaba el color oscuro del body y se perdía sobre el fondo. */
+.password-requirements {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+.password-requirements p {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--white-70);
+  transition: color var(--transition);
+}
+.password-requirements p.valid { color: #86efac; }
 
 /* Toggle password */
 .toggle-pass {
@@ -274,6 +293,10 @@ body {
 }
 .toggle-pass:hover { color: var(--white); }
 .toggle-pass:focus-visible { outline: 2px solid var(--white-50); outline-offset: 2px; }
+
+/* Los campos que llevan el botón mostrar/ocultar necesitan espacio a la derecha
+   para que el texto/placeholder no quede por debajo del ícono del ojo. */
+.input-wrap:has(.toggle-pass) .form-input { padding-right: 2.75rem; }
 
 /* Modal */
 .modal-overlay {

@@ -56,7 +56,6 @@ public class HistoriaFormularioViewModel
     public string MotivoConsulta { get; set; } = "";
     public string EnfermedadActual { get; set; } = "";
     public List<string> SintomasSignos { get; set; } = [];
-    public string? AntecedentesMedicos { get; set; }
     public string Habitos { get; set; } = "";
     public string? Alergias { get; set; }
     public string Hallazgos { get; set; } = "";
@@ -105,6 +104,7 @@ public class EventoHistoriaClinicaItem
 
 public class RegistroHistorialItem
 {
+    public int? CitaId { get; set; }
     public DateTime Fecha { get; set; }
     public string Tipo { get; set; } = "consulta";
     public string Descripcion { get; set; } = string.Empty;
@@ -117,6 +117,7 @@ public class RegistroHistorialItem
 //   { titulo, fecha, doctor, diagnostico, procedimiento, proximaCita, estado }
 public class NotaClinicaHistorialItem
 {
+    public int? CitaId { get; set; }
     /// <summary>Título visible en la lista (procedimiento o diagnóstico).</summary>
     public string Titulo { get; set; } = string.Empty;
 

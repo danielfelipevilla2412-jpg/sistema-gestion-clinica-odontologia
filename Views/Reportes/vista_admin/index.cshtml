@@ -10,6 +10,9 @@
     var servicioPrincipal = Model.DistribucionServicios.OrderByDescending(s => s.Porcentaje).FirstOrDefault();
     var totalPorcentaje = Model.DistribucionServicios.Sum(s => s.Porcentaje);
     var progress = 0d;
+    var maxCrec = Model.CrecimientoClinica.Any()
+    ? Math.Max(1d, Model.CrecimientoClinica.Max(d => Math.Max(d.ValorActual, d.ValorAnterior))) : 1d;
+    var totalDist = Model.DistribucionServicios.Sum(s => s.Cantidad);
 }
 
 <!DOCTYPE html>
@@ -127,16 +130,17 @@
         <div class="bar-chart" id="barChart" role="img" aria-label="Evolución mensual del crecimiento de la clínica">
           @foreach (var dato in Model.CrecimientoClinica)
           {
-            var currentHeight = Math.Max(8, Math.Min(100, dato.ValorActual));
-            var previousHeight = Math.Max(8, Math.Min(100, dato.ValorAnterior));
-            <div class="bar-group" data-curr="@dato.ValorActual" data-prev="@dato.ValorAnterior" title="@dato.Mes: @dato.ValorActual% este año, @dato.ValorAnterior% el año pasado">
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var currentHeight = Math.Max(4d, dato.ValorActual / maxCrec * 100);
+            var previousHeight = Math.Max(4d, dato.ValorAnterior / maxCrec * 100);
+            <div class="bar-group" data-curr="@dato.ValorActual" data-prev="@dato.ValorAnterior" title="@dato.Mes: @dato.ValorActual citas este año, @dato.ValorAnterior el año pasado">
               <div class="bar-group__bars">
-                <div class="bar bar--prev" style="height:@previousHeight%"></div>
-                <div class="bar bar--current" style="height:@currentHeight%"></div>
+                <div class="bar bar--prev" style="height:@previousHeight.ToString(inv)%"></div>
+                <div class="bar bar--current" style="height:@currentHeight.ToString(inv)%"></div>
               </div>
               <div class="bar-group__meta">
                 <span class="bar-group__label">@dato.Mes</span>
-                <span class="bar-group__value">@dato.ValorActual%</span>
+                <span class="bar-group__value">@dato.ValorActual</span>
               </div>
             </div>
           }

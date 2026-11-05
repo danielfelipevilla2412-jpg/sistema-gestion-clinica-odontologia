@@ -28,6 +28,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api;
@@ -76,13 +77,20 @@ public sealed class CitasApiController : ControllerBase
     private readonly ILogger<CitasApiController> _logger;
     private readonly IEmailService _emailService;
     private readonly ICitaService _citaService;
+    private readonly IMemoryCache _memoryCache;
 
-    public CitasApiController(AppDbContext context, ILogger<CitasApiController> logger, IEmailService emailService, ICitaService citaService)
+    public CitasApiController(
+        AppDbContext context,
+        ILogger<CitasApiController> logger,
+        IEmailService emailService,
+        ICitaService citaService,
+        IMemoryCache memoryCache)
     {
         _context = context;
         _logger = logger;
         _emailService = emailService;
         _citaService = citaService;
+        _memoryCache = memoryCache;
     }
 
     [HttpGet]
@@ -309,6 +317,70 @@ public sealed class CitasApiController : ControllerBase
         }
     }
 
+    [HttpPut]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional", Policy = "ApiOrCookie")]
+    [Route("api/citas/{id:int}/reagendar")]
+    public async Task<IActionResult> Reagendar(
+        int id,
+        [FromBody] CitaReagendarApiRequest request,
+        CancellationToken ct = default)
+    {
+        if (id <= 0 || request is null || request.FechaHora == default || !ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Indica una cita y una fecha/hora válidas." });
+
+        var existente = await _citaService.ObtenerPorIdAsync(id, ct);
+        if (existente is null)
+            return NotFound(new { success = false, message = "Cita no encontrada." });
+        if (!TieneOwnership(existente))
+            return Forbid();
+
+        string estadoActual = existente.Estado.Trim().ToLowerInvariant();
+        if (estadoActual is not ("agendada" or "programada" or "confirmada"))
+            return BadRequest(new { success = false, message = "Solo se pueden reagendar citas programadas o confirmadas." });
+        if (existente.IdPaciente <= 0 ||
+            existente.IdProfesional is not > 0 ||
+            existente.IdServicio is not > 0 ||
+            existente.IdConsultorio is not > 0)
+        {
+            return BadRequest(new { success = false, message = "La cita no tiene todos los recursos asignados para poder reagendarla." });
+        }
+
+        try
+        {
+            var actualizada = await _citaService.ActualizarAsync(id, new CitaApiUpdateDto
+            {
+                IdCita = existente.IdCita,
+                IdPaciente = existente.IdPaciente,
+                IdProfesional = existente.IdProfesional,
+                IdServicio = existente.IdServicio,
+                IdConsultorio = existente.IdConsultorio,
+                FechaHora = request.FechaHora,
+                Estado = existente.Estado,
+                IdEstado = existente.IdEstado,
+                Notas = existente.Notas
+            }, ct);
+
+            if (actualizada is null)
+                return NotFound(new { success = false, message = "Cita no encontrada." });
+
+            await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita reagendada desde la agenda.", ct);
+            return Ok(new
+            {
+                success = true,
+                message = "Cita reagendada correctamente.",
+                id = actualizada.IdCita,
+                fechaHora = actualizada.FechaHora
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return EsConflicto(ex.Message)
+                ? Conflict(new { success = false, message = ex.Message })
+                : BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpPost]
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
@@ -500,17 +572,24 @@ public sealed class CitasApiController : ControllerBase
     [Route("api/servicios")]
     public async Task<IActionResult> ObtenerServicios(CancellationToken ct = default)
     {
-        var servicios = await _context.Servicios
-            .Where(s => s.Estado == "activo" || string.IsNullOrEmpty(s.Estado))
-            .OrderBy(s => s.Nombre)
-            .Select(s => new
+        var servicios = await _memoryCache.GetOrCreateAsync(
+            CatalogCacheKeys.ServiciosApi,
+            async entry =>
             {
-                idServicio = s.IdServicio,
-                nombre = s.Nombre,
-                descripcion = s.Descripcion,
-                precio = s.Precio
-            })
-            .ToListAsync(ct);
+                entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                return await _context.Servicios
+                    .AsNoTracking()
+                    .Where(s => s.Estado == "activo" || string.IsNullOrEmpty(s.Estado))
+                    .OrderBy(s => s.Nombre)
+                    .Select(s => new
+                    {
+                        idServicio = s.IdServicio,
+                        nombre = s.Nombre,
+                        descripcion = s.Descripcion,
+                        precio = s.Precio
+                    })
+                    .ToListAsync(ct);
+            });
 
         return Ok(new { success = true, data = servicios });
     }

@@ -40,15 +40,12 @@
             var facturas = facturasDb.Select((f, idx) => new
             {
                 id = f.IdFactura,
-                idCita = f.IdCita,
-                idProfesional = f.IdProfesional,
                 number = f.NumeroFactura,
                 patient = f.Paciente != null ? $"{f.Paciente.Nombres} {f.Paciente.Apellidos}" : "Paciente",
                 doc = f.Paciente != null ? f.Paciente.Documento : "N/A",
                 date = f.FechaFactura.ToString("yyyy-MM-dd"),
                 total = f.Total,
                 paid = f.MontoPagado,
-                pending = Math.Max(f.Total - f.MontoPagado, 0),
                 fechaPago = f.FechaPago,
                 status = f.Estado,
                 avatar = f.Paciente != null ? $"{f.Paciente.Nombres.FirstOrDefault()}{f.Paciente.Apellidos.FirstOrDefault()}".ToUpper() : "PA",

@@ -21,7 +21,8 @@ public interface IEmailService
         string profesional,
         string servicio,
         string nuevoEstado,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? motivoCancelacion = null);
 
     Task<(bool Exito, string Detalle)> ProbarConfiguracionSmtpAsync(string correoDestino, CancellationToken cancellationToken = default);
 }

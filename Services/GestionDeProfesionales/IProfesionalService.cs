@@ -95,6 +95,12 @@ public interface IProfesionalService
         int id,
         CancellationToken ct = default);
 
+    Task<ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>> ObtenerCitasAfectadasPorAusenciaAsync(
+        int id,
+        DateOnly fechaInicio,
+        DateOnly fechaFin,
+        CancellationToken ct = default);
+
     Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> CrearAusenciaAsync(
         int id,
         AusenciaProfesionalApiRequest request,
@@ -130,5 +136,7 @@ public interface IProfesionalService
         DateTime fechaInicio,
         DateTime fechaFin,
         string motivo,
+        int? operadorId = null,
+        string? observaciones = null,
         CancellationToken ct = default);
 }
