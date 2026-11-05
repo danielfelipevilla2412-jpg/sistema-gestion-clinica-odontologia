@@ -69,6 +69,48 @@ let currentPage = 1;
 let editingServiceId = null;
 const itemsPerPage = 4;
 
+// ═══════════════════════════════════════════════════════════════════
+// CARGA DE ESPECIALIDADES DESDE SQL SERVER
+// ═══════════════════════════════════════════════════════════════════
+
+const loadSpecialties = () => {
+    const select = safeGetElement('serviceSpecialty');
+    if (!select) return;
+
+    const especialidades = Array.isArray(window.RAZOR_ESPECIALIDADES)
+        ? window.RAZOR_ESPECIALIDADES
+        : [];
+
+    // Limpiar las opciones anteriores.
+    select.replaceChildren();
+
+    // Opción para servicios sin especialidad específica.
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Odontología General / Cualquier profesional';
+
+    select.appendChild(defaultOption);
+
+    // Agregar las especialidades provenientes de SQL Server.
+    especialidades.forEach(especialidad => {
+        const option = document.createElement('option');
+
+        option.value = especialidad.id;
+        option.textContent = especialidad.nombre;
+
+        select.appendChild(option);
+    });
+
+    if (especialidades.length === 0) {
+        console.warn('[SmileTrack] No se recibieron especialidades desde el servidor.');
+    }
+
+    console.log(
+        `[SmileTrack] Especialidades cargadas: ${especialidades.length}`,
+        especialidades
+    );
+};
+
 const categoryLabels = {
   prevencion: { label: 'Prevención', class: 'prevencion' },
   estetica: { label: 'Estética', class: 'estetica' },
@@ -502,18 +544,23 @@ const initNewService = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 const init = async () => {
-  initSidebar();
-  initSearch();
-  initFilters();
-  initPagination();
-  initNewService();
-  initDrawer();
+    initSidebar();
+    initSearch();
+    initFilters();
+    initPagination();
 
-  services = servicesStorage.load();
-  updateStats();
-  renderServices();
+    loadSpecialties();
 
-  window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
+    initNewService();
+    initDrawer();
+
+    services = servicesStorage.load();
+    updateStats();
+    renderServices();
+
+    window.addEventListener('beforeunload', () => {
+        /* Cleanup en SPA real */
+    });
 };
 
 document.addEventListener('DOMContentLoaded', init);
