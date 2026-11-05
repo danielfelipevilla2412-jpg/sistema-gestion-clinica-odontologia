@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Api.Facturacion;
@@ -171,13 +172,14 @@ public sealed class FacturacionService : IFacturacionService
             FechaPago = fechaPago,
             Detalles = detalles
         };
-        invoice.Pagos.Add(new Pago
+        invoice.Pagos.Add(new PagoFactura
         {
             Monto = request.MontoPagado,
             MetodoPago = "efectivo",
+            Estado = "aprobado",
             Referencia = $"CAJ-{Guid.NewGuid():N}"[..36],
             RegistradoPor = idUsuario,
-            FechaPago = fechaPago
+            FechaUtc = DateTime.UtcNow
         });
 
         var transaction = _db.Database.IsRelational()
@@ -234,7 +236,9 @@ public sealed class FacturacionService : IFacturacionService
         var f = await _db.Facturas.FirstOrDefaultAsync(x => x.IdFactura == id, ct);
         if (f == null) return null;
         if (f.Estado == "anulada") throw new InvalidOperationException("No se puede pagar una factura anulada.");
-        if (f.MontoPagado + request.MontoPagado > f.Total) throw new InvalidOperationException("El monto pagado no puede superar el saldo pendiente.");
+        if (f.MontoPagado + request.MontoPagado > f.Total)
+            throw new InvalidOperationException(
+                $"El monto del pago ({FormatoMonto(request.MontoPagado)}) supera el saldo pendiente ({FormatoMonto(f.Total - f.MontoPagado)}).");
 
         var pago = new PagoFactura
         {
@@ -246,10 +250,16 @@ public sealed class FacturacionService : IFacturacionService
             RegistradoPor = idUsuario,
             FechaUtc = DateTime.UtcNow
         };
-        _db.PagosFacturas.Add(pago);
-        f.MontoPagado += request.MontoPagado; f.FechaPago = pago.FechaUtc.ToLocalTime(); f.Estado = f.MontoPagado >= f.Total ? "pagada" : "parcial";
+        var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(ct)
+            : null;
         try
         {
+            _db.PagosFacturas.Add(pago);
+            f.MontoPagado += request.MontoPagado;
+            f.FechaPago = pago.FechaUtc.ToLocalTime();
+            f.Estado = f.MontoPagado >= f.Total ? "pagada" : "parcial";
+            AgregarAuditoria(idUsuario, f.IdFactura, "UPDATE", null, $"Pago de {request.MontoPagado:C} registrado para la factura {f.NumeroFactura}.");
             await _db.SaveChangesAsync(ct);
             if (transaction is not null)
                 await transaction.CommitAsync(ct);
@@ -274,6 +284,31 @@ public sealed class FacturacionService : IFacturacionService
     private async Task ValidarPaciente(int id, CancellationToken ct) { if (!await _db.Pacientes.AnyAsync(x => x.IdPaciente == id && x.Estado == "activo", ct)) throw new InvalidOperationException("El paciente seleccionado no es válido."); }
     private static void ValidarDetalles(IEnumerable<FacturaDetalleRequest> d) { if (!d.Any() || d.Any(x => x.Cantidad <= 0 || x.PrecioUnitario < 0 || x.Descuento < 0 || x.Descuento > x.PrecioUnitario || string.IsNullOrWhiteSpace(x.Descripcion))) throw new InvalidOperationException("La factura debe tener ítems válidos y descuentos no superiores al precio unitario."); }
     private static string? Clean(string? x) => string.IsNullOrWhiteSpace(x) ? null : x.Trim();
+    private static string FormatoMonto(decimal monto) => monto.ToString("N0", CultureInfo.GetCultureInfo("es-CO"));
+    private void AgregarNotificacion(int idPaciente, int? idCita, string titulo, string contenido)
+        => _db.Notificaciones.Add(new Notificacion
+        {
+            IdPaciente = idPaciente,
+            IdCita = idCita,
+            Tipo = "mensaje",
+            Titulo = titulo,
+            Contenido = contenido,
+            Canal = "interno",
+            Estado = "pendiente",
+            FechaProgramada = DateTime.UtcNow,
+            CreadaEn = DateTime.UtcNow
+        });
+    private void AgregarAuditoria(int idUsuario, int idFactura, string accion, string? datosAnteriores, string? descripcion)
+        => _db.Auditorias.Add(new Auditoria
+        {
+            IdUsuario = idUsuario,
+            TablaAfectada = "Factura",
+            IdRegistro = idFactura,
+            Accion = accion,
+            DatosAnteriores = datosAnteriores,
+            Descripcion = descripcion,
+            Fecha = DateTime.UtcNow
+        });
     private async Task<string> NuevoNumeroAsync(CancellationToken ct) { var year = DateTime.Now.Year; var n = await _db.Facturas.CountAsync(x => x.FechaFactura.Year == year, ct) + 1; string v; do { v = $"FAC-{year}-{n:D5}"; n++; } while (await _db.Facturas.AnyAsync(x => x.NumeroFactura == v, ct)); return v; }
     private static FacturaDto Map(Factura x) => new() { Id=x.IdFactura, Numero=x.NumeroFactura, IdPaciente=x.IdPaciente, IdCita=x.IdCita, IdProfesional=x.IdProfesional, Paciente=x.Paciente==null?"Paciente":$"{x.Paciente.Nombres} {x.Paciente.Apellidos}", Documento=x.Paciente?.Documento??"N/A", Fecha=x.FechaFactura, Subtotal=x.Subtotal, Descuento=x.Descuento, Total=x.Total, MontoPagado=x.MontoPagado, Pendiente=Math.Max(x.Total-x.MontoPagado,0), Estado=x.Estado, Notas=x.Notas, FechaPago=x.FechaPago, Detalles=x.Detalles.Select(d=>new FacturaDetalleDto { Id=d.IdDetalle, IdServicio=d.IdServicio, Descripcion=d.Descripcion, Cantidad=d.Cantidad, PrecioUnitario=d.PrecioUnitario, Descuento=d.Descuento, Subtotal=d.SubtotalLinea }).ToList(), Pagos=x.Pagos.OrderBy(p=>p.FechaUtc).Select(p=>new FacturaPagoDto { Id=p.IdPago, Monto=p.Monto, MetodoPago=p.MetodoPago, Estado=p.Estado, Referencia=p.Referencia, FechaUtc=p.FechaUtc }).ToList() };
 }
