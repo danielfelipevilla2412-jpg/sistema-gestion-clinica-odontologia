@@ -126,6 +126,12 @@ public sealed class GestionPacientesApiController : ControllerBase
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
 
+        if (!User.IsInRole("Administrador") && !User.IsInRole("Recepcionista") &&
+            (dto.TipoDocumento is not null || dto.Documento is not null ||
+             dto.FechaNacimiento.HasValue || dto.GrupoSanguineo is not null ||
+             dto.Direccion is not null))
+            return Forbid();
+
         var result = await _service.ActualizarAsync(id, dto, ct);
 
         if (!result.Success)

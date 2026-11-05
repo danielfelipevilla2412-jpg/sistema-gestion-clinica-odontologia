@@ -21,6 +21,14 @@ const showToast = (message, type = 'success') => {
     toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
 };
 
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;'
+})[character]);
+
 // ═══════════════════════════════════════════════════════════════════
 //  CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════
@@ -89,32 +97,31 @@ const paciente = {
 // ═══════════════════════════════════════════════════════════════════
 
 function cargarDatos() {
+    baseDatosTratamientos = {};
+    mapeoFDI = {};
+
     try {
-        const hist = localStorage.getItem('odontograma_historial');
-        if (hist) baseDatosTratamientos = JSON.parse(hist);
-
-        const mapeo = localStorage.getItem('odontograma_mapeo_fdi');
-        if (mapeo) mapeoFDI = JSON.parse(mapeo);
-
         if (config.estadoPersistido) {
             const persistido = typeof config.estadoPersistido === 'string' ? JSON.parse(config.estadoPersistido) : config.estadoPersistido;
             if (persistido?.registros) baseDatosTratamientos = persistido.registros;
             if (persistido?.mapeoFDI) mapeoFDI = persistido.mapeoFDI;
         }
 
-        // Las versiones anteriores podían guardar una pieza sin el arreglo
-        // tratamientos. Se normaliza al cargar para que un dato histórico
-        // incompleto no detenga todo el script ni bloquee el botón de mapeo.
         baseDatosTratamientos = normalizarRegistros(baseDatosTratamientos);
         if (!mapeoFDI || typeof mapeoFDI !== 'object' || Array.isArray(mapeoFDI)) {
             mapeoFDI = {};
         }
-
-        console.log('✅ Datos cargados:', Object.keys(baseDatosTratamientos).length, 'piezas,', Object.keys(mapeoFDI).length, 'mapeos');
     } catch (e) {
-        console.error('❌ Error al cargar datos:', e);
+        console.error('No se pudieron cargar los datos persistidos del odontograma.', e);
         baseDatosTratamientos = {};
         mapeoFDI = {};
+    }
+
+    try {
+        localStorage.removeItem('odontograma_historial');
+        localStorage.removeItem('odontograma_mapeo_fdi');
+    } catch (e) {
+        console.warn('No se pudo borrar el estado local heredado del odontograma.', e);
     }
 }
 
@@ -125,24 +132,25 @@ function normalizarRegistros(registros) {
 
     return Object.fromEntries(Object.entries(registros).map(([instanceID, datos]) => {
         const pieza = datos && typeof datos === 'object' && !Array.isArray(datos) ? datos : {};
+        const tratamientos = pieza.tratamientos ?? pieza.Tratamientos;
         return [instanceID, {
-            ...pieza,
-            tratamientos: Array.isArray(pieza.tratamientos) ? pieza.tratamientos : []
+            nombrePieza: pieza.nombrePieza ?? pieza.NombrePieza ?? '',
+            tratamientos: Array.isArray(tratamientos)
+                ? tratamientos.map(tratamiento => ({
+                    key: tratamiento.key ?? tratamiento.Key ?? '',
+                    obs: tratamiento.obs ?? tratamiento.Obs ?? '',
+                    fecha: tratamiento.fecha ?? tratamiento.Fecha ?? ''
+                }))
+                : []
         }];
     }));
 }
 
-function guardarDatos() {
-    try {
-        localStorage.setItem('odontograma_historial', JSON.stringify(baseDatosTratamientos));
-        localStorage.setItem('odontograma_mapeo_fdi', JSON.stringify(mapeoFDI));
-    } catch (e) {
-        console.error('❌ Error al guardar datos:', e);
-    }
-}
-
 async function persistirEstado({ mostrarToast: shouldShowToast = true } = {}) {
-    guardarDatos();
+    if (!Number.isInteger(Number(paciente.id)) || Number(paciente.id) <= 0) {
+        if (shouldShowToast) showToast('No hay un paciente válido seleccionado.', 'error');
+        return false;
+    }
 
     try {
         const response = await fetch('/historia-clinica/st-odo-04-odontograma/guardar', {
@@ -171,10 +179,8 @@ async function persistirEstado({ mostrarToast: shouldShowToast = true } = {}) {
         if (shouldShowToast) showToast('✅ Cambios guardados correctamente', 'success');
         return true;
     } catch (e) {
-        console.error('❌ Error al sincronizar con el backend:', e);
-        if (shouldShowToast) {
-            showToast('⚠️ Se guardaron los cambios localmente, pero no se pudo sincronizar con el servidor', 'warning');
-        }
+        console.error('No se pudo guardar el odontograma en el servidor.', e);
+        if (shouldShowToast) showToast('No se pudieron guardar los cambios en el servidor.', 'error');
         return false;
     }
 }
@@ -201,20 +207,20 @@ function obtenerNombrePieza(nodeName, instanceID) {
 
 function generarTooltipContent(hoverName, instanceID) {
     const historialPieza = baseDatosTratamientos[instanceID];
-    let content = `<div class="tooltip-header">${hoverName}</div>`;
+    let content = `<div class="tooltip-header">${escapeHtml(hoverName)}</div>`;
 
     if (historialPieza && historialPieza.tratamientos && historialPieza.tratamientos.length > 0) {
         const tratamientos = historialPieza.tratamientos;
         const actual = tratamientos[tratamientos.length - 1];
-        const est = ESTADOS.find(x => x.key === actual.key);
+        const est = ESTADOS.find(x => x.key === actual.key) || { label: 'Estado no reconocido', color: '#64748b' };
 
                 content += `
             <div class="tooltip-section">
                 <div class="tooltip-label">Estado Actual</div>
                 <div class="tooltip-current">
-                    <div class="tooltip-current-status" style="color:${est.color};">● ${est.label.toUpperCase()}</div>
-                    ${actual.obs ? `<div class="tooltip-current-obs">"${actual.obs}"</div>` : ''}
-                    ${actual.profesional ? `<div class="tooltip-current-doctor">👨‍⚕️ ${actual.profesional}</div>` : ''}
+                    <div class="tooltip-current-status" style="color:${est.color};">● ${escapeHtml(est.label.toUpperCase())}</div>
+                    ${actual.obs ? `<div class="tooltip-current-obs">"${escapeHtml(actual.obs)}"</div>` : ''}
+                    ${actual.profesional ? `<div class="tooltip-current-doctor">👨‍⚕️ ${escapeHtml(actual.profesional)}</div>` : ''}
                 </div>
             </div>
         `;
@@ -223,14 +229,14 @@ function generarTooltipContent(hoverName, instanceID) {
             content += `<div class="tooltip-section"><div class="tooltip-history-title">📊 Historial (${tratamientos.length})</div>`;
             for (let i = tratamientos.length - 1; i >= 0; i--) {
                 const t = tratamientos[i];
-                const e = ESTADOS.find(x => x.key === t.key);
+                const e = ESTADOS.find(x => x.key === t.key) || { label: 'Estado no reconocido', color: '#64748b' };
                 const f = new Date(t.fecha).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
              content += `
                     <div class="tooltip-history-item">
-                        <div class="tooltip-history-status" style="color:${e.color};">● ${e.label}</div>
-                        ${t.obs ? `<div class="tooltip-history-obs">"${t.obs}"</div>` : ''}
-                        ${t.profesional ? `<div class="tooltip-history-doctor">👨‍⚕️ ${t.profesional}</div>` : ''}
-                        <div class="tooltip-history-date">${f}</div>
+                        <div class="tooltip-history-status" style="color:${e.color};">● ${escapeHtml(e.label)}</div>
+                        ${t.obs ? `<div class="tooltip-history-obs">"${escapeHtml(t.obs)}"</div>` : ''}
+                        ${t.profesional ? `<div class="tooltip-history-doctor">👨‍⚕️ ${escapeHtml(t.profesional)}</div>` : ''}
+                        <div class="tooltip-history-date">${escapeHtml(f)}</div>
                     </div>
                 `;
             }
@@ -310,11 +316,23 @@ function toggleMapeoFDI() {
 
 function resetearMapeo() {
     if (confirm('¿Seguro que quieres borrar todo el mapeo FDI?')) {
+        if (Object.keys(baseDatosTratamientos).length > 0) {
+            showToast('No puedes borrar el mapeo mientras existan registros dentales.', 'warning');
+            return;
+        }
+
+        const mapeoAnterior = mapeoFDI;
         mapeoFDI = {};
-        guardarDatos();
-        generarBotonesMapeo();
-        actualizarProgresoMapeo();
-        showToast('Mapeo reseteado', 'success');
+        persistirEstado({ mostrarToast: false }).then((guardado) => {
+            if (!guardado) {
+                mapeoFDI = mapeoAnterior;
+                showToast('No se pudo restablecer el mapeo.', 'error');
+            } else {
+                showToast('Mapeo restablecido', 'success');
+            }
+            generarBotonesMapeo();
+            actualizarProgresoMapeo();
+        });
     }
 }
 
@@ -332,16 +350,33 @@ async function asignarFDI(numeroFDI) {
         showToast('Primero haz clic en un diente del modelo 3D', 'warning');
         return;
     }
-    mapeoFDI[dienteActualMapeo.instanceID] = numeroFDI;
-    guardarDatos();
+    const instanciaExistente = Object.keys(mapeoFDI).find(
+        instanceId => mapeoFDI[instanceId] === numeroFDI && instanceId !== String(dienteActualMapeo.instanceID)
+    );
+    if (instanciaExistente) {
+        showToast(`El diente ${numeroFDI} ya está asignado a otra pieza.`, 'warning');
+        return;
+    }
+
+    const instanceId = String(dienteActualMapeo.instanceID);
+    const numeroAnterior = mapeoFDI[instanceId];
+    mapeoFDI[instanceId] = numeroFDI;
     const nombre = `${numeroFDI} - ${MAPEO_FDI[numeroFDI]}`;
     generarBotonesMapeo();
     actualizarProgresoMapeo();
     const current = safeGetElement('mapeo-current');
     if (current) current.classList.remove('visible');
     dienteActualMapeo = null;
-    await persistirEstado({ mostrarToast: false });
-    showToast(`✅ Asignado: ${nombre}`, 'success');
+    const guardado = await persistirEstado({ mostrarToast: false });
+    if (!guardado) {
+        if (numeroAnterior) mapeoFDI[instanceId] = numeroAnterior;
+        else delete mapeoFDI[instanceId];
+        generarBotonesMapeo();
+        actualizarProgresoMapeo();
+        showToast('No se pudo guardar el mapeo.', 'error');
+        return;
+    }
+    showToast(`Asignado: ${nombre}`, 'success');
 }
 
 function actualizarProgresoMapeo() {
@@ -503,12 +538,12 @@ function abrirPanelDiagnostico() {
         ? datosPrevios.tratamientos[datosPrevios.tratamientos.length - 1]
         : { key: '', obs: '' };
 
-    safeGetElement('obsTa').value = tratamientoActual.obs;
+    safeGetElement('obsTa').value = tratamientoActual.obs || '';
 
     const estadoEl = safeGetElement('piezaEstado');
     if (tratamientoActual.key) {
-        const est = ESTADOS.find(x => x.key === tratamientoActual.key);
-        estadoEl.innerHTML = `<strong>Estado actual:</strong> ${est.label}`;
+        const est = ESTADOS.find(x => x.key === tratamientoActual.key) || { label: 'Estado no reconocido', color: '#64748b' };
+        estadoEl.innerHTML = `<strong>Estado actual:</strong> ${escapeHtml(est.label)}`;
         estadoEl.style.background = `${est.color}22`;
         estadoEl.style.border = `1.5px solid ${est.color}`;
         estadoEl.style.color = est.color;
@@ -552,7 +587,7 @@ function renderHistorialPieza() {
         return;
     }
     hist.innerHTML = datos.tratamientos.map((t, i) => {
-        const est = ESTADOS.find(x => x.key === t.key);
+        const est = ESTADOS.find(x => x.key === t.key) || { label: 'Estado no reconocido', color: '#64748b' };
         const esActual = i === datos.tratamientos.length - 1;
         const fecha = new Date(t.fecha).toLocaleString('es-ES', {
             day: '2-digit', month: 'short', year: 'numeric',
@@ -561,9 +596,9 @@ function renderHistorialPieza() {
         return `
             <div class="hist-entry ${esActual ? 'current' : ''}" role="listitem">
                 <div>
-                    <time class="hist-entry-date" datetime="${t.fecha}">${fecha}</time> →
-                    <strong style="color:${est.color};">${est.label}</strong>
-                    ${t.obs ? ' · ' + t.obs : ''}
+                    <time class="hist-entry-date" datetime="${escapeHtml(t.fecha)}">${escapeHtml(fecha)}</time> →
+                    <strong style="color:${est.color};">${escapeHtml(est.label)}</strong>
+                    ${t.obs ? ' · ' + escapeHtml(t.obs) : ''}
                 </div>
                 ${esActual ? '<div style="font-size:.7rem;color:var(--primary);margin-top:2px;">● ACTUAL</div>' : ''}
             </div>
@@ -585,6 +620,10 @@ async function guardarRegistro() {
         showToast('Selecciona un estado clínico primero', 'warning');
         return;
     }
+    if (!mapeoFDI[seleccionadoNodeId]) {
+        showToast('Asigna un número FDI a esta pieza antes de registrar su estado.', 'warning');
+        return;
+    }
 
       // Yeray - Se agrega el nombre del profesional actual a cada registro.
     // config.profesionalNombre ya venía inyectado desde el backend (Model.ProfesionalNombre)
@@ -598,13 +637,13 @@ async function guardarRegistro() {
         };
     }
     baseDatosTratamientos[seleccionadoNodeId].tratamientos.push(nuevo);
-    guardarDatos();
 
     renderUltimasMods();
     updateCounts();
     abrirPanelDiagnostico();
-    await persistirEstado({ mostrarToast: false });
-    showToast('✅ Historial actualizado', 'success');
+    const guardado = await persistirEstado({ mostrarToast: false });
+    if (guardado) showToast('Historial actualizado', 'success');
+    else showToast('El cambio no se guardó. Verifica los datos e inténtalo de nuevo.', 'error');
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -652,9 +691,9 @@ function renderUltimasMods() {
 
         return `
             <div class="mod-item" role="listitem">
-                <span class="mod-num">${m.nombrePieza}</span> →
-                <span class="mod-est" style="color:${est.color};">${est.label}</span> ·
-                <time datetime="${m.fecha}">${fecha}</time>
+                <span class="mod-num">${escapeHtml(m.nombrePieza)}</span> →
+                <span class="mod-est" style="color:${est.color};">${escapeHtml(est.label)}</span> ·
+                <time datetime="${escapeHtml(m.fecha)}">${escapeHtml(fecha)}</time>
             </div>
         `;
     }).join('');
@@ -704,7 +743,7 @@ function animateCounter(el, target) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  EXPORTAR / LIMPIAR
+//  EXPORTAR
 // ═══════════════════════════════════════════════════════════════════
 
 function exportarHistorial() {
@@ -731,22 +770,6 @@ function exportarHistorial() {
     showToast('📥 Historial exportado', 'success');
 }
 
-async function limpiarTodo() {
-    if (Object.keys(baseDatosTratamientos).length === 0) {
-        showToast('No hay registros para limpiar', 'warning');
-        return;
-    }
-    if (confirm('⚠️ ¿Eliminar TODO el historial? Esta acción no se puede deshacer.')) {
-        baseDatosTratamientos = {};
-        guardarDatos();
-        renderUltimasMods();
-        updateCounts();
-        cerrarPanel();
-        await persistirEstado({ mostrarToast: false });
-        showToast('🗑️ Historial limpiado', 'success');
-    }
-}
-
 // ═══════════════════════════════════════════════════════════════════
 //  GUARDAR CAMBIOS
 // ═══════════════════════════════════════════════════════════════════
@@ -757,7 +780,6 @@ function guardarCambios() {
 }
 
 async function confirmarGuardado() {
-    console.log('📤 Guardando en backend:', baseDatosTratamientos);
     closeModal(safeGetElement('modalGuardar'));
     const btn = safeGetElement('btnGuardar');
     const orig = btn?.innerHTML || '💾 Guardar cambios';

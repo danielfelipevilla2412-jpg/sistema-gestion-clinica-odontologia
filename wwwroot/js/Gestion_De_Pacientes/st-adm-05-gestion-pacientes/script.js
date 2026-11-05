@@ -12,6 +12,14 @@ const safeGetElement = (id) => {
   return el;
 };
 
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+})[character]);
+
 const debounce = (fn, delay) => {
   let timeoutId;
 
@@ -151,54 +159,11 @@ const fmtDate = (iso) => {
 //  DATOS
 // ═══════════════════════════════════════════════════════════════════
 
-// Yeray (2025) - getPatients devuelve el array en memoria (carga inicial o
-// última página recibida del servidor). Se usa para los filtros locales
-// (alergias, cita, historial) que se aplican DESPUÉS de recibir del servidor.
+// The array contains only the currently requested server page.
 const getPatients = () => {
   return Array.isArray(window.RAZOR_PATIENTS)
     ? window.RAZOR_PATIENTS
     : [];
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  FILTROS LOCALES (sobre la página recibida del servidor)
-// ═══════════════════════════════════════════════════════════════════
-
-// Yeray (2025) - MIGRACIÓN: la búsqueda por texto ya no filtra aquí;
-// se delega al servidor vía /buscar. Los filtros locales de alergias,
-// cita e historial se siguen aplicando sobre el array en memoria porque
-// requieren datos de citas que ya vienen en la página.
-const getFilteredPatients = () => {
-  const patients = getPatients();
-
-  return patients.filter((patient) => {
-
-    // Filtro por alergias
-    if (filterAlergias === 'con' &&
-        !(Array.isArray(patient.Allergies) && patient.Allergies.length > 0)) {
-      return false;
-    }
-    if (filterAlergias === 'sin' &&
-        Array.isArray(patient.Allergies) && patient.Allergies.length > 0) {
-      return false;
-    }
-
-    // Filtro por próxima cita
-    if (filterCita === 'con' && !patient.NextVisit) return false;
-    if (filterCita === 'sin' &&  patient.NextVisit) return false;
-
-    // Filtro por historial
-    if (filterHistorial === 'con' &&
-        !(Array.isArray(patient.History) && patient.History.length > 0)) {
-      return false;
-    }
-    if (filterHistorial === 'sin' &&
-        Array.isArray(patient.History) && patient.History.length > 0) {
-      return false;
-    }
-
-    return true;
-  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -260,6 +225,14 @@ const fetchPacientes = async () => {
     estado:   estadoFiltro        // siempre se envía; default 'activo'
   });
   if (searchQuery) params.set('search', searchQuery);
+  if (filterAlergias) params.set('alergias', filterAlergias);
+  if (filterCita) params.set('cita', filterCita);
+  if (filterHistorial) params.set('historial', filterHistorial);
+  const requestedEditId = new URLSearchParams(window.location.search).get('editar');
+  if (requestedEditId) {
+    params.set('editar', requestedEditId);
+    params.set('estado', 'todos');
+  }
 
   try {
     const resp = await fetch(
@@ -272,10 +245,13 @@ const fetchPacientes = async () => {
     window.RAZOR_PATIENTS = json.items ?? [];
     serverTotal = json.total ?? 0;
     serverPages = json.totalPages ?? 1;
+    return true;
 
   } catch (err) {
-    if (err.name === 'AbortError') return;
+    if (err.name === 'AbortError') return false;
     console.error('[SmileTrack][Pacientes] Error búsqueda server-side:', err);
+    showToast('No se pudo cargar la lista de pacientes.', 'error');
+    return false;
   }
 };
 
@@ -283,12 +259,6 @@ const fetchPacientes = async () => {
 //  RENDERIZADO DE PACIENTES
 // ═══════════════════════════════════════════════════════════════════
 
-// Yeray (2025) - renderPatients ahora es async.
-// - Si hay searchQuery: llama a fetchPacientes() primero (server-side),
-//   luego aplica los filtros locales sobre la página recibida.
-// - Si no hay searchQuery: usa el array local RAZOR_PATIENTS (carga inicial
-//   o última carga), aplica filtros locales y pagina en cliente.
-//   Esto mantiene la experiencia instantánea cuando no se busca.
 const renderPatients = async () => {
 
   const container   = safeGetElement('patientsBody');
@@ -298,25 +268,10 @@ const renderPatients = async () => {
   const btnPrev     = safeGetElement('btnPrev');
   const btnNext     = safeGetElement('btnNext');
 
-  let displayPatients;
-  let totalForPagination;
-  let totalPagesForPagination;
-
-  if (searchQuery.trim() !== '' || estadoFiltro !== 'activo') {
-    // ── Búsqueda o estado distinto de activo: el servidor filtra ───────────
-    await fetchPacientes();
-    displayPatients          = getFilteredPatients();
-    totalForPagination       = serverTotal;
-    totalPagesForPagination  = serverPages;
-  } else {
-    // ── Sin búsqueda: filtros locales + paginación en cliente ───────────
-    const filtered           = getFilteredPatients();
-    const total              = filtered.length;
-    const start              = (currentPage - 1) * itemsPerPage;
-    displayPatients          = filtered.slice(start, start + itemsPerPage);
-    totalForPagination       = total;
-    totalPagesForPagination  = Math.max(1, Math.ceil(total / itemsPerPage));
-  }
+  if (!await fetchPacientes()) return;
+  const displayPatients = getPatients();
+  const totalForPagination = serverTotal;
+  const totalPagesForPagination = serverPages;
 
   if (container) {
 
@@ -325,8 +280,7 @@ const renderPatients = async () => {
         .map((patient) => {
 
           const initials =
-            patient.Initials ||
-            '??';
+            escapeHtml(patient.Initials || '??');
 
           const color =
             patient.Color === 'green'
@@ -344,7 +298,7 @@ const renderPatients = async () => {
               ? patient.Allergies
                   .map(
                     item =>
-                      `<span class="allergy-badge">${item}</span>`
+                          `<span class="allergy-badge">${escapeHtml(item)}</span>`
                   )
                   .join('')
 
@@ -353,8 +307,8 @@ const renderPatients = async () => {
           return `
             <div
               class="table-row patient-row"
-              data-name="${(patient.Name || '').toLowerCase()}"
-              data-doc="${(patient.Doc || '').toLowerCase()}"
+              data-name="${escapeHtml((patient.Name || '').toLowerCase())}"
+              data-doc="${escapeHtml((patient.Doc || '').toLowerCase())}"
             >
 
               <div
@@ -373,11 +327,11 @@ const renderPatients = async () => {
                   <div>
 
                     <span class="patient-name">
-                      ${patient.Name || 'Sin nombre'}
+                      ${escapeHtml(patient.Name || 'Sin nombre')}
                     </span>
 
                     <span class="patient-id">
-                      ${patient.Doc || 'Sin documento'}
+                      ${escapeHtml(patient.Doc || 'Sin documento')}
                     </span>
 
                   </div>
@@ -396,7 +350,7 @@ const renderPatients = async () => {
                 class="table-col col-diagnostico"
                 data-label="Diagnóstico"
               >
-                ${patient.Diagnosis || 'N/A'}
+                ${escapeHtml(patient.Diagnosis || 'N/A')}
               </div>
 
               <div
@@ -422,7 +376,7 @@ const renderPatients = async () => {
                   <button
                     class="action-btn btn-view"
                     data-id="${patient.Id}"
-                    aria-label="Ver perfil de ${patient.Name}"
+                    aria-label="Ver perfil de ${escapeHtml(patient.Name)}"
                     title="Ver perfil completo"
                   >
                     <span class="action-icon" aria-hidden="true">👁️</span>
@@ -432,7 +386,7 @@ const renderPatients = async () => {
                   <button
                     class="action-btn btn-edit"
                     data-id="${patient.Id}"
-                    aria-label="Editar ${patient.Name}"
+                    aria-label="Editar ${escapeHtml(patient.Name)}"
                     title="Editar paciente"
                   >
                     <span class="action-icon" aria-hidden="true">✏️</span>
@@ -442,7 +396,7 @@ const renderPatients = async () => {
                   <button
                     class="action-btn btn-history"
                     data-id="${patient.Id}"
-                    aria-label="Historia clínica de ${patient.Name}"
+                    aria-label="Historia clínica de ${escapeHtml(patient.Name)}"
                     title="Historia clínica"
                   >
                     <span class="action-icon" aria-hidden="true">📋</span>
@@ -594,7 +548,7 @@ const openPatientModal = (id, type) => {
 
         <p>
           <strong>Documento:</strong>
-          ${patient.Doc || 'N/A'}
+          ${escapeHtml(patient.Doc || 'N/A')}
         </p>
 
         <p>
@@ -604,27 +558,27 @@ const openPatientModal = (id, type) => {
 
         <p>
           <strong>Género:</strong>
-          ${patient.Genero || 'N/A'}
+          ${escapeHtml(patient.Genero || 'N/A')}
         </p>
 
         <p>
           <strong>Teléfono:</strong>
-          ${patient.Telefono || 'N/A'}
+          ${escapeHtml(patient.Telefono || 'N/A')}
         </p>
 
         <p>
           <strong>Correo:</strong>
-          ${patient.Correo || 'N/A'}
+          ${escapeHtml(patient.Correo || 'N/A')}
         </p>
 
         <p>
           <strong>Ciudad:</strong>
-          ${patient.Ciudad || 'N/A'}
+          ${escapeHtml(patient.Ciudad || 'N/A')}
         </p>
 
         <p>
           <strong>Grupo sanguíneo:</strong>
-          ${patient.GrupoSanguineo || 'N/A'}
+          ${escapeHtml(patient.GrupoSanguineo || 'N/A')}
         </p>
 
         <p>
@@ -636,7 +590,7 @@ const openPatientModal = (id, type) => {
 
         <p>
           <strong>Diagnóstico:</strong>
-          ${patient.Diagnosis || 'N/A'}
+          ${escapeHtml(patient.Diagnosis || 'N/A')}
         </p>
 
         <p>
@@ -648,21 +602,21 @@ const openPatientModal = (id, type) => {
 
         <p>
           <strong>Alergias:</strong>
-          ${patient.AlergiasTexto || 'Ninguna'}
+          ${escapeHtml(patient.AlergiasTexto || 'Ninguna')}
         </p>
 
         <p>
           <strong>Estado:</strong>
-          ${patient.Estado || 'N/A'}
+          ${escapeHtml(patient.Estado || 'N/A')}
         </p>
 
-        ${patient.Estado === 'activo' ? `
+        ${window.canEditPatientIdentity && patient.Estado === 'activo' ? `
         <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
           <button
             class="action-btn btn-disable"
             data-id="${patient.Id}"
             style="color:var(--red);border-color:var(--red);width:100%;justify-content:center;"
-            aria-label="Desactivar a ${patient.Name}"
+            aria-label="Desactivar a ${escapeHtml(patient.Name)}"
           >
             🗑️ Desactivar paciente
           </button>
@@ -717,7 +671,7 @@ const openPatientModal = (id, type) => {
                   style="margin-top:4px;"
                 >
                   <strong>
-                    ${entry.Procedure}
+                    ${escapeHtml(entry.Procedure)}
                   </strong>
                 </div>
 
@@ -727,7 +681,7 @@ const openPatientModal = (id, type) => {
                     color:var(--text-muted)
                   "
                 >
-                  Dr. ${entry.Doctor}
+                  Dr. ${escapeHtml(entry.Doctor)}
                 </div>
 
               </li>
@@ -784,13 +738,53 @@ const openPatientModal = (id, type) => {
         <!-- SECCIÓN: INFORMACIÓN PERSONAL -->
         <div class="form-section-title">Información Personal</div>
 
+        ${window.canEditPatientIdentity ? `
+          <div class="form-group">
+            <label class="form-label" for="editEstado">Estado</label>
+            <select id="editEstado" class="form-select">
+              <option value="activo" ${patient.Estado === 'activo' ? 'selected' : ''}>Activo</option>
+              <option value="inactivo" ${patient.Estado === 'inactivo' ? 'selected' : ''}>Inactivo</option>
+              <option value="retirado" ${patient.Estado === 'retirado' ? 'selected' : ''}>Retirado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editTipoDocumento">Tipo de documento</label>
+            <select id="editTipoDocumento" class="form-select">
+              ${[['CC', 'Cédula de ciudadanía'], ['TI', 'Tarjeta de identidad'], ['CE', 'Cédula de extranjería'], ['PAS', 'Pasaporte'], ['NIT', 'NIT']]
+                .map(([value, label]) => `<option value="${value}" ${patient.TipoDocumento === value ? 'selected' : ''}>${label}</option>`)
+                .join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editDocumento">Documento</label>
+            <input type="text" id="editDocumento" class="form-input" value="${escapeHtml(patient.Documento)}" maxlength="20" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editFechaNacimiento">Fecha de nacimiento</label>
+            <input type="date" id="editFechaNacimiento" class="form-input" value="${escapeHtml(String(patient.FechaNacimiento || '').slice(0, 10))}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="editGrupoSanguineo">Grupo sanguíneo</label>
+            <select id="editGrupoSanguineo" class="form-select">
+              <option value="">Sin especificar</option>
+              ${['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-']
+                .map((group) => `<option value="${group}" ${patient.GrupoSanguineo === group ? 'selected' : ''}>${group}</option>`)
+                .join('')}
+            </select>
+          </div>
+          <div class="form-group form-group--full">
+            <label class="form-label" for="editDireccion">Dirección</label>
+            <input type="text" id="editDireccion" class="form-input" value="${escapeHtml(patient.Direccion)}" maxlength="255" />
+          </div>
+        ` : ''}
+
         <div class="form-group">
           <label class="form-label" for="editNombres">Nombres</label>
           <input
             type="text"
             id="editNombres"
             class="form-input"
-            value="${nombresActuales}"
+            value="${escapeHtml(nombresActuales)}"
             required
           />
         </div>
@@ -801,7 +795,7 @@ const openPatientModal = (id, type) => {
             type="text"
             id="editApellidos"
             class="form-input"
-            value="${apellidosActuales}"
+            value="${escapeHtml(apellidosActuales)}"
             required
           />
         </div>
@@ -817,7 +811,7 @@ const openPatientModal = (id, type) => {
 
         <div class="form-group">
           <label class="form-label" for="editCiudad">Ciudad</label>
-          <input type="text" id="editCiudad" class="form-input" value="${patient.Ciudad || ''}" />
+          <input type="text" id="editCiudad" class="form-input" value="${escapeHtml(patient.Ciudad)}" />
         </div>
 
         <!-- SECCIÓN: CONTACTO -->
@@ -825,12 +819,12 @@ const openPatientModal = (id, type) => {
 
         <div class="form-group">
           <label class="form-label" for="editTelefono">Teléfono</label>
-          <input type="tel" id="editTelefono" class="form-input" value="${patient.Telefono || ''}" />
+          <input type="tel" id="editTelefono" class="form-input" value="${escapeHtml(patient.Telefono)}" />
         </div>
 
         <div class="form-group">
           <label class="form-label" for="editCorreo">Correo Electrónico</label>
-          <input type="email" id="editCorreo" class="form-input" value="${patient.Correo || ''}" />
+          <input type="email" id="editCorreo" class="form-input" value="${escapeHtml(patient.Correo)}" />
         </div>
 
         <!-- SECCIÓN: EMERGENCIA -->
@@ -843,7 +837,7 @@ const openPatientModal = (id, type) => {
             id="editContactoEmergencia"
             class="form-input"
             placeholder="Nombre completo"
-            value="${patient.ContactoEmergencia || ''}"
+            value="${escapeHtml(patient.ContactoEmergencia)}"
           />
         </div>
 
@@ -854,7 +848,7 @@ const openPatientModal = (id, type) => {
             id="editTelefonoEmergencia"
             class="form-input"
             placeholder="Ej. 300 123 4567"
-            value="${patient.TelefonoEmergencia || ''}"
+            value="${escapeHtml(patient.TelefonoEmergencia)}"
           />
         </div>
 
@@ -868,7 +862,7 @@ const openPatientModal = (id, type) => {
             id="editAlergias"
             class="form-input"
             placeholder="Ej. Penicilina, Látex..."
-            value="${patient.AlergiasTexto || ''}"
+            value="${escapeHtml(patient.AlergiasTexto)}"
           />
         </div>
 
@@ -878,7 +872,7 @@ const openPatientModal = (id, type) => {
             id="editAntecedentesMedicos"
             class="form-input"
             placeholder="Enfermedades previas, cirugías, condiciones crónicas, tratamientos actuales..."
-          >${patient.AntecedentesMedicos || ''}</textarea>
+          >${escapeHtml(patient.AntecedentesMedicos)}</textarea>
         </div>
 
         <!-- BOTONES DE ACCIÓN -->
@@ -1031,8 +1025,19 @@ const openPatientModal = (id, type) => {
 
         data.append(
           'estado',
-          patient.Estado || 'activo'
+          safeGetElement('editEstado')?.value || patient.Estado || 'activo'
         );
+
+        for (const [fieldId, fieldName] of [
+          ['editTipoDocumento', 'tipoDoc'],
+          ['editDocumento', 'documento'],
+          ['editFechaNacimiento', 'fechaNacimiento'],
+          ['editGrupoSanguineo', 'grupoSanguineo'],
+          ['editDireccion', 'direccion']
+        ]) {
+          const field = safeGetElement(fieldId);
+          if (field) data.append(fieldName, field.value.trim());
+        }
 
         try {
 
@@ -1623,6 +1628,11 @@ const init = async () => {
   initFilters();
   animateCounters();
   await renderPatients();
+  const editHash = window.location.hash.match(/^#editar-(\d+)$/);
+  if (editHash) {
+    openPatientModal(Number(editHash[1]), 'edit');
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`);
+  }
 };
 
 document.addEventListener('DOMContentLoaded', init);

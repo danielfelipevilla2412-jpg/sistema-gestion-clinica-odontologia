@@ -819,6 +819,19 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments(
+            "/uploads/documentos-clinicos",
+            StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
+
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = context =>

@@ -852,7 +852,7 @@ const init = async () => {
     const response = await window.apiRequest('/api/facturas');
     if (response?.success && Array.isArray(response.data)) {
       invoices = response.data.map((f, idx) => ({
-        id: f.id, number: f.numero, patient: f.paciente, doc: f.documento,
+        id: f.id, idCita: f.idCita, idProfesional: f.idProfesional, number: f.numero, patient: f.paciente, doc: f.documento,
         date: String(f.fecha).slice(0, 10), total: f.total, paid: f.montoPagado, pending: f.pendiente,
         status: f.estado, color: ['blue','green','purple','orange','red'][idx % 5],
         service: f.notas || 'Servicio Odontológico',

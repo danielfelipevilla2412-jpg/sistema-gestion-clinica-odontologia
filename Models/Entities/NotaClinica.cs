@@ -11,10 +11,8 @@ namespace SmileTrack_MVC.Models.Entities;
 // y parsearlo en C#. Ahora cada nota es una fila real con su propia fecha,
 // profesional y diagnóstico, consultable directamente.
 //
-// Mientras el visor de historial (st-odo-03-historial) siga leyendo el JSON para
-// pintar la pantalla, GuardarNotaClinica sigue escribiendo también en el JSON
-// (ver comentario "Yeray" en HistoriaClinicaController). Esta tabla es la fuente
-// real para la API nueva; el JSON queda como compatibilidad temporal con esa vista.
+// El visor de historial y la API consultan esta tabla. El JSON de
+// ObservacionesGenerales ya no recibe escrituras de notas clínicas.
 [Table("Nota_Clinica")]
 public class NotaClinica
 {

@@ -203,15 +203,47 @@ BEGIN
         ciudad VARCHAR(100) NULL,
         grupo_sanguineo VARCHAR(5) NULL,
         alergias VARCHAR(MAX) NULL,
+        medicamentos VARCHAR(MAX) NULL,
         antecedentes_medicos VARCHAR(MAX) NULL,
         contacto_emergencia VARCHAR(100) NULL,
         telefono_emergencia VARCHAR(20) NULL,
+        estado_civil VARCHAR(20) NULL,
+        departamento VARCHAR(100) NULL,
+        parentesco_emergencia VARCHAR(50) NULL,
+        eps_aseguradora VARCHAR(150) NULL,
+        numero_poliza VARCHAR(50) NULL,
+        tipo_afiliacion VARCHAR(50) NULL,
+        medicamentos_actuales VARCHAR(MAX) NULL,
+        antecedentes_familiares VARCHAR(MAX) NULL,
+        id_profesional_asignado INT NULL,
         fecha_registro DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
         estado VARCHAR(10) NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactivo','retirado')),
         archivo_adjunto VARCHAR(255) NULL,
         CONSTRAINT FK_Paciente_Usuario FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario)
     );
 END
+GO
+
+IF COL_LENGTH('dbo.Paciente', 'medicamentos') IS NULL
+    ALTER TABLE dbo.Paciente ADD medicamentos VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'estado_civil') IS NULL
+    ALTER TABLE dbo.Paciente ADD estado_civil VARCHAR(20) NULL;
+IF COL_LENGTH('dbo.Paciente', 'departamento') IS NULL
+    ALTER TABLE dbo.Paciente ADD departamento VARCHAR(100) NULL;
+IF COL_LENGTH('dbo.Paciente', 'parentesco_emergencia') IS NULL
+    ALTER TABLE dbo.Paciente ADD parentesco_emergencia VARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Paciente', 'eps_aseguradora') IS NULL
+    ALTER TABLE dbo.Paciente ADD eps_aseguradora VARCHAR(150) NULL;
+IF COL_LENGTH('dbo.Paciente', 'numero_poliza') IS NULL
+    ALTER TABLE dbo.Paciente ADD numero_poliza VARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Paciente', 'tipo_afiliacion') IS NULL
+    ALTER TABLE dbo.Paciente ADD tipo_afiliacion VARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Paciente', 'medicamentos_actuales') IS NULL
+    ALTER TABLE dbo.Paciente ADD medicamentos_actuales VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'antecedentes_familiares') IS NULL
+    ALTER TABLE dbo.Paciente ADD antecedentes_familiares VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'id_profesional_asignado') IS NULL
+    ALTER TABLE dbo.Paciente ADD id_profesional_asignado INT NULL;
 GO
 
 -- ============================================================
@@ -724,48 +756,100 @@ BEGIN
 END
 GO
 
-IF OBJECT_ID(N'dbo.Pago_Factura', N'U') IS NULL
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'id_cita')
 BEGIN
-    CREATE TABLE dbo.Pago_Factura (
+    ALTER TABLE dbo.Factura ADD id_cita INT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Factura') AND name = 'id_profesional')
+BEGIN
+    ALTER TABLE dbo.Factura ADD id_profesional INT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Factura_Cita')
+BEGIN
+    ALTER TABLE dbo.Factura
+        ADD CONSTRAINT FK_Factura_Cita
+        FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Factura_Profesional')
+BEGIN
+    ALTER TABLE dbo.Factura
+        ADD CONSTRAINT FK_Factura_Profesional
+        FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Factura_Cita_Activa' AND object_id = OBJECT_ID(N'dbo.Factura'))
+BEGIN
+    CREATE UNIQUE INDEX UX_Factura_Cita_Activa
+        ON dbo.Factura(id_cita)
+        WHERE id_cita IS NOT NULL AND estado <> 'anulada';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Pago') AND type = N'U')
+BEGIN
+    CREATE TABLE dbo.Pago (
         id_pago INT IDENTITY(1,1) PRIMARY KEY,
         id_factura INT NOT NULL,
         monto DECIMAL(12,2) NOT NULL CHECK (monto > 0),
-        metodo_pago VARCHAR(30) NOT NULL,
-        estado VARCHAR(20) NOT NULL,
-        referencia VARCHAR(40) NOT NULL,
+        fecha_pago DATETIME NOT NULL DEFAULT GETDATE(),
+        metodo_pago VARCHAR(30) NOT NULL DEFAULT 'efectivo',
+        referencia VARCHAR(100) NULL,
         registrado_por INT NOT NULL,
-        fecha_utc DATETIME2 NOT NULL,
         observaciones VARCHAR(500) NULL,
-        CONSTRAINT UQ_PagoFactura_Referencia UNIQUE (referencia),
-        CONSTRAINT FK_PagoFactura_Factura FOREIGN KEY (id_factura) REFERENCES dbo.Factura(id_factura),
-        CONSTRAINT FK_PagoFactura_Usuario FOREIGN KEY (registrado_por) REFERENCES dbo.Usuario(id_usuario)
+        CONSTRAINT FK_Pago_Factura FOREIGN KEY (id_factura) REFERENCES dbo.Factura(id_factura) ON DELETE CASCADE,
+        CONSTRAINT FK_Pago_RegistradoPor FOREIGN KEY (registrado_por) REFERENCES dbo.Usuario(id_usuario)
     );
-
-    CREATE INDEX IX_PagoFactura_Factura_Fecha ON dbo.Pago_Factura(id_factura, fecha_utc);
 END
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Pago_Factura') AND name = 'observaciones')
+IF OBJECT_ID(N'dbo.Pago_Factura', N'U') IS NOT NULL
 BEGIN
-    ALTER TABLE dbo.Pago_Factura ADD observaciones VARCHAR(500) NULL;
+    INSERT INTO dbo.Pago
+        (id_factura, monto, fecha_pago, metodo_pago, referencia, registrado_por, observaciones)
+    SELECT
+        p.id_factura,
+        p.monto,
+        CAST(p.fecha_utc AS DATETIME),
+        'efectivo',
+        p.referencia,
+        p.registrado_por,
+        CONCAT('Migrado desde Pago_Factura (método original: ', p.metodo_pago, '; estado: ', p.estado, ').')
+    FROM dbo.Pago_Factura p
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM dbo.Pago actual
+        WHERE actual.referencia = p.referencia
+    );
 END
 GO
 
-INSERT INTO dbo.Pago_Factura
-    (id_factura, monto, metodo_pago, estado, referencia, registrado_por, fecha_utc)
+INSERT INTO dbo.Pago
+    (id_factura, monto, fecha_pago, metodo_pago, referencia, registrado_por, observaciones)
 SELECT
     f.id_factura,
-    f.monto_pagado,
-    'historico',
-    'migrado',
+    f.monto_pagado - COALESCE(pagos.total, 0),
+    COALESCE(f.fecha_pago, f.fecha_factura),
+    'efectivo',
     CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura)),
     f.generada_por,
-    COALESCE(CAST(f.fecha_pago AS DATETIME2), CAST(f.fecha_factura AS DATETIME2))
+    'Saldo histórico migrado desde Factura.'
 FROM dbo.Factura f
-WHERE f.monto_pagado > 0
+OUTER APPLY (
+    SELECT SUM(p.monto) AS total
+    FROM dbo.Pago p
+    WHERE p.id_factura = f.id_factura
+) pagos
+WHERE f.monto_pagado > COALESCE(pagos.total, 0)
   AND NOT EXISTS (
       SELECT 1
-      FROM dbo.Pago_Factura p
+      FROM dbo.Pago p
       WHERE p.referencia = CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura))
   );
 GO
@@ -1182,7 +1266,8 @@ GO
 -- MOTIVO: la vista st-aux-08-documentos-clinicos devolvía un array vacío
 -- porque no había tabla de documentos. Esta tabla almacena los metadatos
 -- de cada archivo clínico subido (radiografías, PDFs, consentimientos, etc.).
--- El archivo físico se guarda en wwwroot/uploads/documentos-clinicos/<idHistoria>/.
+-- El archivo físico se guarda fuera de wwwroot, en almacenamiento privado
+-- configurado y persistido por la aplicación web.
 --
 -- RELACIONES:
 --   - id_historia → Historia_Clinica (CASCADE delete)
@@ -1203,6 +1288,7 @@ BEGIN
         content_type    VARCHAR(100) NOT NULL,
         tamano_bytes    BIGINT NOT NULL DEFAULT 0,
         fecha_subida    DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        fecha_documento DATE NULL,
         observacion     VARCHAR(500) NULL,
 
         CONSTRAINT FK_DocClinico_Historia
@@ -1221,6 +1307,13 @@ END
 ELSE
 BEGIN
     PRINT 'Tabla Documento_Clinico ya existe — sin cambios.';
+END
+GO
+
+IF COL_LENGTH(N'dbo.Documento_Clinico', N'fecha_documento') IS NULL
+BEGIN
+    ALTER TABLE dbo.Documento_Clinico ADD fecha_documento DATE NULL;
+    PRINT 'Columna fecha_documento agregada a Documento_Clinico.';
 END
 GO
 

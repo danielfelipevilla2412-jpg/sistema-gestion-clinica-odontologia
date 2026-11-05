@@ -62,29 +62,13 @@
       </div>
     </header>
 
-    <!-- Stepper multipaso -->
-    <!-- [MEJORA]: role="tablist" ya presente, agregamos aria-orientation para claridad -->
-    <div class="stepper" role="tablist" aria-label="Progreso de registro" data-i18n-aria-label="table.filter" aria-orientation="horizontal">
-      <button class="step-btn" id="stepBtn1" role="tab" aria-selected="true" aria-controls="stepContent1" tabindex="0">
-        <span class="step-num active" id="stepNum1" aria-hidden="true">1</span>
-        <span class="step-label active" id="stepLabel1" data-i18n="common.personal_data">Datos personales</span>
-      </button>
-      <div class="step-connector" id="stepConnector" aria-hidden="true"></div>
-      <button class="step-btn" id="stepBtn2" role="tab" aria-selected="false" aria-controls="stepContent2"
-              tabindex="-1">
-        <span class="step-num inactive" id="stepNum2" aria-hidden="true">2</span>
-        <span class="step-label inactive" id="stepLabel2">Agendar cita</span>
-      </button>
-    </div>
-
     <!-- Formulario principal -->
     <!-- [MEJORA]: aria-describedby para instrucciones de validación -->
     <form id="patientForm" novalidate aria-describedby="formInstructions">
       @Html.AntiForgeryToken()
       <span id="formInstructions" class="visually-hidden">Los campos marcados con asterisco son obligatorios</span>
 
-      <!-- PASO 1: Datos Personales -->
-      <div class="step-content active" id="stepContent1" role="tabpanel" aria-labelledby="stepBtn1">
+      <div>
 
         <!-- Card: Datos personales -->
         <section class="form-card" aria-labelledby="cardTitle1">
@@ -136,9 +120,9 @@
                                                                                               aria-hidden="true">*</span></label>
                           <input type="text" id="documento" name="documento" class="form-input" placeholder="Ej. 1098765432"
                                  data-i18n-ph="pacientes.form_doc_ph"
-                                 required autocomplete="off" inputmode="numeric" pattern="[0-9]+" />
+                                 required autocomplete="off" maxlength="20" />
                           <span class="error-message" id="error-documento" role="alert" aria-live="polite">Por favor ingresa un
-                            número válido (solo números).</span>
+                            documento válido.</span>
                           </div>
 
                           <!-- Fecha de nacimiento -->
@@ -163,22 +147,20 @@
 
                               <!-- Teléfono -->
                               <div class="form-group">
-                                <label class="form-label" for="telefono">Teléfono <span class="required"
-                                                                                          aria-hidden="true">*</span></label>
+                                <label class="form-label" for="telefono">Teléfono</label>
                                   <input type="tel" id="telefono" name="telefono" class="form-input" placeholder="Ej. 312 456 7890"
                                          data-i18n-ph="pacientes.form_tel_ph"
-                                         required autocomplete="tel" inputmode="tel" />
+                                         autocomplete="tel" inputmode="tel" />
                                   <span class="error-message" id="error-telefono" role="alert" aria-live="polite">Por favor ingresa un
                                     teléfono válido (mínimo 7 dígitos).</span>
                                   </div>
 
                                   <!-- Correo -->
                                   <div class="form-group">
-                                    <label class="form-label" for="correo">Correo electrónico <span class="required"
-                                                                                                      aria-hidden="true">*</span></label>
+                                    <label class="form-label" for="correo">Correo electrónico</label>
                                       <input type="email" id="correo" name="correo" class="form-input" placeholder="Ej. juan@correo.com"
                                              data-i18n-ph="pacientes.form_correo_ph"
-                                             required autocomplete="email" />
+                                             autocomplete="email" />
                                       <span class="error-message" id="error-correo" role="alert" aria-live="polite">Por favor ingresa un correo
                                         válido.</span>
                                       </div>
@@ -207,6 +189,30 @@
                                         </select>
                                       </div>
 
+                                      <div class="form-group">
+                                        <label class="form-label" for="direccion">Dirección</label>
+                                        <input type="text" id="direccion" name="direccion" class="form-input"
+                                               maxlength="255" autocomplete="street-address" />
+                                      </div>
+
+                                      <div class="form-group">
+                                        <label class="form-label" for="contactoEmergencia">Acudiente o contacto responsable</label>
+                                        <input type="text" id="contactoEmergencia" name="contactoEmergencia" class="form-input"
+                                               maxlength="100" autocomplete="off" />
+                                        <span class="error-message" id="error-contactoEmergencia" role="alert" aria-live="polite">
+                                          Es obligatorio para pacientes menores de edad o con documento TI.
+                                        </span>
+                                      </div>
+
+                                      <div class="form-group">
+                                        <label class="form-label" for="telefonoEmergencia">Teléfono de emergencia</label>
+                                        <input type="tel" id="telefonoEmergencia" name="telefonoEmergencia" class="form-input"
+                                               maxlength="20" autocomplete="off" />
+                                        <span class="error-message" id="error-telefonoEmergencia" role="alert" aria-live="polite">
+                                          Ingresa un teléfono válido para el responsable.
+                                        </span>
+                                      </div>
+
                                       <!-- Alergias -->
                                       <div class="form-group">
                                         <label class="form-label" for="alergias">Alergias conocidas</label>
@@ -221,6 +227,12 @@
                                         <input type="text" id="medicamentos" name="medicamentos" class="form-input" placeholder="Ninguno reportado"
                                                autocomplete="off" />
                                       </div>
+
+                                      <div class="form-group form-group--full">
+                                        <label class="form-label" for="antecedentesMedicos">Antecedentes médicos</label>
+                                        <textarea id="antecedentesMedicos" name="antecedentesMedicos" class="form-input"
+                                                  autocomplete="off"></textarea>
+                                      </div>
                                     </div>
                                   </section>
 
@@ -231,106 +243,16 @@
                                     <div class="success-banner-content">
                                       <p class="success-banner-title">Historia clínica creada automáticamente</p>
                                       <p class="success-banner-desc">Al guardar, se creará la historia clínica <strong
-                                        id="autoHC">HC-2026-XXXX</strong></p>
+                                        id="autoHC">HC-XXXXXX</strong></p>
                                       </div>
                                     </div>
 
-                                    <!-- Acciones Paso 1 -->
                                     <div class="form-actions">
                                       <button type="button" class="btn-secondary" id="cancelBtn1">Cancelar</button>
-                                      <button type="button" class="btn-primary" id="nextBtn">Continuar →</button>
+                                      <button type="submit" class="btn-success" id="saveBtn">Guardar paciente</button>
                                     </div>
 
                                   </div>
-
-                                  <!-- PASO 2: Agendar Cita -->
-                                  <div class="step-content" id="stepContent2" role="tabpanel" aria-labelledby="stepBtn2" aria-hidden="true">
-
-                                    <!-- Card: Agendar cita -->
-                                    <section class="form-card" aria-labelledby="cardTitle2">
-                                      <h2 class="form-card-title" id="cardTitle2">Agendar primera cita</h2>
-
-                                      <div class="form-grid">
-                                      <!-- Profesional — desde BD vía RegistrarPacienteViewModel.Profesionales -->
-                                        <div class="form-group">
-                                          <label class="form-label" for="profesional">Profesional</label>
-                                          <select id="profesional" name="profesional" class="form-select" autocomplete="off">
-                                            <option value="">Sin preferencia</option>
-                                            @foreach (var prof in Model.Profesionales)
-                                            {
-                                                <option value="@prof.Id">@prof.Etiqueta</option>
-                                            }
-                                          </select>
-                                        </div>
-
-                                        <!-- Servicio — desde BD vía RegistrarPacienteViewModel.Servicios -->
-                                        <div class="form-group">
-                                          <label class="form-label" for="servicio">Servicio</label>
-                                          <select id="servicio" name="servicio" class="form-select" autocomplete="off">
-                                            <option value="">Seleccione...</option>
-                                            @foreach (var svc in Model.Servicios)
-                                            {
-                                                <option value="@svc.Id">@svc.Etiqueta</option>
-                                            }
-                                          </select>
-                                        </div>
-
-                                        <!-- Fecha -->
-                                        <div class="form-group">
-                                          <label class="form-label" for="fechaCita">Fecha</label>
-                                          <input type="date" id="fechaCita" name="fechaCita" class="form-input" />
-                                          <span class="error-message" id="error-fechaCita" role="alert" aria-live="polite">La fecha no puede ser en
-                                            el pasado.</span>
-                                          </div>
-
-                                          <!-- Hora -->
-                                          <div class="form-group">
-                                            <label class="form-label" for="horaCita">Hora</label>
-                                            <select id="horaCita" name="horaCita" class="form-select" autocomplete="off">
-                                              <option>08:00 AM</option>
-                                              <option>09:00 AM</option>
-                                              <option>10:00 AM</option>
-                                              <option>11:00 AM</option>
-                                              <option>02:00 PM</option>
-                                              <option>03:00 PM</option>
-                                            </select>
-                                          </div>
-
-                                          <!-- Consultorio — desde BD vía RegistrarPacienteViewModel.Consultorios -->
-                                          <div class="form-group">
-                                            <label class="form-label" for="consultorio">Consultorio</label>
-                                            <select id="consultorio" name="consultorio" class="form-select" autocomplete="off">
-                                              <option value="">Sin preferencia</option>
-                                              @foreach (var cons in Model.Consultorios)
-                                              {
-                                                  <option value="@cons.Id">@cons.Etiqueta</option>
-                                              }
-                                            </select>
-                                          </div>
-
-                                          <!-- Motivo -->
-                                          <div class="form-group">
-                                            <label class="form-label" for="motivo">Motivo de consulta</label>
-                                            <select id="motivo" name="motivo" class="form-select" autocomplete="off">
-                                              <option>Primera visita para valoración general</option>
-                                              <option>Dolor o molestia dental</option>
-                                              <option>Revisión periódica de tratamiento</option>
-                                            </select>
-                                          </div>
-                                        </div>
-                                      </section>
-
-                                      <!-- Acciones Paso 2 -->
-                                      <div class="form-actions">
-                                        <button type="button" class="btn-secondary" id="prevBtn">← Atrás</button>
-                                        <div style="display:flex;gap:12px;">
-                                          <button type="button" class="btn-secondary" id="cancelBtn2">Cancelar</button>
-                                          <button type="submit" class="btn-success" id="saveBtn">✓ Guardar y agendar</button>
-                                        </div>
-                                      </div>
-
-                                    </div>
-
                                   </form>
 
                                 </main>
@@ -378,4 +300,3 @@
                                 </body>
 
                             </html>
-

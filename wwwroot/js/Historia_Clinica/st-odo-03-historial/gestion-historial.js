@@ -359,7 +359,7 @@ const poblarFormularioHistoria = (datosHistoria = window.smiletrackHistoriaData 
   });
   setValue('antecedentes_medicos', datosHistoria.antecedentesMedicos || '');
   setValue('habitos', datosHistoria.habitos || '');
-  setValue('alergias', alergias.length ? alergias.join(', ') : datosHistoria.alergiasTexto || '');
+  setValue('alergias_form', alergias.length ? alergias.join(', ') : datosHistoria.alergiasTexto || '');
   setValue('hallazgos', datosHistoria.hallazgos || '');
   setValue('odontograma_observaciones', datosHistoria.odontogramaObservaciones || textoObservacionesOdonto || '');
   setValue('examenes_complementarios', datosHistoria.examenesComplementarios || '');
@@ -1343,6 +1343,31 @@ const initCamposDinamicosHistoria = () => {
   });
 };
 
+const agregarSintomaSigno = (texto) => {
+  const valor = String(texto || '').trim();
+  const grid = document.getElementById('sintomasSignosGrid');
+  if (!valor || !grid) return null;
+
+  const existente = Array.from(grid.querySelectorAll('input[type="checkbox"]'))
+    .find(input => input.value.trim().toLocaleLowerCase() === valor.toLocaleLowerCase());
+  if (existente) {
+    existente.checked = true;
+    return existente;
+  }
+
+  const label = document.createElement('label');
+  label.className = 'check-option';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.value = valor;
+  checkbox.checked = true;
+  const span = document.createElement('span');
+  span.textContent = valor;
+  label.append(checkbox, span);
+  grid.appendChild(label);
+  return checkbox;
+};
+
 const initAdjuntosClinicos = () => {
       const button = document.getElementById('btnAdjuntarEstudio');
       const input = document.getElementById('inputArchivosEstudio');
@@ -1500,6 +1525,7 @@ const init = async () => {
   initSidebar();
   initScrollToForm();
   initForm();
+  initCamposDinamicosHistoria();
   initFormularioClinico();
   initCamposDinamicosHistoria();
   initAdjuntosClinicos();

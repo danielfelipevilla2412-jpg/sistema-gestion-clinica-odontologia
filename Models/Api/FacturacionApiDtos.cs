@@ -37,17 +37,19 @@ public sealed class FacturaDetalleDto
 public sealed class FacturaDto : FacturaListItemDto
 {
     public List<FacturaDetalleDto> Detalles { get; init; } = new();
-    public List<FacturaPagoDto> Pagos { get; init; } = new();
+    public List<PagoDto> Pagos { get; init; } = new();
 }
 
-public sealed class FacturaPagoDto
+public sealed class PagoDto
 {
     public int Id { get; init; }
     public decimal Monto { get; init; }
+    public DateTime FechaPago { get; init; }
     public string MetodoPago { get; init; } = string.Empty;
-    public string Estado { get; init; } = string.Empty;
-    public string Referencia { get; init; } = string.Empty;
-    public DateTime FechaUtc { get; init; }
+    public string? Referencia { get; init; }
+    public int RegistradoPor { get; init; }
+    public string? Observaciones { get; init; }
+    public string Estado { get; init; } = "aprobado";
 }
 
 public sealed class FacturaDetalleRequest
@@ -105,9 +107,12 @@ public sealed class RegistrarPagoRequest
 {
     [Range(0.01, 999999999)]
     public decimal MontoPagado { get; set; }
-
-    [Required, StringLength(30)]
+    [StringLength(30)]
     public string MetodoPago { get; set; } = "efectivo";
+    [StringLength(100)]
+    public string? Referencia { get; set; }
+    [StringLength(500)]
+    public string? Observaciones { get; set; }
 }
 
 public sealed class AnularFacturaRequest

@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
@@ -18,10 +19,14 @@ namespace SmileTrack_MVC.Controllers;
 // (Controllers/Api/HistoriaClinicaApiController.cs), sin duplicar reglas de negocio.
 public class HistoriaClinicaController(
     AppDbContext context,
-    IHistoriaClinicaService historiaService) : Controller
+    IHistoriaClinicaService historiaService,
+    IConfiguration configuration,
+    ILogger<HistoriaClinicaController> logger) : Controller
 {
     private readonly AppDbContext _context = context;
     private readonly IHistoriaClinicaService _historiaService = historiaService;
+    private readonly IConfiguration _configuration = configuration;
+    private readonly ILogger<HistoriaClinicaController> _logger = logger;
 
     [HttpGet]
     [Authorize(Roles = "Administrador")]
@@ -138,9 +143,14 @@ public class HistoriaClinicaController(
     [Route("historia-clinica/st-aux-08-documentos-clinicos")]
     public async Task<IActionResult> Staux08DocumentosClinicos([FromQuery] int? pacienteId)
     {
-        var paciente = pacienteId is not null
+        var paciente = pacienteId is > 0
             ? await _context.Pacientes.FirstOrDefaultAsync(p => p.IdPaciente == pacienteId)
-            : await _context.Pacientes.OrderBy(p => p.IdPaciente).FirstOrDefaultAsync();
+            : null;
+
+        if (pacienteId is > 0 && paciente is null)
+            return NotFound();
+        if (paciente is not null && !await PuedeProfesionalAccederAPacienteAsync(paciente.IdPaciente))
+            return Forbid();
 
         var historia = paciente is not null
             ? await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == paciente.IdPaciente && h.Activa)
@@ -170,6 +180,9 @@ public class HistoriaClinicaController(
         if (pacienteId is null)
             return Json(Array.Empty<object>());
 
+        if (!await PuedeProfesionalAccederAPacienteAsync(pacienteId.Value))
+            return Forbid();
+
         var historia = await _context.HistoriasClinicas
             .AsNoTracking()
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
@@ -186,7 +199,8 @@ public class HistoriaClinicaController(
             {
                 id            = d.IdDocumento,
                 tipo          = d.Tipo,
-                fecha         = d.FechaSubida.ToString("yyyy-MM-dd"),
+                d.FechaDocumento,
+                d.FechaSubida,
                 nombreArchivo = d.NombreOriginal,
                 subidoPor     = d.SubidoPorUsuario != null
                                     ? $"{d.SubidoPorUsuario.Nombre} {d.SubidoPorUsuario.Apellidos}"
@@ -197,7 +211,17 @@ public class HistoriaClinicaController(
             })
             .ToListAsync();
 
-        return Json(documentos);
+        return Json(documentos.Select(d => new
+        {
+            d.id,
+            d.tipo,
+            fecha = (d.FechaDocumento ?? DateOnly.FromDateTime(d.FechaSubida)).ToString("yyyy-MM-dd"),
+            d.nombreArchivo,
+            d.subidoPor,
+            d.contentType,
+            d.tamanoBytes,
+            d.observacion
+        }));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -206,7 +230,7 @@ public class HistoriaClinicaController(
     // ANTES: el JS mostraba un setTimeout() que simulaba la subida localmente
     //        y avisaba "la subida a servidor aún no está implementada".
     // AHORA: recibe el archivo via multipart/form-data, lo valida (tipo y tamaño),
-    //        lo guarda en wwwroot/uploads/documentos-clinicos/<idHistoria>/,
+    //        lo guarda fuera de wwwroot, en el almacenamiento privado clínico,
     //        y persiste los metadatos en Documento_Clinico.
     //
     // SEGURIDAD:
@@ -222,6 +246,7 @@ public class HistoriaClinicaController(
     public async Task<IActionResult> SubirDocumentoClinco(
         [FromForm] int pacienteId,
         [FromForm] string tipo,
+        [FromForm] DateOnly? fechaDocumento,
         [FromForm] string? observacion,
         IFormFile archivo,
         [FromServices] IWebHostEnvironment env)
@@ -234,13 +259,41 @@ public class HistoriaClinicaController(
         if (archivo.Length > maxBytes)
             return BadRequest(new { success = false, message = "El archivo supera el límite de 10 MB." });
 
-        string[] tiposPermitidos = ["image/jpeg", "image/png", "application/pdf"];
-        string contentType = archivo.ContentType.ToLowerInvariant();
-        if (!tiposPermitidos.Contains(contentType))
-            return BadRequest(new { success = false, message = "Tipo de archivo no permitido. Solo JPG, PNG y PDF." });
+        if (pacienteId <= 0)
+            return BadRequest(new { success = false, message = "El paciente indicado no es válido." });
 
-        if (string.IsNullOrWhiteSpace(tipo))
-            return BadRequest(new { success = false, message = "El tipo de documento es obligatorio." });
+        if (!await PuedeProfesionalAccederAPacienteAsync(pacienteId))
+            return Forbid();
+
+        string[] tiposDocumentoPermitidos =
+        [
+            "Radiografía panorámica",
+            "Radiografía periapical",
+            "Fotografía inicial",
+            "Fotografía final",
+            "Examen de coagulación",
+            "Consentimiento informado",
+            "Historia clínica",
+            "Otro"
+        ];
+        string tipoNormalizado = tipo?.Trim() ?? "";
+        if (!tiposDocumentoPermitidos.Contains(tipoNormalizado, StringComparer.Ordinal))
+            return BadRequest(new { success = false, message = "El tipo de documento no está permitido." });
+
+        if (fechaDocumento is null)
+            return BadRequest(new { success = false, message = "La fecha de expedición es obligatoria." });
+
+        string? contentType = await DetectarContentTypeClinicoAsync(archivo);
+        if (contentType is null)
+            return BadRequest(new { success = false, message = "El contenido no coincide con un archivo JPG, PNG o PDF permitido." });
+
+        string nombreOriginal = Path.GetFileName(archivo.FileName);
+        if (nombreOriginal.Length > 255)
+            return BadRequest(new { success = false, message = "El nombre del archivo supera el límite permitido." });
+
+        string? observacionNormalizada = string.IsNullOrWhiteSpace(observacion) ? null : observacion.Trim();
+        if (observacionNormalizada?.Length > 500)
+            return BadRequest(new { success = false, message = "La descripción no puede superar 500 caracteres." });
 
         // ── Obtener o crear historia clínica ────────────────────────────────
         var historia = await _context.HistoriasClinicas
@@ -258,20 +311,22 @@ public class HistoriaClinicaController(
         // ── Guardar archivo en disco ─────────────────────────────────────────
         // El nombre en disco usa un GUID + extensión real para evitar colisiones
         // y bloquear path traversal.
-        string extension = Path.GetExtension(archivo.FileName).ToLowerInvariant();
-        if (!new[] { ".jpg", ".jpeg", ".png", ".pdf" }.Contains(extension))
-            extension = contentType == "application/pdf" ? ".pdf"
-                      : contentType == "image/png"       ? ".png"
-                      : ".jpg";
+        string extension = contentType switch
+        {
+            "application/pdf" => ".pdf",
+            "image/png" => ".png",
+            _ => ".jpg"
+        };
 
         string nombreFisico  = $"{Guid.NewGuid()}{extension}";
-        string carpetaRelativa = Path.Combine("uploads", "documentos-clinicos", historia.IdHistoria.ToString());
-        string carpetaFisica   = Path.Combine(env.WebRootPath, carpetaRelativa);
+        string carpetaFisica = Path.Combine(
+            ObtenerRaizDocumentosClinicos(env),
+            historia.IdHistoria.ToString());
 
         Directory.CreateDirectory(carpetaFisica);
 
-        string rutaFisica    = Path.Combine(carpetaFisica, nombreFisico);
-        string rutaRelativa  = Path.Combine(carpetaRelativa, nombreFisico).Replace('\\', '/');
+        string rutaFisica = Path.Combine(carpetaFisica, nombreFisico);
+        string rutaRelativa = Path.Combine(historia.IdHistoria.ToString(), nombreFisico).Replace('\\', '/');
 
         await using (var stream = new FileStream(rutaFisica, FileMode.Create, FileAccess.Write))
         {
@@ -287,13 +342,14 @@ public class HistoriaClinicaController(
         {
             IdHistoria    = historia.IdHistoria,
             SubidoPor     = idUsuario,
-            Tipo          = tipo.Trim(),
-            NombreOriginal = Path.GetFileName(archivo.FileName),
+            Tipo          = tipoNormalizado,
+            NombreOriginal = nombreOriginal,
             RutaRelativa  = rutaRelativa,
             ContentType   = contentType,
             TamanoBytes   = archivo.Length,
             FechaSubida   = DateTime.UtcNow,
-            Observacion   = string.IsNullOrWhiteSpace(observacion) ? null : observacion.Trim()
+            FechaDocumento = fechaDocumento.Value,
+            Observacion   = observacionNormalizada
         };
 
         _context.DocumentosClinicos.Add(documento);
@@ -304,11 +360,11 @@ public class HistoriaClinicaController(
         }
         catch (Exception ex)
         {
-            // Si falla la BD, limpiar el archivo ya guardado en disco
+            _logger.LogError(ex, "No se pudieron guardar los metadatos del documento clínico (historiaId={HistoriaId}).", historia.IdHistoria);
             if (System.IO.File.Exists(rutaFisica))
                 System.IO.File.Delete(rutaFisica);
 
-            return StatusCode(500, new { success = false, message = "No fue posible guardar el documento.", detail = ex.Message });
+            return StatusCode(500, new { success = false, message = "No fue posible guardar el documento." });
         }
 
         return Ok(new
@@ -317,10 +373,38 @@ public class HistoriaClinicaController(
             message       = "Documento subido correctamente.",
             id            = documento.IdDocumento,
             tipo          = documento.Tipo,
-            fecha         = documento.FechaSubida.ToString("yyyy-MM-dd"),
+            fecha         = documento.FechaDocumento?.ToString("yyyy-MM-dd"),
             nombreArchivo = documento.NombreOriginal,
             tamanoBytes   = documento.TamanoBytes
         });
+    }
+
+    private static async Task<string?> DetectarContentTypeClinicoAsync(IFormFile archivo)
+    {
+        byte[] firma = new byte[8];
+        await using var stream = archivo.OpenReadStream();
+        int leidos = await stream.ReadAsync(firma.AsMemory());
+
+        if (leidos >= 8
+            && firma.AsSpan().SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }))
+        {
+            return "image/png";
+        }
+
+        if (leidos >= 3 && firma[0] == 0xFF && firma[1] == 0xD8 && firma[2] == 0xFF)
+            return "image/jpeg";
+
+        if (leidos >= 5
+            && firma[0] == (byte)'%'
+            && firma[1] == (byte)'P'
+            && firma[2] == (byte)'D'
+            && firma[3] == (byte)'F'
+            && firma[4] == (byte)'-')
+        {
+            return "application/pdf";
+        }
+
+        return null;
     }
 
     [HttpDelete]
@@ -337,24 +421,16 @@ public class HistoriaClinicaController(
         if (documento is null)
             return NotFound(new { success = false, message = "El estudio ya no existe." });
 
-        string webRoot = Path.GetFullPath(env.WebRootPath);
-        string rutaFisica = Path.GetFullPath(Path.Combine(
-            webRoot,
-            documento.RutaRelativa.Replace('/', Path.DirectorySeparatorChar)));
-        string prefijoWebRoot = Path.TrimEndingDirectorySeparator(webRoot) + Path.DirectorySeparatorChar;
-        StringComparison comparacionRuta = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
+        string? rutaFisica = await ObtenerRutaDocumentoClinicoAsync(documento, env);
 
-        if (!rutaFisica.StartsWith(prefijoWebRoot, comparacionRuta))
-            return BadRequest(new { success = false, message = "La ruta del archivo no es válida." });
-
-        string rutaTemporal = rutaFisica + ".deleting-" + Guid.NewGuid().ToString("N");
+        string? rutaTemporal = rutaFisica is null
+            ? null
+            : rutaFisica + ".deleting-" + Guid.NewGuid().ToString("N");
         bool archivoMovido = false;
 
         try
         {
-            if (System.IO.File.Exists(rutaFisica))
+            if (rutaFisica is not null && rutaTemporal is not null && System.IO.File.Exists(rutaFisica))
             {
                 System.IO.File.Move(rutaFisica, rutaTemporal);
                 archivoMovido = true;
@@ -363,15 +439,17 @@ public class HistoriaClinicaController(
             _context.DocumentosClinicos.Remove(documento);
             await _context.SaveChangesAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            if (archivoMovido && System.IO.File.Exists(rutaTemporal) && !System.IO.File.Exists(rutaFisica))
+            _logger.LogError(ex, "No se pudo eliminar el documento clínico {DocumentoId}.", id);
+            if (archivoMovido && rutaTemporal is not null && rutaFisica is not null
+                && System.IO.File.Exists(rutaTemporal) && !System.IO.File.Exists(rutaFisica))
                 System.IO.File.Move(rutaTemporal, rutaFisica);
 
             return StatusCode(500, new { success = false, message = "No fue posible quitar el estudio." });
         }
 
-        if (archivoMovido)
+        if (archivoMovido && rutaTemporal is not null)
             System.IO.File.Delete(rutaTemporal);
 
         return Ok(new { success = true, message = "Estudio quitado correctamente." });
@@ -380,32 +458,175 @@ public class HistoriaClinicaController(
     // ─────────────────────────────────────────────────────────────────────────
     // Yeray - Endpoint de descarga de archivos clínicos (2025)
     //
-    // Devuelve el archivo físico con Content-Disposition: attachment para forzar
-    // la descarga. Solo puede acceder un Auxiliar que esté autenticado.
-    // Se valida que el idDocumento exista en BD antes de buscar el archivo en disco.
+    // Los roles clínicos autorizados y el propio paciente dueño pueden descargarlo.
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
-    [Authorize(Roles = "Auxiliar,Profesional,Administrador")]
+    [Authorize(Roles = "Auxiliar,Profesional,Administrador,Paciente")]
     [Route("historia-clinica/documentos-clinicos/descargar/{id:int}")]
     public async Task<IActionResult> DescargarDocumentoClinco(
         int id,
         [FromServices] IWebHostEnvironment env)
     {
         var documento = await _context.DocumentosClinicos
-            .AsNoTracking()
             .FirstOrDefaultAsync(d => d.IdDocumento == id);
 
         if (documento is null)
             return NotFound(new { success = false, message = "Documento no encontrado." });
 
-        string rutaFisica = Path.Combine(env.WebRootPath, documento.RutaRelativa.Replace('/', Path.DirectorySeparatorChar));
+        if (!await PuedeDescargarDocumentoClinicoAsync(documento.IdHistoria))
+            return Forbid();
 
+        string? rutaFisica = await ObtenerRutaDocumentoClinicoAsync(documento, env);
+        if (rutaFisica is null)
+            return NotFound(new { success = false, message = "El archivo no se encuentra en el servidor." });
         if (!System.IO.File.Exists(rutaFisica))
             return NotFound(new { success = false, message = "El archivo no se encuentra en el servidor." });
 
         byte[] bytes = await System.IO.File.ReadAllBytesAsync(rutaFisica);
 
+        Response.Headers.CacheControl = "private, no-store";
         return File(bytes, documento.ContentType, documento.NombreOriginal);
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Auxiliar,Profesional,Administrador,Paciente")]
+    [Route("historia-clinica/documentos-clinicos/preview/{id:int}")]
+    public async Task<IActionResult> PrevisualizarDocumentoClinico(
+        int id,
+        [FromServices] IWebHostEnvironment env)
+    {
+        var documento = await _context.DocumentosClinicos
+            .FirstOrDefaultAsync(d => d.IdDocumento == id);
+
+        if (documento is null)
+            return NotFound();
+
+        if (!await PuedeDescargarDocumentoClinicoAsync(documento.IdHistoria))
+            return Forbid();
+
+        if (documento.ContentType is not ("image/jpeg" or "image/png" or "application/pdf"))
+            return StatusCode(StatusCodes.Status415UnsupportedMediaType);
+
+        string? rutaFisica = await ObtenerRutaDocumentoClinicoAsync(documento, env);
+        if (rutaFisica is null || !System.IO.File.Exists(rutaFisica))
+            return NotFound();
+
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers.XContentTypeOptions = "nosniff";
+        var stream = new FileStream(rutaFisica, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return File(stream, documento.ContentType);
+    }
+
+    private async Task<bool> PuedeDescargarDocumentoClinicoAsync(int historiaId)
+    {
+        string? idUsuarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (User.IsInRole("Profesional"))
+        {
+            return int.TryParse(idUsuarioClaim, out int idUsuarioProfesional)
+                && await _historiaService.ProfesionalPuedeAccederHistoriaAsync(
+                    historiaId,
+                    idUsuarioProfesional);
+        }
+
+        if (!User.IsInRole("Paciente"))
+            return true;
+
+        string? idPacienteClaim = User.FindFirst("IdPaciente")?.Value;
+        if (!int.TryParse(idUsuarioClaim, out int idUsuario)
+            || !int.TryParse(idPacienteClaim, out int idPaciente))
+        {
+            return false;
+        }
+
+        return await _context.HistoriasClinicas
+            .Where(h => h.IdHistoria == historiaId && h.IdPaciente == idPaciente)
+            .AnyAsync(h => h.Paciente != null && h.Paciente.IdUsuario == idUsuario);
+    }
+
+    private string ObtenerRaizDocumentosClinicos(IWebHostEnvironment env)
+    {
+        string? configuredPath = _configuration["Storage:ClinicalDocumentsPath"];
+        string rutaConfigurada = string.IsNullOrWhiteSpace(configuredPath)
+            ? Path.Combine(env.ContentRootPath, "App_Data", "clinical-documents")
+            : configuredPath;
+        string raiz = Path.GetFullPath(Path.IsPathRooted(rutaConfigurada)
+            ? rutaConfigurada
+            : Path.Combine(env.ContentRootPath, rutaConfigurada));
+        string webRoot = Path.GetFullPath(env.WebRootPath);
+
+        if (PathsAreEqual(raiz, webRoot) || IsPathWithin(raiz, webRoot))
+            throw new InvalidOperationException("El almacenamiento de documentos clínicos debe estar fuera de wwwroot.");
+
+        return raiz;
+    }
+
+    private async Task<string?> ObtenerRutaDocumentoClinicoAsync(
+        DocumentoClinico documento,
+        IWebHostEnvironment env)
+    {
+        string raizPrivada = ObtenerRaizDocumentosClinicos(env);
+
+        if (documento.RutaRelativa.StartsWith("uploads/documentos-clinicos/", StringComparison.OrdinalIgnoreCase))
+        {
+            string raizPublicaClinica = Path.GetFullPath(Path.Combine(
+                env.WebRootPath,
+                "uploads",
+                "documentos-clinicos"));
+            string rutaPublica = Path.GetFullPath(Path.Combine(
+                env.WebRootPath,
+                documento.RutaRelativa.Replace('/', Path.DirectorySeparatorChar)));
+
+            if (!IsPathWithin(rutaPublica, raizPublicaClinica))
+                throw new InvalidOperationException("La ruta histórica del documento clínico no es válida.");
+            if (!System.IO.File.Exists(rutaPublica))
+                return null;
+
+            string nombreArchivo = Path.GetFileName(rutaPublica);
+            string carpetaPrivada = Path.Combine(raizPrivada, documento.IdHistoria.ToString());
+            string rutaPrivada = Path.Combine(carpetaPrivada, nombreArchivo);
+            Directory.CreateDirectory(carpetaPrivada);
+
+            if (!System.IO.File.Exists(rutaPrivada))
+                System.IO.File.Copy(rutaPublica, rutaPrivada);
+
+            documento.RutaRelativa = Path.Combine(documento.IdHistoria.ToString(), nombreArchivo).Replace('\\', '/');
+            await _context.SaveChangesAsync();
+            System.IO.File.Delete(rutaPublica);
+            return rutaPrivada;
+        }
+
+        if (Path.IsPathRooted(documento.RutaRelativa))
+            throw new InvalidOperationException("La ruta del documento clínico no es válida.");
+
+        string rutaResuelta = Path.GetFullPath(Path.Combine(
+            raizPrivada,
+            documento.RutaRelativa.Replace('/', Path.DirectorySeparatorChar)));
+
+        if (!IsPathWithin(rutaResuelta, raizPrivada))
+            throw new InvalidOperationException("La ruta del documento clínico no es válida.");
+
+        return rutaResuelta;
+    }
+
+    private static bool IsPathWithin(string path, string directory)
+    {
+        string prefix = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))
+            + Path.DirectorySeparatorChar;
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return Path.GetFullPath(path).StartsWith(prefix, comparison);
+    }
+
+    private static bool PathsAreEqual(string first, string second)
+    {
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(first)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(second)),
+            comparison);
     }
 
     [HttpGet]
@@ -416,9 +637,16 @@ public class HistoriaClinicaController(
         [FromQuery] int? historiaId,
         [FromQuery] int? citaId)
     {
+        int? pacienteResuelto = await ResolverPacienteHistoriaAsync(pacienteId, historiaId);
+        if (pacienteResuelto.HasValue
+            && !await PuedeProfesionalAccederAPacienteAsync(pacienteResuelto.Value))
+        {
+            return Forbid();
+        }
+
         var vm = await BuildHistorialPacienteViewModelAsync(pacienteId, historiaId);
-        if (citaId is > 0 && vm.Odontograma.PacienteId is int pacienteResuelto &&
-            await _context.Citas.AnyAsync(c => c.IdCita == citaId && c.IdPaciente == pacienteResuelto))
+        if (citaId is > 0 && vm.Odontograma.PacienteId is int pacienteDeCita &&
+            await _context.Citas.AnyAsync(c => c.IdCita == citaId && c.IdPaciente == pacienteDeCita))
         {
             vm.Odontograma.CitaId = citaId;
         }
@@ -436,6 +664,13 @@ public class HistoriaClinicaController(
         // guardado registra la cita en Registro_Odontograma.IdCita.
         [FromQuery] int? citaId)
     {
+        int? pacienteResuelto = await ResolverPacienteHistoriaAsync(pacienteId, historiaId);
+        if (pacienteResuelto.HasValue
+            && !await PuedeProfesionalAccederAPacienteAsync(pacienteResuelto.Value))
+        {
+            return Forbid();
+        }
+
         var vm = await BuildOdontogramaViewModelAsync(pacienteId, historiaId);
         // Propagar la cita al ViewModel → la vista la inyecta en config JS
         vm.CitaId = citaId;
@@ -449,20 +684,29 @@ public class HistoriaClinicaController(
     public async Task<IActionResult> GuardarOdontograma([FromBody] OdontogramaGuardarRequest request)
     {
         if (request is null)
-            return Json(new { success = false, message = "No se recibieron datos del odontograma." });
+            return BadRequest(new { success = false, message = "No se recibieron datos del odontograma." });
 
-        int? pacienteId = request.PacienteId ?? await ObtenerPacientePredeterminadoAsync();
-        if (pacienteId is null)
-            return Json(new { success = false, message = "No hay pacientes registrados en el sistema." });
+        if (request.PacienteId is not > 0)
+            return BadRequest(new { success = false, message = "Selecciona un paciente válido." });
+
+        if (!await PuedeProfesionalAccederAPacienteAsync(request.PacienteId.Value))
+            return Forbid();
 
         // Obtener el profesional actual para trazabilidad
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
 
         var (success, message, historiaId) = await _historiaService.GuardarOdontogramaInternoAsync(
-            pacienteId.Value, request, idProfesional);
+            request.PacienteId.Value, request, idProfesional);
 
         if (!success)
-            return Json(new { success = false, message });
+        {
+            if (message == "El paciente indicado no existe.")
+                return NotFound(new { success = false, message });
+
+            return message == "La historia clínica del paciente está inactiva."
+                ? Conflict(new { success = false, message })
+                : BadRequest(new { success = false, message });
+        }
 
         return Json(new
         {
@@ -486,6 +730,9 @@ public class HistoriaClinicaController(
         [FromQuery] int pacienteId,
         [FromQuery] string numerofdi)
     {
+        if (!await PuedeProfesionalAccederAPacienteAsync(pacienteId))
+            return Forbid();
+
         // Obtener la historia clínica activa del paciente
         var historia = await _context.HistoriasClinicas
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
@@ -542,6 +789,9 @@ public class HistoriaClinicaController(
         if (pacienteId <= 0 || citaId <= 0)
             return BadRequest(new { success = false, message = "Paciente y cita son obligatorios." });
 
+        if (!await PuedeProfesionalAccederAPacienteAsync(pacienteId))
+            return Forbid();
+
         var historia = await _context.HistoriasClinicas.AsNoTracking()
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
         if (historia is null)
@@ -570,6 +820,9 @@ public class HistoriaClinicaController(
     {
         if (pacienteId <= 0)
             return BadRequest(new { success = false, message = "El paciente no es válido." });
+
+        if (!await PuedeProfesionalAccederAPacienteAsync(pacienteId))
+            return Forbid();
 
         var historia = await _context.HistoriasClinicas.AsNoTracking()
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
@@ -602,6 +855,9 @@ public class HistoriaClinicaController(
     {
         if (request is null || request.PacienteId is null)
             return Json(new { success = false, message = "No se recibió el paciente para la nota clínica." });
+
+        if (!await PuedeProfesionalAccederAPacienteAsync(request.PacienteId.Value))
+            return Forbid();
 
         string? idUsuarioStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         int? idUsuario = int.TryParse(idUsuarioStr, out int uid) ? uid : null;
@@ -647,6 +903,9 @@ public class HistoriaClinicaController(
         if (request is null || request.PacienteId <= 0 || request.CitaId <= 0 || request.Nota is null)
             return BadRequest(new { success = false, message = "Paciente, cita y nota son obligatorios." });
 
+        if (!await PuedeProfesionalAccederAPacienteAsync(request.PacienteId))
+            return Forbid();
+
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
         var profesional = idProfesional.HasValue
             ? await _context.Profesionales.FirstOrDefaultAsync(p => p.IdProfesional == idProfesional.Value, ct)
@@ -675,6 +934,9 @@ public class HistoriaClinicaController(
         if (request is null || request.PacienteId is null)
             return Json(new { success = false, message = "No hay un paciente seleccionado para guardar la historia." });
 
+        if (!await PuedeProfesionalAccederAPacienteAsync(request.PacienteId.Value))
+            return Forbid();
+
         var historia = await _context.HistoriasClinicas
             .FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId.Value && h.Activa);
 
@@ -700,6 +962,7 @@ public class HistoriaClinicaController(
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList(),
             Habitos = request.Habitos?.Trim() ?? "",
+            Alergias = request.Alergias?.Trim() ?? "",
             Hallazgos = request.Hallazgos?.Trim() ?? "",
             OdontogramaObservaciones = request.OdontogramaObservaciones?.Trim() ?? "",
             ExamenesComplementarios = request.ExamenesComplementarios?.Trim() ?? "",
@@ -764,7 +1027,7 @@ public class HistoriaClinicaController(
         //   Para tratamientos "completado" o "pausado" → estimado = null
         //   (ya tienen "finalizado" o no tiene sentido proyectar un pausado).
 
-        var estadosCompletados = new[] { "completada", "realizada", "atendida" };
+        DateTime ahora = DateTime.Now;
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
 
         var citasQuery = _context.Citas
@@ -780,22 +1043,32 @@ public class HistoriaClinicaController(
 
         var data = citas
             .GroupBy(c => new { c.IdPaciente, c.IdServicio })
-            .Select(g =>
+            .Select(g => new
             {
-                var ordenadas  = g.OrderBy(c => c.FechaHora).ToList();
-                var ultima     = ordenadas[^1];
-                int total      = ordenadas.Count;
+                Key = g.Key,
+                Citas = g.OrderBy(c => c.FechaHora)
+                    .Where(c => EstadoCitaHelper.Normalize(c.Estado) != "cancelada")
+                    .ToList()
+            })
+            .Where(grupo => grupo.Citas.Count > 0)
+            .Select(grupo =>
+            {
+                var ordenadas = grupo.Citas;
+                var ultima = ordenadas[^1];
+                int total = ordenadas.Count;
 
-                int completadas = ordenadas.Count(c =>
-                    estadosCompletados.Contains(c.Estado.ToLowerInvariant()));
+                var sesionesHechas = ordenadas
+                    .Where(c => c.FechaHora <= ahora
+                        && EstadoCitaHelper.Normalize(c.Estado) == "atendida")
+                    .OrderBy(c => c.FechaHora)
+                    .ToList();
+                int completadas = sesionesHechas.Count;
 
                 int progreso = total == 0 ? 0
                     : (int)Math.Round(completadas * 100.0 / total);
 
                 string estado = progreso >= 100 ? "completado"
-                    : ultima.Estado.Equals("cancelada", StringComparison.OrdinalIgnoreCase)
-                        ? "pausado"
-                        : "en-curso";
+                    : "en-curso";
 
                 // ── Fecha estimada ────────────────────────────────────────────
                 // Solo se calcula para tratamientos en curso; los demás devuelven null.
@@ -804,12 +1077,6 @@ public class HistoriaClinicaController(
                 if (estado == "en-curso")
                 {
                     int pendientes = total - completadas; // sesiones que faltan
-
-                    // Citas ya completadas ordenadas por fecha (para medir intervalos)
-                    var sesionesHechas = ordenadas
-                        .Where(c => estadosCompletados.Contains(c.Estado.ToLowerInvariant()))
-                        .OrderBy(c => c.FechaHora)
-                        .ToList();
 
                     double promedioDias;
 
@@ -840,10 +1107,10 @@ public class HistoriaClinicaController(
 
                 return new
                 {
-                    id            = $"{g.Key.IdPaciente}-{g.Key.IdServicio}",
+                    id            = $"{grupo.Key.IdPaciente}-{grupo.Key.IdServicio}",
                     nombre        = ordenadas[0].Servicio?.Nombre ?? "Servicio",
                     tipo          = ordenadas[0].Servicio?.Nombre ?? "Servicio",
-                    pacienteId    = g.Key.IdPaciente,
+                    pacienteId    = grupo.Key.IdPaciente,
                     paciente      = ordenadas[0].Paciente != null
                                         ? ordenadas[0].Paciente!.NombresCompleto
                                         : "Paciente sin datos",
@@ -1029,7 +1296,8 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
         vm.NotasClinicas = await _context.NotasClinicas
             .AsNoTracking()
             .Include(n => n.Profesional)
-            .Where(n => n.IdHistoria == vm.Odontograma.HistoriaId.Value)
+            .Where(n => n.IdHistoria == vm.Odontograma.HistoriaId.Value &&
+                        n.Estado != "Preparación")
             .OrderByDescending(n => n.Fecha)
             .Select(n => new NotaClinicaHistorialItem
             {
@@ -1091,7 +1359,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
             Descripcion = string.IsNullOrWhiteSpace(d.Observacion) ? d.NombreOriginal : $"{d.NombreOriginal} · {d.Observacion}",
             Profesional = "Documento clínico",
             Estado = "Disponible",
-            EnlaceDocumento = "/" + d.RutaRelativa.TrimStart('/')
+            EnlaceDocumento = $"/historia-clinica/documentos-clinicos/descargar/{d.IdDocumento}"
         }));
     }
 
@@ -1178,31 +1446,89 @@ private static string InferirTipoServicio(string? nombreServicio)
             };
         }
 
-        var historia = await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdHistoria == historiaId)
-            ?? await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == paciente.IdPaciente && h.Activa)
-            ?? await _historiaService.CrearHistoriaClinicaAsync(paciente.IdPaciente);
+        var historia = historiaId is > 0
+            ? await _context.HistoriasClinicas.FirstOrDefaultAsync(
+                h => h.IdHistoria == historiaId && h.IdPaciente == paciente.IdPaciente && h.Activa)
+            : null;
+
+        historia ??= await _context.HistoriasClinicas
+            .FirstOrDefaultAsync(h => h.IdPaciente == paciente.IdPaciente && h.Activa);
 
         string profesionalNombre = User.FindFirst(ClaimTypes.Name)?.Value ?? "Profesional";
         string profesionalCorreo = User.FindFirst(ClaimTypes.Email)?.Value ?? "";
+        string? estadoPersistido = historia?.ObservacionesGenerales;
+
+        if (historia is not null)
+        {
+            JsonObject estadoClinico;
+            try
+            {
+                estadoClinico = JsonNode.Parse(estadoPersistido ?? "{}") as JsonObject ?? new JsonObject();
+            }
+            catch (JsonException)
+            {
+                estadoClinico = new JsonObject();
+            }
+
+            var mapeoJson = estadoClinico["mapeoFDI"] as JsonObject;
+            var mapeo = mapeoJson?.ToDictionary(
+                item => item.Key,
+                item => item.Value?.ToString() ?? "") ?? new Dictionary<string, string>();
+            var instanciasPorFdi = mapeo
+                .Where(item => !string.IsNullOrWhiteSpace(item.Value))
+                .GroupBy(item => item.Value, StringComparer.Ordinal)
+                .ToDictionary(grupo => grupo.Key, grupo => grupo.First().Key, StringComparer.Ordinal);
+
+            var registrosClinicos = await _context.RegistrosOdontograma
+                .AsNoTracking()
+                .Where(registro => registro.IdHistoria == historia.IdHistoria)
+                .OrderByDescending(registro => registro.FechaRegistro)
+                .ToListAsync();
+
+            if (registrosClinicos.Count > 0 && instanciasPorFdi.Count > 0)
+            {
+                var registrosActuales = new Dictionary<string, OdontogramaRegistroPayload>();
+                foreach (var registro in registrosClinicos
+                    .GroupBy(item => item.NumeroFdi)
+                    .Select(grupo => grupo.First()))
+                {
+                    if (!instanciasPorFdi.TryGetValue(registro.NumeroFdi, out string? instanciaId))
+                        continue;
+
+                    registrosActuales[instanciaId] = new OdontogramaRegistroPayload
+                    {
+                        NombrePieza = registro.NombrePieza,
+                        Tratamientos =
+                        [
+                            new OdontogramaTratamientoPayload
+                            {
+                                Key = registro.Estado,
+                                Obs = registro.Observacion,
+                                Fecha = registro.FechaRegistro.ToString("O")
+                            }
+                        ]
+                    };
+                }
+
+                estadoClinico["registros"] = JsonSerializer.SerializeToNode(
+                    registrosActuales,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                estadoPersistido = estadoClinico.ToJsonString();
+            }
+        }
 
         return new OdontogramaViewModel
         {
             PacienteId = paciente.IdPaciente,
-            HistoriaId = historia.IdHistoria,
+            HistoriaId = historia?.IdHistoria,
             PacienteNombre = paciente.NombresCompleto,
-            CodigoHC = $"HC-{historia.IdHistoria:0000}",
+            CodigoHC = historia is null ? "Sin historia clínica" : $"HC-{historia.IdHistoria:0000}",
             FechaNacimiento = paciente.FechaNacimiento.ToString("yyyy-MM-dd"),
             ProfesionalNombre = profesionalNombre,
             ProfesionalCorreo = profesionalCorreo,
-            ObservacionesGenerales = historia.ObservacionesGenerales,
-            EstadoPersistido = historia.ObservacionesGenerales
+            ObservacionesGenerales = historia?.ObservacionesGenerales,
+            EstadoPersistido = estadoPersistido
         };
-    }
-
-    private async Task<int?> ObtenerPacientePredeterminadoAsync()
-    {
-        var paciente = await _context.Pacientes.OrderBy(p => p.IdPaciente).FirstOrDefaultAsync();
-        return paciente?.IdPaciente;
     }
 
     private async Task<int?> ObtenerIdProfesionalActualAsync()
@@ -1211,6 +1537,29 @@ private static string InferirTipoServicio(string? nombreServicio)
         if (!int.TryParse(userIdStr, out int userId)) return null;
         var profesional = await _context.Profesionales.FirstOrDefaultAsync(p => p.IdUsuario == userId);
         return profesional?.IdProfesional;
+    }
+
+    private async Task<bool> PuedeProfesionalAccederAPacienteAsync(int pacienteId)
+    {
+        if (!User.IsInRole("Profesional"))
+            return true;
+
+        string? userIdValue = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(userIdValue, out int userId)
+            && await _historiaService.ProfesionalPuedeAccederPacienteAsync(pacienteId, userId);
+    }
+
+    private async Task<int?> ResolverPacienteHistoriaAsync(int? pacienteId, int? historiaId)
+    {
+        if (pacienteId is > 0)
+            return pacienteId;
+        if (historiaId is not > 0)
+            return null;
+
+        return await _context.HistoriasClinicas
+            .Where(historia => historia.IdHistoria == historiaId)
+            .Select(historia => (int?)historia.IdPaciente)
+            .FirstOrDefaultAsync();
     }
 
     private static string Slug(string texto)
@@ -1249,7 +1598,11 @@ private static string InferirTipoServicio(string? nombreServicio)
 
         var pacientesQuery = _context.Pacientes.AsQueryable();
         if (idProfesionalFiltro is not null)
-            pacientesQuery = pacientesQuery.Where(p => idsPacientesConCita.Contains(p.IdPaciente));
+        {
+            pacientesQuery = pacientesQuery.Where(p =>
+                idsPacientesConCita.Contains(p.IdPaciente)
+                || p.IdProfesionalAsignado == idProfesionalFiltro);
+        }
 
         var pacientes = await pacientesQuery.OrderBy(p => p.Nombres).ToListAsync();
 

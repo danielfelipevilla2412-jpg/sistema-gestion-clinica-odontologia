@@ -54,7 +54,9 @@ public sealed class FacturacionServicePaymentTests
         Assert.Equal(25000m, payment.Monto);
         Assert.Equal("efectivo", payment.MetodoPago);
         Assert.Equal(1, await db.Facturas.CountAsync());
-        Assert.Equal(1, await db.PagosFacturas.CountAsync());
+        Assert.Equal(1, await db.Pagos.CountAsync());
+        Assert.Equal("mensaje", (await db.Notificaciones.SingleAsync()).Tipo);
+        Assert.Equal("INSERT", (await db.Auditorias.SingleAsync()).Accion);
     }
 
     [Fact]
@@ -74,7 +76,7 @@ public sealed class FacturacionServicePaymentTests
         await db.SaveChangesAsync();
 
         var service = new FacturacionService(db);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CrearConPagoAsync(new CrearFacturaConPagoRequest
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CrearConPagoAsync(new CrearFacturaConPagoRequest
         {
             IdPaciente = patient.IdPaciente,
             MontoPagado = 65000m,
@@ -85,8 +87,10 @@ public sealed class FacturacionServicePaymentTests
             }
         }, 7, CancellationToken.None));
 
+        Assert.Contains("65.000", error.Message);
+        Assert.Contains("60.000", error.Message);
         Assert.Empty(await db.Facturas.ToListAsync());
-        Assert.Empty(await db.PagosFacturas.ToListAsync());
+        Assert.Empty(await db.Pagos.ToListAsync());
     }
 
     [Fact]
@@ -122,6 +126,7 @@ public sealed class FacturacionServicePaymentTests
         Assert.Equal(0m, completed.Pendiente);
         Assert.Equal("pagada", completed.Estado);
         Assert.Equal(2, completed.Pagos.Count);
+        Assert.All(await db.Auditorias.ToListAsync(), audit => Assert.Equal("UPDATE", audit.Accion));
     }
 
     [Fact]
@@ -138,7 +143,7 @@ public sealed class FacturacionServicePaymentTests
             CancellationToken.None));
 
         Assert.Contains("pasarela de pago configurada", error.Message);
-        Assert.Empty(await db.PagosFacturas.ToListAsync());
+        Assert.Empty(await db.Pagos.ToListAsync());
     }
 
     [Fact]
@@ -148,13 +153,15 @@ public sealed class FacturacionServicePaymentTests
         var invoice = await CreateInvoiceAsync(db, "FAC-2026-00022", 100000m, 80000m, "parcial");
 
         var service = new FacturacionService(db);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegistrarPagoAsync(
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegistrarPagoAsync(
             invoice.IdFactura,
             new RegistrarPagoRequest { MontoPagado = 25000m, MetodoPago = "efectivo" },
             7,
             CancellationToken.None));
 
-        Assert.Empty(await db.PagosFacturas.ToListAsync());
+        Assert.Contains("25.000", error.Message);
+        Assert.Contains("20.000", error.Message);
+        Assert.Empty(await db.Pagos.ToListAsync());
     }
 
     [Fact]

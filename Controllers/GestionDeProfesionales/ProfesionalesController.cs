@@ -650,7 +650,8 @@ public partial class GestionProfesionalesController(
                     .Include(n => n.HistoriaClinica)
                     .Include(n => n.Profesional)
                     .ThenInclude(p => p!.Usuario)
-                    .Where(n => idsPacientes.Contains(n.HistoriaClinica!.IdPaciente))
+                    .Where(n => idsPacientes.Contains(n.HistoriaClinica!.IdPaciente) &&
+                                n.Estado != "Preparación")
                     .OrderByDescending(n => n.Fecha)
                     .ToListAsync(ct);
 
