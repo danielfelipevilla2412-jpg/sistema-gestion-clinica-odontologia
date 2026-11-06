@@ -40,14 +40,14 @@ public sealed class ProfesionalServiceTests
             {
                 new HorarioSemanalApiRequest
                 {
-                    DiaSemana = "Miércoles",
+                    DayFull = "Miércoles",
                     Active = true,
                     Start = "08:00",
                     End = "12:00"
                 },
                 new HorarioSemanalApiRequest
                 {
-                    DiaSemana = "Sábado",
+                    DayFull = "Sábado",
                     Active = true,
                     Start = "09:00",
                     End = "13:00"

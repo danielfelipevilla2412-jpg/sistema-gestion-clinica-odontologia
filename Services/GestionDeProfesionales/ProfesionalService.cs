@@ -987,13 +987,21 @@ public partial class ProfesionalService : IProfesionalService
                 _ => dia.Trim()
             };
 
+        static string? ObtenerDiaSemana(HorarioSemanalApiRequest bloque) =>
+            !string.IsNullOrWhiteSpace(bloque.DiaSemana) ? bloque.DiaSemana :
+            !string.IsNullOrWhiteSpace(bloque.DayFull) ? bloque.DayFull :
+            bloque.Day;
+
         var bloquesActivos = horarios.Where(b => b.Active).ToList();
         bool hayBloqueInvalido = bloquesActivos.Any(b =>
-            string.IsNullOrWhiteSpace(b.DiaSemana) ||
-            !diasValidos.Contains(b.DiaSemana) ||
-            !TimeOnly.TryParse(b.Start, out var inicio) ||
-            !TimeOnly.TryParse(b.End, out var fin) ||
-            fin <= inicio);
+        {
+            var diaSemana = ObtenerDiaSemana(b);
+            return string.IsNullOrWhiteSpace(diaSemana) ||
+                   !diasValidos.Contains(diaSemana) ||
+                   !TimeOnly.TryParse(b.Start, out var inicio) ||
+                   !TimeOnly.TryParse(b.End, out var fin) ||
+                   fin <= inicio;
+        });
         if (hayBloqueInvalido)
             return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
                 "Cada día activo debe tener un día válido y una hora de inicio y fin válidas.", 422);
@@ -1004,7 +1012,7 @@ public partial class ProfesionalService : IProfesionalService
         var porDia = bloquesActivos
             .Select(b => new
             {
-                Dia    = NormalizarDiaSemana(b.DiaSemana!),
+                Dia    = NormalizarDiaSemana(ObtenerDiaSemana(b)!),
                 Inicio = TimeOnly.TryParse(b.Start, out var si) ? si : (TimeOnly?)null,
                 Fin    = TimeOnly.TryParse(b.End,   out var sf) ? sf : (TimeOnly?)null
             })
@@ -1029,7 +1037,7 @@ public partial class ProfesionalService : IProfesionalService
             .Select(x => new HorarioProfesional
             {
                 IdProfesional = id,
-                DiaSemana = NormalizarDiaSemana(x.Bloque.DiaSemana!),
+                DiaSemana = NormalizarDiaSemana(ObtenerDiaSemana(x.Bloque)!),
                 HoraInicio = x.Inicio!.Value,
                 HoraFin = x.Fin!.Value,
                 Activo = true
