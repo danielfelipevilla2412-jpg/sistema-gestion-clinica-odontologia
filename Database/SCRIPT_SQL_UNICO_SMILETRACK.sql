@@ -784,14 +784,15 @@ END
 GO
 
 INSERT INTO dbo.Pago_Factura
-    (id_factura, monto, metodo_pago, estado, referencia, registrado_por, fecha_utc)
+    (id_factura, monto, metodo_pago, estado, referencia, registrado_por, fecha_utc, observaciones)
 SELECT
     f.id_factura,
     f.monto_pagado - COALESCE(pagos.total, 0),
-    COALESCE(f.fecha_pago, f.fecha_factura),
     'efectivo',
+    'aprobado',
     CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura)),
     f.generada_por,
+    COALESCE(f.fecha_pago, f.fecha_factura),
     'Saldo histórico migrado desde Factura.'
 FROM dbo.Factura f
 OUTER APPLY (
