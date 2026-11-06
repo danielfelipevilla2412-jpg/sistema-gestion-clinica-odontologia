@@ -55,8 +55,10 @@ public class HistoriaFormularioViewModel
 {
     public string MotivoConsulta { get; set; } = "";
     public string EnfermedadActual { get; set; } = "";
+    public string? AntecedentesMedicos { get; set; }
     public List<string> SintomasSignos { get; set; } = [];
     public string Habitos { get; set; } = "";
+    public string Alergias { get; set; } = "";
     public string Hallazgos { get; set; } = "";
     public string OdontogramaObservaciones { get; set; } = "";
     public string ExamenesComplementarios { get; set; } = "";
@@ -91,6 +93,7 @@ public class PacienteResumenClinicoViewModel
 // única línea de tiempo sin perder la categoría ni el vínculo del documento.
 public class EventoHistoriaClinicaItem
 {
+    public int? CitaId { get; set; }
     public DateTime Fecha { get; set; }
     /// <summary>consulta, nota, odontograma, control o documento.</summary>
     public string Categoria { get; set; } = "consulta";
@@ -99,7 +102,6 @@ public class EventoHistoriaClinicaItem
     public string Profesional { get; set; } = "";
     public string Estado { get; set; } = "";
     public string? EnlaceDocumento { get; set; }
-    public int? CitaId { get; set; }
 }
 
 public class RegistroHistorialItem

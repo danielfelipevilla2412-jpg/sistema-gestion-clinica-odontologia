@@ -88,7 +88,9 @@ public sealed class FacturacionApiController : ControllerBase
     public async Task<IActionResult> Actualizar(int id, [FromBody] ActualizarFacturaRequest request, CancellationToken ct)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
-        try { var r = await _service.ActualizarAsync(id, request, ct); return r == null ? NotFound(new { success=false, message="Factura no encontrada." }) : Ok(new { success=true, message="Factura actualizada correctamente.", data=r }); }
+        var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
+        try { var r = await _service.ActualizarAsync(id, request, idUsuario, ct); return r == null ? NotFound(new { success=false, message="Factura no encontrada." }) : Ok(new { success=true, message="Factura actualizada correctamente.", data=r }); }
         catch (InvalidOperationException ex) { return BadRequest(new { success=false, message=ex.Message }); }
     }
     #endregion
@@ -99,7 +101,9 @@ public sealed class FacturacionApiController : ControllerBase
     [Authorize(Roles = "Administrador")]
     public async Task<IActionResult> Eliminar(int id, CancellationToken ct)
     {
-        try { return await _service.EliminarAsync(id, ct) ? Ok(new { success=true, message="Factura eliminada correctamente." }) : NotFound(new { success=false, message="Factura no encontrada." }); }
+        var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
+        try { return await _service.EliminarAsync(id, idUsuario, ct) ? Ok(new { success=true, message="Factura eliminada correctamente." }) : NotFound(new { success=false, message="Factura no encontrada." }); }
         catch (InvalidOperationException ex) { return BadRequest(new { success=false, message=ex.Message }); }
     }
     #endregion
@@ -146,7 +150,9 @@ public sealed class FacturacionApiController : ControllerBase
     [Authorize(Roles = "Administrador")]
     public async Task<IActionResult> Anular(int id, [FromBody] AnularFacturaRequest? request, CancellationToken ct)
     {
-        try { var r=await _service.AnularAsync(id,request,ct); return r==null?NotFound(new{success=false,message="Factura no encontrada."}):Ok(new{success=true,message="Factura anulada correctamente.",data=r}); }
+        var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
+        try { var r=await _service.AnularAsync(id,request,idUsuario,ct); return r==null?NotFound(new{success=false,message="Factura no encontrada."}):Ok(new{success=true,message="Factura anulada correctamente.",data=r}); }
         catch(InvalidOperationException ex){return BadRequest(new{success=false,message=ex.Message});}
     }
 

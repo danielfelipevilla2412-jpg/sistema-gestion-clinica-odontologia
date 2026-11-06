@@ -1127,149 +1127,18 @@ const initForm = () => {
               });
             };
 
-            const initFormularioClinico = () => {
-              const form = safeGetElement('historia-clinica-form');
-              if (!form) return;
-              form.addEventListener('submit', async event => {
-                event.preventDefault();
-                const pacienteId = window.smiletrackHistoriaData?.pacienteId;
-                if (!pacienteId) {
-                  showToast('Selecciona un paciente antes de guardar la historia', 'warning');
-                  return;
-                }
-                const value = id => safeGetElement(id)?.value?.trim() || '';
-                const diagnostico = value('diagnostico_principal') === '__otro__'
-                  ? value('diagnostico_principal_otro')
-                  : value('diagnostico_principal');
-                if (value('diagnostico_principal') === '__otro__' && !diagnostico) {
-                  showToast('Escribe el diagnóstico seleccionado como Otro', 'warning');
-                  safeGetElement('diagnostico_principal_otro')?.focus();
-                  return;
-                }
-                const button = form.querySelector('button[type="submit"]');
-                if (button) button.disabled = true;
-                try {
-                  const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
-                  const response = await fetch('/historia-clinica/st-odo-03-historial/guardar-formulario', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...(token ? { 'RequestVerificationToken': token } : {}) },
-                    body: JSON.stringify({
-                      pacienteId,
-                      motivoConsulta: value('motivo_consulta'),
-                      enfermedadActual: value('enfermedad_actual'),
-                      sintomasSignos: Array.from(document.querySelectorAll('#sintomasSignosGrid input[type="checkbox"]:checked')).map(input => input.value),
-                      habitos: value('habitos'),
-                      hallazgos: value('hallazgos'),
-                      odontogramaObservaciones: value('odontograma_observaciones'),
-                      examenesComplementarios: value('examenes_complementarios'),
-                      diagnosticoPrincipal: diagnostico,
-                      diagnosticoSecundario: value('diagnostico_secundario'),
-                      evolucionClinica: value('evolucion_clinica'),
-                      prescripcion: value('prescripcion')
-                    })
-                  });
-                  const result = await response.json();
-                  if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo guardar la historia');
-                  showToast('Historia clínica guardada correctamente', 'success');
-                } catch (error) {
-                  showToast(error.message || 'No se pudo guardar la historia clínica', 'error');
-                } finally {
-                  if (button) button.disabled = false;
-                }
-              });
-            };
-
-            const initCamposDinamicosHistoria = () => {
-              const symptomInput = document.getElementById('nuevoSintomaSigno');
-              const addSymptomButton = document.getElementById('btnAgregarSintomaSigno');
-              const diagnosisSelect = document.getElementById('diagnostico_principal');
-              const diagnosisInput = document.getElementById('diagnostico_principal_otro');
-              const diagnosisGroup = document.getElementById('diagnosticoOtroGroup');
-              const addSymptom = () => {
-                if (!symptomInput) return;
-                if (!agregarSintomaSigno(symptomInput.value)) {
-                  showToast('Escribe un síntoma o signo antes de agregarlo', 'warning');
-                  symptomInput.focus();
-                  return;
-                }
-                symptomInput.value = '';
-                symptomInput.focus();
-              };
-              addSymptomButton?.addEventListener('click', addSymptom);
-              symptomInput?.addEventListener('keydown', event => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  addSymptom();
-                }
-              });
-              diagnosisSelect?.addEventListener('change', () => {
-                const isOther = diagnosisSelect.value === '__otro__';
-                if (diagnosisGroup) diagnosisGroup.hidden = !isOther;
-                if (isOther) diagnosisInput?.focus();
-                else if (diagnosisInput) diagnosisInput.value = '';
-              });
-            };
-
-*/
-const initForm = () => {
-  const button = safeGetElement('btnGuardarNota');
-  if (!button) return;
-  button.addEventListener('click', async () => {
-    const data = window.smiletrackHistoriaData || {};
-    const pacienteId = data.pacienteId;
-    if (!pacienteId) {
-      showToast('No hay un paciente seleccionado para guardar la nota.', 'error');
-      return;
-    }
-    const diagnosticoElement = safeGetElement('diagnostico_principal');
-    const diagnostico = diagnosticoElement?.value === '__otro__'
-      ? safeGetElement('diagnostico_principal_otro')?.value.trim()
-      : diagnosticoElement?.value.trim();
-    const procedimiento = safeGetElement('evolucion_clinica')?.value.trim()
-      || safeGetElement('odontograma_observaciones')?.value.trim()
-      || '';
-    const citaId = data.citaId || Number(new URLSearchParams(window.location.search).get('citaId')) || null;
-    button.disabled = true;
-    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-    try {
-      const response = await fetch('/historia-clinica/st-odo-03-historial/guardar-nota', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'X-CSRF-TOKEN': token } : {}) },
-        body: JSON.stringify({ pacienteId, citaId, diagnostico, procedimiento })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo guardar la nota.');
-      const nuevaNota = {
-        ...result.nota,
-        categoria: 'nota',
-        fecha: `${result.nota.fecha}T12:00:00`,
-        profesional: result.nota.doctor,
-        citaId
-      };
-      data.lineaDeTiempo = [nuevaNota, ...(data.lineaDeTiempo || [])];
-      data.notasClinicas = [nuevaNota, ...(data.notasClinicas || [])];
-      renderHistorial(data.lineaDeTiempo);
-      showToast('Nota clínica registrada.', 'success');
-      if (diagnosticoElement) diagnosticoElement.value = '';
-      if (safeGetElement('evolucion_clinica')) safeGetElement('evolucion_clinica').value = '';
-    } catch (error) {
-      showToast(error.message || 'No se pudo guardar la nota.', 'error');
-    } finally {
-      button.disabled = false;
-    }
-  });
-};
-
 const initFormularioClinico = () => {
   const form = safeGetElement('historia-clinica-form');
   if (!form) return;
-  form.addEventListener('submit', async event => {
+
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const pacienteId = window.smiletrackHistoriaData?.pacienteId;
     if (!pacienteId) {
       showToast('Selecciona un paciente antes de guardar la historia', 'warning');
       return;
     }
+
     const value = id => safeGetElement(id)?.value?.trim() || '';
     const diagnostico = value('diagnostico_principal') === '__otro__'
       ? value('diagnostico_principal_otro')
@@ -1281,6 +1150,7 @@ const initFormularioClinico = () => {
     }
     const button = form.querySelector('button[type="submit"]');
     if (button) button.disabled = true;
+
     try {
       const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
       const response = await fetch('/historia-clinica/st-odo-03-historial/guardar-formulario', {
@@ -1305,6 +1175,7 @@ const initFormularioClinico = () => {
       if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo guardar la historia');
       showToast('Historia clínica guardada correctamente', 'success');
     } catch (error) {
+      console.error('Error al guardar la historia clínica:', error);
       showToast(error.message || 'No se pudo guardar la historia clínica', 'error');
     } finally {
       if (button) button.disabled = false;
