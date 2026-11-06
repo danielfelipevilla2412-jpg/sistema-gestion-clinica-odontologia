@@ -58,6 +58,7 @@ public class HistoriaFormularioViewModel
     public string? AntecedentesMedicos { get; set; }
     public List<string> SintomasSignos { get; set; } = [];
     public string Habitos { get; set; } = "";
+    public string Alergias { get; set; } = "";
     public string Hallazgos { get; set; } = "";
     public string OdontogramaObservaciones { get; set; } = "";
     public string ExamenesComplementarios { get; set; } = "";
@@ -101,7 +102,6 @@ public class EventoHistoriaClinicaItem
     public string Profesional { get; set; } = "";
     public string Estado { get; set; } = "";
     public string? EnlaceDocumento { get; set; }
-    public int? CitaId { get; set; }
 }
 
 public class RegistroHistorialItem

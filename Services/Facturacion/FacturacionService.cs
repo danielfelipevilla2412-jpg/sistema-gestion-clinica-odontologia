@@ -63,21 +63,6 @@ public sealed class FacturacionService : IFacturacionService
         return x == null ? null : Map(x);
     }
 
-    public async Task<FacturaDto> CrearAsync(CrearFacturaRequest request, int idUsuario, CancellationToken ct)
-    {
-        await ValidarPaciente(request.IdPaciente, ct);
-        if (request.IdProfesional.HasValue && !await _db.Profesionales.AnyAsync(p => p.IdProfesional == request.IdProfesional.Value && p.Estado == "activo", ct))
-            throw new InvalidOperationException("El profesional seleccionado no es válido.");
-        ValidarDetalles(request.Detalles);
-        var detalles = request.Detalles.Select(d => new DetalleFactura { IdServicio = d.IdServicio, Descripcion = d.Descripcion.Trim(), Cantidad = d.Cantidad, PrecioUnitario = d.PrecioUnitario, Descuento = d.Descuento, SubtotalLinea = d.Cantidad * (d.PrecioUnitario - d.Descuento) }).ToList();
-        var subtotal = detalles.Sum(x => x.Cantidad * x.PrecioUnitario);
-        var descuento = detalles.Sum(x => x.Cantidad * x.Descuento);
-        var total = detalles.Sum(x => x.SubtotalLinea);
-        var f = new Factura { NumeroFactura = await NuevoNumeroAsync(ct), FechaFactura = DateTime.Now, Subtotal = subtotal, Descuento = descuento, Total = total, Estado = "pendiente", IdPaciente = request.IdPaciente, IdProfesional = request.IdProfesional, Notas = Clean(request.Notas), GeneradaPor = idUsuario, MontoPagado = 0, Detalles = detalles };
-        _db.Facturas.Add(f); await _db.SaveChangesAsync(ct);
-        return (await ObtenerAsync(f.IdFactura, ct))!;
-    }
-
     public async Task<FacturaDto> CrearDesdeCitaAsync(int idCita, int idUsuario, CancellationToken ct)
     {
         var cita = await _db.Citas
@@ -131,6 +116,8 @@ public sealed class FacturacionService : IFacturacionService
     public async Task<FacturaDto> CrearAsync(CrearFacturaRequest request, int idUsuario, CancellationToken ct)
     {
         await ValidarPaciente(request.IdPaciente, ct);
+        if (request.IdProfesional.HasValue && !await _db.Profesionales.AnyAsync(p => p.IdProfesional == request.IdProfesional.Value && p.Estado == "activo", ct))
+            throw new InvalidOperationException("El profesional seleccionado no es válido.");
         ValidarDetalles(request.Detalles);
         var detalles = request.Detalles.Select(d => new DetalleFactura { IdServicio = d.IdServicio, Descripcion = d.Descripcion.Trim(), Cantidad = d.Cantidad, PrecioUnitario = d.PrecioUnitario, Descuento = d.Descuento, SubtotalLinea = d.Cantidad * (d.PrecioUnitario - d.Descuento) }).ToList();
         var subtotal = detalles.Sum(x => x.Cantidad * x.PrecioUnitario);
@@ -233,14 +220,16 @@ public sealed class FacturacionService : IFacturacionService
         _db.DetallesFactura.RemoveRange(f.Detalles); f.Detalles = detalles; f.IdPaciente = request.IdPaciente; f.Notas = Clean(request.Notas); f.Subtotal = detalles.Sum(x => x.Cantidad * x.PrecioUnitario); f.Descuento = detalles.Sum(x => x.Cantidad * x.Descuento); f.Total = detalles.Sum(x => x.SubtotalLinea);
         if (f.MontoPagado > f.Total) throw new InvalidOperationException("El nuevo total no puede ser menor que lo ya pagado.");
         f.Estado = f.MontoPagado == 0 ? "pendiente" : f.MontoPagado >= f.Total ? "pagada" : "parcial";
+        AgregarAuditoria(idUsuario, f.IdFactura, "UPDATE", null, $"Factura {f.NumeroFactura} actualizada.");
         await _db.SaveChangesAsync(ct); return await ObtenerAsync(id, ct);
     }
 
-    public async Task<bool> EliminarAsync(int id, CancellationToken ct)
+    public async Task<bool> EliminarAsync(int id, int idUsuario, CancellationToken ct)
     {
         var f = await _db.Facturas.Include(x => x.Detalles).FirstOrDefaultAsync(x => x.IdFactura == id, ct);
         if (f == null) return false;
         if (f.MontoPagado > 0 || f.Estado != "pendiente") throw new InvalidOperationException("Solo se pueden eliminar facturas pendientes sin pagos.");
+        AgregarAuditoria(idUsuario, f.IdFactura, "DELETE", f.NumeroFactura, $"Factura {f.NumeroFactura} eliminada.");
         _db.Facturas.Remove(f); await _db.SaveChangesAsync(ct); return true;
     }
 
@@ -248,11 +237,11 @@ public sealed class FacturacionService : IFacturacionService
     {
         var existe = await _db.Facturas.AnyAsync(f => f.IdFactura == id, ct);
         if (!existe) return null;
-        return await _db.Pagos.AsNoTracking().Where(p => p.IdFactura == id).OrderByDescending(p => p.FechaPago).Select(p => new PagoDto
+        return await _db.Pagos.AsNoTracking().Where(p => p.IdFactura == id).OrderByDescending(p => p.FechaUtc).Select(p => new PagoDto
         {
             Id = p.IdPago,
             Monto = p.Monto,
-            FechaPago = p.FechaPago,
+            FechaPago = p.FechaUtc.ToLocalTime(),
             MetodoPago = p.MetodoPago,
             Referencia = p.Referencia,
             RegistradoPor = p.RegistradoPor,
@@ -276,11 +265,12 @@ public sealed class FacturacionService : IFacturacionService
         if (request.MontoPagado > saldoPendiente)
             throw new InvalidOperationException(
                 $"El abono ingresado ({FormatoMonto(request.MontoPagado)}) supera el saldo pendiente ({FormatoMonto(saldoPendiente)}). Ajusta el valor e inténtalo de nuevo.");
-        var pago = new Pago
+        var pago = new PagoFactura
         {
             IdFactura = id,
             Monto = request.MontoPagado,
-            FechaPago = DateTime.Now,
+            FechaUtc = DateTime.UtcNow,
+            Estado = "aprobado",
             MetodoPago = string.IsNullOrWhiteSpace(request.MetodoPago) ? "efectivo" : request.MetodoPago.Trim().ToLowerInvariant(),
             Referencia = Clean(request.Referencia) ?? $"CAJ-{Guid.NewGuid():N}"[..36],
             RegistradoPor = idUsuario,
@@ -309,11 +299,13 @@ public sealed class FacturacionService : IFacturacionService
         return await ObtenerAsync(id, ct);
     }
 
-    public async Task<FacturaDto?> AnularAsync(int id, AnularFacturaRequest? request, CancellationToken ct)
+    public async Task<FacturaDto?> AnularAsync(int id, AnularFacturaRequest? request, int idUsuario, CancellationToken ct)
     {
         var f = await _db.Facturas.FirstOrDefaultAsync(x => x.IdFactura == id, ct); if (f == null) return null;
         if (f.Estado == "anulada") throw new InvalidOperationException("La factura ya está anulada.");
+        var estadoAnterior = f.Estado;
         f.Estado = "anulada"; if (!string.IsNullOrWhiteSpace(request?.Motivo)) f.Notas = $"{f.Notas} | Anulada: {request.Motivo.Trim()}".Trim(' ', '|');
+        AgregarAuditoria(idUsuario, f.IdFactura, "UPDATE", estadoAnterior, $"Factura {f.NumeroFactura} anulada.");
         await _db.SaveChangesAsync(ct); return await ObtenerAsync(id, ct);
     }
 
@@ -346,8 +338,7 @@ public sealed class FacturacionService : IFacturacionService
             Descripcion = descripcion,
             Fecha = DateTime.UtcNow
         });
-    }
     private async Task<string> NuevoNumeroAsync(CancellationToken ct) { var year = DateTime.Now.Year; var n = await _db.Facturas.CountAsync(x => x.FechaFactura.Year == year, ct) + 1; string v; do { v = $"FAC-{year}-{n:D5}"; n++; } while (await _db.Facturas.AnyAsync(x => x.NumeroFactura == v, ct)); return v; }
     private static bool EsEstadoFacturable(string? estado) => estado?.Trim().ToLowerInvariant() is "atendida" or "completada" or "finalizada";
-    private static FacturaDto Map(Factura x) => new() { Id=x.IdFactura, Numero=x.NumeroFactura, IdPaciente=x.IdPaciente, IdCita=x.IdCita, IdProfesional=x.IdProfesional, Paciente=x.Paciente==null?"Paciente":$"{x.Paciente.Nombres} {x.Paciente.Apellidos}", Documento=x.Paciente?.Documento??"N/A", Fecha=x.FechaFactura, Subtotal=x.Subtotal, Descuento=x.Descuento, Total=x.Total, MontoPagado=x.MontoPagado, Pendiente=Math.Max(x.Total-x.MontoPagado,0), Estado=x.Estado, Notas=x.Notas, FechaPago=x.FechaPago, Detalles=x.Detalles.Select(d=>new FacturaDetalleDto { Id=d.IdDetalle, IdServicio=d.IdServicio, Descripcion=d.Descripcion, Cantidad=d.Cantidad, PrecioUnitario=d.PrecioUnitario, Descuento=d.Descuento, Subtotal=d.SubtotalLinea }).ToList(), Pagos=x.Pagos.Select(p=>new PagoDto { Id=p.IdPago, Monto=p.Monto, FechaPago=p.FechaPago, MetodoPago=p.MetodoPago, Referencia=p.Referencia, RegistradoPor=p.RegistradoPor, Observaciones=p.Observaciones }).ToList() };
+    private static FacturaDto Map(Factura x) => new() { Id=x.IdFactura, Numero=x.NumeroFactura, IdPaciente=x.IdPaciente, IdCita=x.IdCita, IdProfesional=x.IdProfesional, Paciente=x.Paciente==null?"Paciente":$"{x.Paciente.Nombres} {x.Paciente.Apellidos}", Documento=x.Paciente?.Documento??"N/A", Fecha=x.FechaFactura, Subtotal=x.Subtotal, Descuento=x.Descuento, Total=x.Total, MontoPagado=x.MontoPagado, Pendiente=Math.Max(x.Total-x.MontoPagado,0), Estado=x.Estado, Notas=x.Notas, FechaPago=x.FechaPago, Detalles=x.Detalles.Select(d=>new FacturaDetalleDto { Id=d.IdDetalle, IdServicio=d.IdServicio, Descripcion=d.Descripcion, Cantidad=d.Cantidad, PrecioUnitario=d.PrecioUnitario, Descuento=d.Descuento, Subtotal=d.SubtotalLinea }).ToList(), Pagos=x.Pagos.Select(p=>new PagoDto { Id=p.IdPago, Monto=p.Monto, FechaPago=p.FechaUtc.ToLocalTime(), MetodoPago=p.MetodoPago, Referencia=p.Referencia, RegistradoPor=p.RegistradoPor, Observaciones=p.Observaciones }).ToList() };
 }

@@ -73,6 +73,7 @@ public class CrearFacturaRequest
 {
     [Range(1, int.MaxValue)]
     public int IdPaciente { get; set; }
+    public int? IdCita { get; set; }
     public int? IdProfesional { get; set; }
 
     [StringLength(500)]
