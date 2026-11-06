@@ -1366,6 +1366,15 @@ a { text-decoration: none; }
 .tooth-history-item time,
 .tooth-history-item small { display: block; margin-top: 4px; color: var(--text-soft); font-size: 11px; }
 .tooth-history-item p { margin: 6px 0 0; font-size: 12px; }
+.hist-note-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.hist-note-action { border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; background: #fff; color: var(--brand-dark); font-size: 12px; font-weight: 700; }
+.hist-note-action--danger { color: #b91c1c; border-color: #fecaca; }
+.clinical-note-form { display: grid; gap: 8px; }
+.clinical-note-form label { margin-top: 6px; color: var(--text-soft); font-size: 12px; font-weight: 700; }
+.clinical-note-form input,
+.clinical-note-form textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f9fbff; color: var(--text); font: inherit; }
+.clinical-note-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.clinical-note-dialog { max-width: 560px; }
 
 @media (max-width: 900px) {
   .history-workspace-grid { grid-template-columns: 1fr; }

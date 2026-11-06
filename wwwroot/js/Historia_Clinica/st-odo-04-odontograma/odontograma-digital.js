@@ -39,6 +39,14 @@ const ESTADOS = [
     { key: 'sellante',   label: 'Sellante',   color: '#f4a62a', ico: '🛡️' },
     { key: 'placa',      label: 'Placa',      color: '#1D9E75', ico: '🦠' },
     { key: 'sano',       label: 'Sano',       color: '#00d4ff', ico: '✅' },
+    { key: 'obturacion', label: 'Obturación', color: '#0f766e', ico: '◉' },
+    { key: 'restauracion', label: 'Restauración', color: '#10b981', ico: '◈' },
+    { key: 'corona',     label: 'Corona',     color: '#a855f7', ico: '⬡' },
+    { key: 'extraccion', label: 'Extracción', color: '#64748b', ico: '×' },
+    { key: 'ausente',    label: 'Ausente',    color: '#94a3b8', ico: '—' },
+    { key: 'implante',   label: 'Implante',   color: '#0369a1', ico: '▣' },
+    { key: 'fractura',   label: 'Fractura',   color: '#dc2626', ico: '⌁' },
+    { key: 'protesis',   label: 'Prótesis',   color: '#c2410c', ico: '◇' },
 ];
 
 const MODELO_ADULTO = '7f5b381c66674e0a969e8db04d139666';
@@ -402,7 +410,6 @@ function inicializarVisor() {
     // La API debe crear y enlazar el embed. Asignar iframe.src manualmente
     // antes de init puede abrir un visor sin el canal de eventos de la API.
     // Sketchfab 1.12.1 recibe primero la versión y luego el iframe.
-    console.log('🔄 Cargando modelo de Sketchfab:', MODELO_ADULTO);
     const client = new Sketchfab(SKETCHFAB_API_VERSION, iframe);
 
     client.init(MODELO_ADULTO, {
@@ -410,7 +417,6 @@ function inicializarVisor() {
         ui_settings: 0, ui_vr: 0, ui_fullscreen: 0, ui_annotations: 0, ui_stop: 0,
 
         success: function(api) {
-            console.log('✅ API de Sketchfab inicializada');
             api.start();
             apiActual = api;
 
@@ -419,7 +425,6 @@ function inicializarVisor() {
             if (error) error.style.display = 'none';
 
             api.addEventListener('viewerready', function() {
-                console.log('✅ Viewer ready');
                 apiListo = true;
 
                 api.getNodeMap(function(err, nodes) {
@@ -446,7 +451,6 @@ function inicializarVisor() {
                         }
                     });
 
-                    console.log('🦷 Nodos detectados:', Object.keys(mapaNodos).length);
                 });
 
                 // CLICK en diente

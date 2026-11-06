@@ -74,6 +74,15 @@ public class NotaClinicaGuardarRequest
     public string? ProximaCita { get; set; }
 }
 
+public class NotaClinicaActualizarRequest
+{
+    public int PacienteId { get; set; }
+    public int NotaId { get; set; }
+    public string? Diagnostico { get; set; }
+    public string? Procedimiento { get; set; }
+    public string? ProximaCita { get; set; }
+}
+
 public class FinalizarConsultaRequest
 {
     public int PacienteId { get; set; }

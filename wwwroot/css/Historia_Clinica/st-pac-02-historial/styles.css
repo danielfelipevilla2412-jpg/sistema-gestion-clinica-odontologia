@@ -220,21 +220,24 @@ img { max-width: 100%; height: auto; display: block; }
 .readonly-eyebrow { color: var(--primary, #2563eb); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .readonly-form-heading h2 { margin: 4px 0 0; color: var(--text, #172033); font-size: 1.35rem; }
 .readonly-badge { border: 1px solid #bfdbfe; border-radius: 999px; color: #1d4ed8; background: #eff6ff; padding: 6px 10px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
-.readonly-form-card { border: 1px solid var(--border, #dbe4ef); border-radius: 12px; background: var(--panel, #fff); padding: 18px; box-shadow: var(--shadow-sm, 0 2px 8px rgba(15, 23, 42, .05)); }
-.readonly-card-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
-.readonly-card-header h3 { margin: 0; color: var(--text, #172033); font-size: 1rem; }
-.readonly-card-header p { margin: 4px 0 0; color: var(--text-muted, #64748b); font-size: .82rem; }
-.readonly-step { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; background: #2563eb; color: #fff; font-size: .8rem; font-weight: 700; }
+.readonly-form-card { border: 1px solid var(--border, #dbe4ef); border-radius: 18px; background: var(--panel, #fff); padding: 0; overflow: hidden; box-shadow: var(--shadow-sm, 0 2px 8px rgba(15, 23, 42, .05)); }
+.readonly-card-header { display: flex; align-items: center; gap: 12px; margin: 0; padding: 18px 18px 16px; border-bottom: 1px solid var(--line, #dfe7f1); background: #f8fafc; }
+.readonly-card-header > div { flex: 1; min-width: 0; }
+.readonly-card-header h3 { margin: 0; color: var(--brand-dark, #1d4ed8); font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.readonly-card-header p { margin: 2px 0 0; color: var(--text-soft, #64748b); font-size: 11px; }
+.readonly-step { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 9px; background: linear-gradient(180deg, #1f9d8c 0%, #1d8f7d 100%); box-shadow: 0 8px 16px rgba(15, 118, 110, .18); color: #fff; font-size: .8rem; font-weight: 700; }
 .readonly-step.step-blue { background: #0ea5e9; }
 .readonly-step.step-purple { background: #8b5cf6; }
 .readonly-step.step-indigo { background: #4f46e5; }
 .readonly-step.step-green { background: #10b981; }
-.readonly-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.readonly-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 20px 18px 18px; }
 .readonly-fields > div { min-width: 0; }
 .readonly-fields label { display: block; margin-bottom: 6px; color: var(--text-soft, #475569); font-size: .78rem; font-weight: 700; }
-.readonly-fields textarea { display: block; width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--border, #dbe4ef); border-radius: 8px; padding: 10px; background: #f8fafc; color: var(--text, #172033); font: inherit; line-height: 1.45; }
+.readonly-fields textarea { display: block; width: 100%; min-height: 72px; resize: vertical; border: 1px solid #d9e2ee; border-radius: 10px; padding: 11px 12px; background: #f9fbff; color: var(--text, #172033); font: inherit; line-height: 1.45; }
 .readonly-field-wide { grid-column: 1 / -1; }
-.readonly-document-list { min-height: 52px; padding: 12px; border: 1px dashed var(--border, #dbe4ef); border-radius: 8px; background: #f8fafc; color: var(--text-soft, #475569); white-space: pre-line; }
+.readonly-document-list { min-height: 52px; margin: 20px 18px 18px; padding: 12px; border: 1px dashed var(--border, #dbe4ef); border-radius: 8px; background: #f8fafc; color: var(--text-soft, #475569); white-space: pre-line; }
+.patient-history-main .perfil-paciente-header { margin: 0 0 18px; padding: 18px 20px; border: 1px solid var(--line, #dfe7f1); border-radius: var(--radius-xl, 18px); background: linear-gradient(135deg, #fff 0%, #f8fbff 100%); box-shadow: var(--shadow, 0 4px 16px rgba(15, 23, 42, .06)); }
+.patient-history-main .perfil-paciente-header__avatar { width: 56px; height: 56px; flex-basis: 56px; border-radius: 18px; background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%); }
 @media (max-width: 680px) {
   .readonly-form-heading { align-items: flex-start; flex-direction: column; }
   .readonly-fields { grid-template-columns: 1fr; }

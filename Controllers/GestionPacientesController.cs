@@ -7,16 +7,21 @@ using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Logging;
 
 namespace SmileTrack_MVC.Controllers;
 
 public class GestionPacientesController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly ILogger<GestionPacientesController> _logger;
 
-    public GestionPacientesController(AppDbContext context)
+    public GestionPacientesController(
+        AppDbContext context,
+        ILogger<GestionPacientesController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     // =========================================================================
@@ -43,8 +48,10 @@ public class GestionPacientesController : Controller
 
         // Totales para los stat-cards (COUNT en BD, no carga de filas)
         int totalActivos   = await _context.Pacientes.CountAsync(p => p.Estado == "activo");
-        int conProximaCita = await _context.Citas.CountAsync(c =>
-            c.FechaHora > ahora && c.Estado != "Cancelada");
+        int conProximaCita = await _context.Pacientes.CountAsync(p =>
+            p.Estado == "activo" && _context.Citas.Any(c =>
+                c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
+                c.Estado != "Cancelada" && c.Estado != "cancelada"));
         int sinAlergias    = await _context.Pacientes.CountAsync(p =>
             p.Estado == "activo" &&
             (p.Alergias == null || p.Alergias == ""));
@@ -215,7 +222,10 @@ public class GestionPacientesController : Controller
                 p.Documento.Contains(txt) ||
                 _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
                     (c.Notas != null && c.Notas.Contains(txt) ||
-                     c.Servicio != null && c.Servicio.Nombre.Contains(txt))));
+                     c.Servicio != null && c.Servicio.Nombre.Contains(txt))) ||
+                _context.NotasClinicas.Any(n => n.IdCita != null &&
+                    _context.Citas.Any(c => c.IdCita == n.IdCita && c.IdPaciente == p.IdPaciente) &&
+                    n.Diagnostico != null && n.Diagnostico.Contains(txt)));
         }
 
         if (string.Equals(alergias, "con", StringComparison.OrdinalIgnoreCase))
@@ -1286,6 +1296,7 @@ public class GestionPacientesController : Controller
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "No se pudieron guardar los metadatos del archivo del paciente {PacienteId}.", idPaciente);
             // Si falla la BD, eliminar el archivo ya guardado para no dejar basura
             if (System.IO.File.Exists(rutaFisica))
                 System.IO.File.Delete(rutaFisica);
@@ -1293,8 +1304,7 @@ public class GestionPacientesController : Controller
             return StatusCode(500, new
             {
                 ok      = false,
-                message = "No fue posible guardar el archivo adjunto.",
-                detail  = ex.Message
+                message = "No fue posible guardar el archivo adjunto."
             });
         }
 
@@ -1346,11 +1356,11 @@ public class GestionPacientesController : Controller
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "No se pudo eliminar el archivo adjunto del paciente {PacienteId}.", idPaciente);
             return StatusCode(500, new
             {
                 ok      = false,
-                message = "No fue posible eliminar el archivo adjunto.",
-                detail  = ex.Message
+                message = "No fue posible eliminar el archivo adjunto."
             });
         }
 
@@ -1432,18 +1442,14 @@ public class GestionPacientesController : Controller
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "No se pudo desactivar el paciente {PacienteId}.", idPaciente);
             return StatusCode(
                 StatusCodes.Status500InternalServerError,
                 new
                 {
                     ok = false,
 
-                    message =
-                        "No fue posible desactivar el paciente.",
-
-                    detail =
-                        ex.InnerException?.Message ??
-                        ex.Message
+                    message = "No fue posible desactivar el paciente."
                 });
         }
     }

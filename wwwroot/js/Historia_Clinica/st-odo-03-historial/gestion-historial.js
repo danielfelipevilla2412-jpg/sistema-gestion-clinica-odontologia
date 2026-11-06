@@ -274,6 +274,9 @@ const renderHistorial = (historial, filtro = 'todo') => {
     const verOdontograma = categoria === 'consulta' && h.citaId !== null && h.citaId !== undefined
       ? `<button type="button" class="hist-link snapshot-link" data-snapshot-date="${escaparHtml(String(h.fecha).slice(0, 10))}">Ver odontograma de esa fecha</button>`
       : '';
+    const accionesNota = categoria === 'nota' && h.idNota && h.estado !== 'Anulada'
+      ? `<div class="hist-note-actions"><button type="button" class="hist-note-action" data-note-edit="${Number(h.idNota)}">Editar nota</button><button type="button" class="hist-note-action hist-note-action--danger" data-note-void="${Number(h.idNota)}">Anular</button></div>`
+      : '';
     return `
       <div class="hist-item" role="listitem">
         <div class="hist-bullet" aria-hidden="true">🦷</div>
@@ -286,6 +289,7 @@ const renderHistorial = (historial, filtro = 'todo') => {
           ${desc ? `<div class="hist-desc">${escaparHtml(desc)}</div>` : ''}
           ${enlaceDocumento}
           ${verOdontograma}
+          ${accionesNota}
         </div>
       </div>`;
   }).join('');
@@ -714,6 +718,17 @@ const cargarEvolucionDiente = async numeroFdi => {
 
 const initAccionesOdontogramaHistorial = () => {
   safeGetElement('historialList')?.addEventListener('click', event => {
+    const editButton = event.target.closest('[data-note-edit]');
+    const voidButton = event.target.closest('[data-note-void]');
+    if (editButton) {
+      const nota = lineaDeTiempoActual.find(item => Number(item.idNota) === Number(editButton.dataset.noteEdit));
+      if (nota) abrirEditorNota(nota);
+      return;
+    }
+    if (voidButton) {
+      anularNotaClinica(Number(voidButton.dataset.noteVoid));
+      return;
+    }
     const button = event.target.closest('[data-snapshot-date]');
     if (button) cargarOdontogramaHasta(button.dataset.snapshotDate);
   });
@@ -726,6 +741,91 @@ const initAccionesOdontogramaHistorial = () => {
     if (aviso) aviso.hidden = true;
     safeGetElement('btnVolverHoy').hidden = true;
   });
+};
+
+let notaEditando = null;
+
+const abrirEditorNota = (nota) => {
+  notaEditando = Number(nota.idNota);
+  safeGetElement('editNoteDiagnosis').value = nota.diagnostico || '';
+  safeGetElement('editNoteProcedure').value = nota.procedimiento || '';
+  safeGetElement('editNoteNextAppointment').value = nota.proximaCita || '';
+  safeGetElement('editClinicalNoteDialog')?.showModal();
+};
+
+const actualizarNotaEnMemoria = (notaId, valores, estado = 'Realizado') => {
+  const actualizar = lista => (lista || []).forEach(nota => {
+    if (Number(nota.idNota) !== notaId) return;
+    if (Object.keys(valores).length) {
+      Object.assign(nota, valores, {
+        titulo: valores.procedimiento || valores.diagnostico || 'Nota clínica',
+        descripcion: [valores.diagnostico, valores.procedimiento].filter(Boolean).join(' · ')
+      });
+    }
+    nota.estado = estado;
+  });
+  actualizar(lineaDeTiempoActual);
+  actualizar(window.smiletrackHistoriaData?.lineaDeTiempo);
+  actualizar(window.smiletrackHistoriaData?.notasClinicas);
+};
+
+const initAccionesNotas = () => {
+  const dialog = safeGetElement('editClinicalNoteDialog');
+  const form = safeGetElement('editClinicalNoteForm');
+  const cerrar = () => { if (dialog?.open) dialog.close(); notaEditando = null; };
+  safeGetElement('closeClinicalNoteDialog')?.addEventListener('click', cerrar);
+  safeGetElement('cancelClinicalNoteEdit')?.addEventListener('click', cerrar);
+
+  form?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!notaEditando) return;
+    const data = window.smiletrackHistoriaData || {};
+    const valores = {
+      diagnostico: safeGetElement('editNoteDiagnosis')?.value.trim() || '',
+      procedimiento: safeGetElement('editNoteProcedure')?.value.trim() || '',
+      proximaCita: safeGetElement('editNoteNextAppointment')?.value.trim() || ''
+    };
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+    const saveButton = safeGetElement('saveClinicalNoteEdit');
+    if (saveButton) saveButton.disabled = true;
+    try {
+      const response = await fetch('/historia-clinica/st-odo-03-historial/actualizar-nota', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'X-CSRF-TOKEN': token } : {}) },
+        body: JSON.stringify({ pacienteId: data.pacienteId, notaId: notaEditando, ...valores })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo actualizar la nota.');
+      actualizarNotaEnMemoria(notaEditando, valores);
+      cerrar();
+      renderHistorial(lineaDeTiempoActual);
+      showToast('Nota clínica actualizada.', 'success');
+    } catch (error) {
+      showToast(error.message || 'No se pudo actualizar la nota.', 'error');
+    } finally {
+      if (saveButton) saveButton.disabled = false;
+    }
+  });
+};
+
+const anularNotaClinica = async notaId => {
+  if (!window.confirm('¿Anular esta nota clínica? Se conservará en la historia con estado Anulada.')) return;
+  const data = window.smiletrackHistoriaData || {};
+  const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  try {
+    const response = await fetch('/historia-clinica/st-odo-03-historial/anular-nota', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { 'X-CSRF-TOKEN': token } : {}) },
+      body: JSON.stringify({ pacienteId: data.pacienteId, notaId })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo anular la nota.');
+    actualizarNotaEnMemoria(notaId, {}, 'Anulada');
+    renderHistorial(lineaDeTiempoActual);
+    showToast('Nota clínica anulada.', 'success');
+  } catch (error) {
+    showToast(error.message || 'No se pudo anular la nota.', 'error');
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1127,6 +1227,8 @@ const initForm = () => {
               });
             };
 
+      */
+
 const initFormularioClinico = () => {
   const form = safeGetElement('historia-clinica-form');
   if (!form) return;
@@ -1212,31 +1314,6 @@ const initCamposDinamicosHistoria = () => {
     if (isOther) diagnosisInput?.focus();
     else if (diagnosisInput) diagnosisInput.value = '';
   });
-};
-
-const agregarSintomaSigno = (texto) => {
-  const valor = String(texto || '').trim();
-  const grid = document.getElementById('sintomasSignosGrid');
-  if (!valor || !grid) return null;
-
-  const existente = Array.from(grid.querySelectorAll('input[type="checkbox"]'))
-    .find(input => input.value.trim().toLocaleLowerCase() === valor.toLocaleLowerCase());
-  if (existente) {
-    existente.checked = true;
-    return existente;
-  }
-
-  const label = document.createElement('label');
-  label.className = 'check-option';
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.value = valor;
-  checkbox.checked = true;
-  const span = document.createElement('span');
-  span.textContent = valor;
-  label.append(checkbox, span);
-  grid.appendChild(label);
-  return checkbox;
 };
 
 const initAdjuntosClinicos = () => {
@@ -1403,6 +1480,7 @@ const init = async () => {
   //  — Registrar los filtros antes de renderizar los datos clínicos.
   initFiltrosLineaDeTiempo();
   initAccionesOdontogramaHistorial();
+  initAccionesNotas();
   initFinalizarConsulta();
   
   // Cargar datos desde localStorage

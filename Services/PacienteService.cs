@@ -54,7 +54,10 @@ public sealed class PacienteService : IPacienteService
                 query = query.Where(p =>
                     p.Nombres.Contains(texto) ||
                     p.Apellidos.Contains(texto) ||
-                    p.Documento.Contains(texto));
+                    p.Documento.Contains(texto) ||
+                    _context.NotasClinicas.Any(n => n.IdCita != null &&
+                        _context.Citas.Any(c => c.IdCita == n.IdCita && c.IdPaciente == p.IdPaciente) &&
+                        n.Diagnostico != null && n.Diagnostico.Contains(texto)));
             }
 
             int totalRecords = await query.CountAsync(ct);

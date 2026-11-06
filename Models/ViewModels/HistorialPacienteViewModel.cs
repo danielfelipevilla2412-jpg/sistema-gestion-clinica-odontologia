@@ -94,11 +94,14 @@ public class PacienteResumenClinicoViewModel
 public class EventoHistoriaClinicaItem
 {
     public int? CitaId { get; set; }
+    public int? NotaId { get; set; }
     public DateTime Fecha { get; set; }
     /// <summary>consulta, nota, odontograma, control o documento.</summary>
     public string Categoria { get; set; } = "consulta";
     public string Titulo { get; set; } = "";
     public string Descripcion { get; set; } = "";
+    public string Diagnostico { get; set; } = "";
+    public string Procedimiento { get; set; } = "";
     public string Profesional { get; set; } = "";
     public string Estado { get; set; } = "";
     public string? EnlaceDocumento { get; set; }
@@ -119,6 +122,7 @@ public class RegistroHistorialItem
 //   { titulo, fecha, doctor, diagnostico, procedimiento, proximaCita, estado }
 public class NotaClinicaHistorialItem
 {
+    public int IdNota { get; set; }
     public int? CitaId { get; set; }
     /// <summary>Título visible en la lista (procedimiento o diagnóstico).</summary>
     public string Titulo { get; set; } = string.Empty;

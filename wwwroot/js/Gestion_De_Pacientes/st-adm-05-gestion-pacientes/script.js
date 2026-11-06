@@ -856,14 +856,16 @@ const openPatientModal = (id, type) => {
         <div class="form-section-title">Información de Salud</div>
 
         <div class="form-group">
-          <label class="form-label" for="editAlergias">Alergias Conocidas</label>
-          <input
-            type="text"
-            id="editAlergias"
-            class="form-input"
-            placeholder="Ej. Penicilina, Látex..."
-            value="${escapeHtml(patient.AlergiasTexto)}"
-          />
+          <label class="form-label" for="editAllergyInput">Alergias conocidas</label>
+          <div class="allergy-editor">
+            <div class="allergy-chip-list" id="editAllergyChips" aria-live="polite"></div>
+            <div class="allergy-entry">
+              <input type="text" id="editAllergyInput" class="form-input" maxlength="150" placeholder="Ej. Penicilina" />
+              <button type="button" class="btn-secondary" id="addPatientAllergy">Agregar</button>
+            </div>
+            <input type="hidden" id="editAlergias" value="${escapeHtml(patient.AlergiasTexto)}" />
+            <span class="error-message" id="editAllergyError" role="alert" hidden></span>
+          </div>
         </div>
 
         <div class="form-group form-group--full">
@@ -883,6 +885,70 @@ const openPatientModal = (id, type) => {
 
       </form>
     `;
+
+    const allergyValues = [...new Set((Array.isArray(patient.Allergies)
+      ? patient.Allergies
+      : (patient.AlergiasTexto || '').split(','))
+      .map(value => String(value).trim())
+      .filter(Boolean))];
+    const allergyInput = safeGetElement('editAllergyInput');
+    const allergyChips = safeGetElement('editAllergyChips');
+    const allergyHidden = safeGetElement('editAlergias');
+    const allergyError = safeGetElement('editAllergyError');
+
+    const renderAllergies = () => {
+      if (!allergyChips || !allergyHidden) return;
+      allergyChips.replaceChildren();
+      allergyValues.forEach((value, index) => {
+        const chip = document.createElement('span');
+        chip.className = 'allergy-chip';
+        const label = document.createElement('span');
+        label.textContent = value;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'allergy-chip-remove';
+        remove.setAttribute('aria-label', `Quitar alergia ${value}`);
+        remove.textContent = '×';
+        remove.addEventListener('click', () => {
+          allergyValues.splice(index, 1);
+          renderAllergies();
+        });
+        chip.append(label, remove);
+        allergyChips.append(chip);
+      });
+      allergyHidden.value = allergyValues.join(', ');
+    };
+
+    const addAllergy = () => {
+      const value = allergyInput?.value.trim() || '';
+      if (allergyError) {
+        allergyError.hidden = true;
+        allergyError.textContent = '';
+      }
+      if (!value) return;
+      if (value.length > 150) {
+        if (allergyError) {
+          allergyError.textContent = 'Cada alergia debe tener como máximo 150 caracteres.';
+          allergyError.hidden = false;
+        }
+        return;
+      }
+      if (!allergyValues.some(existing => existing.toLocaleLowerCase() === value.toLocaleLowerCase())) {
+        allergyValues.push(value);
+        renderAllergies();
+      }
+      if (allergyInput) allergyInput.value = '';
+      allergyInput?.focus();
+    };
+
+    safeGetElement('addPatientAllergy')?.addEventListener('click', addAllergy);
+    allergyInput?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        addAllergy();
+      }
+    });
+    renderAllergies();
 
     const editForm =
       safeGetElement('editPatientForm');

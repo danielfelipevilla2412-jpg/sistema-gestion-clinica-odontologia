@@ -69,7 +69,25 @@ builder.Configuration
     .AddEnvironmentVariables()
     .AddCommandLine(args);
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        var defaultFactory = options.InvalidModelStateResponseFactory;
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            if (context.ActionDescriptor.RouteValues.TryGetValue("controller", out var controller) &&
+                string.Equals(controller, "GestionPacientesApi", StringComparison.OrdinalIgnoreCase))
+            {
+                return new Microsoft.AspNetCore.Mvc.UnprocessableEntityObjectResult(
+                    new Microsoft.AspNetCore.Mvc.ValidationProblemDetails(context.ModelState)
+                    {
+                        Status = StatusCodes.Status422UnprocessableEntity
+                    });
+            }
+
+            return defaultFactory(context);
+        };
+    });
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();

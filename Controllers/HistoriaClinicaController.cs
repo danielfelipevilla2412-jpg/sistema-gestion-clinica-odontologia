@@ -36,8 +36,10 @@ public class HistoriaClinicaController(
     [HttpGet]
     [Authorize(Roles = "Administrador")]
     [Route("historia-clinica/st-adm-historial/data")]
-    public async Task<IActionResult> StadmHistorialData()
-        => Json(await BuildPacientesHistorialAsync(idProfesionalFiltro: null));
+    public async Task<IActionResult> StadmHistorialData([FromQuery] int page = 1, [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null, [FromQuery] string? odontologo = null,
+        [FromQuery] string? alerta = null, [FromQuery] string? estado = null)
+        => Json(await BuildPacientesHistorialAsync(null, page, pageSize, search, estado, alerta, odontologo: odontologo));
 
     [HttpGet]
     [Authorize(Roles = "Auxiliar")]
@@ -274,6 +276,7 @@ public class HistoriaClinicaController(
             "Examen de coagulación",
             "Consentimiento informado",
             "Historia clínica",
+            "Estudio clínico",
             "Otro"
         ];
         string tipoNormalizado = tipo?.Trim() ?? "";
@@ -881,6 +884,7 @@ public class HistoriaClinicaController(
             nota = new
             {
                 titulo = nota.Procedimiento ?? nota.Diagnostico ?? "Nota clínica",
+                idNota = nota.IdNota,
                 fecha = nota.Fecha.ToString("yyyy-MM-dd"),
                 doctor = nota.Doctor,
                 diagnostico = nota.Diagnostico ?? "",
@@ -890,6 +894,70 @@ public class HistoriaClinicaController(
                 estado = nota.Estado
             }
         });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/actualizar-nota")]
+    public async Task<IActionResult> ActualizarNotaClinica([FromBody] NotaClinicaActualizarRequest request)
+    {
+        if (request is null || request.PacienteId <= 0 || request.NotaId <= 0)
+            return BadRequest(new { success = false, message = "La nota y el paciente son obligatorios." });
+
+        if (!await PuedeProfesionalAccederAPacienteAsync(request.PacienteId))
+            return Forbid();
+
+        if (request.Diagnostico?.Length > 500 || request.Procedimiento?.Length > 500 || request.ProximaCita?.Length > 50)
+            return BadRequest(new { success = false, message = "La nota supera la longitud permitida." });
+
+        var historia = await _context.HistoriasClinicas.AsNoTracking()
+            .FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId && h.Activa);
+        if (historia is null)
+            return NotFound(new { success = false, message = "No existe una historia clínica activa." });
+
+        var nota = await _context.NotasClinicas.FirstOrDefaultAsync(n =>
+            n.IdNota == request.NotaId && n.IdHistoria == historia.IdHistoria);
+        if (nota is null)
+            return NotFound(new { success = false, message = "La nota clínica no existe." });
+        if (nota.Estado is "Preparación" or "Anulada")
+            return Conflict(new { success = false, message = "Esta nota no se puede editar." });
+
+        nota.Diagnostico = string.IsNullOrWhiteSpace(request.Diagnostico) ? null : request.Diagnostico.Trim();
+        nota.Procedimiento = string.IsNullOrWhiteSpace(request.Procedimiento) ? null : request.Procedimiento.Trim();
+        nota.ProximaCita = string.IsNullOrWhiteSpace(request.ProximaCita) ? null : request.ProximaCita.Trim();
+        await _context.SaveChangesAsync();
+
+        return Ok(new { success = true, message = "Nota clínica actualizada correctamente." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/anular-nota")]
+    public async Task<IActionResult> AnularNotaClinica([FromBody] NotaClinicaActualizarRequest request)
+    {
+        if (request is null || request.PacienteId <= 0 || request.NotaId <= 0)
+            return BadRequest(new { success = false, message = "La nota y el paciente son obligatorios." });
+
+        if (!await PuedeProfesionalAccederAPacienteAsync(request.PacienteId))
+            return Forbid();
+
+        var historia = await _context.HistoriasClinicas.AsNoTracking()
+            .FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId && h.Activa);
+        if (historia is null)
+            return NotFound(new { success = false, message = "No existe una historia clínica activa." });
+
+        var nota = await _context.NotasClinicas.FirstOrDefaultAsync(n =>
+            n.IdNota == request.NotaId && n.IdHistoria == historia.IdHistoria);
+        if (nota is null)
+            return NotFound(new { success = false, message = "La nota clínica no existe." });
+        if (nota.Estado is "Preparación" or "Anulada")
+            return Conflict(new { success = false, message = "Esta nota no se puede anular." });
+
+        nota.Estado = "Anulada";
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, message = "Nota clínica anulada." });
     }
 
     [HttpPost]
@@ -986,10 +1054,12 @@ public class HistoriaClinicaController(
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("historia-clinica/st-odo-06-pacientes/data")]
-    public async Task<IActionResult> Stodo06PacientesData()
+    public async Task<IActionResult> Stodo06PacientesData([FromQuery] int page = 1, [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null, [FromQuery] string? estado = null,
+        [FromQuery] string? alergias = null, [FromQuery] string? cita = null, [FromQuery] string? servicio = null)
     {
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
-        return Json(await BuildPacientesHistorialAsync(idProfesionalFiltro: idProfesional));
+        return Json(await BuildPacientesHistorialAsync(idProfesional, page, pageSize, search, estado, alergias, cita, servicio));
     }
 
     [HttpGet]
@@ -1142,8 +1212,10 @@ public class HistoriaClinicaController(
     [HttpGet]
     [Authorize(Roles = "Recepcionista")]
     [Route("historia-clinica/st-rec-historial/data")]
-    public async Task<IActionResult> StrecHistorialData()
-        => Json(await BuildPacientesHistorialAsync(idProfesionalFiltro: null));
+    public async Task<IActionResult> StrecHistorialData([FromQuery] int page = 1, [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null, [FromQuery] string? odontologo = null,
+        [FromQuery] string? alerta = null, [FromQuery] string? estado = null)
+        => Json(await BuildPacientesHistorialAsync(null, page, pageSize, search, estado, alerta, odontologo: odontologo));
 
     [HttpGet]
 [Authorize(Roles = "Paciente")]
@@ -1301,6 +1373,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
             .OrderByDescending(n => n.Fecha)
             .Select(n => new NotaClinicaHistorialItem
             {
+                IdNota       = n.IdNota,
                 CitaId = n.IdCita,
                 Titulo       = n.Procedimiento ?? n.Diagnostico ?? "Nota clínica",
                 Fecha        = n.Fecha.ToString("yyyy-MM-dd"),
@@ -1319,11 +1392,14 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
         // o el estado de una pieza dental.
         vm.LineaDeTiempo.AddRange(vm.NotasClinicas.Select(n => new EventoHistoriaClinicaItem
         {
+            NotaId = n.IdNota,
             CitaId = n.CitaId,
             Fecha = DateTime.TryParse(n.Fecha, out var fechaNota) ? fechaNota : DateTime.MinValue,
             Categoria = "nota",
             Titulo = n.Titulo,
             Descripcion = string.Join(" · ", new[] { n.Diagnostico, n.Procedimiento }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            Diagnostico = n.Diagnostico,
+            Procedimiento = n.Procedimiento,
             Profesional = n.Doctor,
             Estado = n.Estado
         }));
@@ -1583,32 +1659,124 @@ private static string InferirTipoServicio(string? nombreServicio)
     /// existe una tabla que respalde esos datos en el esquema actual (ver notas en los
     /// endpoints de seguimiento-tratamiento y documentos-clinicos).
     /// </summary>
-    private async Task<object> BuildPacientesHistorialAsync(int? idProfesionalFiltro)
+    private async Task<object> BuildPacientesHistorialAsync(
+        int? idProfesionalFiltro,
+        int page = 1,
+        int pageSize = 10,
+        string? search = null,
+        string? estado = null,
+        string? alerta = null,
+        string? cita = null,
+        string? servicio = null,
+        string? odontologo = null)
     {
-        var citasQuery = _context.Citas
-            .Include(c => c.Profesional)
-            .Include(c => c.Servicio)
-            .AsQueryable();
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 5, 100);
+        var ahora = DateTime.Now;
+        var pacientesQuery = _context.Pacientes.AsNoTracking().AsQueryable();
 
-        if (idProfesionalFiltro is not null)
-            citasQuery = citasQuery.Where(c => c.IdProfesional == idProfesionalFiltro);
-
-        var citas = await citasQuery.OrderByDescending(c => c.FechaHora).ToListAsync();
-        var idsPacientesConCita = citas.Select(c => c.IdPaciente).ToHashSet();
-
-        var pacientesQuery = _context.Pacientes.AsQueryable();
         if (idProfesionalFiltro is not null)
         {
             pacientesQuery = pacientesQuery.Where(p =>
-                idsPacientesConCita.Contains(p.IdPaciente)
+                _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.IdProfesional == idProfesionalFiltro)
                 || p.IdProfesionalAsignado == idProfesionalFiltro);
         }
 
-        var pacientes = await pacientesQuery.OrderBy(p => p.Nombres).ToListAsync();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var texto = search.Trim();
+            pacientesQuery = pacientesQuery.Where(p =>
+                p.Nombres.Contains(texto) || p.Apellidos.Contains(texto) || p.Documento.Contains(texto) ||
+                (p.Correo != null && p.Correo.Contains(texto)) ||
+                _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                    ((c.Notas != null && c.Notas.Contains(texto)) ||
+                     (c.Servicio != null && c.Servicio.Nombre.Contains(texto)))) ||
+                _context.NotasClinicas.Any(n => n.Diagnostico != null && n.Diagnostico.Contains(texto) &&
+                    _context.HistoriasClinicas.Any(h => h.IdHistoria == n.IdHistoria && h.IdPaciente == p.IdPaciente)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(estado))
+        {
+            var estadoNormalizado = estado.Trim().ToLowerInvariant();
+            if (estadoNormalizado == "alta")
+                pacientesQuery = pacientesQuery.Where(p => p.Estado == "inactivo" || p.Estado == "retirado");
+            else if (estadoNormalizado == "seguimiento")
+                pacientesQuery = pacientesQuery.Where(p => p.Estado == "activo" &&
+                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora &&
+                        (c.Estado == "Atendida" || c.Estado == "atendida" || c.Estado == "Completada")) &&
+                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
+                        c.Estado != "Cancelada" && c.Estado != "cancelada"));
+            else if (estadoNormalizado is "activo" or "inactivo" or "retirado")
+                pacientesQuery = pacientesQuery.Where(p => p.Estado == estadoNormalizado);
+        }
+
+        if (string.Equals(alerta, "si", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(alerta, "con", StringComparison.OrdinalIgnoreCase))
+            pacientesQuery = pacientesQuery.Where(p => p.Alergias != null && p.Alergias != "");
+        else if (string.Equals(alerta, "no", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(alerta, "sin", StringComparison.OrdinalIgnoreCase))
+            pacientesQuery = pacientesQuery.Where(p => p.Alergias == null || p.Alergias == "");
+
+        if (string.Equals(cita, "con", StringComparison.OrdinalIgnoreCase))
+            pacientesQuery = pacientesQuery.Where(p => _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                c.FechaHora > ahora && c.Estado != "Cancelada" && c.Estado != "cancelada"));
+        else if (string.Equals(cita, "sin", StringComparison.OrdinalIgnoreCase))
+            pacientesQuery = pacientesQuery.Where(p => !_context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                c.FechaHora > ahora && c.Estado != "Cancelada" && c.Estado != "cancelada"));
+
+        if (!string.IsNullOrWhiteSpace(servicio))
+            pacientesQuery = pacientesQuery.Where(p => _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                c.Servicio != null && c.Servicio.Nombre == servicio));
+
+        if (!string.IsNullOrWhiteSpace(odontologo))
+        {
+            var profesionales = await _context.Profesionales.AsNoTracking()
+                .Select(p => new { p.IdProfesional, p.Nombres, p.Apellidos })
+                .ToListAsync();
+            var idsProfesionales = profesionales
+                .Where(p => Slug($"{p.Nombres}{p.Apellidos}") == odontologo)
+                .Select(p => p.IdProfesional)
+                .ToArray();
+            pacientesQuery = pacientesQuery.Where(p => _context.Citas.Any(c =>
+                c.IdPaciente == p.IdPaciente && idsProfesionales.Contains(c.IdProfesional ?? 0)));
+        }
+
+        int total = await pacientesQuery.CountAsync();
+        var pacientes = await pacientesQuery.OrderBy(p => p.Nombres).ThenBy(p => p.Apellidos)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        var idsPagina = pacientes.Select(p => p.IdPaciente).ToArray();
+        var citas = await _context.Citas.AsNoTracking()
+            .Include(c => c.Profesional).Include(c => c.Servicio)
+            .Where(c => idsPagina.Contains(c.IdPaciente) &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro))
+            .OrderByDescending(c => c.FechaHora).ToListAsync();
+        var historiasPagina = await _context.HistoriasClinicas.AsNoTracking()
+            .Where(h => idsPagina.Contains(h.IdPaciente))
+            .Select(h => new { h.IdPaciente, h.IdHistoria })
+            .ToListAsync();
+        var historiaPorPaciente = historiasPagina.ToDictionary(h => h.IdPaciente, h => h.IdHistoria);
+        var idsHistoriasPagina = historiasPagina.Select(h => h.IdHistoria).ToArray();
+        var documentosPagina = await _context.DocumentosClinicos.AsNoTracking()
+            .Where(d => idsHistoriasPagina.Contains(d.IdHistoria))
+            .OrderByDescending(d => d.FechaSubida)
+            .Select(d => new
+            {
+                d.IdHistoria,
+                nombre = d.NombreOriginal,
+                tipo = System.IO.Path.GetExtension(d.NombreOriginal).TrimStart('.').ToLower(),
+                fecha = d.FechaDocumento.HasValue
+                    ? d.FechaDocumento.Value.ToString("yyyy-MM-dd")
+                    : d.FechaSubida.ToString("yyyy-MM-dd")
+            })
+            .ToListAsync();
 
         var resultado = pacientes.Select(p =>
         {
             var citasPaciente = citas.Where(c => c.IdPaciente == p.IdPaciente).ToList();
+            bool tieneConsultaAtendida = citasPaciente.Any(c => c.FechaHora <= DateTime.Now &&
+                (c.Estado == "Atendida" || c.Estado == "atendida" || c.Estado == "Completada"));
+            bool tieneCitaFutura = citasPaciente.Any(c => c.FechaHora > DateTime.Now &&
+                c.Estado != "Cancelada" && c.Estado != "cancelada");
             var ultima = citasPaciente.FirstOrDefault();
             string odontologo = ultima?.Profesional is not null
                 ? $"Dr(a). {ultima.Profesional.Nombres} {ultima.Profesional.Apellidos}"
@@ -1627,6 +1795,7 @@ private static string InferirTipoServicio(string? nombreServicio)
                 odontologoKey = ultima?.Profesional is not null ? Slug($"{ultima.Profesional.Nombres}{ultima.Profesional.Apellidos}") : "",
                 ultimaConsulta = ultima?.FechaHora,
                 estado = string.IsNullOrWhiteSpace(p.Estado) ? "activo" : p.Estado,
+                enSeguimiento = tieneConsultaAtendida && tieneCitaFutura,
                 alerta = tieneAlerta,
                 alertaTexto = tieneAlerta ? p.Alergias : "",
                 consultas = citasPaciente.Select(c => new
@@ -1637,10 +1806,64 @@ private static string InferirTipoServicio(string? nombreServicio)
                     nota = c.Notas ?? ""
                 }),
                 tratamientos = Array.Empty<object>(),
-                documentos = Array.Empty<object>()
+                documentos = historiaPorPaciente.TryGetValue(p.IdPaciente, out var historiaPaginaId)
+                    ? documentosPagina.Where(d => d.IdHistoria == historiaPaginaId)
+                        .Select(d => new { d.nombre, d.tipo, d.fecha }).ToList()
+                    : []
             };
         }).ToList();
 
-        return resultado;
+        var odontologos = await _context.Profesionales.AsNoTracking()
+            .Select(p => new { p.Nombres, p.Apellidos })
+            .ToListAsync();
+        var serviciosDisponibles = await _context.Servicios.AsNoTracking()
+            .Select(s => s.Nombre)
+            .Distinct()
+            .OrderBy(nombre => nombre)
+            .ToListAsync();
+        var universoPacientes = _context.Pacientes.AsNoTracking().AsQueryable();
+        if (idProfesionalFiltro is not null)
+        {
+            universoPacientes = universoPacientes.Where(p =>
+                _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.IdProfesional == idProfesionalFiltro)
+                || p.IdProfesionalAsignado == idProfesionalFiltro);
+        }
+
+        var inicioHoy = DateTime.Today;
+        var inicioManana = inicioHoy.AddDays(1);
+        var citasHoyQuery = _context.Citas.Where(c => c.FechaHora >= inicioHoy && c.FechaHora < inicioManana);
+        if (idProfesionalFiltro is not null)
+            citasHoyQuery = citasHoyQuery.Where(c => c.IdProfesional == idProfesionalFiltro);
+
+        int pacientesEnSeguimiento = await universoPacientes.CountAsync(p => p.Estado == "activo" &&
+            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora &&
+                (c.Estado == "Atendida" || c.Estado == "atendida" || c.Estado == "Completada")) &&
+            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
+                c.Estado != "Cancelada" && c.Estado != "cancelada"));
+        var estadisticas = new
+        {
+            total = await universoPacientes.CountAsync(),
+            hoy = await citasHoyQuery.Select(c => c.IdPaciente).Distinct().CountAsync(),
+            alertas = await universoPacientes.CountAsync(p => p.Alergias != null && p.Alergias != ""),
+            odontologos = await _context.Profesionales.CountAsync(p => p.Estado == "activo"),
+            activos = await universoPacientes.CountAsync(p => p.Estado == "activo"),
+            seguimiento = pacientesEnSeguimiento,
+            altas = await universoPacientes.CountAsync(p => p.Estado == "inactivo" || p.Estado == "retirado")
+        };
+
+        return new
+        {
+            items = resultado,
+            page,
+            pageSize,
+            total,
+            totalPages = (int)Math.Ceiling((double)total / pageSize),
+            stats = estadisticas,
+            servicios = serviciosDisponibles,
+            odontologos = odontologos
+                .Select(p => new { key = Slug($"{p.Nombres}{p.Apellidos}"), nombre = $"Dr(a). {p.Nombres} {p.Apellidos}" })
+                .OrderBy(p => p.nombre)
+                .ToList()
+        };
     }
 }
