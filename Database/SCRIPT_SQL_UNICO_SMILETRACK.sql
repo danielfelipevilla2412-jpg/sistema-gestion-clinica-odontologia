@@ -783,30 +783,6 @@ BEGIN
 END
 GO
 
-INSERT INTO dbo.Pago_Factura
-    (id_factura, monto, metodo_pago, estado, referencia, registrado_por, fecha_utc)
-SELECT
-    f.id_factura,
-    f.monto_pagado - COALESCE(pagos.total, 0),
-    COALESCE(f.fecha_pago, f.fecha_factura),
-    'efectivo',
-    CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura)),
-    f.generada_por,
-    'Saldo histórico migrado desde Factura.'
-FROM dbo.Factura f
-OUTER APPLY (
-    SELECT SUM(p.monto) AS total
-    FROM dbo.Pago p
-    WHERE p.id_factura = f.id_factura
-) pagos
-WHERE f.monto_pagado > COALESCE(pagos.total, 0)
-  AND NOT EXISTS (
-      SELECT 1
-      FROM dbo.Pago p
-      WHERE p.referencia = CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura))
-  );
-GO
-
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Ticket_Soporte') AND type = N'U')
 BEGIN
     CREATE TABLE Ticket_Soporte (
