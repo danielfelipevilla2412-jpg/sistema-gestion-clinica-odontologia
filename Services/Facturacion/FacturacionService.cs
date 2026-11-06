@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Api.Facturacion;
@@ -190,13 +191,14 @@ public sealed class FacturacionService : IFacturacionService
             FechaPago = fechaPago,
             Detalles = detalles
         };
-        invoice.Pagos.Add(new Pago
+        invoice.Pagos.Add(new PagoFactura
         {
             Monto = request.MontoPagado,
             MetodoPago = "efectivo",
+            Estado = "aprobado",
             Referencia = $"CAJ-{Guid.NewGuid():N}"[..36],
             RegistradoPor = idUsuario,
-            FechaPago = fechaPago
+            FechaUtc = DateTime.UtcNow
         });
 
         var transaction = _db.Database.IsRelational()
@@ -289,11 +291,11 @@ public sealed class FacturacionService : IFacturacionService
             : null;
         try
         {
-            _db.Pagos.Add(pago);
-            f.MontoPagado += request.MontoPagado; f.FechaPago = pago.FechaPago; f.Estado = f.MontoPagado >= f.Total ? "pagada" : "parcial";
-            AgregarNotificacion(f.IdPaciente, f.IdCita, f.Estado == "pagada" ? "Factura pagada" : "Pago registrado", $"Se registró un pago de {request.MontoPagado:C} para la factura {f.NumeroFactura}.");
-            await _db.SaveChangesAsync(ct);
-            AgregarAuditoria(idUsuario, f.IdFactura, "UPDATE", null, $"Pago registrado para factura {f.NumeroFactura}: {request.MontoPagado:C}.");
+            _db.PagosFacturas.Add(pago);
+            f.MontoPagado += request.MontoPagado;
+            f.FechaPago = pago.FechaUtc.ToLocalTime();
+            f.Estado = f.MontoPagado >= f.Total ? "pagada" : "parcial";
+            AgregarAuditoria(idUsuario, f.IdFactura, "UPDATE", null, $"Pago de {request.MontoPagado:C} registrado para la factura {f.NumeroFactura}.");
             await _db.SaveChangesAsync(ct);
             if (transaction is not null)
                 await transaction.CommitAsync(ct);
@@ -321,8 +323,7 @@ public sealed class FacturacionService : IFacturacionService
     private static string FormatoMonto(decimal monto) =>
         monto.ToString("C0", System.Globalization.CultureInfo.GetCultureInfo("es-CO"));
     private void AgregarNotificacion(int idPaciente, int? idCita, string titulo, string contenido)
-    {
-        _db.Notificaciones.Add(new Notificacion
+        => _db.Notificaciones.Add(new Notificacion
         {
             IdPaciente = idPaciente,
             IdCita = idCita,
@@ -331,20 +332,19 @@ public sealed class FacturacionService : IFacturacionService
             Contenido = contenido,
             Canal = "interno",
             Estado = "pendiente",
-            CreadaEn = DateTime.Now
+            FechaProgramada = DateTime.UtcNow,
+            CreadaEn = DateTime.UtcNow
         });
-    }
-    private void AgregarAuditoria(int idUsuario, int idRegistro, string accion, string? datosAnteriores, string descripcion)
-    {
-        _db.Auditorias.Add(new Auditoria
+    private void AgregarAuditoria(int idUsuario, int idFactura, string accion, string? datosAnteriores, string? descripcion)
+        => _db.Auditorias.Add(new Auditoria
         {
             IdUsuario = idUsuario,
             TablaAfectada = "Factura",
-            IdRegistro = idRegistro,
+            IdRegistro = idFactura,
             Accion = accion,
             DatosAnteriores = datosAnteriores,
             Descripcion = descripcion,
-            Fecha = DateTime.Now
+            Fecha = DateTime.UtcNow
         });
     }
     private async Task<string> NuevoNumeroAsync(CancellationToken ct) { var year = DateTime.Now.Year; var n = await _db.Facturas.CountAsync(x => x.FechaFactura.Year == year, ct) + 1; string v; do { v = $"FAC-{year}-{n:D5}"; n++; } while (await _db.Facturas.AnyAsync(x => x.NumeroFactura == v, ct)); return v; }

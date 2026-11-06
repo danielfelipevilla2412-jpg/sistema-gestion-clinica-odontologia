@@ -170,13 +170,10 @@
                         </div>
                     </div>
                 </div>
-                @if (!pacienteSeleccionado)
-                {
-                    <div class="patient-summary-actions">
-                        <button type="button" class="soft-btn subtle">Buscar paciente</button>
-                        <button type="button" class="mini-btn">Nueva historia</button>
-                    </div>
-                }
+                <div class="patient-summary-actions">
+                    <button type="button" class="soft-btn subtle">Buscar paciente</button>
+                    <button type="button" class="mini-btn">Nueva historia</button>
+                </div>
             </div>
         </section>
 
@@ -314,6 +311,10 @@
                             <label for="diagnostico_principal">Diagnóstico Principal (CIE-10) <span class="required-mark">*</span></label>
                             <select id="diagnostico_principal">
                                 <option value="">Seleccione un diagnóstico</option>
+                                <option value="K02.1 - Caries de la dentina">K02.1 - Caries de la dentina</option>
+                                <option value="K04.4 - Periodontitis apical">K04.4 - Periodontitis apical</option>
+                                <option value="K05.1 - Gingivitis marginal">K05.1 - Gingivitis marginal</option>
+                                <option value="__otro__">Otro</option>
                                 <option value="K02.1 - Caries de la dentina">K02.1 - Caries de la dentina</option>
                                 <option value="K04.4 - Periodontitis apical">K04.4 - Periodontitis apical</option>
                                 <option value="K05.1 - Gingivitis marginal">K05.1 - Gingivitis marginal</option>
