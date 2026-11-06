@@ -695,6 +695,7 @@ img {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
     z-index: 400;
     align-items: center;
     justify-content: center;
@@ -717,6 +718,7 @@ img {
     animation: fadeIn 0.2s ease;
     max-height: calc(100vh - 32px);
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 body.modal-open {
@@ -762,8 +764,27 @@ body.modal-open {
     color: var(--primary);
 }
 
-.modal-content {
+.appointment-detail-content {
+    display: flex;
+    flex-direction: column;
     margin-bottom: 20px;
+}
+
+.appointment-detail-content p {
+    display: grid;
+    grid-template-columns: minmax(130px, auto) 1fr;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.45;
+}
+
+.appointment-detail-content p:last-child {
+    border-bottom: 0;
+}
+
+.appointment-detail-content strong {
+    color: var(--text-muted);
 }
 
 .modal-footer {

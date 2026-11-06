@@ -240,7 +240,7 @@
             <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
         <h2 class="modal-title" id="modalApptTitle" data-i18n="adm08_modal_appt_title">Detalle de Cita</h2>
-        <div class="modal-content" id="modalApptContent" aria-live="polite"></div>
+        <div class="appointment-detail-content" id="modalApptContent" aria-live="polite"></div>
         <div class="modal-footer">
             <button type="button" class="btn-secondary" id="modalApptCancel" data-i18n="form.close">Cerrar</button>
             <button type="button" class="btn-secondary btn-danger" id="modalApptCancelar" data-i18n="citas.cancel">Cancelar Cita</button>
@@ -258,7 +258,7 @@
             <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
         <h2 class="modal-title" id="modalNewApptTitle" data-i18n="adm08_modal_newappt_title">Agendar Nueva Cita</h2>
-        <div class="modal-content">
+        <div class="appointment-form-content">
             <form id="formNewAppointment">
                 @Html.AntiForgeryToken()
                 <input type="hidden" id="appointmentId" name="IdCita" value="" />

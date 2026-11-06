@@ -141,7 +141,7 @@ const canChangeStatusByDate = (appointmentDate, targetStatus) => {
   const todayDate = new Date();
   todayDate.setHours(0, 0, 0, 0);
 
-  return scheduledDate >= todayDate;
+  return scheduledDate <= todayDate;
 };
 
 // ===================================================================
@@ -159,16 +159,15 @@ const changeAppointmentStatusApi = async (appointmentId, newStatus, onSuccessCal
 
   try {
     if (window.apiRequest) {
-      const formDataPayload = new FormData();
-      formDataPayload.append('IdCita', appointmentId);
-      formDataPayload.append('Estado', newStatus);
-
-      await window.apiRequest('/gestion-de-citas/cambiar-estado', {
-        method: 'POST',
-        body: formDataPayload
+      const result = await window.apiRequest(`/api/citas/${encodeURIComponent(appointmentId)}/estado`, {
+        method: 'PUT',
+        body: { estado: newStatus }
       });
+      if (!result?.success) {
+        throw new Error(result?.message || 'No se pudo actualizar el estado de la cita.');
+      }
 
-      showToastNotification(`✅ Cita actualizada a '${newStatus}' correctamente.`, 'success');
+      showToastNotification(result.message || `Cita actualizada a '${newStatus}' correctamente.`, 'success');
       if (onSuccessCallback) onSuccessCallback();
     } else {
       const formElement = document.createElement('form');
@@ -207,7 +206,7 @@ const changeAppointmentStatusApi = async (appointmentId, newStatus, onSuccessCal
     }
   } catch (error) {
     console.error('Error al cambiar estado:', error);
-    showToastNotification('❌ Ocurrió un error al actualizar el estado de la cita.', 'error');
+    showToastNotification(error.message || 'Ocurrió un error al actualizar el estado de la cita.', 'error');
   }
 };
 
@@ -277,7 +276,7 @@ const buildProfessionalDetailBlock = (doctorDetails) => {
   if (doctorDetails.userStatus) extraInfoLines.push(`<div><strong>Estado cuenta:</strong> ${escapeHtml(doctorDetails.userStatus)}</div>`);
 
   return (doctorDetails.name || extraInfoLines.length > 0)
-    ? `<div style="padding:10px; background:var(--bg); border-radius:var(--radius-sm); font-size:0.85rem;">
+    ? `<div class="appointment-professional-details">
            ${doctorDetails.name ? `<div><strong>Profesional:</strong> ${escapeHtml(doctorDetails.name)}</div>` : ''}
            ${extraInfoLines.join('')}
        </div>`
@@ -293,22 +292,22 @@ const renderAppointmentModalContent = (modalContentElement, appointmentData) => 
   const doctorBlockHtml = buildProfessionalDetailBlock(appointmentData.doctorInfo);
 
   modalContentElement.innerHTML = `
-    <div style="display:flex; flex-direction:column; gap:12px;">
-        <div style="background:var(--primary-light); padding:12px; border-radius:var(--radius-sm);">
-            <h3 style="font-size:1.1rem; color:var(--primary-dark); margin:0;">${escapeHtml(appointmentData.patientName)}</h3>
-            <p style="font-size:0.82rem; color:var(--text-muted); margin-top:2px;">
+    <div class="appointment-detail-layout">
+        <div class="appointment-detail-summary">
+            <h3>${escapeHtml(appointmentData.patientName)}</h3>
+            <p>
                 ${appointmentData.patientId ? `<strong>ID:</strong> ${escapeHtml(appointmentData.patientId)} · ` : ''}📅 ${escapeHtml(appointmentData.dateStr)} | ⏰ ${escapeHtml(appointmentData.startTime)} - ${escapeHtml(appointmentData.endTime)}
             </p>
         </div>
         ${doctorBlockHtml}
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.85rem;">
+        <div class="appointment-detail-facts">
             <div><strong>Servicio:</strong> ${escapeHtml(appointmentData.serviceName)}</div>
             <div><strong>Consultorio:</strong> ${escapeHtml(appointmentData.officeName)}</div>
-            <div><strong>Estado actual:</strong> <span class="badge" style="font-weight:700;">${escapeHtml(appointmentData.status)}</span></div>
+            <div><strong>Estado actual:</strong> <span class="badge">${escapeHtml(appointmentData.status)}</span></div>
         </div>
-        <div style="margin-top:4px;">
+        <div class="appointment-detail-notes">
             <strong>Observaciones previas:</strong>
-            <p style="font-size:0.83rem; color:var(--text-muted); background:var(--bg); padding:8px 12px; border-radius:var(--radius-sm); margin-top:4px;">
+            <p>
                 ${escapeHtml(appointmentData.notes)}
             </p>
         </div>
@@ -460,6 +459,28 @@ const initAppointmentModals = () => {
           userStatus: card.getAttribute('data-professional-user-status') || ''
         }
       };
+
+      const currentStatus = window.CommonUtils?.normalizeAppointmentStatus(appointmentData.status)
+        || appointmentData.status.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[-\s]+/g, '_');
+      const canStartConsultation = ['programada', 'confirmada', 'en_sala_de_espera'].includes(currentStatus);
+      const canCloseAppointment = ['programada', 'confirmada', 'en_sala_de_espera', 'en_proceso'].includes(currentStatus);
+      if (startConsultationButton) startConsultationButton.hidden = !canStartConsultation;
+      if (markAttendedButton) markAttendedButton.hidden = !canCloseAppointment;
+      if (cancelButton) cancelButton.hidden = !canCloseAppointment;
+
+      const rescheduleButton = modalElement.querySelector('#modalApptReagendar');
+      if (rescheduleButton) {
+        const isReschedulable = card.dataset.reschedulable === 'true';
+        rescheduleButton.hidden = !isReschedulable;
+        Object.assign(rescheduleButton.dataset, {
+          id: selectedAppointmentId || '',
+          date: appointmentData.dateStr,
+          startTime: appointmentData.startTime,
+          patientName: appointmentData.patientName,
+          serviceName: appointmentData.serviceName,
+          reschedulable: String(isReschedulable)
+        });
+      }
 
       renderAppointmentModalContent(modalContentElement, appointmentData);
 

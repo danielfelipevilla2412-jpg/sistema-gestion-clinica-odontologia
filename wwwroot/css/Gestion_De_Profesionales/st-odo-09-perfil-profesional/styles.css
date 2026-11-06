@@ -507,14 +507,15 @@ img { max-width: 100%; height: auto; display: block; }
 /* ═══ MODAL ═══ */
 .modal-backdrop {
   display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,.45); z-index: 400;
+  background: rgba(0,0,0,.45); backdrop-filter: blur(4px); z-index: 400;
   align-items: center; justify-content: center;
   padding: 16px;
 }
 .modal-backdrop.active { display: flex; }
 .modal-schedule {
-  background: var(--white); border-radius: var(--radius);
+  background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 24px; width: 100%; max-width: 440px;
+  max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain;
   box-shadow: var(--shadow-md); position: relative;
   animation: fadeIn .2s ease;
 }

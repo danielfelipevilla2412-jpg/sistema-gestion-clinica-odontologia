@@ -583,9 +583,24 @@ img {
     position: relative;
     max-height: 90vh;
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .modal-lg { max-width: 650px; }
+
+.modal-overlay.open .modal > .modal-content {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    overflow: visible;
+    transform: none;
+    opacity: 1;
+    transition: none;
+}
 
 .modal-close {
     position: absolute;
@@ -619,6 +634,60 @@ img {
     padding-right: 40px;
 }
 
+.appointment-detail-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    font-size: 0.85rem;
+}
+
+.appointment-detail-content {
+    margin: 12px 0 20px;
+}
+
+.appointment-form-content {
+    width: 100%;
+}
+
+.appointment-detail-summary h3 {
+    margin: 0;
+    color: var(--primary-dark);
+    font-size: 1.1rem;
+}
+
+.appointment-detail-summary p {
+    margin: 6px 0 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.appointment-professional-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.appointment-detail-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 18px;
+    line-height: 1.5;
+}
+
+.appointment-detail-facts .badge {
+    font-weight: 700;
+}
+
+.appointment-detail-notes p {
+    margin: 6px 0 0;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
 .modal-footer {
     margin-top: 20px;
     display: flex;
@@ -633,6 +702,10 @@ img {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 10px;
     margin-top: 18px;
+}
+
+.modal-actions-grid > [hidden] {
+    display: none !important;
 }
 
 .modal-actions-grid .btn-primary,
@@ -1224,6 +1297,10 @@ img {
 }
 
 @media (max-width: 480px) {
+    .appointment-detail-facts {
+        grid-template-columns: 1fr;
+    }
+
     .quick-stat-item .material-symbols-outlined {
         font-size: 1.5rem;
     }

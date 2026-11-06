@@ -355,6 +355,33 @@ public class CitaServiceTests
         Assert.Contains("finalizada", excepcion.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("En consulta")]
+    [InlineData("Atendida")]
+    [InlineData("No asistió")]
+    public async Task CambiarEstadoAsync_RechazaEstadosClinicosAntesDeLaFechaProgramada(string estado)
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = DateTime.Today.AddDays(1).AddHours(9),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CambiarEstadoAsync(cita.IdCita, estado));
+
+        Assert.Contains("día programado", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Programada", (await db.Citas.FindAsync(cita.IdCita))?.Estado);
+    }
+
     [Fact]
     public async Task ActualizarAsync_RechazaReactivacionDeEstadoTerminal()
     {
