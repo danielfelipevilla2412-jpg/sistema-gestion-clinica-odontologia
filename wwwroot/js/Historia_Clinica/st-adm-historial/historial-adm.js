@@ -2,6 +2,14 @@
 // Se cargan de forma asíncrona desde el servidor; ver cargarPacientes().
 let pacientes = [];
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+let pacientesFiltrados = [];
+let pacienteActivo = null;
+let currentPage = 1;
+let pageSize = 10;
+let totalPages = 1;
+let totalRecords = 0;
+let requestVersion = 0;
+let odontologosDisponibles = [];
 
 function fmtFecha(iso) {
     if (!iso) return '—';
@@ -24,21 +32,37 @@ function normalizarPaciente(p) {
 }
 
 async function cargarPacientes() {
+    const version = ++requestVersion;
+    const pageSizeValue = document.getElementById('pageSizeSelect')?.value;
+    pageSize = pageSizeValue === 'all' ? 100 : Number(pageSizeValue) || 10;
+    const params = new URLSearchParams({ page: String(currentPage), pageSize: String(pageSize) });
+    const filters = {
+        search: document.getElementById('searchInput')?.value.trim(),
+        odontologo: document.getElementById('filterOdontologo')?.value,
+        alerta: document.getElementById('filterAlerta')?.value,
+        estado: document.getElementById('filterEstado')?.value
+    };
+    Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
     try {
-        const resp = await fetch('/historia-clinica/st-adm-historial/data', { headers: { 'Accept': 'application/json' } });
+        const resp = await fetch(`/historia-clinica/st-adm-historial/data?${params}`, { headers: { 'Accept': 'application/json' } });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
-        pacientes = data.map(normalizarPaciente);
+        if (version !== requestVersion) return;
+        pacientes = (data.items || []).map(normalizarPaciente);
+        totalRecords = data.total || 0;
+        totalPages = data.totalPages || 1;
+        odontologosDisponibles = data.odontologos || [];
+        actualizarContadores(data.stats);
     } catch (e) {
+        if (version !== requestVersion) return;
         console.error('No se pudo cargar el historial de pacientes:', e);
         pacientes = [];
+        totalRecords = 0;
         showToast('No se pudo cargar el historial de pacientes');
     }
     poblarFiltroOdontologos();
     pacientesFiltrados = [...pacientes];
     renderTabla(pacientesFiltrados);
-    actualizarContadores();
-    animarContadores();
 }
 
 // El select de odontólogo ya no trae opciones fijas en el HTML: se construye
@@ -46,25 +70,10 @@ async function cargarPacientes() {
 function poblarFiltroOdontologos() {
     const select = document.getElementById('filterOdontologo');
     if (!select) return;
-    const vistos = new Map();
-    pacientes.forEach(p => { if (p.odontologoKey) vistos.set(p.odontologoKey, p.odontologo); });
+    const seleccionActual = select.value;
     select.innerHTML = '<option value="">Todos los odontólogos</option>' +
-        [...vistos.entries()].map(([key, nombre]) => `<option value="${key}">${nombre}</option>`).join('');
-}
-
-let pacientesFiltrados = [...pacientes];
-let pacienteActivo = null;
-let currentPage = 1;
-let pageSize = 10;
-let totalPages = 1;
-
-function obtenerPagina(lista) {
-    pageSize = document.getElementById('pageSizeSelect')?.value === 'all' ? lista.length : Number(document.getElementById('pageSizeSelect')?.value) || 10;
-    totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(lista.length / pageSize));
-    currentPage = Math.min(Math.max(1, currentPage), totalPages);
-    if (pageSize === lista.length) return lista;
-    const start = (currentPage - 1) * pageSize;
-    return lista.slice(start, start + pageSize);
+        odontologosDisponibles.map(({ key, nombre }) => `<option value="${key}">${nombre}</option>`).join('');
+    select.value = seleccionActual;
 }
 
 function actualizarPaginacion(totalRegistros) {
@@ -81,7 +90,7 @@ function actualizarPaginacion(totalRegistros) {
     }
 
     pageControls.style.display = 'flex';
-    pageShowing.textContent = String(Math.min(pageSize, totalRegistros));
+    pageShowing.textContent = String(pacientes.length);
     pageTotal.textContent = String(totalRegistros);
     pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
     if (btnPrev) {
@@ -100,15 +109,14 @@ function renderTabla(lista) {
     const count = document.getElementById('resultsCount');
     const noRes = document.getElementById('noResults');
     tbody.innerHTML = '';
-    const pagina = obtenerPagina(lista);
-    count.textContent = `Mostrando ${pagina.length} de ${lista.length} paciente${lista.length !== 1 ? 's' : ''}`;
-    if (lista.length === 0) {
+    count.textContent = `Mostrando ${lista.length} de ${totalRecords} paciente${totalRecords !== 1 ? 's' : ''}`;
+    if (totalRecords === 0) {
         noRes.style.display = 'block';
-        actualizarPaginacion(0);
+        actualizarPaginacion(totalRecords);
         return;
     }
     noRes.style.display = 'none';
-    pagina.forEach(p => {
+    lista.forEach(p => {
 const iniciales = p.nombre.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
 const tr = document.createElement('tr');
 if (pacienteActivo?.id === p.id) tr.classList.add('activa');
@@ -132,24 +140,13 @@ tr.innerHTML = `
 
 tbody.appendChild(tr);
     });
-    actualizarPaginacion(lista.length);
+    actualizarPaginacion(totalRecords);
 }
 
 // ── FILTRAR ───────────────────────────────────────────────────────────────
 function filtrarPacientes() {
     currentPage = 1;
-    const q        = document.getElementById('searchInput').value.toLowerCase().trim();
-    const odo      = document.getElementById('filterOdontologo').value;
-    const alerta   = document.getElementById('filterAlerta').value;
-    const estado   = document.getElementById('filterEstado').value;
-    pacientesFiltrados = pacientes.filter(p => {
-        const matchQ      = !q || p.nombre.toLowerCase().includes(q) || p.cedula.includes(q) || p.email.toLowerCase().includes(q);
-        const matchOdo    = !odo || p.odontologoKey === odo;
-        const matchAlerta = !alerta || (alerta === 'si' ? p.alerta : !p.alerta);
-        const matchEstado = !estado || p.estado === estado;
-        return matchQ && matchOdo && matchAlerta && matchEstado;
-    });
-    renderTabla(pacientesFiltrados);
+    cargarPacientes();
 }
 
 // ── PANEL LATERAL ─────────────────────────────────────────────────────────
@@ -256,29 +253,18 @@ function switchTab(tab, btn) {
 }
 
 // ── CONTADORES ─────────────────────────────────────────────────────────────
-function actualizarContadores() {
-    const total = pacientes.length;
-    const hoy = pacientes.filter(p => {
-        const fecha = new Date(p.ultimaConsulta);
-        if (Number.isNaN(fecha.getTime())) return false;
-        const now = new Date();
-        return fecha.getDate() === now.getDate() && fecha.getMonth() === now.getMonth() && fecha.getFullYear() === now.getFullYear();
-    }).length;
-    const alerta = pacientes.filter(p => p.alerta).length;
-    const odoActivos = new Set(pacientes.filter(p => p.estado === 'activo').map(p => p.odontologo)).size;
-
+function actualizarContadores(stats = {}) {
     const valores = {
-        statTotal: total,
-        statHoy: hoy,
-        statAlerta: alerta,
-        statOdo: odoActivos
+        statTotal: stats.total || 0,
+        statHoy: stats.hoy || 0,
+        statAlerta: stats.alertas || 0,
+        statOdo: stats.odontologos || 0
     };
 
     Object.entries(valores).forEach(([id, value]) => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.dataset.target = String(value);
-        el.textContent = '0';
+        el.textContent = String(value);
     });
 }
 
@@ -334,18 +320,18 @@ function inicializarHistoricoAdmin() {
     if (filterEstado) filterEstado.addEventListener('change', filtrarPacientes);
     if (pageSizeSelect) pageSizeSelect.addEventListener('change', () => {
         currentPage = 1;
-        renderTabla(pacientesFiltrados);
+        cargarPacientes();
     });
     if (btnPrev) btnPrev.addEventListener('click', () => {
         if (currentPage > 1) {
             currentPage -= 1;
-            renderTabla(pacientesFiltrados);
+            cargarPacientes();
         }
     });
     if (btnNext) btnNext.addEventListener('click', () => {
         if (currentPage < totalPages) {
             currentPage += 1;
-            renderTabla(pacientesFiltrados);
+            cargarPacientes();
         }
     });
     if (hamburger) hamburger.addEventListener('click', () => toggleMenu(!document.getElementById('sidebar')?.classList.contains('open')));

@@ -68,6 +68,7 @@
         estadoPersistido = odonto.EstadoPersistido ?? odonto.ObservacionesGenerales,
         notasClinicas = Model.NotasClinicas.Select(n => new
         {
+            idNota = n.IdNota,
             citaId = n.CitaId,
             titulo = n.Titulo,
             fecha = n.Fecha,
@@ -90,10 +91,13 @@
         }),
         lineaDeTiempo = Model.LineaDeTiempo.Select(e => new
         {
+            idNota = e.NotaId,
             fecha = e.Fecha.ToString("yyyy-MM-ddTHH:mm:ss"),
             categoria = e.Categoria,
             titulo = e.Titulo,
             descripcion = e.Descripcion,
+            diagnostico = e.Diagnostico,
+            procedimiento = e.Procedimiento,
             profesional = e.Profesional,
             estado = e.Estado,
             enlaceDocumento = e.EnlaceDocumento,
@@ -442,6 +446,25 @@
             </div>
         </section>
     </div>
+
+    <dialog id="editClinicalNoteDialog" class="tooth-history-dialog clinical-note-dialog" aria-labelledby="editClinicalNoteTitle">
+        <form id="editClinicalNoteForm" class="clinical-note-form">
+            <header class="tooth-history-header">
+                <h2 id="editClinicalNoteTitle">Editar nota clínica</h2>
+                <button type="button" id="closeClinicalNoteDialog" aria-label="Cerrar">×</button>
+            </header>
+            <label for="editNoteDiagnosis">Diagnóstico</label>
+            <textarea id="editNoteDiagnosis" rows="2" maxlength="500"></textarea>
+            <label for="editNoteProcedure">Procedimiento</label>
+            <textarea id="editNoteProcedure" rows="4" maxlength="500"></textarea>
+            <label for="editNoteNextAppointment">Próxima cita sugerida</label>
+            <input id="editNoteNextAppointment" type="text" maxlength="50" />
+            <div class="clinical-note-actions">
+                <button type="button" class="soft-btn" id="cancelClinicalNoteEdit">Cancelar</button>
+                <button type="submit" class="primary-btn" id="saveClinicalNoteEdit">Guardar cambios</button>
+            </div>
+        </form>
+    </dialog>
 
     <dialog id="toothHistoryDialog" class="tooth-history-dialog">
         <form method="dialog" class="tooth-history-header">

@@ -26,7 +26,15 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         "endodoncia",
         "sellante",
         "placa",
-        "sano"
+        "sano",
+        "obturacion",
+        "restauracion",
+        "corona",
+        "extraccion",
+        "ausente",
+        "implante",
+        "fractura",
+        "protesis"
     };
 
     private readonly AppDbContext _context;

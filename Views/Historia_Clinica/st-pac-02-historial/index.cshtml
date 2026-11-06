@@ -32,6 +32,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/variables.css")" />
   <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-pac-02-historial/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-03-historial/gestion-historial.css")" asp-append-version="true" />
   <style>
     @@keyframes scan {
       0% {
@@ -64,6 +65,18 @@
       color: #00d4ff;
       box-shadow: 0 0 8px rgba(0, 212, 255, 0.2);
     }
+
+    @@media print {
+      body { display: block; background: #fff; }
+      .sidebar, .hamburger, .overlay, .clinical-topbar, .page-hero-actions,
+      .modal-overlay, .toast, .site-footer, .mobile-nav { display: none !important; }
+      .patient-history-main, .clinical-content-shell { width: 100%; max-width: none; margin: 0; padding: 0; }
+      .page-hero { padding: 0 0 12px; }
+      .patient-summary-card, .form-card, .history-workspace, .record-card { box-shadow: none; break-inside: avoid; }
+      .clinical-section-tabs { display: none; }
+      .readonly-fields textarea { overflow: visible; resize: none; }
+      a { color: inherit; text-decoration: none; }
+    }
   </style>
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/perfil-paciente-ui.css")" />
@@ -87,33 +100,48 @@
   <div class="overlay" id="overlay" aria-hidden="true"></div>
 
   <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
-    <div data-perfil-paciente-header></div>
+  <main class="main clinical-main patient-history-main" id="main-content">
+    <div class="clinical-content-shell">
+      <header class="clinical-topbar" data-purpose="top-navigation-bar">
+        <div class="clinical-header-left">
+          <nav class="clinical-breadcrumb" aria-label="Ruta de navegación">
+            <span data-i18n="common_role_patient">Paciente</span>
+            <span class="breadcrumb-divider" aria-hidden="true">›</span>
+            <span class="breadcrumb-current" data-i18n="historia.title">Mi historial</span>
+          </nav>
+        </div>
+      </header>
 
-    <!-- Page header -->
-    <header class="page-header">
-      <div class="header-left">
-        <div class="breadcrumb"><span data-i18n="common_role_patient">Paciente</span> › <span data-i18n="historia.title">Mi historial</span></div>
-        <h1 class="page-title" data-i18n="historia.title">Mi Historial Clínico</h1>
-        <p class="page-subtitle" data-i18n="historia.evolution">Consulta la información registrada por tus profesionales de salud</p>
-      </div>
-      <!-- [MEJORA]: aria-label para botón de acción principal -->
-      <button class="btn-primary" id="btnDescargar" aria-label="Descargar informe clínico completo" data-i18n-aria-label="table.export"><span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar
-        informe</button>
-    </header>
+      <section class="page-hero">
+        <div class="page-hero-copy">
+          <div class="eyebrow-row"><span class="hero-kicker">Historia clínica</span></div>
+          <h1>Mi Historial Clínico</h1>
+          <p data-i18n="historia.evolution">Consulta la información registrada por tus profesionales de salud</p>
+        </div>
+        <div class="page-hero-actions">
+          <button class="primary-btn" id="btnDescargar" aria-label="Descargar informe clínico completo" data-i18n-aria-label="table.export">
+            <span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar informe
+          </button>
+        </div>
+      </section>
+
+      <div data-perfil-paciente-header></div>
 
     <!-- Sección principal -->
     <section class="agenda-section" aria-label="Contenido de historial">
 
       <!-- Formulario clínico profesional en modo estrictamente informativo -->
-      <section class="clinical-form-readonly" aria-labelledby="formularioClinicoTitle">
-        <div class="readonly-form-heading">
-          <div>
-            <span class="readonly-eyebrow">Historia clínica</span>
-            <h2 id="formularioClinicoTitle">Formulario de historia clínica</h2>
-          </div>
-          <span class="readonly-badge">Solo lectura</span>
-        </div>
+      <nav class="clinical-section-tabs" aria-label="Secciones de la historia clínica">
+        <span class="tabs-label">Secciones:</span>
+        <a href="#sec-anamnesis-paciente" class="tab-item active">1. Anamnesis</a>
+        <a href="#sec-antecedentes-paciente" class="tab-item">2. Antecedentes</a>
+        <a href="#sec-examen-paciente" class="tab-item">3. Examen clínico</a>
+        <a href="#sec-diagnostico-paciente" class="tab-item">4. Diagnósticos</a>
+        <a href="#sec-adjuntos-paciente" class="tab-item">5. Documentos</a>
+        <a href="#recordsList" class="tab-item">Evolución clínica</a>
+      </nav>
+
+      <section class="clinical-form clinical-form-readonly" aria-label="Formulario clínico en solo lectura">
 
         <section class="readonly-form-card" id="sec-anamnesis-paciente">
           <div class="readonly-card-header"><span class="readonly-step">1</span><div><h3>Anamnesis y motivo de consulta</h3><p>Información registrada por el profesional</p></div></div>
@@ -159,7 +187,11 @@
       </section>
 
       <!-- Grid: Historial clínico en solo lectura + Sidebar cards -->
-      <div class="content-grid">
+      <section class="history-workspace" aria-labelledby="recordsTitle">
+        <header class="history-workspace-header">
+          <div><h2 id="recordsTitle">Evolución clínica</h2><p>Registros de atención, notas y documentos en orden cronológico.</p></div>
+        </header>
+        <div class="content-grid">
 
         <!-- Columna principal -->
         <div class="col-main">
@@ -202,9 +234,11 @@
 
         </div>
 
-      </div>
+        </div>
+      </section>
     </section>
 
+    </div>
   </main>
 
   <!-- MODAL: Detalle de registro -->
@@ -252,6 +286,9 @@
   <script src="@Url.Content("~/js/i18n-core.js")"></script>
   <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
+  <script>
+    document.getElementById('btnDescargar')?.addEventListener('click', () => window.print());
+  </script>
 </body>
 
 </html>
