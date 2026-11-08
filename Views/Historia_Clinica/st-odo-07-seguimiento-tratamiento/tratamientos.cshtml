@@ -47,6 +47,39 @@
       </div>
     </header>
 
+    <section class="plan-editor" aria-labelledby="planEditorTitle">
+      <h2 id="planEditorTitle">Agregar tratamiento al plan</h2>
+      <form id="planTratamientoForm">
+        @Html.AntiForgeryToken()
+        <label for="planPaciente">Paciente</label>
+        <select id="planPaciente" required>
+          <option value="">Selecciona un paciente</option>
+        </select>
+
+        <label for="planServicio">Servicio</label>
+        <select id="planServicio" required>
+          <option value="">Selecciona un servicio</option>
+        </select>
+
+        <label for="planNumeroFdi">Pieza dental permanente FDI (opcional)</label>
+        <input id="planNumeroFdi" inputmode="numeric" maxlength="2" placeholder="Ej. 16" />
+
+        <label for="planEstado">Estado</label>
+        <select id="planEstado" required>
+          <option value="propuesto">Propuesto</option>
+          <option value="aprobado">Aprobado</option>
+          <option value="en-curso">En curso</option>
+          <option value="pausado">Pausado</option>
+          <option value="completado">Completado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+
+        <label for="planObservacion">Observación clínica (opcional)</label>
+        <textarea id="planObservacion" maxlength="1000" rows="2"></textarea>
+        <button type="submit" id="guardarPlanTratamiento">Guardar en el plan</button>
+      </form>
+    </section>
+
     <!-- ═════ TARJETAS DE ESTADÍSTICAS ═════ -->
     <section class="stats-grid" aria-label="Estadísticas de tratamientos" data-i18n-aria-label="historia.treatment">
       <div class="stat-card stat-total">
@@ -61,7 +94,7 @@
         <div class="stat-icon">🔄</div>
         <div class="stat-content">
           <span class="stat-number" id="statEnCurso">0</span>
-          <span class="stat-label" data-i18n="status.in_progress">En curso</span>
+          <span class="stat-label">Activos</span>
         </div>
       </div>
       
@@ -105,8 +138,11 @@
           <select id="filterEstado" class="filter-select">
             <option value="">Todos los estados</option>
             <option value="en-curso">En curso</option>
+            <option value="propuesto">Propuesto</option>
+            <option value="aprobado">Aprobado</option>
             <option value="completado">Completado</option>
             <option value="pausado">Pausado</option>
+            <option value="cancelado">Cancelado</option>
           </select>
         </div>
         

@@ -119,9 +119,9 @@
           <p data-i18n="historia.evolution">Consulta la información registrada por tus profesionales de salud</p>
         </div>
         <div class="page-hero-actions">
-          <button class="primary-btn" id="btnDescargar" aria-label="Descargar informe clínico completo" data-i18n-aria-label="table.export">
+          <a class="primary-btn" id="btnDescargar" href="@Url.Content("~/historia-clinica/st-odo-03-historial/exportar-pdf")" aria-label="Descargar informe clínico completo" data-i18n-aria-label="table.export">
             <span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar informe
-          </button>
+          </a>
         </div>
       </section>
 
@@ -286,10 +286,6 @@
   <script src="@Url.Content("~/js/i18n-core.js")"></script>
   <script src="@Url.Content("~/js/i18n.config.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-  <script>
-    document.getElementById('btnDescargar')?.addEventListener('click', () => window.print());
-  </script>
 </body>
 
 </html>
-

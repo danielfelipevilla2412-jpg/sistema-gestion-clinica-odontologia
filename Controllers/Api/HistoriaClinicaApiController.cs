@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Api.HistoriasClinicas;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
@@ -20,13 +22,19 @@ namespace SmileTrack_MVC.Controllers.Api;
 public sealed class HistoriaClinicaApiController : ControllerBase
 {
     private readonly IHistoriaClinicaService _service;
+    private readonly AppDbContext _context;
+    private readonly AuditoriaHistoriaClinicaService _auditoria;
     private readonly ILogger<HistoriaClinicaApiController> _logger;
 
     public HistoriaClinicaApiController(
         IHistoriaClinicaService service,
+        AppDbContext context,
+        AuditoriaHistoriaClinicaService auditoria,
         ILogger<HistoriaClinicaApiController> logger)
     {
         _service = service;
+        _context = context;
+        _auditoria = auditoria;
         _logger = logger;
     }
 
@@ -80,6 +88,13 @@ public sealed class HistoriaClinicaApiController : ControllerBase
         if (dto is null)
             return NotFound(new { success = false, message = "El paciente no tiene una historia clínica activa." });
 
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Historia_Clinica",
+            dto.IdHistoria,
+            "Consulta de historia clínica desde API v1.");
+
         return Ok(new { success = true, data = dto });
     }
 
@@ -99,10 +114,23 @@ public sealed class HistoriaClinicaApiController : ControllerBase
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
 
+        bool historiaExistente = await _context.HistoriasClinicas
+            .AnyAsync(h => h.IdPaciente == dto.PacienteId, ct);
         var result = await _service.CrearHistoriaApiAsync(dto.PacienteId, ct);
 
         if (!result.Success)
             return StatusCode(result.ErrorStatusCode ?? 500, new { success = false, message = result.Message });
+
+        if (result.Historia is not null)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                historiaExistente ? "UPDATE" : "INSERT",
+                "Historia_Clinica",
+                result.Historia.IdHistoria,
+                "Historia clínica creada o reactivada desde API v1.",
+                ct);
+        }
 
         return CreatedAtAction(
             nameof(GetByPaciente),
@@ -128,6 +156,21 @@ public sealed class HistoriaClinicaApiController : ControllerBase
             return StatusCode(403, new { success = false, message = "No tiene permiso para ver estas notas clínicas." });
 
         var notas = await _service.ObtenerNotasApiAsync(pacienteId, ct);
+        int historiaId = await _context.HistoriasClinicas
+            .Where(h => h.IdPaciente == pacienteId && h.Activa)
+            .Select(h => h.IdHistoria)
+            .FirstOrDefaultAsync(ct);
+        if (historiaId > 0)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "SELECT",
+                "Historia_Clinica",
+                historiaId,
+                "Consulta de notas clínicas desde API v1.",
+                ct);
+        }
+
         return Ok(new { success = true, data = notas });
     }
 
@@ -150,6 +193,17 @@ public sealed class HistoriaClinicaApiController : ControllerBase
 
         if (!result.Success)
             return StatusCode(result.ErrorStatusCode ?? 500, new { success = false, message = result.Message });
+
+        if (result.Nota is not null)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "INSERT",
+                "Nota_Clinica",
+                result.Nota.IdNota,
+                $"Nota clínica agregada a la historia del paciente {pacienteId}.",
+                ct);
+        }
 
         return CreatedAtAction(
             nameof(GetNotas),
@@ -175,6 +229,21 @@ public sealed class HistoriaClinicaApiController : ControllerBase
             return StatusCode(403, new { success = false, message = "No tiene permiso para ver este odontograma." });
 
         var odontograma = await _service.ObtenerOdontogramaApiAsync(pacienteId, ct);
+        int historiaId = await _context.HistoriasClinicas
+            .Where(h => h.IdPaciente == pacienteId && h.Activa)
+            .Select(h => h.IdHistoria)
+            .FirstOrDefaultAsync(ct);
+        if (historiaId > 0)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "SELECT",
+                "Historia_Clinica",
+                historiaId,
+                "Consulta de odontograma desde API v1.",
+                ct);
+        }
+
         return Ok(new { success = true, data = odontograma });
     }
 
@@ -197,6 +266,17 @@ public sealed class HistoriaClinicaApiController : ControllerBase
 
         if (!result.Success)
             return StatusCode(result.ErrorStatusCode ?? 500, new { success = false, message = result.Message });
+
+        if (result.Historia is not null)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "UPDATE",
+                "Historia_Clinica",
+                result.Historia.IdHistoria,
+                "Odontograma actualizado desde API v1.",
+                ct);
+        }
 
         return Ok(new { success = true, message = result.Message, data = result.Historia });
     }
@@ -237,6 +317,14 @@ public sealed class HistoriaClinicaApiController : ControllerBase
                 _ => StatusCode(result.ErrorStatusCode ?? 500, new { success = false, message = result.Message })
             };
         }
+
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "UPDATE",
+            "Historia_Clinica",
+            id,
+            "Estado de historia clínica actualizado desde API v1.",
+            ct);
 
         return Ok(new { success = true, message = result.Message, data = result.Historia });
     }

@@ -44,6 +44,9 @@ namespace SmileTrack_MVC.Models.ViewModels
 
     public string? TipoDocumento { get; set; }
     public string? NumeroDocumento { get; set; }
+    [Required(ErrorMessage = "La fecha de nacimiento es obligatoria")]
+    [DataType(DataType.Date)]
+    public DateTime? FechaNacimiento { get; set; }
     public string? Telefono { get; set; }
 }
 

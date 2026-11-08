@@ -112,7 +112,7 @@ BEGIN
         id_usuario INT NULL,
         tabla_afectada VARCHAR(100) NOT NULL,
         id_registro INT NULL,
-        accion VARCHAR(45) NOT NULL CHECK (accion IN ('INSERT','UPDATE','DELETE')),
+        accion VARCHAR(45) NOT NULL CHECK (accion IN ('INSERT','UPDATE','DELETE','SELECT')),
         ip_origen VARCHAR(45) NULL,
         datos_anteriores VARCHAR(MAX) NULL,
         datos_nuevos VARCHAR(MAX) NULL,

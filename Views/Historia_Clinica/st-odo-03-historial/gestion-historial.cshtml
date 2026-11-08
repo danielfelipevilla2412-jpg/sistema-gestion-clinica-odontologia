@@ -30,20 +30,26 @@
         pacienteId = odonto.PacienteId,
         historiaId = odonto.HistoriaId,
         citaId = odonto.CitaId,
+        consultaClinicaId = Model.Formulario.ConsultaClinicaId,
+        proximaCitaId = Model.Formulario.ProximaCitaId,
+        citasDisponibles = Model.CitasDisponibles.Select(c => new { id = c.IdCita, etiqueta = c.Etiqueta }),
         nombre = nombrePaciente,
         codigoHC = codigoHC,
         fechaNacimiento = fechaNacimiento,
         grupoSanguineo = Model.GrupoSanguineo,
         alergias = Model.Alergias,
         medicamentos = Array.Empty<string>(),
-        antecedentesMedicos = Model.AntecedentesMedicos,
+        antecedentesMedicos = Model.Formulario.AntecedentesMedicos ?? Model.AntecedentesMedicos,
         motivoConsulta = Model.Formulario.MotivoConsulta,
         enfermedadActual = Model.Formulario.EnfermedadActual,
         sintomasSignos = Model.Formulario.SintomasSignos,
         habitos = Model.Formulario.Habitos,
+        alergiasClinicas = Model.Formulario.Alergias,
         hallazgos = Model.Formulario.Hallazgos,
         odontogramaObservaciones = Model.Formulario.OdontogramaObservaciones,
         examenesComplementarios = Model.Formulario.ExamenesComplementarios,
+        diagnosticoPrincipalCodigo = Model.Formulario.DiagnosticoPrincipalCodigo,
+        diagnosticosSecundariosCodigos = Model.Formulario.DiagnosticosSecundariosCodigos,
         diagnosticoPrincipal = Model.Formulario.DiagnosticoPrincipal,
         diagnosticoSecundario = Model.Formulario.DiagnosticoSecundario,
         evolucionClinica = Model.Formulario.EvolucionClinica,
@@ -141,8 +147,14 @@
                 <p>Consulta y registra la información clínica del paciente</p>
             </div>
             <div class="page-hero-actions">
-                <button type="button" class="soft-btn">Exportar</button>
-                <button type="button" class="primary-btn">Guardar</button>
+                @if (odonto.PacienteId is int exportPatientId)
+                {
+                    <a class="soft-btn" href="@Url.Content($"~/historia-clinica/st-odo-03-historial/exportar-pdf?pacienteId={exportPatientId}")">Descargar PDF</a>
+                }
+                else
+                {
+                    <button type="button" class="soft-btn" disabled>Descargar PDF</button>
+                }
             </div>
         </section>
 
@@ -313,29 +325,20 @@
                     <div class="diagnostic-grid">
                         <div class="field-group">
                             <label for="diagnostico_principal">Diagnóstico Principal (CIE-10) <span class="required-mark">*</span></label>
-                            <select id="diagnostico_principal">
-                                <option value="">Seleccione un diagnóstico</option>
-                                <option value="K02.1 - Caries de la dentina">K02.1 - Caries de la dentina</option>
-                                <option value="K04.4 - Periodontitis apical">K04.4 - Periodontitis apical</option>
-                                <option value="K05.1 - Gingivitis marginal">K05.1 - Gingivitis marginal</option>
-                                <option value="__otro__">Otro</option>
-                                <option value="K02.1 - Caries de la dentina">K02.1 - Caries de la dentina</option>
-                                <option value="K04.4 - Periodontitis apical">K04.4 - Periodontitis apical</option>
-                                <option value="K05.1 - Gingivitis marginal">K05.1 - Gingivitis marginal</option>
-                                <option value="__otro__">Otro</option>
-                                <option value="K02.1 - Caries de la dentina">K02.1 - Caries de la dentina</option>
-                                <option value="K04.4 - Periodontitis apical">K04.4 - Periodontitis apical</option>
-                                <option value="K05.1 - Gingivitis marginal">K05.1 - Gingivitis marginal</option>
-                                <option value="__otro__">Otro</option>
-                            </select>
-                        </div>
-                        <div class="field-group" id="diagnosticoOtroGroup" hidden>
-                            <label for="diagnostico_principal_otro">Especifique el diagnóstico</label>
-                            <input id="diagnostico_principal_otro" type="text" placeholder="Escribe el diagnóstico" />
+                            <input id="diagnostico_principal" type="text" list="cie10Sugerencias" autocomplete="off" placeholder="Buscar por código o descripción" aria-describedby="cie10CatalogMessage" />
+                            <datalist id="cie10Sugerencias"></datalist>
+                            <small id="diagnosticoPrincipalDescripcion" aria-live="polite"></small>
+                            <small id="cie10CatalogMessage" aria-live="polite">Los códigos disponibles dependen del catálogo CIE-10 oficial cargado.</small>
+                            <small id="diagnosticoPrincipalHistorico" hidden></small>
                         </div>
                         <div class="field-group">
-                            <label for="diagnostico_secundario">Diagnósticos Secundarios / Comorbilidades</label>
-                            <input id="diagnostico_secundario" type="text" value="" placeholder="Ej. K05.1 Gingivitis marginal; F45.8 Bruxismo" />
+                            <label for="diagnostico_secundario_input">Diagnósticos Secundarios / Comorbilidades (CIE-10)</label>
+                            <div class="diagnostico-secundario-controls">
+                                <input id="diagnostico_secundario_input" type="text" list="cie10Sugerencias" autocomplete="off" placeholder="Buscar código o descripción" />
+                                <button type="button" id="btnAgregarDiagnosticoSecundario">Agregar</button>
+                            </div>
+                            <div id="diagnosticosSecundariosChips" class="diagnosticos-chips" aria-live="polite"></div>
+                            <small id="diagnosticosSecundariosHistoricos" hidden></small>
                         </div>
                     </div>
 
@@ -347,6 +350,16 @@
                     <div class="field-group">
                         <label for="prescripcion">Prescripción Farmacológica e Instrucciones al Paciente</label>
                         <textarea id="prescripcion" rows="2" placeholder="Escribe la prescripción, indicaciones y plan de manejo..."></textarea>
+                    </div>
+                    <div class="field-group">
+                        <label for="proximaCitaEstructurada">Próxima cita programada</label>
+                        <select id="proximaCitaEstructurada">
+                            <option value="">Sin cita futura vinculada</option>
+                            @foreach (var cita in Model.CitasDisponibles)
+                            {
+                                <option value="@cita.IdCita">@cita.Etiqueta</option>
+                            }
+                        </select>
                     </div>
                 </div>
             </section>
@@ -382,6 +395,10 @@
                 <label class="remember-toggle"><input type="checkbox" /> <span>Autoguardado automático habilitado</span></label>
                 <div class="bottom-actions-right">
                     <button type="button" class="soft-btn subtle">Restablecer Valores</button>
+                    @if (!odonto.CitaId.HasValue && odonto.PacienteId.HasValue)
+                    {
+                        <button type="button" class="soft-btn" id="btnNuevaConsultaClinica">Nueva consulta</button>
+                    }
                     @if (odonto.CitaId.HasValue)
                     {
                         <button type="button" class="soft-btn" id="btnFinalizarConsulta">Finalizar consulta</button>

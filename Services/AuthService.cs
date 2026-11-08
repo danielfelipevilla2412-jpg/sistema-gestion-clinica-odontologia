@@ -481,6 +481,40 @@ namespace SmileTrack_MVC.Services
                     };
                 }
 
+                string tipoDocumento = request.TipoDocumento.Trim().ToUpperInvariant();
+                string numeroDocumento = request.NumeroDocumento.Trim().ToUpperInvariant();
+                if (tipoDocumento is not ("CC" or "TI" or "CE" or "PAS"))
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "El tipo de documento no es válido."
+                    };
+                }
+
+                string patronDocumento = tipoDocumento == "PAS"
+                    ? "^[A-Z0-9]{5,20}$"
+                    : "^[0-9]{7,15}$";
+                if (!Regex.IsMatch(numeroDocumento, patronDocumento))
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "El documento no es válido para el tipo seleccionado."
+                    };
+                }
+
+                if (!request.FechaNacimiento.HasValue ||
+                    request.FechaNacimiento.Value.Date < new DateTime(1900, 1, 1) ||
+                    request.FechaNacimiento.Value.Date > DateTime.UtcNow.Date)
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "Ingresa una fecha de nacimiento válida."
+                    };
+                }
+
                 if (!Regex.IsMatch(
                         request.Contrasena,
                         @"^(?=.{8,}).+$",
@@ -587,6 +621,7 @@ namespace SmileTrack_MVC.Services
                     Contrasena = hashContrasena,
                     IdRol = role.IdRol,
                     Estado = "activo",
+                    FechaNacimiento = request.FechaNacimiento.Value.Date,
                     FechaCreacion = DateTime.UtcNow
                 };
 
@@ -610,17 +645,9 @@ namespace SmileTrack_MVC.Services
                         {
                             IdUsuario = newUser.IdUsuario,
 
-                            TipoDocumento =
-                                string.IsNullOrWhiteSpace(
-                                    request.TipoDocumento)
-                                    ? "CC"
-                                    : request.TipoDocumento,
+                            TipoDocumento = tipoDocumento,
 
-                            Documento =
-                                string.IsNullOrWhiteSpace(
-                                    request.NumeroDocumento)
-                                    ? "TEMP" + newUser.IdUsuario
-                                    : request.NumeroDocumento,
+                            Documento = numeroDocumento,
 
                             Nombres = firstName,
 
@@ -630,7 +657,7 @@ namespace SmileTrack_MVC.Services
                                     : lastName,
 
                             FechaNacimiento =
-                                DateTime.UtcNow.AddYears(-20).Date,
+                                request.FechaNacimiento.Value.Date,
 
                             Correo = request.Correo,
                             Telefono = request.Telefono,
