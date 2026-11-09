@@ -10,7 +10,7 @@
  *
  * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
  * - Privacidad y Ownership estricto: El backend valida el claim de identidad del paciente en cada petición.
- * - Validación cliente de tiempo mínimo para cancelar citas (24 horas de anticipación requeridas).
+ * - Validación cliente del límite de 2 horas y motivo obligatorio al cancelar.
  *
  * DEPENDENCIAS TÉCNICAS:
  * - Controller: GestionCitasController -> Stpac01MisCitas / CitasApiController
@@ -22,7 +22,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const API_BASE_URL = '/api';
-const API_PAGE_SIZE = 200;
+const API_PAGE_SIZE = 500;
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. ESTADO DE LA APLICACIÓN
@@ -46,7 +46,12 @@ const fetchCsrfToken = () => {
 const buildAuthHeaders = () => {
   const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const csrfToken = fetchCsrfToken();
-  if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+  // IAntiforgery.ValidateRequestAsync lee 'RequestVerificationToken';
+  // se envían ambos para compatibilidad con los distintos filtros del proyecto.
+  if (csrfToken) {
+    headers['RequestVerificationToken'] = csrfToken;
+    headers['X-CSRF-TOKEN'] = csrfToken;
+  }
   try {
     const jwt = sessionStorage.getItem('st_jwt');
     if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
@@ -103,6 +108,23 @@ const formatDateLabel = (isoDateString) => {
   } catch { return '—'; }
 };
 
+const toLocalDateInputValue = (dateObj) => {
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getEarliestRequestDate = () => {
+  const dateObj = new Date();
+  dateObj.setDate(dateObj.getDate() + 1);
+  return toLocalDateInputValue(dateObj);
+};
+
+const setMinimumRequestDate = (dateInput) => {
+  if (dateInput) dateInput.min = getEarliestRequestDate();
+};
+
 const formatTimeLabel = (isoDateString) => {
   try {
     const dateObj = new Date(isoDateString);
@@ -122,8 +144,9 @@ const calculateHoursDifference = (fechaHoraISO) => {
 };
 
 const getBadgeClassForStatus = (statusLabel) => {
-  const serverKey = CommonUtils.mapEstadoClienteToServer(statusLabel);
-  return CommonUtils.getStatusInfo(serverKey).cls || 'badge-agendada';
+  const serverKey = window.CommonUtils?.mapEstadoClienteToServer(statusLabel)
+    ?? String(statusLabel || '').toLowerCase().trim().replace(/\s+/g, '_');
+  return (window.CommonUtils?.getStatusInfo(serverKey) ?? {}).cls || 'badge-agendada';
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -132,17 +155,27 @@ const getBadgeClassForStatus = (statusLabel) => {
 
 async function fetchPatientAppointments() {
   try {
-    const response = await fetch(`${API_BASE_URL}/citas?page=1&pageSize=${API_PAGE_SIZE}`, {
-      method: 'GET',
-      headers: buildAuthHeaders()
-    });
-    if (!response.ok) throw new Error(`status ${response.status}`);
-    const payload = await response.json();
-    if (payload && payload.success && Array.isArray(payload.data)) {
-      appointmentsList = payload.data.map(mapServerToClient);
-      return;
+    const allAppointments = [];
+    let page = 1;
+    while (true) {
+      const response = await fetch(`${API_BASE_URL}/citas?page=${page}&pageSize=${API_PAGE_SIZE}`, {
+        method: 'GET',
+        headers: buildAuthHeaders()
+      });
+      if (!response.ok) throw new Error(`status ${response.status}`);
+      const payload = await response.json();
+      if (!payload?.success || !Array.isArray(payload.data)) throw new Error('payload inválido');
+
+      allAppointments.push(...payload.data);
+      const total = Number(payload.total);
+      if (payload.data.length === 0 ||
+          (Number.isFinite(total) && total >= 0 && allAppointments.length >= total) ||
+          payload.data.length < API_PAGE_SIZE) {
+        break;
+      }
+      page += 1;
     }
-    throw new Error('payload inválido');
+    appointmentsList = allAppointments.map(mapServerToClient);
   } catch (err) {
     console.warn('[SmileTrack] Mis citas paciente: no se pudo cargar la API:', err);
     appointmentsList = [];
@@ -180,19 +213,25 @@ const confirmAppointmentCancellation = async () => {
   const appointmentItem = appointmentsList.find(item => item.id === pendingCancelAppointmentId);
   if (!appointmentItem) return;
 
-  const previousStatus = appointmentItem.estado;
-  appointmentItem.estado = 'Cancelada';
-  appointmentItem.active = false;
-  updateAppointmentStats();
-  renderAppointmentsTable();
-  notifyUser('success', 'Éxito', 'Cita cancelada correctamente');
+  const reasonInput = safeGetElement('cancelarMotivo');
+  const cancellationReason = reasonInput?.value?.trim() || '';
+  const errorBox = safeGetElement('cancelarError');
+  if (cancellationReason.length < 5) {
+    if (errorBox) {
+      errorBox.textContent = 'El motivo de cancelación debe tener al menos 5 caracteres.';
+      errorBox.classList.remove('hidden');
+    }
+    reasonInput?.focus();
+    return;
+  }
 
   let operationSuccess = false;
   let statusMessage = null;
   try {
     const response = await fetch(`${API_BASE_URL}/citas/${pendingCancelAppointmentId}`, {
       method: 'DELETE',
-      headers: buildAuthHeaders()
+      headers: buildAuthHeaders(),
+      body: JSON.stringify({ Motivo: cancellationReason })
     });
     let payload;
     try { payload = await response.json(); } catch { payload = { success: response.ok }; }
@@ -205,14 +244,17 @@ const confirmAppointmentCancellation = async () => {
   }
 
   if (operationSuccess) {
-    closeCancelAppointmentModal();
-  } else {
-    appointmentItem.estado = previousStatus;
-    appointmentItem.active = previousStatus === 'Agendada' || previousStatus === 'Confirmada';
+    appointmentItem.estado = 'Cancelada';
+    appointmentItem.active = false;
     updateAppointmentStats();
     renderAppointmentsTable();
-    const errorBox = safeGetElement('cancelarError');
-    if (errorBox) errorBox.textContent = statusMessage || 'No fue posible cancelar la cita. Intente más tarde o contacte recepción.';
+    notifyUser('success', 'Éxito', 'Cita cancelada correctamente');
+    closeCancelAppointmentModal();
+  } else {
+    if (errorBox) {
+      errorBox.textContent = statusMessage || 'No fue posible cancelar la cita. Intente más tarde o contacte recepción.';
+      errorBox.classList.remove('hidden');
+    }
   }
 };
 
@@ -229,10 +271,10 @@ const handleNewAppointmentSubmit = async () => {
     return;
   }
 
-  const todayIsoString = new Date().toISOString().split('T')[0];
-  if (dateInput.value < todayIsoString) {
-    dateInput.value = todayIsoString;
-    notifyUser('warning', 'Fecha inválida', 'No puedes solicitar citas en fechas pasadas.');
+  const earliestRequestDate = getEarliestRequestDate();
+  if (dateInput.value < earliestRequestDate) {
+    dateInput.value = earliestRequestDate;
+    notifyUser('warning', 'Fecha inválida', 'Las solicitudes deben ser para una fecha posterior a hoy.');
     return;
   }
 
@@ -288,13 +330,17 @@ const handleNewAppointmentSubmit = async () => {
 
 const mapServerToClient = (srv) => {
   const estadoServidor = srv.Estado ?? srv.estado ?? srv.EstadoCatalogo ?? srv.estadoCatalogo ?? '';
-  const clientStatus = CommonUtils.mapEstadoServerToClient(estadoServidor);
-  const statusInfo = CommonUtils.getStatusInfo(clientStatus);
+  const clientStatus = window.CommonUtils?.mapEstadoServerToClient(estadoServidor)
+    ?? String(estadoServidor).toLowerCase().trim().replace(/\s+/g, '_');
+  const statusInfo = window.CommonUtils?.getStatusInfo(clientStatus) ?? { label: 'Agendada', cls: 'badge-agendada' };
   const fechaHora = srv.FechaHora ?? srv.fechaHora;
   const fechaHoraIso = fechaHora ? new Date(fechaHora).toISOString() : null;
   const isUpcoming = statusInfo.label === 'Agendada' || statusInfo.label === 'Confirmada';
-  const todayIsoDate = new Date().toISOString().split('T')[0];
-  const appointmentIsoDate = fechaHoraIso ? fechaHoraIso.split('T')[0] : todayIsoDate;
+  const todayIsoDate = toLocalDateInputValue(new Date());
+  const appointmentDate = fechaHoraIso ? new Date(fechaHoraIso) : null;
+  const appointmentIsoDate = appointmentDate && !Number.isNaN(appointmentDate.getTime())
+    ? toLocalDateInputValue(appointmentDate)
+    : todayIsoDate;
 
   const prof = srv.Profesional ?? srv.profesional ?? null;
   const doctorNombre = (
@@ -374,8 +420,8 @@ const updateAppointmentStats = () => {
 const animateAppointmentCounters = () => {
   const totalCount = appointmentsList.length;
   const completedCount = appointmentsList.filter(c => c.estado === 'Completada').length;
-  const pendingCount = appointmentsList.filter(c => c.estado === 'Agendada' || c.estado === 'Confirmada').length;
-  const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada').length;
+  const pendingCount = appointmentsList.filter(c => c.estado === 'Agendada' || c.estado === 'Confirmada' || c.estado === 'En curso').length;
+  const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada' || c.estado === 'No asistió').length;
 
   const nodes = [safeGetElement('cnt-total'), safeGetElement('cnt-completadas'), safeGetElement('cnt-pendientes'), safeGetElement('cnt-canceladas')];
   nodes.forEach(n => { if (n) delete n.dataset.animated; });
@@ -411,6 +457,10 @@ const renderAppointmentsTable = () => {
     if (item.active) tr.classList.add('row-active');
     if (item.estado === 'Cancelada') tr.classList.add('row-cancelada');
     const canCancel = item.estado === 'Agendada' || item.estado === 'Confirmada';
+    const minutesUntilAppointment = new Date(item.fechaHoraISO).getTime() - Date.now();
+    const cancellationBlocked = canCancel &&
+      (!Number.isFinite(minutesUntilAppointment) || minutesUntilAppointment < 2 * 60 * 60 * 1000);
+    const cancellationNotice = 'Para cancelaciones con menos de 2 horas de anticipación, por favor comuníquese directamente con recepción.';
     tr.innerHTML = `
       <td class="td-fecha">${escapeHtml(item.fecha)}</td>
       <td><span class="pill-hora">${escapeHtml(item.hora)}</span></td>
@@ -424,9 +474,10 @@ const renderAppointmentsTable = () => {
             <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">visibility</span> <span class="btn-text">Ver</span>
           </button>
           ${canCancel ? `<button class="btn-danger btn-delete" type="button" id="btn-cancelar-${item.id}"
-                  title="Cancelar cita" data-action="cancelar" data-id="${item.id}" aria-label="Cancelar cita">
+                  title="${cancellationBlocked ? cancellationNotice : 'Cancelar cita'}" data-action="cancelar" data-id="${item.id}" aria-label="Cancelar cita"
+                  ${cancellationBlocked ? `disabled aria-describedby="cancelacionAnticipacionAviso-${item.id}"` : ''}>
             <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">cancel</span> <span class="btn-text">Cancelar</span>
-          </button>` : ''}
+          </button>${cancellationBlocked ? `<small class="cancellation-notice" id="cancelacionAnticipacionAviso-${item.id}">${cancellationNotice}</small>` : ''}` : ''}
         </div>
       </td>`;
     tableBody.appendChild(tr);
@@ -480,11 +531,16 @@ const openCancelAppointmentModal = (appointmentId) => {
   const descriptionText = safeGetElement('cancelarDesc');
   const warningBox = safeGetElement('cancelarAdvertencia');
   const errorBox = safeGetElement('cancelarError');
+  const reasonInput = safeGetElement('cancelarMotivo');
 
-  if (errorBox) errorBox.textContent = '';
+  if (errorBox) {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+  if (reasonInput) reasonInput.value = '';
 
-  if (hoursRemaining < 24 && item.estado !== 'Cancelada' && item.estado !== 'Completada') {
-    if (warningBox) warningBox.textContent = `⚠️ Esta cita es en ${Math.max(1, Math.round(hoursRemaining))} horas. La clínica recomienda cancelar con al menos 24h de anticipación.`;
+  if (hoursRemaining > 0 && hoursRemaining < 24 && item.estado !== 'Cancelada' && item.estado !== 'Completada') {
+    if (warningBox) warningBox.textContent = `Esta cita es en ${Math.round(hoursRemaining)} horas.`;
     warningBox?.classList.remove('hidden');
   } else {
     warningBox?.classList.add('hidden');
@@ -529,9 +585,7 @@ const setupNewAppointmentModal = () => {
   if (!newAppointmentModal || !newAppointmentBtn) return;
 
   const dateInput = safeGetElement('citaFecha');
-  if (dateInput) {
-    dateInput.min = new Date().toISOString().split('T')[0];
-  }
+  setMinimumRequestDate(dateInput);
 
   const closeModalHandler = () => {
     newAppointmentModal.classList.remove('open');
@@ -543,7 +597,7 @@ const setupNewAppointmentModal = () => {
 
   newAppointmentBtn.addEventListener('click', () => {
     newAppointmentModal.dataset.opener = 'btnNuevaCita';
-    if (dateInput) dateInput.min = new Date().toISOString().split('T')[0];
+    setMinimumRequestDate(dateInput);
     newAppointmentModal.classList.add('open');
     newAppointmentModal.setAttribute('aria-hidden', 'false');
     newAppointmentModal.removeAttribute('inert');
@@ -556,10 +610,10 @@ const setupNewAppointmentModal = () => {
   newAppointmentModal.addEventListener('click', event => { if (event.target === newAppointmentModal) closeModalHandler(); });
 
   dateInput?.addEventListener('change', () => {
-    const todayIsoDate = new Date().toISOString().split('T')[0];
-    if (dateInput.value < todayIsoDate) {
-      dateInput.value = todayIsoDate;
-      notifyUser('warning', 'Fecha inválida', 'No puedes seleccionar fechas pasadas. Se ha ajustado al día de hoy.');
+    const earliestRequestDate = getEarliestRequestDate();
+    if (dateInput.value < earliestRequestDate) {
+      dateInput.value = earliestRequestDate;
+      notifyUser('warning', 'Fecha inválida', 'La solicitud se ha ajustado al día siguiente como fecha más próxima.');
     }
   });
 
@@ -633,6 +687,8 @@ const initializeMisCitasModule = async () => {
         newAppointmentModal.classList.remove('open');
         newAppointmentModal.setAttribute('aria-hidden', 'true');
         newAppointmentModal.setAttribute('inert', '');
+        const openerId = newAppointmentModal.dataset.opener;
+        if (openerId) safeGetElement(openerId)?.focus();
       } else if (cancelModal?.classList.contains('open')) {
         closeCancelAppointmentModal();
       } else if (detailModal?.classList.contains('open')) {

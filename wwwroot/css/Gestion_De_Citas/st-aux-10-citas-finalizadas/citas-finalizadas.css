@@ -137,8 +137,8 @@ img { max-width: 100%; height: auto; display: block; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
 .page-header { background: var(--white); border-radius: var(--radius); padding: 16px 22px; margin-bottom: 18px; box-shadow: var(--shadow); border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .breadcrumb { font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
-.page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; color: var(--primary); }
-.page-subtitle { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
+.page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; line-height: 1.25; color: var(--primary); }
+.page-subtitle { font-size: .82rem; font-weight: 400; line-height: 1.5; color: var(--text-muted); margin-top: 2px; }
 
 /* ═══ TARJETAS DE RESUMEN — patrón canónico stats-grid (unificado con st-adm-07 / st-rec-01) ═══ */
 /* Las clases summary-cards/summary-card se mantienen por compatibilidad pero ya no se usan en el HTML */
@@ -147,7 +147,7 @@ img { max-width: 100%; height: auto; display: block; }
 .summary-card.green { border-left-color: var(--green); }
 .summary-card.red { border-left-color: var(--danger); }
 .summary-card.yellow { border-left-color: var(--orange); }
-.summary-number { display: block; font-family: var(--font-display); font-size: 2rem; font-weight: 700; margin-bottom: 4px; }
+.summary-number { display: block; font-family: var(--font-display); font-size: 2.2rem; font-weight: 700; line-height: 1; margin-bottom: 4px; }
 .summary-card.green .summary-number { color: var(--green); }
 .summary-card.red .summary-number { color: var(--danger); }
 .summary-card.yellow .summary-number { color: var(--orange); }
@@ -168,7 +168,7 @@ img { max-width: 100%; height: auto; display: block; }
 .stat-card[data-color="orange"] .stat-number { color: var(--orange); }
 .stat-card[data-color="blue"]   .stat-number { color: #3b82f6; }
 .stat-card[data-color="purple"] .stat-number { color: var(--purple); }
-.stat-label { font-size: .77rem; color: var(--text-muted); font-weight: 500; }
+.stat-label { font-size: .78rem; color: var(--text-muted); font-weight: 500; }
 
 /* ═══ TABLA DE CITAS: patrón compartido con st-rec-03 ═══ */
 .table-wrap {
@@ -235,7 +235,7 @@ img { max-width: 100%; height: auto; display: block; }
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
-  font: 600 .78rem var(--font);
+  font: 600 .8rem var(--font);
   cursor: pointer;
 }
 .pagination-btn:hover:not(:disabled),
@@ -250,7 +250,7 @@ img { max-width: 100%; height: auto; display: block; }
 .td-profesional, .td-servicio { color: var(--text-muted); }
 
 /* Badge de estado con indicador visual */
-.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 20px; font-size: .72rem; font-weight: 600; }
+.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 20px; font-size: .72rem; font-weight: 700; }
 .status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .status-badge.atendida { background: var(--status-atendida-bg); color: var(--status-atendida-text); }
 .status-badge.cancelada { background: var(--status-cancelada-bg); color: var(--status-cancelada-text); }

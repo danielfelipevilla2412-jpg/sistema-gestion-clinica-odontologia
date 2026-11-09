@@ -47,12 +47,16 @@ public sealed class HistoriaClinicaApiController : ControllerBase
     /// </summary>
     private async Task<bool> PuedeAccederAsync(int pacienteId, CancellationToken ct)
     {
-        if (!User.IsInRole("Paciente")) return true;
-
         int? idUsuario = GetCurrentUserId();
         if (idUsuario is null) return false;
 
-        return await _service.EsPropioPacienteAsync(pacienteId, idUsuario.Value, ct);
+        if (User.IsInRole("Profesional"))
+            return await _service.ProfesionalPuedeAccederPacienteAsync(pacienteId, idUsuario.Value, ct);
+
+        if (User.IsInRole("Paciente"))
+            return await _service.EsPropioPacienteAsync(pacienteId, idUsuario.Value, ct);
+
+        return true;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -89,6 +93,9 @@ public sealed class HistoriaClinicaApiController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Create([FromBody] HistoriaClinicaApiCreateDto dto, CancellationToken ct = default)
     {
+        if (User.IsInRole("Profesional") && !await PuedeAccederAsync(dto.PacienteId, ct))
+            return StatusCode(403, new { success = false, message = "No tiene permiso para acceder a la historia de este paciente." });
+
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
 
@@ -132,6 +139,9 @@ public sealed class HistoriaClinicaApiController : ControllerBase
     {
         if (pacienteId <= 0)
             return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        if (!await PuedeAccederAsync(pacienteId, ct))
+            return StatusCode(403, new { success = false, message = "No tiene permiso para registrar notas en la historia de este paciente." });
 
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
@@ -177,6 +187,9 @@ public sealed class HistoriaClinicaApiController : ControllerBase
         if (pacienteId <= 0)
             return BadRequest(new { success = false, message = "Identificador inválido." });
 
+        if (!await PuedeAccederAsync(pacienteId, ct))
+            return StatusCode(403, new { success = false, message = "No tiene permiso para modificar el odontograma de este paciente." });
+
         if (request is null)
             return BadRequest(new { success = false, message = "No se recibieron datos del odontograma." });
 
@@ -203,6 +216,16 @@ public sealed class HistoriaClinicaApiController : ControllerBase
 
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
+
+        if (User.IsInRole("Profesional"))
+        {
+            int? idUsuario = GetCurrentUserId();
+            if (idUsuario is null
+                || !await _service.ProfesionalPuedeAccederHistoriaAsync(id, idUsuario.Value, ct))
+            {
+                return StatusCode(403, new { success = false, message = "No tiene permiso para modificar esta historia clínica." });
+            }
+        }
 
         var result = await _service.CambiarEstadoApiAsync(id, dto.Activa, ct);
 

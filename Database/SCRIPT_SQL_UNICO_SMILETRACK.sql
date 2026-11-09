@@ -207,6 +207,15 @@ BEGIN
         antecedentes_medicos VARCHAR(MAX) NULL,
         contacto_emergencia VARCHAR(100) NULL,
         telefono_emergencia VARCHAR(20) NULL,
+        estado_civil VARCHAR(20) NULL,
+        departamento VARCHAR(100) NULL,
+        parentesco_emergencia VARCHAR(50) NULL,
+        eps_aseguradora VARCHAR(150) NULL,
+        numero_poliza VARCHAR(50) NULL,
+        tipo_afiliacion VARCHAR(50) NULL,
+        medicamentos_actuales VARCHAR(MAX) NULL,
+        antecedentes_familiares VARCHAR(MAX) NULL,
+        id_profesional_asignado INT NULL,
         fecha_registro DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
         estado VARCHAR(10) NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactivo','retirado')),
         archivo_adjunto VARCHAR(255) NULL,
@@ -215,8 +224,26 @@ BEGIN
 END
 GO
 
-IF COL_LENGTH(N'dbo.Paciente', N'medicamentos') IS NULL
-    ALTER TABLE Paciente ADD medicamentos VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'medicamentos') IS NULL
+    ALTER TABLE dbo.Paciente ADD medicamentos VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'estado_civil') IS NULL
+    ALTER TABLE dbo.Paciente ADD estado_civil VARCHAR(20) NULL;
+IF COL_LENGTH('dbo.Paciente', 'departamento') IS NULL
+    ALTER TABLE dbo.Paciente ADD departamento VARCHAR(100) NULL;
+IF COL_LENGTH('dbo.Paciente', 'parentesco_emergencia') IS NULL
+    ALTER TABLE dbo.Paciente ADD parentesco_emergencia VARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Paciente', 'eps_aseguradora') IS NULL
+    ALTER TABLE dbo.Paciente ADD eps_aseguradora VARCHAR(150) NULL;
+IF COL_LENGTH('dbo.Paciente', 'numero_poliza') IS NULL
+    ALTER TABLE dbo.Paciente ADD numero_poliza VARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Paciente', 'tipo_afiliacion') IS NULL
+    ALTER TABLE dbo.Paciente ADD tipo_afiliacion VARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Paciente', 'medicamentos_actuales') IS NULL
+    ALTER TABLE dbo.Paciente ADD medicamentos_actuales VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'antecedentes_familiares') IS NULL
+    ALTER TABLE dbo.Paciente ADD antecedentes_familiares VARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Paciente', 'id_profesional_asignado') IS NULL
+    ALTER TABLE dbo.Paciente ADD id_profesional_asignado INT NULL;
 GO
 
 -- ============================================================
@@ -264,10 +291,6 @@ IF COL_LENGTH(N'dbo.Profesional', N'descripcion') IS NULL
 GO
 IF COL_LENGTH(N'dbo.Profesional', N'categoria') IS NULL
     ALTER TABLE Profesional ADD categoria VARCHAR(100) NULL;
-
-IF COL_LENGTH(N'dbo.Profesional', N'credenciales_aprobadas') IS NULL
-    ALTER TABLE Profesional ADD credenciales_aprobadas BIT NOT NULL
-        CONSTRAINT DF_Profesional_CredencialesAprobadas DEFAULT (1) WITH VALUES;
 GO
 IF COL_LENGTH(N'dbo.Profesional', N'telefono') IS NULL
     ALTER TABLE Profesional ADD telefono VARCHAR(20) NULL;
@@ -277,67 +300,6 @@ IF COL_LENGTH(N'dbo.Profesional', N'estado') IS NULL
 GO
 IF COL_LENGTH(N'dbo.Profesional', N'fecha_ingreso') IS NULL
     ALTER TABLE Profesional ADD fecha_ingreso DATE NULL;
-GO
-
--- ── Parche idempotente: columna id_usuario + FK a Usuario ──────────────────────
--- Garantiza que BDs creadas antes del CREATE TABLE original también tengan la
--- relación Profesional → Usuario. Se usa ON DELETE NO ACTION para alinear con
--- DeleteBehavior.Restrict configurado en AppDbContext OnModelCreating.
-IF COL_LENGTH(N'dbo.Profesional', N'id_usuario') IS NULL
-BEGIN
-    ALTER TABLE Profesional ADD id_usuario INT NULL;
-
-    IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Profesional_Usuario')
-        ALTER TABLE Profesional ADD CONSTRAINT FK_Profesional_Usuario
-            FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario) ON DELETE NO ACTION;
-END
-GO
-
--- Armoniza ON DELETE del FK para coincidir con EF Core (Restrict → NO ACTION).
--- El CREATE TABLE original usaba SET NULL, que se desalineaba del DbContext.
-IF EXISTS (
-    SELECT 1 FROM sys.foreign_keys
-    WHERE name = N'FK_Profesional_Usuario'
-      AND delete_referential_action <> 3
-)
-BEGIN
-    ALTER TABLE Profesional DROP CONSTRAINT FK_Profesional_Usuario;
-    ALTER TABLE Profesional ADD CONSTRAINT FK_Profesional_Usuario
-        FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario) ON DELETE NO ACTION;
-END
-GO
-
--- ── Perfil completo del paciente: columnas adicionales ─────────────────────
-IF COL_LENGTH(N'dbo.Paciente', N'estado_civil') IS NULL
-    ALTER TABLE Paciente ADD estado_civil VARCHAR(20) NULL;
-GO
-IF COL_LENGTH(N'dbo.Paciente', N'departamento') IS NULL
-    ALTER TABLE Paciente ADD departamento VARCHAR(100) NULL;
-GO
-IF COL_LENGTH(N'dbo.Paciente', N'parentesco_emergencia') IS NULL
-    ALTER TABLE Paciente ADD parentesco_emergencia VARCHAR(50) NULL;
-GO
-IF COL_LENGTH(N'dbo.Paciente', N'eps_aseguradora') IS NULL
-    ALTER TABLE Paciente ADD eps_aseguradora VARCHAR(150) NULL;
-GO
-IF COL_LENGTH(N'dbo.Paciente', N'numero_poliza') IS NULL
-    ALTER TABLE Paciente ADD numero_poliza VARCHAR(50) NULL;
-GO
-IF COL_LENGTH(N'dbo.Paciente', N'tipo_afiliacion') IS NULL
-    ALTER TABLE Paciente ADD tipo_afiliacion VARCHAR(20) NULL;
-GO
-IF COL_LENGTH(N'dbo.Paciente', N'medicamentos_actuales') IS NULL
-    ALTER TABLE Paciente ADD medicamentos_actuales VARCHAR(MAX) NULL;
-GO
-IF COL_LENGTH(N'dbo.Paciente', N'antecedentes_familiares') IS NULL
-    ALTER TABLE Paciente ADD antecedentes_familiares VARCHAR(MAX) NULL;
-GO
-IF COL_LENGTH(N'dbo.Paciente', N'id_profesional_asignado') IS NULL
-BEGIN
-    ALTER TABLE Paciente ADD id_profesional_asignado INT NULL;
-    ALTER TABLE Paciente ADD CONSTRAINT FK_Paciente_ProfesionalAsignado
-        FOREIGN KEY (id_profesional_asignado) REFERENCES Profesional(id_profesional);
-END
 GO
 
 -- ── Corrección: agregar 'vacaciones' al CHECK constraint de Profesional.estado ─────
@@ -454,7 +416,10 @@ BEGIN
         nombre VARCHAR(150) NOT NULL,
         descripcion VARCHAR(500) NULL,
         precio DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-        estado VARCHAR(10) NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactivo'))
+        estado VARCHAR(10) NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactivo')),
+        id_especialidad INT NULL,
+        CONSTRAINT FK_Servicio_Especialidad FOREIGN KEY (id_especialidad)
+            REFERENCES Especialidad(id_especialidad) ON DELETE NO ACTION
     );
 END
 GO
@@ -497,7 +462,7 @@ BEGIN
         tipo VARCHAR(50) NULL,
         nombre_estado VARCHAR(50) NULL,
         capacidad INT NULL,
-        estado VARCHAR(15) NOT NULL DEFAULT 'disponible' CHECK (estado IN ('disponible','ocupado','mantenimiento'))
+        estado VARCHAR(15) NOT NULL DEFAULT 'disponible' CHECK (estado IN ('disponible','ocupado','mantenimiento','no-disponible','no_disponible','activo'))
     );
 END
 GO
@@ -818,25 +783,6 @@ BEGIN
 END
 GO
 
-INSERT INTO dbo.Pago_Factura
-    (id_factura, monto, metodo_pago, estado, referencia, registrado_por, fecha_utc)
-SELECT
-    f.id_factura,
-    f.monto_pagado,
-    'historico',
-    'migrado',
-    CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura)),
-    f.generada_por,
-    COALESCE(CAST(f.fecha_pago AS DATETIME2), CAST(f.fecha_factura AS DATETIME2))
-FROM dbo.Factura f
-WHERE f.monto_pagado > 0
-  AND NOT EXISTS (
-      SELECT 1
-      FROM dbo.Pago_Factura p
-      WHERE p.referencia = CONCAT('LEGACY-', CONVERT(VARCHAR(10), f.id_factura))
-  );
-GO
-
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Ticket_Soporte') AND type = N'U')
 BEGIN
     CREATE TABLE Ticket_Soporte (
@@ -871,6 +817,29 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Servi
 BEGIN
     ALTER TABLE dbo.Servicio ADD duracion_minutos INT NOT NULL DEFAULT 30;
 END
+GO
+
+IF COL_LENGTH(N'dbo.Servicio', N'id_especialidad') IS NULL
+    ALTER TABLE dbo.Servicio ADD id_especialidad INT NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'FK_Servicio_Especialidad'
+      AND parent_object_id = OBJECT_ID(N'dbo.Servicio')
+)
+    ALTER TABLE dbo.Servicio
+        ADD CONSTRAINT FK_Servicio_Especialidad
+        FOREIGN KEY (id_especialidad) REFERENCES dbo.Especialidad(id_especialidad)
+        ON DELETE NO ACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Servicio_IdEspecialidad'
+      AND object_id = OBJECT_ID(N'dbo.Servicio')
+)
+    CREATE INDEX IX_Servicio_IdEspecialidad ON dbo.Servicio(id_especialidad);
 GO
 
 
@@ -1040,101 +1009,7 @@ BEGIN
 END
 GO
 
-IF NOT EXISTS (SELECT 1 FROM Usuario WHERE correo='prof@smiletrack.co')
-BEGIN
-    INSERT INTO Usuario (nombre, apellidos, correo, contrasena, id_rol, estado, fecha_creacion)
-    VALUES (
-        'Prof',
-        'SmileTrack',
-        'prof@smiletrack.co',
-        '$2a$11$u.Lp05p02n3H8i1j/3CgkuM9Vl8y7D2pXfG7zT66.qG4q/3.X9G1a',
-        (SELECT id_rol FROM Rol WHERE nombre_rol='Profesional'),
-        'activo',
-        GETDATE()
-    );
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM Profesional WHERE id_usuario = (SELECT id_usuario FROM Usuario WHERE correo='prof@smiletrack.co'))
-BEGIN
-    INSERT INTO Profesional (id_usuario, nombres, apellidos, registro_medico, descripcion, categoria, telefono, estado, fecha_ingreso)
-    VALUES (
-        (SELECT id_usuario FROM Usuario WHERE correo='prof@smiletrack.co'),
-        'Prof',
-        'SmileTrack',
-        'PROF-001',
-        'Perfil profesional generado automáticamente al iniciar sesión.',
-        'Odontología General',
-        '3000000000',
-        'activo',
-        GETDATE()
-    );
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM Usuario WHERE correo='recep@smiletrack.co')
-BEGIN
-    INSERT INTO Usuario (nombre, apellidos, correo, contrasena, id_rol, estado, fecha_creacion)
-    VALUES (
-        'Recepcion',
-        'SmileTrack',
-        'recep@smiletrack.co',
-        '$2a$11$u.Lp05p02n3H8i1j/3CgkuM9Vl8y7D2pXfG7zT66.qG4q/3.X9G1a',
-        (SELECT id_rol FROM Rol WHERE nombre_rol='Recepcionista'),
-        'activo',
-        GETDATE()
-    );
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM Usuario WHERE correo='aux@smiletrack.co')
-BEGIN
-    INSERT INTO Usuario (nombre, apellidos, correo, contrasena, id_rol, estado, fecha_creacion)
-    VALUES (
-        'Aux',
-        'SmileTrack',
-        'aux@smiletrack.co',
-        '$2a$11$u.Lp05p02n3H8i1j/3CgkuM9Vl8y7D2pXfG7zT66.qG4q/3.X9G1a',
-        (SELECT id_rol FROM Rol WHERE nombre_rol='Auxiliar'),
-        'activo',
-        GETDATE()
-    );
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM Usuario WHERE correo='pac@smiletrack.co')
-BEGIN
-    INSERT INTO Usuario (nombre, apellidos, correo, contrasena, id_rol, estado, fecha_creacion)
-    VALUES (
-        'Paciente',
-        'SmileTrack',
-        'pac@smiletrack.co',
-        '$2a$11$u.Lp05p02n3H8i1j/3CgkuM9Vl8y7D2pXfG7zT66.qG4q/3.X9G1a',
-        (SELECT id_rol FROM Rol WHERE nombre_rol='Paciente'),
-        'activo',
-        GETDATE()
-    );
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM Paciente WHERE id_usuario = (SELECT id_usuario FROM Usuario WHERE correo='pac@smiletrack.co'))
-BEGIN
-    INSERT INTO Paciente (id_usuario, tipo_documento, documento, nombres, apellidos, fecha_nacimiento, correo, fecha_registro, estado)
-    VALUES (
-        (SELECT id_usuario FROM Usuario WHERE correo='pac@smiletrack.co'),
-        'CC',
-        '1000000000',
-        'Paciente',
-        'SmileTrack',
-        DATEADD(YEAR, -25, GETDATE()),
-        'pac@smiletrack.co',
-        GETDATE(),
-        'activo'
-    );
-END
-GO
-
-PRINT 'SCRIPT_SQL_UNICO_SMILETRACK ejecutado: esquema y catalogos base listos, con usuarios basicos del sistema y perfiles asociados.';
+PRINT 'SCRIPT_SQL_UNICO_SMILETRACK ejecutado: esquema y catalogos base listos, sin datos ficticios de negocio.';
 GO
 
 -- ============================================================
@@ -1258,7 +1133,6 @@ BEGIN
         id_nota        INT IDENTITY(1,1) PRIMARY KEY,
         id_historia    INT NOT NULL,
         id_profesional INT NULL,
-        id_cita        INT NULL,
         fecha          DATETIME NOT NULL DEFAULT GETDATE(),
         diagnostico    VARCHAR(MAX) NULL,
         procedimiento  VARCHAR(MAX) NULL,
@@ -1269,9 +1143,6 @@ BEGIN
             ON DELETE CASCADE,
         CONSTRAINT FK_Nota_Profesional
             FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional)
-            ON DELETE SET NULL,
-        CONSTRAINT FK_NC_Cita
-            FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita)
             ON DELETE SET NULL
     );
     PRINT 'Tabla Nota_Clinica creada correctamente.';
@@ -1280,26 +1151,6 @@ ELSE
 BEGIN
     PRINT 'Tabla Nota_Clinica ya existe — sin cambios.';
 END
-GO
-
-IF COL_LENGTH(N'dbo.Nota_Clinica', N'id_cita') IS NULL
-    ALTER TABLE dbo.Nota_Clinica ADD id_cita INT NULL;
-GO
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.foreign_keys
-    WHERE name = N'FK_NC_Cita' AND parent_object_id = OBJECT_ID(N'dbo.Nota_Clinica')
-)
-    ALTER TABLE dbo.Nota_Clinica
-        ADD CONSTRAINT FK_NC_Cita FOREIGN KEY (id_cita)
-        REFERENCES dbo.Cita(id_cita) ON DELETE SET NULL;
-GO
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = N'UX_NC_Cita' AND object_id = OBJECT_ID(N'dbo.Nota_Clinica')
-)
-    CREATE UNIQUE INDEX UX_NC_Cita ON dbo.Nota_Clinica(id_cita) WHERE id_cita IS NOT NULL;
 GO
 
 IF NOT EXISTS (
@@ -1338,39 +1189,14 @@ GO
 PRINT 'Script de Nota_Clinica y Control_Postoperatorio ejecutado correctamente.';
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.Credencial_Profesional') AND type = N'U')
-BEGIN
-    CREATE TABLE dbo.Credencial_Profesional (
-        id_credencial INT IDENTITY(1,1) PRIMARY KEY,
-        id_profesional INT NOT NULL,
-        subido_por INT NULL,
-        tipo VARCHAR(50) NOT NULL,
-        nombre_original VARCHAR(255) NOT NULL,
-        ruta_privada VARCHAR(500) NOT NULL,
-        content_type VARCHAR(100) NOT NULL,
-        tamano_bytes BIGINT NOT NULL,
-        estado_revision VARCHAR(15) NOT NULL CONSTRAINT DF_Credencial_Profesional_Estado DEFAULT ('pendiente'),
-        observacion_revision VARCHAR(500) NULL,
-        fecha_subida DATETIME2 NOT NULL CONSTRAINT DF_Credencial_Profesional_Fecha DEFAULT (GETUTCDATE()),
-        revisado_por INT NULL,
-        fecha_revision DATETIME2 NULL,
-        CONSTRAINT CK_Credencial_Profesional_Estado CHECK (estado_revision IN ('pendiente', 'aprobado', 'rechazado')),
-        CONSTRAINT FK_Credencial_Profesional_Profesional FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional(id_profesional) ON DELETE CASCADE,
-        CONSTRAINT FK_Credencial_Profesional_SubidoPor FOREIGN KEY (subido_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL,
-        CONSTRAINT FK_Credencial_Profesional_RevisadoPor FOREIGN KEY (revisado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
-    );
-
-    CREATE INDEX IX_Credencial_Profesional_Revision ON dbo.Credencial_Profesional(id_profesional, estado_revision);
-END
-GO
-
 -- ============================================================
 -- Yeray - Tabla Documento_Clinico (2025)
 --
 -- MOTIVO: la vista st-aux-08-documentos-clinicos devolvía un array vacío
 -- porque no había tabla de documentos. Esta tabla almacena los metadatos
 -- de cada archivo clínico subido (radiografías, PDFs, consentimientos, etc.).
--- El archivo físico se guarda en wwwroot/uploads/documentos-clinicos/<idHistoria>/.
+-- El archivo físico se guarda fuera de wwwroot, en almacenamiento privado
+-- configurado y persistido por la aplicación web.
 --
 -- RELACIONES:
 --   - id_historia → Historia_Clinica (CASCADE delete)
@@ -1391,6 +1217,7 @@ BEGIN
         content_type    VARCHAR(100) NOT NULL,
         tamano_bytes    BIGINT NOT NULL DEFAULT 0,
         fecha_subida    DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        fecha_documento DATE NULL,
         observacion     VARCHAR(500) NULL,
 
         CONSTRAINT FK_DocClinico_Historia
@@ -1409,6 +1236,13 @@ END
 ELSE
 BEGIN
     PRINT 'Tabla Documento_Clinico ya existe — sin cambios.';
+END
+GO
+
+IF COL_LENGTH(N'dbo.Documento_Clinico', N'fecha_documento') IS NULL
+BEGIN
+    ALTER TABLE dbo.Documento_Clinico ADD fecha_documento DATE NULL;
+    PRINT 'Columna fecha_documento agregada a Documento_Clinico.';
 END
 GO
 
@@ -1787,16 +1621,29 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_BloqueoProfesion
 GO
 
 -- La interfaz usa no-disponible; se conserva mantenimiento como estado válido.
-DECLARE @ck_consultorio NVARCHAR(256);
-SELECT @ck_consultorio = name
-FROM sys.check_constraints
-WHERE parent_object_id = OBJECT_ID(N'dbo.Consultorio')
-  AND definition LIKE '%estado%';
-IF @ck_consultorio IS NOT NULL
-    EXEC(N'ALTER TABLE dbo.Consultorio DROP CONSTRAINT [' + @ck_consultorio + N']');
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Consultorio_Estado')
-    ALTER TABLE dbo.Consultorio ADD CONSTRAINT CK_Consultorio_Estado
-        CHECK (estado IN ('disponible','ocupado','mantenimiento','no-disponible'));
+DECLARE @consultorioEstadoCheck sysname;
+DECLARE @consultorioEstadoSql NVARCHAR(MAX);
+WHILE EXISTS (
+    SELECT 1
+    FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.Consultorio')
+      AND (parent_column_id = COLUMNPROPERTY(OBJECT_ID(N'dbo.Consultorio'), N'estado', 'ColumnId')
+           OR OBJECT_DEFINITION(object_id) LIKE N'%estado%')
+)
+BEGIN
+    SELECT TOP (1) @consultorioEstadoCheck = name
+    FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.Consultorio')
+      AND (parent_column_id = COLUMNPROPERTY(OBJECT_ID(N'dbo.Consultorio'), N'estado', 'ColumnId')
+           OR OBJECT_DEFINITION(object_id) LIKE N'%estado%');
+
+    SET @consultorioEstadoSql =
+        N'ALTER TABLE dbo.Consultorio DROP CONSTRAINT ' + QUOTENAME(@consultorioEstadoCheck);
+    EXEC(@consultorioEstadoSql);
+END
+
+ALTER TABLE dbo.Consultorio ADD CONSTRAINT CK_Consultorio_Estado
+    CHECK (estado IN ('disponible','ocupado','mantenimiento','no-disponible','no_disponible','activo'));
 GO
 
 -- Historial funcional de cambios de estado, asistencia y reasignaciones.
@@ -1904,41 +1751,6 @@ BEGIN
 END
 GO
 
--- Amplía los tipos permitidos de Notificacion (facturación y pagos) en bases ya existentes.
--- POR QUÉ: el CHECK original solo admitía 'recordatorio','confirmacion','cancelacion','mensaje','alerta',
--- pero el módulo de facturación registra notificaciones con tipo 'factura'. Eso provocaba
--- "The INSERT statement conflicted with the CHECK constraint ... column 'tipo'" (HTTP 500 al facturar).
-IF OBJECT_ID(N'dbo.Notificacion', N'U') IS NOT NULL
-BEGIN
-    DECLARE @ckTipoNotificacion SYSNAME;
-
-    SELECT @ckTipoNotificacion = cc.name
-    FROM sys.check_constraints AS cc
-    INNER JOIN sys.columns AS col
-        ON col.object_id = cc.parent_object_id
-       AND col.column_id = cc.parent_column_id
-    WHERE cc.parent_object_id = OBJECT_ID(N'dbo.Notificacion')
-      AND col.name = N'tipo';
-
-    IF @ckTipoNotificacion IS NOT NULL
-        AND @ckTipoNotificacion <> N'CK_Notificacion_tipo'
-    BEGIN
-        EXEC(N'ALTER TABLE dbo.Notificacion DROP CONSTRAINT [' + @ckTipoNotificacion + N'];');
-    END
-
-    IF NOT EXISTS (
-        SELECT 1 FROM sys.check_constraints
-        WHERE name = N'CK_Notificacion_tipo'
-          AND parent_object_id = OBJECT_ID(N'dbo.Notificacion')
-    )
-    BEGIN
-        ALTER TABLE dbo.Notificacion WITH CHECK
-            ADD CONSTRAINT CK_Notificacion_tipo
-            CHECK (tipo IN ('recordatorio','confirmacion','cancelacion','mensaje','alerta','factura','pago'));
-    END
-END
-GO
-
 IF OBJECT_ID(N'dbo.Recordatorio_Cita', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Recordatorio_Cita (
@@ -1958,673 +1770,81 @@ END
 GO
 
 -- Historial del estado físico del consultorio.
+IF OBJECT_ID(N'dbo.Estado_Consultorio', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Estado_Consultorio (
+        id_estado_consultorio TINYINT NOT NULL PRIMARY KEY,
+        codigo VARCHAR(30) NOT NULL UNIQUE,
+        nombre VARCHAR(50) NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 1)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (1, 'disponible', 'Disponible');
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 2)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (2, 'ocupado', 'Ocupado');
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 3)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (3, 'mantenimiento', 'En mantenimiento');
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 4)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (4, 'no-disponible', 'No disponible');
+IF NOT EXISTS (SELECT 1 FROM dbo.Estado_Consultorio WHERE id_estado_consultorio = 5)
+    INSERT INTO dbo.Estado_Consultorio (id_estado_consultorio, codigo, nombre) VALUES (5, 'activo', 'Activo');
+GO
+
 IF OBJECT_ID(N'dbo.Consultorio_Historial', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Consultorio_Historial (
         id_historial INT IDENTITY(1,1) PRIMARY KEY,
         id_consultorio INT NOT NULL,
         estado VARCHAR(20) NOT NULL,
+        id_estado_anterior TINYINT NULL,
+        id_estado_nuevo TINYINT NULL,
         id_usuario INT NULL,
         motivo VARCHAR(500) NULL,
         fecha_cambio DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         CONSTRAINT FK_ConsultorioHistorial_Consultorio FOREIGN KEY (id_consultorio) REFERENCES dbo.Consultorio(id_consultorio) ON DELETE CASCADE,
+        CONSTRAINT FK_ConsultorioHistorial_EstadoAnterior FOREIGN KEY (id_estado_anterior) REFERENCES dbo.Estado_Consultorio(id_estado_consultorio),
+        CONSTRAINT FK_ConsultorioHistorial_EstadoNuevo FOREIGN KEY (id_estado_nuevo) REFERENCES dbo.Estado_Consultorio(id_estado_consultorio),
         CONSTRAINT FK_ConsultorioHistorial_Usuario FOREIGN KEY (id_usuario) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
     );
-    CREATE INDEX IX_ConsultorioHistorial_Consultorio_Fecha ON dbo.Consultorio_Historial(id_consultorio, fecha_cambio DESC);
 END
 GO
 
--- Persistencia de asistencia procedural y estado operativo del consultorio.
-IF OBJECT_ID(N'dbo.Asistencia_Procedimiento', N'U') IS NULL
+IF COL_LENGTH(N'dbo.Consultorio_Historial', N'id_estado_anterior') IS NULL
+    ALTER TABLE dbo.Consultorio_Historial ADD id_estado_anterior TINYINT NULL;
+IF COL_LENGTH(N'dbo.Consultorio_Historial', N'id_estado_nuevo') IS NULL
+    ALTER TABLE dbo.Consultorio_Historial ADD id_estado_nuevo TINYINT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ConsultorioHistorial_EstadoAnterior')
+    ALTER TABLE dbo.Consultorio_Historial ADD CONSTRAINT FK_ConsultorioHistorial_EstadoAnterior
+        FOREIGN KEY (id_estado_anterior) REFERENCES dbo.Estado_Consultorio(id_estado_consultorio);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ConsultorioHistorial_EstadoNuevo')
+    ALTER TABLE dbo.Consultorio_Historial ADD CONSTRAINT FK_ConsultorioHistorial_EstadoNuevo
+        FOREIGN KEY (id_estado_nuevo) REFERENCES dbo.Estado_Consultorio(id_estado_consultorio);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ConsultorioHistorial_Consultorio_Fecha')
+    CREATE INDEX IX_ConsultorioHistorial_Consultorio_Fecha
+        ON dbo.Consultorio_Historial(id_consultorio, fecha_cambio DESC);
+GO
+
+-- Auditoría de reasignación de consultorio en una cita.
+IF OBJECT_ID(N'dbo.Cita_Consultorio_Historial', N'U') IS NULL
 BEGIN
-    CREATE TABLE dbo.Asistencia_Procedimiento (
-        id_asistencia INT IDENTITY(1,1) PRIMARY KEY,
+    CREATE TABLE dbo.Cita_Consultorio_Historial (
+        id_historial INT IDENTITY(1,1) PRIMARY KEY,
         id_cita INT NOT NULL,
-        minutos INT NOT NULL DEFAULT 0,
-        inicio DATETIME2 NOT NULL,
-        limpieza BIT NOT NULL DEFAULT 0,
-        esterilizacion BIT NOT NULL DEFAULT 0,
-        equipos BIT NOT NULL DEFAULT 0,
-        actualizado_por INT NULL,
-        actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        CONSTRAINT UQ_AsistenciaProcedimiento_Cita UNIQUE (id_cita),
-        CONSTRAINT FK_AsistenciaProcedimiento_Cita FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita) ON DELETE CASCADE,
-        CONSTRAINT FK_AsistenciaProcedimiento_Usuario FOREIGN KEY (actualizado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
+        id_consultorio_anterior INT NULL,
+        id_consultorio_nuevo INT NULL,
+        id_usuario INT NULL,
+        fecha_cambio DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_CitaConsultorioHistorial_Cita FOREIGN KEY (id_cita) REFERENCES dbo.Cita(id_cita) ON DELETE CASCADE,
+        CONSTRAINT FK_CitaConsultorioHistorial_ConsultorioAnterior FOREIGN KEY (id_consultorio_anterior) REFERENCES dbo.Consultorio(id_consultorio),
+        CONSTRAINT FK_CitaConsultorioHistorial_ConsultorioNuevo FOREIGN KEY (id_consultorio_nuevo) REFERENCES dbo.Consultorio(id_consultorio),
+        CONSTRAINT FK_CitaConsultorioHistorial_Usuario FOREIGN KEY (id_usuario) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
     );
-END
-GO
-
-IF OBJECT_ID(N'dbo.Consultorio_Estado_Operativo', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.Consultorio_Estado_Operativo (
-        id_estado_operativo INT IDENTITY(1,1) PRIMARY KEY,
-        id_consultorio INT NOT NULL,
-        checklist_json NVARCHAR(MAX) NOT NULL DEFAULT N'[]',
-        observaciones NVARCHAR(2000) NULL,
-        actualizado_por INT NULL,
-        actualizado_en DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        CONSTRAINT UQ_ConsultorioEstadoOperativo_Consultorio UNIQUE (id_consultorio),
-        CONSTRAINT FK_ConsultorioEstadoOperativo_Consultorio FOREIGN KEY (id_consultorio) REFERENCES dbo.Consultorio(id_consultorio) ON DELETE CASCADE,
-        CONSTRAINT FK_ConsultorioEstadoOperativo_Usuario FOREIGN KEY (actualizado_por) REFERENCES dbo.Usuario(id_usuario) ON DELETE SET NULL
-    );
+    CREATE INDEX IX_CitaConsultorioHistorial_Cita_Fecha
+        ON dbo.Cita_Consultorio_Historial(id_cita, fecha_cambio DESC);
 END
 GO
 
 PRINT 'Ampliación operativa de citas y profesionales aplicada correctamente.';
-GO
-
--- ============================================================
--- VISTAS DE OPTIMIZACIÓN PARA GESTIÓN DE CITAS Y PROFESIONALES
--- Fecha de creación: 2025-01-XX
--- Propósito: Optimizar consultas frecuentes mediante vistas pre-calculadas
--- ============================================================
-
-PRINT '';
-PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-PRINT '   CREACIÓN DE VISTAS DE OPTIMIZACIÓN';
-PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-GO
-
--- ============================================================
--- VISTA 1: vw_Citas_Dashboard
--- Propósito: Optimizar consultas del dashboard de citas
--- Uso: CitaService, GestionCitasController
--- Beneficio: Reduce 6 JOINs repetitivos en cada consulta
--- ============================================================
-
-IF OBJECT_ID('dbo.vw_Citas_Dashboard', 'V') IS NOT NULL
-    DROP VIEW dbo.vw_Citas_Dashboard;
-GO
-
-CREATE VIEW dbo.vw_Citas_Dashboard
-AS
-SELECT 
-    -- Cita
-    c.id_cita,
-    c.fecha_hora,
-    c.estado,
-    c.duracion_minutos,
-    c.notas,
-    c.motivo_consulta,
-    c.notas_previas,
-    c.tipo_cita,
-    c.fecha_creacion,
-    
-    -- Paciente
-    pac.id_paciente,
-    pac.nombres + ' ' + pac.apellidos AS nombre_paciente,
-    pac.documento,
-    pac.tipo_documento,
-    pac.telefono AS telefono_paciente,
-    pac.correo AS correo_paciente,
-    pac.genero,
-    pac.fecha_nacimiento,
-    DATEDIFF(YEAR, pac.fecha_nacimiento, GETDATE()) AS edad_paciente,
-    
-    -- Profesional
-    prof.id_profesional,
-    prof.nombres + ' ' + prof.apellidos AS nombre_profesional,
-    prof.registro_medico,
-    prof.estado AS estado_profesional,
-    prof.telefono AS telefono_profesional,
-    
-    -- Especialidad principal del profesional
-    (SELECT TOP 1 e.nombre 
-     FROM Profesional_Especialidad pe
-     INNER JOIN Especialidad e ON pe.id_especialidad = e.id_especialidad
-     WHERE pe.id_profesional = prof.id_profesional AND pe.principal = 1
-    ) AS especialidad_profesional,
-    
-    -- Servicio
-    s.id_servicio,
-    s.nombre AS nombre_servicio,
-    s.descripcion AS descripcion_servicio,
-    s.precio AS precio_servicio,
-    s.duracion_minutos AS duracion_servicio,
-    s.categoria AS categoria_servicio,
-    
-    -- Consultorio
-    cons.id_consultorio,
-    cons.nombre AS nombre_consultorio,
-    cons.ubicacion AS ubicacion_consultorio,
-    cons.tipo AS tipo_consultorio,
-    cons.estado AS estado_consultorio,
-    
-    -- Estado catálogo
-    ec.id_estado AS id_estado_catalogo,
-    ec.nombre_estado AS nombre_estado_catalogo,
-    ec.descripcion AS descripcion_estado,
-    
-    -- Usuario que creó
-    u.id_usuario AS creado_por_id,
-    u.nombre + ' ' + u.apellidos AS creado_por_nombre,
-    u.correo AS correo_creador,
-    
-    -- Indicadores calculados
-    CASE 
-        WHEN c.fecha_hora < GETDATE() AND c.estado IN ('Agendada', 'Confirmada', 'Programada') 
-        THEN 1 ELSE 0 
-    END AS es_atrasada,
-    
-    CASE 
-        WHEN c.fecha_hora BETWEEN GETDATE() AND DATEADD(HOUR, 24, GETDATE()) 
-        AND c.estado IN ('Agendada', 'Confirmada', 'Programada')
-        THEN 1 ELSE 0 
-    END AS es_proxima_24h,
-    
-    DATEDIFF(MINUTE, GETDATE(), c.fecha_hora) AS minutos_hasta_cita
-
-FROM Cita c
-INNER JOIN Paciente pac ON c.id_paciente = pac.id_paciente
-LEFT JOIN Profesional prof ON c.id_profesional = prof.id_profesional
-LEFT JOIN Servicio s ON c.id_servicio = s.id_servicio
-LEFT JOIN Consultorio cons ON c.id_consultorio = cons.id_consultorio
-LEFT JOIN Estado_Cita ec ON c.id_estado = ec.id_estado
-LEFT JOIN Usuario u ON c.creado_por = u.id_usuario;
-GO
-
-PRINT '✓ Vista vw_Citas_Dashboard creada exitosamente';
-GO
-
--- ============================================================
--- VISTA 2: vw_Profesionales_Completo
--- Propósito: Optimizar listados de profesionales con relaciones
--- Uso: ProfesionalService, GestionProfesionalesController
--- Beneficio: Pre-calcula contadores de horarios, ausencias, citas
--- ============================================================
-
-IF OBJECT_ID('dbo.vw_Profesionales_Completo', 'V') IS NOT NULL
-    DROP VIEW dbo.vw_Profesionales_Completo;
-GO
-
-CREATE VIEW dbo.vw_Profesionales_Completo
-AS
-SELECT 
-    -- Profesional
-    p.id_profesional,
-    p.nombres,
-    p.apellidos,
-    p.nombres + ' ' + p.apellidos AS nombre_completo,
-    p.registro_medico,
-    p.categoria,
-    p.telefono,
-    p.descripcion,
-    p.estado,
-    p.fecha_ingreso,
-    
-    -- Usuario asociado
-    u.id_usuario,
-    u.correo,
-    u.estado AS estado_usuario,
-    u.fecha_creacion AS fecha_creacion_usuario,
-    u.ultimo_login,
-    u.intentos_fallidos,
-    
-    -- Rol
-    r.id_rol,
-    r.nombre_rol,
-    
-    -- Especialidad principal
-    (SELECT TOP 1 e.id_especialidad
-     FROM Profesional_Especialidad pe
-     INNER JOIN Especialidad e ON pe.id_especialidad = e.id_especialidad
-     WHERE pe.id_profesional = p.id_profesional AND pe.principal = 1
-    ) AS id_especialidad_principal,
-    
-    (SELECT TOP 1 e.nombre
-     FROM Profesional_Especialidad pe
-     INNER JOIN Especialidad e ON pe.id_especialidad = e.id_especialidad
-     WHERE pe.id_profesional = p.id_profesional AND pe.principal = 1
-    ) AS nombre_especialidad_principal,
-    
-    -- Contadores de disponibilidad
-    (SELECT COUNT(*) 
-     FROM Horario_Profesional hp 
-     WHERE hp.id_profesional = p.id_profesional AND hp.activo = 1
-    ) AS total_horarios_activos,
-    
-    (SELECT COUNT(*) 
-     FROM Ausencia_Profesional ap 
-     WHERE ap.id_profesional = p.id_profesional 
-       AND ap.fecha_fin >= CAST(GETDATE() AS DATE)
-    ) AS total_ausencias_vigentes,
-    
-    (SELECT COUNT(*) 
-     FROM Bloqueo_Profesional bp 
-     WHERE bp.id_profesional = p.id_profesional 
-       AND bp.fecha_fin > GETDATE()
-    ) AS total_bloqueos_activos,
-    
-    -- Contadores de citas
-    (SELECT COUNT(*) 
-     FROM Cita c 
-     WHERE c.id_profesional = p.id_profesional 
-       AND c.fecha_hora >= CAST(GETDATE() AS DATE)
-       AND c.estado NOT IN ('Cancelada', 'cancelada', 'Cancelado', 'cancelado')
-    ) AS total_citas_pendientes,
-    
-    (SELECT COUNT(*) 
-     FROM Cita c 
-     WHERE c.id_profesional = p.id_profesional 
-       AND YEAR(c.fecha_hora) = YEAR(GETDATE())
-       AND MONTH(c.fecha_hora) = MONTH(GETDATE())
-    ) AS total_citas_mes_actual,
-    
-    -- Servicios que ofrece
-    (SELECT COUNT(*) 
-     FROM Profesional_Servicio ps 
-     WHERE ps.id_profesional = p.id_profesional AND ps.activo = 1
-    ) AS total_servicios_activos,
-    
-    -- Indicadores de disponibilidad
-    CASE 
-        WHEN p.estado = 'activo' 
-         AND NOT EXISTS (
-             SELECT 1 FROM Ausencia_Profesional ap 
-             WHERE ap.id_profesional = p.id_profesional 
-               AND CAST(GETDATE() AS DATE) BETWEEN ap.fecha_inicio AND ap.fecha_fin
-         )
-         AND NOT EXISTS (
-             SELECT 1 FROM Bloqueo_Profesional bp 
-             WHERE bp.id_profesional = p.id_profesional 
-               AND GETDATE() BETWEEN bp.fecha_inicio AND bp.fecha_fin
-         )
-        THEN 1 ELSE 0 
-    END AS disponible_ahora
-
-FROM Profesional p
-LEFT JOIN Usuario u ON p.id_usuario = u.id_usuario
-LEFT JOIN Rol r ON u.id_rol = r.id_rol;
-GO
-
-PRINT '✓ Vista vw_Profesionales_Completo creada exitosamente';
-GO
-
--- ============================================================
--- VISTA 3: vw_Disponibilidad_Profesional
--- Propósito: Consultar disponibilidad completa de profesionales
--- Uso: CitaService.ValidarDisponibilidadProfesionalAsync
--- Beneficio: Centraliza validación de horarios, ausencias y bloqueos
--- ============================================================
-
-IF OBJECT_ID('dbo.vw_Disponibilidad_Profesional', 'V') IS NOT NULL
-    DROP VIEW dbo.vw_Disponibilidad_Profesional;
-GO
-
-CREATE VIEW dbo.vw_Disponibilidad_Profesional
-AS
-SELECT 
-    -- Profesional
-    p.id_profesional,
-    p.nombres + ' ' + p.apellidos AS nombre_profesional,
-    p.estado AS estado_profesional,
-    p.registro_medico,
-    
-    -- Horarios semanales
-    hp.id_horario,
-    hp.dia_semana,
-    hp.hora_inicio,
-    hp.hora_fin,
-    hp.activo AS horario_activo,
-    
-    -- Tiene ausencia hoy
-    CASE WHEN EXISTS (
-        SELECT 1 FROM Ausencia_Profesional ap 
-        WHERE ap.id_profesional = p.id_profesional 
-          AND CAST(GETDATE() AS DATE) BETWEEN ap.fecha_inicio AND ap.fecha_fin
-    ) THEN 1 ELSE 0 END AS tiene_ausencia_hoy,
-    
-    -- Tipo de ausencia actual
-    (SELECT TOP 1 ap.tipo 
-     FROM Ausencia_Profesional ap 
-     WHERE ap.id_profesional = p.id_profesional 
-       AND CAST(GETDATE() AS DATE) BETWEEN ap.fecha_inicio AND ap.fecha_fin
-    ) AS tipo_ausencia_actual,
-    
-    -- Tiene bloqueo ahora
-    CASE WHEN EXISTS (
-        SELECT 1 FROM Bloqueo_Profesional bp 
-        WHERE bp.id_profesional = p.id_profesional 
-          AND GETDATE() BETWEEN bp.fecha_inicio AND bp.fecha_fin
-    ) THEN 1 ELSE 0 END AS tiene_bloqueo_ahora,
-    
-    -- Motivo del bloqueo actual
-    (SELECT TOP 1 bp.motivo 
-     FROM Bloqueo_Profesional bp 
-     WHERE bp.id_profesional = p.id_profesional 
-       AND GETDATE() BETWEEN bp.fecha_inicio AND bp.fecha_fin
-    ) AS motivo_bloqueo_actual,
-    
-    -- Próxima cita
-    (SELECT MIN(c.fecha_hora)
-     FROM Cita c
-     WHERE c.id_profesional = p.id_profesional
-       AND c.fecha_hora > GETDATE()
-       AND c.estado NOT IN ('Cancelada', 'cancelada', 'Cancelado', 'cancelado')
-    ) AS proxima_cita,
-    
-    -- Última cita atendida
-    (SELECT MAX(c.fecha_hora)
-     FROM Cita c
-     WHERE c.id_profesional = p.id_profesional
-       AND c.estado IN ('Atendida', 'Completada')
-    ) AS ultima_cita_atendida
-
-FROM Profesional p
-LEFT JOIN Horario_Profesional hp ON p.id_profesional = hp.id_profesional
-WHERE p.estado IN ('activo', 'vacaciones');
-GO
-
-PRINT '✓ Vista vw_Disponibilidad_Profesional creada exitosamente';
-GO
-
--- ============================================================
--- VISTA 4: vw_Citas_Conflictos
--- Propósito: Detectar solapamientos de agenda
--- Uso: CitaService.VerificarConflictoCompletoAsync
--- Beneficio: Previene doble agendamiento de recursos
--- ============================================================
-
-IF OBJECT_ID('dbo.vw_Citas_Conflictos', 'V') IS NOT NULL
-    DROP VIEW dbo.vw_Citas_Conflictos;
-GO
-
-CREATE VIEW dbo.vw_Citas_Conflictos
-AS
-WITH CitasConFin AS (
-    SELECT 
-        c.id_cita,
-        c.id_profesional,
-        c.id_paciente,
-        c.id_consultorio,
-        c.fecha_hora AS inicio,
-        DATEADD(MINUTE, ISNULL(c.duracion_minutos, 60), c.fecha_hora) AS fin,
-        c.estado
-    FROM Cita c
-    WHERE c.estado NOT IN ('Cancelada', 'cancelada', 'Cancelado', 'cancelado')
-      AND c.fecha_hora >= CAST(GETDATE() AS DATE)
-)
-SELECT 
-    c1.id_cita AS cita1_id,
-    c2.id_cita AS cita2_id,
-    
-    -- Datos del conflicto
-    CASE 
-        WHEN c1.id_profesional = c2.id_profesional AND c1.id_profesional IS NOT NULL 
-        THEN 'Profesional'
-        WHEN c1.id_paciente = c2.id_paciente THEN 'Paciente'
-        WHEN c1.id_consultorio = c2.id_consultorio AND c1.id_consultorio IS NOT NULL 
-        THEN 'Consultorio'
-    END AS tipo_conflicto,
-    
-    -- Profesional
-    c1.id_profesional,
-    p.nombres + ' ' + p.apellidos AS nombre_profesional,
-    
-    -- Paciente
-    c1.id_paciente,
-    pac.nombres + ' ' + pac.apellidos AS nombre_paciente,
-    
-    -- Consultorio
-    c1.id_consultorio,
-    cons.nombre AS nombre_consultorio,
-    
-    -- Fechas de las citas
-    c1.inicio AS cita1_inicio,
-    c1.fin AS cita1_fin,
-    c2.inicio AS cita2_inicio,
-    c2.fin AS cita2_fin,
-    
-    -- Minutos de solapamiento
-    DATEDIFF(
-        MINUTE, 
-        CASE WHEN c1.inicio > c2.inicio THEN c1.inicio ELSE c2.inicio END,
-        CASE WHEN c1.fin < c2.fin THEN c1.fin ELSE c2.fin END
-    ) AS minutos_solapamiento,
-    
-    -- Estados
-    c1.estado AS cita1_estado,
-    c2.estado AS cita2_estado
-
-FROM CitasConFin c1
-INNER JOIN CitasConFin c2 
-    ON c1.id_cita < c2.id_cita
-   AND (
-       (c1.id_profesional = c2.id_profesional AND c1.id_profesional IS NOT NULL)
-       OR c1.id_paciente = c2.id_paciente
-       OR (c1.id_consultorio = c2.id_consultorio AND c1.id_consultorio IS NOT NULL)
-   )
-   AND c1.inicio < c2.fin
-   AND c2.inicio < c1.fin
-LEFT JOIN Profesional p ON c1.id_profesional = p.id_profesional
-LEFT JOIN Paciente pac ON c1.id_paciente = pac.id_paciente
-LEFT JOIN Consultorio cons ON c1.id_consultorio = cons.id_consultorio;
-GO
-
-PRINT '✓ Vista vw_Citas_Conflictos creada exitosamente';
-GO
-
--- ============================================================
--- VISTA 5: vw_KPI_Citas_Resumen
--- Propósito: Pre-calcular KPIs mensuales
--- Uso: CitasDashboardService, Reportes
--- Beneficio: Evita recalcular agregaciones en cada consulta
--- ============================================================
-
-IF OBJECT_ID('dbo.vw_KPI_Citas_Resumen', 'V') IS NOT NULL
-    DROP VIEW dbo.vw_KPI_Citas_Resumen;
-GO
-
-CREATE VIEW dbo.vw_KPI_Citas_Resumen
-AS
-SELECT 
-    YEAR(c.fecha_hora) AS anio,
-    MONTH(c.fecha_hora) AS mes,
-    CAST(DATEFROMPARTS(YEAR(c.fecha_hora), MONTH(c.fecha_hora), 1) AS DATE) AS primer_dia_mes,
-    
-    -- Totales generales
-    COUNT(*) AS total_citas,
-    COUNT(DISTINCT c.id_paciente) AS total_pacientes_unicos,
-    COUNT(DISTINCT c.id_profesional) AS total_profesionales_activos,
-    COUNT(DISTINCT c.id_consultorio) AS total_consultorios_usados,
-    
-    -- Por Estado normalizado
-    SUM(CASE 
-        WHEN c.estado IN ('Agendada', 'Confirmada', 'Programada', 'agendada', 'confirmada', 'programada') 
-        THEN 1 ELSE 0 
-    END) AS total_programadas,
-    
-    SUM(CASE 
-        WHEN c.estado IN ('Atendida', 'Completada', 'atendida', 'completada') 
-        THEN 1 ELSE 0 
-    END) AS total_atendidas,
-    
-    SUM(CASE 
-        WHEN c.estado IN ('Cancelada', 'cancelada', 'Cancelado', 'cancelado') 
-        THEN 1 ELSE 0 
-    END) AS total_canceladas,
-    
-    SUM(CASE 
-        WHEN c.estado IN ('No Asistió', 'no asistio', 'inasistencia') 
-        THEN 1 ELSE 0 
-    END) AS total_inasistencias,
-    
-    -- Tasas calculadas
-    CAST(
-        SUM(CASE WHEN c.estado IN ('Cancelada', 'cancelada', 'Cancelado', 'cancelado') THEN 1 ELSE 0 END) * 100.0 
-        / NULLIF(COUNT(*), 0)
-    AS DECIMAL(5,2)) AS tasa_cancelacion,
-    
-    CAST(
-        SUM(CASE WHEN c.estado IN ('Atendida', 'Completada', 'atendida', 'completada') THEN 1 ELSE 0 END) * 100.0 
-        / NULLIF(COUNT(*), 0)
-    AS DECIMAL(5,2)) AS tasa_asistencia,
-    
-    CAST(
-        SUM(CASE WHEN c.estado IN ('No Asistió', 'no asistio', 'inasistencia') THEN 1 ELSE 0 END) * 100.0 
-        / NULLIF(COUNT(*), 0)
-    AS DECIMAL(5,2)) AS tasa_inasistencia,
-    
-    -- Duraciones
-    AVG(ISNULL(c.duracion_minutos, 60)) AS duracion_promedio_minutos,
-    SUM(ISNULL(c.duracion_minutos, 60)) AS duracion_total_minutos,
-    
-    -- Servicio más demandado
-    (SELECT TOP 1 s.nombre 
-     FROM Cita c2 
-     INNER JOIN Servicio s ON c2.id_servicio = s.id_servicio
-     WHERE YEAR(c2.fecha_hora) = YEAR(c.fecha_hora) 
-       AND MONTH(c2.fecha_hora) = MONTH(c.fecha_hora)
-     GROUP BY s.nombre
-     ORDER BY COUNT(*) DESC
-    ) AS servicio_mas_demandado,
-    
-    -- Profesional más activo
-    (SELECT TOP 1 p.nombres + ' ' + p.apellidos
-     FROM Cita c2 
-     INNER JOIN Profesional p ON c2.id_profesional = p.id_profesional
-     WHERE YEAR(c2.fecha_hora) = YEAR(c.fecha_hora) 
-       AND MONTH(c2.fecha_hora) = MONTH(c.fecha_hora)
-     GROUP BY p.id_profesional, p.nombres, p.apellidos
-     ORDER BY COUNT(*) DESC
-    ) AS profesional_mas_activo
-
-FROM Cita c
-GROUP BY YEAR(c.fecha_hora), MONTH(c.fecha_hora);
-GO
-
-PRINT '✓ Vista vw_KPI_Citas_Resumen creada exitosamente';
-GO
-
--- ============================================================
--- ÍNDICES DE OPTIMIZACIÓN PARA VISTAS
--- ============================================================
-
-PRINT '';
-PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-PRINT '   CREACIÓN DE ÍNDICES DE OPTIMIZACIÓN';
-PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-GO
-
--- Índice 1: Citas por fecha y estado (vw_Citas_Dashboard)
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cita_FechaHora_Estado_Covering' AND object_id = OBJECT_ID('Cita'))
-BEGIN
-    CREATE NONCLUSTERED INDEX IX_Cita_FechaHora_Estado_Covering
-    ON Cita(fecha_hora, estado)
-    INCLUDE (id_paciente, id_profesional, id_servicio, id_consultorio, duracion_minutos);
-    
-    PRINT '✓ Índice IX_Cita_FechaHora_Estado_Covering creado';
-END
-ELSE
-    PRINT '○ Índice IX_Cita_FechaHora_Estado_Covering ya existe';
-GO
-
--- Índice 2: Citas activas por profesional (vw_Disponibilidad_Profesional)
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cita_Profesional_FechaHora_NoCancel' AND object_id = OBJECT_ID('Cita'))
-BEGIN
-    CREATE NONCLUSTERED INDEX IX_Cita_Profesional_FechaHora_NoCancel
-    ON Cita(id_profesional, fecha_hora)
-        WHERE estado <> 'Cancelada'
-            AND estado <> 'cancelada'
-            AND estado <> 'Cancelado'
-            AND estado <> 'cancelado';
-    
-    PRINT '✓ Índice IX_Cita_Profesional_FechaHora_NoCancel creado';
-END
-ELSE
-    PRINT '○ Índice IX_Cita_Profesional_FechaHora_NoCancel ya existe';
-GO
-
--- Índice 3: Horarios activos por profesional
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_HorarioProfesional_IdProf_Activo_Covering' AND object_id = OBJECT_ID('Horario_Profesional'))
-BEGIN
-    CREATE NONCLUSTERED INDEX IX_HorarioProfesional_IdProf_Activo_Covering
-    ON Horario_Profesional(id_profesional, activo)
-    INCLUDE (dia_semana, hora_inicio, hora_fin);
-    
-    PRINT '✓ Índice IX_HorarioProfesional_IdProf_Activo_Covering creado';
-END
-ELSE
-    PRINT '○ Índice IX_HorarioProfesional_IdProf_Activo_Covering ya existe';
-GO
-
--- Índice 4: Ausencias vigentes por profesional
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AusenciaProfesional_IdProf_Fechas_Covering' AND object_id = OBJECT_ID('Ausencia_Profesional'))
-BEGIN
-    CREATE NONCLUSTERED INDEX IX_AusenciaProfesional_IdProf_Fechas_Covering
-    ON Ausencia_Profesional(id_profesional, fecha_inicio, fecha_fin)
-    INCLUDE (tipo, observaciones);
-    
-    PRINT '✓ Índice IX_AusenciaProfesional_IdProf_Fechas_Covering creado';
-END
-ELSE
-    PRINT '○ Índice IX_AusenciaProfesional_IdProf_Fechas_Covering ya existe';
-GO
-
--- Índice 5: Bloqueos activos por profesional
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BloqueoProfesional_IdProf_Fechas_Covering' AND object_id = OBJECT_ID('Bloqueo_Profesional'))
-BEGIN
-    CREATE NONCLUSTERED INDEX IX_BloqueoProfesional_IdProf_Fechas_Covering
-    ON Bloqueo_Profesional(id_profesional, fecha_inicio, fecha_fin)
-    INCLUDE (motivo);
-    
-    PRINT '✓ Índice IX_BloqueoProfesional_IdProf_Fechas_Covering creado';
-END
-ELSE
-    PRINT '○ Índice IX_BloqueoProfesional_IdProf_Fechas_Covering ya existe';
-GO
-
--- Índice 6: Profesional-Especialidad con principal
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ProfesionalEspecialidad_Principal_Covering' AND object_id = OBJECT_ID('Profesional_Especialidad'))
-BEGIN
-    CREATE NONCLUSTERED INDEX IX_ProfesionalEspecialidad_Principal_Covering
-    ON Profesional_Especialidad(id_profesional, principal)
-    INCLUDE (id_especialidad);
-    
-    PRINT '✓ Índice IX_ProfesionalEspecialidad_Principal_Covering creado';
-END
-ELSE
-    PRINT '○ Índice IX_ProfesionalEspecialidad_Principal_Covering ya existe';
-GO
-
--- Índice 7: Profesionales por estado
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Profesional_Estado_Covering' AND object_id = OBJECT_ID('Profesional'))
-BEGIN
-    CREATE NONCLUSTERED INDEX IX_Profesional_Estado_Covering
-    ON Profesional(estado)
-    INCLUDE (nombres, apellidos, registro_medico, id_usuario);
-    
-    PRINT '✓ Índice IX_Profesional_Estado_Covering creado';
-END
-ELSE
-    PRINT '○ Índice IX_Profesional_Estado_Covering ya existe';
-GO
-
--- Índice 8: Citas del día (dashboard diario)
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cita_FechaSola_Covering' AND object_id = OBJECT_ID('Cita'))
-BEGIN
-    CREATE NONCLUSTERED INDEX IX_Cita_FechaSola_Covering
-    ON Cita(fecha_hora)
-    INCLUDE (id_profesional, id_paciente, id_consultorio, estado);
-    
-    PRINT '✓ Índice IX_Cita_FechaSola_Covering creado';
-END
-ELSE
-    PRINT '○ Índice IX_Cita_FechaSola_Covering ya existe';
-GO
-
--- Actualizar estadísticas
-UPDATE STATISTICS Cita WITH FULLSCAN;
-UPDATE STATISTICS Profesional WITH FULLSCAN;
-UPDATE STATISTICS Horario_Profesional WITH FULLSCAN;
-UPDATE STATISTICS Ausencia_Profesional WITH FULLSCAN;
-UPDATE STATISTICS Bloqueo_Profesional WITH FULLSCAN;
-
-PRINT '✓ Estadísticas actualizadas para optimización de consultas';
-GO
-
-PRINT '';
-PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-PRINT '   RESUMEN: 5 vistas y 8 índices creados/verificados';
-PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 GO

@@ -534,6 +534,14 @@ img { max-width: 100%; height: auto; display: block; }
 #editPatientForm .form-group--full {
   grid-column: 1 / -1;
 }
+.allergy-editor { display: grid; gap: 8px; }
+.allergy-chip-list { display: flex; flex-wrap: wrap; gap: 7px; min-height: 0; }
+.allergy-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 8px; border: 1px solid var(--allergy-badge-border); border-radius: 999px; background: var(--allergy-badge-bg); color: var(--allergy-badge-text); font-size: .78rem; }
+.allergy-chip > span { overflow-wrap: anywhere; }
+.allergy-chip-remove { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; font-size: 1rem; line-height: 1; }
+.allergy-entry { display: flex; align-items: center; gap: 8px; }
+.allergy-entry .form-input { min-width: 0; flex: 1; }
+.allergy-editor .error-message:not([hidden]) { display: block; }
 /* botones siempre al final a ancho completo */
 #editPatientForm .form-actions {
   grid-column: 1 / -1;

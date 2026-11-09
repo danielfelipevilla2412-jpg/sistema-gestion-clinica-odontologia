@@ -73,11 +73,6 @@ public interface ICitaService
 
     Task<bool> CancelarAsync(
         int id,
-        TimeSpan? anticipacionMinima = null,
-        CancellationToken ct = default);
-
-    Task<bool> CancelarAsync(
-        int id,
         string? motivo,
         TimeSpan? anticipacionMinima = null,
         CancellationToken ct = default);
@@ -122,7 +117,7 @@ public interface ICitaService
     /// <summary>
     /// Envía recordatorios de cita por correo electrónico a los pacientes seleccionados.
     /// </summary>
-    Task<(int Enviados, int Fallidos)> EnviarRecordatoriosAsync(
+    Task<(int Enviados, int Fallidos, List<int> IdsEnviados)> EnviarRecordatoriosAsync(
         List<int> idsCitas,
         string? mensajePersonalizado = null,
         CancellationToken ct = default);

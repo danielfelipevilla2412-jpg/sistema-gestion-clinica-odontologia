@@ -34,5 +34,11 @@ namespace SmileTrack_MVC.Models.Entities
 
         [Column("duracion_minutos")]
         public int DuracionMinutos { get; set; } = 30;
+
+        [Column("id_especialidad")]
+        public int? IdEspecialidad { get; set; }
+
+        [ForeignKey(nameof(IdEspecialidad))]
+        public Especialidad? Especialidad { get; set; }
     }
 }

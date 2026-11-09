@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Models.Api.Profesionales;
+using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Services;
 using System.Security.Claims;
 
@@ -119,6 +120,25 @@ public sealed class ProfesionalesApiController : ControllerBase
                 result.PageSize,
                 result.TotalCount,
                 result.TotalPages
+            }
+        });
+    }
+
+    [HttpGet("stats")]
+    [Authorize(Roles = "Administrador", Policy = "ApiOrCookie")]
+    public async Task<IActionResult> GetStats(CancellationToken ct = default)
+    {
+        var stats = await _service.ObtenerEstadisticasAsync(ct);
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                total = stats.StatTotal,
+                activos = stats.StatActivos,
+                vacaciones = stats.StatVacaciones,
+                inactivos = stats.StatInactivos
             }
         });
     }
@@ -426,6 +446,26 @@ public sealed class ProfesionalesApiController : ControllerBase
             : NotFound(new { success = false, message = result.Message });
     }
 
+    [HttpGet("{id:int}/ausencias/preview")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    public async Task<IActionResult> PreviewAusencia(
+        int id,
+        [FromQuery] DateOnly fechaInicio,
+        [FromQuery] DateOnly fechaFin,
+        CancellationToken ct = default)
+    {
+        var result = await _service.ObtenerCitasAfectadasPorAusenciaAsync(id, fechaInicio, fechaFin, ct);
+        if (!result.Success)
+            return StatusCode(result.ErrorStatusCode ?? 400, new { success = false, message = result.Message });
+
+        return Ok(new
+        {
+            success = true,
+            count = result.Data.Count,
+            data = result.Data
+        });
+    }
+
     [HttpPost("{id:int}/ausencias")]
     [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [CookieAwareValidateAntiforgeryToken]
@@ -550,8 +590,20 @@ public sealed class ProfesionalesApiController : ControllerBase
 
         try
         {
-            var resultado = await _service.RegistrarAusenciaConReasignacionAsync(id, inicio, fin, request.Tipo ?? "incapacidad", ct);
-            return Ok(new { success = true, message = "Ausencia registrada y citas procesadas exitosamente.", data = resultado });
+            var resultado = await _service.RegistrarAusenciaConReasignacionAsync(
+                id,
+                inicio,
+                fin,
+                request.Tipo,
+                GetCurrentUserId(),
+                request.Observaciones,
+                ct);
+            return Ok(new
+            {
+                success = true,
+                message = $"Ausencia registrada: {resultado.TotalReasignadas} cita(s) reasignada(s) y {resultado.TotalCanceladas} cancelada(s).",
+                data = resultado
+            });
         }
         catch (Exception ex)
         {

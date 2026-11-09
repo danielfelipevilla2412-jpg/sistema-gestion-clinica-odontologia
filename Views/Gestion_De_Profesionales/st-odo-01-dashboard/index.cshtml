@@ -65,8 +65,11 @@ NOTAS DE MANTENIMIENTO:
             var urgente = minutos <= 15 && minutos > 0;
             var claseUrgencia = urgente ? "urgent" : "upcoming";
             var nombrePaciente = $"{proximaCita.Paciente?.Nombres} {proximaCita.Paciente?.Apellidos}".Trim();
+            var fechaCita = proximaCita.FechaHora.Date == DateTime.Today
+                ? string.Empty
+                : proximaCita.FechaHora.ToString("dd MMM yyyy");
             
-            <div class="next-appt-card @claseUrgencia">
+            <div class="next-appt-card @claseUrgencia" data-fecha-hora="@proximaCita.FechaHora.ToString("s")">
                 <div class="next-appt-icon">
                     <span class="material-symbols-outlined">@(urgente ? "notification_important" : "schedule")</span>
                 </div>
@@ -74,12 +77,17 @@ NOTAS DE MANTENIMIENTO:
                     <span class="next-appt-label">@(urgente ? "¡CITA URGENTE!" : "Próxima cita")</span>
                     <strong class="next-appt-patient">@nombrePaciente</strong>
                     <span class="next-appt-time">
-                        @proximaCita.FechaHora.ToString("HH:mm") — @(proximaCita.Servicio?.Nombre ?? "Consulta") — @(proximaCita.Consultorio?.Nombre ?? "Sin asignar")
+                        @if (!string.IsNullOrEmpty(fechaCita))
+                        {
+                            <time datetime="@proximaCita.FechaHora.ToString("yyyy-MM-dd")">@fechaCita</time>
+                            <span aria-hidden="true">—</span>
+                        }
+                        <time datetime="@proximaCita.FechaHora.ToString("s")">@proximaCita.FechaHora.ToString("HH:mm")</time>
+                        <span aria-hidden="true">—</span> @(proximaCita.Servicio?.Nombre ?? "Consulta") — @(proximaCita.Consultorio?.Nombre ?? "Sin asignar")
                     </span>
-                    @if (urgente)
-                    {
-                        <span class="next-appt-countdown">⏰ En @((int)minutos) minutos</span>
-                    }
+                    <span class="next-appt-countdown" style="@(urgente ? string.Empty : "display:none")">
+                        @(urgente ? $"⏰ En {(int)minutos} minutos" : string.Empty)
+                    </span>
                     @if (ultimaAtencion != null)
                     {
                         <span class="next-appt-context">
@@ -97,7 +105,7 @@ NOTAS DE MANTENIMIENTO:
         {
             <div class="next-appt-card empty">
                 <span class="material-symbols-outlined">check_circle</span>
-                <span>No tienes citas programadas para hoy. ¡Buen trabajo!</span>
+                <span>No tienes citas próximas. ¡Buen trabajo!</span>
             </div>
         }
     </section>
@@ -105,7 +113,7 @@ NOTAS DE MANTENIMIENTO:
     <!-- Barra de progreso del día -->
     @{
         var citasHoyCount = (int)(ViewData["OdoCitasHoy"] ?? 0);
-        var atendidasHoyCount = (int)(ViewData["OdoCitasAtendidas"] ?? 0);
+        var atendidasHoyCount = (int)(ViewData["OdoCitasAtendidasHoy"] ?? 0);
         var progresoDia = citasHoyCount > 0 ? (int)Math.Round((double)atendidasHoyCount / citasHoyCount * 100) : 0;
     }
     <div class="progress-row" role="progressbar" aria-valuenow="@progresoDia" aria-valuemin="0" aria-valuemax="100"
@@ -146,7 +154,7 @@ NOTAS DE MANTENIMIENTO:
     </section>
 
     <!-- Stats Grid -->
-    <section class="stats-grid" aria-label="Métricas principales" data-i18n-aria-label="facturacion.title">
+    <section class="stats-grid" aria-label="Métricas principales">
       <div class="stat-card" data-color="blue">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">groups</span>
         <span class="stat-number" id="statPacientes" data-target="@(ViewData["OdoPacientesActivos"] ?? 0)" aria-live="polite">0</span>
@@ -159,13 +167,14 @@ NOTAS DE MANTENIMIENTO:
       </div>
       <div class="stat-card" data-color="orange">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
-        <span class="stat-number" id="statProfesionales" data-target="@(ViewData["OdoCitasAtendidas"] ?? 0)" aria-live="polite">0</span>
+        <span class="stat-number" id="statProfesionales" data-target="@(ViewData["OdoCitasAtendidasHoy"] ?? 0)" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.attended">Citas atendidas</span>
       </div>
       <div class="stat-card" data-color="purple">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
         <span class="stat-number" id="statIngresos" data-format="currency-cop" data-target="@(Convert.ToDecimal(ViewData["OdoIngresosMes"] ?? 0))" aria-live="polite">0</span>
         <span class="stat-label">Ingresos del mes</span>
+        <small>Fórmula: suma del precio de los servicios asociados a citas atendidas este mes; no equivale a comisión neta.</small>
       </div>
     </section>
 
@@ -395,6 +404,10 @@ NOTAS DE MANTENIMIENTO:
                             <p class="invoice-desc">Paciente: @(cita.Paciente?.Nombres ?? "N/A") @(cita.Paciente?.Apellidos ?? "")</p>
                           </div>
                           <p class="invoice-amount" style="font-size: 0.9rem; font-weight: 500;">@(cita.Servicio?.Nombre ?? "Consulta")</p>
+                          <a class="btn-secondary btn-sm"
+                             href="@Url.Action("Stodo04Odontograma", "HistoriaClinica", new { pacienteId = cita.IdPaciente, citaId = cita.IdCita })">
+                            Abrir odontograma
+                          </a>
                         </div>
                     }
                 }
@@ -411,6 +424,22 @@ NOTAS DE MANTENIMIENTO:
     </div>
 
   </main>
+
+  <!-- Navegación móvil -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item active" aria-current="page">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">dashboard</span></span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+      <span>Agenda</span>
+    </a>
+    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item">
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
+      <span>Perfil</span>
+    </a>
+  </nav>
 
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>

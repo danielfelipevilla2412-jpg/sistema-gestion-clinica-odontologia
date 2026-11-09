@@ -43,6 +43,11 @@ let pacientes = [...SAMPLE_PACIENTES];
 let filteredPacientes = [...SAMPLE_PACIENTES];
 let currentPage = 1;
 let pageSize = 10;
+let totalRecords = 0;
+let totalPages = 1;
+let serverStats = {};
+let serviciosDisponibles = [];
+let requestVersion = 0;
 
 // Estado de filtros
 let fEstado = '';
@@ -73,8 +78,7 @@ const updatePagination = (total) => {
   const btnNext = safeGetElement('btnNext');
   const pageNumBtns = safeGetElement('pageNumBtns');
 
-  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(total / pageSize));
-  const showing = pageSize === 0 ? total : Math.min(pageSize, total - (currentPage - 1) * pageSize);
+  const showing = Math.min(filteredPacientes.length, Math.max(0, total - (currentPage - 1) * pageSize));
 
   if (pageShowing) pageShowing.textContent = String(showing);
   if (pageTotal) pageTotal.textContent = String(total);
@@ -86,13 +90,19 @@ const updatePagination = (total) => {
 
   if (pageNumBtns) {
     pageNumBtns.innerHTML = '';
-    for (let i = 1; i <= totalPages; i++) {
+    const firstPage = Math.max(1, Math.min(currentPage - 3, totalPages - 6));
+    const lastPage = Math.min(totalPages, firstPage + 6);
+    for (let i = firstPage; i <= lastPage; i++) {
       const btn = document.createElement('button');
       btn.className = `pagination-btn${i === currentPage ? ' active' : ''}`;
       btn.setAttribute('aria-label', `Página ${i}`);
       if (i === currentPage) btn.setAttribute('aria-current', 'page');
       btn.textContent = String(i);
-      btn.addEventListener('click', () => { currentPage = i; renderTable(filteredPacientes); });
+      btn.addEventListener('click', async () => {
+        currentPage = i;
+        const page = await fetchPacientes();
+        if (page) renderTable(page);
+      });
       pageNumBtns.appendChild(btn);
     }
   }
@@ -106,10 +116,7 @@ const renderTable = (data) => {
   if (!tbody) return;
 
   filteredPacientes = data;
-  const total = data.length;
-
-  const start = pageSize === 0 ? 0 : (currentPage - 1) * pageSize;
-  const pageData = pageSize === 0 ? data : data.slice(start, start + pageSize);
+  const pageData = data;
 
   tbody.innerHTML = '';
 
@@ -194,7 +201,7 @@ const renderTable = (data) => {
     });
   });
 
-  updatePagination(total);
+  updatePagination(totalRecords);
 
   // Actualizar contador de resultados
   const filterResults = safeGetElement('filterResults');
@@ -209,35 +216,20 @@ const renderTable = (data) => {
 // ═══════════════════════════════════════════════════════════════════
 //  FILTROS
 // ═══════════════════════════════════════════════════════════════════
-const applyFilters = () => {
+const applyFilters = async () => {
   currentPage = 1;
-  const q = fSearch.trim().toLowerCase();
-
-  const filtered = pacientes.filter(p => {
-    if (q && !p.nombre.toLowerCase().includes(q) && !p.cedula.includes(q) && !p.servicio.toLowerCase().includes(q)) return false;
-    if (fEstado && p.estado !== fEstado) return false;
-    if (fAlergias === 'con' && !(p.alergias && p.alergias.length > 0)) return false;
-    if (fAlergias === 'sin' && (p.alergias && p.alergias.length > 0)) return false;
-    if (fCita === 'con' && (!p.proximaISO)) return false;
-    if (fCita === 'sin' && p.proximaISO) return false;
-    if (fServicio && p.servicio !== fServicio) return false;
-    return true;
-  });
-
-  // Indicar estado activo del botón limpiar
   const hasFilters = fSearch || fEstado || fAlergias || fCita || fServicio;
   const clearBtn = safeGetElement('btnClearFilters');
   if (clearBtn) clearBtn.classList.toggle('active', !!hasFilters);
-
-  renderTable(filtered);
+  const page = await fetchPacientes();
+  if (page) renderTable(page);
 };
 
 // Poblar select de servicios dinámicamente
 const populateServicioSelect = () => {
   const select = safeGetElement('filterServicio');
   if (!select) return;
-  const servicios = [...new Set(pacientes.map(p => p.servicio))].sort();
-  servicios.forEach(s => {
+  serviciosDisponibles.forEach(s => {
     const opt = document.createElement('option');
     opt.value = s;
     opt.textContent = s;
@@ -436,10 +428,16 @@ const animateCounter = (el, target) => {
 };
 
 const updateCounts = () => {
-  animateCounter(safeGetElement('statTotal'), pacientes.length);
-  animateCounter(safeGetElement('statActivos'), pacientes.filter(p => p.estado === 'activo').length);
-  animateCounter(safeGetElement('statSeguimiento'), pacientes.filter(p => p.estado === 'seguimiento').length);
-  animateCounter(safeGetElement('statAltas'), pacientes.filter(p => p.estado === 'alta').length);
+  const values = {
+    statTotal: serverStats.total || 0,
+    statActivos: serverStats.activos || 0,
+    statSeguimiento: serverStats.seguimiento || 0,
+    statAltas: serverStats.altas || 0
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const element = safeGetElement(id);
+    if (element) element.textContent = String(value);
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -499,9 +497,9 @@ const initFilters = () => {
   safeGetElement('filterServicio')?.addEventListener('change', (e) => { fServicio = e.target.value; applyFilters(); });
 
   safeGetElement('pageSizeSelect')?.addEventListener('change', (e) => {
-    pageSize = e.target.value === 'all' ? 0 : Number(e.target.value);
+    pageSize = e.target.value === 'all' ? 100 : Number(e.target.value);
     currentPage = 1;
-    renderTable(filteredPacientes);
+    fetchPacientes().then(page => { if (page) renderTable(page); });
   });
 
   safeGetElement('btnClearFilters')?.addEventListener('click', () => {
@@ -513,11 +511,16 @@ const initFilters = () => {
   });
 
   safeGetElement('btnPrev')?.addEventListener('click', () => {
-    if (currentPage > 1) { currentPage -= 1; renderTable(filteredPacientes); }
+    if (currentPage > 1) {
+      currentPage -= 1;
+      fetchPacientes().then(page => { if (page) renderTable(page); });
+    }
   });
   safeGetElement('btnNext')?.addEventListener('click', () => {
-    const totalPages = pageSize === 0 ? 1 : Math.ceil(filteredPacientes.length / pageSize);
-    if (currentPage < totalPages) { currentPage += 1; renderTable(filteredPacientes); }
+    if (currentPage < totalPages) {
+      currentPage += 1;
+      fetchPacientes().then(page => { if (page) renderTable(page); });
+    }
   });
 };
 
@@ -556,7 +559,9 @@ function normalizarPacienteOdo(p) {
     servicio: ultimaConsulta?.proc || 'Sin servicio registrado',
     proxima: proximaConsulta ? fmtFechaCorta(proximaConsulta.fecha) : '—',
     proximaISO: toISODate(proximaConsulta?.fecha),
-    estado: p.estado === 'inactivo' ? 'alta' : 'activo',
+    estado: p.estado === 'inactivo' || p.estado === 'retirado'
+      ? 'alta'
+      : p.enSeguimiento ? 'seguimiento' : 'activo',
     alergias: p.alerta && p.alertaTexto ? p.alertaTexto.split(',').map(a => a.trim()).filter(Boolean) : [],
     telefono: p.telefono || '',
     email: p.email || '',
@@ -571,14 +576,34 @@ function normalizarPacienteOdo(p) {
 }
 
 async function fetchPacientes() {
+  const version = ++requestVersion;
+  pageSize = safeGetElement('pageSizeSelect')?.value === 'all'
+    ? 100
+    : Number(safeGetElement('pageSizeSelect')?.value) || 10;
+  const params = new URLSearchParams({ page: String(currentPage), pageSize: String(pageSize) });
+  if (fSearch) params.set('search', fSearch.trim());
+  if (fEstado) params.set('estado', fEstado);
+  if (fAlergias) params.set('alergias', fAlergias);
+  if (fCita) params.set('cita', fCita);
+  if (fServicio) params.set('servicio', fServicio);
   try {
-    const resp = await fetch('/historia-clinica/st-odo-06-pacientes/data', { headers: { 'Accept': 'application/json' } });
+    const resp = await fetch(`/historia-clinica/st-odo-06-pacientes/data?${params}`, { headers: { 'Accept': 'application/json' } });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
-    return data.map(normalizarPacienteOdo);
+    if (version !== requestVersion) return null;
+    totalRecords = data.total || 0;
+    totalPages = data.totalPages || 1;
+    serverStats = data.stats || {};
+    serviciosDisponibles = data.servicios || [];
+    updateCounts();
+    pacientes = (data.items || []).map(normalizarPacienteOdo);
+    return pacientes;
   } catch (error) {
+    if (version !== requestVersion) return null;
     console.error('No se pudieron cargar los pacientes desde el servidor:', error);
     showToast('No se pudieron cargar los pacientes', 'error');
+    totalRecords = 0;
+    pacientes = [];
     return [];
   }
 }
@@ -587,13 +612,13 @@ const init = async () => {
   initSidebar();
   initModals();
 
+  pageSize = Number(safeGetElement('pageSizeSelect')?.value) || 10;
   pacientes = await fetchPacientes();
   filteredPacientes = [...pacientes];
 
   populateServicioSelect();
   initFilters();
   renderTable(pacientes);
-  updateCounts();
 };
 
 document.addEventListener('DOMContentLoaded', init);

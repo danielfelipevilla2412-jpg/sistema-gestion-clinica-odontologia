@@ -30,7 +30,11 @@
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb"><span data-i18n="common_role_patient">Paciente</span> › <span data-i18n="common.notifications">Notificaciones</span></div>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="common.breadcrumb_nav">
+          <span data-i18n="common_role_patient">Paciente</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" data-i18n="common.notifications">Notificaciones</span>
+        </nav>
         <h1 class="page-title" data-i18n="notifications.page_title">Notificaciones</h1>
         <p class="page-subtitle" data-i18n="notifications.subtitle">Recordatorios, confirmaciones, facturas y mensajes de la clínica</p>
       </div>

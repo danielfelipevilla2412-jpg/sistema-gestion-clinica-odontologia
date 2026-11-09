@@ -69,6 +69,48 @@ let currentPage = 1;
 let editingServiceId = null;
 const itemsPerPage = 4;
 
+// ═══════════════════════════════════════════════════════════════════
+// CARGA DE ESPECIALIDADES DESDE SQL SERVER
+// ═══════════════════════════════════════════════════════════════════
+
+const loadSpecialties = () => {
+    const select = safeGetElement('serviceSpecialty');
+    if (!select) return;
+
+    const especialidades = Array.isArray(window.RAZOR_ESPECIALIDADES)
+        ? window.RAZOR_ESPECIALIDADES
+        : [];
+
+    // Limpiar las opciones anteriores.
+    select.replaceChildren();
+
+    // Opción para servicios sin especialidad específica.
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Odontología General / Cualquier profesional';
+
+    select.appendChild(defaultOption);
+
+    // Agregar las especialidades provenientes de SQL Server.
+    especialidades.forEach(especialidad => {
+        const option = document.createElement('option');
+
+        option.value = especialidad.id;
+        option.textContent = especialidad.nombre;
+
+        select.appendChild(option);
+    });
+
+    if (especialidades.length === 0) {
+        console.warn('[SmileTrack] No se recibieron especialidades desde el servidor.');
+    }
+
+    console.log(
+        `[SmileTrack] Especialidades cargadas: ${especialidades.length}`,
+        especialidades
+    );
+};
+
 const categoryLabels = {
   prevencion: { label: 'Prevención', class: 'prevencion' },
   estetica: { label: 'Estética', class: 'estetica' },
@@ -141,6 +183,7 @@ const renderServices = () => {
         </div>
         <div class="table-col col-categoria" role="cell" data-label="Categoría">
           <span class="category-badge ${category.class}" role="status" aria-label="Categoría: ${category.label}">${category.label}</span>
+          <small class="service-specialty">${s.specialtyName || 'General · cualquier profesional'}</small>
         </div>
         <div class="table-col col-duracion" role="cell" data-label="Duración">${s.duration} min</div>
         <div class="table-col col-costo" role="cell" data-label="Costo">${fmtCost(s.cost)}</div>
@@ -198,6 +241,7 @@ const openDrawer = (id = null) => {
     safeGetElement('serviceName').value = service.name;
     safeGetElement('serviceDescription').value = service.description || '';
     safeGetElement('serviceCategory').value = service.category;
+    safeGetElement('serviceSpecialty').value = service.specialtyId || '';
     safeGetElement('serviceCost').value = service.cost;
     safeGetElement('serviceDuration').value = service.duration;
 
@@ -208,6 +252,7 @@ const openDrawer = (id = null) => {
     // Modo nuevo
     title.textContent = 'Nuevo Servicio';
     form.reset();
+    safeGetElement('serviceSpecialty').value = '';
     toggle.setAttribute('aria-checked', 'true');
     toggle.classList.add('active');
   }
@@ -258,6 +303,8 @@ const saveService = async (e) => {
     name: safeGetElement('serviceName')?.value?.trim(),
     description: safeGetElement('serviceDescription')?.value?.trim(),
     category: safeGetElement('serviceCategory')?.value,
+    specialtyId: safeGetElement('serviceSpecialty')?.value || null,
+    specialtyName: safeGetElement('serviceSpecialty')?.selectedOptions?.[0]?.textContent || null,
     cost: parseFloat(safeGetElement('serviceCost')?.value) || 0,
     duration: parseInt(safeGetElement('serviceDuration')?.value) || 0,
     active: safeGetElement('serviceActiveToggle')?.getAttribute('aria-checked') === 'true'
@@ -273,6 +320,7 @@ const saveService = async (e) => {
     descripcion: service.description,
     precio: service.cost,
     category: service.category,
+    idEspecialidad: service.specialtyId ? Number(service.specialtyId) : null,
     duration: service.duration
   };
 
@@ -306,7 +354,13 @@ const saveService = async (e) => {
         return;
       }
 
-      services.unshift({ ...service, id: result.data.id, icon: '🦷' });
+      const selectedSpecialty = safeGetElement('serviceSpecialty')?.selectedOptions?.[0];
+      services.unshift({
+        ...service,
+        specialtyName: service.specialtyId ? selectedSpecialty?.textContent : null,
+        id: result.data.id,
+        icon: '🦷'
+      });
       renderServices();
       updateStats();
       closeDrawer();
@@ -490,18 +544,23 @@ const initNewService = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 const init = async () => {
-  initSidebar();
-  initSearch();
-  initFilters();
-  initPagination();
-  initNewService();
-  initDrawer();
+    initSidebar();
+    initSearch();
+    initFilters();
+    initPagination();
 
-  services = servicesStorage.load();
-  updateStats();
-  renderServices();
+    loadSpecialties();
 
-  window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
+    initNewService();
+    initDrawer();
+
+    services = servicesStorage.load();
+    updateStats();
+    renderServices();
+
+    window.addEventListener('beforeunload', () => {
+        /* Cleanup en SPA real */
+    });
 };
 
 document.addEventListener('DOMContentLoaded', init);

@@ -5,8 +5,8 @@
  * Archivo: wwwroot/js/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/reportes.js
  *
  * PROPÓSITO Y JUSTIFICACIÓN:
- * Visualización e interacción con los informes de producción clínica por odontólogo y especialidad.
- * Permite filtrar por profesional, periodo de tiempo y exportar resúmenes operacionales.
+ * Visualización de informes clínicos y seguimiento de pacientes.
+ * El controlador MVC aplica los filtros y la paginación en el servidor.
  *
  * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
  * - Filtrado reactivo en cliente integrado con la paginación servida por el controlador MVC.
@@ -21,8 +21,6 @@
 // ═══════════════════════════════════════════════════════════════════
 // 1. CONSTANTES Y CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════
-
-const DEBOUNCE_DELAY_MS = 300;
 
 const METRIC_ELEMENT_IDS = ['metricTotal', 'metricActivos', 'metricAttendanceRate'];
 
@@ -43,9 +41,6 @@ const METRIC_ELEMENT_IDS = ['metricTotal', 'metricActivos', 'metricAttendanceRat
  */
 const safeGetElement = (id) =>
     window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(id) : document.getElementById(id);
-
-const debounce = (fn, delay) =>
-    window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
 
 // ═══════════════════════════════════════════════════════════════════
 // 4. SERVICIOS Y API
@@ -68,8 +63,11 @@ const initMetricCounters = () => {
 
         const target = parseInt(el.getAttribute('data-target') ?? '0', 10);
         if (!isNaN(target) && target > 0) {
-            // `window.animateCounter` conserva su nombre original por backward-compat.
-            animateCounter(el, target);
+            if (typeof window.animateCounter === 'function') {
+                window.animateCounter(el, target);
+            } else {
+                el.textContent = target.toLocaleString();
+            }
         } else {
             el.textContent = '0';
         }
@@ -116,22 +114,28 @@ const initAlertModal = () => {
     const modalBody = safeGetElement('reportAlertBody');
     const modalTitle = safeGetElement('reportAlertTitle');
     const closeBtn  = document.querySelector('.report-alert-close');
+    const modalPanel = modal?.querySelector('.report-alert-panel');
     if (!modal || !modalBody) return;
+    let previousFocus = null;
 
     const openModal = (text, patient) => {
+        previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         modalBody.textContent = text || 'Sin observación registrada.';
         if (modalTitle) {
             modalTitle.textContent = patient ? `Alerta clínica · ${patient}` : 'Detalle clínico';
         }
         modal.classList.add('is-open');
         modal.setAttribute('aria-hidden', 'false');
-        // Mover foco al botón de cierre (accesibilidad).
-        document.querySelector('.report-alert-close')?.focus();
+        document.body.style.overflow = 'hidden';
+        closeBtn?.focus();
     };
 
     const closeModal = () => {
         modal.classList.remove('is-open');
         modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        if (previousFocus?.isConnected) previousFocus.focus();
+        previousFocus = null;
     };
 
     // Botones disparadores
@@ -153,7 +157,24 @@ const initAlertModal = () => {
 
     // Cierre por Escape
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+        if (!modal.classList.contains('is-open')) return;
+        if (event.key === 'Escape') {
+            closeModal();
+            return;
+        }
+
+        if (event.key === 'Tab' && modalPanel) {
+            const focusable = modalPanel.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])');
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            }
+        }
     });
 };
 

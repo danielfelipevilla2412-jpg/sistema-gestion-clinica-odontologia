@@ -127,6 +127,7 @@ img { max-width: 100%; height: auto; display: block; }
 .breadcrumb { font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
 .page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; color: var(--primary); }
 .page-subtitle { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
+.reminders-error { margin-bottom: 16px; padding: 12px 16px; border: 1px solid #fecaca; border-radius: var(--radius-sm); background: #fef2f2; color: #991b1b; font-weight: 600; }
 
 /* Botones y badges idénticos a st-rec-01 */
 .btn-primary { background: var(--primary); color: #fff; border: none; padding: 9px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
@@ -143,12 +144,12 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* Stats cards para resumen de recordatorios */
 .stat-card { background: var(--white); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); border-left: 4px solid transparent; display: flex; flex-direction: column; justify-content: center; min-height: 90px; }
-.stat-label { font-size: .77rem; color: var(--text-muted); font-weight: 500; }
+.stat-label { font-size: .78rem; color: var(--text-muted); font-weight: 500; }
 
 /* Sección de recordatorios pendientes */
 .reminders-section { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow); }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.section-header h2 { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--primary); }
+.section-header h2 { font-family: var(--font-display); font-size: 1rem; font-weight: 600; color: var(--primary); }
 .patient-list { display: flex; flex-direction: column; gap: 12px; }
 .patient-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); transition: background var(--tr), border-color var(--tr); }
 .patient-row:hover { background: #f8fafc; border-color: var(--primary); }
@@ -156,7 +157,7 @@ img { max-width: 100%; height: auto; display: block; }
 .patient-row.dimmed { opacity: .65; }
 .custom-checkbox { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--text-muted); accent-color: var(--primary); cursor: pointer; }
 .custom-checkbox:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.avatar-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; }
+.avatar-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .84rem; flex-shrink: 0; }
 .avatar-blue { background: var(--avatar-blue); color: #1d4ed8; }
 .avatar-green { background: var(--avatar-green); color: #166534; }
 .avatar-amber { background: var(--avatar-amber); color: #92400e; }
@@ -170,12 +171,13 @@ img { max-width: 100%; height: auto; display: block; }
 /* Historial de recordatorios enviados */
 .history-section { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
 .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.history-header h3 { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--primary); }
+.history-header h3 { font-family: var(--font-display); font-size: 1rem; font-weight: 600; color: var(--primary); }
 .view-all-link { font-size: .78rem; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 4px; }
+.history-count { font-size: .75rem; color: var(--text-muted); }
 .history-scroller { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
 .history-card { flex-shrink: 0; width: 220px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; display: flex; align-items: center; gap: 10px; }
 .history-time { font-size: .7rem; color: var(--text-muted); margin-top: 2px; }
-.status-badge { font-size: .7rem; font-weight: 600; padding: 4px 8px; border-radius: 20px; background: var(--status-pagada); color: var(--status-pagada-text); }
+.status-badge { font-size: .72rem; font-weight: 700; padding: 4px 8px; border-radius: 20px; background: var(--status-pagada); color: var(--status-pagada-text); }
 
 /* Panel de alertas laterales */
 .alerts-sidebar-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
@@ -192,7 +194,7 @@ img { max-width: 100%; height: auto; display: block; }
 .red-alert h4 { color: var(--alert-red-text); }
 .yellow-alert h4 { color: var(--alert-yellow-text); }
 .alert-content-box p { font-size: .78rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.4; }
-.btn-alert-action { width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .78rem; cursor: pointer; transition: background var(--tr); }
+.btn-alert-action { width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); }
 .red-alert .btn-alert-action { background: var(--danger); color: #fff; }
 .red-alert .btn-alert-action:hover { background: #dc2626; }
 .yellow-alert .btn-alert-action { background: var(--orange); color: #fff; }

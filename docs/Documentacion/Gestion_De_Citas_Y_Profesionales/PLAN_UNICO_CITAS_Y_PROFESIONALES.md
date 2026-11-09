@@ -6,6 +6,10 @@
 
 ---
 
+## Implementación transversal de presentación
+
+Las 19 vistas de `Gestion_De_Citas` y `Gestion_De_Profesionales` heredan `wwwroot/css/shared/gestion-modules.css` desde `_Layout.cshtml`, después de los estilos propios de cada vista. La hoja común alinea el espacio de contenido, encabezados, títulos y tipografía, KPI, tarjetas, tablas, campos, filtros, variantes de botones (incluidas las acciones y controles específicos), alertas, estados, estados vacíos, paginación y foco, además de sus puntos de adaptación móvil. Los colores de éxito, advertencia y peligro conservan su significado. Las acciones renderizadas en servidor y JavaScript mantienen las mismas clases visuales. Se conservan las hojas locales para componentes funcionales específicos (agendas, calendarios y gráficos); no se reemplazan flujos ni lógica de negocio.
+
 ## 📑 1. Matriz de Análisis de la Documentación Existente
 
 | Documento | Enfoque Principal | Estado de los Contenidos | Acciones Realizadas |
@@ -42,7 +46,7 @@ Las siguientes tareas **ya están codificadas, probadas y validadas en la soluci
 **Ámbito:** Módulo de Citas y Notificaciones  
 **Vistas a intervenir:**
 - `Views/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.cshtml`
-- `Views/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.cshtml`
+- `Views/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.cshtml`
 - `Views/Gestion_De_Citas/st-aux-09-estado-consultorio/estado-consultorio.cshtml`
 - `Views/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.cshtml`
 - `Views/Gestion_De_Citas/st-pac-03-notificaciones/index.cshtml`

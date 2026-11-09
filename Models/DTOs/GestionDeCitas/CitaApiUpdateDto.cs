@@ -36,4 +36,12 @@ public sealed class CitaApiUpdateDto
 
     [Range(1, int.MaxValue, ErrorMessage = "El identificador de estado no es válido.")]
     public int? IdEstado { get; set; }
+
+    public int? IdUsuarioModificacion { get; set; }
+}
+
+public sealed class CitaReagendarApiRequest
+{
+    [Required(ErrorMessage = "La nueva fecha y hora son obligatorias.")]
+    public DateTime FechaHora { get; set; }
 }

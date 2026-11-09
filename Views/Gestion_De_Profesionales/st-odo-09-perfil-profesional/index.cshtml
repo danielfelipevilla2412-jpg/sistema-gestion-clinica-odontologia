@@ -32,6 +32,7 @@ NOTAS DE MANTENIMIENTO:
     var professionalStatus = loggedProfesional?.Estado ?? "inactivo";
     var professionalStatusClass = string.Equals(professionalStatus, "activo", StringComparison.OrdinalIgnoreCase) ? "active" : "inactive";
     var credenciales = ViewData["CredencialesProfesional"] as List<SmileTrack_MVC.Models.Entities.CredencialProfesional> ?? new();
+    var profileError = TempData["ErrorValidacion"] as string;
 }
 
 @section Styles {
@@ -40,6 +41,10 @@ NOTAS DE MANTENIMIENTO:
 
   <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
+    @if (!string.IsNullOrWhiteSpace(profileError))
+    {
+      <p class="credential-feedback credential-feedback--error" role="alert">@profileError</p>
+    }
 
     <!-- Header -->
     <header class="page-header">
@@ -130,21 +135,21 @@ NOTAS DE MANTENIMIENTO:
           <div class="password-section">
             <h3 class="card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">lock</span> Cambiar contraseña</h3>
 
-            <form id="passwordForm" novalidate>
+            <form id="passwordForm" method="post" action="/acceso-y-seguridad/cambiar-contrasena" novalidate>
               @Html.AntiForgeryToken()
               <div class="form-group">
                 <label class="form-label" for="currentPassword">Contraseña actual</label>
                 <div class="input-with-icon">
-                  <input type="password" class="form-input" id="currentPassword" placeholder="••••••••" required
+                  <input type="password" class="form-input" id="currentPassword" name="contrasenaActual" placeholder="••••••••" required
                     aria-required="true">
                   <button type="button" class="toggle-password" aria-label="Mostrar u ocultar contraseña actual"
-                    aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">visibility</span></button>
+                    aria-pressed="false">👁</button>
                 </div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="newPassword">Nueva contraseña</label>
                 <div class="input-with-icon">
-                  <input type="password" class="form-input" id="newPassword" placeholder="••••••••" required
+                  <input type="password" class="form-input" id="newPassword" name="nuevaContrasena" placeholder="••••••••" required
                     aria-required="true" aria-describedby="passwordStrength">
                   <button type="button" class="toggle-password" aria-label="Mostrar u ocultar nueva contraseña"
                     aria-pressed="false">👁</button>
@@ -154,7 +159,7 @@ NOTAS DE MANTENIMIENTO:
               <div class="form-group">
                 <label class="form-label" for="confirmPassword">Confirmar nueva contraseña</label>
                 <div class="input-with-icon">
-                  <input type="password" class="form-input" id="confirmPassword" placeholder="••••••••" required
+                  <input type="password" class="form-input" id="confirmPassword" name="confirmarContrasena" placeholder="••••••••" required
                     aria-required="true">
                   <button type="button" class="toggle-password"
                     aria-label="Mostrar u ocultar confirmación de contraseña" aria-pressed="false">👁</button>
@@ -187,14 +192,6 @@ NOTAS DE MANTENIMIENTO:
               @successMessage
             </p>
           }
-          @if (TempData["ErrorValidacion"] is string errorMessage)
-          {
-            <p class="credential-feedback credential-feedback--error" role="alert">
-              <span class="material-symbols-outlined" aria-hidden="true">error</span>
-              @errorMessage
-            </p>
-          }
-
           <form class="credentials-form" method="post" action="/gestion-de-profesionales/credenciales/subir" enctype="multipart/form-data">
             @Html.AntiForgeryToken()
             <div class="credentials-form-grid">
@@ -329,6 +326,9 @@ NOTAS DE MANTENIMIENTO:
       </div>
 
       <div class="modal-body">
+        <p class="schedule-multiple-blocks-note" id="modalExistingBlocksNote" role="status" hidden>
+          Este día tiene varios bloques. Guardar modificará el primero y conservará los demás.
+        </p>
         <!-- Toggle Activo/Inactivo -->
         <div class="modal-toggle-section">
           <label class="modal-toggle">

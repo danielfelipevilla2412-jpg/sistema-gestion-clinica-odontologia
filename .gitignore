@@ -2,6 +2,12 @@
 bin/
 obj/
 
+# Build artifacts / test coverage
+artifacts/
+TestResults/
+*.coverage
+*.coveragexml
+
 # Visual Studio
 .vs/
 *.user
@@ -23,3 +29,6 @@ Thumbs.db
 
 # Serena (MCP toolkit cache)
 .serena/
+
+# Private clinical documents
+/App_Data/clinical-documents/

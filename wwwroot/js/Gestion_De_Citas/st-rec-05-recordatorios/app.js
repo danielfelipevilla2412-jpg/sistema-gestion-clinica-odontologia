@@ -20,13 +20,9 @@
 // 1. CONSTANTES Y CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
-const DEFAULT_PAGE_SIZE = 100;
-
 // ═══════════════════════════════════════════════════════════════════
 // 2. ESTADO DE LA APLICACIÓN
 // ═══════════════════════════════════════════════════════════════════
-
-let selectedAppointmentIdsList = [];
 
 // ═══════════════════════════════════════════════════════════════════
 // 3. UTILIDADES Y HELPERS
@@ -34,9 +30,6 @@ let selectedAppointmentIdsList = [];
 
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
-
-const debounce = (fn, delay) =>
-  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
 
 const buildApiAuthHeaders = () => {
   const headersMap = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
@@ -49,28 +42,23 @@ const buildApiAuthHeaders = () => {
   return headersMap;
 };
 
-const getTomorrowIsoDateString = () => {
-  const dateObj = new Date();
-  dateObj.setDate(dateObj.getDate() + 1);
-  return dateObj.toISOString().split('T')[0];
-};
-
 // ═══════════════════════════════════════════════════════════════════
 // 4. SERVICIOS Y API
 // ═══════════════════════════════════════════════════════════════════
 
-const sendRemindersToPatients = async (selectedIds, customMessageText) => {
-  if (!selectedIds || selectedIds.length === 0) {
+const sendRemindersToPatients = async (selectedIds, customMessageText, buttonOverride = null) => {
+  const appointmentIds = [...new Set((selectedIds ?? []).filter(id => Number.isInteger(id) && id > 0))];
+  if (appointmentIds.length === 0) {
     if (window.ToastService) window.ToastService.error('Por favor, selecciona al menos un paciente para enviar el recordatorio.');
     return;
   }
 
-  const triggerButton = safeGetElement('btnSendSelected') || safeGetElement('btnSendAllMobile');
-  const originalButtonText = triggerButton?.textContent;
+  const triggerButton = buttonOverride || safeGetElement('btnSendSelected') || safeGetElement('btnSendAllMobile');
+  const originalButtonMarkup = triggerButton?.innerHTML;
   if (triggerButton) { triggerButton.disabled = true; triggerButton.textContent = 'Enviando…'; }
 
   try {
-    const requestPayload = { IdsCitas: selectedIds };
+    const requestPayload = { IdsCitas: appointmentIds };
     if (customMessageText) requestPayload.MensajePersonalizado = customMessageText;
 
     const response = await fetch('/api/citas/recordatorios/enviar', {
@@ -80,57 +68,104 @@ const sendRemindersToPatients = async (selectedIds, customMessageText) => {
       body: JSON.stringify(requestPayload)
     });
 
+    const responseText = await response.text();
     let payload;
-    try { payload = await response.json(); } catch { payload = { success: response.ok }; }
+    try {
+      payload = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      throw new Error('El servidor devolvió una respuesta inválida al enviar los recordatorios.');
+    }
 
-    if (response.ok && payload.success !== false) {
-      const sentCount = payload.enviados ?? selectedIds.length;
+    if (!response.ok || payload?.success !== true) {
+      throw new Error(payload?.message || `No fue posible enviar los recordatorios (HTTP ${response.status}).`);
+    }
+
+    {
+      const sentCount = payload.enviados ?? 0;
       const failedCount = payload.fallidos ?? 0;
       if (failedCount > 0) {
         const notifyPartialHandler = sentCount > 0
-          ? window.ToastService?.warning
+          ? (window.ToastService?.warning || window.ToastService?.error)
           : window.ToastService?.error;
         if (notifyPartialHandler) {
           notifyPartialHandler(
             `Recordatorios enviados: ${sentCount} éxito(s), ${failedCount} fallo(s). Verifica que los pacientes tengan correo registrado.`
           );
         }
-      } else {
+      } else if (sentCount > 0) {
         if (window.ToastService) {
           window.ToastService.success(
             payload.message || `Se enviaron ${sentCount} recordatorio(s) exitosamente por correo electrónico.`
           );
         }
+      } else if (window.ToastService) {
+        window.ToastService.error(payload.message || 'No se pudo enviar ningún recordatorio.');
       }
       
       const listContainer = safeGetElement('patientListContainer');
-      listContainer?.querySelectorAll('.patient-row.selected .custom-checkbox').forEach(checkboxElement => {
-        checkboxElement.checked = false;
-        checkboxElement.closest('.patient-row')?.classList.remove('selected');
+      const sentIds = new Set(Array.isArray(payload.idsEnviados) ? payload.idsEnviados.map(Number) : []);
+      listContainer?.querySelectorAll('.patient-row').forEach(rowElement => {
+        if (!sentIds.has(Number(rowElement.dataset.id))) return;
+        const checkboxElement = rowElement.querySelector('.custom-checkbox');
+        if (checkboxElement) checkboxElement.checked = false;
+        rowElement.classList.remove('selected');
       });
-    } else {
-      if (window.ToastService) {
-        window.ToastService.error(
-          payload.message || 'No fue posible enviar los recordatorios. Verifica la configuración del servidor de correo.'
-        );
+
+      if (sentIds.size > 0) {
+        const sentCounter = safeGetElement('statsSentCount');
+        if (sentCounter) {
+          const currentCount = Number.parseInt(sentCounter.dataset.target ?? sentCounter.textContent ?? '0', 10) || 0;
+          sentCounter.dataset.target = String(currentCount + sentIds.size);
+          sentCounter.textContent = sentCounter.dataset.target;
+        }
+
+        const historyScroller = safeGetElement('historyScroller');
+        const historyCount = document.querySelector('.history-count');
+        if (historyScroller) {
+          historyScroller.querySelector('[data-i18n="rec05.no_history"]')?.remove();
+          for (const id of sentIds) {
+            const row = listContainer?.querySelector(`.patient-row[data-id="${id}"]`);
+            if (!row) continue;
+
+            const card = document.createElement('article');
+            card.className = 'history-card';
+            card.setAttribute('role', 'listitem');
+            const icon = document.createElement('span');
+            icon.className = 'material-symbols-outlined avatar-circle avatar-green';
+            icon.setAttribute('aria-hidden', 'true');
+            icon.textContent = 'mark_email_read';
+
+            const details = document.createElement('div');
+            const name = document.createElement('p');
+            name.className = 'patient-name';
+            name.textContent = row.querySelector('.patient-name')?.textContent?.trim() || 'Paciente';
+            const sentAt = document.createElement('p');
+            sentAt.className = 'history-time';
+            sentAt.textContent = `Enviado ${new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short' }).format(new Date())}`;
+            const appointmentTime = row.querySelector('time')?.dateTime;
+            const appointmentDate = document.createElement('p');
+            appointmentDate.className = 'history-time';
+            appointmentDate.textContent = appointmentTime
+              ? `Cita ${new Intl.DateTimeFormat('es-CO').format(new Date(appointmentTime))}`
+              : 'Cita programada';
+            details.append(name, sentAt, appointmentDate);
+            card.append(icon, details);
+            historyScroller.prepend(card);
+          }
+
+          historyScroller.querySelectorAll('.history-card').forEach((card, index) => {
+            if (index >= 5) card.remove();
+          });
+          if (historyCount) historyCount.textContent = `${historyScroller.querySelectorAll('.history-card').length} recientes`;
+        }
       }
     }
   } catch (err) {
     console.error('[SmileTrack] Error al enviar recordatorios:', err);
-    if (window.ToastService) window.ToastService.error('Error de conexión al enviar recordatorios. Verifica tu conexión a internet.');
+    if (window.ToastService) window.ToastService.error(err instanceof Error ? err.message : 'Error de conexión al enviar recordatorios.');
   } finally {
-    if (triggerButton) { triggerButton.disabled = false; triggerButton.textContent = originalButtonText; }
+    if (triggerButton) { triggerButton.disabled = false; triggerButton.innerHTML = originalButtonMarkup; }
   }
-};
-
-const fetchUnconfirmedAppointmentsForTomorrow = async () => {
-  const tomorrowIsoDate = getTomorrowIsoDateString();
-  const response = await fetch(`/api/citas?estado=programada&fecha=${tomorrowIsoDate}&pageSize=${DEFAULT_PAGE_SIZE}`, {
-    headers: { 'Accept': 'application/json' }
-  });
-  if (!response.ok) throw new Error(`status ${response.status}`);
-  const payload = await response.json();
-  return (payload.data ?? []).map(appointment => appointment.IdCita ?? appointment.idCita).filter(Boolean);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -177,8 +212,7 @@ const setupSendSelectedButtonListener = () => {
   if (!sendSelectedBtn) return;
 
   sendSelectedBtn.addEventListener('click', () => {
-    selectedAppointmentIdsList = getSelectedPatientAppointmentIds();
-    sendRemindersToPatients(selectedAppointmentIdsList);
+    sendRemindersToPatients(getSelectedPatientAppointmentIds(), null, sendSelectedBtn);
   });
 };
 
@@ -198,8 +232,7 @@ const setupSendAllMobileButtonListener = () => {
       }
     });
     
-    selectedAppointmentIdsList = getSelectedPatientAppointmentIds();
-    sendRemindersToPatients(selectedAppointmentIdsList);
+    sendRemindersToPatients(getSelectedPatientAppointmentIds(), null, sendAllMobileBtn);
   });
 };
 
@@ -212,7 +245,10 @@ const setupAlertButtonsListeners = () => {
       unconfirmedAlertBtn.disabled = true;
       unconfirmedAlertBtn.textContent = 'Enviando…';
       try {
-        const unconfirmedIds = await fetchUnconfirmedAppointmentsForTomorrow();
+        const listContainer = safeGetElement('patientListContainer');
+        const unconfirmedIds = [...(listContainer?.querySelectorAll('.patient-row[data-es-manana="true"]:not(.dimmed)') ?? [])]
+          .map(rowElement => Number(rowElement.dataset.id))
+          .filter(id => Number.isInteger(id) && id > 0);
         if (unconfirmedIds.length === 0) {
           if (window.ToastService) window.ToastService.success('No hay citas sin confirmar para mañana.');
         } else {
@@ -277,19 +313,6 @@ const setupPatientCheckboxListeners = () => {
     }
   });
 
-  listContainer.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      const rowElement = event.target.closest('.patient-row');
-      if (rowElement) {
-        event.preventDefault();
-        const checkboxElement = rowElement.querySelector('.custom-checkbox');
-        if (checkboxElement) {
-          checkboxElement.checked = !checkboxElement.checked;
-          updatePatientRowSelectionState(checkboxElement);
-        }
-      }
-    }
-  });
 };
 
 const initializeRemindersModule = () => {

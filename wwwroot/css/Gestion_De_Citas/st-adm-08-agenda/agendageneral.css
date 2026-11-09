@@ -205,11 +205,14 @@ img {
     font-family: var(--font-display);
     font-size: 1.45rem;
     font-weight: 700;
+    line-height: 1.25;
     color: var(--primary);
 }
 
 .page-subtitle {
     font-size: 0.82rem;
+    font-weight: 400;
+    line-height: 1.5;
     color: var(--text-muted);
     margin-top: 2px;
 }
@@ -325,6 +328,19 @@ img {
     flex-wrap: wrap;
 }
 
+.agenda-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid var(--warning);
+    border-radius: var(--radius-sm);
+    background: #fff7ed;
+    color: #92400e;
+}
+
 .controls-left,
 .controls-right {
     display: flex;
@@ -357,8 +373,9 @@ img {
 }
 
 .filter-label {
-    font-size: 0.65rem;
-    font-weight: 700;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.4;
     text-transform: uppercase;
     color: var(--text-muted);
     letter-spacing: 0.5px;
@@ -371,7 +388,7 @@ img {
     border-radius: 10px;
     padding: 9px 38px 9px 12px;
     font-family: var(--font);
-    font-size: 0.82rem;
+    font-size: 0.84rem;
     background: linear-gradient(180deg, #ffffff, #f8fafc);
     color: var(--text);
     cursor: pointer;
@@ -465,7 +482,7 @@ img {
 
 .day-name {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -478,7 +495,7 @@ img {
 .day-number {
     display: block;
     font-family: var(--font-display);
-    font-size: 1.3rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--text);
     margin-top: 4px;
@@ -523,14 +540,17 @@ img {
 }
 
 .calendar-day.closed {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg);
-    opacity: 0.6;
+    background: #f8fafc;
 }
 
 .day-closed {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
     text-align: center;
     color: var(--text-muted);
     font-size: 0.8rem;
@@ -552,6 +572,21 @@ img {
 .appointment:hover {
     box-shadow: var(--shadow);
     transform: translateY(-1px);
+}
+
+.appointment[draggable="true"] {
+    cursor: grab;
+}
+
+.appointment.dragging {
+    opacity: 0.55;
+    cursor: grabbing;
+}
+
+.calendar-day.drag-over {
+    background: var(--primary-light);
+    outline: 2px dashed var(--primary);
+    outline-offset: -4px;
 }
 
 /* Estados de cita */
@@ -607,7 +642,7 @@ img {
 
 .appt-detail {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     margin-top: 2px;
 }
 
@@ -625,9 +660,10 @@ img {
 
 .section-title {
     font-family: var(--font-display);
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--primary);
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text);
     margin-bottom: 12px;
 }
 
@@ -680,6 +716,7 @@ img {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
     z-index: 400;
     align-items: center;
     justify-content: center;
@@ -702,6 +739,7 @@ img {
     animation: fadeIn 0.2s ease;
     max-height: calc(100vh - 32px);
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 body.modal-open {
@@ -741,14 +779,34 @@ body.modal-open {
 
 .modal-title {
     font-family: var(--font-display);
-    font-size: 1.1rem;
-    font-weight: 700;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.35;
     margin-bottom: 16px;
     color: var(--primary);
 }
 
-.modal-content {
+.appointment-detail-content {
+    display: flex;
+    flex-direction: column;
     margin-bottom: 20px;
+}
+
+.appointment-detail-content p {
+    display: grid;
+    grid-template-columns: minmax(130px, auto) 1fr;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.45;
+}
+
+.appointment-detail-content p:last-child {
+    border-bottom: 0;
+}
+
+.appointment-detail-content strong {
+    color: var(--text-muted);
 }
 
 .modal-footer {
@@ -776,8 +834,8 @@ body.modal-open {
 }
 
 .form-group label {
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: 0.78rem;
+    font-weight: var(--weight-heading);
     color: var(--text);
 }
 
@@ -788,7 +846,7 @@ body.modal-open {
     border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
     font-family: var(--font);
-    font-size: 0.9rem;
+    font-size: 0.84rem;
     color: var(--text);
     background: var(--white);
     transition: border-color var(--tr);
@@ -862,7 +920,7 @@ body.modal-open {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: .85rem;
+    font-size: .83rem;
 }
 
 .agenda-print-actions .material-symbols-outlined,
@@ -962,7 +1020,7 @@ body.modal-open {
 
 @media (max-width: 480px) {
     .page-title {
-        font-size: 1.2rem;
+        font-size: 1.25rem;
     }
 
     .week-nav {

@@ -168,15 +168,17 @@ window.openConfirmDeleteCita = (id, patientName, triggerEl) => {
     const modal = document.getElementById('modalConfirmDeleteCita');
     const msgEl = document.getElementById('modalConfirmDeleteCitaMessage');
     const idInput = document.getElementById('deleteCitaId');
+    const reasonInput = document.getElementById('deleteCitaMotivo');
     const returnUrlInput = document.getElementById('deleteCitaReturnUrl');
 
     if (!modal) return;
 
     if (msgEl) {
         const nombre = patientName ? ` de ${patientName}` : '';
-        msgEl.textContent = `¿Está seguro de eliminar esta cita${nombre}? Esta acción no se puede deshacer.`;
+        msgEl.textContent = `¿Está seguro de cancelar esta cita${nombre}? Esta acción no se puede deshacer.`;
     }
     if (idInput) idInput.value = id;
+    if (reasonInput) reasonInput.value = '';
     if (returnUrlInput) returnUrlInput.value = window.location.pathname + window.location.search;
 
     modal.classList.add('open');

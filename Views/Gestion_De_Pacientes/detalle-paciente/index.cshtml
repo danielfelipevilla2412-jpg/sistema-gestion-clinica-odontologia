@@ -231,10 +231,27 @@
       </div>
 
       <div class="hero-actions">
+        @if (User.IsInRole("Profesional"))
+        {
         <a href="/historia-clinica/st-odo-03-historial?pacienteId=@Model.Id"
            class="btn-primary" data-i18n-aria-label="detalle_paciente_abrir_historia_clinica" aria-label="Abrir historia clínica de @Model.Name">
           <span data-i18n="detalle_paciente_historia_clinica">🦷 Historia Clínica</span>
         </a>
+        }
+        else if (User.IsInRole("Administrador"))
+        {
+        <a href="/historia-clinica/st-adm-historial"
+           class="btn-primary" data-i18n-aria-label="detalle_paciente_abrir_historia_clinica" aria-label="Abrir historia clínica">
+          <span data-i18n="detalle_paciente_historia_clinica">🦷 Historia Clínica</span>
+        </a>
+        }
+        else if (User.IsInRole("Recepcionista"))
+        {
+        <a href="/historia-clinica/st-rec-historial"
+           class="btn-primary" data-i18n-aria-label="detalle_paciente_abrir_historia_clinica" aria-label="Abrir historias clínicas">
+          <span data-i18n="detalle_paciente_historia_clinica">🦷 Historia Clínica</span>
+        </a>
+        }
         <button class="btn-secondary" id="btnEditarPaciente"
                 data-id="@Model.Id" data-i18n-aria-label="detalle_paciente_editar_datos" aria-label="Editar datos de @Model.Name">
           <span data-i18n="detalle_paciente_editar">✏️ Editar</span>
@@ -323,7 +340,7 @@
           <span class="field-label" data-i18n="detalle_paciente_alergias_label">Alergias</span>
           @if (Model.Allergies.Count > 0)
           {
-            <div class="allergy-list" role="list" data-i18n-aria-label="detalle_paciente_lista_alergias" aria-label="Lista de alergias">
+            <div class="allergy-list" id="allergyDisplay" role="list" data-i18n-aria-label="detalle_paciente_lista_alergias" aria-label="Lista de alergias">
               @foreach (var a in Model.Allergies)
               {
                 <span class="allergy-badge" role="listitem">@a</span>
@@ -332,7 +349,29 @@
           }
           else
           {
-            <span class="field-value empty" data-i18n="detalle_paciente_sin_alergias">Sin alergias registradas</span>
+            <span class="field-value empty" id="allergyDisplay" data-i18n="detalle_paciente_sin_alergias">Sin alergias registradas</span>
+          }
+          <div id="structuredAllergies" class="allergy-list" role="list" aria-label="Alergias con detalle clínico"></div>
+          @if (User.IsInRole("Administrador") || User.IsInRole("Recepcionista") || User.IsInRole("Profesional"))
+          {
+            <form id="allergyForm" class="allergy-form">
+              <label for="allergySubstance">Registrar alergia</label>
+              <input id="allergySubstance" name="sustancia" type="text" maxlength="150" required placeholder="Sustancia" />
+              <select id="allergyType" name="tipo" required>
+                <option value="medicamento">Medicamento</option>
+                <option value="alimento">Alimento</option>
+                <option value="ambiental">Ambiental</option>
+                <option value="latex">Látex</option>
+                <option value="otro">Otro</option>
+              </select>
+              <select id="allergySeverity" name="severidad" required>
+                <option value="leve">Leve</option>
+                <option value="moderada">Moderada</option>
+                <option value="grave">Grave</option>
+              </select>
+              <input id="allergyReaction" name="reaccion" type="text" maxlength="300" placeholder="Reacción (opcional)" />
+              <button type="submit" class="btn-secondary">Agregar alergia</button>
+            </form>
           }
         </div>
         <div class="field-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
@@ -475,6 +514,7 @@
 
     const pacienteId   = @Model.Id;
     const pacienteNombre = @Html.Raw(JsonSerializer.Serialize(Model.Name));
+    sessionStorage.setItem('st_paciente_id', String(pacienteId));
 
     const showToast = (msg, type = 'success') => {
       const t = document.getElementById('toast');
@@ -489,7 +529,7 @@
     // El listado ya tiene toda la lógica de edición implementada.
     document.getElementById('btnEditarPaciente')?.addEventListener('click', () => {
       window.location.href =
-        `/gestion-de-pacientes/st-adm-05-gestion-pacientes#editar-${pacienteId}`;
+        `/gestion-de-pacientes/st-adm-05-gestion-pacientes?editar=${pacienteId}#editar-${pacienteId}`;
     });
 
     // ── Archivo adjunto ───────────────────────────────────────────────────────
@@ -505,6 +545,77 @@
     //   6. "Eliminar" hace POST a /{id}/archivo-adjunto/eliminar y recarga.
 
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+    const allergyList = document.getElementById('structuredAllergies');
+    const loadStructuredAllergies = async () => {
+      if (!allergyList) return;
+      try {
+        const response = await fetch(`/gestion-de-pacientes/${pacienteId}/alergias`, {
+          credentials: 'same-origin'
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'No se pudieron cargar las alergias.');
+        if (!result.data.length) return;
+
+        document.getElementById('allergyDisplay')?.remove();
+        allergyList.replaceChildren();
+        result.data.forEach((allergy) => {
+          const item = document.createElement('div');
+          item.className = 'allergy-badge';
+          item.setAttribute('role', 'listitem');
+          const description = document.createElement('span');
+          description.textContent = `${allergy.sustancia} — ${allergy.tipo} — ${allergy.severidad}${allergy.reaccion ? ` — ${allergy.reaccion}` : ''}`;
+          item.append(description);
+
+          if (document.getElementById('allergyForm')) {
+            const deactivate = document.createElement('button');
+            deactivate.type = 'button';
+            deactivate.textContent = 'Desactivar';
+            deactivate.addEventListener('click', async () => {
+              const form = new FormData();
+              try {
+                const response = await fetch(`/gestion-de-pacientes/alergias/${allergy.id}/desactivar`, {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+                  body: form
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) throw new Error(data.message || 'No se pudo desactivar la alergia.');
+                window.location.reload();
+              } catch (error) {
+                showToast(error.message, 'error');
+              }
+            });
+            item.append(deactivate);
+          }
+
+          allergyList.append(item);
+        });
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    };
+
+    document.getElementById('allergyForm')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      try {
+        const response = await fetch(`/gestion-de-pacientes/${pacienteId}/alergias/agregar`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+          body: form
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'No se pudo registrar la alergia.');
+        window.location.reload();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    });
+
+    loadStructuredAllergies();
 
     // Botón "Cambiar" (solo visible si ya hay archivo)
     document.getElementById('btnCambiarArchivo')?.addEventListener('click', () => {

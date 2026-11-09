@@ -35,6 +35,30 @@ public sealed class Lote2RegresionesTests
     }
 
     [Fact]
+    public void AgendaApoyo_FiltrosDeTipoSeMantienenHorizontalesYConectados()
+    {
+        var script = File.ReadAllText(RepoFile(
+            "wwwroot", "js", "Gestion_De_Citas", "st-aux-02-agenda-apoyo", "agenda-apoyo.js"));
+        var styles = File.ReadAllText(RepoFile(
+            "wwwroot", "css", "Gestion_De_Citas", "st-aux-02-agenda-apoyo", "agenda-apoyo.css"));
+        var controller = File.ReadAllText(RepoFile(
+            "Controllers", "GestionDeCitas", "GestionCitasController.cs"));
+
+        Assert.Contains(
+            ".filter-group[role=\"radiogroup\"] .filter-btn[role=\"radio\"][data-value]",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "normalizarTipo(c.tipo) === normalizarTipo(tipo)",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains("agendaSupportControllerInstance._filtroTipo = filterValue", script, StringComparison.Ordinal);
+        Assert.Contains("applyCombinedFilters();", script, StringComparison.Ordinal);
+        Assert.Contains("flex-direction: row", styles, StringComparison.Ordinal);
+        Assert.Contains("n.Contains(\"consulta\")", controller, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HistorialParcial_SinPacienteIdNoSeleccionaElUltimoPacienteGlobal()
     {
         var source = File.ReadAllText(RepoFile("Controllers", "GestionDeCitas", "GestionCitasController.cs"));
@@ -51,7 +75,7 @@ public sealed class Lote2RegresionesTests
         {
             RepoFile("wwwroot", "js", "Gestion_De_Citas", "st-aux-01-panel-operativo", "panel-operativo.js"),
             RepoFile("wwwroot", "js", "Gestion_De_Citas", "st-aux-02-agenda-apoyo", "agenda-apoyo.js"),
-            RepoFile("wwwroot", "js", "Gestion_De_Citas", "st-aux-05-historial-parcial", "historial-parcial.js")
+            RepoFile("wwwroot", "js", "Gestion_De_Pacientes", "st-aux-05-historial-parcial", "historial-parcial.js")
         };
 
         foreach (var script in scripts)

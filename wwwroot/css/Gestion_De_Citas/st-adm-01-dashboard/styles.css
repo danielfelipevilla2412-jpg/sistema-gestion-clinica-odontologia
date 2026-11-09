@@ -313,7 +313,7 @@ img {
 }
 
 .breadcrumb {
-  font-size: .78rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
   margin-bottom: 6px;
   display: flex;
@@ -333,7 +333,9 @@ img {
 }
 
 .page-subtitle {
-  font-size: .88rem;
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.5;
   color: var(--text-muted);
   display: flex;
   align-items: center;
@@ -348,7 +350,7 @@ img {
   padding: 10px 20px;
   border-radius: var(--radius-sm);
   font-weight: 600;
-  font-size: .88rem;
+  font-size: 0.83rem;
   cursor: pointer;
   transition: all var(--tr);
   display: inline-flex;
@@ -381,7 +383,7 @@ img {
   padding: 10px 20px;
   border-radius: var(--radius-sm);
   font-weight: 600;
-  font-size: .88rem;
+  font-size: 0.83rem;
   cursor: pointer;
   transition: all var(--tr);
   display: inline-flex;
@@ -454,6 +456,10 @@ img {
   margin-bottom: 28px;
 }
 
+.stats-grid--distribution {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .stat-card {
   background: var(--white);
   border-radius: var(--radius);
@@ -488,15 +494,23 @@ img {
 .stat-card[data-color="purple"] {
   border-left-color: var(--purple);
 }
+.stat-card[data-color="attended"] { border-left-color: #1e3a8a; }
+.stat-card[data-color="confirmed"] { border-left-color: #10b981; }
+.stat-card[data-color="cancelled"] { border-left-color: #dc2626; }
+.stat-card[data-color="other"] { border-left-color: #64748b; }
+.stat-card[data-color="attended"] .stat-number { color: #1e3a8a; }
+.stat-card[data-color="confirmed"] .stat-number { color: #10b981; }
+.stat-card[data-color="cancelled"] .stat-number { color: #dc2626; }
+.stat-card[data-color="other"] .stat-number { color: #64748b; }
 
 .stat-number {
   display: block;
   font-family: var(--font-display);
-  font-size: 2.4rem;
+  font-size: 2.2rem;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1;
   margin-bottom: 6px;
-  letter-spacing: -0.02em;
+  letter-spacing: normal;
 }
 
 .stat-card[data-color="blue"] .stat-number {
@@ -516,14 +530,14 @@ img {
 }
 
 .stat-label {
-  font-size: .82rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: 2px;
 }
 
 .stat-sub {
-  font-size: .78rem;
+  font-size: 0.71rem;
   color: var(--text-muted);
   display: flex;
   align-items: center;
@@ -561,7 +575,8 @@ img {
 .card-title {
   font-family: var(--font-display);
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1.35;
   color: var(--text);
   margin-bottom: 20px;
   padding-bottom: 14px;
@@ -591,7 +606,7 @@ img {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: .88rem;
+  font-size: 0.83rem;
 }
 
 .table-base thead tr {
@@ -601,10 +616,11 @@ img {
 .table-base th {
   padding: 14px 16px;
   text-align: left;
-  font-size: .75rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
   color: var(--text-muted);
   white-space: nowrap;
   border-bottom: 2px solid var(--border);
@@ -636,7 +652,7 @@ img {
 .td-strong {
   font-weight: 700;
   color: var(--text);
-  font-size: .95rem;
+  font-size: var(--type-body);
 }
 
 .badge-spec {
@@ -644,7 +660,7 @@ img {
   align-items: center;
   padding: 4px 10px;
   border-radius: var(--radius-full);
-  font-size: .75rem;
+  font-size: 0.72rem;
   font-weight: 600;
   background: var(--primary-light);
   color: var(--primary-dark);
@@ -684,8 +700,9 @@ img {
 /* ═══ DASHBOARD — CLASES AUXILIARES ═══ */
 .dashboard-section-title {
   font-family: var(--font-display);
-  font-size: 1.1rem;
-  font-weight: 700;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.35;
   color: var(--text);
   margin: 8px 0 16px;
   display: flex;
@@ -741,7 +758,7 @@ img {
   gap: 4px;
   padding: 6px 12px;
   border-radius: var(--radius-sm);
-  font-size: .7rem;
+  font-size: 0.65rem;
   font-weight: 600;
   color: var(--text-muted);
   transition: all var(--tr);
@@ -762,7 +779,7 @@ img {
 }
 
 .mobile-nav-icon {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -802,6 +819,10 @@ img {
 @media (max-width: 1050px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stats-grid--distribution {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -868,13 +889,9 @@ img {
   }
 
   .stat-number {
-    font-size: 2rem;
+    font-size: 1.9rem;
   }
 
-  .table-base th:nth-child(2),
-  .table-base td:nth-child(2) {
-    display: none;
-  }
 }
 
 /* ═══ PRINT & REDUCED MOTION ═══ */

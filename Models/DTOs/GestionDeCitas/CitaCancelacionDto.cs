@@ -9,8 +9,8 @@ namespace SmileTrack_MVC.Models.DTOs;
 /// </summary>
 public sealed class CitaCancelacionDto
 {
-    [Required(ErrorMessage = "El motivo de cancelación es obligatorio (RN-23).")]
-    [MinLength(1, ErrorMessage = "El motivo de cancelación no puede estar vacío.")]
+    [Required(ErrorMessage = "El motivo de cancelación es obligatorio.")]
+    [MinLength(5, ErrorMessage = "El motivo de cancelación debe tener al menos 5 caracteres.")]
     [StringLength(500, ErrorMessage = "El motivo de cancelación no puede superar 500 caracteres.")]
     public string Motivo { get; set; } = string.Empty;
 }

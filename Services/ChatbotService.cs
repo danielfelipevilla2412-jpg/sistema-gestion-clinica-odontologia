@@ -38,11 +38,10 @@ public sealed class ChatbotService : IChatbotService
                 ]),
             ["auxiliar"] = new(
                 "auxiliar", "Auxiliar",
-                "Puedo orientarte sobre la agenda de apoyo, preparación de consulta, asistencia durante el procedimiento y estado del consultorio.",
-                ["📋 ¿Cómo uso el panel auxiliar?", "🧪 ¿Cómo preparo una consulta?", "🦷 ¿Cómo registro la asistencia?", "🏥 ¿Dónde veo el consultorio?"],
+                "Puedo orientarte sobre la agenda de apoyo, asistencia durante el procedimiento y estado del consultorio.",
+                ["📋 ¿Cómo uso el panel auxiliar?", "🦷 ¿Cómo registro la asistencia?", "🏥 ¿Dónde veo el consultorio?"],
                 [
                     new() { Label = "Panel auxiliar", Url = "/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" },
-                    new() { Label = "Preparación de consulta", Url = "/gestion-de-pacientes/st-aux-03-preparacion-consulta" },
                     new() { Label = "Asistencia en procedimiento", Url = "/gestion-de-citas/st-aux-06-asistencia-procedi" },
                     new() { Label = "Estado del consultorio", Url = "/gestion-de-citas/st-aux-09-estado-consultorio" }
                 ]),

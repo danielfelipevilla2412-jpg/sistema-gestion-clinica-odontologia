@@ -159,6 +159,10 @@
       <p class="modal-desc" id="cancelarDesc"></p>
       <p class="modal-note modal-warning hidden" id="cancelarAdvertencia" aria-live="polite"></p>
       <p class="modal-note modal-error hidden" id="cancelarError" aria-live="assertive"></p>
+      <label class="form-label" for="cancelarMotivo">Motivo de cancelación *</label>
+      <textarea class="form-input" id="cancelarMotivo" rows="3" minlength="5" maxlength="500"
+                required aria-describedby="cancelarMotivoAyuda"></textarea>
+      <small id="cancelarMotivoAyuda">Describe brevemente el motivo (mínimo 5 caracteres).</small>
       <div class="modal-footer">
         <button class="btn-secondary" id="cancelarNo" data-i18n="common.back">Volver</button>
         <button class="btn-danger" id="cancelarSi" data-i18n="citas.btn_confirm_cancel">Sí, cancelar</button>

@@ -81,17 +81,14 @@ const getIconForNotificationType = (notificationType) => {
 // 4. SERVICIOS Y API
 // ═══════════════════════════════════════════════════════════════════
 
-const markReadOnServer = async (notificationIds) => {
-  const isSingle = notificationIds.length === 1;
-  const endpointUrl = isSingle
-    ? `/api/notificaciones/${notificationIds[0]}/leida`
-    : '/api/notificaciones/leidas';
-
+const markReadOnServer = async (notification) => {
+  const endpointUrl = notification.idNotificacion
+    ? `/api/notificaciones/${notification.idNotificacion}/leida`
+    : `/api/notificaciones/citas/${notification.idCita}/leida`;
   const response = await fetch(endpointUrl, {
     method: 'PUT',
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify(isSingle ? {} : notificationIds)
+    headers: { 'Accept': 'application/json' }
   });
 
   const payload = await response.json().catch(() => ({}));
@@ -100,8 +97,11 @@ const markReadOnServer = async (notificationIds) => {
   }
 };
 
-const deleteOnServer = async (notificationId) => {
-  const response = await fetch(`/api/notificaciones/${notificationId}`, {
+const deleteOnServer = async (notification) => {
+  if (!notification.idNotificacion) {
+    throw new Error('Esta notificación informativa no se puede eliminar.');
+  }
+  const response = await fetch(`/api/notificaciones/${notification.idNotificacion}`, {
     method: 'DELETE',
     credentials: 'same-origin',
     headers: { 'Accept': 'application/json' }
@@ -184,9 +184,9 @@ const createNotificationCardElement = (item) => {
           <button type="button" class="btn-icon btn-mark-read" data-id="${item.id}" title="Marcar como leída" aria-label="Marcar como leída">
             <span class="material-symbols-outlined" style="font-size:1.1rem;">done</span>
           </button>` : ''}
-          <button type="button" class="btn-icon btn-delete-notif" data-id="${item.id}" title="Eliminar" aria-label="Eliminar notificación">
+          ${item.idNotificacion ? `<button type="button" class="btn-icon btn-delete-notif" data-id="${escapeHtml(item.id)}" title="Eliminar" aria-label="Eliminar notificación">
             <span class="material-symbols-outlined" style="font-size:1.1rem; color:var(--danger, #ef4444);">delete</span>
-          </button>
+          </button>` : ''}
         </div>
       </div>
     </div>
@@ -289,16 +289,14 @@ const handleNotificationCardAction = async (event) => {
   const cardElement = event.target.closest('.notification-card');
   if (!cardElement) return;
 
-  const notificationId = parseInt(cardElement.dataset.id, 10);
-  if (isNaN(notificationId)) return;
-  const notificationItem = notificationsList.find(item => item.id === notificationId);
+  const notificationItem = notificationsList.find(item => String(item.id) === cardElement.dataset.id);
   if (!notificationItem) return;
 
   if (viewButton || (!markButton && !deleteButton)) {
     openModalDetail(notificationItem, viewButton || cardElement);
     if (!notificationItem.leida) {
       try {
-        await markReadOnServer([notificationId]);
+        await markReadOnServer(notificationItem);
         notificationItem.leida = true;
         notificationItem.badge = 'read';
         renderNotificationsList();
@@ -312,7 +310,7 @@ const handleNotificationCardAction = async (event) => {
   if (markButton) {
     event.stopPropagation();
     try {
-      await markReadOnServer([notificationId]);
+      await markReadOnServer(notificationItem);
       notificationItem.leida = true;
       notificationItem.badge = 'read';
       renderNotificationsList();
@@ -326,8 +324,8 @@ const handleNotificationCardAction = async (event) => {
   if (deleteButton) {
     event.stopPropagation();
     try {
-      await deleteOnServer(notificationId);
-      notificationsList = notificationsList.filter(item => item.id !== notificationId);
+      await deleteOnServer(notificationItem);
+      notificationsList = notificationsList.filter(item => item !== notificationItem);
       renderNotificationsList();
       if (window.ToastService) window.ToastService.success('Notificación eliminada');
     } catch (error) {
@@ -344,10 +342,22 @@ const markAllNotificationsAsRead = async () => {
   }
   
   try {
-    await markReadOnServer(unreadItems.map(item => item.id));
-    notificationsList.forEach(item => { item.leida = true; item.badge = 'read'; });
+    const results = await Promise.all(unreadItems.map(async item => {
+      try {
+        await markReadOnServer(item);
+        item.leida = true;
+        item.badge = 'read';
+        return true;
+      } catch {
+        return false;
+      }
+    }));
     renderNotificationsList();
-    if (window.ToastService) window.ToastService.success('Todas las notificaciones marcadas como leídas');
+    if (results.every(Boolean)) {
+      if (window.ToastService) window.ToastService.success('Todas las notificaciones marcadas como leídas');
+    } else if (window.ToastService) {
+      window.ToastService.error('Algunas notificaciones no se pudieron marcar como leídas');
+    }
   } catch (error) {
     if (window.ToastService) window.ToastService.error(error.message);
   }

@@ -56,15 +56,17 @@
     <!-- ── KPIs principales ────────────────────────────────────── -->
     <section class="stats-grid" aria-label="Indicadores principales del mes">
         <article class="stat-card" data-color="blue">
-            <span class="stat-number" id="statPacientes" data-target="@Model.Kpis.PacientesActivos" aria-live="polite">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">groups</span>
+            <span class="stat-number" id="statPacientes" data-target="@Model.Kpis.PacientesActivos">
                 @Model.Kpis.PacientesActivos
             </span>
             <span class="stat-label" data-i18n="adm01_stat_pacientes">Pacientes activos</span>
             <span class="stat-sub" data-i18n="adm01_stat_pacientes_sub">Total registrados</span>
         </article>
 
-        <article class="stat-card" data-color="green">
-            <span class="stat-number" id="statCitasHoy" data-target="@Model.Kpis.CitasHoy" aria-live="polite">
+        <article class="stat-card" data-color="attended">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
+            <span class="stat-number" id="statCitasHoy" data-target="@Model.Kpis.CitasHoy">
                 @Model.Kpis.CitasHoy
             </span>
             <span class="stat-label" data-i18n="adm01_stat_citas_hoy">Citas hoy</span>
@@ -72,7 +74,8 @@
         </article>
 
         <article class="stat-card" data-color="orange">
-            <span class="stat-number" id="statProfesionales" data-target="@Model.Kpis.ProfesionalesActivos" aria-live="polite">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">stethoscope</span>
+            <span class="stat-number" id="statProfesionales" data-target="@Model.Kpis.ProfesionalesActivos">
                 @Model.Kpis.ProfesionalesActivos
             </span>
             <span class="stat-label" data-i18n="adm01_stat_profesionales">Profesionales activos</span>
@@ -80,8 +83,8 @@
         </article>
 
         <article class="stat-card" data-color="purple">
-            <span class="stat-number currency" id="statIncome"
-                  data-target="@Model.Kpis.ValorEstimadoAtendidoMes.ToString("F0", CultureInfo.InvariantCulture)" aria-live="polite">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
+            <span class="stat-number currency" id="statIncome">
                 @Model.Kpis.ValorEstimadoAtendidoMes.ToString("C0", CultureInfo.GetCultureInfo("es-CO"))
             </span>
             <span class="stat-label" data-i18n="adm01_stat_valor_atendido">Valor atendido</span>
@@ -92,8 +95,8 @@
     <!-- ── Barra de ocupación ──────────────────────────────────── -->
     <section class="progress-row" role="region" aria-label="Ocupación de agenda mensual" data-i18n-aria-label="adm01_occupancy_aria">
         <div>
-            <h2 class="page-title" style="font-size: 1rem; margin-bottom: 4px;" data-i18n="adm01_occupancy_title">Ocupación de agenda</h2>
-            <p class="page-subtitle" style="margin:0;" data-i18n="adm01_occupancy_sub">Capacidad disponible este mes</p>
+            <h2 class="dashboard-section-title" style="margin-bottom: 4px;" data-i18n="adm01_occupancy_title">Ocupación de agenda</h2>
+            <p class="page-subtitle" style="margin:0;" data-i18n="adm01_occupancy_sub">Reservas frente a la capacidad mensual</p>
         </div>
         <div class="progress-bar-wrap"
              role="progressbar"
@@ -109,37 +112,47 @@
     <!-- ── Distribución por estado ─────────────────────────────── -->
     <h2 class="dashboard-section-title" data-i18n="adm01_distribution_title">Distribución por estado — mes actual</h2>
 
-    <section class="stats-grid" aria-label="Estados de las citas del mes" data-i18n-aria-label="adm01_distribution_aria">
+    <section class="stats-grid stats-grid--distribution" aria-label="Estados de las citas del mes" data-i18n-aria-label="adm01_distribution_aria">
         <article class="stat-card" data-color="green">
-            <span class="stat-number" data-target="@Model.Estados.Atendidas" aria-live="polite">@Model.Estados.Atendidas</span>
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
+            <span class="stat-number" data-target="@Model.Estados.Atendidas">@Model.Estados.Atendidas</span>
             <span class="stat-label" data-i18n="adm01_dist_attended">Atendidas</span>
-            <span class="stat-sub" data-i18n-html="adm01_dist_attended_sub">
-                @{ var variacion = Model.Kpis.VariacionCitasSemana; }
-                <span aria-hidden="true">@(variacion >= 0 ? "↑" : "↓")</span>
-                <span class="visually-hidden">@(variacion >= 0 ? "Aumentó" : "Disminuyó")</span>
-                @Math.Abs(variacion) vs semana anterior
+            <span class="stat-sub">
+                @{ var variacion = Model.Kpis.VariacionAtencionesSemana; }
+                <span aria-hidden="true">@(variacion > 0 ? "↑" : variacion < 0 ? "↓" : "→")</span>
+                <span class="visually-hidden">@(variacion > 0 ? "Aumentó" : variacion < 0 ? "Disminuyó" : "Sin cambio")</span>
+                @Math.Abs(variacion) <span data-i18n="adm01_dist_attended_sub">vs mismos días de la semana anterior</span>
             </span>
         </article>
 
-        <article class="stat-card" data-color="blue">
-            <span class="stat-number" data-target="@Model.Estados.Confirmadas" aria-live="polite">@Model.Estados.Confirmadas</span>
+        <article class="stat-card" data-color="confirmed">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
+            <span class="stat-number" data-target="@Model.Estados.Confirmadas">@Model.Estados.Confirmadas</span>
             <span class="stat-label" data-i18n="adm01_dist_confirmed">Confirmadas</span>
             <span class="stat-sub">@Model.Estados.PorcentajeConfirmadas% <span data-i18n="adm01_dist_of_total">del total</span></span>
         </article>
 
         <article class="stat-card" data-color="orange">
-            <span class="stat-number" data-target="@Model.Estados.Programadas" aria-live="polite">@Model.Estados.Programadas</span>
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule</span>
+            <span class="stat-number" data-target="@Model.Estados.Programadas">@Model.Estados.Programadas</span>
             <span class="stat-label" data-i18n="adm01_dist_scheduled">Programadas</span>
             <span class="stat-sub">@Model.Estados.PorcentajeProgramadas% <span data-i18n="adm01_dist_of_total">del total</span></span>
         </article>
 
-        <article class="stat-card" data-color="red">
-            <span class="stat-number" data-target="@Model.Estados.Canceladas" aria-live="polite">@Model.Estados.Canceladas</span>
+        <article class="stat-card" data-color="cancelled">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
+            <span class="stat-number" data-target="@Model.Estados.Canceladas">@Model.Estados.Canceladas</span>
             <span class="stat-label" data-i18n="adm01_dist_cancelled">Canceladas</span>
             <span class="stat-sub">@Model.Estados.PorcentajeCanceladas% <span data-i18n="adm01_dist_of_total">del total</span></span>
         </article>
-    </section>
 
+        <article class="stat-card" data-color="other">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">more_horiz</span>
+            <span class="stat-number" data-target="@Model.Estados.Otros">@Model.Estados.Otros</span>
+            <span class="stat-label" data-i18n="adm01_dist_other">Otros estados</span>
+            <span class="stat-sub">@Model.Estados.PorcentajeOtros% <span data-i18n="adm01_dist_of_total">del total</span></span>
+        </article>
+    </section>
     <!-- ── Contenido principal ─────────────────────────────────── -->
     <section class="content-grid" aria-label="Contenido principal del dashboard">
         <div class="content-left">

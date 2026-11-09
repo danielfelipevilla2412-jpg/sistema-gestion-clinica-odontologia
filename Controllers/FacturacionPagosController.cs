@@ -40,14 +40,11 @@
             var facturas = facturasDb.Select((f, idx) => new
             {
                 id = f.IdFactura,
-                idCita = f.IdCita,
-                idProfesional = f.IdProfesional,
                 number = f.NumeroFactura,
                 patient = f.Paciente != null ? $"{f.Paciente.Nombres} {f.Paciente.Apellidos}" : "Paciente",
                 doc = f.Paciente != null ? f.Paciente.Documento : "N/A",
                 date = f.FechaFactura.ToString("yyyy-MM-dd"),
                 total = f.Total,
-                pending = Math.Max(f.Total - f.MontoPagado, 0),
                 paid = f.MontoPagado,
                 fechaPago = f.FechaPago,
                 status = f.Estado,
@@ -65,10 +62,27 @@
         [Route("facturacion-y-pagos/st-rec-04-generar-factura")]
         public async Task<IActionResult> Strec04GenerarFactura()
         {
-            var pacientes = await _context.Pacientes.Where(p => p.Estado == "activo").ToListAsync();
-            var servicios = await _context.Servicios.Where(s => s.Estado == "activo").ToListAsync();
+            var pacientes = await _context.Pacientes
+                .AsNoTracking()
+                .Where(p => p.Estado == "activo")
+                .OrderBy(p => p.Nombres)
+                .ThenBy(p => p.Apellidos)
+                .ToListAsync();
+            var servicios = await _context.Servicios
+                .AsNoTracking()
+                .Where(s => s.Estado == "activo")
+                .OrderBy(s => s.Nombre)
+                .ToListAsync();
+            var profesionales = await _context.Profesionales
+                .AsNoTracking()
+                .Where(p => p.Estado == "activo")
+                .OrderBy(p => p.Nombres)
+                .ThenBy(p => p.Apellidos)
+                .ToListAsync();
+
             ViewData["Pacientes"] = pacientes;
             ViewData["Servicios"] = servicios;
+            ViewData["Profesionales"] = profesionales;
             return View("~/Views/Facturacion_Y_Pagos/st-rec-04-generar-factura/index.cshtml");
         }
     } 

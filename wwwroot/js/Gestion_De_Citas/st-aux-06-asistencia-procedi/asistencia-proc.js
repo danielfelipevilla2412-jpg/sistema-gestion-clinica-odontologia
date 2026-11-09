@@ -45,7 +45,12 @@ const debounce = (fn, delay) =>
 const procedureHeaders = () => {
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
   const tokenElement = document.querySelector('input[name="__RequestVerificationToken"]');
-  if (tokenElement?.value) headers['X-CSRF-TOKEN'] = tokenElement.value;
+  if (tokenElement?.value) {
+    // ASP.NET Core IAntiforgery.ValidateRequestAsync lee 'RequestVerificationToken';
+    // se envían ambos para compatibilidad con los distintos filtros del proyecto.
+    headers['RequestVerificationToken'] = tokenElement.value;
+    headers['X-CSRF-TOKEN'] = tokenElement.value;
+  }
   return headers;
 };
 
@@ -244,7 +249,7 @@ const initProcedurePills = () => {
       procedureStorage.updatePill(id, isNowCompleted);
       
       if (window.ToastService) {
-        window.ToastService.success(`${labelText} ${isNowCompleted ? 'completada ✓' : 'marcada como pendiente'}`, 'info');
+        window.ToastService.info(`${labelText} ${isNowCompleted ? 'completada ✓' : 'marcada como pendiente'}`);
       }
     });
     

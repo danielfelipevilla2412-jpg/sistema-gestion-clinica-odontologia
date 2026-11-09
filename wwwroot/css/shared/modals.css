@@ -52,10 +52,11 @@
 }
 
 .modal-title {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    color: #111827;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--primary);
     margin: 0;
 }
 

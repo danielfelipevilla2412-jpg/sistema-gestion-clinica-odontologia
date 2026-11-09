@@ -11,6 +11,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Services;
@@ -68,7 +69,26 @@ builder.Configuration
     .AddEnvironmentVariables()
     .AddCommandLine(args);
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        var defaultFactory = options.InvalidModelStateResponseFactory;
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            if (context.ActionDescriptor.RouteValues.TryGetValue("controller", out var controller) &&
+                string.Equals(controller, "GestionPacientesApi", StringComparison.OrdinalIgnoreCase))
+            {
+                return new Microsoft.AspNetCore.Mvc.UnprocessableEntityObjectResult(
+                    new Microsoft.AspNetCore.Mvc.ValidationProblemDetails(context.ModelState)
+                    {
+                        Status = StatusCodes.Status422UnprocessableEntity
+                    });
+            }
+
+            return defaultFactory(context);
+        };
+    });
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
@@ -198,6 +218,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryCount: 3,
             maxRetryDelay: TimeSpan.FromSeconds(3),
             errorNumbersToAdd: null)));
+builder.Services.AddHealthChecks()
+    .AddSqlServer(connectionString, name: "sqlserver", timeout: TimeSpan.FromSeconds(5));
 
 builder.Services.AddScoped<ICitaService, CitaService>();
 builder.Services.AddScoped<IAgendaService, AgendaService>();
@@ -815,6 +837,19 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments(
+            "/uploads/documentos-clinicos",
+            StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
+
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = context =>
@@ -856,6 +891,7 @@ app.UseAuthorization();
 // ROUTING
 // -----------------------------------------------------------------------------
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.MapControllerRoute(
@@ -885,24 +921,31 @@ static async Task EnsureDatabaseSchemaAsync(
         scope.ServiceProvider
             .GetRequiredService<AppDbContext>();
 
-    string scriptPath =
+    string[] scriptPaths =
+    [
+        Path.Combine(
+            AppContext.BaseDirectory,
+            "Database",
+            "SCRIPT_SQL_UNICO_SMILETRACK.sql"),
         Path.Combine(
             Directory.GetCurrentDirectory(),
             "Database",
-            "SCRIPT_SQL_UNICO_SMILETRACK.sql");
+            "SCRIPT_SQL_UNICO_SMILETRACK.sql")
+    ];
+    string? scriptPath = scriptPaths.FirstOrDefault(File.Exists);
 
     try
     {
-        if (!File.Exists(scriptPath))
+        if (scriptPath is null)
         {
             logger.LogCritical(
-                "❌ No se encontró el script SQL obligatorio en {ScriptPath}. " +
+                "❌ No se encontró el script SQL obligatorio. Rutas revisadas: {ScriptPaths}. " +
                 "La aplicación no puede iniciar sin el esquema oficial de SmileTrack.",
-                scriptPath);
+                string.Join("; ", scriptPaths));
 
             throw new FileNotFoundException(
                 "No se encontró SCRIPT_SQL_UNICO_SMILETRACK.sql.",
-                scriptPath);
+                scriptPaths[0]);
         }
 
         string sql =
@@ -915,8 +958,9 @@ static async Task EnsureDatabaseSchemaAsync(
                 RegexOptions.Multiline |
                 RegexOptions.IgnoreCase);
 
-        foreach (string batch in batches)
+        for (int batchIndex = 0; batchIndex < batches.Length; batchIndex++)
         {
+            string batch = batches[batchIndex];
             string trimmed = batch.Trim();
 
             if (string.IsNullOrWhiteSpace(trimmed))
@@ -924,7 +968,19 @@ static async Task EnsureDatabaseSchemaAsync(
                 continue;
             }
 
-            await db.Database.ExecuteSqlRawAsync(trimmed);
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(trimmed);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(
+                    ex,
+                    "Falló el lote SQL {BatchIndex} del script {ScriptPath}.",
+                    batchIndex + 1,
+                    scriptPath);
+                throw;
+            }
         }
 
         logger.LogInformation(
