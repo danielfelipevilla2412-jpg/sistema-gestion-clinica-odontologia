@@ -37,19 +37,20 @@ let upcomingAppointmentsTimerRef = null;
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
-const debounce = (fn, delay) =>
-  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
-
 const escapeHtml = (value) =>
   window.CommonUtils?.escapeHtml ? window.CommonUtils.escapeHtml(value) : String(value ?? '');
 
+// Metadatos de los botones de acción de la tabla. Se usa el patrón canónico
+// declarado en el propio styles.css de la vista (.btn-icon.action-btn, L262) con
+// íconos Material Symbols y texto visible; se añaden marcadores semánticos
+// (btn-view/btn-edit/btn-facturar) igual que st-rec-03/st-adm-07.
 const getActionMeta = (actionType) => {
   const metaMap = {
-    'pencil':       { icon: '✏️', label: 'Editar',   cls: 'btn-secondary edit',     danger: false },
-    'file-invoice': { icon: '🧾', label: 'Facturar', cls: 'btn-secondary btn-facturar', danger: false },
-    'eye':          { icon: '👁️', label: 'Ver',      cls: 'btn-secondary btn-view',  danger: false }
+    'pencil':       { icon: 'edit',         label: 'Editar',   cls: 'btn-icon action-btn btn-edit' },
+    'file-invoice': { icon: 'receipt_long', label: 'Facturar', cls: 'btn-icon action-btn btn-facturar' },
+    'eye':          { icon: 'visibility',   label: 'Ver',      cls: 'btn-icon action-btn btn-view' }
   };
-  return metaMap[actionType] || { icon: '👁️', label: 'Ver', cls: 'btn-secondary btn-view', danger: false };
+  return metaMap[actionType] || { icon: 'visibility', label: 'Ver', cls: 'btn-icon action-btn btn-view' };
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -82,11 +83,14 @@ const createAppointmentRow = (appointmentItem) => {
 
   const actionButtonsHtml = appointmentItem.actions.map(action => {
     const meta = getActionMeta(action);
+    const actionLabel = `${meta.label} cita de ${escapeHtml(appointmentItem.patient)}`;
     return `<button class="${meta.cls}" type="button"
               data-action="${action}"
-              title="${escapeHtml(meta.label)} cita de ${escapeHtml(appointmentItem.patient)}"
-              aria-label="${escapeHtml(meta.label)} cita de ${escapeHtml(appointmentItem.patient)}">
-              ${meta.icon} <span class="btn-text">${meta.label}</span>
+              data-id="${escapeHtml(appointmentItem.id)}"
+              title="${actionLabel}"
+              aria-label="${actionLabel}">
+              <span class="material-symbols-outlined" aria-hidden="true">${meta.icon}</span>
+              <span class="btn-text">${meta.label}</span>
             </button>`;
   }).join('');
 
@@ -151,6 +155,41 @@ const renderUpcomingAppointmentsBanner = (upcomingAppointmentsList) => {
   bannerElement.style.display = upcomingAppointmentsList.length > 0 ? '' : 'none';
 };
 
+// El contador compartido ignora los elementos ya animados (guard data-animated);
+// lo reiniciamos para permitir la animación desde 0 hasta el valor real servido.
+const reanimateCounter = (element, value) => {
+  if (!element || typeof window.animateCounter !== 'function') return;
+  element.removeAttribute('data-animated');
+  window.animateCounter(element, Number(value) || 0);
+};
+
+// Rellena los widgets de "Alertas pendientes" con los conteos reales del servidor
+// y oculta los avisos sin incidencias (mismo criterio que st-rec-05-recordatorios).
+const renderAlertWidgets = (dashboardData) => {
+  const alertas = dashboardData.alertas || {};
+  const sinConfirmar = Number(alertas.sinConfirmar) || 0;
+  const facturasVencidas = Number(alertas.facturasVencidas) || 0;
+
+  const sinConfirmarCard = safeGetElement('alertCardSinConfirmar');
+  const sinConfirmarText = safeGetElement('alertSinConfirmarText');
+  if (sinConfirmarCard && sinConfirmarText) {
+    sinConfirmarText.textContent = `${sinConfirmar} paciente${sinConfirmar === 1 ? '' : 's'} sin confirmar`;
+    sinConfirmarCard.style.display = sinConfirmar > 0 ? '' : 'none';
+  }
+
+  const facturasCard = safeGetElement('alertCardFacturasVencidas');
+  const facturasText = safeGetElement('alertFacturasVencidasText');
+  if (facturasCard && facturasText) {
+    facturasText.textContent = `${facturasVencidas} factura${facturasVencidas === 1 ? '' : 's'} vencida${facturasVencidas === 1 ? '' : 's'}`;
+    facturasCard.style.display = facturasVencidas > 0 ? '' : 'none';
+  }
+
+  const emptyState = safeGetElement('alertsEmptyState');
+  if (emptyState) {
+    emptyState.style.display = (sinConfirmar === 0 && facturasVencidas === 0) ? '' : 'none';
+  }
+};
+
 const renderServerSummaryStats = () => {
   const dashboardData = window.smiletrackDashboardRecData || {};
 
@@ -164,14 +203,37 @@ const renderServerSummaryStats = () => {
   }
 
   const stats = dashboardData.stats || {};
-  const setElementValue = (elementId, value) => {
-    const element = safeGetElement(elementId);
-    if (element) element.textContent = value ?? '0';
+
+  // Contadores numéricos: se animan con el patrón canónico (data-target + reanimación).
+  const numericStats = {
+    statCitasHoy: stats.citasHoy,
+    statConfirmadas: stats.confirmadas,
+    statPendientes: stats.pendientes
   };
-  setElementValue('statCitasHoy', stats.citasHoy);
-  setElementValue('statConfirmadas', stats.confirmadas);
-  setElementValue('statPendientes', stats.pendientes);
-  setElementValue('statFacturasPendientes', stats.facturasPendientes);
+  Object.entries(numericStats).forEach(([elementId, value]) => {
+    const element = safeGetElement(elementId);
+    if (!element) return;
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue)) {
+      element.dataset.target = String(numericValue);
+      reanimateCounter(element, numericValue);
+    } else {
+      element.textContent = '0';
+    }
+  });
+
+  // "Facturas pendientes" llega ya formateado como moneda (p. ej. "$1.2k"): no es animable.
+  const facturasPendientesElement = safeGetElement('statFacturasPendientes');
+  if (facturasPendientesElement) {
+    facturasPendientesElement.textContent = stats.facturasPendientes ?? '0';
+  }
+
+  const systemLastCheckElement = safeGetElement('systemLastCheck');
+  if (systemLastCheckElement) {
+    systemLastCheckElement.textContent = dashboardData.horaActualTexto || '';
+  }
+
+  renderAlertWidgets(dashboardData);
 
   const upcomingList = dashboardData.proximasCitas || [];
   renderUpcomingAppointmentsBanner(upcomingList);
@@ -181,21 +243,22 @@ const renderServerSummaryStats = () => {
 // 6. MANEJO DE MODALES Y FORMULARIOS
 // ═══════════════════════════════════════════════════════════════════
 
+// Navegación real de las acciones de la tabla:
+//  - Editar / Ver → vista de gestión de citas (st-rec-03) con la cita preseleccionada.
+//  - Facturar     → módulo de generación de factura (st-rec-04).
 const handleTableAction = (event) => {
   const actionButton = event.target.closest('[data-action]');
   if (!actionButton) return;
 
-  const actionType = actionButton.dataset.action;
-  const tableRow = actionButton.closest('tr');
-  const patientName = tableRow?.querySelector('.col-paciente')?.textContent?.trim() || 'el paciente';
+  const appointmentId = actionButton.dataset.id;
+  if (!appointmentId) return;
 
-  if (actionType === 'pencil') {
-    window.ToastService?.success('Editando cita', `Editando cita de ${patientName}…`);
-  } else if (actionType === 'file-invoice') {
-    window.ToastService?.success('Facturando', `Generando factura para ${patientName}…`);
-  } else if (actionType === 'eye') {
-    window.ToastService?.info('Detalle', `Viendo detalles de ${patientName}`);
+  if (actionButton.dataset.action === 'file-invoice') {
+    window.location.href = '/facturacion-y-pagos/st-rec-04-generar-factura';
+    return;
   }
+
+  window.location.href = `/gestion-de-citas/st-rec-03-gestion-citas?editId=${encodeURIComponent(appointmentId)}`;
 };
 
 const setupHeaderActionButtons = () => {
@@ -215,20 +278,12 @@ const setupHeaderActionButtons = () => {
   }
 };
 
+// Los botones "Notificar" se dirigen al módulo de recordatorios (st-rec-05),
+// que concentra el envío real de notificaciones a pacientes.
 const setupAlertButtons = () => {
   document.querySelectorAll('.btn-notify').forEach(buttonElement => {
     buttonElement.addEventListener('click', () => {
-      if (buttonElement.disabled) return;
-      
-      const alertType = buttonElement.dataset.alert;
-      const feedbackMessage = alertType === 'sin-confirmar' 
-        ? 'Notificaciones de confirmación enviadas' 
-        : 'Recordatorio de pago enviado';
-      
-      if (window.ToastService) window.ToastService.success(feedbackMessage);
-      
-      buttonElement.disabled = true;
-      buttonElement.setAttribute('aria-disabled', 'true');
+      window.location.href = '/gestion-de-citas/st-rec-05-recordatorios';
     });
   });
 };
@@ -277,8 +332,6 @@ const initializeReceptionDashboardModule = () => {
       }
     });
   }
-  
-  window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
 };
 
 document.addEventListener('DOMContentLoaded', initializeReceptionDashboardModule);

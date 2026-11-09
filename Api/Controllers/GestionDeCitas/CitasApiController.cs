@@ -475,8 +475,7 @@ public sealed class CitasApiController : ControllerBase
 
     // ─────────────────────────────────────────────────────────────────────────
     // GET /api/citas/kpis?fecha=YYYY-MM-DD
-    // M5 (RF-27): Endpoint de KPIs para polling periódico desde el dashboard.
-    // Permite que el cliente actualice los indicadores sin recargar la página.
+    // Devuelve los KPIs de gestión de citas para clientes que consultan métricas por período.
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
     [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
@@ -513,7 +512,30 @@ public sealed class CitasApiController : ControllerBase
             return BadRequest(new { success = false, message = "Formato de hora inválido. Debe ser HH:mm." });
         }
 
-        int duracion = duracionMinutos is > 0 ? duracionMinutos.Value : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+        int duracion;
+        if (idServicio is > 0)
+        {
+            var duracionServicio = await _context.Servicios
+                .AsNoTracking()
+                .Where(s => s.IdServicio == idServicio.Value &&
+                            s.Estado.Trim().ToLower() == "activo")
+                .Select(s => (int?)s.DuracionMinutos)
+                .FirstOrDefaultAsync(ct);
+
+            if (!duracionServicio.HasValue)
+                return BadRequest(new { success = false, message = "El servicio seleccionado no está disponible." });
+
+            duracion = duracionServicio.Value > 0
+                ? duracionServicio.Value
+                : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+        }
+        else
+        {
+            duracion = duracionMinutos is > 0
+                ? duracionMinutos.Value
+                : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+        }
+
         var profesionales = await _citaService.ObtenerProfesionalesDisponiblesAsync(fecha, tsHora, duracion, idServicio, ct);
 
         return Ok(new { success = true, data = profesionales });
@@ -561,12 +583,13 @@ public sealed class CitasApiController : ControllerBase
         if (dto is null || !ModelState.IsValid || dto.IdsCitas == null || dto.IdsCitas.Count == 0)
             return BadRequest(new { success = false, message = "Debe seleccionar al menos una cita para enviar recordatorios." });
 
-        var (enviados, fallidos) = await _citaService.EnviarRecordatoriosAsync(dto.IdsCitas, dto.MensajePersonalizado, ct);
+        var (enviados, fallidos, idsEnviados) = await _citaService.EnviarRecordatoriosAsync(dto.IdsCitas, dto.MensajePersonalizado, ct);
         return Ok(new
         {
             success = true,
             enviados,
             fallidos,
+            idsEnviados,
             message = enviados > 0
                 ? $"Se enviaron {enviados} recordatorio(s) exitosamente por correo electrónico."
                 : "No fue posible enviar recordatorios (verifique que los pacientes tengan correo registrado)."

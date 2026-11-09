@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Models.Api.Profesionales;
+using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Services;
 using System.Security.Claims;
 
@@ -119,6 +120,25 @@ public sealed class ProfesionalesApiController : ControllerBase
                 result.PageSize,
                 result.TotalCount,
                 result.TotalPages
+            }
+        });
+    }
+
+    [HttpGet("stats")]
+    [Authorize(Roles = "Administrador", Policy = "ApiOrCookie")]
+    public async Task<IActionResult> GetStats(CancellationToken ct = default)
+    {
+        var stats = await _service.ObtenerEstadisticasAsync(ct);
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                total = stats.StatTotal,
+                activos = stats.StatActivos,
+                vacaciones = stats.StatVacaciones,
+                inactivos = stats.StatInactivos
             }
         });
     }

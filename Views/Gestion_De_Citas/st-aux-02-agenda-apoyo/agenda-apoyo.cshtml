@@ -27,11 +27,11 @@
             agendaApoyoCitas.AddRange(agendaCitas.EnumerateArray().Select(cita => cita.Clone()));
         }
     }
-    var fechaAgenda = Context.Request.Query["fecha"].FirstOrDefault() ?? DateTime.Today.ToString("yyyy-MM-dd");
-    var inicioSemana = Context.Request.Query["weekStart"].FirstOrDefault() ?? fechaAgenda;
-    var fechaActual = DateTime.Parse(fechaAgenda);
-    var inicioSemanaActual = DateTime.Parse(inicioSemana);
-    var esVistaSemana = Context.Request.Query.ContainsKey("weekStart");
+    var fechaActual = ViewData["AgendaApoyoFecha"] is DateTime fechaValida
+        ? fechaValida.Date
+        : DateTime.Today;
+    var inicioSemanaActual = fechaActual;
+    var esVistaSemana = ViewData["AgendaApoyoSemana"] is true;
     var metaTexto = esVistaSemana
         ? $"Semana del {inicioSemanaActual:dd MMM yyyy} al {inicioSemanaActual.AddDays(6):dd MMM yyyy}"
         : $"Citas del día {fechaActual:dd MMM yyyy}";
@@ -59,10 +59,10 @@
 
     <div class="filtros-bar" role="toolbar" aria-label="Navegación y filtros de agenda">
       @await Component.InvokeAsync("ToggleVistas", new { vistaActiva = Context.Request.Query.ContainsKey("weekStart") ? "semana" : "dia" })
-      <a class="btn-secondary" href="?fecha=@DateTime.Parse(fechaAgenda).AddDays(-1).ToString("yyyy-MM-dd")" aria-label="Día anterior">‹ Día</a>
-      <a class="btn-secondary" href="?fecha=@DateTime.Parse(fechaAgenda).AddDays(1).ToString("yyyy-MM-dd")" aria-label="Día siguiente">Día ›</a>
-      <a class="btn-secondary" href="?weekStart=@DateTime.Parse(inicioSemana).AddDays(-7).ToString("yyyy-MM-dd")" aria-label="Semana anterior">‹ Semana</a>
-      <a class="btn-secondary" href="?weekStart=@DateTime.Parse(inicioSemana).AddDays(7).ToString("yyyy-MM-dd")" aria-label="Semana siguiente">Semana ›</a>
+      <a class="btn-secondary" href="?fecha=@fechaActual.AddDays(-1).ToString("yyyy-MM-dd")" aria-label="Día anterior">‹ Día</a>
+      <a class="btn-secondary" href="?fecha=@fechaActual.AddDays(1).ToString("yyyy-MM-dd")" aria-label="Día siguiente">Día ›</a>
+      <a class="btn-secondary" href="?weekStart=@inicioSemanaActual.AddDays(-7).ToString("yyyy-MM-dd")" aria-label="Semana anterior">‹ Semana</a>
+      <a class="btn-secondary" href="?weekStart=@inicioSemanaActual.AddDays(7).ToString("yyyy-MM-dd")" aria-label="Semana siguiente">Semana ›</a>
     </div>
 
     <!-- Contenido principal -->
@@ -80,11 +80,11 @@
           <div class="dropdown-menu" id="dropdownMenu" role="menu" aria-label="Seleccionar profesional">
             <div class="dd-item active" role="menuitem" tabindex="0" data-value="todos">Todos los profesionales</div>
             @{
-                var agendaData = ViewData["AgendaApoyoData"];
-                var agendaJson = System.Text.Json.JsonSerializer.Serialize(agendaData ?? new { citas = Array.Empty<object>() });
-                using var agendaObj = System.Text.Json.JsonDocument.Parse(agendaJson);
                 var profesionalesUnicos = new HashSet<string>();
-                if (agendaObj.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object && agendaObj.RootElement.TryGetProperty("citas", out var citasEl) && citasEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                using var agendaObjDd = System.Text.Json.JsonDocument.Parse(agendaApoyoDataJson);
+                if (agendaObjDd.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                    agendaObjDd.RootElement.TryGetProperty("citas", out var citasEl) &&
+                    citasEl.ValueKind == System.Text.Json.JsonValueKind.Array)
                 {
                     foreach (var cita in citasEl.EnumerateArray())
                     {
@@ -166,18 +166,18 @@
 
   </main>
 
-  <!-- Mobile bottom nav con aria-label para navegación mÓvil -->
-  <nav class="mobile-nav" aria-label="Navegación mÓvil">
+  <!-- Mobile bottom nav con aria-label para navegación móvil -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span></span>
       <span>Panel</span>
     </a>
     <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item active" aria-current="page">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
       <span>Agenda</span>
     </a>
     <a href="/gestion-de-pacientes/st-aux-05-historial-parcial" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">history</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">history</span></span>
       <span>Historial</span>
     </a>
   </nav>

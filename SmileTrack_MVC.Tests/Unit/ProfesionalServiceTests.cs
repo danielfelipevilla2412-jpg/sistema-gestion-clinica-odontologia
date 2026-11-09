@@ -130,6 +130,47 @@ public sealed class ProfesionalServiceTests
     }
 
     [Fact]
+    public async Task ActualizarHorariosAsync_PersisteTodosLosBloquesDeUnDia()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "activo",
+            RegistroMedico = "RM-MULTI-BLOCKS",
+            IdUsuario = 42
+        };
+        db.Profesionales.Add(profesional);
+        await db.SaveChangesAsync();
+
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        var updated = await service.ActualizarHorariosAsync(
+            profesional.IdProfesional,
+            new[]
+            {
+                new HorarioSemanalApiRequest { DayFull = "Lunes", Active = true, Start = "08:00", End = "12:00" },
+                new HorarioSemanalApiRequest { DayFull = "Lunes", Active = true, Start = "13:00", End = "17:00" },
+                new HorarioSemanalApiRequest { DayFull = "Martes", Active = true, Start = "09:00", End = "13:00" }
+            },
+            usuarioActualId: 42,
+            esAdministrador: false);
+
+        Assert.True(updated.Success, updated.Message);
+        var loaded = await service.ObtenerHorariosAsync(
+            profesional.IdProfesional,
+            usuarioActualId: 42,
+            esAdministrador: false);
+
+        Assert.True(loaded.Success);
+        Assert.Equal(
+            new[] { ("Lunes", "08:00", "12:00"), ("Lunes", "13:00", "17:00"), ("Martes", "09:00", "13:00") },
+            loaded.Data.Select(block => (block.DiaSemana, block.HoraInicio, block.HoraFin)));
+    }
+
+    [Fact]
     public async Task ObtenerHorariosAsync_RechazaHorarioDeOtroProfesional()
     {
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()

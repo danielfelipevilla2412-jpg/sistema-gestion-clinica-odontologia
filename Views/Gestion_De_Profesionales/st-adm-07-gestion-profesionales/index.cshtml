@@ -98,8 +98,8 @@ NOTAS DE MANTENIMIENTO:
       </div>
     </section>
 
-    <section class="table-card" aria-labelledby="credentialsReviewTitle" style="margin:1.25rem 0;padding:1.25rem;">
-      <h2 id="credentialsReviewTitle">Verificación de credenciales</h2>
+    <section class="table-card credentials-review-card" aria-labelledby="credentialsReviewTitle">
+      <h2 class="card-title" id="credentialsReviewTitle">Verificación de credenciales</h2>
       @if (!credenciales.Any())
       {
         <p>No hay documentos profesionales cargados para revisión.</p>
@@ -144,20 +144,20 @@ NOTAS DE MANTENIMIENTO:
     </section>
 
     <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
-    <div class="table-tabs" role="tablist" aria-label="Filtrar profesionales por estado">
-      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="all" id="tab-all">
+    <div class="table-tabs" role="group" aria-label="Filtrar profesionales por estado">
+      <button type="button" class="tab-btn active" aria-pressed="true" data-tab="all" id="tab-all">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">groups</span>
         Todos los profesionales
       </button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="activo" id="tab-activo">
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="activo" id="tab-activo">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">person_check</span>
         Activos
       </button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="vacaciones" id="tab-vacaciones">
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="vacaciones" id="tab-vacaciones">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">beach_access</span>
         En vacaciones
       </button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="inactivo" id="tab-inactivo">
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="inactivo" id="tab-inactivo">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">person_off</span>
         Inactivos
       </button>
@@ -271,23 +271,23 @@ NOTAS DE MANTENIMIENTO:
             <!-- Ver detalles: abrir modal con data desde atributos -->
             <button class="btn-secondary action-btn btn-view view" type="button"
                     data-id="@profesional.IdProfesional"
-                    data-name="@Html.Encode(profNombreCompleto)"
-                    data-initials="@Html.Encode(profIniciales)"
-                    data-specialty="@Html.Encode(especialidadPrincipal)"
-                    data-registry="@Html.Encode(profesional.RegistroMedico)"
-                    data-phone="@Html.Encode(profesional.Telefono)"
-                    data-status="@Html.Encode(profesional.Estado)"
+                    data-name="@profNombreCompleto"
+                    data-initials="@profIniciales"
+                    data-specialty="@(especialidadPrincipal ?? "")"
+                    data-registry="@(profesional.RegistroMedico ?? "")"
+                    data-phone="@(profesional.Telefono ?? "")"
+                    data-status="@(profesional.Estado ?? "")"
                     data-avatar-color="@profAvatarColor"
                     data-status-class="@profStatusClass"
-                    aria-label="@Html.Encode($"Ver detalles del profesional {profesional.Nombres} {profesional.Apellidos}")"
-                    title="Ver detalles del profesional @Html.Encode(profNombreCompleto)"
+                    aria-label="@($"Ver detalles del profesional {profesional.Nombres} {profesional.Apellidos}")"
+                    title="Ver detalles del profesional @profNombreCompleto"
                     data-i18n-title="gestionprofesionales_btn_ver_title">
               <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_ver">Ver</span>
             </button>
             <button class="btn-secondary action-btn edit" type="button"
                     onclick="editProfessional(@profesional.IdProfesional)"
                     aria-label="Editar el profesional @profesional.Nombres @profesional.Apellidos"
-                    title="Editar profesional @Html.Encode(profNombreCompleto)"
+                    title="Editar profesional @profNombreCompleto"
                     data-i18n-title="gestionprofesionales_btn_editar_title">
               <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_editar">Editar</span>
             </button>
@@ -299,7 +299,7 @@ NOTAS DE MANTENIMIENTO:
                       data-name="@profesional.Nombres @profesional.Apellidos"
                       data-estado="activo"
                       aria-label="Desactivar el profesional @profesional.Nombres @profesional.Apellidos"
-                      title="Desactivar profesional @Html.Encode(profNombreCompleto)"
+                      title="Desactivar profesional @profNombreCompleto"
                       data-i18n-title="gestionprofesionales_btn_desactivar_title">
                 <span class="material-symbols-outlined action-icon" aria-hidden="true">block</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_desactivar">Desactivar</span>
               </button>
@@ -312,7 +312,7 @@ NOTAS DE MANTENIMIENTO:
                       data-name="@profesional.Nombres @profesional.Apellidos"
                       data-estado="@(profesional.Estado ?? "inactivo")"
                       aria-label="Reactivar el profesional @profesional.Nombres @profesional.Apellidos"
-                      title="Reactivar profesional @Html.Encode(profNombreCompleto)"
+                      title="Reactivar profesional @profNombreCompleto"
                       data-i18n-title="gestionprofesionales_btn_reactivar_title">
                 <span class="material-symbols-outlined action-icon" aria-hidden="true">check_circle</span> <span class="btn-text" data-i18n="gestionprofesionales_btn_reactivar">Reactivar</span>
               </button>
@@ -371,14 +371,15 @@ NOTAS DE MANTENIMIENTO:
   -->
   <div class="modal-overlay" id="modalForm" role="dialog" aria-modal="true" aria-labelledby="modalFormTitle"
     aria-hidden="true" inert>
-    <div class="modal">
-      <button class="modal-close" id="modalFormClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria">×</button>
+    <div class="modal modal-lg">
+      <button class="modal-close" id="modalFormClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
       <h2 class="modal-title" id="modalFormTitle" data-i18n="gestionprofesionales_modal_form_title">Nuevo Profesional</h2>
       <!-- novalidate: desactiva validación HTML nativa para controlar el flujo desde JS -->
       <!-- WHY: la validación nativa del browser no muestra mensajes custom ni toast -->
       <form id="formProfessional" novalidate>
         @Html.AntiForgeryToken()
         <input type="hidden" name="IdProfesional" id="formIdProfesional" value="0" />
+        <div class="form-grid">
         <div class="form-group">
           <label class="form-label" for="formNombres" data-i18n="gestionprofesionales_form_nombres_label">Nombres *</label>
           <input type="text" id="formNombres" name="Nombres" class="form-input" required aria-required="true" aria-describedby="error-formNombres" placeholder="Ej. Carlos" value="" data-i18n-ph="gestionprofesionales_form_nombres_ph">
@@ -418,7 +419,7 @@ NOTAS DE MANTENIMIENTO:
             }
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group full-width">
           <label class="form-label" data-i18n="gestionprofesionales_form_especialidad_secondary">Especialidades secundarias</label>
           <div id="selectedSpecialtyChips" class="specialty-chip-list" aria-live="polite"></div>
           <div id="secondarySpecialtyOptions" class="specialty-options" role="group"
@@ -445,7 +446,7 @@ NOTAS DE MANTENIMIENTO:
           </div>
           <small id="formContrasenaHelp" style="display:block;margin-top:5px;color:var(--text-muted);" data-i18n="gestionprofesionales_form_password_help">Debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo.</small>
         </div>
-        <div class="form-group" id="professionalPasswordRules">
+        <div class="form-group full-width" id="professionalPasswordRules">
           <div style="font-size:12px;line-height:1.6;">
             <div style="font-weight:600;margin-bottom:4px;" data-i18n="gestionprofesionales_form_password_rules_title">La contraseña debe cumplir:</div>
             <div data-rule="length"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_length">Mínimo 8 caracteres</span></div>
@@ -464,6 +465,7 @@ NOTAS DE MANTENIMIENTO:
           </select>
           <input type="hidden" name="EstadoFallback" id="formEstado" value="activo" />
         </div>
+        </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" id="modalFormCancel" data-i18n="common.cancel">Cancelar</button>
           <button type="submit" class="btn-primary" data-i18n="gestionprofesionales_btn_guardar">Guardar Profesional</button>
@@ -475,8 +477,8 @@ NOTAS DE MANTENIMIENTO:
   <!-- Modal: Ver Detalle -->
   <div class="modal-overlay" id="modalDetail" role="dialog" aria-modal="true" aria-labelledby="modalDetailTitle"
     aria-hidden="true" inert>
-    <div class="modal" style="max-width: 680px;">
-      <button class="modal-close" id="modalDetailClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria">×</button>
+    <div class="modal modal-lg" style="max-width: 680px;">
+      <button class="modal-close" id="modalDetailClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
       <h2 class="modal-title" id="modalDetailTitle" data-i18n="gestionprofesionales_modal_detail_title">Ficha de Profesional</h2>
 
       <!-- Pestañas de navegación interna del modal -->
@@ -586,6 +588,7 @@ NOTAS DE MANTENIMIENTO:
   <div class="modal-overlay" id="absenceConflictModal" role="dialog" aria-modal="true"
        aria-labelledby="absenceConflictTitle" aria-hidden="true" inert>
     <div class="modal">
+      <button class="modal-close" id="absenceConflictClose" aria-label="Cerrar ventana"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
       <h2 class="modal-title" id="absenceConflictTitle">Citas dentro del período</h2>
       <p id="absenceConflictSummary"></p>
       <ul id="absenceConflictAppointments"></ul>
@@ -601,7 +604,7 @@ NOTAS DE MANTENIMIENTO:
   <div class="modal-overlay" id="modalConfirmDelete" role="dialog" aria-modal="true" aria-labelledby="modalConfirmDeleteTitle"
     aria-hidden="true" inert>
     <div class="modal">
-      <button class="modal-close" id="modalConfirmDeleteClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria">×</button>
+      <button class="modal-close" id="modalConfirmDeleteClose" aria-label="Cerrar ventana" data-i18n-aria-label="gestionprofesionales_modal_close_aria"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
       <h2 class="modal-title" id="modalConfirmDeleteTitle" data-i18n="gestionprofesionales_modal_delete_title">Desactivar profesional</h2>
       <p id="modalConfirmDeleteMessage" style="margin-bottom: 8px;" data-i18n="gestionprofesionales_modal_delete_question">¿Estás seguro de desactivar a este profesional?</p>
       <p id="modalConfirmDeleteWarning" style="margin-bottom: 20px; font-size: 0.875rem; color: var(--text-muted);" data-i18n="gestionprofesionales_modal_delete_warning">

@@ -148,8 +148,9 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* ═══ FILTROS CON ACCESIBILIDAD ═══ */
 .filtros-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-.filter-group { display: flex; gap: 6px; }
-.filter-btn { padding: 6px 16px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--white); color: var(--text-muted); font-size: .78rem; font-weight: 500; cursor: pointer; transition: all var(--tr); white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.main .filtros-bar .filter-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; max-width: 100%; overflow-x: auto; }
+.main .filtros-bar .filter-group .filter-btn { flex: 0 0 auto; }
+.filter-btn { padding: 6px 16px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--white); color: var(--text-muted); font-size: .83rem; font-weight: 600; cursor: pointer; transition: all var(--tr); white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
 .filter-btn:hover { border-color: var(--primary); color: var(--primary); }
 .filter-btn.active { background: var(--bg); border-color: var(--border); color: var(--text); font-weight: 600; }
 .filter-btn.tipo-consulta.active { background: var(--tipo-consulta-bg); border-color: #93c5fd; color: var(--tipo-consulta-text); }

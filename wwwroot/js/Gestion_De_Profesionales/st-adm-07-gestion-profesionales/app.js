@@ -702,6 +702,24 @@ const initServerStats = () => {
   });
 };
 
+const refreshProfessionalStats = async () => {
+  const response = await apiRequest(`${API_BASE_URL}/stats`);
+  const stats = response?.data;
+  if (!stats) throw new Error('La respuesta de estadísticas no contiene datos.');
+
+  [
+    ['profesionales-stat-total', stats.total],
+    ['profesionales-stat-activos', stats.activos],
+    ['profesionales-stat-vacaciones', stats.vacaciones],
+    ['profesionales-stat-inactivos', stats.inactivos],
+  ].forEach(([id, value]) => {
+    const element = getElementByIdSafe(id);
+    if (!element || !Number.isFinite(Number(value))) return;
+    element.dataset.target = String(value);
+    element.textContent = String(value);
+  });
+};
+
 // ===================================================================
 // 6. GESTIÓN DE MODALES Y FORMULARIOS
 // ===================================================================
@@ -1112,6 +1130,13 @@ const saveProfessional = async (event) => {
     closeFormModal();
     currentPageIndex = 1;
     await loadProfessionalsList();
+    try {
+      await refreshProfessionalStats();
+    } catch (statsError) {
+      window.ToastService?.warning(
+        `El profesional se guardó, pero no se pudieron actualizar las estadísticas: ${statsError.message}`
+      );
+    }
   } catch (error) {
     window.ToastService?.error(`❌ ${error.message}`);
   } finally {
@@ -1375,6 +1400,17 @@ const initFiltersAPI = () => {
   const searchInputField = getElementByIdSafe('searchInput');
   const specialtyFilterSelect = getElementByIdSafe('filterSpecialty');
   const statusFilterSelect = getElementByIdSafe('filterStatus');
+  const statusTabs = Array.from(document.querySelectorAll('.table-tabs [data-tab]'));
+  const syncStatusTabs = () => {
+    if (!statusFilterSelect) return;
+    const selectedStatus = statusFilterSelect.value.toLowerCase();
+    statusTabs.forEach(tab => {
+      const active = (tab.dataset.tab === 'all' && !selectedStatus)
+        || tab.dataset.tab === selectedStatus;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-pressed', String(active));
+    });
+  };
 
   const filterFormElement = searchInputField?.closest('form') || document.querySelector('.filters-section form');
   if (filterFormElement) {
@@ -1397,8 +1433,18 @@ const initFiltersAPI = () => {
 
   statusFilterSelect?.addEventListener('change', () => {
     currentPageIndex = 1;
+    syncStatusTabs();
     loadProfessionalsList();
   });
+
+  statusTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (!statusFilterSelect) return;
+      statusFilterSelect.value = tab.dataset.tab === 'all' ? '' : tab.dataset.tab;
+      statusFilterSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+  syncStatusTabs();
 };
 
 /**

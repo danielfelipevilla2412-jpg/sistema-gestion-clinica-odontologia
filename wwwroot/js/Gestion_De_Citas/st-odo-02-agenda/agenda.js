@@ -15,7 +15,6 @@
 
 let selectedAppointmentId = null;
 let selectedPatientId = null;
-let draggedAppointmentCard = null;
 
 // ===================================================================
 // 2. UTILIDADES Y FORMATEADORES DE DATOS
@@ -45,20 +44,6 @@ const getCsrfTokenValue = () => {
   if (tokenInput) return tokenInput.value;
   const cookieMatch = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
   return cookieMatch ? decodeURIComponent(cookieMatch[2]) : null;
-};
-
-/**
- * Formatea una fecha ISO a texto largo en español (ej. "lunes, 15 de septiembre").
- * @param {string} isoDate
- * @returns {string}
- */
-const formatSpanishDate = (isoDate) => {
-  const dateObj = new Date(isoDate + 'T00:00:00');
-  return dateObj.toLocaleDateString('es-CO', { 
-    weekday: 'long', 
-    day: 'numeric', 
-    month: 'long' 
-  });
 };
 
 /**
@@ -210,58 +195,9 @@ const changeAppointmentStatusApi = async (appointmentId, newStatus, onSuccessCal
   }
 };
 
-/**
- * Realiza la petición a la API para reagendar una cita a nueva fecha/hora.
- * @param {string|number} appointmentId
- * @param {string} newDateTimeIso
- */
-const rescheduleAppointmentApi = async (appointmentId, newDateTimeIso) => {
-  try {
-    setCalendarLoadingState(true);
-
-    const response = await fetch(`/api/citas/${appointmentId}/reagendar`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'RequestVerificationToken': getCsrfTokenValue() || ''
-      },
-      body: JSON.stringify({ fechaHora: newDateTimeIso })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    showToastNotification('✅ Cita reagendada exitosamente', 'success');
-
-    setTimeout(() => {
-      window.location.reload();
-    }, 1500);
-
-    console.log('✅ Cita reagendada:', result);
-  } catch (error) {
-    console.error('❌ Error reagendando cita:', error);
-    showToastNotification('Error al reagendar la cita. Intente nuevamente.', 'error');
-  } finally {
-    setCalendarLoadingState(false);
-  }
-};
-
 // ===================================================================
 // 4. RENDERIZADO Y MANIPULACIÓN DEL DOM
 // ===================================================================
-
-/**
- * Muestra u oculta la clase de carga en el contenedor del calendario.
- * @param {boolean} isLoading
- */
-const setCalendarLoadingState = (isLoading) => {
-  const calendarBodyElement = document.querySelector('.calendar-body');
-  if (calendarBodyElement) {
-    calendarBodyElement.classList.toggle('loading', isLoading);
-  }
-};
 
 /**
  * Construye el bloque HTML informativo del profesional asignado a la cita.
@@ -597,70 +533,13 @@ const initNewAppointmentModal = () => {
 };
 
 // ===================================================================
-// 6. INTERACCIONES AVANZADAS Y DRAG & DROP
+// 6. INTERACCIONES AVANZADAS DE LA AGENDA
 // ===================================================================
-
-/**
- * Configura la funcionalidad de arrastrar y soltar (Drag & Drop) en la grilla.
- */
-const initAppointmentDragAndDrop = () => {
-  const appointmentCards = document.querySelectorAll('.appointment[draggable="true"]');
-  appointmentCards.forEach(card => {
-    card.addEventListener('dragstart', (e) => {
-      draggedAppointmentCard = e.target;
-      e.target.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', e.target.dataset.id);
-      console.log(`🔄 Arrastrando cita ID: ${e.target.dataset.id}`);
-    });
-
-    card.addEventListener('dragend', (e) => {
-      e.target.classList.remove('dragging');
-      draggedAppointmentCard = null;
-    });
-  });
-
-  const calendarDays = document.querySelectorAll('.calendar-day:not(.closed)');
-  calendarDays.forEach(dayColumn => {
-    dayColumn.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      dayColumn.classList.add('drag-over');
-    });
-
-    dayColumn.addEventListener('dragleave', (e) => {
-      if (e.target === dayColumn) {
-        dayColumn.classList.remove('drag-over');
-      }
-    });
-
-    dayColumn.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      dayColumn.classList.remove('drag-over');
-
-      if (!draggedAppointmentCard) return;
-
-      const targetDate = dayColumn.dataset.date;
-      const appointmentId = draggedAppointmentCard.dataset.id;
-      const originalDate = draggedAppointmentCard.dataset.date;
-      const patientName = draggedAppointmentCard.dataset.patientName;
-      const originalStartTime = draggedAppointmentCard.dataset.startTime || '09:00';
-
-      if (targetDate === originalDate) {
-        showToastNotification('La cita ya está en esa fecha', 'info');
-        return;
-      }
-
-      const isConfirmed = confirm(
-        `¿Reagendar cita de ${patientName} para el ${formatSpanishDate(targetDate)}?`
-      );
-
-      if (isConfirmed) {
-        await rescheduleAppointmentApi(appointmentId, `${targetDate}T${originalStartTime}:00`);
-      }
-    });
-  });
-};
+// NOTA: el drag & drop y el botón "Reagendar" los gestiona
+// shared/reagendamiento-agenda.js (cargado por la vista). No duplicar esa
+// lógica aquí: al registrar el mismo 'drop' en dos sitios, un solo soltar
+// disparaba a la vez el modal compartido y un confirm() + fetch con header
+// CSRF incorrecto ('RequestVerificationToken' en lugar de 'X-CSRF-TOKEN').
 
 /**
  * Inicializa los controles del toggle entre vistas de calendario.
@@ -763,15 +642,22 @@ const initStatusFilter = () => {
   const filterStatusSelect = document.getElementById('filterStatus');
   if (!filterStatusSelect) return;
 
+  // Normaliza el estado a un token canónico para que "programada" (opción del
+  // select) coincida también con "Agendada"/"agendada" (valor que llega del server).
+  const normalizeStatus = (value) =>
+    window.CommonUtils?.normalizeAppointmentStatus(value)
+    || String(value || '').toLowerCase().trim();
+
   filterStatusSelect.addEventListener('change', (e) => {
-    const selectedStatus = e.target.value.toLowerCase();
+    const selectedStatus = e.target.value;
+    const targetStatus = normalizeStatus(selectedStatus);
     const appointmentCards = document.querySelectorAll('.appointment:not(.available)');
     let visibleCount = 0;
 
     appointmentCards.forEach(card => {
-      const cardStatus = (card.dataset.status || '').toLowerCase();
+      const cardStatus = normalizeStatus(card.dataset.status || '');
 
-      if (!selectedStatus || cardStatus.includes(selectedStatus)) {
+      if (!selectedStatus || cardStatus === targetStatus) {
         card.style.display = '';
         visibleCount++;
       } else {
@@ -786,33 +672,11 @@ const initStatusFilter = () => {
 };
 
 /**
- * Configura la acción para exportar la agenda semanal a PDF.
- */
-const initPdfExportAction = () => {
-  const exportPdfButton = document.getElementById('btnExportPDF');
-  if (!exportPdfButton) return;
-
-  exportPdfButton.addEventListener('click', () => {
-    const weekLabelElement = document.getElementById('weekLabel');
-    const weekStartDate = weekLabelElement ? weekLabelElement.dataset.weekStart : null;
-
-    if (!weekStartDate) {
-      showToastNotification('Error obteniendo fecha de la semana', 'error');
-      return;
-    }
-
-    const pdfUrl = `/api/agenda/exportar-pdf?weekStart=${weekStartDate}`;
-    window.open(pdfUrl, '_blank');
-    console.log('📄 Exportando agenda a PDF');
-  });
-};
-
-/**
  * Configura los atajos de teclado globales para navegación rápida.
  */
 const initKeyboardShortcuts = () => {
   document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
       e.preventDefault();
@@ -868,7 +732,10 @@ const initWeekNavigationControls = () => {
   if (!weekLabelElement) return;
 
   const currentWeekStartStr = weekLabelElement.getAttribute('data-week-start');
-  const currentWeekStartDate = currentWeekStartStr ? new Date(currentWeekStartStr) : new Date();
+  // Se añade 'T00:00:00' para forzar el parseo en hora LOCAL. Sin esto, "yyyy-MM-dd"
+  // se interpreta como UTC y en zonas con offset negativo (p. ej. America/Bogota)
+  // se desplaza un día, provocando que "semana anterior/siguiente" salte de semana.
+  const currentWeekStartDate = currentWeekStartStr ? new Date(`${currentWeekStartStr}T00:00:00`) : new Date();
 
   previousWeekButton?.addEventListener('click', () => {
     const previousWeek = new Date(currentWeekStartDate);
@@ -928,8 +795,6 @@ const initAdvancedAgendaFeatures = () => {
   initViewModeToggle();
   initRealtimePatientSearch();
   initStatusFilter();
-  initAppointmentDragAndDrop();
-  initPdfExportAction();
   initKeyboardShortcuts();
 
   updateRealtimeAppointmentIndicators();
@@ -974,9 +839,3 @@ if (document.readyState === 'loading') {
   initAgendaDashboard();
   setTimeout(initAdvancedAgendaFeatures, 1000);
 }
-
-window.addEventListener('beforeunload', () => {
-    document.querySelectorAll('[style*="animation"]').forEach(el => {
-        el.style.animation = 'none';
-    });
-});

@@ -17,6 +17,7 @@
    - JS: ~/js/Gestion_De_Citas/st-adm-09-citas/gestionintegral.js
    ============================================ *@
 
+@using SmileTrack_MVC.Helpers
 @{ Layout = "_Layout"; ViewData["Title"] = "Gestión de Citas"; }
 
 @section Styles {
@@ -38,6 +39,14 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
     var resultPageSize = pageResult?.PageSize ?? 10;
     var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
     var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
+    var estadoFilter = ViewData["EstadoFilter"]?.ToString();
+    var estadoFilterNormalized = EstadoCitaHelper.Normalize(estadoFilter);
+    var activeTab = estadoFilterNormalized switch
+    {
+        "cancelada" => "cancelled",
+        "no_asistida" => "no-show",
+        _ => "all"
+    };
 
     // Datos para modal de edición
     var editingCita = ViewData["EditingCita"] as SmileTrack_MVC.Models.Entities.Cita;
@@ -109,13 +118,13 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
 
                 <!-- Tabs accesibles para filtrado rápido -->
                 <div class="table-tabs" role="tablist" aria-label="Filtrar citas por estado" data-i18n-aria-label="adm09_tabs_aria">
-                    <button class="tab-btn active" data-tab="all" role="tab" aria-selected="true" aria-controls="citasBody" data-i18n="adm09_tab_all">
+                    <button class="tab-btn @(activeTab == "all" ? "active" : "")" data-tab="all" role="tab" aria-selected="@(activeTab == "all" ? "true" : "false")" aria-controls="citasBody" data-i18n="adm09_tab_all">
                         Todas las citas
                     </button>
-                    <button class="tab-btn" data-tab="cancelled" role="tab" aria-selected="false" aria-controls="citasBody" data-i18n="adm09_tab_cancelled">
+                    <button class="tab-btn @(activeTab == "cancelled" ? "active" : "")" data-tab="cancelled" role="tab" aria-selected="@(activeTab == "cancelled" ? "true" : "false")" aria-controls="citasBody" data-i18n="adm09_tab_cancelled">
                         Cancelaciones
                     </button>
-                    <button class="tab-btn" data-tab="no-show" role="tab" aria-selected="false" aria-controls="citasBody" data-i18n="adm09_tab_noshow">
+                    <button class="tab-btn @(activeTab == "no-show" ? "active" : "")" data-tab="no-show" role="tab" aria-selected="@(activeTab == "no-show" ? "true" : "false")" aria-controls="citasBody" data-i18n="adm09_tab_noshow">
                         No asistió
                     </button>
                 </div>
@@ -136,13 +145,12 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             <select id="filterStatus" name="estado" class="status-select" aria-label="Filtrar por estado" data-i18n-aria-label="adm09_filter_status_aria">
                                 <option value="" data-i18n="adm09_filter_status_all">Todos los estados</option>
                                 @{
-                                    var estadoFilter = ViewData["EstadoFilter"]?.ToString();
-                                    var estados = new[] { "programada", "confirmada", "atendida", "cancelada" };
+                                    var estados = new[] { "programada", "confirmada", "atendida", "cancelada", "no_asistida" };
                                     foreach (var estado in estados)
                                     {
-                                        var isSelected = estadoFilter == estado;
+                                        var isSelected = estadoFilterNormalized == estado;
                                         <option value="@estado" @(isSelected ? "selected" : "")>
-                                            @char.ToUpper(estado[0])@estado.Substring(1)</option>
+                                            @(estado == "no_asistida" ? "No asistió" : char.ToUpper(estado[0]) + estado.Substring(1))</option>
                                         }
                                     }
                                 </select>
@@ -243,9 +251,10 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 var cHora = cita.HoraInicio?.ToString("hh\\:mm") ?? "—";
                                 var cPaciente = cita.Paciente?.NombresCompleto ?? "—";
                                 var cProfesional = cita.Profesional?.NombreProfesional ?? "—";
-                                var cServicio = cita.MotivoConsulta ?? "—";
+                                var cServicio = cita.Servicio?.Nombre ?? cita.MotivoConsulta ?? "—";
                                 var cConsultorio = cita.Consultorio?.Nombre ?? "—";
                                 var cEstado = cita.EstadoCita?.NombreEstado ?? cita.Estado ?? "Sin estado";
+                                var cEstadoNormalizado = EstadoCitaHelper.Normalize(cEstado);
                                 var cNotas = cita.NotasPrevias ?? "";
 
 
@@ -300,7 +309,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
 
                                     <!-- Servicio -->
                                     <td role="cell" data-label="Servicio" class="col-servicio">
-                                        @cita.MotivoConsulta
+                                        @cServicio
                                     </td>
 
                                     <!-- Estado (cambio rápido inline) -->
@@ -311,12 +320,12 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                             <input type="hidden" name="IdCita" value="@cita.IdCita" />
                                             <input type="hidden" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
                                             <select name="Estado"
-                                                    class="status-badge status-select-inline @((cita.Estado ?? string.Empty).ToLowerInvariant().Replace(" ", "-").Replace("_", "-"))"
+                                                    class="status-badge status-select-inline @cEstadoNormalizado.Replace("_", "-")"
                                                     aria-label="Cambiar estado de la cita"
                                                     title="Cambiar estado de la cita">
-                                                @foreach (var estado in new[] { "Programada", "Confirmada", "Atendida", "Cancelada" })
+                                                @foreach (var estado in new[] { "Programada", "Confirmada", "Atendida", "Cancelada", "No asistió" })
                                                 {
-                                                    var isSelected = string.Equals(cita.Estado, estado, StringComparison.OrdinalIgnoreCase);
+                                                    var isSelected = cEstadoNormalizado == EstadoCitaHelper.Normalize(estado);
                                                     <option value="@estado" @(isSelected ? "selected" : "")>
                                                         @estado
                                                     </option>
@@ -432,7 +441,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
             <div class="modal-overlay" id="modalAppointment" role="dialog" aria-modal="true"
                  aria-labelledby="modalAppointmentTitle" aria-hidden="true" inert>
                 <div class="modal">
-                    <button class="modal-close" id="modalAppointmentClose" aria-label="Cerrar ventana">×</button>
+                    <button class="modal-close" id="modalAppointmentClose" aria-label="Cerrar ventana"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
                     <h2 class="modal-title" id="modalAppointmentTitle">Detalle de Cita</h2>
                     <div id="modalAppointmentContent" class="appointment-detail-content" role="document"></div>
                     <div class="modal-footer">
@@ -451,15 +460,15 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
             <!-- Navegación inferior para móviles -->
             <nav class="mobile-nav" aria-label="Navegación móvil">
                 <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
-                    <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
+                    <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span></span>
                     <span>Dashboard</span>
                 </a>
                 <a href="#" class="mobile-nav-item active" aria-current="page">
-                    <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">event</span>
+                    <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event</span></span>
                     <span>Citas</span>
                 </a>
                 <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
-                    <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+                    <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
                     <span>Agenda</span>
                 </a>
             </nav>
@@ -506,9 +515,9 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
             <!-- Modal: Crear/Editar Cita -->
             <div class="modal-overlay" id="modalCita" role="dialog" aria-modal="true" aria-labelledby="modalCitaTitle"
                  aria-hidden="true" inert>
-                <div class="modal">
+                <div class="modal modal-lg">
                     <button class="modal-close" onclick="closeModalCita()" aria-label="Cerrar ventana">
-                        ×
+                        <span class="material-symbols-outlined" aria-hidden="true">close</span>
                     </button>
                     <h2 class="modal-title" id="modalCitaTitle">
                         @(isEditing ? "Editar Cita" : "Nueva Cita")
@@ -707,7 +716,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             <div class="modal-overlay" id="modalConfirmDeleteCita" role="dialog" aria-modal="true"
                                  aria-labelledby="modalConfirmDeleteCitaTitle" aria-hidden="true" inert>
                                 <div class="modal modal--sm">
-                                    <button class="modal-close" id="modalConfirmDeleteCitaClose" aria-label="Cerrar ventana">×</button>
+                                    <button class="modal-close" id="modalConfirmDeleteCitaClose" aria-label="Cerrar ventana"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
                                     <h2 class="modal-title" id="modalConfirmDeleteCitaTitle">Confirmar cancelación</h2>
                                     <p id="modalConfirmDeleteCitaMessage"
                                        style="margin:16px 0 24px; line-height:1.5; color:var(--text-muted, #64748b);">
@@ -778,50 +787,21 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 });
                                 }
 
-                                // ═══ TABS DE FILTRADO RÁPIDO Y PERSISTENCIA DE URL ═══
+                                // Las pestañas aplican filtros en servidor para todas las páginas.
                                 const tabButtons = document.querySelectorAll('.tab-btn');
-                                const tableRows = document.querySelectorAll('#citasBody .table-row');
-
-                                const applyTabFilter = (tab) => {
-                                    tabButtons.forEach(btn => {
-                                        const isMatch = btn.dataset.tab === tab;
-                                        btn.classList.toggle('active', isMatch);
-                                        btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
-                                    });
-
-                                    tableRows.forEach(row => {
-                                        const statusBadge = row.querySelector('.status-badge');
-                                        const estado = statusBadge ? statusBadge.textContent.trim().toLowerCase() : '';
-
-                                        if (tab === 'all') {
-                                            row.style.display = '';
-                                        } else if (tab === 'cancelled') {
-                                            row.style.display = estado === 'cancelada' ? '' : 'none';
-                                        } else if (tab === 'no-show') {
-                                            row.style.display = (estado === 'no_asistio' || estado === 'no asistio' || estado === 'inasistencia') ? '' : 'none';
-                                        }
-                                    });
-                                };
-
-                                // Inicializar tab desde querystring URL o por defecto 'all'
-                                const urlParams = new URLSearchParams(window.location.search);
-                                const initialTab = urlParams.get('tab') || 'all';
-                                applyTabFilter(initialTab);
+                                const statusFilter = document.getElementById('filterStatus');
 
                                 tabButtons.forEach(button => {
                                     button.addEventListener('click', () => {
-                                        const currentTab = button.dataset.tab;
-                                        applyTabFilter(currentTab);
+                                        if (!filterForm || !statusFilter) return;
 
-                                        // Sincronizar querystring con history.replaceState
-                                        const params = new URLSearchParams(window.location.search);
-                                        if (currentTab === 'all') {
-                                            params.delete('tab');
-                                        } else {
-                                            params.set('tab', currentTab);
-                                        }
-                                        const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-                                        window.history.replaceState(null, '', newUrl);
+                                        statusFilter.value = {
+                                            all: '',
+                                            cancelled: 'cancelada',
+                                            'no-show': 'no_asistida'
+                                        }[button.dataset.tab] ?? '';
+
+                                        filterForm.submit();
                                     });
                                 });
 

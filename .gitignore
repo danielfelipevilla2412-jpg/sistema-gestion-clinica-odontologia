@@ -2,6 +2,12 @@
 bin/
 obj/
 
+# Build artifacts / test coverage
+artifacts/
+TestResults/
+*.coverage
+*.coveragexml
+
 # Visual Studio
 .vs/
 *.user

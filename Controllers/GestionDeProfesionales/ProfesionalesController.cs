@@ -148,8 +148,6 @@ public partial class GestionProfesionalesController(
     {
         try
         {
-            await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
-
             string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (int.TryParse(userIdStr, out int userId))
             {
@@ -169,6 +167,12 @@ public partial class GestionProfesionalesController(
 
                     ViewData["OdoPacientesActivos"] = citasDelMes.Select(c => c.IdPaciente).Distinct().Count();
                     ViewData["OdoCitasHoy"] = citasDelMes.Count(c => c.FechaHora.Date == hoy);
+
+                    // Atendidas SOLO de hoy: alimenta la tarjeta "Citas atendidas" y la barra de
+                    // progreso del día (evita que el progreso supere 100%). El valor mensual
+                    // OdoCitasAtendidas se reserva para el panel "Tus citas del mes".
+                    ViewData["OdoCitasAtendidasHoy"] = citasDelMes.Count(c =>
+                        c.FechaHora.Date == hoy && string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase));
 
                     decimal ingresosMes = citasDelMes
                         .Where(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase) && c.Servicio != null)
@@ -213,7 +217,6 @@ public partial class GestionProfesionalesController(
 
                     // Ingresos reales de los últimos 3 meses del profesional autenticado.
                     var inicioPeriodo = new DateTime(hoy.Year, hoy.Month, 1).AddMonths(-2);
-                    var finPeriodo = inicioMes;
 
                     var citasPeriodo = await _context.Citas
                         .AsNoTracking()
@@ -241,10 +244,12 @@ public partial class GestionProfesionalesController(
                                     ))
                                 .Sum(c => c.Servicio?.Precio ?? 0m);
 
+                            // Se serializan en minúscula para que coincidan con las claves
+                            // que consume renderRevenueChart() en el cliente (item.mes / item.valor).
                             return new
                             {
-                                Mes = monthStart.ToString("MMMM", new System.Globalization.CultureInfo("es-CO")),
-                                Valor = amount
+                                mes = monthStart.ToString("MMMM", new System.Globalization.CultureInfo("es-CO")),
+                                valor = amount
                             };
                         })
                         .ToList();
@@ -350,13 +355,41 @@ public partial class GestionProfesionalesController(
 
     [HttpGet]
     [Authorize(Roles = "Profesional,Administrador")]
+    [Route("api/profesionales/dashboard-stats")]
+    public async Task<IActionResult> DashboardStats(CancellationToken ct = default)
+    {
+        // Endpoint de auto-refresco del dashboard (st-odo-01). Devuelve, en minúscula,
+        // los dos contadores que el cliente actualiza cada 5 minutos.
+        if (!int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int userId))
+            return Unauthorized();
+
+        var profesional = await _context.Profesionales.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
+        if (profesional is null)
+            return Ok(new { citasHoy = 0, citasAtendidas = 0 });
+
+        var hoy = DateTime.Today;
+        var manana = hoy.AddDays(1);
+
+        var citasHoy = await _context.Citas.AsNoTracking()
+            .Where(c => c.IdProfesional == profesional.IdProfesional &&
+                        c.FechaHora >= hoy && c.FechaHora < manana)
+            .ToListAsync(ct);
+
+        return Ok(new
+        {
+            citasHoy = citasHoy.Count,
+            citasAtendidas = citasHoy.Count(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase))
+        });
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Profesional,Administrador")]
     [Route("gestion-de-profesionales/st-odo-09-perfil-profesional")]
     public async Task<IActionResult> Stodo09PerfilProfesional(CancellationToken ct = default)
     {
         try
         {
-            await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
-
             string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (int.TryParse(userIdStr, out int userId))
             {
@@ -575,14 +608,13 @@ public partial class GestionProfesionalesController(
         try
         {
             var hoy = DateTime.Today;
+            var ahora = DateTime.Now;
             var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
             var finMes = inicioMes.AddMonths(1);
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 500);
 
             var citasQuery = _context.Citas
-                .Include(c => c.Paciente)
-                .Include(c => c.Profesional)
-                .ThenInclude(p => p!.Usuario)
-                .Include(c => c.Servicio)
                 .Where(c => c.Paciente != null)
                 .AsNoTracking()
                 .AsQueryable();
@@ -628,31 +660,91 @@ public partial class GestionProfesionalesController(
                 citasQuery = citasQuery.Where(c => c.FechaHora >= filterStart && c.FechaHora < filterEnd);
             }
 
-            var todasCitasPacientes = await citasQuery
-                .OrderByDescending(c => c.FechaHora)
-                .AsNoTracking()
+            var totalReales = await citasQuery
+                .Select(c => c.IdPaciente)
+                .Distinct()
+                .CountAsync(ct);
+
+            var totalPages = (int)Math.Ceiling(totalReales / (double)pageSize);
+            page = totalPages == 0 ? 1 : Math.Min(page, totalPages);
+
+            var pagePacienteIds = await citasQuery
+                .GroupBy(c => c.IdPaciente)
+                .Select(g => new
+                {
+                    IdPaciente = g.Key,
+                    UltimaFecha = g.Max(c => c.FechaHora)
+                })
+                .OrderByDescending(g => g.UltimaFecha)
+                .ThenByDescending(g => g.IdPaciente)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(g => g.IdPaciente)
                 .ToListAsync(ct);
 
-            var citasUnicasPorPaciente = todasCitasPacientes
+            var citasDeLaPagina = pagePacienteIds.Count == 0
+                ? new List<Cita>()
+                : await citasQuery
+                    .Where(c => pagePacienteIds.Contains(c.IdPaciente))
+                    .Include(c => c.Paciente)
+                    .Include(c => c.Profesional)
+                        .ThenInclude(p => p!.Usuario)
+                    .Include(c => c.Servicio)
+                    .OrderBy(c => c.IdPaciente)
+                    .ThenByDescending(c => c.FechaHora)
+                    .ThenByDescending(c => c.IdCita)
+                    .ToListAsync(ct);
+
+            var ultimaCitaPorPaciente = citasDeLaPagina
                 .GroupBy(c => c.IdPaciente)
-                .Select(g => g.OrderByDescending(c => c.FechaHora).First())
-                .OrderByDescending(c => c.FechaHora)
+                .ToDictionary(g => g.Key, g => g.First());
+            var citasUnicasPorPaciente = pagePacienteIds
+                .Where(ultimaCitaPorPaciente.ContainsKey)
+                .Select(idPaciente => ultimaCitaPorPaciente[idPaciente])
                 .ToList();
 
             // ── Cargar últimas notas clínicas por paciente (fuente real: tabla Nota_Clinica) ──
-            var idsPacientes = citasUnicasPorPaciente.Select(c => c.IdPaciente).Distinct().ToList();
+            var idsPacientes = citasUnicasPorPaciente.Select(c => c.IdPaciente).ToList();
             Dictionary<int, (string? Diagnostico, string? Procedimiento, string? ProfesionalNombre)> ultimasNotas = new();
+            Dictionary<int, int> citasPorPaciente = new();
+            Dictionary<int, DateTime> proximasCitasPorPaciente = new();
 
             if (idsPacientes.Count > 0)
             {
-                var notasQuery = await _context.NotasClinicas
+                citasPorPaciente = await citasQuery
+                    .Where(c => idsPacientes.Contains(c.IdPaciente))
+                    .GroupBy(c => c.IdPaciente)
+                    .Select(g => new { IdPaciente = g.Key, Total = g.Count() })
+                    .ToDictionaryAsync(g => g.IdPaciente, g => g.Total, ct);
+
+                var citasFuturasQuery = _context.Citas
                     .AsNoTracking()
+                    .Where(c => idsPacientes.Contains(c.IdPaciente)
+                        && c.FechaHora >= ahora
+                        && (c.Estado == null || !new[] { "cancelada", "cancelado" }.Contains(c.Estado.ToLower()))
+                        && (c.EstadoCita == null || !new[] { "cancelada", "cancelado" }.Contains(c.EstadoCita.NombreEstado.ToLower())));
+                if (idProfesionalForzado.HasValue)
+                    citasFuturasQuery = citasFuturasQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
+
+                var citasFuturas = await citasFuturasQuery
+                    .GroupBy(c => c.IdPaciente)
+                    .Select(g => new { IdPaciente = g.Key, FechaHora = g.Min(c => c.FechaHora) })
+                    .ToDictionaryAsync(g => g.IdPaciente, g => g.FechaHora, ct);
+                proximasCitasPorPaciente = citasFuturas;
+
+                IQueryable<NotaClinica> notasClinicasQuery = _context.NotasClinicas
+                    .AsNoTracking()
+                    .Where(n => idsPacientes.Contains(n.HistoriaClinica!.IdPaciente) &&
+                                n.Estado != "Preparación");
+                if (idProfesionalForzado.HasValue)
+                    notasClinicasQuery = notasClinicasQuery.Where(n => n.IdProfesional == idProfesionalForzado.Value);
+
+                var notasQuery = await notasClinicasQuery
                     .Include(n => n.HistoriaClinica)
                     .Include(n => n.Profesional)
-                    .ThenInclude(p => p!.Usuario)
-                    .Where(n => idsPacientes.Contains(n.HistoriaClinica!.IdPaciente) &&
-                                n.Estado != "Preparación")
+                        .ThenInclude(p => p!.Usuario)
                     .OrderByDescending(n => n.Fecha)
+                    .ThenByDescending(n => n.IdNota)
                     .ToListAsync(ct);
 
                 ultimasNotas = notasQuery
@@ -675,16 +767,12 @@ public partial class GestionProfesionalesController(
                     );
             }
 
-            var totalReales = citasUnicasPorPaciente.Count;
             var pagedCitas = new PagedResult<Cita>
             {
-                Page = page < 1 ? 1 : page,
-                PageSize = pageSize < 1 ? 10 : pageSize,
-                TotalCount = totalReales,
-                Items = citasUnicasPorPaciente
-                    .Skip((Math.Max(1, page) - 1) * Math.Clamp(pageSize, 1, 500))
-                    .Take(Math.Clamp(pageSize, 1, 500))
-                    .ToList()
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalCount = totalReales,
+                    Items = citasUnicasPorPaciente
             };
 
             var profesionalesOptions = idProfesionalForzado.HasValue
@@ -700,19 +788,14 @@ public partial class GestionProfesionalesController(
 
             var reportes = pagedCitas.Items.Select(cita =>
             {
-                var pacienteCitas = todasCitasPacientes.Where(c => c.IdPaciente == cita.IdPaciente).ToList();
-
                 var nacimiento = cita.Paciente?.FechaNacimiento;
                 int edad = nacimiento.HasValue
                     ? hoy.Year - nacimiento.Value.Year - (hoy < nacimiento.Value.AddYears(hoy.Year - nacimiento.Value.Year) ? 1 : 0)
                     : 0;
 
-                var proximaCita = pacienteCitas
-                    .Where(c => c.FechaHora.Date >= hoy)
-                    .OrderBy(c => c.FechaHora)
-                    .FirstOrDefault();
-
                 ultimasNotas.TryGetValue(cita.IdPaciente, out var nota);
+                citasPorPaciente.TryGetValue(cita.IdPaciente, out var totalCitasPaciente);
+                proximasCitasPorPaciente.TryGetValue(cita.IdPaciente, out var proximaCita);
 
                 var profesionalCitaNombre = cita.Profesional is null
                     ? null
@@ -756,10 +839,10 @@ public partial class GestionProfesionalesController(
                         : !string.IsNullOrWhiteSpace(profesionalCitaNombre)
                             ? profesionalCitaNombre
                             : "Sin profesional",
-                    ProximaCita = proximaCita?.FechaHora,
+                    ProximaCita = proximaCita == default ? null : proximaCita,
                     Alerta = alerta,
                     Avatar = string.Concat((cita.Paciente?.Nombres ?? "P").Take(2).Select(ch => char.ToUpperInvariant(ch))),
-                    Color = pacienteCitas.Count % 2 == 0 ? "green" : "blue"
+                    Color = totalCitasPaciente % 2 == 0 ? "green" : "blue"
                 };
             }).ToList();
 
@@ -793,14 +876,16 @@ public partial class GestionProfesionalesController(
                 consultasQuery = consultasQuery.Where(c => c.IdProfesional == 0);
             }
 
-            ViewData["ConsultasMes"] = await consultasQuery.CountAsync(c => c.FechaHora >= inicioMes && c.FechaHora < finMes, ct);
-
-            // Tasa de asistencia = % citas atendidas sobre total del mes
-            // (antes llamado SatisfaccionPromedio, renombrado por alineación funcional)
             int totalCitasMes = await consultasQuery.CountAsync(c => c.FechaHora >= inicioMes && c.FechaHora < finMes, ct);
+            ViewData["ConsultasMes"] = totalCitasMes;
+
+            // Tasa de asistencia = citas atendidas sobre el total mensual.
             int citasAtendidasMes = await consultasQuery.CountAsync(
                 c => c.FechaHora >= inicioMes && c.FechaHora < finMes
-                  && (c.Estado == "Atendida" || c.Estado == "atendida"), ct);
+                  && (
+                      (c.Estado != null && new[] { "atendida", "completada", "realizada", "finalizada" }.Contains(c.Estado.ToLower()))
+                      || (c.EstadoCita != null && new[] { "atendida", "completada", "realizada", "finalizada" }.Contains(c.EstadoCita.NombreEstado.ToLower()))
+                  ), ct);
             int tasaAsistencia = totalCitasMes > 0
                 ? (int)Math.Round(citasAtendidasMes * 100.0 / totalCitasMes, 0)
                 : 0;
@@ -820,6 +905,7 @@ public partial class GestionProfesionalesController(
         {
             _logger.LogError(ex, "Error general en CargarDatosReportesClinicos. Se devuelven datos vacios.");
             InicializarViewDataReportesVacios();
+            TempData["ErrorValidacion"] = MensajeErrorFallback;
         }
     }
 

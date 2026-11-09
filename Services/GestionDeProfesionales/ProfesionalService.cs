@@ -157,6 +157,15 @@ public partial class ProfesionalService : IProfesionalService
 
     // ── Vista MVC (paginación + filtros + estadísticas) ──────────────────────
 
+    public async Task<ProfesionalesStats> ObtenerEstadisticasAsync(CancellationToken ct = default) =>
+        new()
+        {
+            StatTotal = await _context.Profesionales.CountAsync(ct),
+            StatActivos = await _context.Profesionales.CountAsync(p => p.Estado == "activo", ct),
+            StatVacaciones = await _context.Profesionales.CountAsync(p => p.Estado == "vacaciones", ct),
+            StatInactivos = await _context.Profesionales.CountAsync(p => p.Estado == "inactivo", ct)
+        };
+
     public async Task<(List<Profesional> Items, PagedResult<Profesional> Paginacion, ProfesionalesStats Stats)>
         ObtenerVistaMVCAsync(
             PaginationQuery q,
@@ -167,13 +176,7 @@ public partial class ProfesionalService : IProfesionalService
         int pageSize = query.PageSize < 1 ? 10 : query.PageSize;
         if (pageSize > 100) pageSize = 100;
 
-        var stats = new ProfesionalesStats
-        {
-            StatTotal = await _context.Profesionales.CountAsync(ct),
-            StatActivos = await _context.Profesionales.CountAsync(p => p.Estado == "activo", ct),
-            StatVacaciones = await _context.Profesionales.CountAsync(p => p.Estado == "vacaciones", ct),
-            StatInactivos = await _context.Profesionales.CountAsync(p => p.Estado == "inactivo", ct)
-        };
+        var stats = await ObtenerEstadisticasAsync(ct);
 
         var profesionales = _context.Profesionales
             .Include(p => p.Usuario)

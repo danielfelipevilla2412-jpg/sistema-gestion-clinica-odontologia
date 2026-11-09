@@ -47,6 +47,9 @@ const formatDateForExport = () => {
   const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   return `${dateObj.getDate()} de ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
 };
+const getSummaryDate = () =>
+  window.smiletrackCitasFinalizadasData?.fechaResumen || new Date().toISOString().split('T')[0];
+
 const escapeCsvValue = (value) => {
   const textValue = String(value ?? '');
   return `"${textValue.replaceAll('"', '""')}"`;
@@ -75,15 +78,15 @@ const exportFinalizedAppointmentsToCsv = (buttonElement) => {
       `Total,${appointmentsList.length}`,
       '',
       'DETALLE DE CITAS',
-      'Hora,Paciente,Profesional,Servicio,Estado',
-      ...appointmentsList.map(item => [item.hora, item.paciente, item.profesional, item.servicio, item.estado].map(escapeCsvValue).join(','))
+      'Fecha,Hora,Paciente,Profesional,Servicio,Estado',
+      ...appointmentsList.map(item => [item.fecha, item.hora, item.paciente, item.profesional, item.servicio, item.estado].map(escapeCsvValue).join(','))
     ].join('\n');
 
     const csvBlob = new Blob([csvLines], { type: 'text/csv;charset=utf-8;' });
     const downloadUrl = URL.createObjectURL(csvBlob);
     const downloadLink = document.createElement('a');
     downloadLink.href = downloadUrl;
-    downloadLink.download = `smiletrack_citas_finalizadas_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadLink.download = `smiletrack_citas_finalizadas_${getSummaryDate()}.csv`;
     downloadLink.style.display = 'none';
     document.body.appendChild(downloadLink);
     downloadLink.click();
@@ -119,10 +122,11 @@ const finalizedStorage = {
   load: () => (window.smiletrackCitasFinalizadasData?.citas) || [],
 
   getCounts: (appointments) => {
+    const normalize = (e) => window.CommonUtils?.normalizeAppointmentStatus(e) ?? String(e || '').toLowerCase().trim().replace(/\s+/g, '_');
     return {
-      atendidas: appointments.filter(item => CommonUtils.normalizeAppointmentStatus(item.estado) === 'atendida').length,
-      canceladas: appointments.filter(item => CommonUtils.normalizeAppointmentStatus(item.estado) === 'cancelada').length,
-      noAsistio: appointments.filter(item => CommonUtils.normalizeAppointmentStatus(item.estado) === 'no_asistida').length
+      atendidas: appointments.filter(item => normalize(item.estado) === 'atendida').length,
+      canceladas: appointments.filter(item => normalize(item.estado) === 'cancelada').length,
+      noAsistio: appointments.filter(item => normalize(item.estado) === 'no_asistida').length
     };
   }
 };
@@ -136,9 +140,10 @@ const filterFinalizedAppointments = (dataList) => {
       'no-show': 'no_asistida'
     };
     const targetStatus = statusByTab[finalizedStatusFilter];
+    const normalize = (e) => window.CommonUtils?.normalizeAppointmentStatus(e) ?? String(e || '').toLowerCase().trim().replace(/\s+/g, '_');
 
     return dataList.filter(appointment =>
-      CommonUtils.normalizeAppointmentStatus(appointment.estado) === targetStatus
+      normalize(appointment.estado) === targetStatus
     );
   };
 
@@ -212,7 +217,8 @@ const renderAppointmentsTable = (dataList) => {
   const pageAppointments = filteredAppointments.slice(startIndex, startIndex + FINALIZED_PAGE_SIZE);
 
   tableBody.replaceChildren(...pageAppointments.map(apt => {
-    const normalizedStatus = CommonUtils.normalizeAppointmentStatus(apt.estado);
+    const normalizedStatus = window.CommonUtils?.normalizeAppointmentStatus(apt.estado)
+      ?? String(apt.estado || '').toLowerCase().trim().replace(/\s+/g, '_');
     const statusClass = normalizedStatus === 'atendida' ? 'atendida' :
                normalizedStatus === 'cancelada' ? 'cancelada' : 'no-asistio';
     const tableRow = document.createElement('tr');
@@ -293,7 +299,6 @@ const setupExportButtonListener = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 const setupFinalizedTableControls = () => {
-    const appointments = finalizedStorage.load();
     const tabButtons = document.querySelectorAll('.table-tabs .tab-btn');
 
     tabButtons.forEach(tabButton => {
@@ -306,28 +311,29 @@ const setupFinalizedTableControls = () => {
         tabButton.setAttribute('aria-selected', 'true');
         finalizedStatusFilter = tabButton.dataset.tab || 'all';
         finalizedCurrentPage = 1;
-        renderAppointmentsTable(appointments);
+        renderAppointmentsTable(finalizedStorage.load());
       });
     });
 
     safeGetElement('finalizedPreviousPage')?.addEventListener('click', () => {
       if (finalizedCurrentPage <= 1) return;
       finalizedCurrentPage--;
-      renderAppointmentsTable(appointments);
+      renderAppointmentsTable(finalizedStorage.load());
     });
 
     safeGetElement('finalizedNextPage')?.addEventListener('click', () => {
-      const pageCount = Math.ceil(filterFinalizedAppointments(appointments).length / FINALIZED_PAGE_SIZE);
+      const current = finalizedStorage.load();
+      const pageCount = Math.ceil(filterFinalizedAppointments(current).length / FINALIZED_PAGE_SIZE);
       if (finalizedCurrentPage >= pageCount) return;
       finalizedCurrentPage++;
-      renderAppointmentsTable(appointments);
+      renderAppointmentsTable(current);
     });
 
     safeGetElement('finalizedPageNumbers')?.addEventListener('click', event => {
       const pageButton = event.target.closest('button[data-page]');
       if (!pageButton) return;
       finalizedCurrentPage = Number(pageButton.dataset.page) || 1;
-      renderAppointmentsTable(appointments);
+      renderAppointmentsTable(finalizedStorage.load());
     });
   };
 

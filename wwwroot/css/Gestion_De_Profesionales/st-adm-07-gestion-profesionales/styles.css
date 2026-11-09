@@ -191,8 +191,8 @@ img { max-width: 100%; height: auto; display: block; }
   flex-wrap: wrap;
 }
 .breadcrumb { font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
-.page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; color: var(--primary); }
-.page-subtitle { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
+.page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: var(--weight-title); line-height: 1.25; color: var(--primary); }
+.page-subtitle { font-size: .82rem; font-weight: var(--weight-body); line-height: 1.5; color: var(--text-muted); margin-top: 2px; }
 
 /* ═══ BOTÓN PRIMARIO ═══ */
 .btn-primary,
@@ -251,14 +251,18 @@ img { max-width: 100%; height: auto; display: block; }
 .stat-number {
   display: block;
   font-family: var(--font-display);
-  font-size: 2.2rem; font-weight: 700; line-height: 1; margin-bottom: 4px;
+  font-size: 2.2rem; font-weight: var(--weight-title); line-height: 1; margin-bottom: 4px;
 }
 .stat-card[data-color="blue"] .stat-number { color: #3b82f6; }
 .stat-card[data-color="green"] .stat-number { color: var(--green); }
 .stat-card[data-color="orange"] .stat-number { color: var(--orange); }
 .stat-card[data-color="red"] .stat-number { color: var(--red); }
 .stat-card[data-color="purple"] .stat-number { color: var(--purple); }
-.stat-label { font-size: .77rem; color: var(--text-muted); font-weight: 500; }
+.credentials-review-card {
+  margin: 0 0 20px;
+  padding: 18px 20px;
+}
+.stat-label { font-size: .78rem; color: var(--text-muted); font-weight: 500; }
 
 /* ═══ FILTROS ═══ */
 .filters-section { margin-bottom: 20px; }
@@ -336,7 +340,7 @@ img { max-width: 100%; height: auto; display: block; }
 .p-avatar {
   width: 36px; height: 36px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: .75rem; font-weight: 700; color: #fff; flex-shrink: 0;
+  font-size: var(--type-caption); font-weight: 700; color: #fff; flex-shrink: 0;
   line-height: 1;
 }
 .p-name {
@@ -393,6 +397,7 @@ img { max-width: 100%; height: auto; display: block; }
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   font-size: 0.8rem;
+  font-weight: 600;
 }
 .btn-text {
   display: inline;
@@ -418,7 +423,7 @@ img { max-width: 100%; height: auto; display: block; }
   min-width: 32px; height: 32px;
   border: 1.5px solid var(--border); border-radius: var(--radius-sm);
   background: var(--white); color: var(--text);
-  font-size: .8rem; font-weight: 500; cursor: pointer;
+  font-size: .8rem; font-weight: 600; cursor: pointer;
   transition: background var(--tr), border-color var(--tr);
 }
 .pagination-buttons button:hover:not(:disabled) { background: var(--primary-light); border-color: var(--primary); }
@@ -466,8 +471,8 @@ img { max-width: 100%; height: auto; display: block; }
 .modal-close:hover { background: var(--primary-light); color: var(--primary); }
 .modal-close:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .modal-title {
-  font-family: var(--font-display); font-size: 1.1rem;
-  font-weight: 700; margin-bottom: 16px; color: var(--primary);
+  font-family: var(--font-display); font-size: 1.05rem; line-height: 1.35;
+  font-weight: 600; margin-bottom: 16px; color: var(--primary);
 }
 .form-group { margin-bottom: 16px; }
 .form-label {
@@ -480,7 +485,7 @@ img { max-width: 100%; height: auto; display: block; }
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: var(--font);
-  font-size: .85rem;
+  font-size: .84rem;
   color: var(--text);
   background: var(--white);
   outline: none;
@@ -574,7 +579,7 @@ img { max-width: 100%; height: auto; display: block; }
   display: flex; flex-direction: column; align-items: flex-start;
   gap: 5px; padding: 10px 0; border-bottom: 1px solid var(--border);
 }
-.detail-key { font-size: .7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+.detail-key { font-size: .78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
 .detail-value { font-size: .85rem; font-weight: 600; color: var(--text); }
 
 /* ═══ MOBILE NAV ═══ */
@@ -635,7 +640,7 @@ img { max-width: 100%; height: auto; display: block; }
   .toast { right: 14px; left: 14px; max-width: none; }
 }
 @media (max-width: 480px) {
-  .page-title { font-size: 1.2rem; }
+  .page-title { font-size: 1.25rem; }
   .stat-number { font-size: 1.9rem; }
 }
 
@@ -801,7 +806,7 @@ img { max-width: 100%; height: auto; display: block; }
   gap: 6px;
 }
 .schedule-time-label {
-  font-size: 0.75rem;
+  font-size: var(--type-caption);
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
@@ -813,5 +818,30 @@ img { max-width: 100%; height: auto; display: block; }
   }
   .schedule-row-day {
     grid-column: 1 / -1;
+  }
+}
+
+/* ═══ MODAL-LG + FORM-GRID (patrón canónico st-adm-08) ═══ */
+.modal-lg {
+  max-width: 650px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 4px;
+}
+.form-grid .full-width {
+  grid-column: span 2;
+}
+.form-grid .form-group {
+  margin-bottom: 0;
+}
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .form-grid .full-width {
+    grid-column: span 1;
   }
 }

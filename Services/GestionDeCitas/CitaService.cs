@@ -1077,12 +1077,13 @@ public class CitaService : ICitaService
                 .AsNoTracking()
                 .AnyAsync(c =>
                     c.IdProfesional == prof.IdProfesional &&
-                    c.Estado != "Cancelada" &&
-                    c.Estado != "cancelada" &&
-                    c.Estado != "Cancelado" &&
-                    c.Estado != "cancelado" &&
+                    !new[] { "cancelada", "cancelado" }.Contains(
+                        (c.EstadoCita != null
+                            ? c.EstadoCita.NombreEstado
+                            : c.Estado).Trim().ToLower()) &&
                     c.FechaHora < fin &&
-                    c.FechaHora.AddMinutes(duracionMinutos) > inicio,
+                    c.FechaHora.AddMinutes(
+                        c.DuracionMinutos > 0 ? c.DuracionMinutos : duracionMinutos) > inicio,
                     ct);
 
             if (tieneCitaSolapada)
@@ -1216,54 +1217,79 @@ public class CitaService : ICitaService
     // =========================================================================
 
     /// <inheritdoc/>
-    public async Task<(int Enviados, int Fallidos)> EnviarRecordatoriosAsync(
+    public async Task<(int Enviados, int Fallidos, List<int> IdsEnviados)> EnviarRecordatoriosAsync(
         List<int> idsCitas,
         string? mensajePersonalizado = null,
         CancellationToken ct = default)
     {
         if (idsCitas is null || idsCitas.Count == 0)
-            return (0, 0);
+            return (0, 0, []);
 
+        DateTime ahora = DateTime.Now;
+        int[] idsUnicos = idsCitas.Where(id => id > 0).Distinct().ToArray();
+        if (idsUnicos.Length == 0)
+            return (0, 0, []);
+
+        string[] estadosRecordables =
+        [
+            "programada", "Programada", "agendada", "Agendada",
+            "confirmada", "Confirmada", "confirmado", "Confirmado"
+        ];
         var citas = await _context.Citas
             .Include(c => c.Paciente)
             .Include(c => c.Profesional)
                 .ThenInclude(p => p!.Usuario)
             .Include(c => c.Servicio)
-            .Where(c => idsCitas.Contains(c.IdCita) &&
-                        c.Estado != "Cancelada" &&
-                        c.Estado != "cancelada")
+            .Include(c => c.EstadoCita)
+            .Where(c => idsUnicos.Contains(c.IdCita)
+                && c.FechaHora >= ahora
+                && (c.EstadoCita != null
+                    ? estadosRecordables.Contains(c.EstadoCita.NombreEstado)
+                    : c.Estado != null && estadosRecordables.Contains(c.Estado)))
             .ToListAsync(ct);
 
         int enviados = 0;
-        int fallidos = 0;
+        int fallidos = idsUnicos.Length - citas.Count;
+        var idsEnviados = new List<int>();
 
         foreach (var cita in citas)
         {
-            if (cita.Paciente is null || string.IsNullOrWhiteSpace(cita.Paciente.Correo))
+            var registro = new RecordatorioCita
             {
-                fallidos++;
-                continue;
-            }
+                IdCita = cita.IdCita,
+                Canal = "email",
+                ProgramadoPara = ahora,
+                CreadoEn = ahora,
+                Intentos = 1
+            };
+            _context.RecordatoriosCita.Add(registro);
 
             string profNombre = cita.Profesional?.Usuario != null
                 ? $"{cita.Profesional.Usuario.Nombre} {cita.Profesional.Usuario.Apellidos}".Trim()
                 : $"{cita.Profesional?.Nombres} {cita.Profesional?.Apellidos}".Trim();
 
-            string pacienteNombre = $"{cita.Paciente.Nombres} {cita.Paciente.Apellidos}".Trim();
+            string pacienteNombre = $"{cita.Paciente?.Nombres} {cita.Paciente?.Apellidos}".Trim();
 
             try
             {
-                if (_emailService is not null)
-                {
-                    await _emailService.SendCitaNotificacionAsync(
-                        cita.Paciente.Correo,
-                        pacienteNombre,
-                        cita.FechaHora,
-                        string.IsNullOrWhiteSpace(profNombre) ? "Tu profesional" : profNombre,
-                        cita.Servicio?.Nombre ?? "Consulta Odontológica",
-                        "recordatorio",
-                        ct);
-                }
+                if (cita.Paciente is null || string.IsNullOrWhiteSpace(cita.Paciente.Correo))
+                    throw new InvalidOperationException("El paciente no tiene un correo electrónico registrado.");
+                if (_emailService is null)
+                    throw new InvalidOperationException("El servicio de correo electrónico no está configurado.");
+
+                await _emailService.SendCitaNotificacionAsync(
+                    cita.Paciente.Correo,
+                    pacienteNombre,
+                    cita.FechaHora,
+                    string.IsNullOrWhiteSpace(profNombre) ? "Tu profesional" : profNombre,
+                    cita.Servicio?.Nombre ?? "Consulta Odontológica",
+                    "recordatorio",
+                    ct,
+                    mensajePersonalizado: mensajePersonalizado);
+
+                registro.Estado = "enviado";
+                registro.EnviadoEn = DateTime.Now;
+                registro.UltimoError = null;
 
                 _context.Auditorias.Add(new Auditoria
                 {
@@ -1276,27 +1302,24 @@ public class CitaService : ICitaService
                 });
 
                 enviados++;
+                idsEnviados.Add(cita.IdCita);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Error enviando recordatorio por correo para Cita {IdCita}", cita.IdCita);
+                registro.Estado = "fallido";
+                registro.UltimoError = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
                 fallidos++;
             }
         }
 
-        if (enviados > 0)
-        {
-            try
-            {
-                await _context.SaveChangesAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "No se pudo registrar auditoría de recordatorios enviados.");
-            }
-        }
+        await _context.SaveChangesAsync(ct);
 
-        return (enviados, fallidos);
+        return (enviados, fallidos, idsEnviados);
     }
 
     // =========================================================================

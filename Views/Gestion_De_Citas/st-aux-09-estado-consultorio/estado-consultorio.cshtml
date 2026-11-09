@@ -68,69 +68,21 @@
               <span class="material-symbols-outlined action-icon" aria-hidden="true" style="vertical-align: middle; color: var(--green);">task_alt</span>
               <span data-i18n="citas.checklist">Checklist post-atención</span>
             </h3>
-            <span class="progress-info" id="progressInfo" aria-live="polite">3/7 - 43%</span>
+            <span class="progress-info" id="progressInfo" aria-live="polite">0/0 - 0%</span>
           </div>
 
           <!-- Barra de progreso accesible -->
           <div class="progress-section">
-            <div class="progress-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="43"
+            <div class="progress-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
               aria-label="Progreso del checklist">
-              <div class="progress-bar-fill" id="progressBar" style="width: 43%;"></div>
+              <div class="progress-bar-fill" id="progressBar" style="width: 0%;"></div>
             </div>
-            <p class="progress-text" id="progressText" aria-live="polite">3 de 7 ítems completados</p>
+            <p class="progress-text" id="progressText" aria-live="polite">Cargando lista de verificación...</p>
           </div>
 
           <!-- Lista de verificación con role list -->
           <ul class="checklist" id="checklistItems" role="list" aria-labelledby="checklistTitle">
-            <li role="listitem">
-              <label class="check-item">
-                <input type="checkbox" checked aria-label="Limpieza y desinfección de superficies - completado" />
-                <span class="checkmark" aria-hidden="true"></span>
-                <span class="text">Limpieza y desinfección de superficies</span>
-              </label>
-            </li>
-            <li role="listitem">
-              <label class="check-item">
-                <input type="checkbox" checked aria-label="Instrumental esterilizado y empaquetado - completado" />
-                <span class="checkmark" aria-hidden="true"></span>
-                <span class="text">Instrumental esterilizado y empaquetado</span>
-              </label>
-            </li>
-            <li role="listitem">
-              <label class="check-item">
-                <input type="checkbox" checked aria-label="Residuos biológicos eliminados - completado" />
-                <span class="checkmark" aria-hidden="true"></span>
-                <span class="text">Residuos biológicos eliminados</span>
-              </label>
-            </li>
-            <li role="listitem">
-              <label class="check-item">
-                <input type="checkbox" aria-label="Guantes y tapabocas reabastecidos" />
-                <span class="checkmark" aria-hidden="true"></span>
-                <span class="text">Guantes y tapabocas reabastecidos</span>
-              </label>
-            </li>
-            <li role="listitem">
-              <label class="check-item">
-                <input type="checkbox" aria-label="Historia clínica lista para próximo" />
-                <span class="checkmark" aria-hidden="true"></span>
-                <span class="text">Historia clínica lista para próximo</span>
-              </label>
-            </li>
-            <li role="listitem">
-              <label class="check-item">
-                <input type="checkbox" aria-label="Equipos verificados y encendidos" />
-                <span class="checkmark" aria-hidden="true"></span>
-                <span class="text">Equipos verificados y encendidos</span>
-              </label>
-            </li>
-            <li role="listitem">
-              <label class="check-item">
-                <input type="checkbox" aria-label="Consultorio ventilado" />
-                <span class="checkmark" aria-hidden="true"></span>
-                <span class="text">Consultorio ventilado</span>
-              </label>
-            </li>
+            <li role="listitem" class="empty-appointments">Cargando ítems de verificación...</li>
           </ul>
 
           <!-- Sección para agregar nuevo ítem -->
@@ -207,23 +159,23 @@
   <!-- Mobile bottom nav con aria-label para navegación móvil -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span></span>
       <span>Panel</span>
     </a>
     <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
       <span>Agenda</span>
     </a>
     <a href="/gestion-de-citas/st-aux-09-estado-consultorio" class="mobile-nav-item active" aria-current="page">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">medical_services</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">medical_services</span></span>
       <span>Consultorio</span>
     </a>
     <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">task_alt</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">task_alt</span></span>
       <span>Finalizadas</span>
     </a>
     <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
       <span>Perfil</span>
     </a>
   </nav>
