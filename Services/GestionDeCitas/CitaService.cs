@@ -457,7 +457,7 @@ public class CitaService : ICitaService
         // usuario filtra explícitamente por fecha o por estado, para poder auditar el histórico.
         if (!fecha.HasValue && string.IsNullOrWhiteSpace(estado))
         {
-            DateTime ahora = DateTime.Now;
+            DateTime ahora = ColombiaClock.Now;
             string[] estadosFinales = EstadoCitaHelper.EstadosFinales;
 
             query = query.Where(c =>
@@ -546,7 +546,7 @@ public class CitaService : ICitaService
             throw new InvalidOperationException("El consultorio seleccionado no está disponible.");
         }
 
-        if (request.FechaHora < DateTime.Now.AddMinutes(-5))
+        if (request.FechaHora < ColombiaClock.Now.AddMinutes(-5))
         {
             throw new InvalidOperationException("No se puede agendar una cita en un horario pasado.");
         }
@@ -598,7 +598,7 @@ public class CitaService : ICitaService
                 Notas = request.Notas?.Trim(),
                 MotivoConsulta = request.Notas?.Trim(),
                 DuracionMinutos = duracion,
-                FechaCreacion = DateTime.UtcNow
+                FechaCreacion = ColombiaClock.Now
             };
 
             _context.Citas.Add(cita);
@@ -690,7 +690,7 @@ public class CitaService : ICitaService
             throw new InvalidOperationException("El consultorio seleccionado no está disponible.");
         }
 
-        if (request.FechaHora < DateTime.Now.AddMinutes(-5))
+        if (request.FechaHora < ColombiaClock.Now.AddMinutes(-5))
         {
             throw new InvalidOperationException("No se puede mover la cita a un horario pasado.");
         }
@@ -732,7 +732,7 @@ public class CitaService : ICitaService
                     IdConsultorioAnterior = cita.IdConsultorio,
                     IdConsultorioNuevo = request.IdConsultorio,
                     IdUsuario = request.IdUsuarioModificacion,
-                    FechaCambio = DateTime.UtcNow
+                    FechaCambio = ColombiaClock.Now
                 });
             }
 
@@ -772,10 +772,10 @@ public class CitaService : ICitaService
         if (string.IsNullOrWhiteSpace(estadoNuevo) || !EsTransicionEstadoPermitida(estadoActual, estadoNuevo))
             throw new InvalidOperationException(ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
 
-        if (estadoNuevo is "en_proceso" && cita.FechaHora.Date > DateTime.Today)
-            throw new InvalidOperationException("No se puede iniciar la atención antes del día programado de la cita.");
+        if (estadoNuevo is "en_proceso" && cita.FechaHora > ColombiaClock.Now)
+            throw new InvalidOperationException("La atención solo puede iniciarse el día programado y cuando llegue la hora programada de la cita.");
 
-        if (estadoNuevo is "atendida" or "no_asistida" && cita.FechaHora.Date > DateTime.Today)
+        if (estadoNuevo is "atendida" or "no_asistida" && cita.FechaHora.Date > ColombiaClock.Today)
             throw new InvalidOperationException("Solo se puede marcar la cita como atendida o no asistida desde el día programado o después.");
 
         var estadosCatalogo = await _context.EstadosCita
@@ -792,6 +792,26 @@ public class CitaService : ICitaService
 
         cita.IdEstado = estadoDestino.IdEstado;
         cita.Estado   = estadoDestino.NombreEstado;
+        if (estadoNuevo == "en_proceso")
+        {
+            var asistencia = await _context.AsistenciasProcedimiento
+                .FirstOrDefaultAsync(a => a.IdCita == cita.IdCita, ct);
+            if (asistencia is null)
+            {
+                asistencia = new AsistenciaProcedimiento
+                {
+                    IdCita = cita.IdCita,
+                    Inicio = ColombiaClock.Now,
+                    ActualizadoEn = ColombiaClock.Now
+                };
+                _context.AsistenciasProcedimiento.Add(asistencia);
+            }
+            else if (asistencia.Inicio == default)
+            {
+                asistencia.Inicio = ColombiaClock.Now;
+                asistencia.ActualizadoEn = ColombiaClock.Now;
+            }
+        }
         await _context.SaveChangesAsync(ct);
 
         // ── Historial de cambio de estado (M6: propagar actor) ───────────────
@@ -863,10 +883,10 @@ public class CitaService : ICitaService
         if (EsEstadoCancelado(cita.Estado))
             throw new InvalidOperationException("La cita ya está cancelada.");
 
-        if (cita.FechaHora <= DateTime.Now)
+        if (cita.FechaHora <= ColombiaClock.Now)
             throw new InvalidOperationException("La cita no puede cancelarse porque su fecha y hora anterior ya ha vencido.");
 
-        if (anticipacionMinima.HasValue && cita.FechaHora - DateTime.Now < anticipacionMinima.Value)
+        if (anticipacionMinima.HasValue && cita.FechaHora - ColombiaClock.Now < anticipacionMinima.Value)
             throw new InvalidOperationException(
                 $"No es posible cancelar citas con menos de {anticipacionMinima.Value.TotalHours:0} horas de anticipación.");
 
@@ -959,7 +979,7 @@ public class CitaService : ICitaService
         // La solicitud no incluye una hora: se persiste como petición pendiente
         // y se asigna una hora tentativa. Aceptar hoy después de esa hora creaba
         // citas visibles en el pasado.
-        if (dto.Fecha.Date <= DateTime.Today)
+        if (dto.Fecha.Date <= ColombiaClock.Today)
             throw new InvalidOperationException("No se pueden solicitar citas para hoy ni fechas pasadas; seleccione una fecha posterior para que la clínica pueda confirmar el horario.");
 
         // Validar servicio solo si fue especificado por el paciente
@@ -974,13 +994,10 @@ public class CitaService : ICitaService
                 throw new InvalidOperationException("El servicio seleccionado no es válido o no está activo.");
         }
 
-        // Buscar estado 'Solicitada' (con fallback a 'Agendada' o 'Programada')
+        // Mantener la solicitud en su estado propio; nunca convertirla en cita agendada.
         var estadoSolicitada = await _context.EstadosCita
             .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "solicitada", ct)
-            ?? await _context.EstadosCita
-                .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "agendada" || e.NombreEstado.ToLower() == "programada", ct);
+            .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "solicitada", ct);
 
         // La hora tentativa se fija por defecto al inicio de jornada para la fecha solicitada
         var fechaHoraTentativa = dto.Fecha.Date.AddHours(8);
@@ -1023,6 +1040,48 @@ public class CitaService : ICitaService
                     c.Estado.ToLower() == "solicitado"))
             .OrderBy(c => c.FechaHora)
             .ToListAsync(ct);
+    }
+
+    public async Task<Cita?> RechazarSolicitudAsync(
+        int idCita,
+        string motivo,
+        int? idUsuarioActor = null,
+        CancellationToken ct = default)
+    {
+        if (idCita <= 0)
+            throw new InvalidOperationException("Identificador de cita inválido.");
+        string motivoNormalizado = motivo?.Trim() ?? string.Empty;
+        if (motivoNormalizado.Length < 5 || motivoNormalizado.Length > 500)
+            throw new InvalidOperationException("El motivo del rechazo debe tener entre 5 y 500 caracteres.");
+
+        var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == idCita, ct);
+        if (cita is null)
+            return null;
+        if (NormalizarEstado(cita.Estado) is not ("solicitada" or "pendiente"))
+            throw new InvalidOperationException("Solo se pueden rechazar solicitudes que aún están pendientes de revisión.");
+
+        var estadoRechazada = await _context.EstadosCita
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "rechazada", ct);
+        cita.Estado = estadoRechazada?.NombreEstado ?? "Rechazada";
+        cita.IdEstado = estadoRechazada?.IdEstado;
+        await _context.SaveChangesAsync(ct);
+        await RegistrarHistorialEstadoAsync(
+            cita.IdCita,
+            cita.IdEstado,
+            cita.Estado,
+            idUsuarioActor,
+            $"Solicitud rechazada. Motivo: {motivoNormalizado}",
+            ct);
+        await CrearNotificacionInternaCitaAsync(
+            cita.IdCita,
+            cita.IdPaciente,
+            "cita_rechazada",
+            "Solicitud de cita rechazada",
+            $"Tu solicitud de cita para el {cita.FechaHora:dd/MM/yyyy} fue rechazada. Motivo: {motivoNormalizado}",
+            ct);
+        _logger.LogInformation("Solicitud de cita {IdCita} rechazada por usuario {IdUsuario}.", cita.IdCita, idUsuarioActor);
+        return cita;
     }
 
     // =========================================================================
@@ -1129,6 +1188,8 @@ public class CitaService : ICitaService
 
         if (cita is null)
             return null;
+        if (NormalizarEstado(cita.Estado) is not ("solicitada" or "pendiente"))
+            throw new InvalidOperationException("La solicitud ya fue atendida y no está pendiente de asignación.");
 
         if (!await _context.Profesionales.AnyAsync(p => p.IdProfesional == dto.IdProfesional && p.Estado == "activo", ct))
             throw new InvalidOperationException("El profesional seleccionado no es válido o no está activo.");
@@ -1137,7 +1198,7 @@ public class CitaService : ICitaService
             throw new InvalidOperationException("El consultorio seleccionado no está disponible.");
 
         DateTime fechaHora = dto.Fecha.Date.Add(dto.HoraInicio);
-        if (fechaHora < DateTime.Now.AddMinutes(-5))
+        if (fechaHora < ColombiaClock.Now.AddMinutes(-5))
             throw new InvalidOperationException("No se puede agendar una cita en fecha u hora pasada.");
 
         int duracion = await ObtenerDuracionCitaMinutosAsync(ct);
@@ -1225,7 +1286,7 @@ public class CitaService : ICitaService
         if (idsCitas is null || idsCitas.Count == 0)
             return (0, 0, []);
 
-        DateTime ahora = DateTime.Now;
+        DateTime ahora = ColombiaClock.Now;
         int[] idsUnicos = idsCitas.Where(id => id > 0).Distinct().ToArray();
         if (idsUnicos.Length == 0)
             return (0, 0, []);
@@ -1288,7 +1349,7 @@ public class CitaService : ICitaService
                     mensajePersonalizado: mensajePersonalizado);
 
                 registro.Estado = "enviado";
-                registro.EnviadoEn = DateTime.Now;
+                registro.EnviadoEn = ColombiaClock.Now;
                 registro.UltimoError = null;
 
                 _context.Auditorias.Add(new Auditoria
@@ -1298,7 +1359,7 @@ public class CitaService : ICitaService
                     IdRegistro = cita.IdCita,
                     Descripcion = $"Recordatorio de cita enviado al correo {cita.Paciente.Correo}.",
                     IpOrigen = "ServicioRecordatorios",
-                    Fecha = DateTime.Now
+                    Fecha = ColombiaClock.Now
                 });
 
                 enviados++;
@@ -1534,7 +1595,7 @@ public class CitaService : ICitaService
                 EstadoTexto = estadoTexto,
                 IdUsuario   = idUsuario,
                 Motivo      = motivo,
-                FechaCambio = DateTime.UtcNow
+                FechaCambio = ColombiaClock.Now
             });
             await _context.SaveChangesAsync(ct);
         }
@@ -1575,8 +1636,8 @@ public class CitaService : ICitaService
                 Contenido       = contenido,
                 Canal           = "interno",
                 Estado          = "pendiente",
-                FechaProgramada = DateTime.UtcNow,
-                CreadaEn        = DateTime.UtcNow
+                FechaProgramada = ColombiaClock.Now,
+                CreadaEn        = ColombiaClock.Now
             });
             await _context.SaveChangesAsync(ct);
         }
@@ -1727,8 +1788,8 @@ public class CitaService : ICitaService
                     Contenido = $"Se ha liberado un turno el {fechaHoraLiberada:dd/MM/yyyy} a las {fechaHoraLiberada:HH:mm}. ¡Ingresa ahora para agendar tu cita!",
                     Canal = "interno",
                     Estado = "pendiente",
-                    FechaProgramada = DateTime.UtcNow,
-                    CreadaEn = DateTime.UtcNow
+                    FechaProgramada = ColombiaClock.Now,
+                    CreadaEn = ColombiaClock.Now
                 });
             }
 

@@ -248,6 +248,7 @@ const consultorioStorage = {
     state.checklist.push({ text, checked: false });
     consultorioStorage.save(state);
     scheduleConsultorioSync();
+    return state.checklist.length - 1;
   },
   
   updateStatus: (status) => {
@@ -352,7 +353,7 @@ const initAddItem = () => {
       return;
     }
     
-    consultorioStorage.addChecklistItem(text);
+    const itemIndex = consultorioStorage.addChecklistItem(text);
     
     const listItem = document.createElement('li');
     listItem.setAttribute('role', 'listitem');
@@ -372,8 +373,7 @@ const initAddItem = () => {
     listItem.appendChild(labelElement);
     
     checkboxElement.addEventListener('change', () => {
-      const newIndex = consultorioStorage.load().checklist.length - 1;
-      consultorioStorage.updateChecklistItem(newIndex, checkboxElement.checked);
+      consultorioStorage.updateChecklistItem(itemIndex, checkboxElement.checked);
       checkboxElement.setAttribute('aria-label', `${text}${checkboxElement.checked ? ' - completado' : ''}`);
       updateProgressUI();
     });

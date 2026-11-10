@@ -96,6 +96,8 @@ const loadWeekData = async (weekStartIso, pushHistory = true) => {
     const calendarSection = document.querySelector('.calendar-section');
     const filterProfessional = safeGetElement('filterProfessional');
     const filterOffice = safeGetElement('filterOffice');
+    const abortController = new AbortController();
+    const timeoutId = window.setTimeout(() => abortController.abort(), 15000);
 
     calendarSection?.classList.add('is-loading');
     try {
@@ -107,7 +109,10 @@ const loadWeekData = async (weekStartIso, pushHistory = true) => {
         else searchParams.delete('officeId');
 
         const requestUrl = `/gestion-de-citas/st-adm-08-agenda?${searchParams.toString()}`;
-        const response = await fetch(requestUrl, { credentials: 'same-origin' });
+        const response = await fetch(requestUrl, {
+            credentials: 'same-origin',
+            signal: abortController.signal
+        });
         if (!response.ok) throw new Error('No se pudo cargar la semana');
         const responseHtml = await response.text();
         if (requestSequence !== agendaLoadRequestSequence) return false;
@@ -121,9 +126,13 @@ const loadWeekData = async (weekStartIso, pushHistory = true) => {
     } catch (err) {
         if (requestSequence !== agendaLoadRequestSequence) return false;
         console.error('[SmileTrack][Agenda] Error cargando semana:', err);
-        if (window.ToastService) window.ToastService.error('❌ No fue posible cargar la semana seleccionada');
+        const message = err.name === 'AbortError'
+            ? 'La agenda tardó demasiado en actualizarse. Intenta recargar la semana.'
+            : '❌ No fue posible cargar la semana seleccionada';
+        if (window.ToastService) window.ToastService.error(message);
         return false;
     } finally {
+        window.clearTimeout(timeoutId);
         if (requestSequence === agendaLoadRequestSequence) {
             document.querySelector('.calendar-section')?.classList.remove('is-loading');
         }
@@ -508,14 +517,22 @@ const initializeNewAppointmentModal = () => {
             const currentWeekStart = safeGetElement('weekLabel')?.dataset.weekStart;
             const targetWeekStart = formatIsoDate(getMondayOfWeek(parseIsoDate(formDataPayload.Fecha)));
             closeNewAppointmentModal();
-            const calendarUpdated = await loadWeekData(targetWeekStart, targetWeekStart !== currentWeekStart);
+            if (!isUpdateOperation) {
+                const professionalFilter = safeGetElement('filterProfessional');
+                const officeFilter = safeGetElement('filterOffice');
+                if (professionalFilter?.value && professionalFilter.value !== String(formDataPayload.IdProfesional)) {
+                    professionalFilter.value = '';
+                }
+                if (officeFilter?.value && officeFilter.value !== String(formDataPayload.IdConsultorio)) {
+                    officeFilter.value = '';
+                }
+            }
             if (window.ToastService) {
                 window.ToastService.success(
-                    calendarUpdated
-                        ? isUpdateOperation ? '✅ Cita actualizada exitosamente' : '✅ Cita creada exitosamente'
-                        : 'Cita guardada. Actualiza la página para ver los cambios.'
+                    isUpdateOperation ? '✅ Cita actualizada exitosamente' : '✅ Cita creada exitosamente'
                 );
             }
+            await loadWeekData(targetWeekStart, targetWeekStart !== currentWeekStart);
         } catch (error) {
             console.error('[SmileTrack][Agenda] Error al guardar cita:', error);
             if (window.ToastService) window.ToastService.error(`❌ ${error.message || 'No fue posible guardar la cita. Intente nuevamente.'}`);

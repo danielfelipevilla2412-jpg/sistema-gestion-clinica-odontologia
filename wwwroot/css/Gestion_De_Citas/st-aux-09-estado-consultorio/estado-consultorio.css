@@ -185,7 +185,7 @@ img { max-width: 100%; height: auto; display: block; }
 .add-btn { width: 40px; height: 40px; border-radius: var(--radius-sm); border: none; background: var(--primary); color: #fff; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background var(--tr); }
 .add-btn:hover { background: var(--primary-dark); }
 .add-btn:active { transform: translateY(1px); background: #0f3da0; }
-.add-btn:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+.add-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ═══ FORMULARIOS ═══ */
 .form-group { margin-top: 16px; }
@@ -197,7 +197,7 @@ img { max-width: 100%; height: auto; display: block; }
 .btn-confirm { width: 100%; padding: 10px 16px; background: var(--green); color: #fff; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .83rem; cursor: pointer; transition: background var(--tr); margin-top: 20px; }
 .btn-confirm:hover { background: #16a34a; }
 .btn-confirm:active { transform: translateY(1px); background: #15803d; }
-.btn-confirm:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+.btn-confirm:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .btn-confirm:disabled { opacity: .6; cursor: not-allowed; }
 
 /* ═══ OPCIONES DE ESTADO ═══ */

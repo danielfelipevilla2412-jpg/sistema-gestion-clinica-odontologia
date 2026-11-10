@@ -617,7 +617,7 @@ const initRealtimePatientSearch = () => {
       });
 
       if (queryText && matchCount === 0) {
-        showToastNotification('No se encontraron citas con ese criterio', 'info');
+        announceScreenReaderMessage('No se encontraron citas con ese criterio');
       } else if (queryText) {
         announceScreenReaderMessage(`${matchCount} cita${matchCount !== 1 ? 's' : ''} encontrada${matchCount !== 1 ? 's' : ''}`);
       }
@@ -678,15 +678,6 @@ const initKeyboardShortcuts = () => {
   document.addEventListener('keydown', (e) => {
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
 
-    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-      e.preventDefault();
-      const searchInputField = document.getElementById('searchPatient');
-      if (searchInputField) {
-        searchInputField.focus();
-        searchInputField.select();
-      }
-    }
-
     if (e.key === 'v' || e.key === 'V') {
       const viewButtons = document.querySelectorAll('.view-btn');
       const activeBtn = document.querySelector('.view-btn.active');
@@ -713,7 +704,7 @@ const initKeyboardShortcuts = () => {
     }
   });
 
-  console.log('⌨️ Atajos de teclado configurados: Ctrl+F (buscar), V (cambiar vista), H (hoy), Ctrl+← → (navegar semanas)');
+  console.log('⌨️ Atajos de teclado configurados: V (cambiar vista), H (hoy), Ctrl+← → (navegar semanas)');
 };
 
 // ===================================================================
@@ -798,7 +789,10 @@ const initAdvancedAgendaFeatures = () => {
   initKeyboardShortcuts();
 
   updateRealtimeAppointmentIndicators();
-  setInterval(updateRealtimeAppointmentIndicators, 60000);
+  const realtimeIndicatorInterval = window.setInterval(() => {
+    if (!document.hidden) updateRealtimeAppointmentIndicators();
+  }, 60000);
+  window.addEventListener('pagehide', () => window.clearInterval(realtimeIndicatorInterval), { once: true });
   updateAgendaStatisticsCounters();
 
   if (!document.getElementById('agenda-animations')) {

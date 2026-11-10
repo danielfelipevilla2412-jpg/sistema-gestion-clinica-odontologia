@@ -562,6 +562,8 @@ INSERT INTO @vals (nombre, descripcion) VALUES
 ('Atendida', 'Cita atendida y finalizada'),
 ('Cancelada', 'Cita cancelada'),
 ('No asistio', 'Paciente no asistio');
+INSERT INTO @vals (nombre, descripcion) VALUES
+('Rechazada', 'Solicitud de cita rechazada por la clinica');
 
 DECLARE @n VARCHAR(50), @d VARCHAR(150);
 DECLARE cur_estados CURSOR LOCAL FAST_FORWARD FOR SELECT nombre, descripcion FROM @vals;

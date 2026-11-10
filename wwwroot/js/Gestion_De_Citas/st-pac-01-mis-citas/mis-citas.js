@@ -195,6 +195,7 @@ const loadAvailableServicesModalOptions = async () => {
     const servicesList = payload.data ?? payload ?? [];
     if (!Array.isArray(servicesList) || servicesList.length === 0) throw new Error('catálogo vacío');
 
+    serviceSelect.required = true;
     serviceSelect.innerHTML = '<option value="">Selecciona un servicio</option>';
     servicesList.forEach(serviceItem => {
       const optionElement = document.createElement('option');
@@ -204,7 +205,10 @@ const loadAvailableServicesModalOptions = async () => {
     });
   } catch (err) {
     console.warn('[SmileTrack] No se pudieron cargar servicios desde API:', err);
-    serviceSelect.innerHTML = '<option value="">No hay servicios disponibles</option>';
+    serviceSelect.required = true;
+    serviceSelect.innerHTML = '<option value="" selected>No hay servicios disponibles. Intenta recargar.</option>';
+    serviceSelect.disabled = true;
+    displayUserErrorMessage('No se pudo cargar el catálogo de servicios. Recarga la página antes de solicitar una cita.');
   }
 };
 
@@ -385,9 +389,10 @@ const getFilteredAppointments = () => {
       || item.fecha.toLowerCase().includes(queryText);
     const matchStatus = !selectedStatus || item.estado === selectedStatus;
     const matchTab = currentFilterTab === 'all'
-      || (currentFilterTab === 'pending' && ['Agendada', 'Confirmada', 'En curso'].includes(item.estado))
+        || (currentFilterTab === 'pending' && ['Solicitada', 'Agendada', 'Confirmada', 'En curso'].includes(item.estado))
       || (currentFilterTab === 'completed' && item.estado === 'Completada')
-      || (currentFilterTab === 'cancelled' && ['Cancelada', 'No asistió'].includes(item.estado));
+        || (currentFilterTab === 'cancelled' && ['Cancelada', 'No asistió'].includes(item.estado))
+        || (currentFilterTab === 'rejected' && item.estado === 'Rechazada');
     return matchQuery && matchStatus && matchTab;
   });
 };
@@ -395,17 +400,20 @@ const getFilteredAppointments = () => {
 const updateAppointmentStats = () => {
   const totalCount = appointmentsList.length;
   const completedCount = appointmentsList.filter(c => c.estado === 'Completada').length;
-  const pendingCount = appointmentsList.filter(c => c.estado === 'Agendada' || c.estado === 'Confirmada' || c.estado === 'En curso').length;
+  const pendingCount = appointmentsList.filter(c => ['Solicitada', 'Agendada', 'Confirmada', 'En curso'].includes(c.estado)).length;
   const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada' || c.estado === 'No asistió').length;
+  const rejectedCount = appointmentsList.filter(c => c.estado === 'Rechazada').length;
 
   const totalEl = safeGetElement('cnt-total');
   const completedEl = safeGetElement('cnt-completadas');
   const pendingEl = safeGetElement('cnt-pendientes');
   const cancelledEl = safeGetElement('cnt-canceladas');
+  const rejectedEl = safeGetElement('cnt-rechazadas');
   if (totalEl) totalEl.textContent = totalCount;
   if (completedEl) completedEl.textContent = completedCount;
   if (pendingEl) pendingEl.textContent = pendingCount;
   if (cancelledEl) cancelledEl.textContent = cancelledCount;
+  if (rejectedEl) rejectedEl.textContent = rejectedCount;
 
   const progressBar = safeGetElement('progressBar');
   const progressLabel = safeGetElement('progressLabel');
@@ -420,16 +428,18 @@ const updateAppointmentStats = () => {
 const animateAppointmentCounters = () => {
   const totalCount = appointmentsList.length;
   const completedCount = appointmentsList.filter(c => c.estado === 'Completada').length;
-  const pendingCount = appointmentsList.filter(c => c.estado === 'Agendada' || c.estado === 'Confirmada' || c.estado === 'En curso').length;
+  const pendingCount = appointmentsList.filter(c => ['Solicitada', 'Agendada', 'Confirmada', 'En curso'].includes(c.estado)).length;
   const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada' || c.estado === 'No asistió').length;
+  const rejectedCount = appointmentsList.filter(c => c.estado === 'Rechazada').length;
 
-  const nodes = [safeGetElement('cnt-total'), safeGetElement('cnt-completadas'), safeGetElement('cnt-pendientes'), safeGetElement('cnt-canceladas')];
+  const nodes = [safeGetElement('cnt-total'), safeGetElement('cnt-completadas'), safeGetElement('cnt-pendientes'), safeGetElement('cnt-canceladas'), safeGetElement('cnt-rechazadas')];
   nodes.forEach(n => { if (n) delete n.dataset.animated; });
   if (typeof window.animateCounter === 'function') {
     window.animateCounter(safeGetElement('cnt-total'), totalCount);
     window.animateCounter(safeGetElement('cnt-completadas'), completedCount);
     window.animateCounter(safeGetElement('cnt-pendientes'), pendingCount);
     window.animateCounter(safeGetElement('cnt-canceladas'), cancelledCount);
+    window.animateCounter(safeGetElement('cnt-rechazadas'), rejectedCount);
   }
 };
 
@@ -645,7 +655,7 @@ const setupStatusTabListeners = () => {
       document.querySelectorAll('[data-tab]').forEach(itemElement => {
         const isSelected = itemElement === tabElement;
         itemElement.classList.toggle('active', isSelected);
-        itemElement.setAttribute('aria-selected', String(isSelected));
+        itemElement.setAttribute('aria-pressed', String(isSelected));
       });
       renderAppointmentsTable();
     });
