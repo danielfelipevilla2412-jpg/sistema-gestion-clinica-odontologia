@@ -101,30 +101,38 @@
       <div class="form-group">
           <label class="form-label" for="profesionalSelect" data-i18n="citas.professional">Profesional</label>
         <select id="profesionalSelect" class="form-select" aria-label="Seleccionar profesional">
-            <option value="">Seleccione un profesional...</option>
-            @foreach (var p in profesionalesFactura)
+            @if (profesionalesFactura.Count == 0)
             {
-              <option value="@p.IdProfesional">@p.NombreProfesional</option>
+              <option value="" selected disabled>No hay profesionales activos disponibles</option>
             }
-        </select>
+            else
+            {
+              <option value="" selected disabled>Seleccione un profesional...</option>
+              @foreach (var p in profesionalesFactura)
+              {
+                <option value="@p.IdProfesional">@p.NombreProfesional</option>
+              }
+            }
+          </select>
       </div>
       <div class="form-group">
           <label class="form-label" for="servicioSelect" data-i18n="facturacion.invoice">Añadir Servicio</label>
         <div style="display:flex;gap:8px;">
           <select id="servicioSelect" class="form-select" aria-label="Seleccionar servicio a añadir">
-            @if (serviciosFactura.Count > 0)
+            @if (serviciosFactura.Count == 0)
             {
+              <option value="" selected disabled>No hay servicios activos disponibles</option>
+            }
+            else
+            {
+              <option value="" selected disabled>Seleccione un servicio...</option>
               @foreach (var s in serviciosFactura)
               {
                 <option value="@s.IdServicio" data-price="@s.Precio" data-desc="@s.Descripcion">@s.Nombre - $@(s.Precio.ToString("N0")) COP</option>
               }
             }
-            else
-            {
-              <option value="consulta" data-price="50000" data-desc="Valoración y diagnóstico">Consulta General - $50.000 COP</option>
-            }
           </select>
-          <button class="btn-add" id="btnAddService" aria-label="Añadir servicio seleccionado a la factura">➕
+          <button class="btn-add" id="btnAddService" aria-label="Añadir servicio seleccionado a la factura" disabled="@(serviciosFactura.Count == 0)">➕
             Añadir</button>
         </div>
       </div>

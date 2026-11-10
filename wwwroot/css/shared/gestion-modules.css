@@ -83,11 +83,103 @@
 }
 
 .main .stat-card {
+    position: relative;
     min-width: 0;
     padding: 16px 20px;
     background: var(--white);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
+    transition: transform var(--tr), box-shadow var(--tr);
+}
+
+.main .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.main .stat-card .stat-icon {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    line-height: 1;
+    opacity: .35;
+    pointer-events: none;
+}
+
+.main .stat-card .stat-number {
+    display: block;
+    margin: 0 0 4px;
+    font-family: var(--font-display);
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: normal;
+}
+
+.main .stat-card .stat-label {
+    margin: 2px 0 0;
+    color: var(--text-muted);
+    font-size: .78rem;
+    font-weight: 500;
+}
+
+.main .stat-card[data-color="blue"] {
+    border-left-color: #3b82f6;
+}
+
+.main .stat-card[data-color="green"],
+.main .stat-card[data-color="attended"] {
+    border-left-color: var(--success);
+}
+
+.main .stat-card[data-color="orange"] {
+    border-left-color: var(--warning);
+}
+
+.main .stat-card[data-color="red"],
+.main .stat-card[data-color="cancelled"] {
+    border-left-color: var(--danger);
+}
+
+.main .stat-card[data-color="purple"] {
+    border-left-color: var(--info);
+}
+
+.main .stat-card[data-color="confirmed"] {
+    border-left-color: #3b82f6;
+}
+
+.main .stat-card[data-color="blue"] .stat-number {
+    color: #3b82f6;
+}
+
+.main .stat-card[data-color="green"] .stat-number,
+.main .stat-card[data-color="attended"] .stat-number {
+    color: var(--success);
+}
+
+.main .stat-card[data-color="orange"] .stat-number {
+    color: var(--warning);
+}
+
+.main .stat-card[data-color="red"] .stat-number,
+.main .stat-card[data-color="cancelled"] .stat-number {
+    color: var(--danger);
+}
+
+.main .stat-card[data-color="purple"] .stat-number {
+    color: var(--info);
+}
+
+.main .stat-card[data-color="confirmed"] .stat-number {
+    color: #3b82f6;
 }
 
 .main .card,
@@ -942,6 +1034,10 @@
 
     .main .stat-card {
         padding: 14px;
+    }
+
+    .main .stat-card .stat-number {
+        font-size: 1.9rem;
     }
 
     .main .page-title {

@@ -21,13 +21,15 @@ DEPENDENCIAS TÉCNICAS:
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
 ============================================ *@
+@model SmileTrack_MVC.Models.ViewModels.RecordatoriosViewModel
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Recordatorios";
-    dynamic recData = ViewData["RecordatoriosData"] ?? new { pendientes = Enumerable.Empty<dynamic>(), sinConfirmar = 0, facturasVencidas = 0 };
-    var pendientes = (IEnumerable<dynamic>)(recData.pendientes ?? Enumerable.Empty<dynamic>());
-    int sinConfirmar = (int)(recData.sinConfirmar ?? 0);
-    int facturasVencidas = (int)(recData.facturasVencidas ?? 0);
+    var pendientes = Model?.Pendientes ?? new List<SmileTrack_MVC.Models.ViewModels.RecordatorioPendienteDto>();
+    var historialEnviados = Model?.HistorialEnviados ?? new List<SmileTrack_MVC.Models.ViewModels.RecordatorioEnviadoDto>();
+    int enviadosHoy = Model?.EnviadosHoy ?? 0;
+    int sinConfirmar = Model?.SinConfirmar ?? 0;
+    int facturasVencidas = Model?.FacturasVencidas ?? 0;
 }
 
 @section Styles {
@@ -37,6 +39,10 @@ NOTAS DE MANTENIMIENTO:
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
     @Html.AntiForgeryToken()
+    @if (TempData["ErrorValidacion"] is string errorMessage)
+    {
+      <div class="reminders-error" role="alert">@errorMessage</div>
+    }
 
     <!-- Page header -->
     <header class="page-header">
@@ -56,7 +62,7 @@ NOTAS DE MANTENIMIENTO:
     <section class="stats-grid" aria-label="Resumen de recordatorios" data-i18n-aria-label="common.notifications">
       <div class="stat-card" data-color="green">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">send</span>
-        <span class="stat-number" id="statsSentCount" data-target="0" aria-live="polite">0</span>
+        <span class="stat-number" id="statsSentCount" data-target="@enviadosHoy" aria-live="polite">@enviadosHoy</span>
         <span class="stat-label" data-i18n="status.sent">Enviados hoy</span>
       </div>
       <div class="stat-card" data-color="orange">
@@ -94,19 +100,19 @@ NOTAS DE MANTENIMIENTO:
             @foreach (var p in pendientes)
             {
                 string avatarClass = paletaAvatares[colorIdx++ % paletaAvatares.Length];
-                string diaTexto = p.esManana ? "Mañana" : "Pasado mañana";
-                string horaTexto = ((DateTime)p.fechaHora).ToString("h:mm tt");
-                string isoTexto = ((DateTime)p.fechaHora).ToString("yyyy-MM-ddTHH:mm");
-                string canalIcono = p.canal == "email" ? "email" : "mail_off";
-                string canalTexto = p.canal == "email" ? "Correo electrónico" : "Correo electrónico no disponible";
-                string filaClase = p.confirmada ? "patient-row dimmed" : "patient-row selected";
+                string diaTexto = p.EsManana ? "Mañana" : "Pasado mañana";
+                string horaTexto = p.FechaHora.ToString("h:mm tt");
+                string isoTexto = p.FechaHora.ToString("yyyy-MM-ddTHH:mm");
+                string canalIcono = p.Canal == "email" ? "email" : "mail_off";
+                string canalTexto = p.Canal == "email" ? "Correo electrónico" : "Correo electrónico no disponible";
+                string filaClase = p.Confirmada ? "patient-row dimmed" : "patient-row selected";
 
-                <div class="@filaClase" data-id="@p.id" data-es-manana="@(((bool)p.esManana).ToString().ToLowerInvariant())" role="listitem">
-                  <input type="checkbox" class="custom-checkbox" checked="@(!((bool)p.confirmada))"
-                    aria-label="Seleccionar recordatorio para @p.paciente" />
-                  <div class="avatar-circle @avatarClass" aria-hidden="true">@p.iniciales</div>
+                <div class="@filaClase" data-id="@p.Id" data-es-manana="@p.EsManana.ToString().ToLowerInvariant()" role="listitem">
+                  <input type="checkbox" class="custom-checkbox" checked="@(!p.Confirmada)"
+                    aria-label="Seleccionar recordatorio para @p.Paciente" />
+                  <div class="avatar-circle @avatarClass" aria-hidden="true">@p.Iniciales</div>
                   <div class="patient-info">
-                    <p class="patient-name">@p.paciente</p>
+                    <p class="patient-name">@p.Paciente</p>
                     <div class="patient-meta">
                       <span><time datetime="@isoTexto">@diaTexto @horaTexto</time></span>
                       <span class="meta-dot" aria-hidden="true"></span>
@@ -127,14 +133,25 @@ NOTAS DE MANTENIMIENTO:
         <section class="history-section" aria-labelledby="historyTitle">
           <div class="history-header">
             <h3 id="historyTitle" data-i18n="rec05.history_title">Enviados recientemente</h3>
-            <a href="#" class="view-all-link" aria-label="Ver historial completo de recordatorios enviados" data-i18n-aria-label="rec05.view_all_aria"><span data-i18n="table.view_all">Ver todos</span> <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></a>
+            <span class="history-count">@historialEnviados.Count recientes</span>
           </div>
           <div class="history-scroller" id="historyScroller" role="list"
             aria-label="Historial de recordatorios enviados" data-i18n-aria-label="rec05.history_scroller_aria">
-            <!-- No existe una tabla que registre el historial de recordatorios enviados en el
-                 esquema actual, así que se muestra el estado vacío real (antes había 3 envíos
-                 inventados aquí: María López, Carlos Ruiz, Jorge Díaz). -->
-            <p style="padding:12px;color:var(--text-secondary,#64748b);" data-i18n="rec05.no_history">Aún no se ha registrado el envío de recordatorios.</p>
+            @if (!historialEnviados.Any())
+            {
+              <p style="padding:12px;color:var(--text-secondary,#64748b);" data-i18n="rec05.no_history">Aún no se ha registrado el envío de recordatorios.</p>
+            }
+            @foreach (var envio in historialEnviados)
+            {
+              <article class="history-card" role="listitem">
+                <span class="material-symbols-outlined avatar-circle avatar-green" aria-hidden="true">mark_email_read</span>
+                <div>
+                  <p class="patient-name">@envio.Paciente</p>
+                  <p class="history-time">Enviado @envio.EnviadoEn.ToString("dd/MM/yyyy h:mm tt")</p>
+                  <p class="history-time">Cita @envio.FechaCita.ToString("dd/MM/yyyy")</p>
+                </div>
+              </article>
+            }
           </div>
         </section>
 
@@ -178,22 +195,22 @@ NOTAS DE MANTENIMIENTO:
 
   </main>
 
-  <!-- Mobile bottom nav con aria-label para navegación mÓvil -->
-  <nav class="mobile-nav" aria-label="Navegación mÓvil">
+  <!-- Mobile bottom nav con aria-label para navegación móvil -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-rec-01-dashboard" class="mobile-nav-item">
-      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">dashboard</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">dashboard</span></span>
       <span>Panel</span>
     </a>
     <a href="/gestion-de-citas/st-rec-03-gestion-citas" class="mobile-nav-item">
-      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">event</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event</span></span>
       <span>Citas</span>
     </a>
     <a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">notifications</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">notifications</span></span>
       <span>Recordatorios</span>
     </a>
     <a href="/acceso-y-seguridad/login" class="mobile-nav-item">
-      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">login</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">login</span></span>
       <span>Login</span>
     </a>
   </nav>

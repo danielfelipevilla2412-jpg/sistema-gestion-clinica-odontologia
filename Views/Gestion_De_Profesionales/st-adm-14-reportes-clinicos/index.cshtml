@@ -9,7 +9,7 @@ Vista de administración de reportes clínicos que permite al administrador cons
 
 FUNCIONALIDADES PRINCIPALES:
 - Tabla paginada de reportes clínicos renderizada server-side con Razor desde PagedResult
-- Filtros por profesional, rango de fechas y estado del reporte
+- Filtros por profesional, mes y búsqueda de pacientes
 - Diagnóstico y procedimiento provenientes de la nota clínica más reciente por paciente
 
 DEPENDENCIAS TÉCNICAS:
@@ -43,6 +43,10 @@ NOTAS DE MANTENIMIENTO:
 
     <!-- ═══ MAIN ═══ -->
     <main class="main" id="main-content">
+        @if (TempData["ErrorValidacion"] is string errorMessage)
+        {
+            <div class="report-error" role="alert">@errorMessage</div>
+        }
 
         <!-- Header -->
         <header class="page-header">
@@ -234,7 +238,7 @@ NOTAS DE MANTENIMIENTO:
             <span class="mobile-nav-icon" aria-hidden="true"><span class="material-symbols-outlined">query_stats</span></span>
             <span>Dashboard</span>
         </a>
-        <a href="#" class="mobile-nav-item active" aria-current="page">
+        <a href="@Url.Action("Stadm14ReportesClinicos", "GestionProfesionales")" class="mobile-nav-item active" aria-current="page">
             <span class="mobile-nav-icon" aria-hidden="true"><span class="material-symbols-outlined">description</span></span>
             <span>Reportes</span>
         </a>

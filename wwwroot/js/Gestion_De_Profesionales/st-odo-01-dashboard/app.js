@@ -32,6 +32,14 @@ const COUNTDOWN_INTERVAL_MS = 60_000;      // 1 minuto
 
 let lastUserActivityTimestamp = Date.now();
 
+// Contadores numéricos del día. Se inicializan desde los data-target del SSR
+// y se refrescan vía /api/profesionales/dashboard-stats; la barra de progreso
+// se calcula sobre estos valores (no sobre el texto formateado del DOM).
+const dashboardCounters = {
+  citasHoy: 0,
+  citasAtendidas: 0
+};
+
 // ═══════════════════════════════════════════════════════════════════
 // 3. UTILIDADES Y HELPERS
 // ═══════════════════════════════════════════════════════════════════
@@ -41,6 +49,19 @@ const safeGetElement = (elementId) =>
 
 const escapeHtml = (value) =>
   window.CommonUtils?.escapeHtml ? window.CommonUtils.escapeHtml(value) : String(value ?? '');
+
+const readCounterTarget = (elementId) => {
+  const element = safeGetElement(elementId);
+  return element ? Number(element.dataset.target) || 0 : 0;
+};
+
+const reanimateCounter = (element, value) => {
+  if (!element || typeof window.animateCounter !== 'function') return;
+  // El contador compartido ignora los elementos ya animados (guard data-animated);
+  // lo reiniciamos para permitir el refresco en vivo de los KPIs.
+  element.removeAttribute('data-animated');
+  window.animateCounter(element, Number(value) || 0);
+};
 
 const displayCurrentHeaderDate = () => {
   const headerDateElement = safeGetElement('headerDate');
@@ -85,26 +106,6 @@ const addKpiTooltips = () => {
   });
 };
 
-const enhanceKeyboardNavigation = () => {
-  const focusableElements = document.querySelectorAll(
-    'a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  );
-
-  focusableElements.forEach(element => {
-    element.addEventListener('keydown', (event) => {
-      if (event.key === 'Home') {
-        event.preventDefault();
-        focusableElements[0]?.focus();
-      }
-      
-      if (event.key === 'End') {
-        event.preventDefault();
-        focusableElements[focusableElements.length - 1]?.focus();
-      }
-    });
-  });
-};
-
 // ═══════════════════════════════════════════════════════════════════
 // 4. SERVICIOS Y API
 // ═══════════════════════════════════════════════════════════════════
@@ -130,23 +131,18 @@ const setupAutoRefreshStats = () => {
       if (!response.ok) return;
 
       const responseData = await response.json();
-      
+
       if (responseData.citasHoy !== undefined) {
-        const appointmentCountEl = safeGetElement('statCitas');
-        if (appointmentCountEl && typeof window.animateCounter === 'function') {
-          window.animateCounter(appointmentCountEl, responseData.citasHoy);
-        }
+        dashboardCounters.citasHoy = Number(responseData.citasHoy) || 0;
+        reanimateCounter(safeGetElement('statCitas'), dashboardCounters.citasHoy);
       }
 
       if (responseData.citasAtendidas !== undefined) {
-        const attendedCountEl = safeGetElement('statProfesionales');
-        if (attendedCountEl && typeof window.animateCounter === 'function') {
-          window.animateCounter(attendedCountEl, responseData.citasAtendidas);
-        }
+        dashboardCounters.citasAtendidas = Number(responseData.citasAtendidas) || 0;
+        reanimateCounter(safeGetElement('statProfesionales'), dashboardCounters.citasAtendidas);
       }
 
-      setTimeout(updateDailyProgress, 1000);
-      console.log('[SmileTrack] Dashboard actualizado:', new Date().toLocaleTimeString('es-CO'));
+      updateDailyProgress();
     } catch (error) {
       console.error('[SmileTrack] Error actualizando dashboard:', error);
     }
@@ -236,52 +232,68 @@ const updateNextAppointmentCountdown = () => {
   const countdownLabel = appointmentCard.querySelector('.next-appt-countdown');
   if (!countdownLabel) return;
 
-  const timeText = appointmentCard.querySelector('.next-appt-time')?.textContent;
-  if (!timeText) return;
+  // La fecha real de la cita viene del SSR en data-fecha-hora; así la cuenta atrás
+  // es correcta incluso cuando la próxima cita es de otro día.
+  const rawDate = appointmentCard.dataset.fechaHora;
+  let appointmentDate = rawDate ? new Date(rawDate) : null;
 
-  const timeMatch = timeText.match(/(\d{2}):(\d{2})/);
-  if (!timeMatch) return;
+  if (!appointmentDate || Number.isNaN(appointmentDate.getTime())) {
+    const timeText = appointmentCard.querySelector('.next-appt-time')?.textContent;
+    const timeMatch = timeText?.match(/(\d{1,2}):(\d{2})/);
+    if (!timeMatch) return;
+    appointmentDate = new Date();
+    appointmentDate.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
+  }
 
   const now = new Date();
-  const appointmentToday = new Date(now);
-  appointmentToday.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
+  const isToday = appointmentDate.toDateString() === now.toDateString();
+  const differenceMinutes = Math.floor((appointmentDate - now) / 60000);
 
-  const differenceMs = appointmentToday - now;
-  const differenceMinutes = Math.floor(differenceMs / 60000);
+  const setUrgentState = (isUrgent) => {
+    appointmentCard.classList.toggle('urgent', isUrgent);
+    appointmentCard.classList.toggle('upcoming', !isUrgent);
+  };
+
+  // Cita de un día distinto: la cuenta atrás en minutos no aporta valor.
+  if (!isToday) {
+    countdownLabel.style.display = 'none';
+    countdownLabel.style.animation = '';
+    setUrgentState(false);
+    return;
+  }
+
+  countdownLabel.style.display = '';
+  countdownLabel.style.background = '';
 
   if (differenceMinutes <= 0) {
     countdownLabel.textContent = '⏰ ¡Es ahora!';
-    countdownLabel.style.background = 'rgba(255,255,255,0.4)';
     countdownLabel.style.animation = 'pulse-urgent 1s ease-in-out infinite';
+    setUrgentState(true);
   } else if (differenceMinutes <= 15) {
     countdownLabel.textContent = `⏰ En ${differenceMinutes} minuto${differenceMinutes !== 1 ? 's' : ''}`;
-    if (!appointmentCard.classList.contains('urgent')) {
-      appointmentCard.classList.add('urgent');
-      appointmentCard.classList.remove('upcoming');
-    }
+    countdownLabel.style.animation = '';
+    setUrgentState(true);
   } else {
     countdownLabel.textContent = `🕐 En ${differenceMinutes} minutos`;
+    countdownLabel.style.animation = '';
+    setUrgentState(false);
   }
 };
 
 const updateDailyProgress = () => {
   const progressBar = safeGetElement('topProgressBar');
   const progressLabel = safeGetElement('dailyProgressLabel');
-  
+
   if (!progressBar || !progressLabel) return;
 
-  const statCitasEl = safeGetElement('statCitas');
-  const statProfesionalesEl = safeGetElement('statProfesionales');
-
-  if (!statCitasEl || !statProfesionalesEl) return;
-
-  const totalAppointmentsToday = parseInt(statCitasEl.textContent, 10) || 0;
-  const attendedAppointments = parseInt(statProfesionalesEl.textContent, 10) || 0;
+  const totalAppointmentsToday = dashboardCounters.citasHoy;
+  const attendedAppointments = dashboardCounters.citasAtendidas;
   const progressPercentage = totalAppointmentsToday > 0 ? Math.round((attendedAppointments / totalAppointmentsToday) * 100) : 0;
 
   setTimeout(() => {
     progressBar.style.width = `${progressPercentage}%`;
-    progressBar.parentElement.setAttribute('aria-valuenow', progressPercentage);
+    const progressTrack = progressBar.closest('[role="progressbar"]');
+    if (progressTrack) progressTrack.setAttribute('aria-valuenow', progressPercentage);
     progressLabel.textContent = `${attendedAppointments} de ${totalAppointmentsToday} citas completadas hoy (${progressPercentage}%)`;
   }, 500);
 };
@@ -398,38 +410,8 @@ const setupDismissibleNotifications = () => {
 // 7. INICIALIZACIÓN Y EVENT LISTENERS
 // ═══════════════════════════════════════════════════════════════════
 
-const setupSidebarNavigation = () => {
-  const hamburgerButton = safeGetElement('hamburger');
-  const sidebarElement = safeGetElement('sidebar');
-  const overlayElement = safeGetElement('overlay');
-  if (!hamburgerButton || !sidebarElement || !overlayElement) return;
-
-  const toggleMenuState = (shouldShow) => {
-    sidebarElement.classList.toggle('open', shouldShow);
-    overlayElement.classList.toggle('open', shouldShow);
-    hamburgerButton.setAttribute('aria-expanded', String(shouldShow));
-    overlayElement.setAttribute('aria-hidden', String(!shouldShow));
-
-    if (shouldShow) sidebarElement.querySelector('.nav-item')?.focus();
-    else hamburgerButton.focus();
-  };
-
-  hamburgerButton.addEventListener('click', () => toggleMenuState(true));
-  overlayElement.addEventListener('click', () => toggleMenuState(false));
-
-  sidebarElement.querySelectorAll('.nav-item').forEach(navItem => {
-    navItem.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenuState(false);
-    });
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && sidebarElement.classList.contains('open')) {
-      event.preventDefault();
-      toggleMenuState(false);
-    }
-  });
-};
+// NOTA: la apertura/cierre del sidebar móvil y el accordion los gestiona
+// shared/sidebar.js (cargado por el layout). No duplicar esa lógica aquí.
 
 const initDashboardEnhancements = () => {
   setTimeout(updateDailyProgress, 1500);
@@ -438,16 +420,18 @@ const initDashboardEnhancements = () => {
   setupQuickAccessCards();
   setupDismissibleNotifications();
   addKpiTooltips();
-  enhanceKeyboardNavigation();
 
   updateNextAppointmentCountdown();
   setInterval(updateNextAppointmentCountdown, COUNTDOWN_INTERVAL_MS);
 };
 
 const initializeDashboardModule = () => {
-  setupSidebarNavigation();
   displayCurrentHeaderDate();
   setupExportButtonListener();
+
+  // Valores iniciales del día para la barra de progreso (fuente: SSR).
+  dashboardCounters.citasHoy = readCounterTarget('statCitas');
+  dashboardCounters.citasAtendidas = readCounterTarget('statProfesionales');
 
   document.querySelectorAll('.stat-number[data-target]').forEach(numberElement => {
     if (typeof window.animateCounter === 'function') {
@@ -457,14 +441,9 @@ const initializeDashboardModule = () => {
 
   renderRevenueChart();
   animateStatusBars();
+  setupAutoRefreshStats();
 
   setTimeout(initDashboardEnhancements, 1000);
 };
 
 document.addEventListener('DOMContentLoaded', initializeDashboardModule);
-
-window.addEventListener('beforeunload', () => {
-  document.querySelectorAll('[style*="animation"]').forEach(animatedElement => {
-    animatedElement.style.animation = 'none';
-  });
-});

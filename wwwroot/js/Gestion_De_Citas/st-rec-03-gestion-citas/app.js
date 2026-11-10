@@ -135,9 +135,17 @@ const fmtHora24 = (fhIso) => {
     return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   } catch { return '09:00'; }
 };
+const fmtFechaLocalISO = (date) => [
+  date.getFullYear(),
+  String(date.getMonth() + 1).padStart(2, '0'),
+  String(date.getDate()).padStart(2, '0')
+].join('-');
 const fmtFechaISO = (fhIso) => {
-  try { return (new Date(fhIso)).toISOString().split('T')[0]; }
-  catch { return new Date().toISOString().split('T')[0]; }
+  try {
+    const date = new Date(fhIso);
+    return Number.isNaN(date.getTime()) ? fmtFechaLocalISO(new Date()) : fmtFechaLocalISO(date);
+  }
+  catch { return fmtFechaLocalISO(new Date()); }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -158,8 +166,8 @@ const mapServerToClient = (srv) => {
   const patient = pacienteRaw?.NombreCompleto || pacienteRaw?.nombreCompleto || '—';
   const service = servicioRaw?.Nombre || servicioRaw?.nombre || '—';
   const dateISO = fmtFechaISO(fechaHora);
-  const hoy = new Date().toISOString().split('T')[0];
-  const manana = (() => { const t = new Date(); t.setDate(t.getDate()+1); return t.toISOString().split('T')[0]; })();
+  const hoy = fmtFechaLocalISO(new Date());
+  const manana = (() => { const t = new Date(); t.setDate(t.getDate()+1); return fmtFechaLocalISO(t); })();
 
   return {
     id: get('IdCita'),
@@ -243,10 +251,13 @@ const validateField = (input) => {
   else if (input.type === 'email' && value)
     ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   else if (input.type === 'date' && value) {
-    const s = new Date(value);
     const today = new Date();
-    today.setHours(0,0,0,0);
-    ok = s.getTime() >= today.getTime();
+    const todayISO = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0')
+    ].join('-');
+    ok = value >= todayISO;
   }
   input.classList.toggle('error', !ok);
   if (err) err.classList.toggle('visible', !ok);
@@ -280,6 +291,10 @@ const createAppointmentRow = (appt) => {
   let hash = 0;
   for (let i = 0; i < initials.length; i++) hash = ((hash << 5) - hash) + initials.charCodeAt(i);
   const avatarColor = PALETTE[Math.abs(hash) % PALETTE.length];
+  const appointmentDateTime = new Date(`${appt.dateISO}T${appt.timeISO}`);
+  const canCancel = appt.status.toLowerCase() !== 'cancelada'
+    && !Number.isNaN(appointmentDateTime.getTime())
+    && appointmentDateTime > new Date();
 
   tr.innerHTML = `
     <td class="col-fecha">${escapeHtml(appt.date)}</td>
@@ -310,13 +325,14 @@ const createAppointmentRow = (appt) => {
           <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
           <span class="btn-text">Editar</span>
         </button>
-        <button class="action-btn btn-danger btn-delete" type="button"
-                data-action="cancel" data-id="${appt.id}"
-                aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
-                title="Cancelar cita de ${escapeHtml(appt.patient)}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span>
-          <span class="btn-text">Cancelar</span>
-        </button>
+        ${canCancel ? `
+          <button class="action-btn btn-danger btn-delete" type="button"
+                  data-action="cancel" data-id="${appt.id}"
+                  aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
+                  title="Cancelar cita de ${escapeHtml(appt.patient)}">
+            <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span>
+            <span class="btn-text">Cancelar</span>
+          </button>` : ''}
       </div>
     </td>
   `;
@@ -379,23 +395,12 @@ const initServerMetrics = () => {
   });
 };
 
+let serverMetricsInitialized = false;
 const updateMetrics = () => {
-  if (shouldUseServerRenderedList()) {
-    initServerMetrics();
-    return;
-  }
-  const all = appointmentStorage.getAll();
-  const hoy = new Date().toISOString().split('T')[0];
-  const todayCount = all.filter(a => a.dateISO === hoy).length;
-  const confirmed = all.filter(a => a.status === 'Confirmada' || a.status === 'En consulta').length;
-  const pending = all.filter(a => a.status === 'Agendada').length;
-  const cancelled = all.filter(a => a.status === 'Cancelada' || a.status === 'No asistió').length;
-
-  [['metricToday', todayCount], ['metricConfirmed', confirmed],
-   ['metricPending', pending], ['metricCancelled', cancelled]].forEach(([id, v]) => {
-    const el = safeGetElement(id);
-    if (el) animateCounter(el, v);
-  });
+  // KPIs are global server-side counts; the API table only contains one filtered page.
+  if (serverMetricsInitialized) return;
+  initServerMetrics();
+  serverMetricsInitialized = true;
 };
 
 const updatePaginationInfo = (start, end, total) => {
@@ -429,121 +434,13 @@ const buildServerBody = (appt, overrides = {}) => {
 //  MODAL CONFIRMACIÓN CANCELAR CITA (recepción)
 // ═══════════════════════════════════════════════════════════════════
 
-let _cancelTargetId = null;
-
-const getCancelHeaders = () => {
-  const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-  // CSRF token desde cookie XSRF-TOKEN
-  const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
-  if (match) headers['X-CSRF-TOKEN'] = decodeURIComponent(match[2]);
-  try {
-    const jwt = sessionStorage.getItem('st_jwt');
-    if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
-  } catch { /* modo privado */ }
-  return headers;
-};
-
 const openCancelModal = (id) => {
-  _cancelTargetId = parseInt(id, 10);
-  const appt = appointmentStorage.findById(id);
-  const patient = appt?.patient || `ID ${id}`;
-  // Reutilizar el modal de confirmación genérico _ConfirmModal.cshtml si existe
-  const modal = document.getElementById('confirmModal');
-  if (modal) {
-    const msgEl = modal.querySelector('#confirmModalMessage, .confirm-modal-message, p');
-    if (msgEl) msgEl.textContent = `¿Estás seguro de que deseas cancelar la cita de ${patient}? Esta acción no se puede deshacer.`;
-    const title = modal.querySelector('#confirmModalTitle, .confirm-modal-title, h2');
-    if (title) title.textContent = 'Cancelar cita';
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    modal.removeAttribute('inert');
-    document.body.style.overflow = 'hidden';
-    // Asociar botón de confirmación
-    const confirmBtn = modal.querySelector('#confirmModalConfirm, .confirm-modal-confirm, [data-action="confirm"]');
-    if (confirmBtn) {
-      const fresh = confirmBtn.cloneNode(true);
-      confirmBtn.replaceWith(fresh);
-      fresh.addEventListener('click', executeCancelCita);
-    }
-    const cancelBtn = modal.querySelector('#confirmModalCancel, .confirm-modal-cancel, [data-action="cancel"]');
-    if (cancelBtn) {
-      const fresh = cancelBtn.cloneNode(true);
-      cancelBtn.replaceWith(fresh);
-      fresh.addEventListener('click', closeCancelModal);
-    }
-  } else {
-    // Fallback: modal inline creado dinámicamente
-    _openInlineCancelModal(patient);
+  const appointment = appointmentStorage.findById(id);
+  if (typeof window.openConfirmCancelCita !== 'function') {
+    showToast('No fue posible abrir el formulario de cancelación.', 'error');
+    return;
   }
-};
-
-const closeCancelModal = () => {
-  const modal = document.getElementById('confirmModal') || document.getElementById('inlineCancelModal');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
-    document.body.style.overflow = '';
-  }
-  _cancelTargetId = null;
-};
-
-const _openInlineCancelModal = (patient) => {
-  let modal = document.getElementById('inlineCancelModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'inlineCancelModal';
-    modal.className = 'modal-overlay';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-labelledby', 'inlineCancelTitle');
-    modal.innerHTML = `
-      <div class="modal modal--sm">
-        <h2 class="modal-title" id="inlineCancelTitle">Cancelar cita</h2>
-        <p class="modal-desc" id="inlineCancelMsg"></p>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" id="inlineCancelNo">Volver</button>
-          <button type="button" class="btn-danger" id="inlineCancelSi">Sí, cancelar</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-    modal.addEventListener('click', e => { if (e.target === modal) closeCancelModal(); });
-    document.getElementById('inlineCancelNo')?.addEventListener('click', closeCancelModal);
-    document.getElementById('inlineCancelSi')?.addEventListener('click', executeCancelCita);
-  }
-  const msgEl = document.getElementById('inlineCancelMsg');
-  if (msgEl) msgEl.textContent = `¿Estás seguro de que deseas cancelar la cita de ${patient}? Esta acción no se puede deshacer.`;
-  modal.classList.add('open');
-  modal.setAttribute('aria-hidden', 'false');
-  modal.removeAttribute('inert');
-  document.body.style.overflow = 'hidden';
-};
-
-const executeCancelCita = async () => {
-  if (!_cancelTargetId) return;
-  const id = _cancelTargetId;
-  closeCancelModal();
-  try {
-    const res = await fetch(`${API_BASE}/citas/${id}`, {
-      method: 'DELETE',
-      credentials: 'same-origin',
-      headers: getCancelHeaders()
-    });
-    let payload;
-    try { payload = await res.json(); } catch { payload = { success: res.ok }; }
-    if (res.ok && payload.success !== false) {
-      showToast('Cita cancelada exitosamente.', 'success');
-      // Recargar la tabla para reflejar el cambio
-      const citas = await fetchAppointments(currentApiPage);
-      renderAppointments(citas);
-      updateMetrics();
-    } else {
-      showToast(payload.message || 'No fue posible cancelar la cita.', 'error');
-    }
-  } catch (err) {
-    console.warn('[SmileTrack] Error al cancelar cita:', err);
-    showToast('Error de conexión al cancelar la cita.', 'error');
-  }
+  window.openConfirmCancelCita(id, appointment?.patient || `ID ${id}`);
 };
 
 const handleTableAction = async (e) => {
@@ -1050,6 +947,31 @@ const init = async () => {
         renderAppointments(citas);
         updateMetrics();
       };
+      const statusTabs = Array.from(document.querySelectorAll('.table-tabs [data-tab]'));
+      const syncStatusTabs = () => {
+        const status = (safeGetElement('filterStatus')?.value || '').toLowerCase();
+        const activeTab = !status ? 'all'
+          : status === 'cancelada' ? 'cancelled'
+          : status === 'no_asistida' ? 'no-show' : null;
+        statusTabs.forEach(tab => {
+          const active = activeTab !== null && tab.dataset.tab === activeTab;
+          tab.classList.toggle('active', active);
+          tab.setAttribute('aria-pressed', String(active));
+        });
+      };
+      statusTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const statusSelect = safeGetElement('filterStatus');
+          if (!statusSelect) return;
+          statusSelect.value = tab.dataset.tab === 'cancelled'
+            ? 'cancelada'
+            : tab.dataset.tab === 'no-show' ? 'no_asistida' : '';
+          statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          syncStatusTabs();
+        });
+      });
+      safeGetElement('filterStatus')?.addEventListener('change', syncStatusTabs);
+      syncStatusTabs();
       safeGetElement('searchPatient')?.addEventListener('input', debounce(refreshFromApi, 250));
       ['filterProfessional','filterDate','filterStatus'].forEach(id =>
         safeGetElement(id)?.addEventListener('change', refreshFromApi)

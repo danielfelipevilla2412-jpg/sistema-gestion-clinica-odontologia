@@ -22,7 +22,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const API_BASE_URL = '/api';
-const API_PAGE_SIZE = 200;
+const API_PAGE_SIZE = 500;
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. ESTADO DE LA APLICACIÓN
@@ -46,7 +46,12 @@ const fetchCsrfToken = () => {
 const buildAuthHeaders = () => {
   const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const csrfToken = fetchCsrfToken();
-  if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+  // IAntiforgery.ValidateRequestAsync lee 'RequestVerificationToken';
+  // se envían ambos para compatibilidad con los distintos filtros del proyecto.
+  if (csrfToken) {
+    headers['RequestVerificationToken'] = csrfToken;
+    headers['X-CSRF-TOKEN'] = csrfToken;
+  }
   try {
     const jwt = sessionStorage.getItem('st_jwt');
     if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
@@ -103,6 +108,23 @@ const formatDateLabel = (isoDateString) => {
   } catch { return '—'; }
 };
 
+const toLocalDateInputValue = (dateObj) => {
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getEarliestRequestDate = () => {
+  const dateObj = new Date();
+  dateObj.setDate(dateObj.getDate() + 1);
+  return toLocalDateInputValue(dateObj);
+};
+
+const setMinimumRequestDate = (dateInput) => {
+  if (dateInput) dateInput.min = getEarliestRequestDate();
+};
+
 const formatTimeLabel = (isoDateString) => {
   try {
     const dateObj = new Date(isoDateString);
@@ -122,8 +144,9 @@ const calculateHoursDifference = (fechaHoraISO) => {
 };
 
 const getBadgeClassForStatus = (statusLabel) => {
-  const serverKey = CommonUtils.mapEstadoClienteToServer(statusLabel);
-  return CommonUtils.getStatusInfo(serverKey).cls || 'badge-agendada';
+  const serverKey = window.CommonUtils?.mapEstadoClienteToServer(statusLabel)
+    ?? String(statusLabel || '').toLowerCase().trim().replace(/\s+/g, '_');
+  return (window.CommonUtils?.getStatusInfo(serverKey) ?? {}).cls || 'badge-agendada';
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -132,17 +155,27 @@ const getBadgeClassForStatus = (statusLabel) => {
 
 async function fetchPatientAppointments() {
   try {
-    const response = await fetch(`${API_BASE_URL}/citas?page=1&pageSize=${API_PAGE_SIZE}`, {
-      method: 'GET',
-      headers: buildAuthHeaders()
-    });
-    if (!response.ok) throw new Error(`status ${response.status}`);
-    const payload = await response.json();
-    if (payload && payload.success && Array.isArray(payload.data)) {
-      appointmentsList = payload.data.map(mapServerToClient);
-      return;
+    const allAppointments = [];
+    let page = 1;
+    while (true) {
+      const response = await fetch(`${API_BASE_URL}/citas?page=${page}&pageSize=${API_PAGE_SIZE}`, {
+        method: 'GET',
+        headers: buildAuthHeaders()
+      });
+      if (!response.ok) throw new Error(`status ${response.status}`);
+      const payload = await response.json();
+      if (!payload?.success || !Array.isArray(payload.data)) throw new Error('payload inválido');
+
+      allAppointments.push(...payload.data);
+      const total = Number(payload.total);
+      if (payload.data.length === 0 ||
+          (Number.isFinite(total) && total >= 0 && allAppointments.length >= total) ||
+          payload.data.length < API_PAGE_SIZE) {
+        break;
+      }
+      page += 1;
     }
-    throw new Error('payload inválido');
+    appointmentsList = allAppointments.map(mapServerToClient);
   } catch (err) {
     console.warn('[SmileTrack] Mis citas paciente: no se pudo cargar la API:', err);
     appointmentsList = [];
@@ -198,7 +231,7 @@ const confirmAppointmentCancellation = async () => {
     const response = await fetch(`${API_BASE_URL}/citas/${pendingCancelAppointmentId}`, {
       method: 'DELETE',
       headers: buildAuthHeaders(),
-      body: JSON.stringify({ motivo: cancellationReason })
+      body: JSON.stringify({ Motivo: cancellationReason })
     });
     let payload;
     try { payload = await response.json(); } catch { payload = { success: response.ok }; }
@@ -238,10 +271,10 @@ const handleNewAppointmentSubmit = async () => {
     return;
   }
 
-  const todayIsoString = new Date().toISOString().split('T')[0];
-  if (dateInput.value < todayIsoString) {
-    dateInput.value = todayIsoString;
-    notifyUser('warning', 'Fecha inválida', 'No puedes solicitar citas en fechas pasadas.');
+  const earliestRequestDate = getEarliestRequestDate();
+  if (dateInput.value < earliestRequestDate) {
+    dateInput.value = earliestRequestDate;
+    notifyUser('warning', 'Fecha inválida', 'Las solicitudes deben ser para una fecha posterior a hoy.');
     return;
   }
 
@@ -297,13 +330,17 @@ const handleNewAppointmentSubmit = async () => {
 
 const mapServerToClient = (srv) => {
   const estadoServidor = srv.Estado ?? srv.estado ?? srv.EstadoCatalogo ?? srv.estadoCatalogo ?? '';
-  const clientStatus = CommonUtils.mapEstadoServerToClient(estadoServidor);
-  const statusInfo = CommonUtils.getStatusInfo(clientStatus);
+  const clientStatus = window.CommonUtils?.mapEstadoServerToClient(estadoServidor)
+    ?? String(estadoServidor).toLowerCase().trim().replace(/\s+/g, '_');
+  const statusInfo = window.CommonUtils?.getStatusInfo(clientStatus) ?? { label: 'Agendada', cls: 'badge-agendada' };
   const fechaHora = srv.FechaHora ?? srv.fechaHora;
   const fechaHoraIso = fechaHora ? new Date(fechaHora).toISOString() : null;
   const isUpcoming = statusInfo.label === 'Agendada' || statusInfo.label === 'Confirmada';
-  const todayIsoDate = new Date().toISOString().split('T')[0];
-  const appointmentIsoDate = fechaHoraIso ? fechaHoraIso.split('T')[0] : todayIsoDate;
+  const todayIsoDate = toLocalDateInputValue(new Date());
+  const appointmentDate = fechaHoraIso ? new Date(fechaHoraIso) : null;
+  const appointmentIsoDate = appointmentDate && !Number.isNaN(appointmentDate.getTime())
+    ? toLocalDateInputValue(appointmentDate)
+    : todayIsoDate;
 
   const prof = srv.Profesional ?? srv.profesional ?? null;
   const doctorNombre = (
@@ -383,8 +420,8 @@ const updateAppointmentStats = () => {
 const animateAppointmentCounters = () => {
   const totalCount = appointmentsList.length;
   const completedCount = appointmentsList.filter(c => c.estado === 'Completada').length;
-  const pendingCount = appointmentsList.filter(c => c.estado === 'Agendada' || c.estado === 'Confirmada').length;
-  const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada').length;
+  const pendingCount = appointmentsList.filter(c => c.estado === 'Agendada' || c.estado === 'Confirmada' || c.estado === 'En curso').length;
+  const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada' || c.estado === 'No asistió').length;
 
   const nodes = [safeGetElement('cnt-total'), safeGetElement('cnt-completadas'), safeGetElement('cnt-pendientes'), safeGetElement('cnt-canceladas')];
   nodes.forEach(n => { if (n) delete n.dataset.animated; });
@@ -502,8 +539,8 @@ const openCancelAppointmentModal = (appointmentId) => {
   }
   if (reasonInput) reasonInput.value = '';
 
-  if (hoursRemaining < 24 && item.estado !== 'Cancelada' && item.estado !== 'Completada') {
-    if (warningBox) warningBox.textContent = `Esta cita es en ${Math.max(1, Math.round(hoursRemaining))} horas.`;
+  if (hoursRemaining > 0 && hoursRemaining < 24 && item.estado !== 'Cancelada' && item.estado !== 'Completada') {
+    if (warningBox) warningBox.textContent = `Esta cita es en ${Math.round(hoursRemaining)} horas.`;
     warningBox?.classList.remove('hidden');
   } else {
     warningBox?.classList.add('hidden');
@@ -548,9 +585,7 @@ const setupNewAppointmentModal = () => {
   if (!newAppointmentModal || !newAppointmentBtn) return;
 
   const dateInput = safeGetElement('citaFecha');
-  if (dateInput) {
-    dateInput.min = new Date().toISOString().split('T')[0];
-  }
+  setMinimumRequestDate(dateInput);
 
   const closeModalHandler = () => {
     newAppointmentModal.classList.remove('open');
@@ -562,7 +597,7 @@ const setupNewAppointmentModal = () => {
 
   newAppointmentBtn.addEventListener('click', () => {
     newAppointmentModal.dataset.opener = 'btnNuevaCita';
-    if (dateInput) dateInput.min = new Date().toISOString().split('T')[0];
+    setMinimumRequestDate(dateInput);
     newAppointmentModal.classList.add('open');
     newAppointmentModal.setAttribute('aria-hidden', 'false');
     newAppointmentModal.removeAttribute('inert');
@@ -575,10 +610,10 @@ const setupNewAppointmentModal = () => {
   newAppointmentModal.addEventListener('click', event => { if (event.target === newAppointmentModal) closeModalHandler(); });
 
   dateInput?.addEventListener('change', () => {
-    const todayIsoDate = new Date().toISOString().split('T')[0];
-    if (dateInput.value < todayIsoDate) {
-      dateInput.value = todayIsoDate;
-      notifyUser('warning', 'Fecha inválida', 'No puedes seleccionar fechas pasadas. Se ha ajustado al día de hoy.');
+    const earliestRequestDate = getEarliestRequestDate();
+    if (dateInput.value < earliestRequestDate) {
+      dateInput.value = earliestRequestDate;
+      notifyUser('warning', 'Fecha inválida', 'La solicitud se ha ajustado al día siguiente como fecha más próxima.');
     }
   });
 
@@ -652,6 +687,8 @@ const initializeMisCitasModule = async () => {
         newAppointmentModal.classList.remove('open');
         newAppointmentModal.setAttribute('aria-hidden', 'true');
         newAppointmentModal.setAttribute('inert', '');
+        const openerId = newAppointmentModal.dataset.opener;
+        if (openerId) safeGetElement(openerId)?.focus();
       } else if (cancelModal?.classList.contains('open')) {
         closeCancelAppointmentModal();
       } else if (detailModal?.classList.contains('open')) {

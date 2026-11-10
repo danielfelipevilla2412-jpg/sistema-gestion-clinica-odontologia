@@ -38,6 +38,7 @@
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
+    @Html.AntiForgeryToken()
 
     <!-- Breadcrumb y header -->
     <header class="page-header">
@@ -89,7 +90,7 @@
           <div class="status-info">
             <p class="status-label" data-i18n="citas.status">Estado del procedimiento</p>
             <span class="status-badge" role="status">En curso</span>
-            <p class="status-time">Iniciado a las <time datetime="2026-03-20T10:03">10:03 AM</time></p>
+            <p class="status-time">Iniciado a las <time id="apStartTime" datetime=""></time></p>
           </div>
         </div>
 
@@ -162,26 +163,26 @@
 
   </main>
 
-  <!-- Mobile bottom nav con aria-label para navegación mÓvil -->
-  <nav class="mobile-nav" aria-label="Navegación mÓvil">
+  <!-- Mobile bottom nav con aria-label para navegación móvil -->
+  <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span></span>
       <span>Panel</span>
     </a>
     <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
       <span>Agenda</span>
     </a>
     <a href="/gestion-de-pacientes/st-aux-05-historial-parcial" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">history</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">history</span></span>
       <span>Historial</span>
     </a>
     <a href="/gestion-de-citas/st-aux-06-asistencia-procedi" class="mobile-nav-item active" aria-current="page">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">healing</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">healing</span></span>
       <span>Procedimiento</span>
     </a>
     <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
       <span>Perfil</span>
     </a>
   </nav>

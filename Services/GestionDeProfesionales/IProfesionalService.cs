@@ -40,6 +40,8 @@ public interface IProfesionalService
         string? estado,
         CancellationToken ct = default);
 
+    Task<ProfesionalesStats> ObtenerEstadisticasAsync(CancellationToken ct = default);
+
     Task<(List<Profesional> Items, PagedResult<Profesional> Paginacion, ProfesionalesStats Stats)>
         ObtenerVistaMVCAsync(
             PaginationQuery q,

@@ -38,13 +38,13 @@ public sealed class DashboardKpiViewModel
     public int     CitasHoy                   { get; init; }
     public int     ProfesionalesActivos        { get; init; }
     public decimal ValorEstimadoAtendidoMes    { get; init; }
-    public int     VariacionCitasSemana        { get; init; }
+    public int     VariacionAtencionesSemana   { get; init; }
 }
 
 /// <summary>
 /// Distribución mensual de citas por estado.
-/// Los porcentajes se calculan sobre el total real (atendidas + confirmadas + programadas + canceladas),
-/// NO sobre el estado con mayor cantidad (bug del denominador maxEstado).
+/// Los porcentajes se calculan sobre todas las citas del mes; los estados no mostrados
+/// individualmente se agrupan en Otros.
 /// </summary>
 public sealed class DashboardEstadosViewModel
 {
@@ -53,11 +53,13 @@ public sealed class DashboardEstadosViewModel
     public int Confirmadas { get; init; }
     public int Programadas { get; init; }
     public int Canceladas  { get; init; }
+    public int Otros       { get; init; }
 
     public int PorcentajeAtendidas   => Calcular(Atendidas);
     public int PorcentajeConfirmadas => Calcular(Confirmadas);
     public int PorcentajeProgramadas => Calcular(Programadas);
     public int PorcentajeCanceladas  => Calcular(Canceladas);
+    public int PorcentajeOtros       => Calcular(Otros);
 
     private int Calcular(int valor) =>
         Total <= 0 ? 0 : (int)Math.Round(valor * 100d / Total);

@@ -45,13 +45,14 @@ class AgendaSupportController {
 
   async getCitas(profesional = DEFAULT_FILTER_ALL, tipo = DEFAULT_FILTER_ALL) {
     let resultado = [...this._citasBase];
-    
+
     if (profesional !== DEFAULT_FILTER_ALL) {
       const normalizar = (valor) => String(valor || '').trim().toLocaleLowerCase('es-CO');
       resultado = resultado.filter(c => normalizar(c.profesional) === normalizar(profesional));
     }
     if (tipo !== DEFAULT_FILTER_ALL) {
-      resultado = resultado.filter(c => c.tipo === tipo);
+      const normalizarTipo = (valor) => String(valor || '').trim().toLocaleLowerCase('es-CO');
+      resultado = resultado.filter(c => normalizarTipo(c.tipo) === normalizarTipo(tipo));
     }
     return resultado;
   }
@@ -108,7 +109,7 @@ const createAllergiesBadge = (allergyText) => {
 };
 
 const createStatusBadge = (statusString) => {
-  const normalizedStatus = CommonUtils.normalizeAppointmentStatus(statusString);
+  const normalizedStatus = window.CommonUtils?.normalizeAppointmentStatus(statusString) ?? String(statusString || '').toLowerCase().trim().replace(/\s+/g, '_');
   const statusCssMap = {
     atendida: 'badge-atendida',
     pendiente: 'badge-pendiente',
@@ -198,7 +199,9 @@ const updateHeaderMetadata = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 const setupTypeFilterButtons = () => {
-  const filterButtonsList = document.querySelectorAll('.filter-btn[data-value]');
+  const filterButtonsList = document.querySelectorAll(
+    '.filter-group[role="radiogroup"] .filter-btn[role="radio"][data-value]'
+  );
   
   filterButtonsList.forEach(buttonElement => {
     buttonElement.addEventListener('click', () => {
@@ -214,7 +217,7 @@ const setupTypeFilterButtons = () => {
       
       applyCombinedFilters();
       
-      if (window.ToastService) window.ToastService.success(`Filtro aplicado: ${buttonElement.textContent.trim()}`, 'info');
+      if (window.ToastService) window.ToastService.info(`Filtro aplicado: ${buttonElement.textContent.trim()}`);
     });
     
     buttonElement.addEventListener('keydown', (event) => {
@@ -267,7 +270,7 @@ const setupProfessionalDropdownMenu = () => {
       dropdownBtn.setAttribute('aria-expanded', 'false');
       
       applyCombinedFilters();
-      if (window.ToastService) window.ToastService.success(`Profesional: ${itemElement.textContent.trim()}`, 'info');
+      if (window.ToastService) window.ToastService.info(`Profesional: ${itemElement.textContent.trim()}`);
     });
     
     itemElement.addEventListener('keydown', (event) => {

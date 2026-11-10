@@ -62,10 +62,27 @@
         [Route("facturacion-y-pagos/st-rec-04-generar-factura")]
         public async Task<IActionResult> Strec04GenerarFactura()
         {
-            var pacientes = await _context.Pacientes.Where(p => p.Estado == "activo").ToListAsync();
-            var servicios = await _context.Servicios.Where(s => s.Estado == "activo").ToListAsync();
+            var pacientes = await _context.Pacientes
+                .AsNoTracking()
+                .Where(p => p.Estado == "activo")
+                .OrderBy(p => p.Nombres)
+                .ThenBy(p => p.Apellidos)
+                .ToListAsync();
+            var servicios = await _context.Servicios
+                .AsNoTracking()
+                .Where(s => s.Estado == "activo")
+                .OrderBy(s => s.Nombre)
+                .ToListAsync();
+            var profesionales = await _context.Profesionales
+                .AsNoTracking()
+                .Where(p => p.Estado == "activo")
+                .OrderBy(p => p.Nombres)
+                .ThenBy(p => p.Apellidos)
+                .ToListAsync();
+
             ViewData["Pacientes"] = pacientes;
             ViewData["Servicios"] = servicios;
+            ViewData["Profesionales"] = profesionales;
             return View("~/Views/Facturacion_Y_Pagos/st-rec-04-generar-factura/index.cshtml");
         }
     } 

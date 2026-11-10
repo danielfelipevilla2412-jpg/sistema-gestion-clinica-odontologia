@@ -120,6 +120,15 @@ public class RecordatorioPendienteDto
 public class RecordatoriosViewModel
 {
     public List<RecordatorioPendienteDto> Pendientes { get; set; } = [];
+    public List<RecordatorioEnviadoDto> HistorialEnviados { get; set; } = [];
+    public int EnviadosHoy { get; set; }
     public int SinConfirmar { get; set; }
     public int FacturasVencidas { get; set; }
+}
+
+public class RecordatorioEnviadoDto
+{
+    public string Paciente { get; set; } = "";
+    public DateTime FechaCita { get; set; }
+    public DateTime EnviadoEn { get; set; }
 }

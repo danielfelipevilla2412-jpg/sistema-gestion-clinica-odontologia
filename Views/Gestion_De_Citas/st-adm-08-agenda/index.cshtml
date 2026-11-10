@@ -48,6 +48,14 @@
         </div>
     </header>
 
+    @if (TempData["ErrorValidacion"] is string errorMsg)
+    {
+        <div role="alert" class="agenda-error-banner">
+            <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+            <span>@errorMsg</span>
+        </div>
+    }
+
     <!-- Controles de navegación y filtros -->
     <section class="agenda-controls" aria-label="Controles de navegación y filtros" data-i18n-aria-label="adm08_controls_aria">
         <div class="controls-left">
@@ -174,44 +182,43 @@
                                 <span data-i18n="adm08_day_closed">CERRADO</span>
                             </div>
                         }
-                        else
+
+                        @foreach (var cita in dia.Citas)
                         {
-                            @foreach (var cita in dia.Citas)
-                            {
-                                var ariaLabel = $"Cita {cita.Estado}: {cita.Paciente}, {cita.Hora}, {cita.Servicio}, {cita.Consultorio}";
-                                var dateTimeValue = $"{dia.Fecha.ToString("yyyy-MM-dd")}T{cita.Hora}:00";
-                                var esReagendable = cita.Estado.Equals("agendada", StringComparison.OrdinalIgnoreCase)
-                                    || cita.Estado.Equals("programada", StringComparison.OrdinalIgnoreCase)
-                                    || cita.Estado.Equals("confirmada", StringComparison.OrdinalIgnoreCase);
-                                <div class="appointment @cita.ClaseEstado" tabindex="0" role="button"
-                                    aria-label="@ariaLabel"
-                                    data-id="@cita.Id" data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
-                                    data-start-time="@Html.Encode(cita.HoraInicio)" data-end-time="@Html.Encode(cita.HoraFin)"
-                                    data-patient-id="@cita.IdPaciente" data-professional-id="@cita.IdProfesional"
-                                    data-office-id="@cita.IdConsultorio" data-service-id="@cita.IdServicio"
-                                    data-status="@Html.Encode(cita.Estado)" data-notes="@Html.Encode(cita.Notas)"
-                                    data-patient-name="@Html.Encode(cita.Paciente)" data-service-name="@Html.Encode(cita.Servicio)"
-                                    data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)"
-                                    data-professional-email="@Html.Encode(cita.CorreoProfesional)"
-                                    data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
-                                    data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
-                                    data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)"
-                                    data-reschedulable="@esReagendable.ToString().ToLowerInvariant()"
-                                    draggable="@esReagendable.ToString().ToLowerInvariant()">
-                                    <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
-                                    <span class="appt-patient">@cita.Paciente</span>
-                                    <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
-                                </div>
-                            }
-                            @if (!dia.Citas.Any())
-                            {
-                                <div class="appointment available" tabindex="0" role="button"
-                                    data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
-                                    aria-label="Sin citas registradas para @dia.Fecha.ToString("dd/MM")">
-                                    <time datetime="@dia.Fecha.ToString("yyyy-MM-dd")" class="appt-time"></time>
-                                    <span class="appt-patient" data-i18n="adm08_no_appointments">Sin citas</span>
-                                </div>
-                            }
+                            var ariaLabel = $"Cita {cita.Estado}: {cita.Paciente}, {cita.Hora}, {cita.Servicio}, {cita.Consultorio}";
+                            var dateTimeValue = $"{dia.Fecha.ToString("yyyy-MM-dd")}T{cita.Hora}:00";
+                            var esReagendable = cita.Estado.Equals("agendada", StringComparison.OrdinalIgnoreCase)
+                                || cita.Estado.Equals("programada", StringComparison.OrdinalIgnoreCase)
+                                || cita.Estado.Equals("confirmada", StringComparison.OrdinalIgnoreCase);
+                            <div class="appointment @cita.ClaseEstado" tabindex="0" role="button"
+                                aria-label="@ariaLabel"
+                                data-id="@cita.Id" data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
+                                data-start-time="@Html.Encode(cita.HoraInicio)" data-end-time="@Html.Encode(cita.HoraFin)"
+                                data-patient-id="@cita.IdPaciente" data-professional-id="@cita.IdProfesional"
+                                data-office-id="@cita.IdConsultorio" data-service-id="@cita.IdServicio"
+                                data-status="@Html.Encode(cita.Estado)" data-notes="@Html.Encode(cita.Notas)"
+                                data-patient-name="@Html.Encode(cita.Paciente)" data-service-name="@Html.Encode(cita.Servicio)"
+                                data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)"
+                                data-professional-email="@Html.Encode(cita.CorreoProfesional)"
+                                data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
+                                data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
+                                data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)"
+                                data-reschedulable="@esReagendable.ToString().ToLowerInvariant()"
+                                draggable="@esReagendable.ToString().ToLowerInvariant()">
+                                <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
+                                <span class="appt-patient">@cita.Paciente</span>
+                                <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
+                            </div>
+                        }
+
+                        @if (!dia.Cerrado && !dia.Citas.Any())
+                        {
+                            <div class="appointment available" tabindex="0" role="button"
+                                data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
+                                aria-label="Sin citas registradas para @dia.Fecha.ToString("dd/MM")">
+                                <time datetime="@dia.Fecha.ToString("yyyy-MM-dd")" class="appt-time"></time>
+                                <span class="appt-patient" data-i18n="adm08_no_appointments">Sin citas</span>
+                            </div>
                         }
                     </div>
                 }
@@ -240,7 +247,7 @@
             <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
         <h2 class="modal-title" id="modalApptTitle" data-i18n="adm08_modal_appt_title">Detalle de Cita</h2>
-        <div class="modal-content" id="modalApptContent" aria-live="polite"></div>
+        <div class="appointment-detail-content" id="modalApptContent" aria-live="polite"></div>
         <div class="modal-footer">
             <button type="button" class="btn-secondary" id="modalApptCancel" data-i18n="form.close">Cerrar</button>
             <button type="button" class="btn-secondary btn-danger" id="modalApptCancelar" data-i18n="citas.cancel">Cancelar Cita</button>
@@ -258,7 +265,7 @@
             <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
         <h2 class="modal-title" id="modalNewApptTitle" data-i18n="adm08_modal_newappt_title">Agendar Nueva Cita</h2>
-        <div class="modal-content">
+        <div class="appointment-form-content">
             <form id="formNewAppointment">
                 @Html.AntiForgeryToken()
                 <input type="hidden" id="appointmentId" name="IdCita" value="" />
@@ -270,9 +277,8 @@
                     <div class="form-group">
                         <label for="newApptStatus" data-i18n="citas.status">Estado</label>
                         <select id="newApptStatus" name="Estado" required aria-required="true">
-                            <option value="Agendada" selected data-i18n="status.scheduled">Agendada</option>
+                            <option value="Programada" selected data-i18n="status.scheduled">Agendada</option>
                             <option value="Confirmada" data-i18n="status.confirmed">Confirmada</option>
-                            <option value="Cancelada" data-i18n="status.cancelled">Cancelada</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -341,15 +347,15 @@
 <!-- Navegación móvil -->
 <nav class="mobile-nav" aria-label="Navegación móvil" data-i18n-aria-label="adm08_mobile_nav_aria">
     <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
-        <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span></span>
         <span data-i18n="adm08_mobile_dashboard">Dashboard</span>
     </a>
     <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item active" aria-current="page">
-        <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
         <span data-i18n="adm08_mobile_agenda">Agenda</span>
     </a>
     <a href="/gestion-de-citas/st-adm-09-citas" class="mobile-nav-item">
-        <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">event</span>
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event</span></span>
         <span data-i18n="adm08_mobile_citas">Citas</span>
     </a>
 </nav>

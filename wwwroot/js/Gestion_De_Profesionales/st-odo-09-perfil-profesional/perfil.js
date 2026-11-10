@@ -100,6 +100,18 @@ const calculateTimeDifferenceInHours = (startTime, endTime) => {
 };
 
 /**
+ * Formatea una cantidad de horas para mostrar en UI.
+ * Redondea a 1 decimal y elimina el ".0" para evitar textos como
+ * "9.266666666666666 horas" cuando los minutos no son múltiplos de 15.
+ * @param {number} hoursValue
+ * @returns {string}
+ */
+const formatHoursLabel = (hoursValue) => {
+  const roundedHours = Math.round((Number(hoursValue) || 0) * 10) / 10;
+  return String(roundedHours);
+};
+
+/**
  * Obtiene la clase CSS (morning / afternoon) según la hora de inicio.
  * @param {string} startTime
  * @returns {string}
@@ -165,12 +177,21 @@ const mapApiSchedulesToProfileState = (apiSchedulesList) => {
     .toLowerCase();
 
   return WEEK_DAYS_STRUCTURE.map(({ day, dayFull }) => {
-    const matchedSchedule = apiSchedulesList.find(
+    const matchedSchedules = apiSchedulesList.filter(
       (item) => normalizeDayName(item.diaSemana) === normalizeDayName(dayFull)
     );
-    return matchedSchedule
-      ? { day, dayFull, active: matchedSchedule.activo !== false, start: matchedSchedule.horaInicio || '', end: matchedSchedule.horaFin || '' }
-      : { day, dayFull, active: false, start: '', end: '' };
+    const blocks = matchedSchedules
+      .filter((item) => item.activo !== false)
+      .map((item) => ({ start: item.horaInicio || '', end: item.horaFin || '' }))
+      .sort((left, right) => left.start.localeCompare(right.start));
+    return {
+      day,
+      dayFull,
+      active: blocks.length > 0,
+      blocks,
+      start: blocks[0]?.start || '',
+      end: blocks[0]?.end || ''
+    };
   });
 };
 
@@ -366,12 +387,31 @@ const saveScheduleChangesApi = async () => {
   }
 
   const updatedDayState = isDayActive
-    ? { ...currentDayState, active: true, start: startTimeValue, end: endTimeValue }
-    : { ...currentDayState, active: false, start: '', end: '' };
+    ? {
+        ...currentDayState,
+        active: true,
+        start: startTimeValue,
+        end: endTimeValue,
+        blocks: [
+          { start: startTimeValue, end: endTimeValue },
+          ...(currentDayState.blocks || []).slice(1)
+        ]
+      }
+    : { ...currentDayState, active: false, start: '', end: '', blocks: [] };
 
-  const fullUpdatedSchedule = profileState.horario.map((dayItem, idx) =>
-    idx === editingDayIndex ? updatedDayState : dayItem
-  );
+  const fullUpdatedSchedule = profileState.horario.flatMap((dayItem, idx) => {
+    const dayState = idx === editingDayIndex ? updatedDayState : dayItem;
+    const blocks = (dayState.blocks || []).map((block) => ({
+      day: dayState.day,
+      dayFull: dayState.dayFull,
+      active: true,
+      start: block.start,
+      end: block.end
+    }));
+    return blocks.length
+      ? blocks
+      : [{ day: dayState.day, dayFull: dayState.dayFull, active: false, start: '', end: '' }];
+  });
 
   const professionalId = getProfessionalIdFromDom();
   if (!professionalId) {
@@ -408,7 +448,7 @@ const saveScheduleChangesApi = async () => {
       return;
     }
 
-    profileState.horario = fullUpdatedSchedule;
+    profileState.horario[editingDayIndex] = updatedDayState;
     renderWeeklyScheduleGrid();
     closeScheduleEditorModal();
     window.ToastService?.success(`✅ Horario de ${updatedDayState.dayFull} actualizado`);
@@ -436,35 +476,42 @@ const saveScheduleChangesApi = async () => {
  * @returns {string}
  */
 const renderScheduleDayCard = (dayData, index) => {
-  const hours = dayData.active ? calculateTimeDifferenceInHours(dayData.start, dayData.end) : 0;
+  const blocks = dayData.blocks || (dayData.active && dayData.start && dayData.end
+    ? [{ start: dayData.start, end: dayData.end }]
+    : []);
+  const hours = blocks.reduce(
+    (total, block) => total + calculateTimeDifferenceInHours(block.start, block.end),
+    0
+  );
   const statusClass = dayData.active ? 'active' : 'inactive';
 
   let timeSlotsHtml = '';
-  if (dayData.active && dayData.start && dayData.end) {
-    const slotCssClass = getSlotCssClassByStartHour(dayData.start);
-    const slotIcon = getSlotIconByStartHour(dayData.start);
-    timeSlotsHtml = `
-      <span class="time-slot ${slotCssClass}">
-        <span class="time-slot-icon" aria-hidden="true">${slotIcon}</span>
-        <time datetime="${dayData.start}">${dayData.start}</time> - <time datetime="${dayData.end}">${dayData.end}</time>
-      </span>
-    `;
+  if (blocks.length) {
+    timeSlotsHtml = blocks.map(({ start, end }) => {
+      const slotCssClass = getSlotCssClassByStartHour(start);
+      const slotIcon = getSlotIconByStartHour(start);
+      return `
+        <span class="time-slot ${slotCssClass}">
+          <span class="time-slot-icon" aria-hidden="true">${slotIcon}</span>
+          <time datetime="${start}">${start}</time> - <time datetime="${end}">${end}</time>
+        </span>`;
+    }).join('');
   } else {
     timeSlotsHtml = '<div class="no-schedule">— Descanso —</div>';
   }
 
-  const hoursBadgeText = dayData.active ? `${hours}h` : '—';
+  const hoursBadgeText = dayData.active ? `${formatHoursLabel(hours)}h` : '—';
 
   return {
     html: `
       <div class="schedule-day ${statusClass}" 
            role="listitem"
            tabindex="0"
-           aria-label="${dayData.dayFull}: ${dayData.active ? `${hours} horas, ${dayData.start} a ${dayData.end}` : 'No disponible'}"
+           aria-label="${dayData.dayFull}: ${dayData.active ? `${formatHoursLabel(hours)} horas, ${blocks.map((block) => `${block.start} a ${block.end}`).join(', ')}` : 'No disponible'}"
            data-index="${index}">
         <div class="day-name">${dayData.dayFull}</div>
         <div class="time-blocks">${timeSlotsHtml}</div>
-        <div class="hours-badge" aria-label="${hours} horas">${hoursBadgeText}</div>
+        <div class="hours-badge" aria-label="${formatHoursLabel(hours)} horas">${hoursBadgeText}</div>
       </div>
     `,
     hours,
@@ -505,7 +552,7 @@ const renderWeeklyScheduleGrid = () => {
 
   const totalHoursLabel = getElementByIdSafe('totalHours');
   const totalDaysLabel = getElementByIdSafe('totalDays');
-  if (totalHoursLabel) totalHoursLabel.textContent = `${totalAccumulatedHours} horas`;
+  if (totalHoursLabel) totalHoursLabel.textContent = `${formatHoursLabel(totalAccumulatedHours)} horas`;
   if (totalDaysLabel) totalDaysLabel.textContent = `${activeDaysCount} días laborales`;
 };
 
@@ -549,8 +596,9 @@ const updateSchedulePreviewDisplay = () => {
 
   if (isDayActive && startTimeValue && endTimeValue) {
     const calculatedHours = calculateTimeDifferenceInHours(startTimeValue, endTimeValue);
+    const formattedHours = formatHoursLabel(calculatedHours);
     if (previewTimeLabel) previewTimeLabel.textContent = `${startTimeValue} - ${endTimeValue}`;
-    if (previewHoursLabel) previewHoursLabel.textContent = `${calculatedHours} hora${calculatedHours !== 1 ? 's' : ''}`;
+    if (previewHoursLabel) previewHoursLabel.textContent = `${formattedHours} hora${Number(formattedHours) === 1 ? '' : 's'}`;
     previewContainer.style.opacity = '1';
   } else {
     previewContainer.style.opacity = '0.5';
@@ -593,6 +641,7 @@ const openScheduleEditorModal = (dayIndex) => {
   const modalDayActiveCheckbox = getElementByIdSafe('modalDayActive');
   const modalStartTimeInput = getElementByIdSafe('modalStartTime');
   const modalEndTimeInput = getElementByIdSafe('modalEndTime');
+  const multipleBlocksNote = getElementByIdSafe('modalExistingBlocksNote');
 
   if (modalDayIconSpan) modalDayIconSpan.textContent = dayData.day;
   if (modalDayNameSpan) modalDayNameSpan.textContent = dayData.dayFull;
@@ -600,8 +649,10 @@ const openScheduleEditorModal = (dayIndex) => {
     modalDayActiveCheckbox.checked = dayData.active;
     modalDayActiveCheckbox.setAttribute('aria-checked', String(dayData.active));
   }
-  if (modalStartTimeInput) modalStartTimeInput.value = dayData.start || '08:00';
-  if (modalEndTimeInput) modalEndTimeInput.value = dayData.end || '12:00';
+  const firstBlock = dayData.blocks?.[0];
+  if (modalStartTimeInput) modalStartTimeInput.value = firstBlock?.start || dayData.start || '08:00';
+  if (modalEndTimeInput) modalEndTimeInput.value = firstBlock?.end || dayData.end || '12:00';
+  if (multipleBlocksNote) multipleBlocksNote.hidden = (dayData.blocks?.length || 0) < 2;
 
   updateScheduleEditorModalUI(dayData.active);
   updateSchedulePreviewDisplay();
@@ -657,48 +708,10 @@ const togglePasswordVisibilityState = (inputId, toggleButton) => {
 // 7. LISTENERS DE EVENTOS E INICIALIZACIÓN
 // ===================================================================
 
-/**
- * Inicializa el comportamiento responsive del sidebar en móviles.
- */
-const initMobileSidebarMenu = () => {
-  const hamburgerButton = getElementByIdSafe('hamburger');
-  const sidebarElement = getElementByIdSafe('sidebar');
-  const overlayElement = getElementByIdSafe('overlay');
-
-  if (!hamburgerButton || !sidebarElement || !overlayElement) return;
-
-  const toggleMenuState = (showMenu) => {
-    sidebarElement.classList.toggle('open', showMenu);
-    overlayElement.classList.toggle('open', showMenu);
-    hamburgerButton.setAttribute('aria-expanded', showMenu);
-    overlayElement.setAttribute('aria-hidden', !showMenu);
-
-    if (showMenu) {
-      const firstNavigationLink = sidebarElement.querySelector('.nav-item');
-      if (firstNavigationLink) firstNavigationLink.focus();
-    } else {
-      hamburgerButton.focus();
-    }
-  };
-
-  hamburgerButton.addEventListener('click', () => toggleMenuState(true));
-  overlayElement.addEventListener('click', () => toggleMenuState(false));
-
-  sidebarElement.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      if (window.innerWidth <= 680) {
-        toggleMenuState(false);
-      }
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebarElement.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenuState(false);
-    }
-  });
-};
+// NOTA: la apertura/cierre del sidebar móvil (hamburger + overlay + foco) y el
+// accordion los gestiona shared/sidebar.js (cargado por _Layout). No duplicar
+// esa lógica aquí: al enlazar dos veces los mismos elementos, el botón abre y
+// vuelve a cerrar el menú en el mismo clic.
 
 /**
  * Configura los event listeners del formulario de cambio de contraseña.
@@ -822,7 +835,6 @@ const initCredentialFilePicker = () => {
 };
 
 const init = async () => {
-  initMobileSidebarMenu();
   initPasswordChangeForm();
   initScheduleModalEvents();
   initCredentialFilePicker();
@@ -835,8 +847,6 @@ const init = async () => {
 
   setScheduleSaveButtonEnabledState(isScheduleLoadedFromApi);
   renderWeeklyScheduleGrid();
-
-  window.addEventListener('beforeunload', () => {});
 };
 
 document.addEventListener('DOMContentLoaded', init);

@@ -23,6 +23,16 @@
 
 const SYNC_DEBOUNCE_MS = 400;
 
+const DEFAULT_CHECKLIST = Object.freeze([
+  { text: 'Limpieza y desinfección de superficies', checked: false },
+  { text: 'Instrumental esterilizado y empaquetado', checked: false },
+  { text: 'Residuos biológicos eliminados', checked: false },
+  { text: 'Guantes y tapabocas reabastecidos', checked: false },
+  { text: 'Historia clínica lista para próximo', checked: false },
+  { text: 'Equipos verificados y encendidos', checked: false },
+  { text: 'Consultorio ventilado', checked: false }
+]);
+
 // ═══════════════════════════════════════════════════════════════════
 // 2. ESTADO DE LA APLICACIÓN
 // ═══════════════════════════════════════════════════════════════════
@@ -199,21 +209,16 @@ const consultorioStorage = {
     const stored = localStorage.getItem(consultorioStorage.key);
     if (stored) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (parsed && Array.isArray(parsed.checklist) && parsed.checklist.length > 0) {
+          return parsed;
+        }
       } catch (e) {
-        console.warn('Error al cargar estado del consultorio, usando valores por defecto');
+        console.warn('[SmileTrack] Error al cargar estado local del consultorio, usando valores por defecto');
       }
     }
     return {
-      checklist: [
-        { text: 'Limpieza y desinfección de superficies', checked: true },
-        { text: 'Instrumental esterilizado y empaquetado', checked: true },
-        { text: 'Residuos biológicos eliminados', checked: true },
-        { text: 'Guantes y tapabocas reabastecidos', checked: false },
-        { text: 'Historia clínica lista para próximo', checked: false },
-        { text: 'Equipos verificados y encendidos', checked: false },
-        { text: 'Consultorio ventilado', checked: false }
-      ],
+      checklist: DEFAULT_CHECKLIST.map(item => ({ ...item })),
       status: 'disponible',
       observations: ''
     };
@@ -295,6 +300,9 @@ const initChecklist = () => {
       text: item.text || item.Text || String(item),
       checked: Boolean(item.checked || item.Checked)
     }));
+    consultorioStorage.save(state);
+  } else if (!state.checklist || state.checklist.length === 0) {
+    state.checklist = DEFAULT_CHECKLIST.map(item => ({ ...item }));
     consultorioStorage.save(state);
   }
   
@@ -618,25 +626,44 @@ const initConfirmButtons = () => {
         return;
       }
 
+      clearTimeout(consultorioSyncTimerRef);
       btnPreparation.disabled = true;
       btnPreparation.textContent = 'Enviando...';
 
       try {
         const serverData2 = window.smiletrackEstadoConsultorioData;
+        const currentState = consultorioStorage.load();
+        const obsValue = document.getElementById('obsTextarea')?.value ?? '';
+
         if (serverData2?.consultorioId) {
           const res = await fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
             method: 'POST',
             headers: getRequestHeaders(),
             credentials: 'same-origin',
             body: JSON.stringify({
-              estado: consultorioStorage.load().status,
-              observaciones: document.getElementById('obsTextarea')?.value ?? ''
+              estado: 'disponible',
+              checklist: currentState.checklist,
+              observaciones: obsValue,
+              forzarHistorial: true
             })
           });
 
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
             throw new Error(errData.message || 'Error al comunicarse con el servidor.');
+          }
+
+          consultorioStorage.updateStatus('disponible');
+          const optionDisponible = document.querySelector('.status-option[data-value="disponible"]');
+          if (optionDisponible) {
+            document.querySelectorAll('.status-option').forEach(opt => {
+              opt.classList.remove('selected');
+              opt.setAttribute('aria-checked', 'false');
+              opt.setAttribute('tabindex', '-1');
+            });
+            optionDisponible.classList.add('selected');
+            optionDisponible.setAttribute('aria-checked', 'true');
+            optionDisponible.setAttribute('tabindex', '0');
           }
         }
 
@@ -662,20 +689,26 @@ const initConfirmButtons = () => {
     btnStatus.addEventListener('click', async () => {
       const selectedOption = document.querySelector('.status-option.selected');
       const statusLabelText = selectedOption?.querySelector('strong')?.textContent || 'Desconocido';
+      const statusValue = selectedOption?.dataset.value || consultorioStorage.load().status;
 
+      clearTimeout(consultorioSyncTimerRef);
       btnStatus.disabled = true;
       btnStatus.textContent = 'Enviando...';
 
       try {
         const serverData2 = window.smiletrackEstadoConsultorioData;
+        const currentState = consultorioStorage.load();
+        const obsValue = document.getElementById('obsTextarea')?.value ?? '';
+
         if (serverData2?.consultorioId) {
           const res = await fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
             method: 'POST',
             headers: getRequestHeaders(),
             credentials: 'same-origin',
             body: JSON.stringify({
-              estado: consultorioStorage.load().status,
-              observaciones: document.getElementById('obsTextarea')?.value ?? ''
+              estado: statusValue,
+              checklist: currentState.checklist,
+              observaciones: obsValue
             })
           });
 
@@ -731,12 +764,10 @@ const initializeEstadoConsultorioModule = async () => {
     if (serverData) {
         const subtitleElement = document.getElementById('consultorioSubtitle');
         if (subtitleElement) {
-            const subtitleParts = [serverData.nombre];
+            const subtitleParts = [serverData.nombre || 'Consultorio'];
             if (serverData.ubicacion) subtitleParts.push(serverData.ubicacion);
             subtitleElement.textContent = subtitleParts.join(' · ');
         }
-
-        initHistoryList();
     }
     
     window.addEventListener('beforeunload', () => { /* cleanup SPA */ });

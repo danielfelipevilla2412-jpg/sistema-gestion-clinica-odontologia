@@ -11,7 +11,7 @@
  * asegurando alto desempeño y mantenibilidad centralizada de estadísticas clínicas.
  *
  * REGLAS DE NEGOCIO PRINCIPALES:
- * - Filtra únicamente citas no eliminadas (soft delete check).
+ * - Usa el estado del catálogo como fuente de verdad y el campo legado como respaldo.
  * - Calcula porcentajes de ocupación diaria e índices de inasistencia/cancelaciones.
  *
  * DEPENDENCIAS TÉCNICAS:
@@ -36,6 +36,13 @@ namespace SmileTrack_MVC.Services;
 /// </summary>
 public sealed class CitasDashboardService : ICitasDashboardService
 {
+    private static readonly string[] EstadosCancelados = ["cancelada", "cancelado"];
+    private static readonly string[] EstadosAtendidos =
+    [
+        "atendida", "atendido", "completada", "completado",
+        "realizada", "realizado", "finalizada", "finalizado"
+    ];
+
     private readonly AppDbContext                         _context;
     private readonly ICitaService                         _citaService;
     private readonly ILogger<CitasDashboardService>       _logger;
@@ -65,13 +72,14 @@ public sealed class CitasDashboardService : ICitasDashboardService
         var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
         var finMes    = inicioMes.AddMonths(1);
 
-        // Semana actual (lunes – hoy) y semana anterior completa para la variación.
+        // Compara las atenciones de esta semana con los mismos días de la semana anterior.
         var lunes              = hoy.DayOfWeek == DayOfWeek.Sunday
                                     ? hoy.AddDays(-6)
                                     : hoy.AddDays(-(int)hoy.DayOfWeek + 1);
         var inicioSemana       = lunes;
         var inicioSemanaAnterior = lunes.AddDays(-7);
-        var finSemanaAnterior  = lunes;
+        var diasTranscurridosSemana = (hoy - inicioSemana).Days + 1;
+        var finSemanaAnterior  = inicioSemanaAnterior.AddDays(diasTranscurridosSemana);
 
         try
         {
@@ -83,8 +91,8 @@ public sealed class CitasDashboardService : ICitasDashboardService
             var profesionalesActivos = await ContarProfesionalesActivosAsync(cancellationToken);
             var citasHoy = await ContarCitasHoyAsync(inicioDia, finDia, cancellationToken);
             var resumen = await ObtenerResumenCitasMesAsync(inicioMes, finMes, cancellationToken);
-            var semanaActual = await ContarCitasActivasAsync(inicioSemana, hoy.AddDays(1), cancellationToken);
-            var semanaAnterior = await ContarCitasActivasAsync(inicioSemanaAnterior, finSemanaAnterior, cancellationToken);
+            var semanaActual = await ContarCitasAtendidasAsync(inicioSemana, hoy.AddDays(1), cancellationToken);
+            var semanaAnterior = await ContarCitasAtendidasAsync(inicioSemanaAnterior, finSemanaAnterior, cancellationToken);
             var topProfesionales = await ObtenerTopProfesionalesAsync(inicioMes, finMes, cancellationToken);
             var ocupacion = await CalcularOcupacionAsync(inicioMes, finMes, cancellationToken);
 
@@ -96,7 +104,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
                     CitasHoy = citasHoy,
                     ProfesionalesActivos = profesionalesActivos,
                     ValorEstimadoAtendidoMes = resumen.ValorAtendido,
-                    VariacionCitasSemana = semanaActual - semanaAnterior
+                    VariacionAtencionesSemana = semanaActual - semanaAnterior
                 },
 
                 Estados = new DashboardEstadosViewModel
@@ -105,7 +113,8 @@ public sealed class CitasDashboardService : ICitasDashboardService
                     Atendidas = resumen.Atendidas,
                     Confirmadas = resumen.Confirmadas,
                     Programadas = resumen.Programadas,
-                    Canceladas = resumen.Canceladas
+                    Canceladas = resumen.Canceladas,
+                    Otros = resumen.Otros
                 },
 
                 OcupacionPorcentaje = ocupacion,
@@ -126,12 +135,12 @@ public sealed class CitasDashboardService : ICitasDashboardService
     private Task<int> ContarPacientesActivosAsync(CancellationToken ct) =>
         _context.Pacientes
                 .AsNoTracking()
-                .CountAsync(p => p.Estado == "activo", ct);
+                .CountAsync(p => p.Estado.Trim().ToLower() == "activo", ct);
 
     private Task<int> ContarProfesionalesActivosAsync(CancellationToken ct) =>
         _context.Profesionales
                 .AsNoTracking()
-                .CountAsync(p => p.Estado == "activo", ct);
+                .CountAsync(p => p.Estado.Trim().ToLower() == "activo", ct);
 
     /// <summary>
     /// Cuenta citas NO canceladas del día usando rango de fechas sargable
@@ -139,37 +148,38 @@ public sealed class CitasDashboardService : ICitasDashboardService
     /// </summary>
     private Task<int> ContarCitasHoyAsync(
         DateTime inicioDia, DateTime finDia, CancellationToken ct) =>
-        _context.Citas
-                .AsNoTracking()
-                .CountAsync(c =>
-                    c.FechaHora >= inicioDia &&
-                    c.FechaHora < finDia    &&
-                    c.Estado != "Cancelada" &&
-                    c.Estado != "cancelada" &&
-                    c.Estado != "Cancelado" &&
-                    c.Estado != "cancelado",
-                    ct);
+        ContarCitasNoCanceladasAsync(inicioDia, finDia, ct);
 
-    /// <summary>
-    /// Cuenta citas activas (no canceladas) en un rango de fechas.
-    /// Usado para calcular la variación semanal.
-    /// </summary>
-    private Task<int> ContarCitasActivasAsync(
+    /// <summary>Cuenta atenciones registradas en un rango de fechas.</summary>
+    private Task<int> ContarCitasAtendidasAsync(
+        DateTime inicio, DateTime fin, CancellationToken ct) =>
+        _context.Citas
+            .AsNoTracking()
+            .CountAsync(c =>
+                c.FechaHora >= inicio &&
+                c.FechaHora < fin &&
+                EstadosAtendidos.Contains(
+                    (c.EstadoCita != null
+                        ? c.EstadoCita.NombreEstado
+                        : c.Estado).Trim().ToLower()),
+                ct);
+
+    private Task<int> ContarCitasNoCanceladasAsync(
         DateTime inicio, DateTime fin, CancellationToken ct) =>
         _context.Citas
                 .AsNoTracking()
                 .CountAsync(c =>
                     c.FechaHora >= inicio &&
                     c.FechaHora < fin     &&
-                    c.Estado != "Cancelada" &&
-                    c.Estado != "cancelada" &&
-                    c.Estado != "Cancelado" &&
-                    c.Estado != "cancelado",
+                    !EstadosCancelados.Contains(
+                        (c.EstadoCita != null
+                            ? c.EstadoCita.NombreEstado
+                            : c.Estado).Trim().ToLower()),
                     ct);
 
     private sealed record ResumenMes(
         int Total, int Atendidas, int Confirmadas,
-        int Programadas, int Canceladas, decimal ValorAtendido);
+        int Programadas, int Canceladas, int Otros, decimal ValorAtendido);
 
     private async Task<ResumenMes> ObtenerResumenCitasMesAsync(
         DateTime inicioMes, DateTime finMes, CancellationToken ct)
@@ -180,12 +190,12 @@ public sealed class CitasDashboardService : ICitasDashboardService
             .Where(c => c.FechaHora >= inicioMes && c.FechaHora < finMes)
             .Select(c => new
             {
-                Estado          = c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado,
+                Estado = c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado,
                 PrecioServicio  = c.Servicio != null ? c.Servicio.Precio : 0m
             })
             .ToListAsync(ct);
 
-        int     total       = 0, atendidas = 0, confirmadas = 0, programadas = 0, canceladas = 0;
+        int     total       = 0, atendidas = 0, confirmadas = 0, programadas = 0, canceladas = 0, otros = 0;
         decimal valorAtendido = 0m;
 
         foreach (var fila in filas)
@@ -206,10 +216,13 @@ public sealed class CitasDashboardService : ICitasDashboardService
                 case "cancelada":
                     canceladas++;
                     break;
+                default:
+                    otros++;
+                    break;
             }
         }
 
-        return new ResumenMes(total, atendidas, confirmadas, programadas, canceladas, valorAtendido);
+        return new ResumenMes(total, atendidas, confirmadas, programadas, canceladas, otros, valorAtendido);
     }
 
     private async Task<IReadOnlyList<TopProfesionalViewModel>> ObtenerTopProfesionalesAsync(
@@ -220,23 +233,15 @@ public sealed class CitasDashboardService : ICitasDashboardService
             .Where(c =>
                 c.FechaHora >= inicioMes &&
                 c.FechaHora <  finMes   &&
-                (c.Estado == "Atendida" ||
-                 c.Estado == "atendida" ||
-                 c.Estado == "Completada" ||
-                 c.Estado == "completada" ||
-                 c.Estado == "Realizada" ||
-                 c.Estado == "realizada" ||
-                 (c.EstadoCita != null &&
-                  (c.EstadoCita.NombreEstado == "Atendida" ||
-                   c.EstadoCita.NombreEstado == "atendida" ||
-                   c.EstadoCita.NombreEstado == "Completada" ||
-                   c.EstadoCita.NombreEstado == "completada" ||
-                   c.EstadoCita.NombreEstado == "Realizada" ||
-                   c.EstadoCita.NombreEstado == "realizada"))) &&
+                EstadosAtendidos.Contains(
+                    (c.EstadoCita != null
+                        ? c.EstadoCita.NombreEstado
+                        : c.Estado).Trim().ToLower()) &&
                 c.IdProfesional.HasValue)
             .GroupBy(c => c.IdProfesional)
             .Select(g => new { IdProfesional = g.Key!.Value, Total = g.Count() })
             .OrderByDescending(x => x.Total)
+            .ThenBy(x => x.IdProfesional)
             .Take(3)
             .ToListAsync(ct);
 
@@ -285,7 +290,9 @@ public sealed class CitasDashboardService : ICitasDashboardService
     {
         var horarios = await _context.HorariosProfesional
             .AsNoTracking()
-            .Where(h => h.Activo)
+            .Where(h => h.Activo &&
+                        h.Profesional != null &&
+                        h.Profesional.Estado.Trim().ToLower() == "activo")
             .ToListAsync(ct);
 
         if (horarios.Count == 0)
@@ -303,17 +310,8 @@ public sealed class CitasDashboardService : ICitasDashboardService
 
         double capacidad = minutosDisponibles / duracion;
 
-        // Citas activas (no canceladas) del mes como numerador.
-        int citasActivas = await _context.Citas
-            .AsNoTracking()
-            .CountAsync(c =>
-                c.FechaHora >= inicioMes &&
-                c.FechaHora <  finMes   &&
-                c.Estado != "Cancelada" &&
-                c.Estado != "cancelada" &&
-                c.Estado != "Cancelado" &&
-                c.Estado != "cancelado",
-                ct);
+        // Las cancelaciones no consumen capacidad; las demás citas reservan un espacio.
+        int citasActivas = await ContarCitasNoCanceladasAsync(inicioMes, finMes, ct);
 
         return Math.Clamp(
             (int)Math.Round(citasActivas / capacidad * 100d),

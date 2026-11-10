@@ -153,48 +153,70 @@ public sealed class ConsultoriosApiController : ControllerBase
             ? parsedUserId
             : null;
 
-        if (!string.IsNullOrWhiteSpace(request.Estado))
-        {
-            string estadoAnterior = NormalizeConsultorioStatus(consultorio.Estado);
-            string estadoNuevo = request.Estado.Trim().ToLowerInvariant() switch
+        string estadoAnterior = NormalizeConsultorioStatus(consultorio.Estado);
+        string estadoNuevo = !string.IsNullOrWhiteSpace(request.Estado)
+            ? request.Estado.Trim().ToLowerInvariant() switch
             {
                 "disponible"    => "disponible",
                 "ocupado" => "ocupado",
                 "mantenimiento" => "mantenimiento",
                 "no-disponible" or "no_disponible" => "no-disponible",
                 _ => string.Empty
-            };
-            if (string.IsNullOrEmpty(estadoNuevo))
-                return BadRequest(new { success = false, message = "El estado del consultorio no es válido." });
-
-            consultorio.Estado = estadoNuevo;
-            bool statusChanged = !string.Equals(estadoAnterior, estadoNuevo, StringComparison.Ordinal);
-            if (statusChanged)
-            {
-                _context.ConsultoriosHistorial.Add(new ConsultorioHistorial
-                {
-                    IdConsultorio = id,
-                    Estado = estadoNuevo,
-                    IdEstadoAnterior = ConsultorioStatusId(estadoAnterior),
-                    IdEstadoNuevo = ConsultorioStatusId(estadoNuevo),
-                    IdUsuario = userId,
-                    Motivo = request.Observaciones?.Trim(),
-                    FechaCambio = DateTime.UtcNow
-                });
             }
+            : estadoAnterior;
 
-            await _context.SaveChangesAsync(ct);
-            _memoryCache.Remove(CatalogCacheKeys.Consultorios);
-            _memoryCache.Remove(CatalogCacheKeys.ConsultoriosDisponibles);
+        if (!string.IsNullOrWhiteSpace(request.Estado) && string.IsNullOrEmpty(estadoNuevo))
+            return BadRequest(new { success = false, message = "El estado del consultorio no es válido." });
+
+        bool statusChanged = !string.Equals(estadoAnterior, estadoNuevo, StringComparison.Ordinal);
+        consultorio.Estado = estadoNuevo;
+
+        var operativo = await _context.EstadosOperativosConsultorio
+            .FirstOrDefaultAsync(e => e.IdConsultorio == id, ct);
+        if (operativo is null)
+        {
+            operativo = new ConsultorioEstadoOperativo { IdConsultorio = id };
+            _context.EstadosOperativosConsultorio.Add(operativo);
         }
+
+        if (request.Checklist is not null)
+        {
+            operativo.ChecklistJson = JsonSerializer.Serialize(request.Checklist);
+        }
+        if (request.Observaciones is not null)
+        {
+            operativo.Observaciones = request.Observaciones.Trim();
+        }
+        operativo.ActualizadoPor = userId;
+        operativo.ActualizadoEn = DateTime.UtcNow;
+
+        if (statusChanged || request.ForzarHistorial == true)
+        {
+            _context.ConsultoriosHistorial.Add(new ConsultorioHistorial
+            {
+                IdConsultorio = id,
+                Estado = estadoNuevo,
+                IdEstadoAnterior = ConsultorioStatusId(estadoAnterior),
+                IdEstadoNuevo = ConsultorioStatusId(estadoNuevo),
+                IdUsuario = userId,
+                Motivo = string.IsNullOrWhiteSpace(request.Observaciones)
+                    ? (request.ForzarHistorial == true ? "Preparación de consultorio confirmada" : null)
+                    : request.Observaciones.Trim(),
+                FechaCambio = DateTime.UtcNow
+            });
+        }
+
+        await _context.SaveChangesAsync(ct);
+        _memoryCache.Remove(CatalogCacheKeys.Consultorios);
+        _memoryCache.Remove(CatalogCacheKeys.ConsultoriosDisponibles);
 
         _logger.LogInformation(
             "Estado de consultorio {Id} confirmado: {Estado} — Observaciones: {Obs}",
             id,
-            request.Estado,
+            estadoNuevo,
             request.Observaciones);
 
-        return Ok(new { success = true, message = "Estado registrado correctamente." });
+        return Ok(new { success = true, statusChanged, message = "Estado registrado correctamente." });
     }
 
     [HttpGet("{id:int}/estado-operativo")]
@@ -235,7 +257,7 @@ public sealed class ConsultoriosApiController : ControllerBase
         {
             IdConsultorio = id,
             Estado = consultorio.Estado,
-            Checklist = operativo is null ? [] : JsonSerializer.Deserialize<object[]>(operativo.ChecklistJson) ?? [],
+            Checklist = DeserializarChecklist(operativo?.ChecklistJson),
             Observaciones = operativo?.Observaciones,
             ActualizadoEn = operativo?.ActualizadoEn,
             Historial = historial
@@ -304,6 +326,19 @@ public sealed class ConsultoriosApiController : ControllerBase
         return Ok(new { success = true, statusChanged, message = "Estado operativo guardado correctamente." });
     }
 
+    private static object[] DeserializarChecklist(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try
+        {
+            return JsonSerializer.Deserialize<object[]>(json) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     private static string NormalizeConsultorioStatus(string? status) =>
         status?.Trim().ToLowerInvariant() switch
         {
@@ -332,6 +367,8 @@ public sealed class ConfirmarEstadoRequest
 {
     public string? Estado { get; set; }
     public string? Observaciones { get; set; }
+    public object[]? Checklist { get; set; }
+    public bool? ForzarHistorial { get; set; }
 }
 
 /// <summary>Request body para POST /api/consultorios/guardar-preferencia.</summary>

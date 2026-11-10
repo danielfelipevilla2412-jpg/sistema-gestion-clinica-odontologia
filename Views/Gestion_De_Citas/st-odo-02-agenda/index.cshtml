@@ -27,6 +27,7 @@
     int pendientesHoyCount = diaHoy?.Citas.Count(c => !c.Estado.Equals("Atendida", StringComparison.OrdinalIgnoreCase) && !c.Estado.Equals("Cancelada", StringComparison.OrdinalIgnoreCase)) ?? 0;
     int totalPendientesSemana = Model.Dias.Sum(d => d.Citas.Count(c => !c.Estado.Equals("Cancelada", StringComparison.OrdinalIgnoreCase)));
     int progresoPct = citasHoyCount > 0 ? (int)Math.Round((double)atendidasHoyCount * 100 / citasHoyCount) : 0;
+    var totalSemana = (int)(ViewData["TotalCitasSemana"] ?? 0);
 }
 
 @section Styles {
@@ -56,8 +57,8 @@
         </div>
     </header>
 
-    <!-- Resumen de KPIs y Progreso Diario -->
-    <section class="stats-grid" aria-label="Resumen de citas del día" data-i18n-aria-label="citas.title">
+    <!-- Resumen de KPIs — unificado: día + semana en un solo bloque -->
+    <section class="stats-grid" aria-label="Resumen de citas del día y la semana" data-i18n-aria-label="citas.title">
         <div class="stat-card" data-color="blue">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">event</span>
             <span class="stat-number" id="statHoy" data-target="@citasHoyCount" aria-live="polite">0</span>
@@ -66,7 +67,7 @@
         <div class="stat-card" data-color="green">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
             <span class="stat-number" id="statAtendidas" data-target="@atendidasHoyCount" aria-live="polite">0</span>
-            <span class="stat-label" data-i18n="status.attended">Atendidas</span>
+            <span class="stat-label" data-i18n="status.attended">Atendidas hoy</span>
         </div>
         <div class="stat-card" data-color="orange">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule</span>
@@ -75,8 +76,8 @@
         </div>
         <div class="stat-card" data-color="purple">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">date_range</span>
-            <span class="stat-number" id="statMes" data-target="@totalPendientesSemana" aria-live="polite">0</span>
-            <span class="stat-label">Pendientes en la semana</span>
+            <span class="stat-number" id="statMes" data-target="@(totalSemana)" aria-live="polite">0</span>
+            <span class="stat-label">Citas en la semana</span>
         </div>
     </section>
 
@@ -164,44 +165,6 @@
         <div>
             <strong>Horario de atención médica</strong>
             <span>@Model.HorarioApertura - @Model.HorarioCierre · @Model.DiasAtencionTexto · @Model.DuracionCitaMinutos min por consulta</span>
-        </div>
-    </section>
-
-    <!-- Panel de Estadísticas Rápidas -->
-    @{
-        var totalSemana = (int)(ViewData["TotalCitasSemana"] ?? 0);
-        var programadas = (int)(ViewData["CitasProgramadas"] ?? 0);
-        var confirmadas = (int)(ViewData["CitasConfirmadas"] ?? 0);
-        var atendidas = (int)(ViewData["CitasAtendidas"] ?? 0);
-    }
-    <section class="quick-stats-panel" aria-label="Estadísticas de la semana">
-        <div class="quick-stat-item" data-status="total">
-            <span class="material-symbols-outlined">event</span>
-            <div>
-                <strong>@totalSemana</strong>
-                <span>Total semana</span>
-            </div>
-        </div>
-        <div class="quick-stat-item" data-status="programada">
-            <span class="material-symbols-outlined">schedule</span>
-            <div>
-                <strong>@programadas</strong>
-                <span>Programadas</span>
-            </div>
-        </div>
-        <div class="quick-stat-item" data-status="confirmada">
-            <span class="material-symbols-outlined">check_circle</span>
-            <div>
-                <strong>@confirmadas</strong>
-                <span>Confirmadas</span>
-            </div>
-        </div>
-        <div class="quick-stat-item" data-status="atendida">
-            <span class="material-symbols-outlined">task_alt</span>
-            <div>
-                <strong>@atendidas</strong>
-                <span>Atendidas</span>
-            </div>
         </div>
     </section>
 
@@ -297,6 +260,11 @@
     </section>
 </main>
 
+<!-- FAB: agendar nueva cita / sobrecupo -->
+<button type="button" class="fab" id="btnNewAppointment" aria-label="Agendar nueva cita" title="Agendar nueva cita">
+    <span class="material-symbols-outlined" aria-hidden="true">add</span>
+</button>
+
 <!-- Modal: Detalle de Cita y Acciones Clínicas -->
 <div class="modal-overlay" id="modalAppointment" role="dialog" aria-modal="true"
      aria-labelledby="modalApptTitle" aria-hidden="true" inert>
@@ -305,7 +273,7 @@
             <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
         <h2 class="modal-title" id="modalApptTitle">Detalle de Cita</h2>
-        <div class="modal-content" id="modalApptContent" aria-live="polite"></div>
+        <div class="appointment-detail-content" id="modalApptContent" aria-live="polite"></div>
         <div class="modal-footer modal-actions-grid">
             <button type="button" class="btn-secondary" id="modalApptReagendar" hidden>Reagendar</button>
             <a href="/historia-clinica/st-odo-04-odontograma" class="btn-primary" id="btnIniciarAtencion">
@@ -318,7 +286,7 @@
             </button>
             <button type="button" class="btn-secondary btn-danger" id="modalApptCancelar">
                 <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
-                No asistió / Cancelar
+                Registrar inasistencia
             </button>
         </div>
     </div>
@@ -332,11 +300,14 @@
             <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
         <h2 class="modal-title" id="modalNewApptTitle">Agendar Nueva Cita</h2>
-        <div class="modal-content">
+        <div class="appointment-form-content">
             <form id="formNewAppointment" method="post" action="/gestion-de-citas/guardar-cita" novalidate>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="ReturnUrl" value="/gestion-de-citas/st-odo-02-agenda" />
                 <input type="hidden" id="appointmentId" name="IdCita" value="" />
+                @* El profesional solo puede agendar citas para sí mismo (validado en GuardarCita);
+                   sin este IdProfesional el POST sería rechazado. *@
+                <input type="hidden" name="IdProfesional" value="@Model.ProfessionalId" />
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="newApptDate">Fecha</label>
@@ -406,15 +377,15 @@
 <!-- Navegación móvil -->
 <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
-        <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">dashboard</span>
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">dashboard</span></span>
         <span>Dashboard</span>
     </a>
     <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item active" aria-current="page">
-        <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
         <span>Agenda</span>
     </a>
     <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item">
-        <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
         <span>Perfil</span>
     </a>
 </nav>

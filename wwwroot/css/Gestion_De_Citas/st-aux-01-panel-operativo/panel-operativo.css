@@ -192,14 +192,14 @@ img { max-width: 100%; height: auto; display: block; }
   flex-wrap: wrap;
 }
 .breadcrumb { font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
-.page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; color: var(--primary); }
-.page-subtitle { font-size: .82rem; color: var(--text-muted); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+.page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; line-height: 1.25; color: var(--primary); }
+.page-subtitle { font-size: .82rem; font-weight: 400; line-height: 1.5; color: var(--text-muted); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
 
 /* .section-title se usaba en el markup (bloque "Ocupación de agenda") sin
    ninguna regla propia — heredaba el h2 por defecto del navegador. Se le da
    el mismo tratamiento tipográfico que .card-title para que ambos títulos
    de sección se vean como parte del mismo sistema. */
-.section-title { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.section-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; line-height: 1.35; color: var(--text); margin-bottom: 2px; }
 
 /* ═══ BOTÓN EXPORTAR ═══ */
 .btn-primary {
@@ -233,7 +233,7 @@ img { max-width: 100%; height: auto; display: block; }
   transition: width .6s ease;
   will-change: width;
 }
-.progress-label { font-size: .76rem; color: var(--text-muted); white-space: nowrap; }
+.progress-label { font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
 
 /* ═══ STATS GRID (IDÉNTICO A st-odo-01) ═══ */
 .stats-grid {
@@ -262,7 +262,7 @@ img { max-width: 100%; height: auto; display: block; }
 .stat-card--primary { border-left-width: 6px; background: linear-gradient(180deg, var(--primary-light) 0%, var(--white) 55%); }
 .stat-icon {
   position: absolute; top: 14px; right: 16px;
-  font-size: 20px; color: var(--text-muted); opacity: .35;
+  font-size: 1.25rem; color: var(--text-muted); opacity: .35;
 }
 .stat-number {
   display: block;
@@ -273,7 +273,7 @@ img { max-width: 100%; height: auto; display: block; }
 .stat-card[data-color="green"] .stat-number { color: var(--green); }
 .stat-card[data-color="orange"] .stat-number { color: var(--orange); }
 .stat-card[data-color="purple"] .stat-number { color: var(--purple); }
-.stat-label { font-size: .77rem; color: var(--text-muted); font-weight: 500; }
+.stat-label { font-size: .78rem; color: var(--text-muted); font-weight: 500; }
 
 /* ═══ CONTENT GRID ═══ */
 .content-grid {
@@ -294,7 +294,7 @@ img { max-width: 100%; height: auto; display: block; }
 }
 .card-title {
   font-family: var(--font-display);
-  font-size: 1rem; font-weight: 700; color: var(--primary);
+  font-size: 1.05rem; font-weight: 600; line-height: 1.35; color: var(--text);
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
@@ -358,7 +358,7 @@ img { max-width: 100%; height: auto; display: block; }
 .avatar-purple { background: var(--purple); }
 .td-name { font-weight: 600; color: var(--text); }
 .badge-spec {
-  font-size: .7rem; font-weight: 600;
+  font-size: .72rem; font-weight: 600;
   padding: 2px 8px; border-radius: 4px;
   background: var(--bg); color: var(--text-muted);
 }
@@ -501,9 +501,8 @@ img { max-width: 100%; height: auto; display: block; }
 
 }
 @media (max-width: 480px) {
-  .page-title { font-size: 1.2rem; }
+  .page-title { font-size: 1.25rem; }
   .stat-number { font-size: 1.9rem; }
-  .stat-icon { display: none; }
   .table-base th:nth-child(2),
   .table-base td:nth-child(2) { display: none; }
   .status-label { width: 72px; font-size: .72rem; }

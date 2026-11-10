@@ -112,6 +112,7 @@ public sealed class AgendaService(
 
     private static AgendaCitaViewModel MapearCita(Cita cita, int duracion)
     {
+        var duracionCita = cita.DuracionMinutos > 0 ? cita.DuracionMinutos : duracion;
         var nombrePaciente = $"{cita.Paciente?.Nombres} {cita.Paciente?.Apellidos}".Trim();
 
         var nombresProf = cita.Profesional?.Usuario?.Nombre?.Trim();
@@ -138,7 +139,7 @@ public sealed class AgendaService(
             Fecha = cita.FechaHora.Date,
             Hora = cita.FechaHora.ToString("HH:mm"),
             HoraInicio = cita.FechaHora.ToString("HH:mm"),
-            HoraFin = cita.FechaHora.AddMinutes(duracion).ToString("HH:mm"),
+            HoraFin = cita.FechaHora.AddMinutes(duracionCita).ToString("HH:mm"),
             Paciente = string.IsNullOrWhiteSpace(nombrePaciente) ? "Paciente sin datos" : nombrePaciente,
             NombreProfesional = string.IsNullOrWhiteSpace(nombreProfesional) ? "Sin profesional" : nombreProfesional,
             CorreoProfesional = correoProfesional,
