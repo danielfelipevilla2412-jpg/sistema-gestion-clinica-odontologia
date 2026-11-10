@@ -529,6 +529,8 @@ builder.Services.AddScoped<
     SmileTrack_MVC.Services.HistoriaClinicaService>();
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.AuditoriaHistoriaClinicaService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.PacienteFusionService>();
 
 // -----------------------------------------------------------------------------
 // URL DE ESCUCHA

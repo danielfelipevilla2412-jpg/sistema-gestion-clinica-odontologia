@@ -30,6 +30,12 @@ public class PlanTratamiento
     [StringLength(20)]
     public string Estado { get; set; } = "propuesto";
 
+    // Yeray: Guarda la estimación editable del profesional; las realizadas se cuentan desde Plan_Sesion.
+    [Required]
+    [Column("sesiones_estimadas")]
+    [Range(0, int.MaxValue)]
+    public int SesionesEstimadas { get; set; }
+
     [Column("observacion")]
     [StringLength(1000)]
     public string? Observacion { get; set; }

@@ -110,6 +110,93 @@ public class HistoriaClinicaStructuredDataTests
         Assert.Equal("Valorar pieza temporal", plan.Observacion);
     }
 
+    // Yeray: Verifica que las sesiones se registren como eventos y que superar la estimación solo genere una advertencia.
+    [Fact]
+    public async Task RegistrarSesionPlan_PermiteSuperarEstimacionYAuditaElEvento()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, profesional) = CrearControlador(db);
+        var servicio = new Servicio { Nombre = "Control", Estado = "activo", Categoria = "operatoria" };
+        db.Servicios.Add(servicio);
+        await db.SaveChangesAsync();
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow,
+            Activa = true
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+        var plan = new PlanTratamiento
+        {
+            IdHistoria = historia.IdHistoria,
+            IdServicio = servicio.IdServicio,
+            IdProfesional = profesional.IdProfesional,
+            SesionesEstimadas = 0
+        };
+        db.PlanesTratamiento.Add(plan);
+        await db.SaveChangesAsync();
+
+        var result = await controller.RegistrarSesionPlan(plan.IdPlan, new PlanSesionRegistrarRequest(), CancellationToken.None);
+
+        Assert.IsType<JsonResult>(result);
+        var sesion = await db.SesionesPlan.SingleAsync();
+        Assert.Equal(plan.IdPlan, sesion.IdPlan);
+        Assert.Equal(profesional.IdProfesional, sesion.IdProfesionalRegistro);
+        Assert.False(sesion.Anulada);
+        Assert.Contains("superan la estimación", (string?)result.GetType().GetProperty("Value")?.GetValue(result)?.GetType().GetProperty("message")?.GetValue(result.GetType().GetProperty("Value")?.GetValue(result)));
+        Assert.Contains("Plan_Sesion", (await db.Auditorias.SingleAsync()).TablaAfectada);
+    }
+
+    // Yeray: Comprueba que anular conserva el evento, exige motivo y registra la corrección sin borrarlo.
+    [Fact]
+    public async Task AnularSesionPlan_ConservaRegistroYAuditaMotivo()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, profesional) = CrearControlador(db);
+        var servicio = new Servicio { Nombre = "Control", Estado = "activo", Categoria = "operatoria" };
+        db.Servicios.Add(servicio);
+        await db.SaveChangesAsync();
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow,
+            Activa = true
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+        var plan = new PlanTratamiento
+        {
+            IdHistoria = historia.IdHistoria,
+            IdServicio = servicio.IdServicio,
+            IdProfesional = profesional.IdProfesional
+        };
+        db.PlanesTratamiento.Add(plan);
+        await db.SaveChangesAsync();
+        var sesion = new PlanSesion
+        {
+            IdPlan = plan.IdPlan,
+            IdProfesionalRegistro = profesional.IdProfesional,
+            FechaSesion = DateTime.UtcNow
+        };
+        db.SesionesPlan.Add(sesion);
+        await db.SaveChangesAsync();
+
+        var result = await controller.AnularSesionPlan(
+            sesion.IdSesion,
+            new PlanSesionAnularRequest { Motivo = "Registro duplicado" },
+            CancellationToken.None);
+
+        Assert.IsType<JsonResult>(result);
+        var stored = await db.SesionesPlan.SingleAsync();
+        Assert.True(stored.Anulada);
+        Assert.Equal("Registro duplicado", stored.MotivoAnulacion);
+        Assert.Equal(profesional.IdProfesional, stored.IdProfesionalAnula);
+        var auditoria = await db.Auditorias.SingleAsync();
+        Assert.Equal("UPDATE", auditoria.Accion);
+        Assert.Equal("Plan_Sesion", auditoria.TablaAfectada);
+    }
+
     [Fact]
     public async Task GuardarFormularioHistoria_VinculaConsultaConNotaYCitaProxima()
     {

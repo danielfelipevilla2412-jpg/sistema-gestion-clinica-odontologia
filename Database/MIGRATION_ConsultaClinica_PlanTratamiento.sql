@@ -39,7 +39,8 @@ BEGIN
         CONSTRAINT FK_Consulta_Clinica_Cita FOREIGN KEY (id_cita)
             REFERENCES dbo.Cita(id_cita) ON DELETE SET NULL,
         CONSTRAINT FK_Consulta_Clinica_Nota FOREIGN KEY (id_nota)
-            REFERENCES dbo.Nota_Clinica(id_nota) ON DELETE SET NULL,
+            -- Yeray: Evita una ruta de cascada múltiple porque la nota ya se elimina en cascada desde la historia clínica.
+            REFERENCES dbo.Nota_Clinica(id_nota) ON DELETE NO ACTION,
         CONSTRAINT FK_Consulta_Clinica_ProximaCita FOREIGN KEY (id_proxima_cita)
             REFERENCES dbo.Cita(id_cita),
         CONSTRAINT FK_Consulta_Clinica_Profesional FOREIGN KEY (id_profesional)
@@ -126,6 +127,7 @@ BEGIN
         id_servicio INT NOT NULL,
         id_profesional INT NULL,
         numero_fdi NVARCHAR(5) NULL,
+        sesiones_estimadas INT NOT NULL CONSTRAINT DF_Plan_Tratamiento_sesiones_estimadas DEFAULT 0,
         estado NVARCHAR(20) NOT NULL CONSTRAINT DF_Plan_Tratamiento_estado DEFAULT N'propuesto',
         observacion NVARCHAR(1000) NULL,
         fecha_registro DATETIME2 NOT NULL CONSTRAINT DF_Plan_Tratamiento_fecha_registro DEFAULT SYSUTCDATETIME(),
@@ -137,6 +139,7 @@ BEGIN
         CONSTRAINT FK_Plan_Tratamiento_Profesional FOREIGN KEY (id_profesional)
             REFERENCES dbo.Profesional(id_profesional) ON DELETE SET NULL,
         CONSTRAINT CK_Plan_Tratamiento_Estado CHECK (estado IN (N'propuesto', N'aprobado', N'en-curso', N'pausado', N'completado', N'cancelado')),
+        CONSTRAINT CK_Plan_Tratamiento_SesionesEstimadas CHECK (sesiones_estimadas >= 0),
         CONSTRAINT CK_Plan_Tratamiento_NumeroFdi CHECK
         (
             numero_fdi IS NULL
@@ -151,12 +154,63 @@ BEGIN
 END;
 GO
 
+-- Yeray: Agrega la estimación a planes ya existentes y valida que no sea negativa.
+IF COL_LENGTH(N'dbo.Plan_Tratamiento', N'sesiones_estimadas') IS NULL
+    ALTER TABLE dbo.Plan_Tratamiento ADD sesiones_estimadas INT NOT NULL
+        CONSTRAINT DF_Plan_Tratamiento_sesiones_estimadas DEFAULT 0;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Plan_Tratamiento_SesionesEstimadas' AND parent_object_id = OBJECT_ID(N'dbo.Plan_Tratamiento'))
+    ALTER TABLE dbo.Plan_Tratamiento ADD CONSTRAINT CK_Plan_Tratamiento_SesionesEstimadas CHECK (sesiones_estimadas >= 0);
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Plan_Tratamiento_Historia' AND object_id = OBJECT_ID(N'dbo.Plan_Tratamiento'))
     CREATE INDEX IX_Plan_Tratamiento_Historia ON dbo.Plan_Tratamiento(id_historia);
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Plan_Tratamiento_Profesional' AND object_id = OBJECT_ID(N'dbo.Plan_Tratamiento'))
     CREATE INDEX IX_Plan_Tratamiento_Profesional ON dbo.Plan_Tratamiento(id_profesional);
+GO
+
+-- Yeray: Las sesiones realizadas se registran como eventos anulables, no como un contador editable, para conservar trazabilidad clínica.
+IF OBJECT_ID(N'dbo.Plan_Sesion', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Plan_Sesion
+    (
+        id_sesion INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Plan_Sesion PRIMARY KEY,
+        id_plan INT NOT NULL,
+        fecha_sesion DATETIME2 NOT NULL CONSTRAINT DF_Plan_Sesion_fecha DEFAULT SYSUTCDATETIME(),
+        id_profesional_registro INT NOT NULL,
+        id_cita INT NULL,
+        id_nota INT NULL,
+        registrada_en DATETIME2 NOT NULL CONSTRAINT DF_Plan_Sesion_registrada DEFAULT SYSUTCDATETIME(),
+        anulada BIT NOT NULL CONSTRAINT DF_Plan_Sesion_anulada DEFAULT 0,
+        motivo_anulacion NVARCHAR(500) NULL,
+        anulada_en DATETIME2 NULL,
+        id_profesional_anula INT NULL,
+        CONSTRAINT FK_Plan_Sesion_Plan FOREIGN KEY (id_plan)
+            REFERENCES dbo.Plan_Tratamiento(id_plan) ON DELETE CASCADE,
+        CONSTRAINT FK_Plan_Sesion_ProfesionalRegistro FOREIGN KEY (id_profesional_registro)
+            REFERENCES dbo.Profesional(id_profesional),
+        CONSTRAINT FK_Plan_Sesion_ProfesionalAnula FOREIGN KEY (id_profesional_anula)
+            REFERENCES dbo.Profesional(id_profesional),
+        CONSTRAINT FK_Plan_Sesion_Cita FOREIGN KEY (id_cita)
+            REFERENCES dbo.Cita(id_cita) ON DELETE SET NULL,
+        CONSTRAINT FK_Plan_Sesion_Nota FOREIGN KEY (id_nota)
+            REFERENCES dbo.Nota_Clinica(id_nota) ON DELETE NO ACTION,
+        CONSTRAINT CK_Plan_Sesion_Anulacion CHECK
+        (
+            (anulada = 0 AND motivo_anulacion IS NULL AND anulada_en IS NULL AND id_profesional_anula IS NULL)
+            OR
+            (anulada = 1 AND NULLIF(LTRIM(RTRIM(motivo_anulacion)), N'') IS NOT NULL
+                AND anulada_en IS NOT NULL AND id_profesional_anula IS NOT NULL)
+        )
+    );
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Plan_Sesion_Plan_Activa' AND object_id = OBJECT_ID(N'dbo.Plan_Sesion'))
+    CREATE INDEX IX_Plan_Sesion_Plan_Activa ON dbo.Plan_Sesion(id_plan) WHERE anulada = 0;
 GO
 
 ;WITH HistoriasConFormulario AS

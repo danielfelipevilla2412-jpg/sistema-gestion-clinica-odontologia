@@ -481,6 +481,15 @@ namespace SmileTrack_MVC.Services
                     };
                 }
 
+                if (!request.AceptaTratamientoDatos)
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "Debes autorizar el tratamiento de datos para crear tu cuenta."
+                    };
+                }
+
                 string tipoDocumento = request.TipoDocumento.Trim().ToUpperInvariant();
                 string numeroDocumento = request.NumeroDocumento.Trim().ToUpperInvariant();
                 if (tipoDocumento is not ("CC" or "TI" or "CE" or "PAS"))
@@ -669,6 +678,19 @@ namespace SmileTrack_MVC.Services
 
                         await _context.SaveChangesAsync(ct);
                     }
+
+                    // Yeray: Conserva evidencia de quién aceptó, cuándo, desde qué IP y qué versión legal se mostró.
+                    _context.Auditorias.Add(new Auditoria
+                    {
+                        IdUsuario = newUser.IdUsuario,
+                        TablaAfectada = "Autorizacion_Tratamiento_Datos",
+                        IdRegistro = newUser.IdUsuario,
+                        Accion = "INSERT",
+                        IpOrigen = ipCliente,
+                        Descripcion = "Aceptación de tratamiento de datos personales y sensibles; versión 1.0, noviembre de 2026.",
+                        Fecha = DateTime.UtcNow
+                    });
+                    await _context.SaveChangesAsync(ct);
 
                     await tx.CommitAsync(ct);
                     return (AuthResponse?)null;

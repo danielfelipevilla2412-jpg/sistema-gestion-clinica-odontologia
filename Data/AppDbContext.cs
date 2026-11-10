@@ -33,6 +33,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<DiagnosticoConsulta> DiagnosticosConsulta => Set<DiagnosticoConsulta>();
     public DbSet<SintomaConsulta> SintomasConsulta => Set<SintomaConsulta>();
     public DbSet<PlanTratamiento> PlanesTratamiento => Set<PlanTratamiento>();
+      // Yeray: Expone los eventos de sesión para contar el progreso sin permitir editar manualmente las realizadas.
+      public DbSet<PlanSesion> SesionesPlan => Set<PlanSesion>();
 
     // Yeray - Agregado DbSet para tabla Registro_Odontograma
     // Permite trazabilidad real por diente en lugar de JSON en ObservacionesGenerales
@@ -588,6 +590,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.IdProfesional).HasColumnName("id_profesional");
             entity.Property(p => p.NumeroFdi).HasColumnName("numero_fdi").HasMaxLength(5);
             entity.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20);
+            // Yeray: Mapea la estimación manual y evita inferir sesiones desde citas o facturas.
+            entity.Property(p => p.SesionesEstimadas).HasColumnName("sesiones_estimadas");
             entity.Property(p => p.Observacion).HasColumnName("observacion").HasMaxLength(1000);
             entity.Property(p => p.FechaRegistro).HasColumnName("fecha_registro");
             entity.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en");
@@ -600,6 +604,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(p => p.Profesional).WithMany().HasForeignKey(p => p.IdProfesional)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
+      // Yeray: Mapea sesiones anulables y conserva integridad con plan, nota, cita y profesional responsable.
+      modelBuilder.Entity<PlanSesion>(entity =>
+      {
+          entity.ToTable("Plan_Sesion");
+          entity.HasKey(s => s.IdSesion);
+          entity.Property(s => s.IdSesion).HasColumnName("id_sesion");
+          entity.Property(s => s.IdPlan).HasColumnName("id_plan");
+          entity.Property(s => s.FechaSesion).HasColumnName("fecha_sesion");
+          entity.Property(s => s.IdProfesionalRegistro).HasColumnName("id_profesional_registro");
+          entity.Property(s => s.IdCita).HasColumnName("id_cita");
+          entity.Property(s => s.IdNota).HasColumnName("id_nota");
+          entity.Property(s => s.RegistradaEn).HasColumnName("registrada_en");
+          entity.Property(s => s.Anulada).HasColumnName("anulada");
+          entity.Property(s => s.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(500);
+          entity.Property(s => s.AnuladaEn).HasColumnName("anulada_en");
+          entity.Property(s => s.IdProfesionalAnula).HasColumnName("id_profesional_anula");
+          entity.HasIndex(s => s.IdPlan).HasFilter("[anulada] = 0");
+          entity.HasOne(s => s.Plan).WithMany().HasForeignKey(s => s.IdPlan).OnDelete(DeleteBehavior.Cascade);
+          entity.HasOne(s => s.Cita).WithMany().HasForeignKey(s => s.IdCita).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(s => s.Nota).WithMany().HasForeignKey(s => s.IdNota).OnDelete(DeleteBehavior.NoAction);
+          entity.HasOne(s => s.ProfesionalRegistro).WithMany().HasForeignKey(s => s.IdProfesionalRegistro).OnDelete(DeleteBehavior.NoAction);
+          entity.HasOne(s => s.ProfesionalAnula).WithMany().HasForeignKey(s => s.IdProfesionalAnula).OnDelete(DeleteBehavior.NoAction);
+      });
 
         // Yeray - Configuración Fluent API para Registro_Odontograma
         // Tabla nueva que reemplaza el JSON en Historia_Clinica.observaciones_generales

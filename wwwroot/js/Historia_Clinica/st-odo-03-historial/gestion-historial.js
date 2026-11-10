@@ -450,33 +450,91 @@ const cargarDescripcionCie10 = async (codigo) => {
 };
 
 const initBusquedaCie10 = () => {
-  const datalist = document.getElementById('cie10Sugerencias');
   const mensaje = document.getElementById('cie10CatalogMessage');
+  const activeOptions = new WeakMap();
+  const requestSequence = new WeakMap();
+
+  const cerrarLista = input => {
+    const dropdown = document.getElementById(input.getAttribute('aria-controls'));
+    if (!dropdown) return;
+    dropdown.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    activeOptions.delete(input);
+  };
+
+  const seleccionar = (input, resultado) => {
+    input.value = resultado.codigo;
+    cie10Resultados.set(resultado.codigo.toUpperCase(), resultado);
+    cerrarLista(input);
+    if (input.id === 'diagnostico_principal') {
+      mostrarDescripcionDiagnosticoPrincipal(resultado.codigo, resultado);
+    }
+  };
+
+  const mostrarOpciones = (input, resultados) => {
+    const dropdown = document.getElementById(input.getAttribute('aria-controls'));
+    if (!dropdown) return;
+    dropdown.replaceChildren();
+    activeOptions.set(input, -1);
+
+    if (!resultados.length) {
+      const empty = document.createElement('div');
+      empty.className = 'cie10-option-empty';
+      empty.textContent = 'No se encontraron diagnósticos.';
+      dropdown.append(empty);
+    } else {
+      resultados.forEach((resultado, index) => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.id = `${dropdown.id}-opcion-${index}`;
+        option.className = 'cie10-option';
+        option.setAttribute('role', 'option');
+        option.setAttribute('aria-selected', 'false');
+        const code = document.createElement('span');
+        code.className = 'cie10-option-code';
+        code.textContent = resultado.codigo;
+        const description = document.createElement('span');
+        description.className = 'cie10-option-description';
+        description.textContent = resultado.descripcion;
+        option.append(code, description);
+        option.addEventListener('mousedown', event => event.preventDefault());
+        option.addEventListener('click', () => seleccionar(input, resultado));
+        dropdown.append(option);
+      });
+    }
+
+    dropdown.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  };
+
   const buscar = debounce(async input => {
     const termino = input.value.trim();
-    if (termino.length < 2) return;
+    const busqueda = termino.length === 0 ? 'K' : termino;
+    if (busqueda.length < 2 && busqueda.toUpperCase() !== 'K') {
+      cerrarLista(input);
+      return;
+    }
+    const secuencia = (requestSequence.get(input) || 0) + 1;
+    requestSequence.set(input, secuencia);
 
     try {
-      const response = await fetch(`/historia-clinica/st-odo-03-historial/cie10?busqueda=${encodeURIComponent(termino)}`, {
+      const response = await fetch(`/historia-clinica/st-odo-03-historial/cie10?busqueda=${encodeURIComponent(busqueda)}`, {
         headers: { Accept: 'application/json' }
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const resultados = await response.json();
+      if (requestSequence.get(input) !== secuencia) return;
       resultados.forEach(resultado => cie10Resultados.set(resultado.codigo.toUpperCase(), resultado));
       const codigoPrincipal = document.getElementById('diagnostico_principal')?.value.trim().toUpperCase();
       const resultadoPrincipal = codigoPrincipal ? buscarCie10EnCache(codigoPrincipal) : null;
       if (codigoPrincipal) mostrarDescripcionDiagnosticoPrincipal(codigoPrincipal, resultadoPrincipal);
-      if (datalist) {
-        datalist.replaceChildren(...resultados.map(resultado => {
-          const option = document.createElement('option');
-          option.value = resultado.codigo;
-          option.label = resultado.descripcion;
-          return option;
-        }));
-      }
+      mostrarOpciones(input, resultados);
       if (mensaje) {
         mensaje.textContent = resultados.length
-          ? `${resultados.length} coincidencia(s) del catálogo. Selecciona un código válido.`
+          ? busqueda.toUpperCase() === 'K'
+            ? 'Diagnósticos odontológicos K. Escribe para buscar en todo el catálogo CIE-10.'
+            : `${resultados.length} coincidencia(s) del catálogo. Selecciona un código válido.`
           : 'Sin resultados. Verifica que el catálogo CIE-10 oficial esté cargado.';
       }
     } catch (error) {
@@ -488,6 +546,39 @@ const initBusquedaCie10 = () => {
   ['diagnostico_principal', 'diagnostico_secundario_input'].forEach(id => {
     const input = document.getElementById(id);
     input?.addEventListener('input', () => buscar(input));
+    input?.addEventListener('focus', () => buscar(input));
+    input?.addEventListener('keydown', event => {
+      const dropdown = document.getElementById(input.getAttribute('aria-controls'));
+      const options = dropdown?.querySelectorAll('[role="option"]') || [];
+      if (event.key === 'Escape') {
+        cerrarLista(input);
+      } else if (event.key === 'ArrowDown' && !dropdown?.hidden && options.length) {
+        event.preventDefault();
+        const next = Math.min((activeOptions.get(input) ?? -1) + 1, options.length - 1);
+        activeOptions.set(input, next);
+        options.forEach((option, index) => option.setAttribute('aria-selected', String(index === next)));
+        input.setAttribute('aria-activedescendant', options[next].id);
+        options[next].scrollIntoView({ block: 'nearest' });
+      } else if (event.key === 'ArrowUp' && !dropdown?.hidden && options.length) {
+        event.preventDefault();
+        const previous = Math.max((activeOptions.get(input) ?? options.length) - 1, 0);
+        activeOptions.set(input, previous);
+        options.forEach((option, index) => option.setAttribute('aria-selected', String(index === previous)));
+        input.setAttribute('aria-activedescendant', options[previous].id);
+        options[previous].scrollIntoView({ block: 'nearest' });
+      } else if (event.key === 'Enter' && !dropdown?.hidden && (activeOptions.get(input) ?? -1) >= 0) {
+        event.preventDefault();
+        options[activeOptions.get(input)].click();
+      }
+    });
+  });
+
+  document.addEventListener('click', event => {
+    ['diagnostico_principal', 'diagnostico_secundario_input'].forEach(id => {
+      const input = document.getElementById(id);
+      const dropdown = input && document.getElementById(input.getAttribute('aria-controls'));
+      if (input && dropdown && !input.closest('.cie10-autocomplete')?.contains(event.target)) cerrarLista(input);
+    });
   });
   document.getElementById('diagnostico_principal')?.addEventListener('change', () => {
     const codigo = document.getElementById('diagnostico_principal')?.value.trim().toUpperCase();
@@ -512,7 +603,7 @@ const initBusquedaCie10 = () => {
 
   document.getElementById('btnAgregarDiagnosticoSecundario')?.addEventListener('click', agregar);
   document.getElementById('diagnostico_secundario_input')?.addEventListener('keydown', event => {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && (activeOptions.get(event.currentTarget) ?? -1) < 0) {
       event.preventDefault();
       agregar();
     }

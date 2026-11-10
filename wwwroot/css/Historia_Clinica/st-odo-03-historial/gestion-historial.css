@@ -756,6 +756,73 @@ a { text-decoration: none; }
   gap: 18px;
 }
 
+/* Yeray: Presenta opciones CIE-10 como un desplegable visible y accesible, independiente del soporte nativo de datalist. */
+.cie10-autocomplete {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cie10-autocomplete > input {
+  width: 100%;
+}
+
+.cie10-dropdown {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .16);
+}
+
+.cie10-dropdown[hidden] {
+  display: none;
+}
+
+.cie10-option {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cie10-option:last-child {
+  border-bottom: 0;
+}
+
+.cie10-option:hover,
+.cie10-option[aria-selected="true"] {
+  background: var(--primary-light);
+}
+
+.cie10-option-code {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.cie10-option-description {
+  color: var(--text-muted);
+  font-size: .82rem;
+}
+
+.cie10-option-empty {
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-size: .84rem;
+}
+
 .diagnostico-secundario-controls {
   display: flex;
   gap: 8px;

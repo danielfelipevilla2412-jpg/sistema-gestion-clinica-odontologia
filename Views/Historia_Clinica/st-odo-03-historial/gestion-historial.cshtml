@@ -325,16 +325,21 @@
                     <div class="diagnostic-grid">
                         <div class="field-group">
                             <label for="diagnostico_principal">Diagnóstico Principal (CIE-10) <span class="required-mark">*</span></label>
-                            <input id="diagnostico_principal" type="text" list="cie10Sugerencias" autocomplete="off" placeholder="Buscar por código o descripción" aria-describedby="cie10CatalogMessage" />
-                            <datalist id="cie10Sugerencias"></datalist>
+                            <div class="cie10-autocomplete">
+                                <input id="diagnostico_principal" type="text" autocomplete="off" placeholder="Buscar por código o descripción" aria-describedby="cie10CatalogMessage" aria-autocomplete="list" aria-controls="cie10PrincipalOpciones" aria-expanded="false" />
+                                <div id="cie10PrincipalOpciones" class="cie10-dropdown" role="listbox" aria-label="Diagnósticos CIE-10 principales" hidden></div>
+                            </div>
                             <small id="diagnosticoPrincipalDescripcion" aria-live="polite"></small>
-                            <small id="cie10CatalogMessage" aria-live="polite">Los códigos disponibles dependen del catálogo CIE-10 oficial cargado.</small>
+                            <small id="cie10CatalogMessage" aria-live="polite">Las sugerencias odontológicas K aparecen primero; puedes buscar cualquier código CIE-10.</small>
                             <small id="diagnosticoPrincipalHistorico" hidden></small>
                         </div>
                         <div class="field-group">
                             <label for="diagnostico_secundario_input">Diagnósticos Secundarios / Comorbilidades (CIE-10)</label>
                             <div class="diagnostico-secundario-controls">
-                                <input id="diagnostico_secundario_input" type="text" list="cie10Sugerencias" autocomplete="off" placeholder="Buscar código o descripción" />
+                                <div class="cie10-autocomplete">
+                                    <input id="diagnostico_secundario_input" type="text" autocomplete="off" placeholder="Buscar código o descripción" aria-autocomplete="list" aria-controls="cie10SecundarioOpciones" aria-expanded="false" />
+                                    <div id="cie10SecundarioOpciones" class="cie10-dropdown" role="listbox" aria-label="Diagnósticos CIE-10 secundarios" hidden></div>
+                                </div>
                                 <button type="button" id="btnAgregarDiagnosticoSecundario">Agregar</button>
                             </div>
                             <div id="diagnosticosSecundariosChips" class="diagnosticos-chips" aria-live="polite"></div>

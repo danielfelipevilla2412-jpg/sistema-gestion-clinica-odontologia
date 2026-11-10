@@ -61,6 +61,10 @@
           <option value="">Selecciona un servicio</option>
         </select>
 
+        @* Yeray: Permite al profesional definir una proyección manual separada del conteo real de sesiones. *@
+        <label for="planSesionesEstimadas">Sesiones estimadas</label>
+        <input id="planSesionesEstimadas" type="number" min="0" step="1" value="0" required />
+
         <label for="planNumeroFdi">Pieza dental permanente FDI (opcional)</label>
         <input id="planNumeroFdi" inputmode="numeric" maxlength="2" placeholder="Ej. 16" />
 
@@ -79,6 +83,39 @@
         <button type="submit" id="guardarPlanTratamiento">Guardar en el plan</button>
       </form>
     </section>
+
+    @* Yeray: Registra fechas y vínculos opcionales de sesiones, y pide motivo antes de anular un evento. *@
+    <dialog id="sessionDialog" class="workflow-dialog" aria-labelledby="sessionDialogTitle">
+      <form id="sessionForm" method="dialog">
+        @Html.AntiForgeryToken()
+        <input id="sessionPlanId" type="hidden" />
+        <h2 id="sessionDialogTitle">Registrar sesión realizada</h2>
+        <label for="sessionDate">Fecha de sesión</label>
+        <input id="sessionDate" type="date" required />
+        <label for="sessionCita">Cita relacionada (opcional)</label>
+        <select id="sessionCita"><option value="">Sin cita</option></select>
+        <label for="sessionNota">Nota clínica relacionada (opcional)</label>
+        <select id="sessionNota"><option value="">Sin nota</option></select>
+        <div class="workflow-actions">
+          <button type="submit" class="btn-primary">Registrar sesión</button>
+          <button type="button" class="btn-secondary" data-close-dialog="sessionDialog">Cancelar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="annulSessionDialog" class="workflow-dialog" aria-labelledby="annulSessionDialogTitle">
+      <form id="annulSessionForm" method="dialog">
+        @Html.AntiForgeryToken()
+        <input id="annulSessionId" type="hidden" />
+        <h2 id="annulSessionDialogTitle">Anular sesión</h2>
+        <label for="annulSessionReason">Motivo de anulación</label>
+        <textarea id="annulSessionReason" minlength="3" maxlength="500" rows="3" required></textarea>
+        <div class="workflow-actions">
+          <button type="submit" class="btn-danger">Anular sesión</button>
+          <button type="button" class="btn-secondary" data-close-dialog="annulSessionDialog">Cancelar</button>
+        </div>
+      </form>
+    </dialog>
 
     <!-- ═════ TARJETAS DE ESTADÍSTICAS ═════ -->
     <section class="stats-grid" aria-label="Estadísticas de tratamientos" data-i18n-aria-label="historia.treatment">
@@ -233,6 +270,24 @@
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <style>
+    /* Yeray: Mantiene accesibles y estables los formularios para registrar y corregir sesiones clínicas. */
+    .session-summary { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .session-summary progress { width: 100%; height: 10px; accent-color: var(--green-dark); }
+    .session-summary p, .session-row { font-size: .82rem; color: var(--text-muted); }
+    .session-list { display: grid; gap: 6px; margin-top: 8px; }
+    .session-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .session-row.is-annulled { opacity: .7; text-decoration: line-through; }
+    .session-warning { color: #92400e !important; font-weight: 600; }
+    .session-summary button, .btn-danger { border: 0; border-radius: 8px; padding: 7px 10px; font: inherit; font-weight: 600; }
+    .btn-danger { background: #b91c1c; color: #fff; }
+    .btn-anular-sesion { background: #fee2e2; color: #991b1b; }
+    .workflow-dialog { width: min(520px, calc(100vw - 32px)); max-width: none; margin: auto; padding: 0; border: 1px solid var(--border); border-radius: 8px; color: var(--text); }
+    .workflow-dialog::backdrop { background: rgba(15, 23, 42, .48); }
+    .workflow-dialog form { display: grid; gap: 10px; padding: 22px; }
+    .workflow-dialog h2 { font: 700 1rem var(--font-display); color: var(--primary); }
+    .workflow-dialog label { font-size: .84rem; font-weight: 600; }
+    .workflow-dialog input, .workflow-dialog select, .workflow-dialog textarea { width: 100%; min-width: 0; padding: 9px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+    .workflow-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .skip-link {
       position: absolute;
       top: -40px;

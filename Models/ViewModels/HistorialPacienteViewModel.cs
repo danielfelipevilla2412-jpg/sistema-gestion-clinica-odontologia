@@ -88,6 +88,22 @@ public class PlanTratamientoGuardarRequest
     public string? NumeroFdi { get; set; }
     public string Estado { get; set; } = "propuesto";
     public string? Observacion { get; set; }
+    // Yeray: Recibe la proyección manual del profesional, sin alterar el conteo real de sesiones.
+    public int SesionesEstimadas { get; set; }
+}
+
+// Yeray: Define los datos de una sesión realizada para mantener un registro individual y trazable.
+public class PlanSesionRegistrarRequest
+{
+    public DateTime? FechaSesion { get; set; }
+    public int? CitaId { get; set; }
+    public int? NotaId { get; set; }
+}
+
+// Yeray: Exige un motivo al anular una sesión para conservar la razón clínica del ajuste.
+public class PlanSesionAnularRequest
+{
+    public string? Motivo { get; set; }
 }
 
 public class CitaProximaOpcion
