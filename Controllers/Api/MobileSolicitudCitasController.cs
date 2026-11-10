@@ -13,10 +13,10 @@
  * REGLAS DE NEGOCIO PRINCIPALES:
  * - Filtra servicios disponibles únicamente en estado "activo".
  * - Valida la existencia del paciente autenticado antes de crear la solicitud.
- * - Registra la cita con estado inicial "Pendiente" asignando valores por defecto según catálogo.
+ * - Registra la cita mediante el flujo centralizado con estado inicial "Solicitada".
  *
  * DEPENDENCIAS TÉCNICAS:
- * - AppDbContext, JwtBearerDefaults, Cita, Servicio
+ * - AppDbContext, ICitaService, JwtBearerDefaults
  * ============================================
  */
 
@@ -27,6 +27,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Models.DTOs;
+using SmileTrack_MVC.Services;
 
 namespace SmileTrack_MVC.Controllers.Api;
 
@@ -43,10 +45,12 @@ public class SolicitudCitaMovil
 public class MobileSolicitudCitasController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly ICitaService _citaService;
 
-    public MobileSolicitudCitasController(AppDbContext context)
+    public MobileSolicitudCitasController(AppDbContext context, ICitaService citaService)
     {
         _context = context;
+        _citaService = citaService;
     }
 
     [HttpGet("servicios")]
@@ -102,50 +106,28 @@ public class MobileSolicitudCitasController : ControllerBase
             });
         }
 
-        bool servicioExiste = await _context.Servicios
-            .AnyAsync(
-                s => s.IdServicio == solicitud.IdServicio &&
-                     s.Estado == "activo",
+        try
+        {
+            var cita = await _citaService.SolicitarCitaPacienteAsync(
+                paciente.IdPaciente,
+                new CitaSolicitudPacienteDto
+                {
+                    IdServicio = solicitud.IdServicio,
+                    Fecha = solicitud.FechaHora.Date,
+                    Notas = solicitud.Notas
+                },
                 cancellationToken);
 
-        if (!servicioExiste)
-        {
-            return BadRequest(new
+            return Ok(new
             {
-                message = "El servicio seleccionado no está disponible."
+                id = cita.IdCita,
+                estado = cita.Estado,
+                message = "Solicitud registrada correctamente. La clínica asignará el profesional y confirmará el horario."
             });
         }
-
-       var estadoAgendada = await _context.EstadosCita
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                e => e.NombreEstado == "Agendada",
-                cancellationToken);
-
-        if (estadoAgendada is null)
+        catch (InvalidOperationException ex)
         {
-            return BadRequest(new
-            {
-                message = "No se encontró el estado Agendada en la base de datos."
-            });
+            return BadRequest(new { message = ex.Message });
         }
-
-        var cita = new Cita
-        {
-            IdPaciente = paciente.IdPaciente,
-            IdServicio = solicitud.IdServicio,
-            FechaHora = solicitud.FechaHora,
-            IdEstado = estadoAgendada.IdEstado,
-            Estado = estadoAgendada.NombreEstado,
-            Notas = solicitud.Notas?.Trim()
-        };
-
-        _context.Citas.Add(cita);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            message = "Solicitud de cita registrada. La clínica asignará el profesional."
-        });
     }
 }

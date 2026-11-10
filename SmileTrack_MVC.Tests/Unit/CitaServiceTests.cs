@@ -247,12 +247,6 @@ public class CitaServiceTests
             HoraFin = new TimeOnly(12, 0),
             Activo = true
         });
-        db.ProfesionalServicios.Add(new ProfesionalServicio
-        {
-            IdProfesional = datos.Profesional.IdProfesional,
-            IdServicio = datos.Servicio.IdServicio,
-            Activo = true
-        });
         await db.SaveChangesAsync();
 
         var cita = await CrearServicio(db).CrearAsync(new CitaApiRequest
@@ -409,6 +403,30 @@ public class CitaServiceTests
     }
 
     [Fact]
+    public async Task CambiarEstadoAsync_RechazaConfirmarCitaSinProfesional()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        db.EstadosCita.Add(new EstadoCita { NombreEstado = "Confirmada" });
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdServicio = datos.Servicio.IdServicio,
+            IdProfesional = null,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = DateTime.Today.AddDays(2).AddHours(9),
+            Estado = "Agendada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CambiarEstadoAsync(cita.IdCita, "Confirmada"));
+
+        Assert.Contains("profesional", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task CambiarEstadoAsync_RechazaReactivacionDeEstadoTerminal()
     {
         await using var db = CrearDb();
@@ -553,13 +571,30 @@ public class CitaServiceTests
     {
         var paciente = new Paciente { Nombres = "Ana", Apellidos = "Prueba", Estado = "activo" };
         var profesional = new Profesional { Nombres = "Dr.", Apellidos = "Prueba", Estado = "activo" };
-        var servicio = new Servicio { Nombre = "Consulta", Estado = "activo" };
+        var especialidad = new Especialidad { Nombre = "Odontología General" };
+        var servicio = new Servicio { Nombre = "Consulta", Estado = "activo", IdEspecialidad = 1 };
         var consultorio = new Consultorio { Nombre = "Consultorio 1", Estado = "activo" };
         db.Pacientes.Add(paciente);
         db.Profesionales.Add(profesional);
+        db.Especialidades.Add(especialidad);
         db.Servicios.Add(servicio);
         db.Consultorios.Add(consultorio);
         db.EstadosCita.Add(new EstadoCita { NombreEstado = "Programada" });
+        db.SaveChanges();
+
+        servicio.IdEspecialidad = especialidad.IdEspecialidad;
+        db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+        {
+            IdProfesional = profesional.IdProfesional,
+            IdEspecialidad = especialidad.IdEspecialidad,
+            Principal = true
+        });
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = profesional.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            Activo = true
+        });
         db.SaveChanges();
 
         string[] dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
@@ -592,7 +627,7 @@ public class CitaServiceTests
     // =========================================================================
 
     [Fact]
-    public async Task ObtenerProfesionalesDisponiblesAsync_AceptaServicioGeneralAunqueExistanExcepcionesDePrecio()
+    public async Task ObtenerProfesionalesDisponiblesAsync_AceptaServicioConAsignacionActivaYEspecialidadCoincidente()
     {
         await using var db = CrearDb();
         var datos = SeedBase(db);
@@ -607,14 +642,9 @@ public class CitaServiceTests
             Activo = true
         });
 
-        db.ProfesionalServicios.Add(new ProfesionalServicio
-        {
-            IdProfesional = datos.Profesional.IdProfesional,
-            IdServicio = datos.Servicio.IdServicio,
-            PrecioPersonalizado = 125000m,
-            Activo = true
-        });
 
+        var asignacion = await db.ProfesionalServicios.SingleAsync();
+        asignacion.PrecioPersonalizado = 125000m;
         await db.SaveChangesAsync();
 
         var disponibles = await CrearServicio(db).ObtenerProfesionalesDisponiblesAsync(
@@ -624,6 +654,53 @@ public class CitaServiceTests
             idServicio: datos.Servicio.IdServicio);
 
         Assert.Single(disponibles);
+    }
+
+    [Fact]
+    public async Task CrearAsync_RechazaAsignacionProfesionalServicioInactiva()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var asignacion = await db.ProfesionalServicios.SingleAsync();
+        asignacion.Activo = false;
+        await db.SaveChangesAsync();
+
+        var fecha = ProximaFecha(DayOfWeek.Monday).AddHours(9);
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CrearAsync(new CitaApiRequest
+            {
+                IdPaciente = datos.Paciente.IdPaciente,
+                IdProfesional = datos.Profesional.IdProfesional,
+                IdServicio = datos.Servicio.IdServicio,
+                IdConsultorio = datos.Consultorio.IdConsultorio,
+                FechaHora = fecha,
+                Estado = "Agendada"
+            }));
+
+        Assert.Contains("asignación activa", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CrearAsync_RechazaServicioSinEspecialidadConfigurada()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        datos.Servicio.IdEspecialidad = null;
+        await db.SaveChangesAsync();
+
+        var fecha = ProximaFecha(DayOfWeek.Monday).AddHours(9);
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CrearAsync(new CitaApiRequest
+            {
+                IdPaciente = datos.Paciente.IdPaciente,
+                IdProfesional = datos.Profesional.IdProfesional,
+                IdServicio = datos.Servicio.IdServicio,
+                IdConsultorio = datos.Consultorio.IdConsultorio,
+                FechaHora = fecha,
+                Estado = "Agendada"
+            }));
+
+        Assert.Contains("especialidad configurada", excepcion.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -647,7 +724,7 @@ public class CitaServiceTests
     }
 
     [Fact]
-    public async Task SolicitarCitaPacienteAsync_CreaCitaEnEstadoSolicitadaOProgramada()
+    public async Task SolicitarCitaPacienteAsync_CreaCitaEnEstadoSolicitada()
     {
         // Arrange
         await using var db = CrearDb();
@@ -671,32 +748,29 @@ public class CitaServiceTests
         Assert.Equal(datos.Paciente.IdPaciente, cita.IdPaciente);
         Assert.Null(cita.IdProfesional);     // sin profesional asignado aún
         Assert.Null(cita.IdConsultorio);     // sin consultorio asignado aún
-        Assert.True(
-            string.Equals(cita.Estado, "Solicitada", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(cita.Estado, "Programada", StringComparison.OrdinalIgnoreCase),
-            $"Estado inesperado: {cita.Estado}");
+        Assert.Equal("Solicitada", cita.Estado);
     }
 
     [Fact]
-    public async Task SolicitarCitaPacienteAsync_SinServicio_CreaCitaExitosamente()
+    public async Task SolicitarCitaPacienteAsync_SinServicio_RechazaSolicitud()
     {
-        // Arrange — el paciente no selecciona servicio (IdServicio = null)
         await using var db = CrearDb();
         var datos = SeedBase(db);
+        db.EstadosCita.Add(new EstadoCita { NombreEstado = "Solicitada" });
+        await db.SaveChangesAsync();
 
         var dto = new CitaSolicitudPacienteDto
         {
             Fecha = DateTime.Today.AddDays(3),
-            IdServicio = null,   // sin servicio
+            IdServicio = null,
             Notas = "No sé qué servicio necesito"
         };
 
-        // Act
-        var cita = await CrearServicio(db).SolicitarCitaPacienteAsync(datos.Paciente.IdPaciente, dto);
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).SolicitarCitaPacienteAsync(datos.Paciente.IdPaciente, dto));
 
-        // Assert
-        Assert.NotNull(cita);
-        Assert.Null(cita.IdServicio);
+        Assert.Contains("servicio", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await db.Citas.ToListAsync());
     }
 
     // =========================================================================

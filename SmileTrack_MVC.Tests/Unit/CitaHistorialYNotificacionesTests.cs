@@ -24,7 +24,15 @@ public class CitaHistorialYNotificacionesTests
         // Seed data
         db.Pacientes.Add(new Paciente { IdPaciente = 1, Nombres = "Juan", Apellidos = "Pérez", Estado = "activo" });
         db.Profesionales.Add(new Profesional { IdProfesional = 1, Nombres = "Ana", Apellidos = "Gómez", Estado = "activo" });
-        db.Servicios.Add(new Servicio { IdServicio = 1, Nombre = "Limpieza", DuracionMinutos = 30, Estado = "activo" });
+        db.Especialidades.Add(new Especialidad { IdEspecialidad = 1, Nombre = "Odontología General" });
+        db.Servicios.Add(new Servicio
+        {
+            IdServicio = 1,
+            Nombre = "Limpieza",
+            DuracionMinutos = 30,
+            Estado = "activo",
+            IdEspecialidad = 1
+        });
         db.Consultorios.Add(new Consultorio { IdConsultorio = 1, Nombre = "Consultorio 101", Estado = "disponible" });
 
         db.EstadosCita.Add(new EstadoCita { IdEstado = 1, NombreEstado = "Programada" });
@@ -44,6 +52,22 @@ public class CitaHistorialYNotificacionesTests
                 Activo = true
             });
         }
+
+        db.SaveChanges();
+
+        // La prueba debe preparar las mismas relaciones requeridas en producción.
+        db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+        {
+            IdProfesional = 1,
+            IdEspecialidad = 1,
+            Principal = true
+        });
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = 1,
+            IdServicio = 1,
+            Activo = true
+        });
 
         db.SaveChanges();
         return db;

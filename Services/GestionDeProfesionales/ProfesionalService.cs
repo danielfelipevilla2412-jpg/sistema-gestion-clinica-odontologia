@@ -1635,13 +1635,9 @@ public partial class ProfesionalService : IProfesionalService
         var especialidadesPorProfesional = especialidadesCandidatas
             .GroupBy(item => item.IdProfesional)
             .ToDictionary(group => group.Key, group => group.Select(item => item.IdEspecialidad).ToList());
-        int? idEspecialidadGeneral = await _context.Especialidades
-            .AsNoTracking()
-            .Where(e => e.Nombre.ToLower().Contains("general"))
-            .Select(e => (int?)e.IdEspecialidad)
-            .FirstOrDefaultAsync(ct);
         var especialidadPorServicio = await _context.Servicios
             .AsNoTracking()
+            .Where(s => s.Estado == "activo")
             .ToDictionaryAsync(s => s.IdServicio, s => s.IdEspecialidad, ct);
 
         int reasignadas = 0;
@@ -1658,28 +1654,27 @@ public partial class ProfesionalService : IProfesionalService
 
             foreach (var candidato in profesionalesActivos)
             {
-                if (cita.IdServicio is int idServicio)
-                {
-                    bool deshabilitadoManualmente = await _context.ProfesionalServicios
-                        .AsNoTracking()
-                        .AnyAsync(ps => ps.IdProfesional == candidato.IdProfesional
-                                     && ps.IdServicio == idServicio
-                                     && !ps.Activo, ct);
-                    if (deshabilitadoManualmente) continue;
+                // Una reasignación debe respetar las mismas reglas que una asignación nueva.
+                // Si la cita no tiene servicio o el servicio no tiene especialidad configurada,
+                // no se inventa un profesional sustituto.
+                if (cita.IdServicio is not int idServicio ||
+                    !especialidadPorServicio.TryGetValue(idServicio, out int? especialidadServicio) ||
+                    !especialidadServicio.HasValue)
+                    continue;
 
-                    if (especialidadPorServicio.TryGetValue(idServicio, out int? especialidadServicio)
-                        && especialidadServicio.HasValue)
-                    {
-                        var idsEspecialidadesCandidato = especialidadesPorProfesional.TryGetValue(
-                            candidato.IdProfesional, out var idsCandidato)
-                            ? idsCandidato
-                            : new List<int>();
-                        if (idsEspecialidadesCandidato.Count == 0 && idEspecialidadGeneral.HasValue)
-                            idsEspecialidadesCandidato = [idEspecialidadGeneral.Value];
-                        if (!idsEspecialidadesCandidato.Contains(especialidadServicio.Value))
-                            continue;
-                    }
-                }
+                bool asignacionActiva = await _context.ProfesionalServicios
+                    .AsNoTracking()
+                    .AnyAsync(ps => ps.IdProfesional == candidato.IdProfesional
+                                 && ps.IdServicio == idServicio
+                                 && ps.Activo, ct);
+                if (!asignacionActiva) continue;
+
+                var idsEspecialidadesCandidato = especialidadesPorProfesional.TryGetValue(
+                    candidato.IdProfesional, out var idsCandidato)
+                    ? idsCandidato
+                    : new List<int>();
+                if (!idsEspecialidadesCandidato.Contains(especialidadServicio.Value))
+                    continue;
 
                 // Verificar ausencias del candidato
                 bool candidatoConAusencia = await _context.AusenciasProfesional
