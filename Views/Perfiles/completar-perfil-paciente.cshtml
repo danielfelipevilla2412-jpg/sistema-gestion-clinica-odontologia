@@ -1,0 +1,54 @@
+@model SmileTrack_MVC.Models.ViewModels.CompletarPerfilPacienteViewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Completar perfil | SmileTrack</title>
+    <link href="@Url.Content("~/css/shared/scrollbars.css")" rel="stylesheet" />
+    <style>
+        body { font-family: Arial, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 2rem; }
+        main { max-width: 38rem; margin: 4vh auto; padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 10px 30px #0f172a1a; }
+        h1 { margin-top: 0; }
+        label { display: block; margin: 1rem 0 .4rem; font-weight: 600; }
+        input, select { box-sizing: border-box; width: 100%; padding: .8rem; border: 1px solid #cbd5e1; border-radius: .5rem; }
+        input[readonly] { background: #f8fafc; }
+        button { margin-top: 1.5rem; padding: .8rem 1.2rem; border: 0; border-radius: .5rem; background: #0f766e; color: white; font-weight: 700; cursor: pointer; }
+        .error { color: #b91c1c; }
+        .validation-summary-errors { color: #b91c1c; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Completa tus datos personales</h1>
+    <p>Necesitamos tu documento y fecha de nacimiento reales para completar tu perfil. No se asignarán valores de ejemplo.</p>
+    <form method="post" action="/perfiles/st-pac-completar-perfil">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="All" class="validation-summary-errors"></div>
+        <label asp-for="NombreCompleto">Nombre</label>
+        <input asp-for="NombreCompleto" readonly />
+        <label asp-for="Correo">Correo</label>
+        <input asp-for="Correo" readonly />
+        <label asp-for="TipoDocumento">Tipo de documento</label>
+        <select asp-for="TipoDocumento">
+            <option value="">Selecciona un tipo</option>
+            <option value="CC">Cédula de ciudadanía</option>
+            <option value="TI">Tarjeta de identidad</option>
+            <option value="CE">Cédula de extranjería</option>
+            <option value="PAS">Pasaporte</option>
+        </select>
+        <span asp-validation-for="TipoDocumento" class="error"></span>
+        <label asp-for="Documento">Número de documento</label>
+        <input asp-for="Documento" autocomplete="off" />
+        <span asp-validation-for="Documento" class="error"></span>
+        <label asp-for="FechaNacimiento">Fecha de nacimiento</label>
+        <input asp-for="FechaNacimiento" type="date" max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+        <span asp-validation-for="FechaNacimiento" class="error"></span>
+        <button type="submit">Guardar perfil</button>
+    </form>
+</main>
+</body>
+</html>

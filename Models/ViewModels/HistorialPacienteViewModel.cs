@@ -31,6 +31,7 @@ public class HistorialPacienteViewModel
     public string AntecedentesMedicos { get; set; } = "Sin antecedentes registrados";
     public DateTime? ProximaCitaFecha { get; set; }
     public string? ProximaCitaProfesional { get; set; }
+    public List<CitaProximaOpcion> CitasDisponibles { get; set; } = [];
     public HistoriaFormularioViewModel Formulario { get; set; } = new();
 
     /// <summary>
@@ -53,6 +54,7 @@ public class HistorialPacienteViewModel
 
 public class HistoriaFormularioViewModel
 {
+    public int? ConsultaClinicaId { get; set; }
     public string MotivoConsulta { get; set; } = "";
     public string EnfermedadActual { get; set; } = "";
     public string? AntecedentesMedicos { get; set; }
@@ -62,15 +64,52 @@ public class HistoriaFormularioViewModel
     public string Hallazgos { get; set; } = "";
     public string OdontogramaObservaciones { get; set; } = "";
     public string ExamenesComplementarios { get; set; } = "";
+    public string? DiagnosticoPrincipalCodigo { get; set; }
+    public List<string> DiagnosticosSecundariosCodigos { get; set; } = [];
+    // Kept to display historical free-text values that do not have a verified CIE-10 code.
     public string DiagnosticoPrincipal { get; set; } = "";
     public string DiagnosticoSecundario { get; set; } = "";
     public string EvolucionClinica { get; set; } = "";
     public string Prescripcion { get; set; } = "";
+    public int? ProximaCitaId { get; set; }
 }
 
 public class HistoriaFormularioGuardarRequest : HistoriaFormularioViewModel
 {
     public int? PacienteId { get; set; }
+    public int? CitaId { get; set; }
+}
+
+public class PlanTratamientoGuardarRequest
+{
+    public int? IdPlan { get; set; }
+    public int? PacienteId { get; set; }
+    public int? ServicioId { get; set; }
+    public string? NumeroFdi { get; set; }
+    public string Estado { get; set; } = "propuesto";
+    public string? Observacion { get; set; }
+    // Yeray: Recibe la proyección manual del profesional, sin alterar el conteo real de sesiones.
+    public int SesionesEstimadas { get; set; }
+}
+
+// Yeray: Define los datos de una sesión realizada para mantener un registro individual y trazable.
+public class PlanSesionRegistrarRequest
+{
+    public DateTime? FechaSesion { get; set; }
+    public int? CitaId { get; set; }
+    public int? NotaId { get; set; }
+}
+
+// Yeray: Exige un motivo al anular una sesión para conservar la razón clínica del ajuste.
+public class PlanSesionAnularRequest
+{
+    public string? Motivo { get; set; }
+}
+
+public class CitaProximaOpcion
+{
+    public int IdCita { get; set; }
+    public string Etiqueta { get; set; } = "";
 }
 
 // FASE 1 — DTO de solo lectura para no exponer la entidad Paciente directamente

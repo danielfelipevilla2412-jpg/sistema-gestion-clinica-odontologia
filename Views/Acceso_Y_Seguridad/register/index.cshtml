@@ -120,6 +120,11 @@
                         </div>
                     </div>
                 </fieldset>
+
+                <div class="space-y-2">
+                    <label for="birth-date" class="block text-sm font-medium uppercase tracking-wide text-white/80">Fecha de nacimiento</label>
+                    <input id="birth-date" name="FechaNacimiento" type="date" required max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none focus:border-white focus:ring-2 focus:ring-white/30" />
+                </div>
                 
                 <fieldset class="space-y-3 rounded-2xl border border-white/10 p-4 md:p-5">
                     <legend class="mb-2 block px-2 font-title text-lg font-semibold text-white" data-i18n="register.fieldset_contact">Contacto</legend>
@@ -161,17 +166,21 @@
                     </div>
                 </fieldset>
 
-                <label for="terms" class="flex items-start rounded-xl border border-white/20 bg-[#0f1f33]/50 p-3 transition hover:border-white cursor-pointer">
-                    <div class="mr-3 mt-0.5 flex-shrink-0">
-                        <input id="terms" name="terms" type="checkbox" required class="sr-only peer" />
-                        <div class="flex h-5 w-5 items-center justify-center rounded border border-white/20 bg-[#0f1f33] transition peer-checked:bg-[#a0c9ff] peer-checked:border-[#a0c9ff]">
-                            <span class="material-symbols-outlined text-[14px] text-[#00355f] opacity-0 transition duration-200 peer-checked:opacity-100" aria-hidden="true" style="font-variation-settings: 'FILL' 1;">check</span>
-                        </div>
+                @* Yeray: Explica por qué el consentimiento de salud es obligatorio y registra la aceptación antes de crear la cuenta. *@
+                <section class="space-y-3 rounded-xl border border-white/20 bg-[#0f1f33]/50 p-4 text-sm leading-relaxed text-white/80" aria-labelledby="consentTitle">
+                    <div>
+                        <h2 id="consentTitle" class="font-semibold text-white">Autorización para el tratamiento de datos personales</h2>
+                        <p>Versión 1.0 · Noviembre de 2026</p>
                     </div>
-                    <span class="text-sm leading-relaxed text-white/80 mb-0">
-                        <span data-i18n-html="common.terms_accept">Acepto los <a href="/terminos" class="font-semibold hover:underline">Términos de Servicio</a> y <a href="/privacidad" class="font-semibold hover:underline">Política de Privacidad</a> de SmileTrack.</span>
-                    </span>
-                </label>
+                    <p>SmileTrack es un sistema de gestión clínica desarrollado con fines académicos (SENA). Al continuar, autorizo el tratamiento de mis datos personales, incluidos los datos sensibles relacionados con mi salud (historia clínica, odontograma, alergias, antecedentes y diagnósticos), con las siguientes finalidades: gestionar mi registro como paciente, programar y atender citas, y mantener mi historia clínica.</p>
+                    <p>Sé que puedo conocer, actualizar, rectificar y solicitar la supresión de mis datos, y revocar esta autorización, conforme a la Ley 1581 de 2012.</p>
+                    <p>Para registrarme y recibir atención en SmileTrack es necesario que autorice el tratamiento de mis datos de salud, porque son indispensables para crear y mantener mi historia clínica. Si no acepto, no podré completar mi registro.</p>
+                    <p>Contacto del responsable: <a class="font-semibold underline" href="mailto:yeraygarzon6@gmail.com">yeraygarzon6@gmail.com</a></p>
+                    <label for="terms" class="flex items-start gap-3 cursor-pointer">
+                        <input id="terms" name="AceptaTratamientoDatos" value="true" type="checkbox" required class="mt-1 h-4 w-4 accent-[#a0c9ff]" />
+                        <span>Autorizo el tratamiento de mis datos personales y de salud para mi atención en SmileTrack.</span>
+                    </label>
+                </section>
 
                 <button id="registerBtn" type="submit" class="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#a0c9ff] py-4 text-lg font-bold text-[#00355f] shadow-xl transition hover:bg-white hover:shadow-2xl" aria-disabled="false">
                     <span data-i18n="register.button_submit">Crear cuenta</span>
@@ -229,5 +238,4 @@
   </style>
 </body>
 </html>
-
 

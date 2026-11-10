@@ -44,7 +44,14 @@ namespace SmileTrack_MVC.Models.ViewModels
 
     public string? TipoDocumento { get; set; }
     public string? NumeroDocumento { get; set; }
+    [Required(ErrorMessage = "La fecha de nacimiento es obligatoria")]
+    [DataType(DataType.Date)]
+    public DateTime? FechaNacimiento { get; set; }
     public string? Telefono { get; set; }
+
+    // Yeray: Exige aceptación explícita en servidor para que el registro no dependa solo del checkbox del navegador.
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Debes autorizar el tratamiento de datos para crear tu cuenta.")]
+    public bool AceptaTratamientoDatos { get; set; }
 }
 
     public class RecoverPasswordRequest

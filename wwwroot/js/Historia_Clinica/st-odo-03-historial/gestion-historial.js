@@ -7,6 +7,8 @@
 //  CONFIGURACIÓN API
 // ═══════════════════════════════════════════════════════════════════
 const API_BASE = '/api';
+const cie10Resultados = new Map();
+const diagnosticosSecundarios = new Map();
 
 // ═══════════════════════════════════════════════════════════════════
 //  UTILIDADES GLOBALES
@@ -339,20 +341,23 @@ const poblarFormularioHistoria = (datosHistoria = window.smiletrackHistoriaData 
 
   setValue('motivo_consulta', datosHistoria.motivoConsulta || '');
   setValue('enfermedad_actual', datosHistoria.enfermedadActual || origenEvolucion || '');
-  const diagnosticoSelect = document.getElementById('diagnostico_principal');
-  const diagnosticoOtro = document.getElementById('diagnostico_principal_otro');
-  const diagnosticoOtroGroup = document.getElementById('diagnosticoOtroGroup');
-  const diagnosticoGuardado = datosHistoria.diagnosticoPrincipal || '';
-  if (diagnosticoSelect) {
-    const opcionExistente = Array.from(diagnosticoSelect.options)
-      .find(opcion => opcion.value === diagnosticoGuardado);
-    if (opcionExistente) {
-      diagnosticoSelect.value = diagnosticoGuardado;
-    } else if (diagnosticoGuardado) {
-      diagnosticoSelect.value = '__otro__';
-      if (diagnosticoOtro) diagnosticoOtro.value = diagnosticoGuardado;
-      if (diagnosticoOtroGroup) diagnosticoOtroGroup.hidden = false;
-    }
+  setValue('diagnostico_principal', datosHistoria.diagnosticoPrincipalCodigo || '');
+  const diagnosticoHistorico = document.getElementById('diagnosticoPrincipalHistorico');
+  if (diagnosticoHistorico && !datosHistoria.diagnosticoPrincipalCodigo && datosHistoria.diagnosticoPrincipal) {
+    diagnosticoHistorico.textContent = `Diagnóstico histórico sin código validado: ${datosHistoria.diagnosticoPrincipal}`;
+    diagnosticoHistorico.hidden = false;
+  }
+  diagnosticosSecundarios.clear();
+  (datosHistoria.diagnosticosSecundariosCodigos || []).forEach(codigo => {
+    if (codigo) diagnosticosSecundarios.set(codigo, codigo);
+  });
+  renderDiagnosticosSecundarios();
+  if (datosHistoria.diagnosticoPrincipalCodigo) cargarDescripcionCie10(datosHistoria.diagnosticoPrincipalCodigo);
+  (datosHistoria.diagnosticosSecundariosCodigos || []).forEach(codigo => cargarDescripcionCie10(codigo));
+  const secundariosHistoricos = document.getElementById('diagnosticosSecundariosHistoricos');
+  if (secundariosHistoricos && datosHistoria.diagnosticoSecundario && !datosHistoria.diagnosticosSecundariosCodigos?.length) {
+    secundariosHistoricos.textContent = `Diagnósticos históricos sin código validado: ${datosHistoria.diagnosticoSecundario}`;
+    secundariosHistoricos.hidden = false;
   }
   const sintomasGuardados = Array.isArray(datosHistoria.sintomasSignos) ? datosHistoria.sintomasSignos : [];
   sintomasGuardados.forEach(sintoma => {
@@ -363,13 +368,263 @@ const poblarFormularioHistoria = (datosHistoria = window.smiletrackHistoriaData 
   });
   setValue('antecedentes_medicos', datosHistoria.antecedentesMedicos || '');
   setValue('habitos', datosHistoria.habitos || '');
-  setValue('alergias_form', alergias.length ? alergias.join(', ') : datosHistoria.alergiasTexto || '');
+  setValue('alergias_form', datosHistoria.alergiasClinicas ?? (alergias.length ? alergias.join(', ') : datosHistoria.alergiasTexto || ''));
   setValue('hallazgos', datosHistoria.hallazgos || '');
   setValue('odontograma_observaciones', datosHistoria.odontogramaObservaciones || textoObservacionesOdonto || '');
   setValue('examenes_complementarios', datosHistoria.examenesComplementarios || '');
-  setValue('diagnostico_secundario', datosHistoria.diagnosticoSecundario || '');
   setValue('evolucion_clinica', datosHistoria.evolucionClinica || origenEvolucion || '');
   setValue('prescripcion', datosHistoria.prescripcion || '');
+  setValue('proximaCitaEstructurada', datosHistoria.proximaCitaId || '');
+};
+
+const renderDiagnosticosSecundarios = () => {
+  const container = document.getElementById('diagnosticosSecundariosChips');
+  if (!container) return;
+  container.replaceChildren();
+
+  diagnosticosSecundarios.forEach((descripcion, codigo) => {
+    const chip = document.createElement('span');
+    chip.className = 'diagnostico-chip';
+    const texto = document.createElement('span');
+    texto.textContent = `${codigo} — ${descripcion}`;
+    const quitar = document.createElement('button');
+    quitar.type = 'button';
+    quitar.textContent = '×';
+    quitar.setAttribute('aria-label', `Quitar diagnóstico ${codigo}`);
+    quitar.addEventListener('click', () => {
+      diagnosticosSecundarios.delete(codigo);
+      renderDiagnosticosSecundarios();
+    });
+    chip.append(texto, quitar);
+    container.appendChild(chip);
+  });
+};
+
+const normalizarTextoCie10 = (texto) => texto.trim().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toUpperCase();
+
+const buscarCie10EnCache = (busqueda) => {
+  const codigo = busqueda.trim().toUpperCase().replaceAll('.', '');
+  const descripcion = normalizarTextoCie10(busqueda);
+  return Array.from(cie10Resultados.values()).find(item =>
+    item.codigo.toUpperCase().replaceAll('.', '') === codigo
+      || normalizarTextoCie10(item.descripcion) === descripcion);
+};
+
+const cargarDescripcionCie10 = async (codigo) => {
+  const codigoNormalizado = codigo?.trim().toUpperCase();
+  if (!codigoNormalizado) return;
+  const guardado = buscarCie10EnCache(codigoNormalizado);
+  if (guardado) {
+    mostrarDescripcionDiagnosticoPrincipal(codigoNormalizado, guardado);
+    if (diagnosticosSecundarios.has(codigoNormalizado)) {
+      diagnosticosSecundarios.set(guardado.codigo, guardado.descripcion);
+      renderDiagnosticosSecundarios();
+    }
+    return guardado;
+  }
+
+  try {
+    const response = await fetch(`/historia-clinica/st-odo-03-historial/cie10?busqueda=${encodeURIComponent(codigoNormalizado)}`, {
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const resultados = await response.json();
+    const resultado = resultados.find(item =>
+      item.codigo.toUpperCase().replaceAll('.', '') === codigoNormalizado.replaceAll('.', '')
+        || normalizarTextoCie10(item.descripcion) === normalizarTextoCie10(codigoNormalizado));
+    if (!resultado) return null;
+    cie10Resultados.set(codigoNormalizado, resultado);
+    cie10Resultados.set(resultado.codigo.toUpperCase(), resultado);
+    mostrarDescripcionDiagnosticoPrincipal(codigoNormalizado, resultado);
+    if (diagnosticosSecundarios.has(codigoNormalizado)) {
+      diagnosticosSecundarios.set(resultado.codigo, resultado.descripcion);
+      renderDiagnosticosSecundarios();
+    }
+    return resultado;
+  } catch (error) {
+    console.error('No se pudo consultar el catálogo CIE-10:', error);
+    return null;
+  }
+};
+
+const initBusquedaCie10 = () => {
+  const mensaje = document.getElementById('cie10CatalogMessage');
+  const activeOptions = new WeakMap();
+  const requestSequence = new WeakMap();
+
+  const cerrarLista = input => {
+    const dropdown = document.getElementById(input.getAttribute('aria-controls'));
+    if (!dropdown) return;
+    dropdown.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    activeOptions.delete(input);
+  };
+
+  const seleccionar = (input, resultado) => {
+    input.value = resultado.codigo;
+    cie10Resultados.set(resultado.codigo.toUpperCase(), resultado);
+    cerrarLista(input);
+    if (input.id === 'diagnostico_principal') {
+      mostrarDescripcionDiagnosticoPrincipal(resultado.codigo, resultado);
+    }
+  };
+
+  const mostrarOpciones = (input, resultados) => {
+    const dropdown = document.getElementById(input.getAttribute('aria-controls'));
+    if (!dropdown) return;
+    dropdown.replaceChildren();
+    activeOptions.set(input, -1);
+
+    if (!resultados.length) {
+      const empty = document.createElement('div');
+      empty.className = 'cie10-option-empty';
+      empty.textContent = 'No se encontraron diagnósticos.';
+      dropdown.append(empty);
+    } else {
+      resultados.forEach((resultado, index) => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.id = `${dropdown.id}-opcion-${index}`;
+        option.className = 'cie10-option';
+        option.setAttribute('role', 'option');
+        option.setAttribute('aria-selected', 'false');
+        const code = document.createElement('span');
+        code.className = 'cie10-option-code';
+        code.textContent = resultado.codigo;
+        const description = document.createElement('span');
+        description.className = 'cie10-option-description';
+        description.textContent = resultado.descripcion;
+        option.append(code, description);
+        option.addEventListener('mousedown', event => event.preventDefault());
+        option.addEventListener('click', () => seleccionar(input, resultado));
+        dropdown.append(option);
+      });
+    }
+
+    dropdown.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  };
+
+  const buscar = debounce(async input => {
+    const termino = input.value.trim();
+    const busqueda = termino.length === 0 ? 'K' : termino;
+    if (busqueda.length < 2 && busqueda.toUpperCase() !== 'K') {
+      cerrarLista(input);
+      return;
+    }
+    const secuencia = (requestSequence.get(input) || 0) + 1;
+    requestSequence.set(input, secuencia);
+
+    try {
+      const response = await fetch(`/historia-clinica/st-odo-03-historial/cie10?busqueda=${encodeURIComponent(busqueda)}`, {
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const resultados = await response.json();
+      if (requestSequence.get(input) !== secuencia) return;
+      resultados.forEach(resultado => cie10Resultados.set(resultado.codigo.toUpperCase(), resultado));
+      const codigoPrincipal = document.getElementById('diagnostico_principal')?.value.trim().toUpperCase();
+      const resultadoPrincipal = codigoPrincipal ? buscarCie10EnCache(codigoPrincipal) : null;
+      if (codigoPrincipal) mostrarDescripcionDiagnosticoPrincipal(codigoPrincipal, resultadoPrincipal);
+      mostrarOpciones(input, resultados);
+      if (mensaje) {
+        mensaje.textContent = resultados.length
+          ? busqueda.toUpperCase() === 'K'
+            ? 'Diagnósticos odontológicos K. Escribe para buscar en todo el catálogo CIE-10.'
+            : `${resultados.length} coincidencia(s) del catálogo. Selecciona un código válido.`
+          : 'Sin resultados. Verifica que el catálogo CIE-10 oficial esté cargado.';
+      }
+    } catch (error) {
+      console.error('No se pudo buscar en el catálogo CIE-10:', error);
+      if (mensaje) mensaje.textContent = 'No se pudo consultar el catálogo CIE-10.';
+    }
+  }, 250);
+
+  ['diagnostico_principal', 'diagnostico_secundario_input'].forEach(id => {
+    const input = document.getElementById(id);
+    input?.addEventListener('input', () => buscar(input));
+    input?.addEventListener('focus', () => buscar(input));
+    input?.addEventListener('keydown', event => {
+      const dropdown = document.getElementById(input.getAttribute('aria-controls'));
+      const options = dropdown?.querySelectorAll('[role="option"]') || [];
+      if (event.key === 'Escape') {
+        cerrarLista(input);
+      } else if (event.key === 'ArrowDown' && !dropdown?.hidden && options.length) {
+        event.preventDefault();
+        const next = Math.min((activeOptions.get(input) ?? -1) + 1, options.length - 1);
+        activeOptions.set(input, next);
+        options.forEach((option, index) => option.setAttribute('aria-selected', String(index === next)));
+        input.setAttribute('aria-activedescendant', options[next].id);
+        options[next].scrollIntoView({ block: 'nearest' });
+      } else if (event.key === 'ArrowUp' && !dropdown?.hidden && options.length) {
+        event.preventDefault();
+        const previous = Math.max((activeOptions.get(input) ?? options.length) - 1, 0);
+        activeOptions.set(input, previous);
+        options.forEach((option, index) => option.setAttribute('aria-selected', String(index === previous)));
+        input.setAttribute('aria-activedescendant', options[previous].id);
+        options[previous].scrollIntoView({ block: 'nearest' });
+      } else if (event.key === 'Enter' && !dropdown?.hidden && (activeOptions.get(input) ?? -1) >= 0) {
+        event.preventDefault();
+        options[activeOptions.get(input)].click();
+      }
+    });
+  });
+
+  document.addEventListener('click', event => {
+    ['diagnostico_principal', 'diagnostico_secundario_input'].forEach(id => {
+      const input = document.getElementById(id);
+      const dropdown = input && document.getElementById(input.getAttribute('aria-controls'));
+      if (input && dropdown && !input.closest('.cie10-autocomplete')?.contains(event.target)) cerrarLista(input);
+    });
+  });
+  document.getElementById('diagnostico_principal')?.addEventListener('change', () => {
+    const codigo = document.getElementById('diagnostico_principal')?.value.trim().toUpperCase();
+    const resultado = codigo ? buscarCie10EnCache(codigo) : null;
+    mostrarDescripcionDiagnosticoPrincipal(codigo, resultado);
+  });
+
+  const agregar = async () => {
+    const input = document.getElementById('diagnostico_secundario_input');
+    const codigo = input?.value.trim().toUpperCase();
+    if (!codigo) return;
+    const resultado = await cargarDescripcionCie10(codigo);
+    if (!resultado) {
+      if (mensaje) mensaje.textContent = 'El código no aparece en el catálogo CIE-10 cargado.';
+      input?.focus();
+      return;
+    }
+    diagnosticosSecundarios.set(resultado.codigo, resultado.descripcion);
+    input.value = '';
+    renderDiagnosticosSecundarios();
+  };
+
+  document.getElementById('btnAgregarDiagnosticoSecundario')?.addEventListener('click', agregar);
+  document.getElementById('diagnostico_secundario_input')?.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && (activeOptions.get(event.currentTarget) ?? -1) < 0) {
+      event.preventDefault();
+      agregar();
+    }
+  });
+};
+
+const mostrarDescripcionDiagnosticoPrincipal = (codigo, resultado) => {
+  const descripcion = document.getElementById('diagnosticoPrincipalDescripcion');
+  const codigoSinPuntos = codigo?.replaceAll('.', '');
+  if (descripcion) {
+    descripcion.textContent = resultado && resultado.codigo.toUpperCase().replaceAll('.', '') === codigoSinPuntos
+      ? resultado.descripcion
+      : '';
+  }
+};
+
+const obtenerDiagnosticoPrincipalTexto = () => {
+  const codigo = document.getElementById('diagnostico_principal')?.value.trim().toUpperCase() || '';
+  if (!codigo) return '';
+  const resultado = buscarCie10EnCache(codigo);
+  return resultado ? `${resultado.codigo} — ${resultado.descripcion}` : codigo;
 };
 
 const agregarSintomaSigno = (texto, marcado = true) => {
@@ -514,9 +769,7 @@ const initFinalizarConsulta = () => {
     }
 
     const value = id => safeGetElement(id)?.value?.trim() || '';
-    const diagnostico = value('diagnostico_principal') === '__otro__'
-      ? value('diagnostico_principal_otro')
-      : value('diagnostico_principal');
+    const diagnostico = obtenerDiagnosticoPrincipalTexto();
     const procedimiento = value('evolucion_clinica') || value('odontograma_observaciones');
     let odontograma = {};
     try {
@@ -1233,6 +1486,29 @@ const initFormularioClinico = () => {
   const form = safeGetElement('historia-clinica-form');
   if (!form) return;
 
+  document.getElementById('btnNuevaConsultaClinica')?.addEventListener('click', () => {
+    if (!window.confirm('¿Iniciar una nueva consulta clínica? Los cambios no guardados se perderán.')) return;
+    form.reset();
+    window.smiletrackHistoriaData.consultaClinicaId = null;
+    diagnosticosSecundarios.clear();
+    renderDiagnosticosSecundarios();
+    document.querySelectorAll('#sintomasSignosGrid input[type="checkbox"]').forEach(input => {
+      input.checked = false;
+    });
+    const data = window.smiletrackHistoriaData;
+    const alergias = Array.isArray(data.alergias) ? data.alergias.join(', ') : '';
+    const alergiasField = document.getElementById('alergias_form');
+    if (alergiasField) alergiasField.value = alergias;
+    const antecedentes = document.getElementById('antecedentes_medicos');
+    if (antecedentes) antecedentes.value = data.antecedentesMedicos || '';
+    const diagnosticoHistorico = document.getElementById('diagnosticoPrincipalHistorico');
+    if (diagnosticoHistorico) diagnosticoHistorico.hidden = true;
+    const secundariosHistoricos = document.getElementById('diagnosticosSecundariosHistoricos');
+    if (secundariosHistoricos) secundariosHistoricos.hidden = true;
+    showToast('Nueva consulta iniciada. Guarda para crear su registro.', 'success');
+    safeGetElement('motivo_consulta')?.focus();
+  });
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const pacienteId = window.smiletrackHistoriaData?.pacienteId;
@@ -1242,39 +1518,47 @@ const initFormularioClinico = () => {
     }
 
     const value = id => safeGetElement(id)?.value?.trim() || '';
-    const diagnostico = value('diagnostico_principal') === '__otro__'
-      ? value('diagnostico_principal_otro')
-      : value('diagnostico_principal');
-    if (value('diagnostico_principal') === '__otro__' && !diagnostico) {
-      showToast('Escribe el diagnóstico seleccionado como Otro', 'warning');
-      safeGetElement('diagnostico_principal_otro')?.focus();
+    const codigoPrincipal = value('diagnostico_principal');
+    if (!codigoPrincipal) {
+      showToast('Selecciona el diagnóstico principal del catálogo CIE-10', 'warning');
+      safeGetElement('diagnostico_principal')?.focus();
       return;
     }
     const button = form.querySelector('button[type="submit"]');
     if (button) button.disabled = true;
 
     try {
+      const diagnosticoPrincipal = await cargarDescripcionCie10(codigoPrincipal);
+      if (!diagnosticoPrincipal) {
+        throw new Error('Selecciona un código válido del catálogo oficial CIE-10.');
+      }
       const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
       const response = await fetch('/historia-clinica/st-odo-03-historial/guardar-formulario', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { 'RequestVerificationToken': token } : {}) },
         body: JSON.stringify({
           pacienteId,
+          consultaClinicaId: window.smiletrackHistoriaData?.consultaClinicaId,
+          citaId: window.smiletrackHistoriaData?.citaId || Number(new URLSearchParams(window.location.search).get('citaId')) || null,
+          proximaCitaId: Number(value('proximaCitaEstructurada')) || null,
           motivoConsulta: value('motivo_consulta'),
           enfermedadActual: value('enfermedad_actual'),
+          antecedentesMedicos: value('antecedentes_medicos'),
           sintomasSignos: Array.from(document.querySelectorAll('#sintomasSignosGrid input[type="checkbox"]:checked')).map(input => input.value),
           habitos: value('habitos'),
+          alergias: value('alergias_form'),
           hallazgos: value('hallazgos'),
           odontogramaObservaciones: value('odontograma_observaciones'),
           examenesComplementarios: value('examenes_complementarios'),
-          diagnosticoPrincipal: diagnostico,
-          diagnosticoSecundario: value('diagnostico_secundario'),
+          diagnosticoPrincipalCodigo: diagnosticoPrincipal.codigo,
+          diagnosticosSecundariosCodigos: Array.from(diagnosticosSecundarios.keys()),
           evolucionClinica: value('evolucion_clinica'),
           prescripcion: value('prescripcion')
         })
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || 'No se pudo guardar la historia');
+      window.smiletrackHistoriaData.consultaClinicaId = result.consultaClinicaId;
       showToast('Historia clínica guardada correctamente', 'success');
     } catch (error) {
       console.error('Error al guardar la historia clínica:', error);
@@ -1288,9 +1572,6 @@ const initFormularioClinico = () => {
 const initCamposDinamicosHistoria = () => {
   const symptomInput = document.getElementById('nuevoSintomaSigno');
   const addSymptomButton = document.getElementById('btnAgregarSintomaSigno');
-  const diagnosisSelect = document.getElementById('diagnostico_principal');
-  const diagnosisInput = document.getElementById('diagnostico_principal_otro');
-  const diagnosisGroup = document.getElementById('diagnosticoOtroGroup');
   const addSymptom = () => {
     if (!symptomInput) return;
     if (!agregarSintomaSigno(symptomInput.value)) {
@@ -1308,12 +1589,7 @@ const initCamposDinamicosHistoria = () => {
       addSymptom();
     }
   });
-  diagnosisSelect?.addEventListener('change', () => {
-    const isOther = diagnosisSelect.value === '__otro__';
-    if (diagnosisGroup) diagnosisGroup.hidden = !isOther;
-    if (isOther) diagnosisInput?.focus();
-    else if (diagnosisInput) diagnosisInput.value = '';
-  });
+  initBusquedaCie10();
 };
 
 const initAdjuntosClinicos = () => {
@@ -1475,7 +1751,6 @@ const init = async () => {
   initForm();
   initCamposDinamicosHistoria();
   initFormularioClinico();
-  initCamposDinamicosHistoria();
   initAdjuntosClinicos();
   //  — Registrar los filtros antes de renderizar los datos clínicos.
   initFiltrosLineaDeTiempo();
