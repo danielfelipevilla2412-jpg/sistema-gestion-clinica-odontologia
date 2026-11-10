@@ -220,35 +220,19 @@
 
   </main>
 
-  <div class="payment-confirm-overlay" id="paymentConfirmOverlay" hidden>
-    <section class="payment-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="paymentConfirmTitle" aria-describedby="paymentConfirmDescription">
+  <div class="payment-confirm-overlay payment-success-overlay" id="paymentSuccessOverlay" hidden>
+    <section class="payment-confirm-modal payment-success-modal" role="dialog" aria-modal="true"
+      aria-labelledby="paymentSuccessTitle" aria-describedby="paymentSuccessMessage">
       <header class="payment-confirm-header">
-        <h2 id="paymentConfirmTitle">Confirmar pago</h2>
-        <button class="payment-confirm-close" id="paymentConfirmClose" type="button" aria-label="Cerrar confirmación">&times;</button>
+        <h2 id="paymentSuccessTitle">Registro de pago exitoso</h2>
+        <button class="payment-confirm-close" id="paymentSuccessClose" type="button" aria-label="Cerrar aviso">&times;</button>
       </header>
       <div class="payment-confirm-content">
-        <p id="paymentConfirmDescription">Verifica los datos del paciente y los servicios antes de registrar el pago.</p>
-        <p class="payment-error-message" id="paymentConfirmError" role="alert" hidden></p>
-        <dl class="payment-confirm-patient">
-          <div><dt>Paciente</dt><dd id="paymentConfirmPatient"></dd></div>
-          <div><dt>Documento</dt><dd id="paymentConfirmDocument"></dd></div>
-          <div><dt>Método de pago</dt><dd id="paymentConfirmMethod"></dd></div>
-        </dl>
-        <h3>Servicios requeridos</h3>
-        <ul class="payment-confirm-items" id="paymentConfirmItems"></ul>
-        <dl class="payment-confirm-totals">
-          <div><dt>Subtotal</dt><dd id="paymentConfirmSubtotal"></dd></div>
-          <div><dt>Descuento</dt><dd id="paymentConfirmDiscount"></dd></div>
-          <div class="payment-confirm-total"><dt>Total de la factura</dt><dd id="paymentConfirmTotal"></dd></div>
-          <div><dt>Abonado anteriormente</dt><dd id="paymentConfirmPreviousPaid"></dd></div>
-          <div id="paymentConfirmPercentageRow" hidden><dt>Porcentaje del saldo pendiente</dt><dd id="paymentConfirmPercentage"></dd></div>
-          <div class="payment-confirm-total"><dt>Abono a registrar</dt><dd id="paymentConfirmInstallment"></dd></div>
-          <div><dt>Saldo después del abono</dt><dd id="paymentConfirmBalance"></dd></div>
-        </dl>
+        <p id="paymentSuccessMessage" role="status" aria-live="polite">El pago se registró correctamente.</p>
       </div>
       <footer class="payment-confirm-footer">
-        <button class="btn-secondary" id="paymentConfirmCancel" type="button">Volver</button>
-        <button class="btn-success" id="paymentConfirmSubmit" type="button">Confirmar y registrar</button>
+        <button class="btn-secondary" id="paymentSuccessCloseFooter" type="button">Cerrar</button>
+        <button class="btn-success" id="paymentSuccessSavedInvoices" type="button">Ver facturas guardadas</button>
       </footer>
     </section>
   </div>

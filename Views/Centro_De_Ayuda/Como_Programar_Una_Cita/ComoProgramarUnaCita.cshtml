@@ -103,7 +103,7 @@
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css?v=20260915")" />
 
   <!-- ⭐ CSS ESPECÍFICO DE ESTA GUÍA (bento grid, video, etc.) -->
-  <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Como_Programar_Una_Cita/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Centro_De_Ayuda/Como_Programar_Una_Cita/styles.css?v=2026111002")" />
 
   <!-- Footer styles (igual que st-adm-01) -->
   <link rel="stylesheet" href="@Url.Content("~/css/footer.css")" />
@@ -258,7 +258,7 @@
           </div>
 
           <!-- Soporte -->
-          <div class="bg-primary rounded-xl p-card-padding shadow-xl text-white relative overflow-hidden">
+          <div class="support-card rounded-xl p-card-padding shadow-xl text-white relative overflow-hidden">
             <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full" aria-hidden="true"></div>
             <div class="relative z-10">
               <span class="material-symbols-outlined mb-4" style="font-variation-settings:'FILL' 1;" aria-hidden="true">live_help</span>
@@ -335,4 +335,3 @@
   @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
 </body>
 </html>
-

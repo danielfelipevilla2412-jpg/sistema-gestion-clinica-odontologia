@@ -301,7 +301,7 @@ const initPatientSelect = () => {
         return;
       }
       patientNameEl.textContent = option.text;
-      patientDocEl.textContent = option.dataset.doc || '—';
+      patientDocEl.textContent = '—';
     };
 
     pacienteSelect.addEventListener('change', updatePatient);
@@ -385,95 +385,32 @@ const initPrint = () => {
   });
 };
 
-let paymentConfirmationData = null;
+const showPaymentSuccess = (invoice, amount) => {
+  const overlay = safeGetElement('paymentSuccessOverlay');
+  if (!overlay) return;
 
-const openPaymentConfirmation = (payment) => {
-  const overlay = safeGetElement('paymentConfirmOverlay');
-  const patientSelect = safeGetElement('pacienteSelect');
-  const patientOption = patientSelect?.options[patientSelect.selectedIndex];
-  const methodSelect = safeGetElement('paymentMethod');
-  const total = payment.total;
-  const serviceRows = Array.from(safeGetElement('invoiceItemsBody')?.querySelectorAll('tr') || []);
-  const items = serviceRows.map((row) => ({
-    title: row.dataset.title || 'Servicio',
-    description: row.dataset.desc || '',
-    price: parseFloat(row.dataset.price) || 0,
-    discount: parseFloat(row.dataset.discount) || 0
-  }));
-
-  if (!overlay || !patientOption || !methodSelect) return;
-  paymentConfirmationData = payment;
-
-  safeGetElement('paymentConfirmPatient').textContent = patientOption.textContent.trim();
-  safeGetElement('paymentConfirmDocument').textContent = patientOption.dataset.doc || 'No registrado';
-  safeGetElement('paymentConfirmMethod').textContent = methodSelect.options[methodSelect.selectedIndex]?.textContent.trim() || 'Efectivo';
-  safeGetElement('paymentConfirmSubtotal').textContent = formatCurrency(items.reduce((sum, item) => sum + item.price, 0));
-  safeGetElement('paymentConfirmDiscount').textContent = formatCurrency(items.reduce((sum, item) => sum + item.discount, 0));
-  safeGetElement('paymentConfirmTotal').textContent = formatCurrency(total);
-  safeGetElement('paymentConfirmPreviousPaid').textContent = formatCurrency(payment.previousPaid);
-  safeGetElement('paymentConfirmInstallment').textContent = formatCurrency(payment.amount);
-  safeGetElement('paymentConfirmBalance').textContent = formatCurrency(payment.pendingBefore - payment.amount);
-  const percentageRow = safeGetElement('paymentConfirmPercentageRow');
-  if (percentageRow) {
-    percentageRow.hidden = payment.percentage === null;
-    safeGetElement('paymentConfirmPercentage').textContent = payment.percentage === null
-      ? ''
-      : `${payment.percentage}% (${formatCurrency(payment.pendingBefore)} × ${payment.percentage}%)`;
-  }
-
-  const list = safeGetElement('paymentConfirmItems');
-  list.replaceChildren();
-  items.forEach((item) => {
-    const row = document.createElement('li');
-    const copy = document.createElement('div');
-    copy.className = 'payment-confirm-item-copy';
-    const title = document.createElement('strong');
-    title.textContent = item.title;
-    copy.appendChild(title);
-    if (item.description) {
-      const description = document.createElement('span');
-      description.textContent = item.description;
-      copy.appendChild(description);
-    }
-    if (item.discount > 0) {
-      const discount = document.createElement('span');
-      discount.textContent = `Costo ${formatCurrency(item.price)} · Descuento ${formatCurrency(item.discount)}`;
-      copy.appendChild(discount);
-    }
-    const price = document.createElement('strong');
-    price.className = 'payment-confirm-item-price';
-    price.textContent = formatCurrency(item.price - item.discount);
-    row.append(copy, price);
-    list.appendChild(row);
-  });
-
+  safeGetElement('paymentSuccessMessage').textContent =
+    `El abono de ${formatCurrency(amount)} se registró correctamente en la factura ${invoice.numero}. ` +
+    `Saldo pendiente: ${formatCurrency(invoice.pendiente)}.`;
   overlay.hidden = false;
   overlay.setAttribute('aria-hidden', 'false');
-  safeGetElement('paymentConfirmSubmit').focus();
+  safeGetElement('paymentSuccessSavedInvoices').focus();
 };
 
-const closePaymentConfirmation = () => {
-  const overlay = safeGetElement('paymentConfirmOverlay');
-  if (!overlay || !paymentConfirmationData) return;
+const closePaymentSuccess = () => {
+  const overlay = safeGetElement('paymentSuccessOverlay');
+  if (!overlay) return;
   overlay.hidden = true;
   overlay.setAttribute('aria-hidden', 'true');
-  paymentConfirmationData = null;
-  safeGetElement('btnPay')?.focus();
+  safeGetElement('btnSavedInvoices')?.focus();
 };
 
-const confirmPayment = async () => {
-  const payment = paymentConfirmationData;
-  const overlay = safeGetElement('paymentConfirmOverlay');
-  const confirmButton = safeGetElement('paymentConfirmSubmit');
-  const cancelButton = safeGetElement('paymentConfirmCancel');
+const registerPayment = async (payment) => {
   const btnPay = safeGetElement('btnPay');
-  if (!payment || !overlay || !confirmButton || !btnPay) return;
+  if (!payment || !btnPay || btnPay.disabled) return;
 
-  confirmButton.disabled = true;
-  cancelButton.disabled = true;
-  confirmButton.textContent = 'Registrando...';
   btnPay.disabled = true;
-  setPaymentError('paymentConfirmError');
+  btnPay.textContent = 'Registrando abono...';
 
   try {
     const result = window.currentInvoiceId
@@ -498,6 +435,10 @@ const confirmPayment = async () => {
     }
 
     const invoice = result.data;
+    const patientSelect = safeGetElement('pacienteSelect');
+    const patientOption = patientSelect?.options[patientSelect.selectedIndex];
+    const patientDocEl = safeGetElement('invoicePatientDoc');
+    if (patientDocEl) patientDocEl.textContent = patientOption?.dataset.doc || '—';
     window.currentInvoiceId = invoice.id;
     window.currentInvoicePaid = invoice.montoPagado;
     window.currentInvoicePending = invoice.pendiente;
@@ -544,22 +485,15 @@ const confirmPayment = async () => {
     btnPay.disabled = window.isPaid;
     btnPay.setAttribute('aria-disabled', String(window.isPaid));
     updatePaymentCalculation();
-    overlay.hidden = true;
-    overlay.setAttribute('aria-hidden', 'true');
-    paymentConfirmationData = null;
 
-    showToast(window.isPaid
-      ? `Factura ${invoice.numero} pagada. Saldo pendiente: ${formatCurrency(invoice.pendiente)}.`
-      : `Abono registrado en ${invoice.numero}. Saldo pendiente: ${formatCurrency(invoice.pendiente)}.`, 'success');
+    showPaymentSuccess(invoice, payment.amount);
   } catch (error) {
     const message = error.message || 'No fue posible registrar el pago. Verifica los datos e inténtalo de nuevo.';
-    setPaymentError('paymentConfirmError', message);
     showToast(message, 'error');
   } finally {
-    confirmButton.disabled = false;
-    cancelButton.disabled = false;
-    confirmButton.textContent = 'Confirmar y registrar';
-    if (!window.isPaid) btnPay.disabled = false;
+    btnPay.disabled = Boolean(window.isPaid);
+    btnPay.setAttribute('aria-disabled', String(Boolean(window.isPaid)));
+    if (!window.isPaid) updatePaymentCalculation();
   }
 };
 
@@ -567,10 +501,7 @@ const initPayment = () => {
   const btnPay = safeGetElement('btnPay');
   if (!btnPay) return;
 
-  const overlay = safeGetElement('paymentConfirmOverlay');
-  const confirmButton = safeGetElement('paymentConfirmSubmit');
-  const cancelButton = safeGetElement('paymentConfirmCancel');
-  const closeButton = safeGetElement('paymentConfirmClose');
+  const successOverlay = safeGetElement('paymentSuccessOverlay');
 
   const amountInput = safeGetElement('amountReceived');
   const percentageInput = safeGetElement('paymentPercentage');
@@ -591,22 +522,23 @@ const initPayment = () => {
       return;
     }
     const pacienteSelect = safeGetElement('pacienteSelect');
+    const profesionalSelect = safeGetElement('profesionalSelect');
     const totalEl = safeGetElement('invoiceTotal');
     const amountReceived = safeGetElement('amountReceived');
-    
-    
+
     if (!totalEl || !amountReceived || !pacienteSelect) return;
     if (!validatePaymentPercentage()) {
       percentageInput.focus();
       return;
     }
     const idPaciente = parseInt(pacienteSelect.value, 10);
+    const idProfesional = parseInt(profesionalSelect?.value || '', 10);
     if (!idPaciente) {
       showToast('Seleccione un paciente antes de registrar el pago.', 'error');
       pacienteSelect.focus();
       return;
     }
-    if (!idProfesional) {
+    if (!Number.isInteger(idProfesional) || idProfesional <= 0) {
       showToast('Seleccione un profesional antes de registrar el pago.', 'error');
       profesionalSelect?.focus();
       return;
@@ -622,12 +554,11 @@ const initPayment = () => {
     const pendingBefore = window.currentInvoiceId ? window.currentInvoicePending : total;
 
     if (!validatePaymentAmount(amount)) {
-      setPaymentError('paymentConfirmError');
       amountReceived.focus();
       return;
     }
 
-    openPaymentConfirmation({
+    registerPayment({
       idPaciente,
       idProfesional,
       items,
@@ -640,14 +571,17 @@ const initPayment = () => {
     });
   });
 
-  confirmButton?.addEventListener('click', confirmPayment);
-  cancelButton?.addEventListener('click', closePaymentConfirmation);
-  closeButton?.addEventListener('click', closePaymentConfirmation);
-  overlay?.addEventListener('click', (event) => {
-    if (event.target === overlay) closePaymentConfirmation();
+  safeGetElement('paymentSuccessClose')?.addEventListener('click', closePaymentSuccess);
+  safeGetElement('paymentSuccessCloseFooter')?.addEventListener('click', closePaymentSuccess);
+  safeGetElement('paymentSuccessSavedInvoices')?.addEventListener('click', () => {
+    closePaymentSuccess();
+    openSavedInvoices();
+  });
+  successOverlay?.addEventListener('click', (event) => {
+    if (event.target === successOverlay) closePaymentSuccess();
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && overlay && !overlay.hidden) closePaymentConfirmation();
+    if (event.key === 'Escape' && successOverlay && !successOverlay.hidden) closePaymentSuccess();
   });
 };
 
@@ -783,12 +717,7 @@ const initSavedInvoiceLookup = () => {
     overlay.setAttribute('aria-hidden', 'true');
     openButton.focus();
   };
-  openButton.addEventListener('click', () => {
-    overlay.hidden = false;
-    overlay.setAttribute('aria-hidden', 'false');
-    safeGetElement('savedInvoicesClose').focus();
-    loadSavedInvoices();
-  });
+  openButton.addEventListener('click', openSavedInvoices);
   closeButtons.forEach((button) => button.addEventListener('click', close));
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) close();
@@ -796,6 +725,15 @@ const initSavedInvoiceLookup = () => {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !overlay.hidden) close();
   });
+};
+
+const openSavedInvoices = () => {
+  const overlay = safeGetElement('savedInvoicesOverlay');
+  if (!overlay) return;
+  overlay.hidden = false;
+  overlay.setAttribute('aria-hidden', 'false');
+  safeGetElement('savedInvoicesClose')?.focus();
+  loadSavedInvoices();
 };
 
 // Inicializa menú móvil con gestión de foco y atributos ARIA

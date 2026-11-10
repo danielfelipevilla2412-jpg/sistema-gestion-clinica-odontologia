@@ -67,17 +67,38 @@
                 .Where(p => p.Estado == "activo")
                 .OrderBy(p => p.Nombres)
                 .ThenBy(p => p.Apellidos)
+                .Select(p => new Paciente
+                {
+                    IdPaciente = p.IdPaciente,
+                    TipoDocumento = p.TipoDocumento,
+                    Documento = p.Documento,
+                    Nombres = p.Nombres,
+                    Apellidos = p.Apellidos
+                })
                 .ToListAsync();
             var servicios = await _context.Servicios
                 .AsNoTracking()
                 .Where(s => s.Estado == "activo")
                 .OrderBy(s => s.Nombre)
+                .Select(s => new Servicio
+                {
+                    IdServicio = s.IdServicio,
+                    Nombre = s.Nombre,
+                    Descripcion = s.Descripcion,
+                    Precio = s.Precio
+                })
                 .ToListAsync();
             var profesionales = await _context.Profesionales
                 .AsNoTracking()
                 .Where(p => p.Estado == "activo")
                 .OrderBy(p => p.Nombres)
                 .ThenBy(p => p.Apellidos)
+                .Select(p => new Profesional
+                {
+                    IdProfesional = p.IdProfesional,
+                    Nombres = p.Nombres,
+                    Apellidos = p.Apellidos
+                })
                 .ToListAsync();
 
             ViewData["Pacientes"] = pacientes;

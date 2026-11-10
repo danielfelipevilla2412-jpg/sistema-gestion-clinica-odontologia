@@ -100,9 +100,15 @@ public sealed class FacturacionServicePaymentTests
         var invoice = await CreateInvoiceAsync(db, "FAC-2026-00020", 100000m, 25000m, "parcial");
 
         var service = new FacturacionService(db);
+        var partialPayment = new RegistrarPagoRequest
+        {
+            MontoPagado = 30000m,
+            MetodoPago = "efectivo",
+            Referencia = "CAJ-REINTENTO-FACTURA-20"
+        };
         var result = await service.RegistrarPagoAsync(
             invoice.IdFactura,
-            new RegistrarPagoRequest { MontoPagado = 30000m, MetodoPago = "efectivo" },
+            partialPayment,
             7,
             CancellationToken.None);
 
@@ -113,11 +119,21 @@ public sealed class FacturacionServicePaymentTests
         var payment = Assert.Single(result.Pagos);
         Assert.Equal(30000m, payment.Monto);
         Assert.Equal("efectivo", payment.MetodoPago);
-        Assert.StartsWith("CAJ-", payment.Referencia);
+        Assert.Equal(partialPayment.Referencia, payment.Referencia);
+
+        var retried = await service.RegistrarPagoAsync(
+            invoice.IdFactura,
+            partialPayment,
+            7,
+            CancellationToken.None);
+
+        Assert.NotNull(retried);
+        Assert.Equal(55000m, retried.MontoPagado);
+        Assert.Single(retried.Pagos);
 
         var completed = await service.RegistrarPagoAsync(
             invoice.IdFactura,
-            new RegistrarPagoRequest { MontoPagado = 45000m, MetodoPago = "efectivo" },
+            new RegistrarPagoRequest { MontoPagado = 45000m, MetodoPago = "efectivo", Referencia = "CAJ-FACTURA-20-FINAL" },
             7,
             CancellationToken.None);
 

@@ -7,7 +7,7 @@
 
 /* Base font family */
 body { 
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     background: #f4f7fb;
     color: #181c1e;
     min-height: max(884px, 100dvh);
@@ -18,8 +18,12 @@ body {
     padding: 26px 28px 40px;
 }
 
-.page-header {
-    background: #fff;
+body > .sidebar {
+    background: linear-gradient(180deg, #0f2057 0%, #1a3580 100%);
+}
+
+.main .page-header {
+    background: linear-gradient(180deg, #0f2057 0%, #1a3580 100%);
     border: 1px solid #e2e8f0;
     border-radius: 16px;
     box-shadow: 0 10px 24px rgba(15, 32, 87, 0.08);
@@ -27,12 +31,37 @@ body {
     margin-bottom: 18px;
 }
 
-.page-title {
-    color: #0f172a;
+.page-header .breadcrumb,
+.page-header .page-subtitle {
+    color: #c8d3e8;
 }
 
-.page-subtitle {
-    color: #64748b;
+.page-title {
+    font-family: 'Syne', sans-serif;
+    color: #fff;
+}
+
+.main .bento-grid .support-card,
+.main .bento-grid .bg-primary.rounded-xl.p-card-padding {
+    background: linear-gradient(180deg, #0f2057 0%, #1a3580 100%);
+    font-family: 'DM Sans', sans-serif;
+}
+
+.main .bento-grid .support-card h3,
+.main .bento-grid .bg-primary.rounded-xl.p-card-padding h3 {
+    font-family: 'Syne', sans-serif;
+}
+
+.guide-content .font-headline-lg,
+.guide-content .font-headline-md {
+    font-family: 'Syne', sans-serif;
+}
+
+.guide-content .font-body-md,
+.guide-content .font-body-lg,
+.guide-content .font-label-sm,
+.guide-content .font-label-bold {
+    font-family: 'DM Sans', sans-serif;
 }
 
 .guide-content {
