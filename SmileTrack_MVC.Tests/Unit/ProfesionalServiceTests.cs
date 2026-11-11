@@ -498,7 +498,25 @@ public sealed class ProfesionalServiceTests
             Estado = "activo"
         };
         db.Profesionales.AddRange(profesionalAusente, candidatoConAusencia, candidatoDisponible);
+        var especialidad = new Especialidad { Nombre = "Odontología General" };
+        var servicio = new Servicio { Nombre = "Consulta general", Estado = "activo", DuracionMinutos = 60 };
+        db.Especialidades.Add(especialidad);
+        db.Servicios.Add(servicio);
         await db.SaveChangesAsync();
+
+        servicio.IdEspecialidad = especialidad.IdEspecialidad;
+        db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+        {
+            IdProfesional = candidatoDisponible.IdProfesional,
+            IdEspecialidad = especialidad.IdEspecialidad,
+            Principal = true
+        });
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = candidatoDisponible.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            Activo = true
+        });
 
         var fechaCita = DateTime.Today.AddDays(10).AddHours(23).AddMinutes(30);
         var fechaInicioAusencia = fechaCita.Date.AddDays(1);
@@ -506,6 +524,7 @@ public sealed class ProfesionalServiceTests
         {
             IdPaciente = 1,
             IdProfesional = profesionalAusente.IdProfesional,
+            IdServicio = servicio.IdServicio,
             FechaHora = fechaCita,
             DuracionMinutos = 60,
             Estado = "Programada"

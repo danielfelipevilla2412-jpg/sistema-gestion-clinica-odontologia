@@ -26,11 +26,20 @@ public class GestionCitasTests
     [Fact]
     public async Task CrearCita_CreatesAppointment()
     {
-        var db = CreateInMemoryDb("test_crear_cita");
+        var db = CreateInMemoryDb($"test_crear_cita_{Guid.NewGuid()}");
+        var especialidad = new Especialidad { Nombre = "Odontología General" };
+        db.Especialidades.Add(especialidad);
+        await db.SaveChangesAsync();
+
         var paciente = new Paciente { Nombres = "Juan", Apellidos = "Perez", Estado = "activo" };
         var profesional = new Profesional { Nombres = "Dra", Apellidos = "Sanchez", Estado = "activo" };
         var consultorio = new Consultorio { Nombre = "Consultorio A", Estado = "activo" };
-        var servicio = new Servicio { Nombre = "Consulta general", Estado = "activo" };
+        var servicio = new Servicio
+        {
+            Nombre = "Consulta general",
+            Estado = "activo",
+            IdEspecialidad = especialidad.IdEspecialidad
+        };
         var fechaHora = DateTime.Today.AddDays(1).AddHours(9);
         var diaSemana = fechaHora.DayOfWeek switch
         {
@@ -49,6 +58,19 @@ public class GestionCitasTests
         db.Servicios.Add(servicio);
         db.EstadosCita.Add(new EstadoCita { IdEstado = 1, NombreEstado = "Programada" });
         await db.SaveChangesAsync();
+
+        db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+        {
+            IdProfesional = profesional.IdProfesional,
+            IdEspecialidad = especialidad.IdEspecialidad,
+            Principal = true
+        });
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = profesional.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            Activo = true
+        });
 
         db.HorariosProfesional.Add(new HorarioProfesional
         {

@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.HistoriasClinicas;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
@@ -207,7 +208,7 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         var dientesMapeados = new HashSet<string>(StringComparer.Ordinal);
         foreach (var (instanceId, numeroFdi) in request.MapeoFDI)
         {
-            if (string.IsNullOrWhiteSpace(instanceId) || !EsNumeroFdiValido(numeroFdi))
+            if (string.IsNullOrWhiteSpace(instanceId) || !NumeroFdiHelper.EsValido(numeroFdi))
                 return "El mapeo contiene un número FDI inválido.";
 
             if (!dientesMapeados.Add(numeroFdi))
@@ -239,17 +240,6 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         }
 
         return null;
-    }
-
-    private static bool EsNumeroFdiValido(string? numeroFdi)
-    {
-        if (numeroFdi is not { Length: 2 } || numeroFdi.Any(c => c is < '0' or > '9'))
-            return false;
-
-        int cuadrante = numeroFdi[0] - '0';
-        int posicion = numeroFdi[1] - '0';
-        return cuadrante is >= 1 and <= 4 && posicion is >= 1 and <= 8
-            || cuadrante is >= 5 and <= 8 && posicion is >= 1 and <= 5;
     }
 
     /// <summary>

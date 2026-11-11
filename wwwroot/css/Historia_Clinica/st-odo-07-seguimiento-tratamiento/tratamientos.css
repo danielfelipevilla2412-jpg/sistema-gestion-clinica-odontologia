@@ -176,6 +176,31 @@ img { max-width: 100%; height: auto; display: block; }
 .page-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; color: var(--primary); }
 .page-subtitle { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
 
+.plan-editor {
+  margin-bottom: 20px;
+  padding: 18px 22px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.plan-editor h2 { margin-bottom: 14px; font: 700 1rem var(--font-display); color: var(--primary); }
+.plan-editor form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.plan-editor label { align-self: end; font-size: .82rem; font-weight: 600; }
+.plan-editor input, .plan-editor select, .plan-editor textarea {
+  width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: #fff; color: var(--text); font: inherit;
+}
+.plan-editor textarea { resize: vertical; }
+.plan-editor button, .btn-actualizar-plan {
+  align-self: end; width: fit-content; border: 0; border-radius: var(--radius-sm);
+  padding: 9px 14px; background: var(--primary); color: #fff; font-weight: 600;
+}
+.plan-status-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.plan-status-controls label { font-size: .8rem; color: var(--text-muted); }
+.plan-status-controls select { padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.btn-actualizar-plan { padding: 6px 10px; }
+
 /* ══ SECTION ═══ */
 .section { margin-bottom: 20px; }
 .section-title {
@@ -599,6 +624,7 @@ img { max-width: 100%; height: auto; display: block; }
   .overlay.open { display: block; }
   .main { margin-left: 0; padding: 58px 14px 32px; }
   .page-header { flex-direction: column; align-items: flex-start; }
+  .plan-editor form { grid-template-columns: 1fr; }
   .trat-footer { flex-direction: column; align-items: flex-start; gap: 4px; }
   .trat-meta { padding-right: 0; }
   .mobile-nav { display: flex; }

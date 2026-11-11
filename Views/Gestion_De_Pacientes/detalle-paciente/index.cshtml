@@ -256,8 +256,33 @@
                 data-id="@Model.Id" data-i18n-aria-label="detalle_paciente_editar_datos" aria-label="Editar datos de @Model.Name">
           <span data-i18n="detalle_paciente_editar">✏️ Editar</span>
         </button>
+        @if (User.IsInRole("Administrador"))
+        {
+          <button class="btn-secondary" id="btnAbrirFusion" type="button">Fusionar duplicado</button>
+        }
       </div>
     </section>
+
+    @if (User.IsInRole("Administrador"))
+    {
+      <dialog id="fusionDialog" aria-labelledby="fusionDialogTitle">
+        <div class="section-card" style="width:min(560px, calc(100vw - 32px));">
+          <h2 class="section-title" id="fusionDialogTitle">Fusionar pacientes</h2>
+          <p>Se conservará este paciente como principal. El otro registro quedará inactivo; las fusiones con dos historias clínicas completas requieren revisión manual.</p>
+          <label for="fusionSearch" class="field-label">Buscar duplicado por nombre o documento</label>
+          <input id="fusionSearch" type="search" autocomplete="off" />
+          <div id="fusionResults" role="listbox" aria-label="Resultados de pacientes"></div>
+          <p id="fusionSelection" aria-live="polite">Selecciona el paciente duplicado.</p>
+          <form method="post" action="/gestion-de-pacientes/fusionar" id="fusionForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="idPrincipal" value="@Model.Id" />
+            <input type="hidden" name="idDuplicado" id="fusionDuplicateId" />
+            <button type="submit" class="btn-primary" id="btnConfirmarFusion" disabled>Confirmar fusión</button>
+            <button type="button" class="btn-secondary" id="btnCerrarFusion">Cancelar</button>
+          </form>
+        </div>
+      </dialog>
+    }
 
     <!-- ── Métricas de actividad ─────────────────────── -->
     <section class="stats-strip" data-i18n-aria-label="detalle_paciente_resumen_actividad" aria-label="Resumen de actividad">
@@ -524,6 +549,66 @@
       clearTimeout(t._tid);
       t._tid = setTimeout(() => t.classList.remove('show'), 3200);
     };
+
+    const mergeMessage = @Html.Raw(JsonSerializer.Serialize(TempData["PacienteFusionMensaje"]));
+    const mergeHasError = @Html.Raw(JsonSerializer.Serialize(TempData["PacienteFusionError"] is true));
+    if (mergeMessage) showToast(mergeMessage, mergeHasError ? 'error' : 'success');
+
+    const fusionDialog = document.getElementById('fusionDialog');
+    const fusionSearch = document.getElementById('fusionSearch');
+    const fusionResults = document.getElementById('fusionResults');
+    const fusionDuplicateId = document.getElementById('fusionDuplicateId');
+    const fusionSelection = document.getElementById('fusionSelection');
+    let fusionSearchTimer;
+
+    document.getElementById('btnAbrirFusion')?.addEventListener('click', () => fusionDialog?.showModal());
+    document.getElementById('btnCerrarFusion')?.addEventListener('click', () => fusionDialog?.close());
+    fusionSearch?.addEventListener('input', () => {
+      clearTimeout(fusionSearchTimer);
+      fusionDuplicateId.value = '';
+      document.getElementById('btnConfirmarFusion').disabled = true;
+      const search = fusionSearch.value.trim();
+      fusionResults.replaceChildren();
+      fusionSelection.textContent = 'Selecciona el paciente duplicado.';
+      if (search.length < 2) return;
+
+      fusionSearchTimer = setTimeout(async () => {
+        try {
+          const response = await fetch(`/gestion-de-pacientes/buscar?search=${encodeURIComponent(search)}&estado=todos&page=1&pageSize=10`, {
+            credentials: 'same-origin'
+          });
+          if (!response.ok) throw new Error('No se pudieron buscar pacientes.');
+          const result = await response.json();
+          result.items
+            .filter((patient) => patient.id !== pacienteId)
+            .forEach((patient) => {
+              const option = document.createElement('button');
+              option.type = 'button';
+              option.setAttribute('role', 'option');
+              option.className = 'btn-secondary';
+              option.textContent = `${patient.name} · ${patient.doc} · ${patient.estado}`;
+              option.addEventListener('click', () => {
+                fusionDuplicateId.value = patient.id;
+                fusionSelection.textContent = `Secundario: ${patient.name} · ${patient.doc}`;
+                document.getElementById('btnConfirmarFusion').disabled = false;
+              });
+              fusionResults.append(option);
+            });
+          if (!fusionResults.childElementCount) fusionResults.textContent = 'No hay coincidencias.';
+        } catch (error) {
+          fusionResults.textContent = error.message || 'No se pudo completar la búsqueda.';
+        }
+      }, 250);
+    });
+
+    document.getElementById('fusionForm')?.addEventListener('submit', (event) => {
+      if (!fusionDuplicateId.value) {
+        event.preventDefault();
+        return;
+      }
+      if (!confirm(`¿Fusionar el paciente seleccionado con ${pacienteNombre}? El registro seleccionado quedará inactivo.`))
+        event.preventDefault();
+    });
 
     // Botón Editar: redirige al listado con el modal de edición precargado
     // El listado ya tiene toda la lógica de edición implementada.

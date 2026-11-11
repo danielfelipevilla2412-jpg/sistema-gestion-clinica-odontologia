@@ -28,7 +28,16 @@ public class FuncionalidadesAvanzadasTests
         db.Profesionales.Add(new Profesional { IdProfesional = 1, Nombres = "Dr. Pedro", Apellidos = "Ramírez", Estado = "activo" });
         db.Profesionales.Add(new Profesional { IdProfesional = 2, Nombres = "Dra. Sofía", Apellidos = "Vargas", Estado = "activo" });
 
-        db.Servicios.Add(new Servicio { IdServicio = 1, Nombre = "Limpieza Odontológica", Precio = 100000m, DuracionMinutos = 30, Estado = "activo" });
+        db.Especialidades.Add(new Especialidad { IdEspecialidad = 1, Nombre = "Odontología General" });
+        db.Servicios.Add(new Servicio
+        {
+            IdServicio = 1,
+            Nombre = "Limpieza Odontológica",
+            Precio = 100000m,
+            DuracionMinutos = 30,
+            Estado = "activo",
+            IdEspecialidad = 1
+        });
         db.Consultorios.Add(new Consultorio { IdConsultorio = 1, Nombre = "Consultorio 101", Estado = "disponible" });
 
         db.EstadosCita.Add(new EstadoCita { IdEstado = 1, NombreEstado = "Programada" });
@@ -50,6 +59,25 @@ public class FuncionalidadesAvanzadasTests
                     Activo = true
                 });
             }
+        }
+
+        db.SaveChanges();
+
+        // La elegibilidad exige especialidad coincidente y asignación activa del servicio.
+        foreach (var profId in new[] { 1, 2 })
+        {
+            db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+            {
+                IdProfesional = profId,
+                IdEspecialidad = 1,
+                Principal = true
+            });
+            db.ProfesionalServicios.Add(new ProfesionalServicio
+            {
+                IdProfesional = profId,
+                IdServicio = 1,
+                Activo = true
+            });
         }
 
         db.SaveChanges();

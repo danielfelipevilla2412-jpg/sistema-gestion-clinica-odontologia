@@ -9,6 +9,9 @@ using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace SmileTrack_MVC.Controllers;
 
@@ -20,11 +23,18 @@ namespace SmileTrack_MVC.Controllers;
 public class HistoriaClinicaController(
     AppDbContext context,
     IHistoriaClinicaService historiaService,
+    AuditoriaHistoriaClinicaService auditoria,
     IConfiguration configuration,
     ILogger<HistoriaClinicaController> logger) : Controller
 {
+    private static readonly HashSet<string> EstadosPlanTratamiento = new(StringComparer.Ordinal)
+    {
+        "propuesto", "aprobado", "en-curso", "pausado", "completado", "cancelado"
+    };
+
     private readonly AppDbContext _context = context;
     private readonly IHistoriaClinicaService _historiaService = historiaService;
+    private readonly AuditoriaHistoriaClinicaService _auditoria = auditoria;
     private readonly IConfiguration _configuration = configuration;
     private readonly ILogger<HistoriaClinicaController> _logger = logger;
 
@@ -39,7 +49,16 @@ public class HistoriaClinicaController(
     public async Task<IActionResult> StadmHistorialData([FromQuery] int page = 1, [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null, [FromQuery] string? odontologo = null,
         [FromQuery] string? alerta = null, [FromQuery] string? estado = null)
-        => Json(await BuildPacientesHistorialAsync(null, page, pageSize, search, estado, alerta, odontologo: odontologo));
+    {
+        var resultado = await BuildPacientesHistorialAsync(null, page, pageSize, search, estado, alerta, odontologo: odontologo);
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Historia_Clinica",
+            null,
+            "Consulta paginada del historial clínico desde administración.");
+        return Json(resultado);
+    }
 
     [HttpGet]
     [Authorize(Roles = "Auxiliar")]
@@ -64,6 +83,12 @@ public class HistoriaClinicaController(
             var control = await _context.ControlesPostoperatorios
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.IdCita == cita.IdCita);
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "SELECT",
+                "Control_Postoperatorio",
+                control?.IdControl,
+                "Consulta del control postoperatorio desde la vista auxiliar.");
             var instruccionesPorDefecto = new List<object>
             {
                 new { text = "No comer próximas 2h", @checked = false },
@@ -101,7 +126,24 @@ public class HistoriaClinicaController(
         if (request is null || request.CitaId is null)
             return Json(new { success = false, message = "No se recibió la cita del control postoperatorio." });
 
+        bool controlExistente = await _context.ControlesPostoperatorios
+            .AnyAsync(c => c.IdCita == request.CitaId.Value);
         var (success, message) = await _historiaService.RegistrarControlPostoperatorioAsync(request);
+
+        if (success)
+        {
+            var control = await _context.ControlesPostoperatorios
+                .FirstOrDefaultAsync(c => c.IdCita == request.CitaId.Value);
+            if (control is not null)
+            {
+                await _auditoria.RegistrarAsync(
+                    HttpContext,
+                    controlExistente ? "UPDATE" : "INSERT",
+                    "Control_Postoperatorio",
+                    control.IdControl,
+                    "Control postoperatorio guardado desde la vista auxiliar.");
+            }
+        }
 
         return success
             ? Json(new { success = true })
@@ -125,6 +167,13 @@ public class HistoriaClinicaController(
                         (c.Estado == "completada" || c.Estado == "realizada" || c.Estado == "atendida"))
             .OrderByDescending(c => c.FechaHora)
             .ToListAsync();
+
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Cita",
+            null,
+            "Consulta del listado de controles postoperatorios.");
 
         var data = citas.Select(c => new
         {
@@ -157,6 +206,16 @@ public class HistoriaClinicaController(
         var historia = paciente is not null
             ? await _context.HistoriasClinicas.FirstOrDefaultAsync(h => h.IdPaciente == paciente.IdPaciente && h.Activa)
             : null;
+
+        if (historia is not null)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "SELECT",
+                "Historia_Clinica",
+                historia.IdHistoria,
+                "Consulta de documentos clínicos desde la vista auxiliar.");
+        }
 
         ViewData["PacienteNombre"] = paciente?.NombresCompleto ?? "Sin paciente asignado";
         ViewData["PacienteCodigoHC"] = historia is not null ? $"HC-{historia.IdHistoria:D6}" : "Sin historia clínica";
@@ -212,6 +271,13 @@ public class HistoriaClinicaController(
                 observacion   = d.Observacion ?? ""
             })
             .ToListAsync();
+
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Documento_Clinico",
+            null,
+            $"Consulta de documentos clínicos de la historia {historia.IdHistoria}.");
 
         return Json(documentos.Select(d => new
         {
@@ -359,6 +425,12 @@ public class HistoriaClinicaController(
 
         try
         {
+            _auditoria.Agregar(
+                HttpContext,
+                "INSERT",
+                "Documento_Clinico",
+                null,
+                $"Documento clínico agregado a la historia {historia.IdHistoria}.");
             await _context.SaveChangesAsync();
         }
         catch (Exception ex)
@@ -439,6 +511,12 @@ public class HistoriaClinicaController(
                 archivoMovido = true;
             }
 
+            _auditoria.Agregar(
+                HttpContext,
+                "DELETE",
+                "Documento_Clinico",
+                documento.IdDocumento,
+                $"Documento clínico eliminado de la historia {documento.IdHistoria}.");
             _context.DocumentosClinicos.Remove(documento);
             await _context.SaveChangesAsync();
         }
@@ -487,6 +565,13 @@ public class HistoriaClinicaController(
 
         byte[] bytes = await System.IO.File.ReadAllBytesAsync(rutaFisica);
 
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Documento_Clinico",
+            documento.IdDocumento,
+            "Descarga de documento clínico.");
+
         Response.Headers.CacheControl = "private, no-store";
         return File(bytes, documento.ContentType, documento.NombreOriginal);
     }
@@ -513,6 +598,13 @@ public class HistoriaClinicaController(
         string? rutaFisica = await ObtenerRutaDocumentoClinicoAsync(documento, env);
         if (rutaFisica is null || !System.IO.File.Exists(rutaFisica))
             return NotFound();
+
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Documento_Clinico",
+            documento.IdDocumento,
+            "Vista previa de documento clínico.");
 
         Response.Headers.CacheControl = "private, no-store";
         Response.Headers.XContentTypeOptions = "nosniff";
@@ -647,13 +739,211 @@ public class HistoriaClinicaController(
             return Forbid();
         }
 
-        var vm = await BuildHistorialPacienteViewModelAsync(pacienteId, historiaId);
-        if (citaId is > 0 && vm.Odontograma.PacienteId is int pacienteDeCita &&
-            await _context.Citas.AnyAsync(c => c.IdCita == citaId && c.IdPaciente == pacienteDeCita))
+        var pacienteIdParaCita = await ResolverPacienteHistoriaAsync(pacienteId, historiaId);
+        int? citaIdValido = citaId is > 0 && pacienteIdParaCita is > 0
+            && await _context.Citas.AnyAsync(c => c.IdCita == citaId && c.IdPaciente == pacienteIdParaCita)
+                ? citaId
+                : null;
+        var vm = await BuildHistorialPacienteViewModelAsync(pacienteId, historiaId, citaIdValido);
+        if (citaIdValido is > 0)
         {
-            vm.Odontograma.CitaId = citaId;
+            vm.Odontograma.CitaId = citaIdValido;
         }
+
+        if (vm.Odontograma.HistoriaId is int historiaIdResuelta && historiaIdResuelta > 0)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "SELECT",
+                "Historia_Clinica",
+                historiaIdResuelta,
+                "Consulta de historia clínica desde el historial MVC.");
+        }
+
         return View("~/Views/Historia_Clinica/st-odo-03-historial/gestion-historial.cshtml", vm);
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Profesional,Paciente")]
+    [Route("historia-clinica/st-odo-03-historial/exportar-pdf")]
+    public async Task<IActionResult> ExportarHistoriaClinicaPdf(
+        [FromQuery] int? pacienteId,
+        CancellationToken cancellationToken)
+    {
+        int pacienteIdResuelto;
+        if (User.IsInRole("Paciente"))
+        {
+            if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out int idUsuario))
+                return Forbid();
+
+            var pacientePropioId = await _context.Pacientes
+                .Where(p => p.IdUsuario == idUsuario)
+                .Select(p => (int?)p.IdPaciente)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (pacientePropioId is null
+                || (pacienteId is > 0 && pacienteId.Value != pacientePropioId.Value)
+                || !await _historiaService.EsPropioPacienteAsync(
+                    pacientePropioId.Value,
+                    idUsuario,
+                    cancellationToken))
+            {
+                return Forbid();
+            }
+
+            pacienteIdResuelto = pacientePropioId.Value;
+        }
+        else
+        {
+            if (pacienteId is not > 0)
+                return BadRequest(new { message = "Selecciona un paciente válido para exportar su historia." });
+            if (!await PuedeProfesionalAccederAPacienteAsync(pacienteId.Value))
+                return Forbid();
+            pacienteIdResuelto = pacienteId.Value;
+        }
+
+        var paciente = await _context.Pacientes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdPaciente == pacienteIdResuelto, cancellationToken);
+        if (paciente is null)
+            return NotFound();
+
+        var historia = await _context.HistoriasClinicas
+            .AsNoTracking()
+            .FirstOrDefaultAsync(h => h.IdPaciente == pacienteIdResuelto && h.Activa, cancellationToken);
+        if (historia is null)
+            return NotFound(new { message = "El paciente no tiene una historia clínica activa." });
+
+        var consultas = await _context.ConsultasClinicas
+            .AsNoTracking()
+            .Include(c => c.Diagnosticos)
+            .Include(c => c.Sintomas)
+            .Include(c => c.Cita)
+            .Include(c => c.ProximaCita)
+            .Where(c => c.IdHistoria == historia.IdHistoria)
+            .OrderByDescending(c => c.FechaConsulta ?? c.FechaRegistro)
+            .ToListAsync(cancellationToken);
+        var notas = await _context.NotasClinicas
+            .AsNoTracking()
+            .Include(n => n.Profesional)
+            .Where(n => n.IdHistoria == historia.IdHistoria)
+            .OrderByDescending(n => n.Fecha)
+            .ToListAsync(cancellationToken);
+        var odontograma = await _context.RegistrosOdontograma
+            .AsNoTracking()
+            .Where(r => r.IdHistoria == historia.IdHistoria)
+            .OrderByDescending(r => r.FechaRegistro)
+            .ToListAsync(cancellationToken);
+        var documentos = await _context.DocumentosClinicos
+            .AsNoTracking()
+            .Where(d => d.IdHistoria == historia.IdHistoria)
+            .OrderByDescending(d => d.FechaSubida)
+            .Select(d => new { d.Tipo, d.NombreOriginal, d.FechaSubida, d.Observacion })
+            .ToListAsync(cancellationToken);
+
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Historia_Clinica",
+            historia.IdHistoria,
+            "Exportación PDF de historia clínica.");
+
+        QuestPDF.Settings.License = LicenseType.Community;
+        var pdf = Document.Create(document => document.Page(page =>
+        {
+            page.Margin(36);
+            page.DefaultTextStyle(style => style.FontSize(9));
+            page.Header().Column(header =>
+            {
+                header.Item().Text("SmileTrack — Historia Clínica").FontSize(18).Bold().FontColor(Colors.Blue.Darken2);
+                header.Item().Text($"Historia HC-{historia.IdHistoria:0000} · Generada {DateTime.Now:dd/MM/yyyy HH:mm}");
+            });
+            page.Content().PaddingVertical(16).Column(content =>
+            {
+                content.Spacing(10);
+                content.Item().Text("Datos del paciente").FontSize(13).Bold();
+                content.Item().Text($"{paciente.NombresCompleto} · {paciente.TipoDocumento} {paciente.Documento}");
+                content.Item().Text($"Fecha de nacimiento: {paciente.FechaNacimiento:dd/MM/yyyy} · Género: {paciente.Genero ?? "No registrado"}");
+                content.Item().Text($"Teléfono: {paciente.Telefono ?? "No registrado"} · Correo: {paciente.Correo ?? "No registrado"}");
+                content.Item().Text($"Grupo sanguíneo: {paciente.GrupoSanguineo ?? "No registrado"}");
+                content.Item().Text($"Alergias registradas en ficha: {paciente.Alergias ?? "Ninguna registrada"}");
+                content.Item().Text($"Medicamentos registrados en ficha: {paciente.Medicamentos ?? "Ninguno registrado"}");
+                content.Item().Text($"Antecedentes de ficha: {paciente.AntecedentesMedicos ?? "Ninguno registrado"}");
+
+                content.Item().PaddingTop(8).Text("Consultas clínicas").FontSize(13).Bold();
+                if (consultas.Count == 0)
+                {
+                    content.Item().Text("No hay consultas clínicas estructuradas registradas.");
+                }
+                foreach (var consulta in consultas)
+                {
+                    content.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(9).Column(item =>
+                    {
+                        item.Spacing(4);
+                        item.Item().Text($"Consulta · {(consulta.FechaConsulta ?? consulta.FechaRegistro):dd/MM/yyyy HH:mm}")
+                            .Bold();
+                        item.Item().Text($"Motivo: {consulta.MotivoConsulta ?? "No registrado"}");
+                        item.Item().Text($"Enfermedad actual: {consulta.EnfermedadActual ?? "No registrada"}");
+                        item.Item().Text($"Antecedentes: {consulta.AntecedentesMedicos ?? "No registrados"}");
+                        item.Item().Text($"Síntomas/signos: {string.Join(", ", consulta.Sintomas.OrderBy(s => s.Orden).Select(s => s.Descripcion))}");
+                        item.Item().Text($"Hallazgos: {consulta.Hallazgos ?? "No registrados"}");
+                        item.Item().Text($"Exámenes complementarios: {consulta.ExamenesComplementarios ?? "No registrados"}");
+                        item.Item().Text($"Diagnósticos: {string.Join("; ", consulta.Diagnosticos.Select(d => d.CodigoCie10 is null ? d.Descripcion : $"{d.CodigoCie10} — {d.Descripcion}"))}");
+                        item.Item().Text($"Evolución: {consulta.EvolucionClinica ?? "No registrada"}");
+                        item.Item().Text($"Prescripción: {consulta.Prescripcion ?? "No registrada"}");
+                        if (consulta.ProximaCita is not null)
+                            item.Item().Text($"Próxima cita: {consulta.ProximaCita.FechaHora:dd/MM/yyyy HH:mm}");
+                    });
+                }
+
+                content.Item().PaddingTop(8).Text("Notas clínicas").FontSize(13).Bold();
+                if (notas.Count == 0)
+                    content.Item().Text("No hay notas clínicas registradas.");
+                foreach (var nota in notas)
+                {
+                    content.Item().Column(item =>
+                    {
+                        item.Spacing(3);
+                        item.Item().Text($"{nota.Fecha:dd/MM/yyyy HH:mm} · {nota.Estado}").Bold();
+                        item.Item().Text($"Profesional: {nota.Profesional?.Nombres} {nota.Profesional?.Apellidos}".Trim());
+                        item.Item().Text($"Diagnóstico: {nota.Diagnostico ?? "No registrado"}");
+                        item.Item().Text($"Procedimiento: {nota.Procedimiento ?? "No registrado"}");
+                        item.Item().Text($"Próxima cita sugerida: {nota.ProximaCita ?? "No registrada"}");
+                    });
+                }
+
+                content.Item().PaddingTop(8).Text("Odontograma").FontSize(13).Bold();
+                if (odontograma.Count == 0)
+                    content.Item().Text("No hay registros del odontograma.");
+                foreach (var registro in odontograma)
+                {
+                    content.Item().Text(
+                        $"{registro.FechaRegistro:dd/MM/yyyy HH:mm} · Pieza {registro.NumeroFdi} · {registro.Estado}" +
+                        (string.IsNullOrWhiteSpace(registro.Observacion) ? "" : $" · {registro.Observacion}"));
+                }
+
+                content.Item().PaddingTop(8).Text("Documentos clínicos adjuntos (metadatos)").FontSize(13).Bold();
+                if (documentos.Count == 0)
+                    content.Item().Text("No hay documentos clínicos adjuntos.");
+                foreach (var documento in documentos)
+                {
+                    content.Item().Text(
+                        $"{documento.FechaSubida:dd/MM/yyyy} · {documento.Tipo} · {documento.NombreOriginal}" +
+                        (string.IsNullOrWhiteSpace(documento.Observacion) ? "" : $" · {documento.Observacion}"));
+                }
+            });
+            page.Footer().AlignCenter().Text(text =>
+            {
+                text.Span("Documento clínico confidencial · Página ");
+                text.CurrentPageNumber();
+                text.Span(" de ");
+                text.TotalPages();
+            });
+        })).GeneratePdf();
+
+        return File(
+            pdf,
+            "application/pdf",
+            $"historia-clinica-{paciente.Documento}-{DateTime.UtcNow:yyyyMMdd}.pdf");
     }
 
     [HttpGet]
@@ -677,6 +967,17 @@ public class HistoriaClinicaController(
         var vm = await BuildOdontogramaViewModelAsync(pacienteId, historiaId);
         // Propagar la cita al ViewModel → la vista la inyecta en config JS
         vm.CitaId = citaId;
+
+        if (vm.HistoriaId is int historiaIdResuelta && historiaIdResuelta > 0)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "SELECT",
+                "Historia_Clinica",
+                historiaIdResuelta,
+                "Consulta de historia clínica desde el odontograma MVC.");
+        }
+
         return View("~/Views/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.cshtml", vm);
     }
 
@@ -711,6 +1012,16 @@ public class HistoriaClinicaController(
                 : BadRequest(new { success = false, message });
         }
 
+        if (historiaId is > 0)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "UPDATE",
+                "Historia_Clinica",
+                historiaId.Value,
+                "Odontograma actualizado desde la vista MVC.");
+        }
+
         return Json(new
         {
             success = true,
@@ -739,6 +1050,13 @@ public class HistoriaClinicaController(
         // Obtener la historia clínica activa del paciente
         var historia = await _context.HistoriasClinicas
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
+
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Historia_Clinica",
+            historia?.IdHistoria,
+            "Consulta de historial dental desde el odontograma.");
 
         if (historia is null)
             return Json(new { success = true, registros = Array.Empty<object>(), citas = Array.Empty<object>() });
@@ -781,6 +1099,13 @@ public class HistoriaClinicaController(
             })
             .ToListAsync();
 
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Historia_Clinica",
+            historia.IdHistoria,
+            "Consulta del historial de un diente desde el odontograma.");
+
         return Json(new { success = true, registros = registrosDiente, citas });
     }
 
@@ -798,7 +1123,15 @@ public class HistoriaClinicaController(
         var historia = await _context.HistoriasClinicas.AsNoTracking()
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
         if (historia is null)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "SELECT",
+                "Historia_Clinica",
+                null,
+                "Consulta de registros de odontograma asociados a una cita.");
             return Ok(new { success = true, registros = Array.Empty<object>() });
+        }
 
         bool citaValida = await _context.Citas.AnyAsync(c =>
             c.IdCita == citaId && c.IdPaciente == pacienteId);
@@ -813,6 +1146,12 @@ public class HistoriaClinicaController(
             .Select(r => new { r.NumeroFdi, r.Estado, r.Observacion })
             .ToListAsync();
 
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Historia_Clinica",
+            historia.IdHistoria,
+            "Consulta de registros de odontograma asociados a una cita.");
         return Ok(new { success = true, registros });
     }
 
@@ -830,7 +1169,15 @@ public class HistoriaClinicaController(
         var historia = await _context.HistoriasClinicas.AsNoTracking()
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId && h.Activa);
         if (historia is null)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "SELECT",
+                "Historia_Clinica",
+                null,
+                "Consulta histórica del odontograma.");
             return Ok(new { success = true, hasta = hasta.ToString("yyyy-MM-dd"), registros = Array.Empty<object>() });
+        }
 
         DateTime limiteExclusivo = hasta.AddDays(1).ToDateTime(TimeOnly.MinValue);
         var registros = await _context.RegistrosOdontograma.AsNoTracking()
@@ -847,6 +1194,12 @@ public class HistoriaClinicaController(
             })
             .ToListAsync();
 
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Historia_Clinica",
+            historia.IdHistoria,
+            "Consulta histórica del odontograma.");
         return Ok(new { success = true, hasta = hasta.ToString("yyyy-MM-dd"), registros });
     }
 
@@ -876,6 +1229,14 @@ public class HistoriaClinicaController(
             return message == "Esta cita ya tiene una nota registrada."
                 ? Conflict(new { success = false, message })
                 : BadRequest(new { success = false, message });
+
+        _auditoria.Agregar(
+            HttpContext,
+            "INSERT",
+            "Nota_Clinica",
+            nota.IdNota,
+            $"Nota clínica agregada a la historia del paciente {request.PacienteId.Value}.");
+        await _context.SaveChangesAsync();
 
         // Se mantiene la misma forma que ya consume el JS de st-odo-03-historial.
         return Json(new
@@ -926,6 +1287,12 @@ public class HistoriaClinicaController(
         nota.Diagnostico = string.IsNullOrWhiteSpace(request.Diagnostico) ? null : request.Diagnostico.Trim();
         nota.Procedimiento = string.IsNullOrWhiteSpace(request.Procedimiento) ? null : request.Procedimiento.Trim();
         nota.ProximaCita = string.IsNullOrWhiteSpace(request.ProximaCita) ? null : request.ProximaCita.Trim();
+        _auditoria.Agregar(
+            HttpContext,
+            "UPDATE",
+            "Nota_Clinica",
+            nota.IdNota,
+            $"Nota clínica actualizada en la historia {historia.IdHistoria}.");
         await _context.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Nota clínica actualizada correctamente." });
@@ -956,6 +1323,12 @@ public class HistoriaClinicaController(
             return Conflict(new { success = false, message = "Esta nota no se puede anular." });
 
         nota.Estado = "Anulada";
+        _auditoria.Agregar(
+            HttpContext,
+            "UPDATE",
+            "Nota_Clinica",
+            nota.IdNota,
+            $"Nota clínica anulada en la historia {historia.IdHistoria}.");
         await _context.SaveChangesAsync();
         return Ok(new { success = true, message = "Nota clínica anulada." });
     }
@@ -988,9 +1361,43 @@ public class HistoriaClinicaController(
             doctor,
             ct);
 
-        return success
-            ? Ok(new { success = true, message })
-            : Conflict(new { success = false, message });
+        if (!success)
+            return Conflict(new { success = false, message });
+
+        var historia = await _context.HistoriasClinicas
+            .AsNoTracking()
+            .FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId && h.Activa, ct);
+        if (historia is not null)
+        {
+            var consultaClinica = await _context.ConsultasClinicas
+                .FirstOrDefaultAsync(c => c.IdHistoria == historia.IdHistoria && c.IdCita == request.CitaId, ct);
+            var notaClinicaId = await _context.NotasClinicas
+                .Where(n => n.IdCita == request.CitaId && n.IdHistoria == historia.IdHistoria)
+                .Select(n => (int?)n.IdNota)
+                .FirstOrDefaultAsync(ct);
+            if (consultaClinica is not null && notaClinicaId is not null && consultaClinica.IdNota is null)
+            {
+                consultaClinica.IdNota = notaClinicaId;
+                await _context.SaveChangesAsync(ct);
+                await _auditoria.RegistrarAsync(
+                    HttpContext,
+                    "UPDATE",
+                    "Consulta_Clinica",
+                    consultaClinica.IdConsultaClinica,
+                    "Consulta clínica vinculada con la nota generada al finalizar la cita.",
+                    ct);
+            }
+
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "UPDATE",
+                "Historia_Clinica",
+                historia.IdHistoria,
+                $"Consulta finalizada para el paciente {request.PacienteId}.",
+                ct);
+        }
+
+        return Ok(new { success = true, message });
     }
 
     [HttpPost]
@@ -999,8 +1406,8 @@ public class HistoriaClinicaController(
     [Route("historia-clinica/st-odo-03-historial/guardar-formulario")]
     public async Task<IActionResult> GuardarFormularioHistoria([FromBody] HistoriaFormularioGuardarRequest request)
     {
-        if (request is null || request.PacienteId is null)
-            return Json(new { success = false, message = "No hay un paciente seleccionado para guardar la historia." });
+        if (request is null || request.PacienteId is not > 0)
+            return BadRequest(new { success = false, message = "No hay un paciente seleccionado para guardar la historia." });
 
         if (!await PuedeProfesionalAccederAPacienteAsync(request.PacienteId.Value))
             return Forbid();
@@ -1008,42 +1415,212 @@ public class HistoriaClinicaController(
         var historia = await _context.HistoriasClinicas
             .FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId.Value && h.Activa);
 
+        int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        Cita? cita = null;
+        int? idNotaDeCita = null;
+        if (request.CitaId is > 0)
+        {
+            cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == request.CitaId.Value);
+            if (cita is null)
+                return NotFound(new { success = false, message = "La cita indicada no existe." });
+            if (cita.IdPaciente != request.PacienteId.Value
+                || (cita.IdProfesional is not null && cita.IdProfesional != idProfesional))
+                return Forbid();
+            idNotaDeCita = await _context.NotasClinicas
+                .Where(n => n.IdCita == cita.IdCita)
+                .Select(n => (int?)n.IdNota)
+                .FirstOrDefaultAsync();
+        }
+
+        var codigosSolicitados = new[] { request.DiagnosticoPrincipalCodigo }
+            .Concat(request.DiagnosticosSecundariosCodigos ?? [])
+            .Where(codigo => !string.IsNullOrWhiteSpace(codigo))
+            .Select(codigo => codigo!.Trim().Replace(".", "", StringComparison.Ordinal).ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (codigosSolicitados.Count > 21)
+            return UnprocessableEntity(new { success = false, message = "Puedes registrar hasta 20 diagnósticos secundarios." });
+        var codigoPrincipalNormalizado = request.DiagnosticoPrincipalCodigo?
+            .Trim().Replace(".", "", StringComparison.Ordinal).ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(codigoPrincipalNormalizado))
+            return UnprocessableEntity(new { success = false, message = "Selecciona un diagnóstico principal del catálogo CIE-10." });
+
+        var catalogo = await _context.DiagnosticosCie10
+            .AsNoTracking()
+            .Where(d => codigosSolicitados.Contains(d.Codigo.Replace(".", "")))
+            .ToDictionaryAsync(
+                d => d.Codigo.Replace(".", ""),
+                StringComparer.OrdinalIgnoreCase);
+        if (catalogo.Count != codigosSolicitados.Count)
+            return UnprocessableEntity(new { success = false, message = "Uno o más códigos CIE-10 no pertenecen al catálogo cargado." });
+
+        Cita? proximaCita = null;
+        if (request.ProximaCitaId is > 0)
+        {
+            proximaCita = await _context.Citas.FirstOrDefaultAsync(c =>
+                c.IdCita == request.ProximaCitaId.Value
+                && c.IdPaciente == request.PacienteId.Value);
+            if (proximaCita is null
+                || proximaCita.FechaHora <= DateTime.Now
+                || EstadoCitaHelper.Normalize(proximaCita.Estado) == "cancelada"
+                || proximaCita.IdCita == request.CitaId)
+            {
+                return UnprocessableEntity(new
+                {
+                    success = false,
+                    message = "La próxima cita debe ser una cita futura vigente del paciente."
+                });
+            }
+        }
+
         historia ??= await _historiaService.CrearHistoriaClinicaAsync(request.PacienteId.Value);
 
-        JsonObject raiz;
-        try
+        ConsultaClinica? consulta = null;
+        if (request.ConsultaClinicaId is > 0)
         {
-            raiz = JsonNode.Parse(historia.ObservacionesGenerales ?? "{}") as JsonObject ?? new JsonObject();
-        }
-        catch (JsonException)
-        {
-            raiz = new JsonObject();
+            consulta = await _context.ConsultasClinicas
+                .Include(c => c.Diagnosticos)
+                .FirstOrDefaultAsync(c => c.IdConsultaClinica == request.ConsultaClinicaId.Value
+                    && c.IdHistoria == historia.IdHistoria);
+            if (consulta is null || (request.CitaId is > 0 && consulta.IdCita != request.CitaId))
+                return NotFound(new { success = false, message = "La consulta clínica indicada no existe." });
         }
 
-        raiz["formularioHistoria"] = JsonSerializer.SerializeToNode(new HistoriaFormularioViewModel
+        if (consulta is null && cita is not null)
         {
-            MotivoConsulta = request.MotivoConsulta?.Trim() ?? "",
-            EnfermedadActual = request.EnfermedadActual?.Trim() ?? "",
-            SintomasSignos = (request.SintomasSignos ?? [])
-                .Where(sintoma => !string.IsNullOrWhiteSpace(sintoma))
-                .Select(sintoma => sintoma.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList(),
-            Habitos = request.Habitos?.Trim() ?? "",
-            Alergias = request.Alergias?.Trim() ?? "",
-            Hallazgos = request.Hallazgos?.Trim() ?? "",
-            OdontogramaObservaciones = request.OdontogramaObservaciones?.Trim() ?? "",
-            ExamenesComplementarios = request.ExamenesComplementarios?.Trim() ?? "",
-            DiagnosticoPrincipal = request.DiagnosticoPrincipal?.Trim() ?? "",
-            DiagnosticoSecundario = request.DiagnosticoSecundario?.Trim() ?? "",
-            EvolucionClinica = request.EvolucionClinica?.Trim() ?? "",
-            Prescripcion = request.Prescripcion?.Trim() ?? ""
-        });
+            consulta = await _context.ConsultasClinicas
+                .Include(c => c.Diagnosticos)
+                .FirstOrDefaultAsync(c => c.IdCita == cita.IdCita);
+            if (consulta is null && idNotaDeCita is not null)
+            {
+                consulta = await _context.ConsultasClinicas
+                    .Include(c => c.Diagnosticos)
+                    .FirstOrDefaultAsync(c => c.IdNota == idNotaDeCita);
+                if (consulta is not null)
+                {
+                    if (consulta.IdHistoria != historia.IdHistoria
+                        || (consulta.IdCita is not null && consulta.IdCita != cita.IdCita))
+                        return Conflict(new { success = false, message = "La nota ya está vinculada a otra consulta clínica." });
+                    consulta.IdCita = cita.IdCita;
+                }
+            }
+        }
 
-        historia.ObservacionesGenerales = raiz.ToJsonString();
+        bool esNuevo = consulta is null;
+        consulta ??= new ConsultaClinica
+        {
+            IdHistoria = historia.IdHistoria,
+            IdCita = cita?.IdCita,
+            IdNota = idNotaDeCita,
+            IdProfesional = idProfesional,
+            FechaConsulta = cita?.FechaHora ?? DateTime.UtcNow,
+            Origen = "captura"
+        };
+        consulta.IdProfesional = idProfesional;
+        consulta.IdProximaCita = proximaCita?.IdCita;
+        consulta.MotivoConsulta = request.MotivoConsulta?.Trim();
+        consulta.EnfermedadActual = request.EnfermedadActual?.Trim();
+        consulta.AntecedentesMedicos = request.AntecedentesMedicos?.Trim();
+        consulta.Habitos = request.Habitos?.Trim();
+        consulta.Alergias = request.Alergias?.Trim();
+        consulta.Hallazgos = request.Hallazgos?.Trim();
+        consulta.OdontogramaObservaciones = request.OdontogramaObservaciones?.Trim();
+        consulta.ExamenesComplementarios = request.ExamenesComplementarios?.Trim();
+        consulta.EvolucionClinica = request.EvolucionClinica?.Trim();
+        consulta.Prescripcion = request.Prescripcion?.Trim();
+
+        if (esNuevo)
+            _context.ConsultasClinicas.Add(consulta);
+        else
+            consulta.Sintomas = [];
+
+        if (!esNuevo)
+        {
+            _context.SintomasConsulta.RemoveRange(
+                await _context.SintomasConsulta.Where(s => s.IdConsultaClinica == consulta.IdConsultaClinica).ToListAsync());
+            _context.DiagnosticosConsulta.RemoveRange(
+                consulta.Diagnosticos.Where(d => d.CodigoCie10 is not null));
+        }
+
+        consulta.Sintomas = (request.SintomasSignos ?? [])
+            .Where(sintoma => !string.IsNullOrWhiteSpace(sintoma))
+            .Select(sintoma => sintoma.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(100)
+            .Select((sintoma, orden) => new SintomaConsulta { Descripcion = sintoma, Orden = orden })
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(codigoPrincipalNormalizado)
+            && catalogo.TryGetValue(codigoPrincipalNormalizado, out var diagnosticoPrincipal))
+        {
+            consulta.Diagnosticos.Add(new DiagnosticoConsulta
+            {
+                CodigoCie10 = diagnosticoPrincipal.Codigo,
+                Descripcion = diagnosticoPrincipal.Descripcion,
+                EsPrincipal = true
+            });
+        }
+
+        foreach (var codigo in (request.DiagnosticosSecundariosCodigos ?? [])
+            .Where(codigo => !string.IsNullOrWhiteSpace(codigo))
+            .Select(codigo => codigo.Trim().Replace(".", "", StringComparison.Ordinal).ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (codigo == codigoPrincipalNormalizado)
+                continue;
+
+            var diagnostico = catalogo[codigo];
+            consulta.Diagnosticos.Add(new DiagnosticoConsulta
+            {
+                CodigoCie10 = diagnostico.Codigo,
+                Descripcion = diagnostico.Descripcion,
+                EsPrincipal = false
+            });
+        }
+
         await _context.SaveChangesAsync();
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            esNuevo ? "INSERT" : "UPDATE",
+            "Consulta_Clinica",
+            consulta.IdConsultaClinica,
+            "Formulario clínico estructurado guardado desde la vista MVC.");
 
-        return Json(new { success = true, message = "Historia clínica guardada correctamente." });
+        return Json(new
+        {
+            success = true,
+            consultaClinicaId = consulta.IdConsultaClinica,
+            message = "Historia clínica guardada correctamente."
+        });
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/cie10")]
+    public async Task<IActionResult> BuscarDiagnosticosCie10([FromQuery] string? busqueda)
+    {
+        var termino = busqueda?.Trim();
+        bool consultaInicialK = string.IsNullOrWhiteSpace(termino) || string.Equals(termino, "K", StringComparison.OrdinalIgnoreCase);
+        if (!consultaInicialK && termino!.Length < 2)
+            return Json(Array.Empty<object>());
+        string busquedaFinal = consultaInicialK ? "K" : termino!;
+        var codigoSinPuntos = busquedaFinal.Replace(".", "", StringComparison.Ordinal);
+
+        var resultados = await _context.DiagnosticosCie10
+            .AsNoTracking()
+            .Where(d => consultaInicialK
+                ? d.Codigo.StartsWith("K")
+                : EF.Functions.Like(d.Codigo, $"%{busquedaFinal}%")
+                || EF.Functions.Like(d.Codigo.Replace(".", ""), $"%{codigoSinPuntos}%")
+                || EF.Functions.Like(d.Descripcion, $"%{busquedaFinal}%"))
+            // Yeray: Prioriza la categoría K para mostrar primero diagnósticos odontológicos sin ocultar otros CIE-10.
+            .OrderBy(d => d.Codigo.StartsWith("K") ? 0 : 1)
+            .ThenBy(d => d.Codigo)
+            .Take(30)
+            .Select(d => new { codigo = d.Codigo, descripcion = d.Descripcion })
+            .ToListAsync();
+
+        return Json(resultados);
     }
 
     [HttpGet]
@@ -1059,7 +1636,14 @@ public class HistoriaClinicaController(
         [FromQuery] string? alergias = null, [FromQuery] string? cita = null, [FromQuery] string? servicio = null)
     {
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
-        return Json(await BuildPacientesHistorialAsync(idProfesional, page, pageSize, search, estado, alergias, cita, servicio));
+        var resultado = await BuildPacientesHistorialAsync(idProfesional, page, pageSize, search, estado, alergias, cita, servicio);
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Historia_Clinica",
+            null,
+            "Consulta paginada del listado de pacientes clínicos del profesional.");
+        return Json(resultado);
     }
 
     [HttpGet]
@@ -1072,136 +1656,371 @@ public class HistoriaClinicaController(
     [Route("historia-clinica/st-odo-07-seguimiento-tratamiento/data")]
     public async Task<IActionResult> Stodo07SeguimientoTratamientoData()
     {
-        // Yeray (2025) - ACTUALIZACIÓN: se agrega cálculo de fecha estimada.
-        //
-        // ANTES: el campo "estimado" siempre devolvía null con el comentario
-        //        "se puede pasar en el futuro". La vista mostraba "—" en todos
-        //        los tratamientos en curso.
-        //
-        // AHORA: para tratamientos "en-curso" se proyecta la fecha estimada así:
-        //
-        //   1. Se toman las fechas de las sesiones COMPLETADAS y se mide el
-        //      intervalo promedio en días entre sesión y sesión.
-        //
-        //   2. Se cuentan las sesiones que faltan (totalSesiones - completadas).
-        //
-        //   3. Proyección:
-        //        última sesión completada + (sesiones pendientes × promedio días)
-        //
-        //   4. Si solo hay 1 sesión completada (no se puede promediar),
-        //      se usa 30 días como intervalo conservador por defecto.
-        //
-        //   5. Si no hay ninguna sesión completada aún (progreso 0),
-        //      se usa la fecha de inicio + (totalSesiones × 30 días).
-        //
-        //   Para tratamientos "completado" o "pausado" → estimado = null
-        //   (ya tienen "finalizado" o no tiene sentido proyectar un pausado).
-
-        DateTime ahora = DateTime.Now;
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        if (idProfesional is null)
+            return Forbid();
 
-        var citasQuery = _context.Citas
-            .Include(c => c.Paciente)
-            .Include(c => c.Servicio)
-            .Include(c => c.Profesional)
-            .Where(c => c.IdServicio != null);
-
-        if (idProfesional is not null)
-            citasQuery = citasQuery.Where(c => c.IdProfesional == idProfesional);
-
-        var citas = await citasQuery.ToListAsync();
-
-        var data = citas
-            .GroupBy(c => new { c.IdPaciente, c.IdServicio })
-            .Select(g => new
+        var tratamientos = await _context.PlanesTratamiento
+            .AsNoTracking()
+            .Where(p => p.IdProfesional == idProfesional)
+            .OrderByDescending(p => p.ActualizadoEn)
+            .Select(p => new
             {
-                Key = g.Key,
-                Citas = g.OrderBy(c => c.FechaHora)
-                    .Where(c => EstadoCitaHelper.Normalize(c.Estado) != "cancelada")
-                    .ToList()
+                id = p.IdPlan,
+                nombre = p.Servicio!.Nombre,
+                tipo = p.Servicio!.Categoria,
+                servicioId = p.IdServicio,
+                pacienteId = p.HistoriaClinica!.IdPaciente,
+                historiaId = p.IdHistoria,
+                paciente = p.HistoriaClinica!.Paciente!.Nombres + " " + p.HistoriaClinica.Paciente!.Apellidos,
+                cedula = p.HistoriaClinica.Paciente!.Documento,
+                odontologo = p.Profesional == null ? "Sin asignar" : "Dr(a). " + p.Profesional.Nombres + " " + p.Profesional.Apellidos,
+                estado = p.Estado,
+                inicio = p.FechaRegistro,
+                finalizado = p.Estado == "completado" ? p.ActualizadoEn : (DateTime?)null,
+                numeroFdi = p.NumeroFdi,
+                nota = p.Observacion,
+                sesionesEstimadas = p.SesionesEstimadas,
+                sesionesRealizadas = _context.SesionesPlan.Count(s => s.IdPlan == p.IdPlan && !s.Anulada)
             })
-            .Where(grupo => grupo.Citas.Count > 0)
-            .Select(grupo =>
+            .ToListAsync();
+
+        var planIds = tratamientos.Select(p => p.id).ToArray();
+        var sesiones = await _context.SesionesPlan
+            .AsNoTracking()
+            .Include(s => s.ProfesionalRegistro)
+            .Include(s => s.ProfesionalAnula)
+            .Where(s => planIds.Contains(s.IdPlan))
+            .OrderByDescending(s => s.FechaSesion)
+            .Select(s => new
             {
-                var ordenadas = grupo.Citas;
-                var ultima = ordenadas[^1];
-                int total = ordenadas.Count;
+                id = s.IdSesion,
+                planId = s.IdPlan,
+                fecha = s.FechaSesion,
+                citaId = s.IdCita,
+                notaId = s.IdNota,
+                anulada = s.Anulada,
+                motivoAnulacion = s.MotivoAnulacion,
+                profesional = s.ProfesionalRegistro!.Nombres + " " + s.ProfesionalRegistro.Apellidos,
+                profesionalAnula = s.ProfesionalAnula == null ? null : s.ProfesionalAnula.Nombres + " " + s.ProfesionalAnula.Apellidos
+            })
+            .ToListAsync();
 
-                var sesionesHechas = ordenadas
-                    .Where(c => c.FechaHora <= ahora
-                        && EstadoCitaHelper.Normalize(c.Estado) == "atendida")
-                    .OrderBy(c => c.FechaHora)
-                    .ToList();
-                int completadas = sesionesHechas.Count;
+        var pacientes = await _context.Pacientes
+            .AsNoTracking()
+            .Where(p => p.IdProfesionalAsignado == idProfesional
+                || _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.IdProfesional == idProfesional))
+            .Select(p => new
+            {
+                id = p.IdPaciente,
+                nombre = p.Nombres + " " + p.Apellidos,
+                documento = p.Documento
+            })
+            .OrderBy(p => p.nombre)
+            .ToListAsync();
 
-                int progreso = total == 0 ? 0
-                    : (int)Math.Round(completadas * 100.0 / total);
+        // Yeray: Devuelve solo citas y notas de pacientes visibles al profesional para ofrecer vínculos opcionales válidos.
+        var pacienteIds = pacientes.Select(p => p.id).ToArray();
+        var historiasPaciente = await _context.HistoriasClinicas
+            .AsNoTracking()
+            .Where(h => pacienteIds.Contains(h.IdPaciente))
+            .Select(h => new { h.IdHistoria, h.IdPaciente })
+            .ToListAsync();
+        var historiaIds = historiasPaciente.Select(h => h.IdHistoria).ToArray();
+        var citasDisponibles = await _context.Citas
+            .AsNoTracking()
+            .Where(c => pacienteIds.Contains(c.IdPaciente) && c.IdProfesional == idProfesional)
+            .OrderByDescending(c => c.FechaHora)
+            .Select(c => new { id = c.IdCita, pacienteId = c.IdPaciente, fecha = c.FechaHora })
+            .ToListAsync();
+        var notasDisponibles = await _context.NotasClinicas
+            .AsNoTracking()
+            .Where(n => historiaIds.Contains(n.IdHistoria))
+            .OrderByDescending(n => n.Fecha)
+            .Select(n => new { id = n.IdNota, historiaId = n.IdHistoria, fecha = n.Fecha })
+            .ToListAsync();
 
-                string estado = progreso >= 100 ? "completado"
-                    : "en-curso";
+        var servicios = await _context.Servicios
+            .AsNoTracking()
+            .Where(s => s.Estado.ToLower() == "activo")
+            .OrderBy(s => s.Nombre)
+            .Select(s => new { id = s.IdServicio, nombre = s.Nombre, categoria = s.Categoria })
+            .ToListAsync();
 
-                // ── Fecha estimada ────────────────────────────────────────────
-                // Solo se calcula para tratamientos en curso; los demás devuelven null.
-                DateTime? estimado = null;
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Plan_Tratamiento",
+            null,
+            "Consulta del seguimiento de tratamientos.");
 
-                if (estado == "en-curso")
+        return Json(new { tratamientos, sesiones, citas = citasDisponibles, notas = notasDisponibles, pacientes, servicios });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-07-seguimiento-tratamiento/guardar")]
+    public async Task<IActionResult> GuardarPlanTratamiento([FromBody] PlanTratamientoGuardarRequest request)
+    {
+        if (request is null || request.PacienteId is not > 0 || request.ServicioId is not > 0)
+            return BadRequest(new { success = false, message = "Selecciona un paciente y un servicio válidos." });
+        if (!EstadosPlanTratamiento.Contains(request.Estado))
+            return UnprocessableEntity(new { success = false, message = "El estado del plan no es válido." });
+
+        var numeroFdi = string.IsNullOrWhiteSpace(request.NumeroFdi) ? null : request.NumeroFdi.Trim();
+        if (numeroFdi is not null && !NumeroFdiHelper.EsPiezaPermanente(numeroFdi))
+            return UnprocessableEntity(new { success = false, message = "La pieza dental debe ser un número FDI permanente válido." });
+        if (request.Observacion?.Length > 1000)
+            return UnprocessableEntity(new { success = false, message = "La observación no puede superar 1000 caracteres." });
+        if (request.SesionesEstimadas < 0)
+            return UnprocessableEntity(new { success = false, message = "Las sesiones estimadas no pueden ser negativas." });
+
+        int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        if (idProfesional is null || !await PuedeProfesionalAccederAPacienteAsync(request.PacienteId.Value))
+            return Forbid();
+
+        var servicio = await _context.Servicios
+            .FirstOrDefaultAsync(s => s.IdServicio == request.ServicioId.Value && s.Estado.ToLower() == "activo");
+        if (servicio is null)
+            return UnprocessableEntity(new { success = false, message = "El servicio seleccionado no existe o está inactivo." });
+
+        PlanTratamiento? plan = null;
+        int sesionesEstimadasAnteriores = 0;
+        if (request.IdPlan is > 0)
+        {
+            plan = await _context.PlanesTratamiento
+                .Include(p => p.HistoriaClinica)
+                .FirstOrDefaultAsync(p => p.IdPlan == request.IdPlan.Value);
+            if (plan is null)
+                return NotFound(new { success = false, message = "El plan de tratamiento no existe." });
+            if (plan.IdProfesional != idProfesional
+                || plan.HistoriaClinica?.IdPaciente != request.PacienteId.Value)
+                return Forbid();
+            sesionesEstimadasAnteriores = plan.SesionesEstimadas;
+        }
+        else
+        {
+            var pacienteExiste = await _context.Pacientes.AnyAsync(p => p.IdPaciente == request.PacienteId.Value);
+            if (!pacienteExiste)
+                return NotFound(new { success = false, message = "El paciente no existe." });
+            var historia = await _context.HistoriasClinicas
+                .FirstOrDefaultAsync(h => h.IdPaciente == request.PacienteId.Value && h.Activa);
+            historia ??= await _historiaService.CrearHistoriaClinicaAsync(request.PacienteId.Value);
+            plan = new PlanTratamiento
+            {
+                IdHistoria = historia.IdHistoria,
+                IdProfesional = idProfesional,
+                FechaRegistro = DateTime.UtcNow
+            };
+            _context.PlanesTratamiento.Add(plan);
+        }
+
+        plan.IdServicio = request.ServicioId.Value;
+        plan.NumeroFdi = numeroFdi;
+        plan.Estado = request.Estado;
+        plan.Observacion = request.Observacion?.Trim();
+        plan.SesionesEstimadas = request.SesionesEstimadas;
+        plan.ActualizadoEn = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            request.IdPlan is > 0 ? "UPDATE" : "INSERT",
+            "Plan_Tratamiento",
+            plan.IdPlan,
+            $"Plan guardado; sesiones estimadas {sesionesEstimadasAnteriores} -> {plan.SesionesEstimadas}.");
+
+        return Json(new
+        {
+            success = true,
+            idPlan = plan.IdPlan,
+            message = "Plan de tratamiento guardado.",
+            advertencia = await _context.SesionesPlan.CountAsync(s => s.IdPlan == plan.IdPlan && !s.Anulada) > plan.SesionesEstimadas
+                ? "Las sesiones realizadas superan la estimación; ajusta las sesiones estimadas del plan."
+                : null
+        });
+    }
+
+    // Yeray: Registra cada sesión como evento para que el conteo sea trazable y no dependa de citas ni facturación.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-07-seguimiento-tratamiento/{idPlan:int}/sesiones")]
+    public async Task<IActionResult> RegistrarSesionPlan(
+        int idPlan,
+        [FromBody] PlanSesionRegistrarRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null || request.FechaSesion > DateTime.UtcNow.AddMinutes(5))
+            return UnprocessableEntity(new { success = false, message = "Indica una fecha válida de sesión realizada." });
+
+        int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        if (idProfesional is null)
+            return Forbid();
+
+        var plan = await _context.PlanesTratamiento
+            .AsNoTracking()
+            .Where(p => p.IdPlan == idPlan && p.IdProfesional == idProfesional)
+            .Select(p => new { p.IdPlan, p.IdHistoria, p.SesionesEstimadas, PacienteId = p.HistoriaClinica!.IdPaciente })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (plan is null)
+            return NotFound(new { success = false, message = "El plan no existe o no pertenece al profesional." });
+        if (!await PuedeProfesionalAccederAPacienteAsync(plan.PacienteId))
+            return Forbid();
+
+        if (request.CitaId is > 0 && !await _context.Citas.AnyAsync(c =>
+                c.IdCita == request.CitaId && c.IdPaciente == plan.PacienteId && c.IdProfesional == idProfesional,
+                cancellationToken))
+        {
+            return UnprocessableEntity(new { success = false, message = "La cita no corresponde al paciente y profesional del plan." });
+        }
+
+        if (request.NotaId is > 0 && !await _context.NotasClinicas.AnyAsync(n =>
+                n.IdNota == request.NotaId && n.IdHistoria == plan.IdHistoria,
+                cancellationToken))
+        {
+            return UnprocessableEntity(new { success = false, message = "La nota no pertenece a la historia clínica del plan." });
+        }
+
+        if (request.CitaId is > 0 && request.NotaId is > 0 && !await _context.NotasClinicas.AnyAsync(n =>
+                n.IdNota == request.NotaId && n.IdCita == request.CitaId,
+                cancellationToken))
+        {
+            return UnprocessableEntity(new { success = false, message = "La nota no está vinculada a la cita seleccionada." });
+        }
+
+        // Yeray: La sesión y su auditoría se confirman juntas para no dejar eventos clínicos sin trazabilidad.
+        var executionStrategy = _context.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            try
+            {
+                var sesion = new PlanSesion
                 {
-                    int pendientes = total - completadas; // sesiones que faltan
-
-                    double promedioDias;
-
-                    if (sesionesHechas.Count >= 2)
-                    {
-                        // Calcular el promedio real de días entre sesiones consecutivas
-                        double totalDias = 0;
-                        for (int i = 1; i < sesionesHechas.Count; i++)
-                            totalDias += (sesionesHechas[i].FechaHora - sesionesHechas[i - 1].FechaHora).TotalDays;
-
-                        promedioDias = totalDias / (sesionesHechas.Count - 1);
-                    }
-                    else
-                    {
-                        // Sin suficiente historial: intervalo conservador de 30 días
-                        promedioDias = 30;
-                    }
-
-                    // Punto de anclaje: última sesión completada o inicio del tratamiento
-                    var ancla = sesionesHechas.Count > 0
-                        ? sesionesHechas[^1].FechaHora
-                        : ordenadas[0].FechaHora;
-
-                    // Proyectar: ancla + (sesiones pendientes × promedio)
-                    estimado = ancla.AddDays(pendientes * promedioDias);
-                }
-                // ─────────────────────────────────────────────────────────────
-
-                return new
-                {
-                    id            = $"{grupo.Key.IdPaciente}-{grupo.Key.IdServicio}",
-                    nombre        = ordenadas[0].Servicio?.Nombre ?? "Servicio",
-                    tipo          = ordenadas[0].Servicio?.Nombre ?? "Servicio",
-                    pacienteId    = grupo.Key.IdPaciente,
-                    paciente      = ordenadas[0].Paciente != null
-                                        ? ordenadas[0].Paciente!.NombresCompleto
-                                        : "Paciente sin datos",
-                    cedula        = ordenadas[0].Paciente?.Documento ?? "",
-                    odontologo    = ultima.Profesional is not null
-                                        ? $"Dr(a). {ultima.Profesional.Nombres} {ultima.Profesional.Apellidos}"
-                                        : "Sin asignar",
-                    estado,
-                    progreso,
-                    inicio        = ordenadas[0].FechaHora,
-                    estimado,                                           // ← antes siempre null
-                    finalizado    = estado == "completado" ? ultima.FechaHora : (DateTime?)null,
-                    sesiones      = completadas,
-                    totalSesiones = total,
-                    nota          = ultima.Notas ?? ""
+                    IdPlan = idPlan,
+                    FechaSesion = request.FechaSesion ?? DateTime.UtcNow,
+                    IdProfesionalRegistro = idProfesional.Value,
+                    IdCita = request.CitaId,
+                    IdNota = request.NotaId,
+                    RegistradaEn = DateTime.UtcNow
                 };
-            })
-            .OrderByDescending(x => x.inicio)
-            .ToList();
+                _context.SesionesPlan.Add(sesion);
+                await _context.SaveChangesAsync(cancellationToken);
+                await _auditoria.RegistrarAsync(
+                    HttpContext,
+                    "INSERT",
+                    "Plan_Sesion",
+                    sesion.IdSesion,
+                    $"Sesión {sesion.IdSesion} registrada para el plan {idPlan}.",
+                    cancellationToken);
+                if (transaction is not null)
+                    await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                if (transaction is not null)
+                    await transaction.RollbackAsync(CancellationToken.None);
+                _context.ChangeTracker.Clear();
+                throw;
+            }
+        });
 
-        return Json(data);
+        int sesionesRealizadas = await _context.SesionesPlan
+            .CountAsync(s => s.IdPlan == idPlan && !s.Anulada, cancellationToken);
+        bool superaEstimacion = sesionesRealizadas > plan.SesionesEstimadas;
+        return Json(new
+        {
+            success = true,
+            message = superaEstimacion
+                ? "Sesión registrada. Las realizadas superan la estimación; ajusta el plan."
+                : "Sesión realizada registrada.",
+            sesionesRealizadas,
+            sesionesEstimadas = plan.SesionesEstimadas,
+            superaEstimacion
+        });
+    }
+
+    // Yeray: Anula sin borrar la sesión y exige motivo para mantener una corrección auditable.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-07-seguimiento-tratamiento/sesiones/{idSesion:int}/anular")]
+    public async Task<IActionResult> AnularSesionPlan(
+        int idSesion,
+        [FromBody] PlanSesionAnularRequest? request,
+        CancellationToken cancellationToken)
+    {
+        string motivo = request?.Motivo?.Trim() ?? string.Empty;
+        if (motivo.Length < 3 || motivo.Length > 500)
+            return UnprocessableEntity(new { success = false, message = "Indica un motivo de anulación de 3 a 500 caracteres." });
+
+        int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        if (idProfesional is null)
+            return Forbid();
+
+        var sesionInfo = await _context.SesionesPlan
+            .AsNoTracking()
+            .Where(s => s.IdSesion == idSesion)
+            .Select(s => new
+            {
+                s.IdSesion,
+                s.IdPlan,
+                s.Anulada,
+                s.Plan!.IdProfesional,
+                PacienteId = s.Plan.HistoriaClinica!.IdPaciente
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (sesionInfo is null)
+            return NotFound(new { success = false, message = "La sesión no existe." });
+        if (sesionInfo.IdProfesional != idProfesional
+            || !await PuedeProfesionalAccederAPacienteAsync(sesionInfo.PacienteId))
+            return Forbid();
+        if (sesionInfo.Anulada)
+            return Conflict(new { success = false, message = "La sesión ya está anulada." });
+
+        var executionStrategy = _context.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            try
+            {
+                var sesion = await _context.SesionesPlan
+                    .FirstAsync(s => s.IdSesion == idSesion, cancellationToken);
+                if (sesion.Anulada)
+                    throw new InvalidOperationException("La sesión ya está anulada.");
+
+                sesion.Anulada = true;
+                sesion.MotivoAnulacion = motivo;
+                sesion.AnuladaEn = DateTime.UtcNow;
+                sesion.IdProfesionalAnula = idProfesional.Value;
+                await _context.SaveChangesAsync(cancellationToken);
+                string descripcion = $"Sesión anulada; plan={sesion.IdPlan}; motivo={motivo}";
+                await _auditoria.RegistrarAsync(
+                    HttpContext,
+                    "UPDATE",
+                    "Plan_Sesion",
+                    idSesion,
+                    descripcion[..Math.Min(500, descripcion.Length)],
+                    cancellationToken);
+                if (transaction is not null)
+                    await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                if (transaction is not null)
+                    await transaction.RollbackAsync(CancellationToken.None);
+                _context.ChangeTracker.Clear();
+                throw;
+            }
+        });
+
+        return Json(new { success = true, message = "Sesión anulada con motivo registrado." });
     }
 
     [HttpGet]
@@ -1215,7 +2034,16 @@ public class HistoriaClinicaController(
     public async Task<IActionResult> StrecHistorialData([FromQuery] int page = 1, [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null, [FromQuery] string? odontologo = null,
         [FromQuery] string? alerta = null, [FromQuery] string? estado = null)
-        => Json(await BuildPacientesHistorialAsync(null, page, pageSize, search, estado, alerta, odontologo: odontologo));
+    {
+        var resultado = await BuildPacientesHistorialAsync(null, page, pageSize, search, estado, alerta, odontologo: odontologo);
+        await _auditoria.RegistrarAsync(
+            HttpContext,
+            "SELECT",
+            "Historia_Clinica",
+            null,
+            "Consulta paginada del historial clínico desde recepción.");
+        return Json(resultado);
+    }
 
     [HttpGet]
 [Authorize(Roles = "Paciente")]
@@ -1247,6 +2075,12 @@ public async Task<IActionResult> Stpac02Historial()
     // Sin ficha asociada se conserva la vista para mostrar el formulario vacío.
     // Cuando recepción vincula al paciente, la misma ruta carga la información clínica real.
     var vm = await BuildHistorialPacienteViewModelAsync(pacientePropio?.IdPaciente, null);
+    await _auditoria.RegistrarAsync(
+        HttpContext,
+        "SELECT",
+        "Historia_Clinica",
+        vm.Odontograma.HistoriaId,
+        "Consulta del historial clínico propio desde el portal de paciente.");
 
     return View("~/Views/Historia_Clinica/st-pac-02-historial/index.cshtml", vm);
 }
@@ -1267,7 +2101,7 @@ public async Task<IActionResult> Stpac02Historial()
 /// lectura y el historial de consultas por fecha). Las notas clínicas libres
 /// van separadas en vm.NotasClinicas.
 /// </remarks>
-private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAsync(int? pacienteId, int? historiaId)
+private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAsync(int? pacienteId, int? historiaId, int? citaId = null)
 {
     var vm = new HistorialPacienteViewModel
     {
@@ -1296,6 +2130,63 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
 
     var paciente = await _context.Pacientes.FirstOrDefaultAsync(p => p.IdPaciente == idPacienteResuelto);
     if (paciente is null) return vm;
+
+    if (citaId is > 0)
+    {
+        vm.Formulario = new();
+    }
+
+    if (vm.Odontograma.HistoriaId is > 0)
+    {
+        var consultasQuery = _context.ConsultasClinicas
+            .AsNoTracking()
+            .Include(c => c.Diagnosticos)
+            .Include(c => c.Sintomas)
+            .Where(c => c.IdHistoria == vm.Odontograma.HistoriaId.Value);
+
+        var consulta = citaId is > 0
+            ? await consultasQuery.FirstOrDefaultAsync(c => c.IdCita == citaId.Value)
+            : await consultasQuery.OrderByDescending(c => c.FechaConsulta ?? c.FechaRegistro)
+                .FirstOrDefaultAsync();
+
+        if (consulta is not null)
+        {
+            await _auditoria.RegistrarAsync(
+                HttpContext,
+                "SELECT",
+                "Consulta_Clinica",
+                consulta.IdConsultaClinica,
+                "Consulta clínica estructurada consultada desde el historial MVC.");
+            var diagnosticoPrincipal = consulta.Diagnosticos
+                .FirstOrDefault(d => d.EsPrincipal && d.CodigoCie10 is not null)
+                ?? consulta.Diagnosticos.FirstOrDefault(d => d.EsPrincipal);
+            vm.Formulario = new HistoriaFormularioViewModel
+            {
+                ConsultaClinicaId = consulta.IdConsultaClinica,
+                MotivoConsulta = consulta.MotivoConsulta ?? "",
+                EnfermedadActual = consulta.EnfermedadActual ?? "",
+                AntecedentesMedicos = consulta.AntecedentesMedicos ?? paciente.AntecedentesMedicos,
+                SintomasSignos = consulta.Sintomas.OrderBy(s => s.Orden).Select(s => s.Descripcion).ToList(),
+                Habitos = consulta.Habitos ?? "",
+                Alergias = consulta.Alergias ?? "",
+                Hallazgos = consulta.Hallazgos ?? "",
+                OdontogramaObservaciones = consulta.OdontogramaObservaciones ?? "",
+                ExamenesComplementarios = consulta.ExamenesComplementarios ?? "",
+                DiagnosticoPrincipalCodigo = diagnosticoPrincipal?.CodigoCie10,
+                DiagnosticoPrincipal = diagnosticoPrincipal?.Descripcion ?? "",
+                DiagnosticosSecundariosCodigos = consulta.Diagnosticos
+                    .Where(d => !d.EsPrincipal && d.CodigoCie10 is not null)
+                    .Select(d => d.CodigoCie10!)
+                    .ToList(),
+                DiagnosticoSecundario = string.Join("; ", consulta.Diagnosticos
+                    .Where(d => !d.EsPrincipal)
+                    .Select(d => d.Descripcion)),
+                EvolucionClinica = consulta.EvolucionClinica ?? "",
+                Prescripcion = consulta.Prescripcion ?? "",
+                ProximaCitaId = consulta.IdProximaCita
+            };
+        }
+    }
 
     vm.GrupoSanguineo = string.IsNullOrWhiteSpace(paciente.GrupoSanguineo) ? "N/D" : paciente.GrupoSanguineo;
     vm.Alergias = string.IsNullOrWhiteSpace(paciente.Alergias)
@@ -1341,6 +2232,17 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
     vm.ProximaCitaProfesional = proxima?.Profesional is not null
         ? $"Dr(a). {proxima.Profesional.Nombres} {proxima.Profesional.Apellidos}"
         : null;
+    vm.CitasDisponibles = citas
+        .Where(c => c.FechaHora > ahora
+            && EstadoCitaHelper.Normalize(c.Estado) != "cancelada"
+            && c.IdCita != citaId)
+        .OrderBy(c => c.FechaHora)
+        .Select(c => new CitaProximaOpcion
+        {
+            IdCita = c.IdCita,
+            Etiqueta = $"{c.FechaHora:dd/MM/yyyy HH:mm} · {c.Servicio?.Nombre ?? "Consulta"}"
+        })
+        .ToList();
 
     // Registros de consultas pasadas (derivados de Cita, para el odontograma de solo lectura)
     vm.Registros = citas

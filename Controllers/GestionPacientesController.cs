@@ -15,13 +15,16 @@ public class GestionPacientesController : Controller
 {
     private readonly AppDbContext _context;
     private readonly ILogger<GestionPacientesController> _logger;
+    private readonly PacienteFusionService _pacienteFusionService;
 
     public GestionPacientesController(
         AppDbContext context,
-        ILogger<GestionPacientesController> logger)
+        ILogger<GestionPacientesController> logger,
+        PacienteFusionService pacienteFusionService)
     {
         _context = context;
         _logger = logger;
+        _pacienteFusionService = pacienteFusionService;
     }
 
     // =========================================================================
@@ -425,6 +428,30 @@ public class GestionPacientesController : Controller
         };
 
         return View("~/Views/Gestion_De_Pacientes/detalle-paciente/index.cshtml", vm);
+    }
+
+    // Yeray: Limita la fusión a administración y exige antifalsificación para evitar cambios clínicos accidentales.
+    [HttpPost]
+    [Authorize(Roles = "Administrador")]
+    [Route("gestion-de-pacientes/fusionar")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> FusionarPacientes(
+        [FromForm] int idPrincipal,
+        [FromForm] int idDuplicado,
+        CancellationToken cancellationToken)
+    {
+        if (idPrincipal <= 0)
+            return BadRequest();
+
+        var resultado = await _pacienteFusionService.FusionarAsync(
+            HttpContext,
+            idPrincipal,
+            idDuplicado,
+            cancellationToken);
+
+        TempData["PacienteFusionMensaje"] = resultado.Mensaje;
+        TempData["PacienteFusionError"] = !resultado.Fusionada;
+        return Redirect($"/gestion-de-pacientes/{idPrincipal}");
     }
 
     // Yeray (2025) - Listado de pacientes para Recepcionista
