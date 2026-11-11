@@ -36,6 +36,7 @@ using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 using SmileTrack_MVC.Services.Email;
 using System.Security.Claims;
 
@@ -78,19 +79,22 @@ public sealed class CitasApiController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly ICitaService _citaService;
     private readonly IMemoryCache _memoryCache;
+    private readonly IPerfilPacienteService _perfilPacienteService;
 
     public CitasApiController(
         AppDbContext context,
         ILogger<CitasApiController> logger,
         IEmailService emailService,
         ICitaService citaService,
-        IMemoryCache memoryCache)
+        IMemoryCache memoryCache,
+        IPerfilPacienteService perfilPacienteService)
     {
         _context = context;
         _logger = logger;
         _emailService = emailService;
         _citaService = citaService;
         _memoryCache = memoryCache;
+        _perfilPacienteService = perfilPacienteService;
     }
 
     [HttpGet]
@@ -121,9 +125,15 @@ public sealed class CitasApiController : ControllerBase
         if (User.IsInRole("Paciente"))
         {
             role = "Paciente";
-            if (!int.TryParse(User.FindFirstValue("IdPaciente"), out int value) || value <= 0)
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
                 return Forbid();
-            idPaciente = value;
+
+            idPaciente = await _context.Pacientes
+                .Where(p => p.IdUsuario == userId)
+                .Select(p => (int?)p.IdPaciente)
+                .FirstOrDefaultAsync(ct);
+            if (idPaciente is not > 0)
+                return Forbid();
         }
         else if (User.IsInRole("Profesional"))
         {
@@ -183,7 +193,7 @@ public sealed class CitasApiController : ControllerBase
         var cita = await _citaService.ObtenerPorIdAsync(id, ct);
         if (cita is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
-        if (!TieneOwnership(cita))
+        if (!await TieneOwnershipAsync(cita, ct))
             return Forbid();
 
         int duracion = await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
@@ -302,7 +312,7 @@ public sealed class CitasApiController : ControllerBase
         var existente = await _citaService.ObtenerPorIdAsync(id, ct);
         if (existente is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
-        if (!TieneOwnership(existente))
+        if (!await TieneOwnershipAsync(existente, ct))
             return Forbid();
 
         try
@@ -340,7 +350,7 @@ public sealed class CitasApiController : ControllerBase
         var existente = await _citaService.ObtenerPorIdAsync(id, ct);
         if (existente is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
-        if (!TieneOwnership(existente))
+        if (!await TieneOwnershipAsync(existente, ct))
             return Forbid();
 
         string estadoActual = existente.Estado.Trim().ToLowerInvariant();
@@ -401,12 +411,28 @@ public sealed class CitasApiController : ControllerBase
         if (dto is null || !ModelState.IsValid)
             return BadRequest(new { success = false, message = "Datos de solicitud inválidos." });
 
-        if (!int.TryParse(User.FindFirstValue("IdPaciente"), out int idPaciente) || idPaciente <= 0)
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ||
+            !await _perfilPacienteService.PerfilCompletoAsync(idUsuario, ct))
+        {
+            return Conflict(new
+            {
+                success = false,
+                code = "PROFILE_INCOMPLETE",
+                message = "Confirma tus datos personales antes de solicitar una cita.",
+                profileUrl = "/perfiles/st-pac-perfil-paciente"
+            });
+        }
+
+        int? idPaciente = await _context.Pacientes
+            .Where(p => p.IdUsuario == idUsuario)
+            .Select(p => (int?)p.IdPaciente)
+            .FirstOrDefaultAsync(ct);
+        if (idPaciente is not > 0)
             return Forbid();
 
         try
         {
-            var cita = await _citaService.SolicitarCitaPacienteAsync(idPaciente, dto, ct);
+            var cita = await _citaService.SolicitarCitaPacienteAsync(idPaciente.Value, dto, ct);
             await RegistrarAuditoriaAsync("INSERT", cita.IdCita, "Solicitud de cita creada por paciente.", ct);
             return StatusCode(StatusCodes.Status201Created, new
             {
@@ -672,7 +698,7 @@ public sealed class CitasApiController : ControllerBase
         var cita = await _citaService.ObtenerPorIdAsync(id, ct);
         if (cita is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
-        if (!TieneOwnership(cita))
+        if (!await TieneOwnershipAsync(cita, ct))
             return Forbid();
 
         if (dto.FechaHora < DateTime.Now.AddMinutes(-5))
@@ -890,7 +916,7 @@ public sealed class CitasApiController : ControllerBase
         if (User.IsInRole("Profesional") && !EsProfesionalPropietario(cita))
             return Forbid();
 
-        if (User.IsInRole("Paciente") && !EsPacientePropietario(cita))
+        if (User.IsInRole("Paciente") && !await EsPacientePropietarioAsync(cita, ct))
             return Forbid();
 
         if (!User.IsInRole("Paciente") &&
@@ -921,8 +947,21 @@ public sealed class CitasApiController : ControllerBase
         }
     }
 
-    private bool TieneOwnership(Cita cita) => User.IsInRole("Administrador") || User.IsInRole("Recepcionista") || (User.IsInRole("Paciente") && EsPacientePropietario(cita)) || (User.IsInRole("Profesional") && EsProfesionalPropietario(cita));
-    private bool EsPacientePropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdPaciente"), out int id) && id == cita.IdPaciente;
+    private async Task<bool> TieneOwnershipAsync(Cita cita, CancellationToken ct) =>
+        User.IsInRole("Administrador") ||
+        User.IsInRole("Recepcionista") ||
+        (User.IsInRole("Paciente") && await EsPacientePropietarioAsync(cita, ct)) ||
+        (User.IsInRole("Profesional") && EsProfesionalPropietario(cita));
+
+    private async Task<bool> EsPacientePropietarioAsync(Cita cita, CancellationToken ct)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario))
+            return false;
+
+        return await _context.Pacientes.AnyAsync(
+            p => p.IdPaciente == cita.IdPaciente && p.IdUsuario == idUsuario,
+            ct);
+    }
     private bool EsProfesionalPropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdProfesional"), out int id) && id == cita.IdProfesional;
     private static bool EsConflicto(string? message) => message?.Contains("horario", StringComparison.OrdinalIgnoreCase) == true;
     private static string NormalizarEstado(string? estado) => EstadoCitaHelper.Normalize(estado);

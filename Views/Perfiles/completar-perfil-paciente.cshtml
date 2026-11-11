@@ -18,6 +18,7 @@
         input[readonly] { background: #f8fafc; }
         button { margin-top: 1.5rem; padding: .8rem 1.2rem; border: 0; border-radius: .5rem; background: #0f766e; color: white; font-weight: 700; cursor: pointer; }
         .error { color: #b91c1c; }
+        .profile-notice { padding: .8rem 1rem; border-left: 4px solid #d97706; background: #fffbeb; color: #78350f; }
         .validation-summary-errors { color: #b91c1c; }
     </style>
 </head>
@@ -25,6 +26,10 @@
 <main>
     <h1>Completa tus datos personales</h1>
     <p>Necesitamos tu documento y fecha de nacimiento reales para completar tu perfil. No se asignarán valores de ejemplo.</p>
+    @if (TempData["PerfilPacienteAviso"] is string aviso)
+    {
+        <p role="status" class="profile-notice">@aviso</p>
+    }
     <form method="post" action="/perfiles/st-pac-completar-perfil">
         @Html.AntiForgeryToken()
         <div asp-validation-summary="All" class="validation-summary-errors"></div>

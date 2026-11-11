@@ -27,6 +27,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Services.Perfiles;
 
 namespace SmileTrack_MVC.Controllers.Api;
 
@@ -43,10 +44,14 @@ public class SolicitudCitaMovil
 public class MobileSolicitudCitasController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IPerfilPacienteService _perfilPacienteService;
 
-    public MobileSolicitudCitasController(AppDbContext context)
+    public MobileSolicitudCitasController(
+        AppDbContext context,
+        IPerfilPacienteService perfilPacienteService)
     {
         _context = context;
+        _perfilPacienteService = perfilPacienteService;
     }
 
     [HttpGet("servicios")]
@@ -78,6 +83,16 @@ public class MobileSolicitudCitasController : ControllerBase
         if (!int.TryParse(idUsuarioTexto, out int idUsuario))
         {
             return Unauthorized();
+        }
+
+        if (!await _perfilPacienteService.PerfilCompletoAsync(idUsuario, cancellationToken))
+        {
+            return Conflict(new
+            {
+                code = "PROFILE_INCOMPLETE",
+                message = "Confirma tus datos personales antes de solicitar una cita.",
+                profileUrl = "/perfiles/st-pac-perfil-paciente"
+            });
         }
 
         if (solicitud.IdServicio <= 0 ||
