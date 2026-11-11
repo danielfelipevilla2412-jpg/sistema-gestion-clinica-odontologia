@@ -124,6 +124,26 @@
   /* El sidebar padre gestiona el scroll, no este nav */
 }
 
+.patient-profile-notice {
+  display: grid;
+  gap: 6px;
+  margin: 12px 12px 8px;
+  padding: 10px;
+  border: 1px solid rgba(251, 191, 36, .45);
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(120, 83, 12, .2);
+  color: #fde68a;
+  font-size: .75rem;
+  line-height: 1.4;
+}
+
+.patient-profile-notice a {
+  color: #fff;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ── Ítems de navegación individuales ───────────────────────────────────── */
 
 /**

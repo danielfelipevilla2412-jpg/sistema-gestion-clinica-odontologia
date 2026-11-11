@@ -1,6 +1,8 @@
 using System;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -10,6 +12,7 @@ using SmileTrack_MVC.Controllers;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 using SmileTrack_MVC.Services.Email;
 using Xunit;
 
@@ -27,6 +30,52 @@ public class CitasApiValidationTests
     }
 
     [Fact]
+    public async Task SolicitarCita_RechazaPacienteConPerfilIncompleto()
+    {
+        var db = CreateInMemoryDb($"citas_api_incomplete_profile_{Guid.NewGuid()}");
+        db.Usuarios.Add(new SmileTrack_MVC.Models.Entities.Usuario
+        {
+            IdUsuario = 12,
+            Nombre = "Ana",
+            Apellidos = "López",
+            Correo = "ana@example.test",
+            Contrasena = "hash",
+            IdRol = 3,
+            Estado = "activo"
+        });
+        await db.SaveChangesAsync();
+
+        var service = new CitaService(db, NullLogger<CitaService>.Instance);
+        var controller = new CitasApiController(
+            db,
+            NullLogger<CitasApiController>.Instance,
+            new NoOpEmailService(),
+            service,
+            new MemoryCache(new MemoryCacheOptions()),
+            new PerfilPacienteService(db));
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.NameIdentifier, "12"),
+                    new Claim(ClaimTypes.Role, "Paciente")
+                ], "Test"))
+            }
+        };
+
+        var result = await controller.SolicitarCita(new CitaSolicitudPacienteDto
+        {
+            Fecha = DateTime.Today.AddDays(2)
+        });
+
+        var conflict = Assert.IsType<ConflictObjectResult>(result);
+        var code = conflict.Value?.GetType().GetProperty("code")?.GetValue(conflict.Value)?.ToString();
+        Assert.Equal("PROFILE_INCOMPLETE", code);
+    }
+
+    [Fact]
     public async Task Actualizar_RejectsModelStateErrorsBeforeBusinessValidation()
     {
         var db = CreateInMemoryDb($"citas_api_validation_{Guid.NewGuid()}");
@@ -36,7 +85,8 @@ public class CitasApiValidationTests
             NullLogger<CitasApiController>.Instance,
             new NoOpEmailService(),
             service,
-            new MemoryCache(new MemoryCacheOptions()));
+            new MemoryCache(new MemoryCacheOptions()),
+            new PerfilPacienteService(db));
 
         controller.ModelState.AddModelError("IdPaciente", "El paciente es obligatorio.");
 

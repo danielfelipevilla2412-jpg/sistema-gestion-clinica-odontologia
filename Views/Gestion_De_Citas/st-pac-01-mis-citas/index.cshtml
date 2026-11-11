@@ -14,7 +14,13 @@
    - CSS: ~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css
    - JS: ~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js
    ============================================ *@
-@{ Layout = "_Layout"; ViewData["Title"] = "Mis Citas"; }
+@inject SmileTrack_MVC.Services.Perfiles.IPerfilPacienteService PerfilPacienteService
+@{
+  Layout = "_Layout";
+  ViewData["Title"] = "Mis Citas";
+  int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int idUsuarioPaciente);
+  var perfilPacienteCompleto = idUsuarioPaciente > 0 && await PerfilPacienteService.PerfilCompletoAsync(idUsuarioPaciente);
+}
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css" asp-append-version="true" />
@@ -35,8 +41,17 @@
         <h1 class="page-title" data-i18n="citas.title">Mis Citas</h1>
         <p class="page-subtitle" data-i18n="citas.pac_subtitle">Gestiona y consulta tus citas odontológicas personales</p>
       </div>
-      <button class="btn-primary" id="btnNuevaCita" aria-label="Solicitar nueva cita" data-i18n="citas.new">+ Solicitar cita</button>
+      @if (perfilPacienteCompleto)
+      {
+        <button class="btn-primary" id="btnNuevaCita" aria-label="Solicitar nueva cita" data-i18n="citas.new">+ Solicitar cita</button>
+      }
     </header>
+    @if (!perfilPacienteCompleto)
+    {
+      <div class="patient-profile-notice" role="status">
+        Para solicitar citas, primero confirma tu identidad. <a href="/perfiles/st-pac-perfil-paciente">Actualizar datos personales</a>.
+      </div>
+    }
     <div data-perfil-paciente-header></div>
 
     <!-- Stats Grid: estadísticas animadas del paciente -->

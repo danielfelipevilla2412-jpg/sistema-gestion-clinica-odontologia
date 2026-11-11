@@ -105,7 +105,8 @@ public class CitaServiceTests
             NullLogger<CitasApiController>.Instance,
             null!,
             citaService,
-            new MemoryCache(new MemoryCacheOptions()));
+            new MemoryCache(new MemoryCacheOptions()),
+            new SmileTrack_MVC.Services.Perfiles.PerfilPacienteService(db));
 
         var result = await controller.ObtenerProfesionalesDisponibles(
             fecha,

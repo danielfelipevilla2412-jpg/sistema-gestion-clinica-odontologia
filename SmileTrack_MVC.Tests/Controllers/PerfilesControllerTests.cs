@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -8,12 +9,80 @@ using SmileTrack_MVC.Controllers;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 using Xunit;
 
 namespace SmileTrack_MVC.Tests.Controllers;
 
 public sealed class PerfilesControllerTests
 {
+    [Fact]
+    public async Task PerfilCompletoAsync_AceptaDatosValidosYSincronizados()
+    {
+        await using var context = CrearContext();
+        context.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 12,
+            Nombre = "Ana",
+            Apellidos = "López",
+            Correo = "ana@example.test",
+            Contrasena = "hash",
+            IdRol = 3,
+            Estado = "activo",
+            FechaNacimiento = new DateTime(1995, 6, 15)
+        });
+        context.Pacientes.Add(new Paciente
+        {
+            IdPaciente = 30,
+            IdUsuario = 12,
+            TipoDocumento = "CC",
+            Documento = "123456789",
+            Nombres = "Ana",
+            Apellidos = "López",
+            FechaNacimiento = new DateTime(1995, 6, 15),
+            Estado = "activo"
+        });
+        await context.SaveChangesAsync();
+
+        var service = new PerfilPacienteService(context);
+
+        Assert.True(await service.PerfilCompletoAsync(12));
+    }
+
+    [Fact]
+    public async Task PerfilCompletoAsync_RechazaDocumentoProvisional()
+    {
+        await using var context = CrearContext();
+        context.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 12,
+            Nombre = "Ana",
+            Apellidos = "López",
+            Correo = "ana@example.test",
+            Contrasena = "hash",
+            IdRol = 3,
+            Estado = "activo",
+            FechaNacimiento = new DateTime(1995, 6, 15)
+        });
+        context.Pacientes.Add(new Paciente
+        {
+            IdPaciente = 30,
+            IdUsuario = 12,
+            TipoDocumento = "CC",
+            Documento = "TEMP12",
+            Nombres = "Ana",
+            Apellidos = "López",
+            FechaNacimiento = new DateTime(1995, 6, 15),
+            Estado = "activo"
+        });
+        await context.SaveChangesAsync();
+
+        var service = new PerfilPacienteService(context);
+
+        Assert.False(await service.PerfilCompletoAsync(12));
+    }
+
     [Fact]
     public async Task CompletarPerfilPaciente_GuardaDocumentoYFechaEnCuentaYFicha()
     {
@@ -56,6 +125,147 @@ public sealed class PerfilesControllerTests
         Assert.Equal("123456789", paciente.Documento);
         Assert.Equal(new DateTime(1995, 6, 15), paciente.FechaNacimiento);
         Assert.Equal(paciente.FechaNacimiento, usuario.FechaNacimiento);
+    }
+
+    [Fact]
+    public async Task CompletarPerfilPaciente_VinculaFichaExistenteConIdentidadCoincidente()
+    {
+        await using var context = CrearContext();
+        context.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 12,
+            Nombre = "Ana",
+            Apellidos = "López",
+            Correo = "ana@example.test",
+            Contrasena = "hash",
+            IdRol = 3,
+            Estado = "activo"
+        });
+        context.Pacientes.Add(new Paciente
+        {
+            IdPaciente = 30,
+            Documento = "123456789",
+            TipoDocumento = "CC",
+            Nombres = "Ana",
+            Apellidos = "López",
+            FechaNacimiento = new DateTime(1995, 6, 15),
+            Estado = "activo"
+        });
+        await context.SaveChangesAsync();
+
+        var controller = CrearController(context, 12);
+        var model = new CompletarPerfilPacienteViewModel
+        {
+            TipoDocumento = "CC",
+            Documento = "123456789",
+            FechaNacimiento = new DateTime(1995, 6, 15)
+        };
+
+        var result = await controller.CompletarPerfilPaciente(model, default);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var paciente = await context.Pacientes.SingleAsync(p => p.IdPaciente == 30);
+        var usuario = await context.Usuarios.SingleAsync(u => u.IdUsuario == 12);
+        Assert.Equal(12, paciente.IdUsuario);
+        Assert.Equal(new DateTime(1995, 6, 15), usuario.FechaNacimiento);
+    }
+
+    [Fact]
+    public async Task CompletarPerfilPaciente_NoVinculaFichaConNombreDistinto()
+    {
+        await using var context = CrearContext();
+        context.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 12,
+            Nombre = "Ana",
+            Apellidos = "López",
+            Correo = "ana@example.test",
+            Contrasena = "hash",
+            IdRol = 3,
+            Estado = "activo"
+        });
+        context.Pacientes.Add(new Paciente
+        {
+            IdPaciente = 30,
+            Documento = "123456789",
+            TipoDocumento = "CC",
+            Nombres = "Laura",
+            Apellidos = "Ruiz",
+            FechaNacimiento = new DateTime(1995, 6, 15),
+            Estado = "activo"
+        });
+        await context.SaveChangesAsync();
+
+        var controller = CrearController(context, 12);
+        var model = new CompletarPerfilPacienteViewModel
+        {
+            TipoDocumento = "CC",
+            Documento = "123456789",
+            FechaNacimiento = new DateTime(1995, 6, 15)
+        };
+
+        var result = await controller.CompletarPerfilPaciente(model, default);
+
+        Assert.IsType<ViewResult>(result);
+        var paciente = await context.Pacientes.SingleAsync(p => p.IdPaciente == 30);
+        Assert.Null(paciente.IdUsuario);
+        Assert.Equal("Laura", paciente.Nombres);
+        Assert.Contains(controller.ModelState.Values.SelectMany(value => value.Errors),
+            error => error.ErrorMessage.Contains("revisión en recepción", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task CompletarPerfilPaciente_NoVinculaAutomaticamenteSiCuentaYaTieneOtraFicha()
+    {
+        await using var context = CrearContext();
+        context.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 12,
+            Nombre = "Ana",
+            Apellidos = "López",
+            Correo = "ana@example.test",
+            Contrasena = "hash",
+            IdRol = 3,
+            Estado = "activo"
+        });
+        context.Pacientes.AddRange(
+            new Paciente
+            {
+                IdPaciente = 29,
+                IdUsuario = 12,
+                TipoDocumento = "CC",
+                Documento = "TEMP12",
+                Nombres = "Ana",
+                Apellidos = "López",
+                Estado = "activo"
+            },
+            new Paciente
+            {
+                IdPaciente = 30,
+                Documento = "123456789",
+                TipoDocumento = "CC",
+                Nombres = "Ana",
+                Apellidos = "López",
+                FechaNacimiento = new DateTime(1995, 6, 15),
+                Estado = "activo"
+            });
+        await context.SaveChangesAsync();
+
+        var controller = CrearController(context, 12);
+        var model = new CompletarPerfilPacienteViewModel
+        {
+            TipoDocumento = "CC",
+            Documento = "123456789",
+            FechaNacimiento = new DateTime(1995, 6, 15)
+        };
+
+        var result = await controller.CompletarPerfilPaciente(model, default);
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Equal(12, (await context.Pacientes.SingleAsync(p => p.IdPaciente == 29)).IdUsuario);
+        Assert.Null((await context.Pacientes.SingleAsync(p => p.IdPaciente == 30)).IdUsuario);
+        Assert.Contains(controller.ModelState.Values.SelectMany(value => value.Errors),
+            error => error.ErrorMessage.Contains("revisión en recepción", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -183,7 +393,7 @@ public sealed class PerfilesControllerTests
     }
 
     [Fact]
-    public async Task StpacPerfilPaciente_SolicitaCompletarFechaDeNacimientoNoVinculadaALaCuenta()
+    public async Task StpacPerfilPaciente_MuestraPerfilParaConfirmarFechaDeNacimiento()
     {
         await using var context = CrearContext();
         context.Usuarios.Add(new Usuario
@@ -210,13 +420,42 @@ public sealed class PerfilesControllerTests
 
         var result = await CrearController(context, 12).StpacPerfilPaciente();
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(PerfilesController.CompletarPerfilPaciente), redirect.ActionName);
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.False((bool)view.ViewData["PerfilCompleto"]!);
+    }
+
+    [Fact]
+    public async Task StpacPerfilPaciente_MuestraPerfilSinCrearFichaCuandoNoExiste()
+    {
+        await using var context = CrearContext();
+        context.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 12,
+            Nombre = "Ana",
+            Apellidos = "López",
+            Correo = "ana@example.test",
+            Contrasena = "hash",
+            IdRol = 3,
+            Estado = "activo"
+        });
+        await context.SaveChangesAsync();
+
+        var result = await CrearController(context, 12).StpacPerfilPaciente();
+
+        var view = Assert.IsType<ViewResult>(result);
+        var pacienteTemporal = Assert.IsType<Paciente>(view.Model);
+        Assert.Equal(string.Empty, pacienteTemporal.Documento);
+        Assert.Equal(DateTime.MinValue, pacienteTemporal.FechaNacimiento);
+        Assert.False((bool)view.ViewData["PerfilCompleto"]!);
+        Assert.Empty(context.Pacientes);
     }
 
     private static PerfilesController CrearController(AppDbContext context, int userId)
     {
-        var controller = new PerfilesController(context);
+        var controller = new PerfilesController(
+            context,
+            new PerfilPacienteService(context),
+            new AuditoriaHistoriaClinicaService(context));
         var identity = new ClaimsIdentity(
             new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) },
             "Test");

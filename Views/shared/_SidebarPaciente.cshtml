@@ -1,6 +1,9 @@
+@inject SmileTrack_MVC.Services.Perfiles.IPerfilPacienteService PerfilPacienteService
 @{
     var _pNombre  = User.Identity?.Name ?? "Paciente";
     var _pEmail   = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "paciente@smiletrack.co";
+    int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int _pUserId);
+    var _perfilCompleto = _pUserId > 0 && await PerfilPacienteService.PerfilCompletoAsync(_pUserId);
 
     var _partes   = _pNombre.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
     var _iniciales = _partes.Length >= 2
@@ -106,9 +109,23 @@
         <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
     </div>
 
+    @if (!_perfilCompleto)
+    {
+        <div class="patient-profile-notice" role="status">
+            <strong>Confirma tus datos</strong>
+            <span>Actualiza tu perfil para habilitar citas e historial clínico.</span>
+            <a href="/perfiles/st-pac-perfil-paciente">Actualizar perfil</a>
+        </div>
+    }
+
     <nav class="sidebar-nav">
         @foreach (var group in groups)
         {
+            @if (!_perfilCompleto && group.Title == "Mi historial")
+            {
+                continue;
+            }
+
             <div class="nav-group">
                 <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="@groupKey(group.Title)">
                     @group.Title

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 
 namespace SmileTrack_MVC.Controllers.Api;
 
@@ -15,13 +16,16 @@ public class MobileHistoriaClinicaController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly AuditoriaHistoriaClinicaService _auditoria;
+    private readonly IPerfilPacienteService _perfilPacienteService;
 
     public MobileHistoriaClinicaController(
         AppDbContext context,
-        AuditoriaHistoriaClinicaService auditoria)
+        AuditoriaHistoriaClinicaService auditoria,
+        IPerfilPacienteService perfilPacienteService)
     {
         _context = context;
         _auditoria = auditoria;
+        _perfilPacienteService = perfilPacienteService;
     }
 
     [HttpGet]
@@ -34,6 +38,16 @@ public class MobileHistoriaClinicaController : ControllerBase
         if (!int.TryParse(idUsuarioTexto, out int idUsuario))
         {
             return Unauthorized();
+        }
+
+        if (!await _perfilPacienteService.PerfilCompletoAsync(idUsuario, cancellationToken))
+        {
+            return Conflict(new
+            {
+                code = "PROFILE_INCOMPLETE",
+                message = "Confirma tus datos personales antes de consultar tu historia clínica.",
+                profileUrl = "/perfiles/st-pac-perfil-paciente"
+            });
         }
 
         var paciente = await _context.Pacientes

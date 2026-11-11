@@ -58,12 +58,51 @@
       </div>
       </div>
       <div class="header-actions">
-        <a class="btn-editar" href="/perfiles/st-pac-completar-perfil">Actualizar documento y fecha de nacimiento</a>
+        @if (ViewBag.PerfilCompleto is bool perfilCompleto && !perfilCompleto)
+        {
+          <a class="btn-editar" href="#confirmarDatos">Confirmar datos personales</a>
+        }
         <button class="btn-editar" id="btnEditar" aria-label="Activar modo edición" data-i18n-aria-label="profile.edit"><span data-i18n="profile.edit">✏️ Editar perfil</span></button>
         <button class="btn-guardar" id="btnGuardar" aria-label="Guardar cambios" data-i18n-aria-label="common.save"><span data-i18n="common.save">💾 Guardar</span></button>
         <button class="btn-cancelar" id="btnCancelar" aria-label="Cancelar edición" data-i18n-aria-label="common.cancel"><span data-i18n="common.cancel">✕ Cancelar</span></button>
       </div>
     </header>
+
+      @if (ViewBag.PerfilCompleto is bool perfilConfirmado && !perfilConfirmado)
+      {
+        <section class="card profile-confirmation-card" id="confirmarDatos" aria-labelledby="confirmarDatosTitulo">
+          <h2 class="card-title" id="confirmarDatosTitulo">Confirma tus datos de identidad</h2>
+          <p>Necesitamos validar documento y fecha de nacimiento para habilitar las solicitudes de citas y la consulta de tu historia clínica.</p>
+          @if (TempData["PerfilPacienteAviso"] is string aviso)
+          {
+            <p class="profile-confirmation-message" role="status">@aviso</p>
+          }
+          <form method="post" action="/perfiles/st-pac-completar-perfil">
+            @Html.AntiForgeryToken()
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="confirmTipoDocumento">Tipo de documento</label>
+                <select class="form-input" id="confirmTipoDocumento" name="TipoDocumento" required>
+                  <option value="">Selecciona un tipo</option>
+                  @foreach (var tipo in new[] { ("CC", "Cédula de ciudadanía"), ("TI", "Tarjeta de identidad"), ("CE", "Cédula de extranjería"), ("PAS", "Pasaporte") })
+                  {
+                    <option value="@tipo.Item1" selected="@(Model.TipoDocumento == tipo.Item1)">@tipo.Item2</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="confirmDocumento">Número de documento</label>
+                <input class="form-input" id="confirmDocumento" name="Documento" value="@Model.Documento" autocomplete="off" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="confirmFechaNacimiento">Fecha de nacimiento</label>
+                <input class="form-input" id="confirmFechaNacimiento" name="FechaNacimiento" type="date" value="@(Model.FechaNacimiento >= new DateTime(1900, 1, 1) ? Model.FechaNacimiento.ToString("yyyy-MM-dd") : string.Empty)" max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" required />
+              </div>
+            </div>
+            <button type="submit" class="btn-editar">Guardar y confirmar</button>
+          </form>
+        </section>
+      }
 
     <!-- Main Grid -->
     <div class="main-grid">
@@ -99,7 +138,7 @@
             </div>
             <div class="form-group">
               <label class="form-label" for="fechaNac">Fecha de nacimiento</label>
-              <input class="form-input locked" id="fechaNac" type="text" value="@Model.FechaNacimiento.ToString("dd/MM/yyyy")" disabled disabled />
+              <input class="form-input locked" id="fechaNac" type="text" value="@(Model.FechaNacimiento >= new DateTime(1900, 1, 1) ? Model.FechaNacimiento.ToString("dd/MM/yyyy") : "Pendiente de confirmar")" disabled disabled />
               <span class="field-note">🔒 No editable</span>
             </div>
             <div class="form-group">

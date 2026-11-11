@@ -181,7 +181,6 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
             return View("~/Views/Acceso_Y_Seguridad/login/index.cshtml");
         }
 
-        bool requiereCompletarPerfilPaciente = false;
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, usuario.IdUsuario.ToString()),
@@ -204,13 +203,6 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
                 claims.Add(new Claim("IdPaciente", idPaciente.Value.ToString()));
             }
 
-            requiereCompletarPerfilPaciente = !idPaciente.HasValue ||
-                !usuario.FechaNacimiento.HasValue ||
-                await _context.Pacientes.AnyAsync(p =>
-                    p.IdUsuario == usuario.IdUsuario &&
-                    (p.Documento == $"TEMP{usuario.IdUsuario}" ||
-                     p.Documento == $"USR-{usuario.IdUsuario:000000}" ||
-                     p.FechaNacimiento.Date != usuario.FechaNacimiento.Value.Date));
         }
         else if (string.Equals(rolNombre, "Profesional", StringComparison.OrdinalIgnoreCase))
         {
@@ -255,11 +247,6 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         else
         {
             destino = redirectUrl;
-        }
-
-        if (requiereCompletarPerfilPaciente)
-        {
-            destino = "/perfiles/st-pac-completar-perfil";
         }
 
         if (wantsJson)
