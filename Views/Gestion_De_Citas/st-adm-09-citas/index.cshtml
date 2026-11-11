@@ -85,28 +85,26 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
             }
             <div class="stat-card" data-color="blue">
                 <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_note</span>
-                <span class="stat-number" id="citas-stat-total" data-target="@statKpiTotal" aria-live="polite">0</span>
+                <span class="stat-number" id="citas-stat-total" data-target="@statKpiTotal">0</span>
                 <span class="stat-label" data-i18n="adm09_stat_total">Total Citas</span>
                 <span class="stat-sub" data-i18n="adm09_stat_total_sub">Este mes</span>
             </div>
             <div class="stat-card" data-color="green">
                 <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
-                <span class="stat-number" id="citas-stat-programadas" data-target="@statKpiProgramadas"
-                      aria-live="polite">0</span>
+                <span class="stat-number" id="citas-stat-programadas" data-target="@statKpiProgramadas">0</span>
                 <span class="stat-label" data-i18n="adm09_stat_programadas">Programadas</span>
                 <span class="stat-sub">@((int.TryParse(statKpiDifSemana?.ToString(), out var ds) && ds >= 0 ? $"↑ +{ds}"
                                                                                                                                             : $"↓ {statKpiDifSemana}")) <span data-i18n="adm09_stat_vs_week">vs semana pasada</span></span>
                 </div>
                 <div class="stat-card" data-color="red">
                     <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
-                    <span class="stat-number" id="citas-stat-canceladas" data-target="@statKpiCanceladas"
-                          aria-live="polite">0</span>
+                    <span class="stat-number" id="citas-stat-canceladas" data-target="@statKpiCanceladas">0</span>
                     <span class="stat-label" data-i18n="adm09_stat_canceladas">Canceladas</span>
                     <span class="stat-sub"><span data-i18n="adm09_stat_rate">Tasa:</span> @statKpiTasaCancel%</span>
                 </div>
                 <div class="stat-card" data-color="orange">
                     <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
-                    <span class="stat-number" id="citas-stat-atendidas" data-target="@statKpiAtendidas" aria-live="polite">0</span>
+                    <span class="stat-number" id="citas-stat-atendidas" data-target="@statKpiAtendidas">0</span>
                     <span class="stat-label" data-i18n="adm09_stat_atendidas">Atendidas</span>
                     <span class="stat-sub">↓ @statKpiTasaAsis% <span data-i18n="adm09_stat_attendance">asistencia</span></span>
                 </div>
@@ -117,14 +115,14 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                 <h2 class="visually-hidden" id="tableTitle" data-i18n="adm09_table_title">Lista de citas</h2>
 
                 <!-- Tabs accesibles para filtrado rápido -->
-                <div class="table-tabs" role="tablist" aria-label="Filtrar citas por estado" data-i18n-aria-label="adm09_tabs_aria">
-                    <button class="tab-btn @(activeTab == "all" ? "active" : "")" data-tab="all" role="tab" aria-selected="@(activeTab == "all" ? "true" : "false")" aria-controls="citasBody" data-i18n="adm09_tab_all">
+                <div class="table-tabs" role="group" aria-label="Filtrar citas por estado" data-i18n-aria-label="adm09_tabs_aria">
+                    <button type="button" class="tab-btn @(activeTab == "all" ? "active" : "")" data-tab="all" aria-pressed="@(activeTab == "all" ? "true" : "false")" data-i18n="adm09_tab_all">
                         Todas las citas
                     </button>
-                    <button class="tab-btn @(activeTab == "cancelled" ? "active" : "")" data-tab="cancelled" role="tab" aria-selected="@(activeTab == "cancelled" ? "true" : "false")" aria-controls="citasBody" data-i18n="adm09_tab_cancelled">
+                    <button type="button" class="tab-btn @(activeTab == "cancelled" ? "active" : "")" data-tab="cancelled" aria-pressed="@(activeTab == "cancelled" ? "true" : "false")" data-i18n="adm09_tab_cancelled">
                         Cancelaciones
                     </button>
-                    <button class="tab-btn @(activeTab == "no-show" ? "active" : "")" data-tab="no-show" role="tab" aria-selected="@(activeTab == "no-show" ? "true" : "false")" aria-controls="citasBody" data-i18n="adm09_tab_noshow">
+                    <button type="button" class="tab-btn @(activeTab == "no-show" ? "active" : "")" data-tab="no-show" aria-pressed="@(activeTab == "no-show" ? "true" : "false")" data-i18n="adm09_tab_noshow">
                         No asistió
                     </button>
                 </div>
@@ -190,19 +188,19 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
 
                     <!-- Tabla ACCESIBLE con semántica HTML nativa -->
                     <div class="table-wrap">
-                    <table class="table-appointments" aria-label="Tabla de citas" role="grid" data-i18n-aria-label="adm09_table_aria">
+                    <table class="table-appointments" aria-label="Tabla de citas" data-i18n-aria-label="adm09_table_aria">
                         <thead>
-                            <tr role="row">
-                                <th role="columnheader" scope="col" class="col-fecha" data-i18n="citas.date">Fecha</th>
-                                <th role="columnheader" scope="col" class="col-hora" data-i18n="citas.time">Hora</th>
-                                <th role="columnheader" scope="col" class="col-paciente" data-i18n="citas.patient">Paciente</th>
-                                <th role="columnheader" scope="col" class="col-profesional" data-i18n="citas.professional">Profesional</th>
-                                <th role="columnheader" scope="col" class="col-servicio" data-i18n="citas.service">Servicio</th>
-                                <th role="columnheader" scope="col" class="col-estado" data-i18n="citas.status">Estado</th>
-                                <th role="columnheader" scope="col" class="col-acciones" data-i18n="table.actions">Acciones</th>
+                            <tr>
+                                <th scope="col" class="col-fecha" data-i18n="citas.date">Fecha</th>
+                                <th scope="col" class="col-hora" data-i18n="citas.time">Hora</th>
+                                <th scope="col" class="col-paciente" data-i18n="citas.patient">Paciente</th>
+                                <th scope="col" class="col-profesional" data-i18n="citas.professional">Profesional</th>
+                                <th scope="col" class="col-servicio" data-i18n="citas.service">Servicio</th>
+                                <th scope="col" class="col-estado" data-i18n="citas.status">Estado</th>
+                                <th scope="col" class="col-acciones" data-i18n="table.actions">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody id="citasBody" aria-live="polite">
+                        <tbody id="citasBody">
                             @if (citas.Count == 0)
                             {
                                 @await Html.PartialAsync("_EmptyState", new { 
@@ -355,11 +353,12 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                 <span class="btn-text">Editar</span>
                                             </a>
                                             <button type="button" class="action-btn btn-danger btn-delete"
-                                                    aria-label="Eliminar la cita de @cPaciente"
-                                                    title="Eliminar la cita de @Html.Encode(cPaciente)"
-                                                    onclick="openConfirmDeleteCita(@cita.IdCita, '@cPaciente.Replace("'", "\\'")', this)">
-                                                <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span>
-                                                <span class="btn-text">Eliminar</span>
+                                                    data-id="@cita.IdCita"
+                                                    data-paciente="@cPaciente"
+                                                    aria-label="Cancelar cita de @cPaciente"
+                                                    title="Cancelar cita de @Html.Encode(cPaciente)">
+                                                <span class="material-symbols-outlined action-icon" aria-hidden="true">event_busy</span>
+                                                <span class="btn-text">Cancelar</span>
                                             </button>
                                         </div>
                                     </td>

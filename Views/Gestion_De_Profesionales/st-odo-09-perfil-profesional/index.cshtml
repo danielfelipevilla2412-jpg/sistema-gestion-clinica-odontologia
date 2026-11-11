@@ -63,7 +63,7 @@ NOTAS DE MANTENIMIENTO:
     <section class="profile-header-card" aria-labelledby="profileName">
       <div class="profile-avatar-large" aria-hidden="true">@initials</div>
       <div class="profile-info">
-        <h2 id="profileName">@(loggedProfesional != null ? $"Dr. {loggedProfesional.Nombres} {loggedProfesional.Apellidos}" : "Profesional no disponible")</h2>
+        <h2 id="profileName">@(loggedProfesional != null ? $"{loggedProfesional.Nombres} {loggedProfesional.Apellidos}" : "Profesional no disponible")</h2>
         <div class="profile-tags" role="list">
           @if (loggedProfesional != null)
           {
@@ -93,21 +93,21 @@ NOTAS DE MANTENIMIENTO:
             <div class="info-item">
               <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">call</span></div>
               <div>
-                <label>Teléfono</label>
+                <span class="info-label">Teléfono</span>
                 <div class="info-value">@(loggedProfesional?.Telefono ?? "No disponible")</div>
               </div>
             </div>
             <div class="info-item">
               <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">mail</span></div>
               <div>
-                <label>Correo</label>
+                <span class="info-label">Correo</span>
                 <div class="info-value">@(loggedProfesional?.Usuario?.Correo ?? "No disponible")</div>
               </div>
             </div>
             <div class="info-item">
               <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></div>
               <div>
-                <label>Fecha de ingreso</label>
+                <span class="info-label">Fecha de ingreso</span>
                 <div class="info-value">
                   <time datetime="@(loggedProfesional?.FechaIngreso?.ToString("yyyy-MM-dd") ?? string.Empty)">
                     @(loggedProfesional?.FechaIngreso?.ToString("dd MMM yyyy") ?? "No disponible")
@@ -118,7 +118,7 @@ NOTAS DE MANTENIMIENTO:
             <div class="info-item">
               <div class="info-icon" aria-hidden="true"></div>
               <div>
-                <label>Estado</label>
+                <span class="info-label">Estado</span>
                 <div class="info-value">
                   <span class="status-badge @professionalStatusClass" role="status" aria-label="Estado: @professionalStatus">
                     <span class="status-dot" aria-hidden="true"></span>
@@ -176,7 +176,7 @@ NOTAS DE MANTENIMIENTO:
               <span class="credentials-icon material-symbols-outlined" aria-hidden="true">workspace_premium</span>
               <div>
                 <h2 class="credentials-title" id="credentialsTitle">Credenciales profesionales</h2>
-                <p class="credentials-description">Carga títulos y certificados para revisión administrativa.</p>
+                <p class="credentials-description">Carga títulos y certificados para revisión administrativa. «Pendiente» significa que el administrador aún debe revisar el documento; solo las credenciales aprobadas validan tu perfil.</p>
               </div>
             </div>
             <span class="credentials-count" aria-label="Documentos cargados">
@@ -190,6 +190,13 @@ NOTAS DE MANTENIMIENTO:
             <p class="credential-feedback credential-feedback--success" role="status">
               <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
               @successMessage
+            </p>
+          }
+          @if (TempData["ErrorValidacion"] is string credentialError)
+          {
+            <p class="credential-feedback credential-feedback--error" role="alert">
+              <span class="material-symbols-outlined" aria-hidden="true">error</span>
+              @credentialError
             </p>
           }
           <form class="credentials-form" method="post" action="/gestion-de-profesionales/credenciales/subir" enctype="multipart/form-data">
@@ -259,13 +266,28 @@ NOTAS DE MANTENIMIENTO:
                       <p class="credential-item-meta">
                         @credencial.NombreOriginal
                         <span aria-hidden="true">·</span>
-                        @credencial.FechaSubida.ToLocalTime().ToString("dd/MM/yyyy")
+                        @credencial.FechaSubida.ToString("dd/MM/yyyy")
                       </p>
+                      @if (string.Equals(credencial.EstadoRevision, "rechazado", StringComparison.OrdinalIgnoreCase))
+                      {
+                        <p class="credential-observation">El administrador rechazó este documento. Puedes retirarlo y cargar una versión corregida.</p>
+                      }
                       @if (!string.IsNullOrWhiteSpace(credencial.ObservacionRevision))
                       {
                         <p class="credential-observation">@credencial.ObservacionRevision</p>
                       }
                     </div>
+                    @if (!string.Equals(credencial.EstadoRevision, "aprobado", StringComparison.OrdinalIgnoreCase))
+                    {
+                      <form method="post" action="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/eliminar"
+                            onsubmit="return confirm('¿Eliminar esta credencial? Esta acción no se puede deshacer.');">
+                        @Html.AntiForgeryToken()
+                        <button class="btn-danger" type="submit" aria-label="Eliminar credencial @credencial.Tipo">
+                          <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                          Eliminar
+                        </button>
+                      </form>
+                    }
                   </li>
                 }
               </ul>

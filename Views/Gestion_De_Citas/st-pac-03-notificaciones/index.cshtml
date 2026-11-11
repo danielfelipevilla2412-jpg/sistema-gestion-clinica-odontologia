@@ -27,6 +27,7 @@
 
   <!-- ----- MAIN ----- -->
   <main class="main" id="main-content">
+      @Html.AntiForgeryToken()
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
@@ -62,15 +63,16 @@
         <button class="chip" data-filter="reminder" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">notifications</span> <span data-i18n="notifications.filter_reminders">Recordatorios</span></button>
         <button class="chip" data-filter="confirmed" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">check_circle</span> <span data-i18n="notifications.filter_confirmed">Confirmaciones</span></button>
         <button class="chip" data-filter="cancelled" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">cancel</span> <span data-i18n="notifications.filter_cancelled">Cancelaciones</span></button>
-        <button class="chip" data-filter="waitlist" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">hourglass_top</span> <span>Lista de Espera</span></button>
-        <button class="chip" data-filter="invoice" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">payments</span> <span>Facturación</span></button>
+        <button class="chip" data-filter="rejected" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">block</span> Solicitudes rechazadas</button>
+        <button class="chip" data-filter="waitlist" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">hourglass_top</span> <span data-i18n="notifications.filter_waitlist">Lista de Espera</span></button>
+        <button class="chip" data-filter="invoice" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">payments</span> <span data-i18n="notifications.filter_invoices">Facturación</span></button>
         <button class="chip" data-filter="message" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">message</span> <span data-i18n="notifications.filter_messages">Mensajes</span></button>
       </div>
       <span class="count-label" id="countLabel" aria-live="polite"></span>
     </div>
 
     <!-- Lista de notificaciones -->
-    <ul class="notifications-list" id="notificationsList" role="list" aria-live="polite"
+    <ul class="notifications-list" id="notificationsList" role="list"
       aria-label="Lista de notificaciones" data-i18n-aria-label="notifications.list_aria">
       <!-- Items inyectados por JS -->
     </ul>

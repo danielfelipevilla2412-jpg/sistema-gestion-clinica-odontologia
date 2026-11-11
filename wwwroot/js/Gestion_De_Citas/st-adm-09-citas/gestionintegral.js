@@ -402,8 +402,8 @@ const renderAppointmentsTable = () => {
                           <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
                         </a>
                         ${invoiceButton}
-                        <button class="action-btn btn-danger btn-delete" aria-label="Cancelar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Cancelar cita" onclick="openConfirmDeleteCita(${appointment.id}, '${escapeHtml(appointment.patient)}')">
-                          <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span> <span class="btn-text">Eliminar</span>
+                        <button type="button" class="action-btn btn-danger btn-delete" aria-label="Cancelar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" data-paciente="${escapeHtml(appointment.patient)}" title="Cancelar cita">
+                          <span class="material-symbols-outlined action-icon" aria-hidden="true">event_busy</span> <span class="btn-text">Cancelar</span>
                         </button>
                     </div>
                 </td>
@@ -437,18 +437,6 @@ const renderAppointmentsTable = () => {
 
     tableBody.querySelectorAll('.btn-invoice').forEach(button => {
         button.addEventListener('click', () => createInvoiceFromAppointment(parseInt(button.dataset.id, 10), button));
-    });
-
-    tableBody.querySelectorAll('.btn-delete').forEach(button => {
-        button.addEventListener('click', (event) => {
-            cancelAppointment(parseInt(event.currentTarget.dataset.id, 10));
-        });
-        button.addEventListener('keydown', (event) => {
-            if (['Enter', ' '].includes(event.key)) {
-                event.preventDefault();
-                cancelAppointment(parseInt(event.currentTarget.dataset.id, 10));
-            }
-        });
     });
 
     updatePaginationDisplay(filteredData.length);
@@ -872,20 +860,28 @@ const setupSidebarNavigation = () => {
 };
 
 const setupTabListeners = () => {
-    if (shouldUseServerRenderedList()) return;
-
     const tabButtons = document.querySelectorAll('.tab-btn');
     tabButtons.forEach(tabButton => {
         tabButton.addEventListener('click', () => {
             tabButtons.forEach(button => {
                 button.classList.remove('active');
-                button.setAttribute('aria-selected', 'false');
+                button.setAttribute('aria-pressed', 'false');
             });
 
             tabButton.classList.add('active');
-            tabButton.setAttribute('aria-selected', 'true');
+            tabButton.setAttribute('aria-pressed', 'true');
 
             currentTabFilter = tabButton.dataset.tab;
+            if (shouldUseServerRenderedList()) {
+                const statusSelect = safeGetElement('filterStatus');
+                const filterForm = statusSelect?.form;
+                if (!statusSelect || !filterForm) return;
+                statusSelect.value = currentTabFilter === 'cancelled'
+                    ? 'cancelada'
+                    : currentTabFilter === 'no-show' ? 'no_asistida' : '';
+                filterForm.requestSubmit();
+                return;
+            }
             currentPageNumber = 1;
             renderAppointmentsTable();
         });
@@ -931,6 +927,14 @@ const initializeGestionIntegralModule = async () => {
 
         setupSidebarNavigation();
         setupNewAppointmentModalTrigger();
+        setupTabListeners();
+        safeGetElement('citasBody')?.addEventListener('click', (event) => {
+            const button = event.target.closest('.btn-delete');
+            if (!button) return;
+            const id = Number(button.dataset.id);
+            if (!Number.isInteger(id) || id <= 0) return;
+            window.openConfirmDeleteCita(id, button.dataset.paciente || '', button);
+        });
 
         await loadConfiguredDurationMinutes();
         setupHoraCitaCalculator();
@@ -938,7 +942,6 @@ const initializeGestionIntegralModule = async () => {
         setupEstadoConfirmationModal();
 
         if (!useSSR) {
-            setupTabListeners();
             setupSearchInputListener();
             setupFilterListeners();
 

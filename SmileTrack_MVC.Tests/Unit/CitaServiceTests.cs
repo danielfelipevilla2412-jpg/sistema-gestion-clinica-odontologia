@@ -11,6 +11,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
@@ -187,6 +188,62 @@ public class CitaServiceTests
         Assert.Single(solicitudes);
         Assert.Equal("Solicitada", solicitudes[0].Estado);
         Assert.Contains("Necesito revisión", solicitudes[0].Notas);
+    }
+
+    [Fact]
+    public async Task RechazarSolicitudAsync_GuardaMotivoHistorialYNotificacionParaPaciente()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var estadoRechazada = new EstadoCita { NombreEstado = "Rechazada" };
+        db.EstadosCita.Add(estadoRechazada);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdServicio = datos.Servicio.IdServicio,
+            FechaHora = ColombiaClock.Today.AddDays(2).AddHours(9),
+            Estado = "Solicitada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var resultado = await CrearServicio(db).RechazarSolicitudAsync(
+            cita.IdCita,
+            "No hay disponibilidad",
+            idUsuarioActor: 27);
+
+        Assert.Equal("Rechazada", resultado?.Estado);
+        Assert.Equal(estadoRechazada.IdEstado, resultado?.IdEstado);
+        var historial = await db.CitasHistorialEstado.SingleAsync();
+        Assert.Equal(27, historial.IdUsuario);
+        Assert.Contains("No hay disponibilidad", historial.Motivo);
+        var notificacion = await db.Notificaciones.SingleAsync();
+        Assert.Equal(cita.IdPaciente, notificacion.IdPaciente);
+        Assert.Equal("cita_rechazada", notificacion.Tipo);
+        Assert.Contains("No hay disponibilidad", notificacion.Contenido);
+    }
+
+    [Fact]
+    public async Task RechazarSolicitudAsync_NoPermiteRechazarUnaCitaYaConfirmada()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdServicio = datos.Servicio.IdServicio,
+            FechaHora = ColombiaClock.Today.AddDays(2).AddHours(9),
+            Estado = "Confirmada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).RechazarSolicitudAsync(cita.IdCita, "No hay disponibilidad"));
+
+        Assert.Contains("pendientes", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Confirmada", (await db.Citas.FindAsync(cita.IdCita))?.Estado);
+        Assert.Empty(await db.Notificaciones.ToListAsync());
     }
 
     [Fact]
@@ -453,6 +510,31 @@ public class CitaServiceTests
         Assert.Contains("finalizada", excepcion.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task CambiarEstadoAsync_IniciaCitaAlcanzadaYRegistraInicioDeProcedimiento()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        db.EstadosCita.Add(new EstadoCita { NombreEstado = "En consulta" });
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = ColombiaClock.Now.AddMinutes(-1),
+            Estado = "Confirmada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var actualizada = await CrearServicio(db).CambiarEstadoAsync(cita.IdCita, "En consulta");
+
+        Assert.Equal("En consulta", actualizada?.Estado);
+        var asistencia = await db.AsistenciasProcedimiento.SingleAsync(a => a.IdCita == cita.IdCita);
+        Assert.InRange(asistencia.Inicio, ColombiaClock.Now.AddMinutes(-1), ColombiaClock.Now.AddSeconds(1));
+    }
+
     [Theory]
     [InlineData("En consulta")]
     [InlineData("Atendida")]
@@ -533,7 +615,7 @@ public class CitaServiceTests
         db.Citas.Add(cita);
         await db.SaveChangesAsync();
 
-        DateTime antesDeActualizar = DateTime.UtcNow;
+        DateTime antesDeActualizar = ColombiaClock.Now;
         await CrearServicio(db).ActualizarAsync(cita.IdCita, new CitaApiUpdateDto
         {
             IdCita = cita.IdCita,
@@ -546,7 +628,7 @@ public class CitaServiceTests
             IdEstado = 1,
             IdUsuarioModificacion = 17
         });
-        DateTime despuesDeActualizar = DateTime.UtcNow;
+        DateTime despuesDeActualizar = ColombiaClock.Now;
 
         var historial = await db.CitasConsultoriosHistorial.SingleAsync();
         Assert.Equal(cita.IdCita, historial.IdCita);

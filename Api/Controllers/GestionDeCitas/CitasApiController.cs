@@ -484,11 +484,11 @@ public sealed class CitasApiController : ControllerBase
         [FromQuery] DateTime? fecha = null,
         CancellationToken ct = default)
     {
-        var fechaRef = fecha?.Date ?? DateTime.Today;
+        var fechaRef = fecha?.Date ?? ColombiaClock.Today;
         try
         {
             var kpis = await _citaService.ObtenerKpisGestionAsync(fechaRef, ct);
-            return Ok(new { success = true, data = kpis, generadoEn = DateTime.Now });
+            return Ok(new { success = true, data = kpis, generadoEn = ColombiaClock.Now });
         }
         catch (Exception ex)
         {
@@ -571,6 +571,48 @@ public sealed class CitasApiController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return EsConflicto(ex.Message) ? Conflict(new { success = false, message = ex.Message }) : BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [Route("api/citas/{id:int}/rechazar-solicitud")]
+    public async Task<IActionResult> RechazarSolicitud(
+        int id,
+        [FromBody] CitaRechazoSolicitudDto dto,
+        CancellationToken ct = default)
+    {
+        if (id <= 0 || dto is null || !ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Indica un motivo válido para rechazar la solicitud." });
+
+        try
+        {
+            int? actorId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId)
+                ? userId
+                : null;
+            var cita = await _citaService.RechazarSolicitudAsync(id, dto.Motivo, actorId, ct);
+            if (cita is null)
+                return NotFound(new { success = false, message = "La solicitud no existe." });
+
+            await RegistrarAuditoriaAsync(
+                "UPDATE",
+                cita.IdCita,
+                $"Solicitud de cita rechazada. Motivo: {dto.Motivo.Trim()}",
+                new { EstadoAnterior = "Solicitada" },
+                new { EstadoNuevo = cita.Estado },
+                ct);
+            return Ok(new
+            {
+                success = true,
+                id = cita.IdCita,
+                estado = cita.Estado,
+                message = "Solicitud rechazada y paciente notificado."
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
@@ -675,7 +717,7 @@ public sealed class CitasApiController : ControllerBase
         if (!TieneOwnership(cita))
             return Forbid();
 
-        if (dto.FechaHora < DateTime.Now.AddMinutes(-5))
+        if (dto.FechaHora < ColombiaClock.Now.AddMinutes(-5))
             return BadRequest(new { success = false, message = "La nueva fecha y hora no pueden estar en el pasado." });
 
         try
@@ -706,7 +748,7 @@ public sealed class CitasApiController : ControllerBase
                 EstadoTexto = actualizada.Estado,
                 IdUsuario = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ? idUsuario : null,
                 Motivo = "Cita reagendada desde la agenda.",
-                FechaCambio = DateTime.Now
+                FechaCambio = ColombiaClock.Now
             });
             await _context.SaveChangesAsync(ct);
 
@@ -837,12 +879,12 @@ public sealed class CitasApiController : ControllerBase
         if (request.Inicio.HasValue)
             asistencia.Inicio = request.Inicio.Value;
         else if (asistencia.Inicio == default)
-            asistencia.Inicio = DateTime.UtcNow;
+            asistencia.Inicio = ColombiaClock.Now;
         asistencia.Limpieza = request.Limpieza;
         asistencia.Esterilizacion = request.Esterilizacion;
         asistencia.Equipos = request.Equipos;
         asistencia.ActualizadoPor = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId) ? userId : null;
-        asistencia.ActualizadoEn = DateTime.UtcNow;
+        asistencia.ActualizadoEn = ColombiaClock.Now;
         await _context.SaveChangesAsync(ct);
 
         return Ok(new { success = true, message = "Asistencia del procedimiento guardada.", data = new AsistenciaProcedimientoApiDto
@@ -939,7 +981,7 @@ public sealed class CitasApiController : ControllerBase
                 Descripcion   = descripcion,
                 IdUsuario     = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int id) ? id : null,
                 IpOrigen      = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
-                Fecha         = DateTime.Now
+                Fecha         = ColombiaClock.Now
             });
             await _context.SaveChangesAsync(ct);
         }
@@ -965,7 +1007,7 @@ public sealed class CitasApiController : ControllerBase
                 Descripcion     = descripcion,
                 IdUsuario       = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int id) ? id : null,
                 IpOrigen        = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
-                Fecha           = DateTime.Now,
+                Fecha           = ColombiaClock.Now,
                 DatosAnteriores = datosAnteriores is null ? null : System.Text.Json.JsonSerializer.Serialize(datosAnteriores),
                 DatosNuevos     = datosNuevos is null     ? null : System.Text.Json.JsonSerializer.Serialize(datosNuevos)
             });

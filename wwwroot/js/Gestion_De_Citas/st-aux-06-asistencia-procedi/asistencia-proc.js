@@ -31,6 +31,8 @@ const TIMER_INTERVAL_MS = 60000;
 const procedureData = window.smiletrackAsistenciaProcedData || {};
 let procedureSyncTimerRef = null;
 let procedureTimerIntervalRef = null;
+let procedureStatusPollRef = null;
+let procedurePillsInitialized = false;
 
 // ═══════════════════════════════════════════════════════════════════
 // 3. UTILIDADES Y HELPERS
@@ -59,10 +61,10 @@ const procedureHeaders = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 async function persistProcedureState() {
-  if (!procedureData.citaId) return;
+  if (!procedureData.citaId || procedureData.estadoNormalizado !== 'en_proceso') return;
   const state = procedureStorage.load();
   try {
-    await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
+    const response = await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
       method: 'PUT',
       credentials: 'same-origin',
       headers: procedureHeaders(),
@@ -74,6 +76,9 @@ async function persistProcedureState() {
         equipos: Boolean(state.pills.equipos)
       })
     });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
   } catch (error) {
     console.warn('[SmileTrack] No se pudo sincronizar asistencia procedural:', error);
   }
@@ -87,10 +92,24 @@ async function hydrateProcedureState() {
     });
     if (!response.ok) return;
     const payload = await response.json();
-    if (!payload.data) return;
+    if (payload.estado) {
+      procedureData.estado = payload.estado.nombre;
+      procedureData.estadoNormalizado = payload.estado.normalizado;
+      renderEstadoCita();
+    }
+    if (!payload.data) {
+      if (procedureData.estadoNormalizado === 'en_proceso' && procedureData.inicioProcedimiento) {
+        procedureStorage.save({
+          minutes: 0,
+          startTime: procedureData.inicioProcedimiento,
+          pills: { limpieza: false, esterilizacion: false, equipos: false }
+        });
+      }
+      return;
+    }
     procedureStorage.save({
       minutes: payload.data.minutos || 0,
-      startTime: payload.data.inicio || new Date().toISOString(),
+      startTime: payload.data.inicio || procedureData.inicioProcedimiento || null,
       pills: {
         limpieza: Boolean(payload.data.limpieza),
         esterilizacion: Boolean(payload.data.esterilizacion),
@@ -120,7 +139,7 @@ const procedureStorage = {
     }
     return {
       minutes: 0,
-      startTime: new Date().toISOString(),
+      startTime: procedureData.inicioProcedimiento || null,
       pills: {
         limpieza: false,
         esterilizacion: false,
@@ -184,9 +203,30 @@ const renderDatosCita = () => {
   const sinAlertas = safeGetElement('apSinAlertas');
 
   let hasAlerts = false;
+  if (bannerElement) bannerElement.style.display = 'none';
+  if (alergiaItem) alergiaItem.style.display = 'none';
+  if (antecedentesItem) antecedentesItem.style.display = 'none';
+  if (sinAlertas) sinAlertas.style.display = '';
   if (dashboardData.alergia && alergiaItem && alergiaTexto) { alergiaTexto.textContent = dashboardData.alergia; alergiaItem.style.display = ''; hasAlerts = true; }
   if (dashboardData.antecedentes && antecedentesItem && antecedentesTexto) { antecedentesTexto.textContent = dashboardData.antecedentes; antecedentesItem.style.display = ''; hasAlerts = true; }
   if (hasAlerts && sinAlertas) sinAlertas.style.display = 'none';
+  renderEstadoCita();
+};
+
+const renderEstadoCita = () => {
+  const badge = safeGetElement('procedureStatus');
+  const timer = safeGetElement('procedureTimer');
+  const statusTime = safeGetElement('apStatusTime');
+  const checklist = safeGetElement('procedureChecklist');
+  const enCurso = procedureData.estadoNormalizado === 'en_proceso';
+
+  if (badge) {
+    badge.textContent = procedureData.estado || '';
+    badge.dataset.status = procedureData.estadoNormalizado || '';
+  }
+  if (timer) timer.style.display = enCurso ? '' : 'none';
+  if (statusTime) statusTime.style.display = enCurso ? '' : 'none';
+  if (checklist) checklist.style.display = enCurso ? '' : 'none';
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -196,9 +236,19 @@ const renderDatosCita = () => {
 const initTimer = () => {
   const timerValueElement = safeGetElement('timerValue');
   if (!timerValueElement) return;
-  
+  const statusElement = safeGetElement('procedureStatus');
+  if (!procedureData.citaId) {
+    timerValueElement.textContent = '0';
+    if (statusElement) statusElement.textContent = 'Sin procedimiento en curso';
+    return;
+  }
+
+  if (statusElement) statusElement.textContent = 'En curso';
   const state = procedureStorage.load();
-  let minutes = state.minutes;
+  const startedAt = state.startTime ? new Date(state.startTime) : null;
+  let minutes = startedAt && !Number.isNaN(startedAt.getTime())
+    ? Math.max(state.minutes || 0, Math.floor((Date.now() - startedAt.getTime()) / 60000))
+    : state.minutes || 0;
   
   timerValueElement.textContent = minutes;
 
@@ -221,6 +271,8 @@ const initTimer = () => {
 };
 
 const initProcedurePills = () => {
+  if (procedurePillsInitialized) return;
+  procedurePillsInitialized = true;
   const pillsConfig = [
     { element: safeGetElement('pillLimpieza'), id: 'limpieza', labelText: 'Limpieza' },
     { element: safeGetElement('pillEsterilizacion'), id: 'esterilizacion', labelText: 'Esterilización' },
@@ -274,10 +326,25 @@ const initializeAsistenciaProcediModule = async () => {
   await hydrateProcedureState();
   renderDatosCita();
   setupMobileNavigationMenu();
-  initTimer();
-  initProcedurePills();
+  if (procedureData.estadoNormalizado === 'en_proceso') {
+    initTimer();
+    initProcedurePills();
+  } else if (procedureData.citaId) {
+    procedureStatusPollRef = setInterval(async () => {
+      const estadoAnterior = procedureData.estadoNormalizado;
+      await hydrateProcedureState();
+      if (estadoAnterior !== 'en_proceso' && procedureData.estadoNormalizado === 'en_proceso') {
+        initTimer();
+        initProcedurePills();
+      }
+    }, 30000);
+  }
   
-  window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
+  window.addEventListener('beforeunload', () => {
+    if (procedureTimerIntervalRef) clearInterval(procedureTimerIntervalRef);
+    if (procedureStatusPollRef) clearInterval(procedureStatusPollRef);
+    if (procedureSyncTimerRef) clearTimeout(procedureSyncTimerRef);
+  });
 };
 
 document.addEventListener('DOMContentLoaded', initializeAsistenciaProcediModule);
