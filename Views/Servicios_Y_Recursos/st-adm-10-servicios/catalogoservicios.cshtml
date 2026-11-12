@@ -1,4 +1,4 @@
-﻿@{
+@{
   Layout = null;
 }
 
@@ -93,6 +93,7 @@
           <option value="cirugia">Cirugía</option>
           <option value="ortodoncia">Ortodoncia</option>
           <option value="endodoncia">Endodoncia</option>
+            <option value="periodoncia">Periodoncia</option>
           <option value="general">General</option>
         </select>
         <select id="filterStatus" class="filter-select" aria-label="Filtrar por estado"
@@ -169,6 +170,7 @@
             <option value="cirugia">Cirugía</option>
             <option value="ortodoncia">Ortodoncia</option>
             <option value="endodoncia">Endodoncia</option>
+            <option value="periodoncia">Periodoncia</option>
             <option value="general">General</option>
           </select>
         </div>
@@ -177,22 +179,22 @@
             Especialidad clínica
           </label>
 
-          <select id="serviceSpecialty" class="form-select">
-            <option value="">Odontología General / Cualquier profesional</option>
+          <select id="serviceSpecialty" class="form-select" required>
+            <option value="">Seleccione una especialidad</option>
           </select>
 
           <small class="form-hint">
-            Selecciona una especialidad si el servicio requiere un profesional específico.
+            La especialidad es obligatoria. Para odontología general, seleccione Odontología General.
           </small>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label for="serviceCost" class="form-label">Costo ($)</label>
-            <input type="number" id="serviceCost" class="form-input" step="0.01" min="0" required>
+            <label for="serviceCost" class="form-label">Precio base (COP)</label>
+            <input type="number" id="serviceCost" class="form-input" step="0.01" min="0.01" required>
           </div>
           <div class="form-group">
             <label for="serviceDuration" class="form-label">Duración (min)</label>
-            <input type="number" id="serviceDuration" class="form-input" min="1" required>
+            <input type="number" id="serviceDuration" class="form-input" min="5" max="480" value="60" required>
           </div>
         </div>
         <div class="form-group form-toggle">

@@ -139,6 +139,9 @@ public class ServiciosRecursosController : Controller
     // El CRUD del catálogo se ejecuta exclusivamente mediante procedimientos almacenados.
     // Servicio.cs y AppDbContext mapean las columnas reales de dbo.Servicio; por eso el
     // procedimiento de creación debe devolver las columnas con sus nombres SQL originales.
+    // El catálogo se persiste mediante EF Core. El procedimiento sp_Servicio_Crear
+    // no forma parte del script versionado del proyecto y puede conservar reglas antiguas
+    // en una instalación SQL. La regla vigente es Precio > 0 COP.
     [HttpPost]
     [Authorize(Roles = "Administrador")]
     [Route("servicios-y-recursos/api/servicios")]
@@ -147,46 +150,60 @@ public class ServiciosRecursosController : Controller
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
 
+        var nombre = request.Nombre.Trim();
+        var descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim();
+        if (request.Precio <= 0)
+            return BadRequest(new { success = false, message = "El precio debe ser mayor que $0 COP." });
+
         try
         {
-            var descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim();
-            await _context.Database.ExecuteSqlInterpolatedAsync(
-                $"EXEC dbo.sp_Servicio_Crear @Nombre={request.Nombre.Trim()}, @Descripcion={descripcion}, @Precio={request.Precio}, @Categoria={request.Category}, @DuracionMinutos={request.Duration}, @IdEspecialidad={request.IdEspecialidad}",
-                ct);
+            if (!await _context.Especialidades.AsNoTracking()
+                    .AnyAsync(e => e.IdEspecialidad == request.IdEspecialidad, ct))
+                return BadRequest(new { success = false, message = "La especialidad seleccionada no existe." });
 
-            // Se consulta por el nombre normalizado después de ejecutar el procedimiento.
-            // Esto evita que EF Core intente materializar el SELECT del procedimiento,
-            // cuyos alias pueden variar entre versiones del script SQL.
-            var nombreNormalizado = request.Nombre.Trim();
-            var creado = await _context.Servicios
-                .AsNoTracking()
-                .Include(s => s.Especialidad)
-                .SingleAsync(s => s.Nombre == nombreNormalizado, ct);
+            if (await _context.Servicios.AsNoTracking().AnyAsync(s => s.Nombre == nombre, ct))
+                return Conflict(new { success = false, message = "Ya existe un servicio con ese nombre." });
+
+            var servicio = new Servicio
+            {
+                Nombre = nombre,
+                Descripcion = descripcion,
+                Precio = request.Precio,
+                Categoria = request.Category,
+                DuracionMinutos = request.Duration,
+                IdEspecialidad = request.IdEspecialidad,
+                Estado = "activo"
+            };
+            _context.Servicios.Add(servicio);
+            await _context.SaveChangesAsync(ct);
+            await _context.Entry(servicio).Reference(s => s.Especialidad).LoadAsync(ct);
+
             return Ok(new
             {
                 success = true,
                 message = "Servicio creado correctamente.",
                 data = new
                 {
-                    id = creado.IdServicio,
-                    nombre = creado.Nombre,
-                    descripcion = creado.Descripcion,
-                    precio = creado.Precio,
-                    categoria = creado.Categoria,
-                    duracion = creado.DuracionMinutos,
-                    estado = creado.Estado,
-                    idEspecialidad = creado.IdEspecialidad,
-                    especialidad = creado.Especialidad?.Nombre
+                    id = servicio.IdServicio,
+                    nombre = servicio.Nombre,
+                    descripcion = servicio.Descripcion,
+                    precio = servicio.Precio,
+                    categoria = servicio.Categoria,
+                    duracion = servicio.DuracionMinutos,
+                    estado = servicio.Estado,
+                    idEspecialidad = servicio.IdEspecialidad,
+                    especialidad = servicio.Especialidad?.Nombre
                 }
             });
         }
-        catch (SqlException ex) when (ex.Number == 50001)
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && (sql.Number == 2601 || sql.Number == 2627))
         {
-            return Conflict(new { success = false, message = ex.Message });
+            return Conflict(new { success = false, message = "Ya existe un servicio con ese nombre o una restricción única impide crearlo." });
         }
-        catch (SqlException ex) when (ex.Number == 50002)
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && (sql.Number == 547 || sql.Number == 50002))
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            _logger.LogWarning(ex, "Restricción SQL al crear servicio. Número={Numero}, Procedimiento={Procedimiento}", sql.Number, sql.Procedure);
+            return BadRequest(new { success = false, message = "La base de datos rechazó los datos del servicio. Compruebe sus restricciones y especialidad." });
         }
         catch (Exception ex)
         {
@@ -203,22 +220,42 @@ public class ServiciosRecursosController : Controller
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
 
+        var nombre = request.Nombre.Trim();
+        if (request.Precio <= 0)
+            return BadRequest(new { success = false, message = "El precio debe ser mayor que $0 COP." });
+
         try
         {
-            var descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim();
-            await _context.Database.ExecuteSqlInterpolatedAsync(
-                $"EXEC dbo.sp_Servicio_Actualizar @IdServicio={id}, @Nombre={request.Nombre.Trim()}, @Descripcion={descripcion}, @Precio={request.Precio}, @Categoria={request.Category}, @DuracionMinutos={request.Duration}, @IdEspecialidad={request.IdEspecialidad}",
-                ct);
+            var servicio = await _context.Servicios.SingleOrDefaultAsync(s => s.IdServicio == id, ct);
+            if (servicio is null)
+                return NotFound(new { success = false, message = "El servicio no existe." });
+
+            if (!await _context.Especialidades.AsNoTracking()
+                    .AnyAsync(e => e.IdEspecialidad == request.IdEspecialidad, ct))
+                return BadRequest(new { success = false, message = "La especialidad seleccionada no existe." });
+
+            if (await _context.Servicios.AsNoTracking()
+                    .AnyAsync(s => s.IdServicio != id && s.Nombre == nombre, ct))
+                return Conflict(new { success = false, message = "Ya existe otro servicio con ese nombre." });
+
+            servicio.Nombre = nombre;
+            servicio.Descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim();
+            servicio.Precio = request.Precio;
+            servicio.Categoria = request.Category;
+            servicio.DuracionMinutos = request.Duration;
+            servicio.IdEspecialidad = request.IdEspecialidad;
+            await _context.SaveChangesAsync(ct);
 
             return Ok(new { success = true, message = "Servicio actualizado correctamente.", data = new { id } });
         }
-        catch (SqlException ex) when (ex.Number == 50001)
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && (sql.Number == 2601 || sql.Number == 2627))
         {
-            return Conflict(new { success = false, message = ex.Message });
+            return Conflict(new { success = false, message = "Ya existe otro servicio con ese nombre o una restricción única impide actualizarlo." });
         }
-        catch (SqlException ex) when (ex.Number == 50002)
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && (sql.Number == 547 || sql.Number == 50002))
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            _logger.LogWarning(ex, "Restricción SQL al actualizar servicio {IdServicio}. Número={Numero}, Procedimiento={Procedimiento}", id, sql.Number, sql.Procedure);
+            return BadRequest(new { success = false, message = "La base de datos rechazó la actualización. Compruebe las restricciones del servicio." });
         }
         catch (Exception ex)
         {

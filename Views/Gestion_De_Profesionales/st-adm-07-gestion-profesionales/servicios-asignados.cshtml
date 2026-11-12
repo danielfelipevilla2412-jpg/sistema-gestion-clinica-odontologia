@@ -1,0 +1,131 @@
+@using SmileTrack_MVC.Models.Entities
+@using System.Globalization
+@{
+    ViewData["Title"] = "Servicios asignados a profesionales";
+    var profesionales = ViewData["ProfesionalesLista"] as List<Profesional> ?? new();
+    var profesional = ViewData["ProfesionalSeleccionado"] as Profesional;
+    var servicios = ViewData["ServiciosLista"] as List<Servicio> ?? new();
+    var especialidades = ViewData["EspecialidadesProfesional"] as List<int> ?? new();
+    var asignaciones = ViewData["AsignacionesLista"] as List<ProfesionalServicio> ?? new();
+    var nombresEspecialidades = ViewData["NombresEspecialidadesProfesional"] as List<string> ?? new();
+    var compatibles = servicios.Where(s => s.Estado == "activo" && s.IdEspecialidad.HasValue && especialidades.Contains(s.IdEspecialidad.Value)).ToList();
+    var cop = CultureInfo.GetCultureInfo("es-CO");
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/styles.css" asp-append-version="true" />
+}
+<main class="main" id="main-content" style="padding:24px;max-width:1100px;margin:auto">
+    <header class="page-header">
+        <div class="header-left">
+            <h1 class="page-title">Servicios asignados a profesionales</h1>
+            <p class="page-subtitle">Asigna servicios según las especialidades registradas y configura precios en COP.</p>
+            <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales">Volver a Gestión de Profesionales</a>
+        </div>
+    </header>
+    @if (TempData["AsignacionError"] is string error) { <div role="alert" style="padding:12px;margin:12px 0;background:#fff0f0;color:#8a1616">@error</div> }
+    @if (TempData["AsignacionExito"] is string exito) { <div role="status" style="padding:12px;margin:12px 0;background:#e8f7ed;color:#165c30">@exito</div> }
+    <section class="table-card" style="padding:20px;margin:18px 0">
+        <h2 class="card-title">Seleccionar profesional</h2>
+        <form method="get" action="/gestion-de-profesionales/servicios-asignados" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+            <label for="profesionalId">Profesional</label>
+            <select id="profesionalId" name="profesionalId" required style="padding:10px;min-width:260px">
+                @foreach (var p in profesionales) {
+                    <option value="@p.IdProfesional" selected="@(profesional?.IdProfesional == p.IdProfesional)">@p.Nombres @p.Apellidos (@p.Estado)</option>
+                }
+            </select>
+            <button type="submit" class="btn-primary">Consultar</button>
+        </form>
+    </section>
+    @if (profesional is not null) {
+        <section class="table-card" style="padding:20px;margin:18px 0">
+            <h2 class="card-title">Asignar o actualizar un servicio</h2>
+            <p>Profesional: <strong>@profesional.Nombres @profesional.Apellidos</strong>. Solo se muestran servicios activos de sus especialidades.</p>
+            <p><strong>Especialidades registradas:</strong> @(nombresEspecialidades.Count > 0 ? string.Join(", ", nombresEspecialidades) : "Ninguna")</p>
+            @if (profesional.Estado != "activo") { <p>Este profesional no está activo. No se permiten nuevas asignaciones.</p> }
+            else if (compatibles.Count == 0) { <p>No hay servicios activos compatibles. Verifica las especialidades del profesional.</p> }
+            else {
+                <form method="post" action="/gestion-de-profesionales/servicios-asignados/guardar" style="display:grid;gap:12px;max-width:650px">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="profesionalId" value="@profesional.IdProfesional" />
+                    <label for="servicioId">Servicio</label>
+                    <select id="servicioId" name="servicioId" required style="padding:10px">
+                        <option value="" selected disabled>Selecciona un servicio para asignar o editar</option>
+                        @foreach (var s in compatibles) {
+                            var existente = asignaciones.FirstOrDefault(a => a.IdServicio == s.IdServicio);
+                            <option value="@s.IdServicio"
+                                    data-asignado="@(existente is not null ? "true" : "false")"
+                                    data-activo="@(existente?.Activo == true ? "true" : "false")"
+                                    data-precio="@(existente?.PrecioPersonalizado?.ToString("0.##", CultureInfo.InvariantCulture) ?? "")">
+                                @s.Nombre — base @s.Precio.ToString("C0", cop) @(existente is null ? "· Sin asignar" : existente.Activo ? "· Ya asignado (activo)" : "· Ya asignado (inactivo)")
+                            </option>
+                        }
+                    </select>
+                    <p id="estadoSeleccionServicio" role="status" aria-live="polite" style="margin:0;font-weight:600">Selecciona un servicio para consultar su estado.</p>
+                    <label for="precioPersonalizado">Precio personalizado (COP, opcional)</label>
+                    <input id="precioPersonalizado" name="precioPersonalizado" type="number" min="0.01" max="999999999" step="0.01" placeholder="Vacío = precio base" style="padding:10px" />
+                    <small id="ayudaPrecio">Deja el campo vacío para utilizar el precio base. Si el servicio ya está asignado, se cargará su precio actual.</small>
+                    <button id="guardarServicioAsignado" class="btn-primary" type="submit" disabled>Selecciona un servicio</button>
+                </form>
+            }
+        </section>
+        <section class="table-card" style="padding:20px;margin:18px 0">
+            <h2 class="card-title">Servicios del profesional</h2>
+            @if (asignaciones.Count == 0) { <p>No hay servicios asignados.</p> }
+            else {
+                <div class="table-wrap"><table class="table-base"><thead><tr><th>Servicio</th><th>Precio base</th><th>Precio personalizado</th><th>Precio aplicado</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
+                    @foreach (var a in asignaciones) {
+                        <tr>
+                            <td>@a.Servicio?.Nombre</td>
+                            <td>@a.Servicio?.Precio.ToString("C0", cop)</td>
+                            <td>@(a.PrecioPersonalizado.HasValue ? a.PrecioPersonalizado.Value.ToString("C0", cop) : "—")</td>
+                            <td>@((a.PrecioPersonalizado ?? a.Servicio?.Precio ?? 0).ToString("C0", cop))</td>
+                            <td>@(a.Activo ? "Activa" : "Inactiva")</td>
+                            <td><form method="post" action="/gestion-de-profesionales/servicios-asignados/estado">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="profesionalId" value="@profesional.IdProfesional" />
+                                <input type="hidden" name="servicioId" value="@a.IdServicio" />
+                                <input type="hidden" name="activo" value="@(a.Activo ? "false" : "true")" />
+                                <button type="submit" class="btn-primary">@(a.Activo ? "Desactivar" : "Reactivar")</button>
+                            </form></td>
+                        </tr>
+                    }
+                </tbody></table></div>
+            }
+        </section>
+    }
+</main>
+
+<script>
+(function () {
+    const selector = document.getElementById('servicioId');
+    const precio = document.getElementById('precioPersonalizado');
+    const estado = document.getElementById('estadoSeleccionServicio');
+    const boton = document.getElementById('guardarServicioAsignado');
+    if (!selector || !precio || !estado || !boton) return;
+
+    function actualizarFormulario() {
+        const opcion = selector.selectedOptions[0];
+        if (!selector.value || !opcion) {
+            precio.value = '';
+            estado.textContent = 'Selecciona un servicio para consultar su estado.';
+            boton.textContent = 'Selecciona un servicio';
+            boton.disabled = true;
+            return;
+        }
+        const asignado = opcion.dataset.asignado === 'true';
+        const activo = opcion.dataset.activo === 'true';
+        // Cargar siempre el valor existente: vacío significa usar precio base.
+        precio.value = asignado ? (opcion.dataset.precio || '') : '';
+        estado.textContent = !asignado
+            ? 'Nueva asignación: este servicio todavía no está vinculado al profesional.'
+            : activo
+                ? 'Asignación existente y activa: guardar actualizará su precio.'
+                : 'Asignación inactiva: guardar actualizará su precio y la reactivará.';
+        boton.textContent = !asignado ? 'Asignar servicio' : activo ? 'Actualizar asignación' : 'Actualizar y reactivar';
+        boton.disabled = false;
+    }
+
+    selector.addEventListener('change', actualizarFormulario);
+    actualizarFormulario();
+})();
+</script>

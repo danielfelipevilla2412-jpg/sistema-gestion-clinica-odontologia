@@ -211,6 +211,14 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "Configure la cadena de conexión en appsettings.Local.json.");
 }
 
+// Diagnóstico temporal: muestra el destino de la conexión sin revelar credenciales.
+var conexionDiagnostico = new SqlConnectionStringBuilder(connectionString);
+Console.WriteLine("========== CONEXIÓN SMILETRACK ==========");
+Console.WriteLine($"Servidor: {conexionDiagnostico.DataSource}");
+Console.WriteLine($"Base de datos: {conexionDiagnostico.InitialCatalog}");
+Console.WriteLine($"Entorno: {builder.Environment.EnvironmentName}");
+Console.WriteLine("=========================================");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         connectionString,

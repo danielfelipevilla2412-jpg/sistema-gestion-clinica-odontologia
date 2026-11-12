@@ -129,7 +129,7 @@ const statusLabels = {
 //  UTILIDADES
 // ═══════════════════════════════════════════════════════════════════
 
-const fmtCost = (cost) => `$${parseFloat(cost).toFixed(2)}`;
+const fmtCost = (cost) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 }).format(Number(cost) || 0);
 
 // ═══════════════════════════════════════════════════════════════════
 //  FILTRADO COMBINADO
@@ -183,7 +183,7 @@ const renderServices = () => {
         </div>
         <div class="table-col col-categoria" role="cell" data-label="Categoría">
           <span class="category-badge ${category.class}" role="status" aria-label="Categoría: ${category.label}">${category.label}</span>
-          <small class="service-specialty">${s.specialtyName || 'General · cualquier profesional'}</small>
+          <small class="service-specialty">${s.specialtyName || 'Sin especialidad configurada'}</small>
         </div>
         <div class="table-col col-duracion" role="cell" data-label="Duración">${s.duration} min</div>
         <div class="table-col col-costo" role="cell" data-label="Costo">${fmtCost(s.cost)}</div>
@@ -253,6 +253,7 @@ const openDrawer = (id = null) => {
     title.textContent = 'Nuevo Servicio';
     form.reset();
     safeGetElement('serviceSpecialty').value = '';
+    safeGetElement('serviceDuration').value = 60;
     toggle.setAttribute('aria-checked', 'true');
     toggle.classList.add('active');
   }
@@ -310,8 +311,16 @@ const saveService = async (e) => {
     active: safeGetElement('serviceActiveToggle')?.getAttribute('aria-checked') === 'true'
   };
 
-  if (!service.name || !service.category) {
-    showToast('⚠️ Nombre y categoría son obligatorios', 'warning');
+  if (!service.name || !service.category || !service.specialtyId) {
+    showToast('⚠️ Nombre, categoría y especialidad son obligatorios', 'warning');
+    return;
+  }
+  if (!Number.isFinite(service.cost) || service.cost <= 0) {
+    showToast('⚠️ El precio debe ser mayor que $0 COP', 'warning');
+    return;
+  }
+  if (!Number.isInteger(service.duration) || service.duration < 5 || service.duration > 480) {
+    showToast('⚠️ La duración debe estar entre 5 y 480 minutos', 'warning');
     return;
   }
 

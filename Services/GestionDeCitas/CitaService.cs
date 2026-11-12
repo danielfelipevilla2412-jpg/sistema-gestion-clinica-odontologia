@@ -610,21 +610,21 @@ public class CitaService : ICitaService
 
             // ── Historial de estado inicial ───────────────────────────────────
             await RegistrarHistorialEstadoAsync(
-                idCita:       cita.IdCita,
-                idEstado:     cita.IdEstado,
-                estadoTexto:  cita.Estado,
-                idUsuario:    null,
-                motivo:       "Cita creada",
-                ct:           ct);
+                idCita: cita.IdCita,
+                idEstado: cita.IdEstado,
+                estadoTexto: cita.Estado,
+                idUsuario: null,
+                motivo: "Cita creada",
+                ct: ct);
 
             // ── Notificación interna al paciente ─────────────────────────────
             await CrearNotificacionInternaCitaAsync(
-                idCita:     cita.IdCita,
+                idCita: cita.IdCita,
                 idPaciente: cita.IdPaciente,
-                tipo:       "confirmacion",
-                titulo:     "Cita agendada",
-                contenido:  $"Tu cita fue agendada para el {cita.FechaHora:dd/MM/yyyy} a las {cita.FechaHora:HH:mm}.",
-                ct:         ct);
+                tipo: "confirmacion",
+                titulo: "Cita agendada",
+                contenido: $"Tu cita fue agendada para el {cita.FechaHora:dd/MM/yyyy} a las {cita.FechaHora:HH:mm}.",
+                ct: ct);
 
             return cita;
         }, ct);
@@ -771,7 +771,7 @@ public class CitaService : ICitaService
             return null;
 
         string estadoActual = NormalizarEstado(cita.Estado);
-        string estadoNuevo  = NormalizarEstado(nuevoEstado);
+        string estadoNuevo = NormalizarEstado(nuevoEstado);
 
         if (string.IsNullOrWhiteSpace(estadoNuevo) || !EsTransicionEstadoPermitida(estadoActual, estadoNuevo))
             throw new InvalidOperationException(ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
@@ -781,7 +781,13 @@ public class CitaService : ICitaService
 
         if (estadoNuevo is "atendida" or "no_asistida" && cita.FechaHora.Date > ColombiaClock.Today)
             throw new InvalidOperationException("Solo se puede marcar la cita como atendida o no asistida desde el día programado o después.");
-
+        // REGLA DE NEGOCIO:
+        // Una cita no puede confirmarse sin un profesional asignado.
+        if (estadoNuevo == "confirmada" && cita.IdProfesional is null or <= 0)
+        {
+            throw new InvalidOperationException(
+                "No se puede confirmar una cita sin un profesional asignado.");
+        }
         var estadosCatalogo = await _context.EstadosCita
             .AsNoTracking()
             .ToListAsync(ct);
@@ -795,7 +801,7 @@ public class CitaService : ICitaService
         string estadoAnteriorTexto = cita.Estado;
 
         cita.IdEstado = estadoDestino.IdEstado;
-        cita.Estado   = estadoDestino.NombreEstado;
+        cita.Estado = estadoDestino.NombreEstado;
         if (estadoNuevo == "en_proceso")
         {
             var asistencia = await _context.AsistenciasProcedimiento
@@ -820,12 +826,12 @@ public class CitaService : ICitaService
 
         // ── Historial de cambio de estado (M6: propagar actor) ───────────────
         await RegistrarHistorialEstadoAsync(
-            idCita:      cita.IdCita,
-            idEstado:    cita.IdEstado,
+            idCita: cita.IdCita,
+            idEstado: cita.IdEstado,
             estadoTexto: cita.Estado,
-            idUsuario:   idUsuarioActor,
-            motivo:      $"Estado cambiado de '{estadoAnteriorTexto}' a '{cita.Estado}'",
-            ct:          ct);
+            idUsuario: idUsuarioActor,
+            motivo: $"Estado cambiado de '{estadoAnteriorTexto}' a '{cita.Estado}'",
+            ct: ct);
 
         // ── Notificación interna al paciente (solo estados relevantes) ───────
         string estadoNormalizado = NormalizarEstado(cita.Estado);
@@ -833,19 +839,19 @@ public class CitaService : ICitaService
         {
             string tituloNotif = estadoNormalizado switch
             {
-                "confirmada"  => "Cita confirmada",
-                "cancelada"   => "Cita cancelada",
-                "atendida"    => "Cita completada",
+                "confirmada" => "Cita confirmada",
+                "cancelada" => "Cita cancelada",
+                "atendida" => "Cita completada",
                 "no_asistida" => "Inasistencia registrada",
-                _             => "Actualización de tu cita"
+                _ => "Actualización de tu cita"
             };
             await CrearNotificacionInternaCitaAsync(
-                idCita:     cita.IdCita,
+                idCita: cita.IdCita,
                 idPaciente: cita.IdPaciente,
-                tipo:       "cambio_estado",
-                titulo:     tituloNotif,
-                contenido:  $"El estado de tu cita del {cita.FechaHora:dd/MM/yyyy} a las {cita.FechaHora:HH:mm} cambió a '{cita.Estado}'.",
-                ct:         ct);
+                tipo: "cambio_estado",
+                titulo: tituloNotif,
+                contenido: $"El estado de tu cita del {cita.FechaHora:dd/MM/yyyy} a las {cita.FechaHora:HH:mm} cambió a '{cita.Estado}'.",
+                ct: ct);
         }
 
         return cita;
@@ -896,8 +902,8 @@ public class CitaService : ICitaService
 
         // Guardar estado anterior ANTES de la cancelación
         string estadoAnteriorCancelar = cita.Estado;
-        int    idPacienteCancelar     = cita.IdPaciente;
-        DateTime fechaHoraCancelar    = cita.FechaHora;
+        int idPacienteCancelar = cita.IdPaciente;
+        DateTime fechaHoraCancelar = cita.FechaHora;
 
         // RN-23: motivo obligatorio, mínimo 5 y máximo 500 caracteres
         var motivoCancelacion = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim();
@@ -914,7 +920,7 @@ public class CitaService : ICitaService
         if (estadoCancelada is not null)
         {
             cita.IdEstado = estadoCancelada.IdEstado;
-            cita.Estado   = estadoCancelada.NombreEstado;
+            cita.Estado = estadoCancelada.NombreEstado;
         }
         else
         {
@@ -927,21 +933,21 @@ public class CitaService : ICitaService
         var motivoHistorial = $"Cita cancelada (estado anterior: '{estadoAnteriorCancelar}', motivo: '{motivoCancelacion}')";
 
         await RegistrarHistorialEstadoAsync(
-            idCita:      cita.IdCita,
-            idEstado:    cita.IdEstado,
+            idCita: cita.IdCita,
+            idEstado: cita.IdEstado,
             estadoTexto: cita.Estado,
-            idUsuario:   null,
-            motivo:      motivoHistorial,
-            ct:          ct);
+            idUsuario: null,
+            motivo: motivoHistorial,
+            ct: ct);
 
         // ── Notificación interna de cancelación al paciente ──────────────────
         await CrearNotificacionInternaCitaAsync(
-            idCita:     cita.IdCita,
+            idCita: cita.IdCita,
             idPaciente: idPacienteCancelar,
-            tipo:       "cancelacion",
-            titulo:     "Cita cancelada",
-            contenido:  $"Tu cita del {fechaHoraCancelar:dd/MM/yyyy} a las {fechaHoraCancelar:HH:mm} ha sido cancelada. Motivo: {motivoCancelacion}",
-            ct:         ct);
+            tipo: "cancelacion",
+            titulo: "Cita cancelada",
+            contenido: $"Tu cita del {fechaHoraCancelar:dd/MM/yyyy} a las {fechaHoraCancelar:HH:mm} ha sido cancelada. Motivo: {motivoCancelacion}",
+            ct: ct);
 
         // ── Notificación a pacientes en Lista de Espera ──────────────────────
         await NotificarListaEsperaFranjaLiberadaAsync(
@@ -1587,22 +1593,22 @@ public class CitaService : ICitaService
     /// El controlador debe pasar este valor cuando lo obtiene de los claims.
     /// </param>
     private async Task RegistrarHistorialEstadoAsync(
-        int        idCita,
-        int?       idEstado,
-        string     estadoTexto,
-        int?       idUsuario,
-        string?    motivo,
+        int idCita,
+        int? idEstado,
+        string estadoTexto,
+        int? idUsuario,
+        string? motivo,
         CancellationToken ct)
     {
         try
         {
             _context.CitasHistorialEstado.Add(new CitaHistorialEstado
             {
-                IdCita      = idCita,
-                IdEstado    = idEstado,
+                IdCita = idCita,
+                IdEstado = idEstado,
                 EstadoTexto = estadoTexto,
-                IdUsuario   = idUsuario,
-                Motivo      = motivo,
+                IdUsuario = idUsuario,
+                Motivo = motivo,
                 FechaCambio = ColombiaClock.Now
             });
             await _context.SaveChangesAsync(ct);
@@ -1626,26 +1632,26 @@ public class CitaService : ICitaService
     /// Best-effort: si falla, solo se loguea.
     /// </summary>
     private async Task CrearNotificacionInternaCitaAsync(
-        int        idCita,
-        int        idPaciente,
-        string     tipo,
-        string     titulo,
-        string     contenido,
+        int idCita,
+        int idPaciente,
+        string tipo,
+        string titulo,
+        string contenido,
         CancellationToken ct)
     {
         try
         {
             _context.Notificaciones.Add(new Notificacion
             {
-                IdCita          = idCita,
-                IdPaciente      = idPaciente,
-                Tipo            = tipo,
-                Titulo          = titulo,
-                Contenido       = contenido,
-                Canal           = "interno",
-                Estado          = "pendiente",
+                IdCita = idCita,
+                IdPaciente = idPaciente,
+                Tipo = tipo,
+                Titulo = titulo,
+                Contenido = contenido,
+                Canal = "interno",
+                Estado = "pendiente",
                 FechaProgramada = ColombiaClock.Now,
-                CreadaEn        = ColombiaClock.Now
+                CreadaEn = ColombiaClock.Now
             });
             await _context.SaveChangesAsync(ct);
         }
@@ -1697,16 +1703,16 @@ public class CitaService : ICitaService
 
             return candidatos.Select(c => new SugerenciaListaEsperaDto
             {
-                IdListaEspera         = c.IdListaEspera,
-                IdPaciente            = c.IdPaciente,
-                NombrePaciente        = c.Paciente is null
+                IdListaEspera = c.IdListaEspera,
+                IdPaciente = c.IdPaciente,
+                NombrePaciente = c.Paciente is null
                                         ? "Paciente desconocido"
                                         : $"{c.Paciente.Nombres} {c.Paciente.Apellidos}".Trim(),
-                IdServicio            = c.IdServicio,
-                NombreServicio        = c.Servicio?.Nombre,
-                FechaHoraLiberada     = fechaHoraLiberada,
+                IdServicio = c.IdServicio,
+                NombreServicio = c.Servicio?.Nombre,
+                FechaHoraLiberada = fechaHoraLiberada,
                 ProfesionalesDisponibles = disponibles,
-                Notas                 = c.Notas
+                Notas = c.Notas
             }).ToList();
         }
         catch (Exception ex)
