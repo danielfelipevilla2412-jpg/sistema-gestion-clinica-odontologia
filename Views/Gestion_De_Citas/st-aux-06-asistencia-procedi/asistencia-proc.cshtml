@@ -23,6 +23,13 @@
     var citaSeleccionadaId = asistenciaJson.TryGetProperty("citaId", out var citaIdJson) && citaIdJson.ValueKind == System.Text.Json.JsonValueKind.Number
       ? citaIdJson.GetInt32()
       : 0;
+    var estadoCita = asistenciaJson.TryGetProperty("estado", out var estadoJson) && estadoJson.ValueKind == System.Text.Json.JsonValueKind.String
+      ? estadoJson.GetString()
+      : null;
+    var estadoNormalizado = asistenciaJson.TryGetProperty("estadoNormalizado", out var estadoNormalizadoJson) && estadoNormalizadoJson.ValueKind == System.Text.Json.JsonValueKind.String
+      ? estadoNormalizadoJson.GetString()
+      : null;
+    var procedimientoEnCurso = estadoNormalizado == "en_proceso";
     var citaSeleccionadaConsultorioId = asistenciaJson.TryGetProperty("consultorioId", out var consultorioIdJson) && consultorioIdJson.ValueKind == System.Text.Json.JsonValueKind.Number
       ? consultorioIdJson.GetInt32()
       : 0;
@@ -75,22 +82,33 @@
       <p class="alert-banner-text" id="apAlertBannerText"></p>
     </div>
 
+    <section class="procedure-empty-state" id="apEmptyState" style="@(citaSeleccionadaId > 0 ? "display:none;" : null)" aria-live="polite">
+      <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
+      <h2>Selecciona una cita</h2>
+      <p>Elige una cita de hoy para consultar los datos y las alertas del paciente. La atención se iniciará automáticamente a la hora programada.</p>
+    </section>
+
     <!-- Layout de contenido -->
-    <div class="content-layout">
+    <div class="content-layout" id="procedureContent" style="@(citaSeleccionadaId > 0 ? null : "display:none;")">
 
       <!-- Columna izquierda: Timer + Datos -->
       <div class="content-left">
 
         <!-- Tarjeta de estado con timer accesible -->
         <div class="status-card">
-          <div class="timer-circle" role="timer" aria-label="Tiempo transcurrido del procedimiento" aria-live="polite">
-            <span class="timer-value" id="timerValue">24</span>
+          <div class="timer-circle" id="procedureTimer" role="timer" aria-label="Tiempo transcurrido del procedimiento" style="@(procedimientoEnCurso ? null : "display:none;")">
+            <span class="timer-value" id="timerValue">0</span>
             <span class="timer-label">min</span>
           </div>
           <div class="status-info">
             <p class="status-label" data-i18n="citas.status">Estado del procedimiento</p>
-            <span class="status-badge" role="status">En curso</span>
-            <p class="status-time">Iniciado a las <time id="apStartTime" datetime=""></time></p>
+            @if (citaSeleccionadaId > 0)
+            {
+              <span class="status-badge" id="procedureStatus" data-status="@estadoNormalizado" role="status">
+                @SmileTrack_MVC.Helpers.EstadoCitaHelper.ResolveEstadoNombre(estadoCita)
+              </span>
+            }
+            <p class="status-time" id="apStatusTime" style="@(procedimientoEnCurso ? null : "display:none;")">Iniciado a las <time id="apStartTime" datetime=""></time></p>
           </div>
         </div>
 
@@ -111,21 +129,23 @@
         <!-- Alertas del paciente con role list -->
         <div class="alert-card">
           <p class="alert-card-title"><span class="material-symbols-outlined" aria-hidden="true">warning_amber</span> Alertas del paciente</p>
-          <div class="alert-item" id="apAlergiaItem" role="listitem" style="display:none;">
-            <span class="material-symbols-outlined alert-icon" aria-hidden="true">error</span>
-            <span><strong>Alergia:</strong> <span id="apAlergiaTexto"></span></span>
-          </div>
-          <div class="alert-item" id="apAntecedentesItem" role="listitem" style="display:none;">
-            <span class="material-symbols-outlined alert-icon" aria-hidden="true">error</span>
-            <span><strong>Antecedentes:</strong> <span id="apAntecedentesTexto"></span></span>
-          </div>
-          <div class="alert-item" id="apSinAlertas" role="listitem">
-            <span><em>Sin alertas médicas registradas para este paciente.</em></span>
+          <div role="list" aria-label="Alertas médicas del paciente">
+            <div class="alert-item" id="apAlergiaItem" role="listitem" style="display:none;">
+              <span class="material-symbols-outlined alert-icon" aria-hidden="true">error</span>
+              <span><strong>Alergia:</strong> <span id="apAlergiaTexto"></span></span>
+            </div>
+            <div class="alert-item" id="apAntecedentesItem" role="listitem" style="display:none;">
+              <span class="material-symbols-outlined alert-icon" aria-hidden="true">error</span>
+              <span><strong>Antecedentes:</strong> <span id="apAntecedentesTexto"></span></span>
+            </div>
+            <div class="alert-item" id="apSinAlertas" role="listitem">
+              <span><em>Sin alertas médicas registradas para este paciente.</em></span>
+            </div>
           </div>
         </div>
 
         <!-- Estado del procedimiento con píldoras interactivas -->
-        <div class="procedure-card">
+        <div class="procedure-card" id="procedureChecklist" style="@(procedimientoEnCurso ? null : "display:none;")">
           <h3 class="procedure-card-title">Estado del Procedimiento</h3>
 
           <div class="procedure-row">
@@ -203,9 +223,8 @@
   <script>
     window.smiletrackAsistenciaProcedData = @Html.Raw(asistenciaProcedDataJson);
     document.getElementById('citaSelect')?.addEventListener('change', function () {
-      if (!this.value) return;
       const params = new URLSearchParams(window.location.search);
-      params.set('citaId', this.value);
+      params.set('citaId', this.value || '0');
       window.location.search = params.toString();
     });
   </script>

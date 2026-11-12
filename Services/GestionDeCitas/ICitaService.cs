@@ -93,6 +93,12 @@ public interface ICitaService
     Task<List<Cita>> ObtenerSolicitudesPendientesAsync(
         CancellationToken ct = default);
 
+    Task<Cita?> RechazarSolicitudAsync(
+        int idCita,
+        string motivo,
+        int? idUsuarioActor = null,
+        CancellationToken ct = default);
+
     /// <summary>
     /// Obtiene la lista de profesionales activos que tienen disponibilidad en la fecha y horario solicitados,
     /// verificando que el horario esté dentro de su jornada laboral, no tengan ausencias ni bloqueos registrados,

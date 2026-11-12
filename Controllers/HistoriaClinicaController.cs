@@ -9,6 +9,7 @@ using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -25,7 +26,8 @@ public class HistoriaClinicaController(
     IHistoriaClinicaService historiaService,
     AuditoriaHistoriaClinicaService auditoria,
     IConfiguration configuration,
-    ILogger<HistoriaClinicaController> logger) : Controller
+    ILogger<HistoriaClinicaController> logger,
+    IPerfilPacienteService perfilPacienteService) : Controller
 {
     private static readonly HashSet<string> EstadosPlanTratamiento = new(StringComparer.Ordinal)
     {
@@ -37,6 +39,22 @@ public class HistoriaClinicaController(
     private readonly AuditoriaHistoriaClinicaService _auditoria = auditoria;
     private readonly IConfiguration _configuration = configuration;
     private readonly ILogger<HistoriaClinicaController> _logger = logger;
+    private readonly IPerfilPacienteService _perfilPacienteService = perfilPacienteService;
+
+    private async Task<bool> PerfilPacienteConfirmadoAsync(CancellationToken ct = default)
+    {
+        if (!User.IsInRole("Paciente"))
+            return true;
+
+        return int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) &&
+            await _perfilPacienteService.PerfilCompletoAsync(idUsuario, ct);
+    }
+
+    private IActionResult RedirigirAPerfilPaciente()
+    {
+        TempData["PerfilPacienteAviso"] = "Confirma tus datos personales para consultar tu historia clínica.";
+        return Redirect("/perfiles/st-pac-perfil-paciente");
+    }
 
     [HttpGet]
     [Authorize(Roles = "Administrador")]
@@ -548,6 +566,9 @@ public class HistoriaClinicaController(
         int id,
         [FromServices] IWebHostEnvironment env)
     {
+        if (!await PerfilPacienteConfirmadoAsync())
+            return RedirigirAPerfilPaciente();
+
         var documento = await _context.DocumentosClinicos
             .FirstOrDefaultAsync(d => d.IdDocumento == id);
 
@@ -583,6 +604,9 @@ public class HistoriaClinicaController(
         int id,
         [FromServices] IWebHostEnvironment env)
     {
+        if (!await PerfilPacienteConfirmadoAsync())
+            return RedirigirAPerfilPaciente();
+
         var documento = await _context.DocumentosClinicos
             .FirstOrDefaultAsync(d => d.IdDocumento == id);
 
@@ -770,6 +794,9 @@ public class HistoriaClinicaController(
         [FromQuery] int? pacienteId,
         CancellationToken cancellationToken)
     {
+        if (!await PerfilPacienteConfirmadoAsync(cancellationToken))
+            return RedirigirAPerfilPaciente();
+
         int pacienteIdResuelto;
         if (User.IsInRole("Paciente"))
         {
@@ -2050,6 +2077,9 @@ public class HistoriaClinicaController(
 [Route("historia-clinica/st-pac-02-historial")]
 public async Task<IActionResult> Stpac02Historial()
 {
+    if (!await PerfilPacienteConfirmadoAsync())
+        return RedirigirAPerfilPaciente();
+
     // Yeray - Defensa específica para el rol Paciente.
     // Motivo: la ruta debe permitir el acceso solo a usuarios autenticados con
     // un paciente asociado; si no existe esa relación de BD, la vista anterior

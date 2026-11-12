@@ -305,10 +305,10 @@ const setupFinalizedTableControls = () => {
       tabButton.addEventListener('click', () => {
         tabButtons.forEach(button => {
           button.classList.remove('active');
-          button.setAttribute('aria-selected', 'false');
+          button.setAttribute('aria-pressed', 'false');
         });
         tabButton.classList.add('active');
-        tabButton.setAttribute('aria-selected', 'true');
+        tabButton.setAttribute('aria-pressed', 'true');
         finalizedStatusFilter = tabButton.dataset.tab || 'all';
         finalizedCurrentPage = 1;
         renderAppointmentsTable(finalizedStorage.load());

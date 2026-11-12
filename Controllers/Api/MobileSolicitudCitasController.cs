@@ -29,6 +29,7 @@ using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 
 namespace SmileTrack_MVC.Controllers.Api;
 
@@ -46,11 +47,16 @@ public class MobileSolicitudCitasController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly ICitaService _citaService;
+    private readonly IPerfilPacienteService _perfilPacienteService;
 
-    public MobileSolicitudCitasController(AppDbContext context, ICitaService citaService)
+    public MobileSolicitudCitasController(
+        AppDbContext context,
+        ICitaService citaService,
+        IPerfilPacienteService perfilPacienteService)
     {
         _context = context;
         _citaService = citaService;
+        _perfilPacienteService = perfilPacienteService;
     }
 
     [HttpGet("servicios")]
@@ -82,6 +88,16 @@ public class MobileSolicitudCitasController : ControllerBase
         if (!int.TryParse(idUsuarioTexto, out int idUsuario))
         {
             return Unauthorized();
+        }
+
+        if (!await _perfilPacienteService.PerfilCompletoAsync(idUsuario, cancellationToken))
+        {
+            return Conflict(new
+            {
+                code = "PROFILE_INCOMPLETE",
+                message = "Confirma tus datos personales antes de solicitar una cita.",
+                profileUrl = "/perfiles/st-pac-perfil-paciente"
+            });
         }
 
         if (solicitud.IdServicio <= 0 ||

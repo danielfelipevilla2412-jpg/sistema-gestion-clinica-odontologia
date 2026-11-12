@@ -98,7 +98,8 @@ const escapeHtml = (value) => String(value ?? '')
 
 
 const shouldUseServerRenderedList = () => {
-  return false;
+  const tableBody = safeGetElement('appointmentsTable');
+  return Boolean(tableBody?.querySelector('tr'));
 };
 
 const animateCounter = (el, target) => {
@@ -575,22 +576,6 @@ const handleViewToggle = (btn) => {
   if (view === 'paused')   showToast('Mostrando citas pausadas', 'info');
 };
 
-const initPagination = () => {
-  safeGetElement('prevPage')?.addEventListener('click', (e) => {
-    if (!e.currentTarget.disabled) showToast('Página anterior', 'info');
-  });
-  safeGetElement('nextPage')?.addEventListener('click', () => showToast('Página siguiente', 'info'));
-  document.querySelectorAll('.pagination-number').forEach(b => {
-    b.addEventListener('click', () => {
-      document.querySelectorAll('.pagination-number').forEach(x => {
-        x.classList.remove('active'); x.removeAttribute('aria-current');
-      });
-      b.classList.add('active'); b.setAttribute('aria-current', 'page');
-      showToast(`Mostrando página ${b.textContent}`, 'info');
-    });
-  });
-};
-
 // ═══════════════════════════════════════════════════════════════════
 //  FILTRADO DINÁMICO PROFESIONALES DISPONIBLES
 // ═══════════════════════════════════════════════════════════════════
@@ -689,7 +674,10 @@ const fetchSolicitudesPendientes = async () => {
             <small style="display:block; color:#475569;">${escapeHtml(fecha)} · ${escapeHtml(hora)} · ${escapeHtml(servicio)}</small>
             <small style="display:block; color:#64748b; margin-top:0.3rem;">${notas}</small>
           </div>
-          <button type="button" class="btn-primary" data-confirm-pending="${solicitud.idCita}" style="white-space:nowrap;">Confirmar</button>
+          <div class="pending-request-actions" style="display:flex; flex-wrap:wrap; gap:.5rem;">
+            <button type="button" class="btn-primary" data-confirm-pending="${solicitud.idCita}" style="white-space:nowrap;">Confirmar</button>
+            <button type="button" class="btn-danger" data-reject-pending="${solicitud.idCita}" style="white-space:nowrap;">Rechazar</button>
+          </div>
         </article>
       `;
     }).join('');
@@ -737,11 +725,68 @@ const fetchSolicitudesPendientes = async () => {
             throw new Error(result.message || 'No fue posible confirmar la solicitud.');
           }
           showToast('Solicitud confirmada y cita asignada correctamente.', 'success');
+          if (shouldUseServerRenderedList()) {
+            window.location.reload();
+            return;
+          }
           await fetchSolicitudesPendientes();
-          await fetchAppointments(1);
+          const appointments = await fetchAppointments(1);
+          renderAppointments(appointments);
+          updateMetrics();
         } catch (error) {
           console.warn('[SmileTrack] Error confirmando solicitud pendiente:', error);
           showToast(error.message || 'No fue posible confirmar la solicitud pendiente.', 'error');
+        }
+      });
+    });
+
+    listEl.querySelectorAll('[data-reject-pending]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const idCita = Number(button.getAttribute('data-reject-pending'));
+        if (!Number.isInteger(idCita) || idCita <= 0) return;
+        const motivo = window.prompt('Indica el motivo del rechazo (mínimo 5 caracteres):');
+        if (motivo === null) return;
+        const motivoNormalizado = motivo.trim();
+        if (motivoNormalizado.length < 5 || motivoNormalizado.length > 500) {
+          showToast('El motivo debe tener entre 5 y 500 caracteres.', 'error');
+          return;
+        }
+
+        const csrfMatch = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
+        const csrfToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value
+          || (csrfMatch ? decodeURIComponent(csrfMatch[2]) : '');
+        if (!csrfToken) {
+          showToast('No se pudo validar la solicitud. Recarga la página e intenta nuevamente.', 'error');
+          return;
+        }
+
+        button.disabled = true;
+        try {
+          const response = await fetch(`${API_BASE}/citas/${idCita}/rechazar-solicitud`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': csrfToken },
+            body: JSON.stringify({ motivo: motivoNormalizado })
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || result.success === false) {
+            throw new Error(result.message || 'No fue posible rechazar la solicitud.');
+          }
+
+          showToast('Solicitud rechazada y paciente notificado.', 'success');
+          if (shouldUseServerRenderedList()) {
+            window.location.reload();
+            return;
+          }
+          await fetchSolicitudesPendientes();
+          const appointments = await fetchAppointments(1);
+          renderAppointments(appointments);
+          updateMetrics();
+        } catch (error) {
+          console.warn('[SmileTrack] Error rechazando solicitud pendiente:', error);
+          showToast(error.message || 'No fue posible rechazar la solicitud.', 'error');
+        } finally {
+          button.disabled = false;
         }
       });
     });
@@ -909,7 +954,6 @@ const init = async () => {
     appointmentStorage.init();
     initMobileMenu();
     initModalHandlers();
-    initPagination();
     initNewAppointmentButtons();
 
     // Asignar submit handlers
@@ -1001,6 +1045,7 @@ const init = async () => {
         });
       }
     } else {
+      await fetchSolicitudesPendientes();
       await fetchConfiguredDuration();
       // Modo SSR: animar los KPI renderizados por Razor con data-target
       initServerMetrics();

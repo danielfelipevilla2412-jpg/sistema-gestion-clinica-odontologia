@@ -41,25 +41,25 @@
     <section class="stats-grid" aria-label="Métricas principales" data-i18n-aria-label="facturacion.title">
         <div class="stat-card stat-card--primary" data-color="blue">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">group</span>
-            <span class="stat-number" id="statTotal" data-target="@(ViewData["TotalPacientes"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-number" id="statTotal" data-target="@(ViewData["TotalPacientes"] ?? 0)">0</span>
             <span class="stat-label" data-i18n="patients.active">Pacientes activos</span>
             <span class="stat-sub">Total registrados</span>
         </div>
         <div class="stat-card" data-color="green">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
-            <span class="stat-number" id="statScheduled" data-target="@(ViewData["CitasHoy"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-number" id="statScheduled" data-target="@(ViewData["CitasHoy"] ?? 0)">0</span>
             <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
             <span class="stat-sub">Programadas</span>
         </div>
         <div class="stat-card" data-color="orange">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">stethoscope</span>
-            <span class="stat-number" id="statAttended" data-target="@(ViewData["ProfesionalesActivos"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-number" id="statAttended" data-target="@(ViewData["ProfesionalesActivos"] ?? 0)">0</span>
             <span class="stat-label" data-i18n="professionals.active">Profesionales activos</span>
             <span class="stat-sub">En servicio</span>
         </div>
         <div class="stat-card" data-color="purple">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
-            <span class="stat-number" id="statIncome" data-format="currency-cop" data-target="@(ViewData["IngresosDelMes"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-number" id="statIncome" data-format="currency-cop" data-target="@(ViewData["IngresosDelMes"] ?? 0)">0</span>
             <span class="stat-label">Ingresos del mes</span>
             <span class="stat-sub">Solo citas atendidas</span>
         </div>

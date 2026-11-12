@@ -36,7 +36,8 @@ public static class EstadoCitaHelper
         "atendida", "atendido", "completada", "completado", "realizada", "realizado",
         "finalizada", "finalizado",
         "cancelada", "cancelado",
-        "no asistio", "no asistió", "no_asistida", "no-show", "no_show"
+        "no asistio", "no asistió", "no_asistida", "no-show", "no_show",
+        "rechazada"
     ];
 
     /// <summary>
@@ -84,6 +85,7 @@ public static class EstadoCitaHelper
             "en_sala_de_espera" => "En sala de espera",
             "en_proceso" => "En consulta",
             "atendida" => "Atendida",
+            "rechazada" => "Rechazada",
             "cancelada" => "Cancelada",
             "no_asistida" => "No asistió",
             _ => string.IsNullOrEmpty(estado) ? string.Empty : char.ToUpperInvariant(estado.Trim()[0]) + estado.Trim()[1..].ToLowerInvariant()

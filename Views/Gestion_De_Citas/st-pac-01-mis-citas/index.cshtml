@@ -14,7 +14,13 @@
    - CSS: ~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css
    - JS: ~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js
    ============================================ *@
-@{ Layout = "_Layout"; ViewData["Title"] = "Mis Citas"; }
+@inject SmileTrack_MVC.Services.Perfiles.IPerfilPacienteService PerfilPacienteService
+@{
+  Layout = "_Layout";
+  ViewData["Title"] = "Mis Citas";
+  int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int idUsuarioPaciente);
+  var perfilPacienteCompleto = idUsuarioPaciente > 0 && await PerfilPacienteService.PerfilCompletoAsync(idUsuarioPaciente);
+}
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css" asp-append-version="true" />
@@ -35,51 +41,69 @@
         <h1 class="page-title" data-i18n="citas.title">Mis Citas</h1>
         <p class="page-subtitle" data-i18n="citas.pac_subtitle">Gestiona y consulta tus citas odontológicas personales</p>
       </div>
-      <button class="btn-primary" id="btnNuevaCita" aria-label="Solicitar nueva cita" data-i18n="citas.new">+ Solicitar cita</button>
+      @if (perfilPacienteCompleto)
+      {
+        <button class="btn-primary" id="btnNuevaCita" aria-label="Solicitar nueva cita" data-i18n="citas.new">+ Solicitar cita</button>
+      }
     </header>
+    @if (!perfilPacienteCompleto)
+    {
+      <div class="patient-profile-notice" role="status">
+        Para solicitar citas, primero confirma tu identidad. <a href="/perfiles/st-pac-perfil-paciente">Actualizar datos personales</a>.
+      </div>
+    }
     <div data-perfil-paciente-header></div>
 
     <!-- Stats Grid: estadísticas animadas del paciente -->
     <section class="stats-grid" aria-label="Resumen de mis citas" data-i18n-aria-label="citas.stats_aria">
       <div class="stat-card" data-color="blue">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_note</span>
-        <span class="stat-number" id="cnt-total" data-target="0" aria-live="polite">0</span>
+        <span class="stat-number" id="cnt-total" data-target="0">0</span>
         <span class="stat-label" data-i18n="citas.stat_total">Total citas</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">check_circle</span>
-        <span class="stat-number" id="cnt-completadas" data-target="0" aria-live="polite">0</span>
+        <span class="stat-number" id="cnt-completadas" data-target="0">0</span>
         <span class="stat-label" data-i18n="status.completed">Completadas</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule</span>
-        <span class="stat-number" id="cnt-pendientes" data-target="0" aria-live="polite">0</span>
+        <span class="stat-number" id="cnt-pendientes" data-target="0">0</span>
         <span class="stat-label" data-i18n="status.pending">Pendientes</span>
       </div>
       <div class="stat-card" data-color="red">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
-        <span class="stat-number" id="cnt-canceladas" data-target="0" aria-live="polite">0</span>
+        <span class="stat-number" id="cnt-canceladas" data-target="0">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
+      </div>
+      <div class="stat-card" data-color="red">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
+        <span class="stat-number" id="cnt-rechazadas" data-target="0">0</span>
+        <span class="stat-label">Solicitudes rechazadas</span>
       </div>
     </section>
 
     <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
-    <div class="table-tabs" role="tablist" aria-label="Filtrar mis citas por estado">
-      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="all" id="tab-all">
+    <div class="table-tabs" role="group" aria-label="Filtrar mis citas por estado">
+      <button type="button" class="tab-btn active" aria-pressed="true" data-tab="all" id="tab-all">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_note</span>
         Todas las citas
       </button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="pending" id="tab-pending">
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="pending" id="tab-pending">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">schedule</span>
         Pendientes
       </button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="completed" id="tab-completed">
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="completed" id="tab-completed">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">check_circle</span>
         Completadas
       </button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="cancelled" id="tab-cancelled">
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="cancelled" id="tab-cancelled">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
         Canceladas
+      </button>
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="rejected" id="tab-rejected">
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">block</span>
+        Rechazadas
       </button>
     </div>
 
@@ -109,9 +133,13 @@
             <select id="filterEstado" class="status-select" aria-label="Filtrar citas por estado">
               <option value="" data-i18n="table.filter_all_states">Todos los estados</option>
               <option value="Agendada" data-i18n="status.scheduled">Agendada</option>
+              <option value="Solicitada">Solicitada</option>
               <option value="Confirmada" data-i18n="status.confirmed">Confirmada</option>
+              <option value="En curso">En curso</option>
               <option value="Completada" data-i18n="status.completed">Completada</option>
               <option value="Cancelada" data-i18n="status.cancelled">Cancelada</option>
+              <option value="Rechazada">Rechazada</option>
+              <option value="No asistió">No asistió</option>
             </select>
           </div>
           <span class="count-label" id="countLabel" aria-live="polite"></span>
@@ -131,7 +159,7 @@
               <th scope="col" data-i18n="table.actions">ACCIONES</th>
             </tr>
           </thead>
-          <tbody id="citasTbody" aria-live="polite"></tbody>
+          <tbody id="citasTbody"></tbody>
         </table>
       </div>
     </section>

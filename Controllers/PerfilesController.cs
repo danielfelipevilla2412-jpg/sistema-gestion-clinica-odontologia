@@ -5,16 +5,25 @@ using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 
 namespace SmileTrack_MVC.Controllers;
 
 public class PerfilesController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly IPerfilPacienteService _perfilPacienteService;
+    private readonly AuditoriaHistoriaClinicaService _auditoria;
 
-    public PerfilesController(AppDbContext context)
+    public PerfilesController(
+        AppDbContext context,
+        IPerfilPacienteService perfilPacienteService,
+        AuditoriaHistoriaClinicaService auditoria)
     {
         _context = context;
+        _perfilPacienteService = perfilPacienteService;
+        _auditoria = auditoria;
     }
 
     [HttpGet]
@@ -37,17 +46,30 @@ public class PerfilesController : Controller
         if (!int.TryParse(userIdStr, out int userId))
             return Unauthorized();
 
+        var usuario = await _context.Usuarios
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.IdUsuario == userId);
+        if (usuario is null)
+            return NotFound();
+
         var paciente = await _context.Pacientes
         .Include(p => p.Usuario)
         .Include(p => p.ProfesionalAsignado)
         .FirstOrDefaultAsync(p => p.IdUsuario == userId);
 
-        if (paciente is null ||
-            EsDocumentoProvisional(paciente.Documento, userId) ||
-            paciente.Usuario?.FechaNacimiento is not DateTime fechaCuenta ||
-            paciente.FechaNacimiento.Date != fechaCuenta.Date)
-            return RedirectToAction(nameof(CompletarPerfilPaciente));
+        paciente ??= new Paciente
+        {
+            IdUsuario = userId,
+            Nombres = usuario.Nombre,
+            Apellidos = usuario.Apellidos,
+            Correo = usuario.Correo,
+            TipoDocumento = string.Empty,
+            Documento = string.Empty,
+            FechaNacimiento = usuario.FechaNacimiento ?? DateTime.MinValue,
+            Estado = "activo"
+        };
 
+        ViewBag.PerfilCompleto = await _perfilPacienteService.PerfilCompletoAsync(userId);
         return View("~/Views/Perfiles/st-pac-perfil-Paciente/perfil-paciente.cshtml", paciente);
     }
 
@@ -75,7 +97,7 @@ public class PerfilesController : Controller
             Correo = usuario.Correo,
             TipoDocumento = paciente?.TipoDocumento ?? string.Empty,
             Documento = EsDocumentoProvisional(paciente?.Documento, userId) ? string.Empty : paciente?.Documento ?? string.Empty,
-            FechaNacimiento = usuario.FechaNacimiento
+            FechaNacimiento = paciente?.FechaNacimiento ?? usuario.FechaNacimiento
         });
     }
 
@@ -118,18 +140,44 @@ public class PerfilesController : Controller
         if (usuario is null)
             return NotFound();
 
-        bool documentoEnUso = await _context.Pacientes.AnyAsync(
-            p => p.Documento == documento && p.IdUsuario != userId,
-            cancellationToken);
-        if (documentoEnUso)
-        {
-            ModelState.AddModelError(nameof(model.Documento), "Ese documento ya está registrado.");
-            await CargarDatosCuentaAsync(model, userId, cancellationToken);
-            return View("~/Views/Perfiles/completar-perfil-paciente.cshtml", model);
-        }
-
         var paciente = await _context.Pacientes
             .FirstOrDefaultAsync(p => p.IdUsuario == userId, cancellationToken);
+        bool pacienteExistente = paciente is not null;
+
+        var pacienteConDocumento = await _context.Pacientes
+            .FirstOrDefaultAsync(p => p.Documento == documento && p.IdUsuario != userId, cancellationToken);
+
+        if (pacienteConDocumento is not null)
+        {
+            bool puedeVincular = paciente is null &&
+                pacienteConDocumento.IdUsuario is null &&
+                string.Equals(pacienteConDocumento.Estado, "activo", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(pacienteConDocumento.TipoDocumento, tipoDocumento, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(NormalizarNombre(pacienteConDocumento.Nombres), NormalizarNombre(usuario.Nombre), StringComparison.Ordinal) &&
+                string.Equals(NormalizarNombre(pacienteConDocumento.Apellidos), NormalizarNombre(usuario.Apellidos), StringComparison.Ordinal) &&
+                pacienteConDocumento.FechaNacimiento.Date == model.FechaNacimiento!.Value.Date &&
+                !EsDocumentoProvisionalGeneral(pacienteConDocumento.Documento);
+
+            if (!puedeVincular)
+            {
+                ModelState.AddModelError(nameof(model.Documento),
+                    "Encontramos una ficha clínica con ese documento, pero los datos no coinciden para vincularla automáticamente. Solicita revisión en recepción; no modificamos registros clínicos existentes desde aquí.");
+                await CargarDatosCuentaAsync(model, userId, cancellationToken);
+                return View("~/Views/Perfiles/completar-perfil-paciente.cshtml", model);
+            }
+
+            pacienteConDocumento.IdUsuario = userId;
+            usuario.FechaNacimiento = pacienteConDocumento.FechaNacimiento.Date;
+            _auditoria.Agregar(
+                HttpContext,
+                "UPDATE",
+                "Paciente",
+                pacienteConDocumento.IdPaciente,
+                "Ficha clínica preexistente vinculada a la cuenta tras coincidencia de documento, nombres, apellidos y fecha de nacimiento.");
+            await _context.SaveChangesAsync(cancellationToken);
+            return RedirectToAction(nameof(StpacPerfilPaciente));
+        }
+
         if (paciente is null)
         {
             paciente = new Paciente
@@ -142,6 +190,19 @@ public class PerfilesController : Controller
                 Estado = "activo"
             };
             _context.Pacientes.Add(paciente);
+        }
+
+        if (pacienteExistente &&
+            !EsDocumentoProvisionalGeneral(paciente.Documento) &&
+            !string.IsNullOrWhiteSpace(paciente.Documento) &&
+            (!string.Equals(paciente.TipoDocumento, tipoDocumento, StringComparison.OrdinalIgnoreCase) ||
+             !string.Equals(paciente.Documento, documento, StringComparison.OrdinalIgnoreCase) ||
+             paciente.FechaNacimiento.Date != model.FechaNacimiento!.Value.Date))
+        {
+            ModelState.AddModelError(string.Empty,
+                "La ficha ya tiene datos de identidad registrados y no los modificaremos automáticamente. Solicita revisión en recepción para corregirlos.");
+            await CargarDatosCuentaAsync(model, userId, cancellationToken);
+            return View("~/Views/Perfiles/completar-perfil-paciente.cshtml", model);
         }
 
         paciente.TipoDocumento = tipoDocumento;
@@ -172,6 +233,15 @@ public class PerfilesController : Controller
         !string.IsNullOrWhiteSpace(documento) &&
         (string.Equals(documento, $"TEMP{userId}", StringComparison.OrdinalIgnoreCase) ||
          string.Equals(documento, $"USR-{userId:000000}", StringComparison.OrdinalIgnoreCase));
+
+    private static bool EsDocumentoProvisionalGeneral(string? documento) =>
+        !string.IsNullOrWhiteSpace(documento) &&
+        (documento.StartsWith("TEMP", StringComparison.OrdinalIgnoreCase) ||
+         documento.StartsWith("USR-", StringComparison.OrdinalIgnoreCase));
+
+    private static string NormalizarNombre(string? nombre) =>
+        string.Join(' ', (nombre ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .ToUpperInvariant();
 
     [HttpGet]
     [Authorize(Roles = "Recepcionista")]

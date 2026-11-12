@@ -304,7 +304,8 @@ public class HistoriaClinicaStructuredDataTests
             historiaService,
             new AuditoriaHistoriaClinicaService(db),
             new ConfigurationBuilder().Build(),
-            NullLogger<HistoriaClinicaController>.Instance);
+            NullLogger<HistoriaClinicaController>.Instance,
+            new SmileTrack_MVC.Services.Perfiles.PerfilPacienteService(db));
         var identity = new ClaimsIdentity(
         [
             new Claim(ClaimTypes.NameIdentifier, "7"),

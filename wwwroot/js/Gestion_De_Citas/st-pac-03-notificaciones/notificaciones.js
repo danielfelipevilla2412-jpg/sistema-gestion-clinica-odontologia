@@ -43,6 +43,11 @@ let lastActiveTriggerElement = null;
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
+const getCsrfToken = () =>
+  safeGetElement('notificationAntiforgeryToken')?.value
+  || document.querySelector('input[name="__RequestVerificationToken"]')?.value
+  || '';
+
 const debounce = (fn, delay) =>
   window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
 
@@ -55,7 +60,7 @@ function formatRelativeTime(isoString) {
 }
 
 const getBadgeClassForType = (badgeKey) => {
-  const badgeMap = { 'pending': 'badge-agendada', 'new': 'badge-completada', 'read': 'badge-cancelada' };
+  const badgeMap = { 'pending': 'badge-agendada', 'new': 'badge-completada', 'read': 'badge-completada' };
   return badgeMap[badgeKey] || 'badge-cancelada';
 };
 
@@ -68,6 +73,7 @@ const getIconForNotificationType = (notificationType) => {
   const iconMap = {
     'reminder': 'notifications',
     'confirmed': 'check_circle',
+    'rejected': 'block',
     'cancelled': 'cancel',
     'rescheduled': 'event_repeat',
     'waitlist': 'hourglass_top',
@@ -88,7 +94,10 @@ const markReadOnServer = async (notification) => {
   const response = await fetch(endpointUrl, {
     method: 'PUT',
     credentials: 'same-origin',
-    headers: { 'Accept': 'application/json' }
+    headers: {
+      'Accept': 'application/json',
+      'X-CSRF-TOKEN': getCsrfToken()
+    }
   });
 
   const payload = await response.json().catch(() => ({}));
@@ -104,7 +113,10 @@ const deleteOnServer = async (notification) => {
   const response = await fetch(`/api/notificaciones/${notification.idNotificacion}`, {
     method: 'DELETE',
     credentials: 'same-origin',
-    headers: { 'Accept': 'application/json' }
+    headers: {
+      'Accept': 'application/json',
+      'X-CSRF-TOKEN': getCsrfToken()
+    }
   });
 
   const payload = await response.json().catch(() => ({}));

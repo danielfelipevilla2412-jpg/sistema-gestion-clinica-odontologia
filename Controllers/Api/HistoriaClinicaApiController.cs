@@ -6,6 +6,7 @@ using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Api.HistoriasClinicas;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 
 namespace SmileTrack_MVC.Controllers.Api;
 
@@ -25,17 +26,20 @@ public sealed class HistoriaClinicaApiController : ControllerBase
     private readonly AppDbContext _context;
     private readonly AuditoriaHistoriaClinicaService _auditoria;
     private readonly ILogger<HistoriaClinicaApiController> _logger;
+    private readonly IPerfilPacienteService _perfilPacienteService;
 
     public HistoriaClinicaApiController(
         IHistoriaClinicaService service,
         AppDbContext context,
         AuditoriaHistoriaClinicaService auditoria,
-        ILogger<HistoriaClinicaApiController> logger)
+        ILogger<HistoriaClinicaApiController> logger,
+        IPerfilPacienteService perfilPacienteService)
     {
         _service = service;
         _context = context;
         _auditoria = auditoria;
         _logger = logger;
+        _perfilPacienteService = perfilPacienteService;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -48,6 +52,24 @@ public sealed class HistoriaClinicaApiController : ControllerBase
 
     private string GetCurrentUserName() =>
         User.FindFirstValue(ClaimTypes.Name) is { Length: > 0 } nombre ? nombre : "Profesional";
+
+    private async Task<IActionResult?> RespuestaSiPerfilIncompletoAsync(CancellationToken ct)
+    {
+        if (!User.IsInRole("Paciente"))
+            return null;
+
+        int? idUsuario = GetCurrentUserId();
+        if (idUsuario.HasValue && await _perfilPacienteService.PerfilCompletoAsync(idUsuario.Value, ct))
+            return null;
+
+        return Conflict(new
+        {
+            success = false,
+            code = "PROFILE_INCOMPLETE",
+            message = "Confirma tus datos personales antes de consultar tu historia clínica.",
+            profileUrl = "/perfiles/st-pac-perfil-paciente"
+        });
+    }
 
     /// <summary>
     /// Verifica que el paciente autenticado con rol "Paciente" solo pueda leer
@@ -62,7 +84,8 @@ public sealed class HistoriaClinicaApiController : ControllerBase
             return await _service.ProfesionalPuedeAccederPacienteAsync(pacienteId, idUsuario.Value, ct);
 
         if (User.IsInRole("Paciente"))
-            return await _service.EsPropioPacienteAsync(pacienteId, idUsuario.Value, ct);
+            return await _perfilPacienteService.PerfilCompletoAsync(idUsuario.Value, ct) &&
+                await _service.EsPropioPacienteAsync(pacienteId, idUsuario.Value, ct);
 
         return true;
     }
@@ -80,6 +103,9 @@ public sealed class HistoriaClinicaApiController : ControllerBase
     {
         if (pacienteId <= 0)
             return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        if (await RespuestaSiPerfilIncompletoAsync(ct) is { } perfilIncompleto)
+            return perfilIncompleto;
 
         if (!await PuedeAccederAsync(pacienteId, ct))
             return StatusCode(403, new { success = false, message = "No tiene permiso para ver esta historia clínica." });
@@ -151,6 +177,9 @@ public sealed class HistoriaClinicaApiController : ControllerBase
     {
         if (pacienteId <= 0)
             return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        if (await RespuestaSiPerfilIncompletoAsync(ct) is { } perfilIncompleto)
+            return perfilIncompleto;
 
         if (!await PuedeAccederAsync(pacienteId, ct))
             return StatusCode(403, new { success = false, message = "No tiene permiso para ver estas notas clínicas." });
@@ -224,6 +253,9 @@ public sealed class HistoriaClinicaApiController : ControllerBase
     {
         if (pacienteId <= 0)
             return BadRequest(new { success = false, message = "Identificador inválido." });
+
+        if (await RespuestaSiPerfilIncompletoAsync(ct) is { } perfilIncompleto)
+            return perfilIncompleto;
 
         if (!await PuedeAccederAsync(pacienteId, ct))
             return StatusCode(403, new { success = false, message = "No tiene permiso para ver este odontograma." });

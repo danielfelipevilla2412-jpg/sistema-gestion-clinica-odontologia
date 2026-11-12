@@ -154,8 +154,8 @@ public partial class GestionProfesionalesController(
                 var profesional = await _context.Profesionales.FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
                 if (profesional != null)
                 {
-                    var hoy = DateTime.Today;
-                    var ahora = DateTime.Now;
+                    var hoy = ColombiaClock.Today;
+                    var ahora = ColombiaClock.Now;
                     var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
                     var finMes = inicioMes.AddMonths(1);
 
@@ -271,7 +271,7 @@ public partial class GestionProfesionalesController(
                         .AsNoTracking()
                         .Where(c =>
                             c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora >= DateTime.Now &&
+                            c.FechaHora >= ColombiaClock.Now &&
                             (c.Estado == "Agendada" || c.Estado == "programada" || 
                              c.Estado == "Confirmada" || c.Estado == "confirmada"))
                         .OrderBy(c => c.FechaHora)
@@ -368,7 +368,7 @@ public partial class GestionProfesionalesController(
         if (profesional is null)
             return Ok(new { citasHoy = 0, citasAtendidas = 0 });
 
-        var hoy = DateTime.Today;
+        var hoy = ColombiaClock.Today;
         var manana = hoy.AddDays(1);
 
         var citasHoy = await _context.Citas.AsNoTracking()
@@ -496,7 +496,7 @@ public partial class GestionProfesionalesController(
                 ContentType = contentType,
                 TamanoBytes = archivo.Length,
                 EstadoRevision = "pendiente",
-                FechaSubida = DateTime.UtcNow
+                FechaSubida = ColombiaClock.Now
             });
             profesional.CredencialesAprobadas = false;
             profesional.Estado = "inactivo";
@@ -510,6 +510,102 @@ public partial class GestionProfesionalesController(
             throw;
         }
 
+        return RedirectToAction(nameof(Stodo09PerfilProfesional));
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Profesional")]
+    [ValidateAntiForgeryToken]
+    [Route("gestion-de-profesionales/credenciales/{id:int}/eliminar")]
+    public async Task<IActionResult> EliminarCredencialProfesional(int id, CancellationToken ct = default)
+    {
+        if (!int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int userId))
+            return Forbid();
+
+        var documento = await _context.CredencialesProfesionales
+            .Include(d => d.Profesional)
+            .FirstOrDefaultAsync(d => d.IdCredencial == id, ct);
+        if (documento is null)
+            return NotFound();
+        if (documento.Profesional?.IdUsuario != userId)
+            return Forbid();
+        string estadoRevision = documento.EstadoRevision?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (estadoRevision is not ("pendiente" or "rechazado"))
+        {
+            TempData["ErrorValidacion"] = "Solo puedes eliminar credenciales pendientes o rechazadas. Las aprobadas deben ser retiradas por un administrador.";
+            return RedirectToAction(nameof(Stodo09PerfilProfesional));
+        }
+
+        string credentialsRoot = Path.GetFullPath(
+            Path.Combine(_environment.ContentRootPath, "private_uploads", "credenciales-profesionales", documento.IdProfesional.ToString())) +
+            Path.DirectorySeparatorChar;
+        string fullPath = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, documento.RutaPrivada));
+        if (!fullPath.StartsWith(credentialsRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogError("La ruta privada de la credencial {IdCredencial} salió de su directorio permitido.", id);
+            return BadRequest();
+        }
+
+        string? quarantinePath = null;
+        try
+        {
+            if (System.IO.File.Exists(fullPath))
+            {
+                quarantinePath = $"{fullPath}.{Guid.NewGuid():N}.deleting";
+                System.IO.File.Move(fullPath, quarantinePath);
+            }
+            else
+            {
+                _logger.LogWarning("No se encontró el archivo de la credencial {IdCredencial}; se eliminará su registro huérfano.", id);
+            }
+
+            _context.CredencialesProfesionales.Remove(documento);
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            if (quarantinePath is not null && System.IO.File.Exists(quarantinePath))
+            {
+                try
+                {
+                    System.IO.File.Move(quarantinePath, fullPath);
+                }
+                catch (IOException restoreError)
+                {
+                    _logger.LogError(restoreError, "No se pudo restaurar el archivo de credencial {IdCredencial} después de fallar la eliminación.", id);
+                }
+                catch (UnauthorizedAccessException restoreError)
+                {
+                    _logger.LogError(restoreError, "No se pudo restaurar el archivo de credencial {IdCredencial} después de fallar la eliminación.", id);
+                }
+            }
+
+            _logger.LogError(ex, "No se pudo eliminar la credencial profesional {IdCredencial}.", id);
+            TempData["ErrorValidacion"] = "No se pudo eliminar la credencial. Intenta nuevamente o contacta al administrador.";
+            return RedirectToAction(nameof(Stodo09PerfilProfesional));
+        }
+
+        if (quarantinePath is not null)
+        {
+            try
+            {
+                System.IO.File.Delete(quarantinePath);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "La credencial {IdCredencial} se retiró, pero el archivo privado en cuarentena no pudo eliminarse.", id);
+                TempData["Mensaje"] = "Credencial retirada de tu perfil. El archivo interno quedó pendiente de limpieza y fue reportado al administrador.";
+                return RedirectToAction(nameof(Stodo09PerfilProfesional));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogError(ex, "La credencial {IdCredencial} se retiró, pero no se pudo limpiar el archivo privado en cuarentena.", id);
+                TempData["Mensaje"] = "Credencial retirada de tu perfil. El archivo interno quedó pendiente de limpieza y fue reportado al administrador.";
+                return RedirectToAction(nameof(Stodo09PerfilProfesional));
+            }
+        }
+
+        TempData["Mensaje"] = "Credencial eliminada correctamente.";
         return RedirectToAction(nameof(Stodo09PerfilProfesional));
     }
 
@@ -563,7 +659,7 @@ public partial class GestionProfesionalesController(
         documento.RevisadoPor = int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int reviewerId)
             ? reviewerId
             : null;
-        documento.FechaRevision = DateTime.UtcNow;
+        documento.FechaRevision = ColombiaClock.Now;
 
         var profesional = documento.Profesional;
         if (estado == "rechazado")
@@ -607,8 +703,8 @@ public partial class GestionProfesionalesController(
     {
         try
         {
-            var hoy = DateTime.Today;
-            var ahora = DateTime.Now;
+            var hoy = ColombiaClock.Today;
+            var ahora = ColombiaClock.Now;
             var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
             var finMes = inicioMes.AddMonths(1);
             page = Math.Max(1, page);
