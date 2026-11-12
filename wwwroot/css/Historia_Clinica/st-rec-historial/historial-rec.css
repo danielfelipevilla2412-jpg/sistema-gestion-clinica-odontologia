@@ -211,14 +211,21 @@ img { max-width: 100%; height: auto; display: block; }
 .detail-title { font-size: 1.1rem; font-family: var(--font-display); margin-bottom: 6px; }
 .detail-sub { font-size: .9rem; color: var(--text-muted); }
 .btn-close-panel { background: #e2e8f0; color: #0f172a; }
-.history-grid { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }
-.history-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-sm); padding: 14px; }
+.history-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 22px; }
+.history-block { min-width: 0; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-sm); padding: 14px; overflow-wrap: anywhere; }
 .block-label { font-size: .72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
 .history-section { margin-bottom: 20px; }
 .history-section h3 { font-size: .95rem; margin-bottom: 10px; color: var(--primary-dark); }
 .history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .history-list li { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; }
 .history-list li span { display: block; font-size: .80rem; color: var(--text-muted); margin-top: 4px; }
+.history-record-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin-top: 12px; }
+.history-record-details > div { min-width: 0; }
+.history-record-details dt { margin-bottom: 3px; color: var(--text-muted); font-size: .68rem; font-weight: 700; text-transform: uppercase; }
+.history-record-details dd { color: var(--text); font-size: .82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 1000px) {
+  .history-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 900px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
@@ -233,4 +240,7 @@ img { max-width: 100%; height: auto; display: block; }
   .stats-grid { grid-template-columns: 1fr; }
   .filters-row { flex-direction: column; }
   .status-select { width: 100%; }
+  .history-grid, .history-record-details { grid-template-columns: 1fr; }
+  .detail-panel { padding: 18px 14px; }
+  .detail-panel-header { flex-direction: column; }
 }

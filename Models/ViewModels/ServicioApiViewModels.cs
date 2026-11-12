@@ -11,19 +11,26 @@ public sealed class ServicioRequest
     [StringLength(500)]
     public string? Descripcion { get; set; }
 
-    [Range(0, 999999999, ErrorMessage = "El precio no puede ser negativo.")]
+    [Range(
+     typeof(decimal),
+     "0.01",
+     "999999999",
+     ParseLimitsInInvariantCulture = true,
+     ErrorMessage = "El precio del servicio debe ser mayor que cero."
+    )]
     public decimal Precio { get; set; }
 
     [Required(ErrorMessage = "La categoría es obligatoria.")]
-    [RegularExpression("^(prevencion|estetica|cirugia|ortodoncia|endodoncia|general)$",
+    [RegularExpression("^(prevencion|estetica|cirugia|ortodoncia|endodoncia|periodoncia|general)$",
         ErrorMessage = "Categoría inválida.")]
     public string Category { get; set; } = "general";
 
+    [Required(ErrorMessage = "Seleccione una especialidad clínica.")]
     [Range(1, int.MaxValue, ErrorMessage = "La especialidad seleccionada no es válida.")]
     public int? IdEspecialidad { get; set; }
 
     [Range(5, 480, ErrorMessage = "La duración debe estar entre 5 y 480 minutos.")]
-    public int Duration { get; set; } = 30;
+    public int Duration { get; set; } = 60;
 }
 
 public sealed class ServicioEstadoRequest

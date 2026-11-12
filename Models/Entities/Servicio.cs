@@ -33,7 +33,7 @@ namespace SmileTrack_MVC.Models.Entities
         public string Categoria { get; set; } = "general";
 
         [Column("duracion_minutos")]
-        public int DuracionMinutos { get; set; } = 30;
+        public int DuracionMinutos { get; set; } = 60;
 
         [Column("id_especialidad")]
         public int? IdEspecialidad { get; set; }

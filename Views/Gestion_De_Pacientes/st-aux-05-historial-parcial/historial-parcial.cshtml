@@ -92,7 +92,48 @@
           <span class="material-symbols-outlined alerta-medica-icon" aria-hidden="true">bloodtype</span>
           <span><strong>Grupo sanguíneo:</strong> <span class="alerta-medica-value" id="grupoSang">—</span></span>
         </div>
+        <div class="alerta-medica-row">
+          <span class="material-symbols-outlined alerta-medica-icon" aria-hidden="true">medical_information</span>
+          <span><strong>Antecedentes médicos:</strong> <span class="alerta-medica-value" id="antecedentesMedicos">—</span></span>
+        </div>
       </div>
+
+      <section class="table-card history-card" aria-labelledby="historyTitle">
+        <header class="history-section-heading">
+          <div>
+            <h2 id="historyTitle">Atenciones recientes</h2>
+            <p>Consultas atendidas y evolución registrada por el profesional.</p>
+          </div>
+          <span class="history-readonly">Solo lectura</span>
+        </header>
+        <div class="table-scroll" role="region" aria-label="Atenciones clínicas" tabindex="0">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Profesional</th>
+                <th scope="col">Diagnóstico</th>
+                <th scope="col">Procedimiento</th>
+              </tr>
+            </thead>
+            <tbody id="histBody">
+              <tr><td colspan="4" class="history-empty">Selecciona un paciente para consultar su historial clínico.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <footer class="table-footer" id="tableFooter" hidden></footer>
+      </section>
+
+      <section class="related-records-grid" aria-label="Otros registros de la historia clínica">
+        <div class="table-card related-records-card">
+          <h2>Planes de tratamiento</h2>
+          <ul class="related-records-list" id="tratamientosBody"></ul>
+        </div>
+        <div class="table-card related-records-card">
+          <h2>Documentos clínicos</h2>
+          <ul class="related-records-list" id="documentosBody"></ul>
+        </div>
+      </section>
 
     </div>
 

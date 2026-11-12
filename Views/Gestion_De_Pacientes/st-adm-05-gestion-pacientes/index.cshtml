@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Pacientes/st-adm-05-gestion-pacientes/styles.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Pacientes/st-adm-05-gestion-pacientes/styles.css")" asp-append-version="true" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
 <body>
@@ -169,7 +169,7 @@
     <div class="modal">
       <button class="modal-close" id="modalPatientClose" aria-label="Cerrar ventana">×</button>
       <h2 class="modal-title" id="modalPatientTitle">Detalle de Paciente</h2>
-      <div id="modalPatientContent" class="modal-content" role="document"></div>
+      <div id="modalPatientContent" class="patient-modal-body" role="document"></div>
       <div class="modal-footer">
         <button class="btn-secondary" id="modalPatientCancel">Cerrar</button>
       </div>
@@ -204,7 +204,7 @@
   window.RAZOR_PATIENTS = @Html.Raw(pacientesJson);
   window.canEditPatientIdentity = @User.IsInRole("Administrador").ToString().ToLowerInvariant() || @User.IsInRole("Recepcionista").ToString().ToLowerInvariant();
 </script>
-<script src="@Url.Content("~/js/Gestion_De_Pacientes/st-adm-05-gestion-pacientes/script.js?v=2")"></script>
+<script src="@Url.Content("~/js/Gestion_De_Pacientes/st-adm-05-gestion-pacientes/script.js")" asp-append-version="true"></script>
   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
   @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
