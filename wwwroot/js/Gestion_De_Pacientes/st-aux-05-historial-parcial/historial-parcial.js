@@ -36,6 +36,8 @@ class PartialHistoryController {
       ...item,
       fecha: item.fecha ? window.CommonUtils.formatFechaLocal(item.fecha) : ''
     }));
+    this._tratamientos = serverData.tratamientos || [];
+    this._documentos = serverData.documentos || [];
   }
 
   async getPaciente() {
@@ -47,6 +49,7 @@ class PartialHistoryController {
       alergias: [...this._paciente.alergias],
       medicamentos: [...this._paciente.medicamentos],
       grupoSanguineo: this._paciente.grupoSanguineo,
+      antecedentesMedicos: this._paciente.antecedentesMedicos || '',
     };
   }
 
@@ -56,7 +59,10 @@ class PartialHistoryController {
 
   getMetaString() {
     const p = this._paciente;
-    return `${p.nombre} · ${p.tipoDoc} ${p.documento} · Últimas ${this._limite} consultas · Acceso parcial · Actualizado: ${p.ultimaActualizacion}`;
+    if (!p.id) return 'Selecciona un paciente para consultar su información clínica.';
+    const cantidad = this._historial.length;
+    const etiquetaCitas = cantidad === 1 ? '1 cita atendida reciente' : `${cantidad} citas atendidas recientes`;
+    return `${p.nombre} · ${p.tipoDoc} ${p.documento} · ${etiquetaCitas} · Acceso parcial · Actualizado: ${p.ultimaActualizacion || 'Sin actividad'}`;
   }
 }
 
@@ -91,6 +97,7 @@ const renderMedicalAlertCard = (alertsData) => {
   updateElementWithAriaLabel('alergia', alertsData.alergias.join(', ') || 'Ninguna conocida');
   updateElementWithAriaLabel('medicamentos', alertsData.medicamentos.join(', ') || 'Ninguno');
   updateElementWithAriaLabel('grupoSang', alertsData.grupoSanguineo || '—');
+  updateElementWithAriaLabel('antecedentesMedicos', alertsData.antecedentesMedicos || 'Sin antecedentes registrados');
 
   const cardElement = safeGetElement('alertaMedica');
   if (cardElement) {
@@ -116,11 +123,16 @@ const renderHistoryTable = (rowsList) => {
     const emptyRow = document.createElement('tr');
     const emptyCell = document.createElement('td');
     emptyCell.colSpan = 4;
-    emptyCell.style.cssText = 'text-align:center;padding:26px;color:var(--text-muted);font-size:.85rem;';
-    emptyCell.textContent = 'Sin consultas registradas.';
+    emptyCell.className = 'history-empty';
+    emptyCell.textContent = partialHistoryControllerInstance._paciente.id
+      ? 'Este paciente no tiene citas atendidas registradas.'
+      : 'Selecciona un paciente para consultar su historial clínico.';
     emptyRow.appendChild(emptyCell);
     tableBody.replaceChildren(emptyRow);
-    if (footerElement) footerElement.style.display = 'none';
+    if (footerElement) {
+      footerElement.hidden = true;
+      footerElement.style.display = 'none';
+    }
     return;
   }
 
@@ -132,7 +144,20 @@ const renderHistoryTable = (rowsList) => {
     return cell;
   };
 
-  tableBody.replaceChildren(...rowsList.map(row => {
+  const formatControlInstructions = (raw) => {
+    if (!raw) return '';
+    try {
+      const instructions = JSON.parse(raw);
+      if (Array.isArray(instructions)) {
+        return instructions.map(item => `${item.text || ''}: ${item.checked ? 'Sí' : 'No'}`).filter(Boolean).join(', ');
+      }
+    } catch {
+      return raw;
+    }
+    return raw;
+  };
+
+  tableBody.replaceChildren(...rowsList.flatMap(row => {
     const tableRow = document.createElement('tr');
     tableRow.append(
       createTableCell('td-fecha', 'Fecha', row.fecha),
@@ -140,8 +165,84 @@ const renderHistoryTable = (rowsList) => {
       createTableCell('', 'Diagnóstico', row.diagnostico),
       createTableCell('', 'Procedimiento', row.procedimiento)
     );
-    return tableRow;
+
+    const detailEntries = [
+      ['Motivo de consulta', row.motivoConsulta],
+      ['Enfermedad actual', row.enfermedadActual],
+      ['Antecedentes médicos', row.antecedentesMedicos],
+      ['Síntomas y signos', Array.isArray(row.sintomas) ? row.sintomas.join(', ') : ''],
+      ['Hábitos', row.habitos],
+      ['Alergias', row.alergias],
+      ['Hallazgos', row.hallazgos],
+      ['Observaciones odontológicas', row.odontogramaObservaciones],
+      ['Exámenes complementarios', row.examenesComplementarios],
+      ['Evolución clínica', row.evolucionClinica],
+      ['Prescripción', row.prescripcion],
+      ['Odontograma', Array.isArray(row.odontograma) ? row.odontograma.map(item => `${item.pieza} ${item.nombrePieza}: ${item.estado}${item.observacion ? ` (${item.observacion})` : ''}`).join('; ') : ''],
+      ['Control postoperatorio', row.controlPostoperatorio
+        ? [row.controlPostoperatorio.estado, row.controlPostoperatorio.observaciones, formatControlInstructions(row.controlPostoperatorio.instruccionesJson)].filter(Boolean).join(' · ')
+        : ''],
+    ].filter(([, value]) => typeof value === 'string' && value.trim());
+
+    if (!detailEntries.length) return [tableRow];
+
+    const detailRow = document.createElement('tr');
+    detailRow.className = 'history-details-row';
+    const detailCell = document.createElement('td');
+    detailCell.colSpan = 4;
+    const details = document.createElement('dl');
+    details.className = 'history-details';
+    detailEntries.forEach(([label, value]) => {
+      const item = document.createElement('div');
+      const term = document.createElement('dt');
+      const description = document.createElement('dd');
+      term.textContent = label;
+      description.textContent = value;
+      item.append(term, description);
+      details.appendChild(item);
+    });
+    detailCell.appendChild(details);
+    detailRow.appendChild(detailCell);
+    return [tableRow, detailRow];
   }));
+
+  if (footerElement) {
+    footerElement.textContent = `Mostrando ${rowsList.length} de hasta ${DEFAULT_MAX_RECORD_LIMIT} atenciones recientes.`;
+    footerElement.hidden = false;
+    footerElement.style.display = 'block';
+  }
+};
+
+const renderRelatedRecords = (elementId, items, type) => {
+  const list = safeGetElement(elementId);
+  if (!list) return;
+  list.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement('li');
+    empty.textContent = 'Sin registros disponibles.';
+    list.appendChild(empty);
+    return;
+  }
+
+  items.forEach((item) => {
+    const entry = document.createElement('li');
+    const heading = document.createElement('strong');
+    const detail = document.createElement('span');
+    if (type === 'treatment') {
+      heading.textContent = [item.nombre, item.pieza ? `Pieza ${item.pieza}` : ''].filter(Boolean).join(' · ');
+      detail.textContent = [item.estado, item.observacion, item.sesionesEstimadas ? `${item.sesionesEstimadas} sesiones estimadas` : ''].filter(Boolean).join(' · ');
+      entry.append(heading, detail);
+    } else {
+      heading.textContent = [item.tipo, item.nombre].filter(Boolean).join(' · ');
+      detail.textContent = [item.fecha, item.observacion].filter(Boolean).join(' · ');
+      const link = document.createElement('a');
+      link.href = item.url;
+      link.textContent = 'Descargar documento';
+      link.className = 'related-record-link';
+      entry.append(heading, detail, link);
+    }
+    list.appendChild(entry);
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -174,6 +275,8 @@ const initializeHistorialParcialModule = async () => {
 
     renderMedicalAlertCard(alertsData);
     renderHistoryTable(consultationsList);
+    renderRelatedRecords('tratamientosBody', partialHistoryControllerInstance._tratamientos, 'treatment');
+    renderRelatedRecords('documentosBody', partialHistoryControllerInstance._documentos, 'document');
 
     window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
 };

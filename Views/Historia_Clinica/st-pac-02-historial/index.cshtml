@@ -197,38 +197,120 @@
         <div class="col-main">
 
           <!-- Historial escrito por el equipo profesional. No contiene controles de edición. -->
-          <div class="records-list clinical-history-readonly" id="recordsList" role="list" aria-label="Historial clínico registrado por profesionales">
-            @if (Model.LineaDeTiempo.Any())
+          <div class="records-list clinical-history-readonly" id="recordsList" role="list" aria-label="Evolución por cita atendida">
+            @if (Model.EvolucionesPorCita.Any())
             {
-                foreach (var evento in Model.LineaDeTiempo)
+                foreach (var evolucion in Model.EvolucionesPorCita)
                 {
                     <article class="record-card" role="listitem">
                         <div class="record-card-header">
                             <div>
-                                <span class="record-type">@evento.Categoria</span>
-
-                                <h3>@evento.Titulo</h3>
+                                <span class="record-type">@evolucion.CodigoHistoria · Cita #@evolucion.CitaId</span>
+                                <h3>@evolucion.Servicio</h3>
                             </div>
-                            <time datetime="@evento.Fecha.ToString("yyyy-MM-ddTHH:mm:ss")">@evento.Fecha.ToString("dd MMM yyyy")</time>
+                            <time datetime="@evolucion.Fecha.ToString("yyyy-MM-ddTHH:mm:ss")">@evolucion.Fecha.ToString("dd MMM yyyy · HH:mm")</time>
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(evento.Descripcion))
-                        {
-                            <p class="record-description">@evento.Descripcion</p>
-                        }
                         <div class="record-card-meta">
-                            <span><strong>Profesional:</strong> @evento.Profesional</span>
-                            <span><strong>Estado:</strong> @evento.Estado</span>
+                            <span><strong>Profesional:</strong> @evolucion.Profesional</span>
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(evento.EnlaceDocumento))
+                        <dl class="visit-clinical-details">
+                          @if (!string.IsNullOrWhiteSpace(evolucion.MotivoConsulta))
+                          {
+                            <div><dt>Motivo</dt><dd>@evolucion.MotivoConsulta</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.EnfermedadActual))
+                          {
+                            <div><dt>Enfermedad actual</dt><dd>@evolucion.EnfermedadActual</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.AntecedentesMedicos))
+                          {
+                            <div><dt>Antecedentes</dt><dd>@evolucion.AntecedentesMedicos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Habitos))
+                          {
+                            <div><dt>Hábitos</dt><dd>@evolucion.Habitos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Alergias))
+                          {
+                            <div><dt>Alergias</dt><dd>@evolucion.Alergias</dd></div>
+                          }
+                          @if (evolucion.Sintomas.Any())
+                          {
+                            <div><dt>Síntomas</dt><dd>@string.Join(", ", evolucion.Sintomas)</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Diagnosticos))
+                          {
+                            <div><dt>Diagnóstico</dt><dd>@evolucion.Diagnosticos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Hallazgos))
+                          {
+                            <div><dt>Hallazgos</dt><dd>@evolucion.Hallazgos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.OdontogramaObservaciones))
+                          {
+                            <div><dt>Observaciones odontológicas</dt><dd>@evolucion.OdontogramaObservaciones</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.ExamenesComplementarios))
+                          {
+                            <div><dt>Exámenes</dt><dd>@evolucion.ExamenesComplementarios</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.EvolucionClinica))
+                          {
+                            <div><dt>Evolución</dt><dd>@evolucion.EvolucionClinica</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Procedimientos))
+                          {
+                            <div><dt>Procedimientos</dt><dd>@evolucion.Procedimientos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Prescripcion))
+                          {
+                            <div><dt>Prescripción</dt><dd>@evolucion.Prescripcion</dd></div>
+                          }
+                        </dl>
+                        @if (evolucion.RegistrosRelacionados.Any())
                         {
-                            <a class="record-document-link" href="@evento.EnlaceDocumento" target="_blank" rel="noopener">Ver documento clínico</a>
+                            <div class="visit-related-records">
+                              @foreach (var registro in evolucion.RegistrosRelacionados)
+                              {
+                                <p><strong>@registro.Titulo:</strong> @registro.Descripcion</p>
+                              }
+                            </div>
                         }
                     </article>
                 }
             }
             else
             {
-                <div class="empty-history">Aún no hay registros clínicos disponibles.</div>
+                <div class="empty-history">Aún no hay citas atendidas con evolución clínica registrada.</div>
+            }
+            @{
+              var eventosSinCita = Model.LineaDeTiempo
+                .Where(evento => !evento.CitaId.HasValue
+                  && !evento.Categoria.Equals("consulta", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            }
+            @if (eventosSinCita.Any())
+            {
+              <section class="unlinked-clinical-records" aria-label="Otros registros clínicos">
+                <h3>Otros registros clínicos</h3>
+                @foreach (var evento in eventosSinCita)
+                {
+                  <article class="record-card" role="listitem">
+                    <div class="record-card-header">
+                      <div><span class="record-type">@evento.Categoria</span><h3>@evento.Titulo</h3></div>
+                      <time datetime="@evento.Fecha.ToString("yyyy-MM-ddTHH:mm:ss")">@evento.Fecha.ToString("dd MMM yyyy")</time>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(evento.Descripcion))
+                    {
+                      <p class="record-description">@evento.Descripcion</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(evento.EnlaceDocumento))
+                    {
+                      <a class="record-document-link" href="@evento.EnlaceDocumento" target="_blank" rel="noopener">Ver documento clínico</a>
+                    }
+                  </article>
+                }
+              </section>
             }
           </div>
 

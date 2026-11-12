@@ -2345,6 +2345,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
 
         vm.LineaDeTiempo.AddRange(registrosOdontograma.Select(r => new EventoHistoriaClinicaItem
         {
+            CitaId = r.IdCita,
             Fecha = r.FechaRegistro,
             Categoria = "odontograma",
             Titulo = $"Pieza {r.NumeroFdi}: {r.NombrePieza ?? "registro odontológico"}",
@@ -2395,6 +2396,7 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
 
     vm.LineaDeTiempo.AddRange(controles.Select(c => new EventoHistoriaClinicaItem
     {
+        CitaId = c.IdCita,
         Fecha = c.FechaRegistro,
         Categoria = "control",
         Titulo = "Control postoperatorio",
@@ -2402,6 +2404,71 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
         Profesional = "Seguimiento clínico",
         Estado = c.Status
     }));
+
+    if (vm.Odontograma.HistoriaId is int historiaAtencionesId)
+    {
+        var citasAtendidas = citas
+            .Where(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida")
+            .ToList();
+        var idsCitasAtendidas = citasAtendidas.Select(c => c.IdCita).ToList();
+        var consultasAtendidas = await _context.ConsultasClinicas
+            .AsNoTracking()
+            .Include(c => c.Diagnosticos)
+            .Include(c => c.Sintomas)
+            .Where(c => c.IdHistoria == historiaAtencionesId
+                && c.IdCita.HasValue
+                && idsCitasAtendidas.Contains(c.IdCita.Value))
+            .ToListAsync();
+
+        vm.EvolucionesPorCita = citasAtendidas
+            .Select(cita =>
+            {
+                var consulta = consultasAtendidas.FirstOrDefault(c => c.IdCita == cita.IdCita);
+                var notas = vm.NotasClinicas
+                    .Where(n => n.CitaId == cita.IdCita && n.Estado != "Anulada")
+                    .ToList();
+                var diagnosticosConsulta = consulta?.Diagnosticos
+                    .OrderByDescending(d => d.EsPrincipal)
+                    .Select(d => d.Descripcion) ?? Enumerable.Empty<string>();
+
+                return new EvolucionCitaHistorialItem
+                {
+                    HistoriaId = historiaAtencionesId,
+                    CodigoHistoria = vm.Odontograma.CodigoHC,
+                    CitaId = cita.IdCita,
+                    Fecha = cita.FechaHora,
+                    Servicio = cita.Servicio?.Nombre ?? "Consulta",
+                    Profesional = cita.Profesional is null
+                        ? "Sin asignar"
+                        : $"Dr(a). {cita.Profesional.Nombres} {cita.Profesional.Apellidos}",
+                    MotivoConsulta = consulta?.MotivoConsulta ?? cita.MotivoConsulta ?? "",
+                    EnfermedadActual = consulta?.EnfermedadActual ?? "",
+                    AntecedentesMedicos = consulta?.AntecedentesMedicos ?? "",
+                    Habitos = consulta?.Habitos ?? "",
+                    Alergias = consulta?.Alergias ?? "",
+                    Sintomas = consulta?.Sintomas.OrderBy(s => s.Orden).Select(s => s.Descripcion).ToList() ?? [],
+                    Diagnosticos = string.Join("; ", diagnosticosConsulta
+                        .Concat(notas.Select(n => n.Diagnostico))
+                        .Where(value => !string.IsNullOrWhiteSpace(value))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)),
+                    Hallazgos = consulta?.Hallazgos ?? "",
+                    OdontogramaObservaciones = consulta?.OdontogramaObservaciones ?? "",
+                    ExamenesComplementarios = consulta?.ExamenesComplementarios ?? "",
+                    EvolucionClinica = consulta?.EvolucionClinica ?? "",
+                    Procedimientos = string.Join("\n", notas
+                        .Select(n => n.Procedimiento)
+                        .Where(value => !string.IsNullOrWhiteSpace(value))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)),
+                    Prescripcion = consulta?.Prescripcion ?? "",
+                    RegistrosRelacionados = vm.LineaDeTiempo
+                        .Where(evento => evento.CitaId == cita.IdCita
+                            && evento.Categoria is "odontograma" or "control")
+                        .ToList()
+                };
+            })
+            .OrderByDescending(atencion => atencion.Fecha)
+            .ToList();
+    }
 
     // FASE 1 — Orden cronológico único, más reciente primero, para toda la vista.
     vm.LineaDeTiempo = vm.LineaDeTiempo.OrderByDescending(e => e.Fecha).ToList();
@@ -2605,6 +2672,7 @@ private static string InferirTipoServicio(string? nombreServicio)
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 5, 100);
         var ahora = DateTime.Now;
+        string[] estadosAtendidos = ["atendida", "atendido", "completada", "completado", "realizada", "realizado", "finalizada", "finalizado"];
         var pacientesQuery = _context.Pacientes.AsNoTracking().AsQueryable();
 
         if (idProfesionalFiltro is not null)
@@ -2631,23 +2699,24 @@ private static string InferirTipoServicio(string? nombreServicio)
         {
             var estadoNormalizado = estado.Trim().ToLowerInvariant();
             if (estadoNormalizado == "alta")
-                pacientesQuery = pacientesQuery.Where(p => p.Estado == "inactivo" || p.Estado == "retirado");
+                pacientesQuery = pacientesQuery.Where(p => p.Estado != null &&
+                    (p.Estado.ToLower() == "inactivo" || p.Estado.ToLower() == "retirado"));
             else if (estadoNormalizado == "seguimiento")
-                pacientesQuery = pacientesQuery.Where(p => p.Estado == "activo" &&
-                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora &&
-                        (c.Estado == "Atendida" || c.Estado == "atendida" || c.Estado == "Completada")) &&
+                pacientesQuery = pacientesQuery.Where(p => p.Estado != null && p.Estado.ToLower() == "activo" &&
+                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora && c.Estado != null &&
+                        estadosAtendidos.Contains(c.Estado.ToLower())) &&
                     _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
-                        c.Estado != "Cancelada" && c.Estado != "cancelada"));
+                        c.Estado != null && c.Estado.ToLower() != "cancelada" && c.Estado.ToLower() != "cancelado"));
             else if (estadoNormalizado is "activo" or "inactivo" or "retirado")
-                pacientesQuery = pacientesQuery.Where(p => p.Estado == estadoNormalizado);
+                pacientesQuery = pacientesQuery.Where(p => p.Estado != null && p.Estado.ToLower() == estadoNormalizado);
         }
 
         if (string.Equals(alerta, "si", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(alerta, "con", StringComparison.OrdinalIgnoreCase))
-            pacientesQuery = pacientesQuery.Where(p => p.Alergias != null && p.Alergias != "");
+            pacientesQuery = pacientesQuery.Where(p => p.Alergias != null && p.Alergias.Trim() != "");
         else if (string.Equals(alerta, "no", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(alerta, "sin", StringComparison.OrdinalIgnoreCase))
-            pacientesQuery = pacientesQuery.Where(p => p.Alergias == null || p.Alergias == "");
+            pacientesQuery = pacientesQuery.Where(p => p.Alergias == null || p.Alergias.Trim() == "");
 
         if (string.Equals(cita, "con", StringComparison.OrdinalIgnoreCase))
             pacientesQuery = pacientesQuery.Where(p => _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
@@ -2701,15 +2770,44 @@ private static string InferirTipoServicio(string? nombreServicio)
                     : d.FechaSubida.ToString("yyyy-MM-dd")
             })
             .ToListAsync();
+        var idsCitasPagina = citas.Select(c => c.IdCita).ToArray();
+        var consultasClinicasPagina = idsHistoriasPagina.Length == 0 || idsCitasPagina.Length == 0
+            ? []
+            : await _context.ConsultasClinicas.AsNoTracking()
+                .Include(c => c.Diagnosticos)
+                .Include(c => c.Sintomas)
+                .Where(c => idsHistoriasPagina.Contains(c.IdHistoria)
+                    && c.IdCita.HasValue
+                    && idsCitasPagina.Contains(c.IdCita.Value))
+                .ToListAsync();
+        var consultaClinicaPorCita = consultasClinicasPagina
+            .Where(c => c.IdCita.HasValue)
+            .ToDictionary(c => c.IdCita!.Value);
+        var notasPagina = idsHistoriasPagina.Length == 0 || idsCitasPagina.Length == 0
+            ? []
+            : await _context.NotasClinicas.AsNoTracking()
+                .Where(n => idsHistoriasPagina.Contains(n.IdHistoria)
+                    && n.IdCita.HasValue
+                    && idsCitasPagina.Contains(n.IdCita.Value)
+                    && n.Estado != "Anulada")
+                .OrderByDescending(n => n.Fecha)
+                .ToListAsync();
+        var notaPorCita = notasPagina
+            .Where(n => n.IdCita.HasValue)
+            .GroupBy(n => n.IdCita!.Value)
+            .ToDictionary(group => group.Key, group => group.First());
 
         var resultado = pacientes.Select(p =>
         {
             var citasPaciente = citas.Where(c => c.IdPaciente == p.IdPaciente).ToList();
-            bool tieneConsultaAtendida = citasPaciente.Any(c => c.FechaHora <= DateTime.Now &&
-                (c.Estado == "Atendida" || c.Estado == "atendida" || c.Estado == "Completada"));
-            bool tieneCitaFutura = citasPaciente.Any(c => c.FechaHora > DateTime.Now &&
-                c.Estado != "Cancelada" && c.Estado != "cancelada");
-            var ultima = citasPaciente.FirstOrDefault();
+            var citasAtendidas = citasPaciente
+                .Where(c => c.FechaHora <= ahora && EstadoCitaHelper.Normalize(c.Estado) == "atendida")
+                .OrderByDescending(c => c.FechaHora)
+                .ToList();
+            bool tieneConsultaAtendida = citasAtendidas.Count > 0;
+            bool tieneCitaFutura = citasPaciente.Any(c => c.FechaHora > ahora &&
+                !new[] { "cancelada", "no_asistida", "rechazada" }.Contains(EstadoCitaHelper.Normalize(c.Estado)));
+            var ultima = citasAtendidas.FirstOrDefault();
             string odontologo = ultima?.Profesional is not null
                 ? $"Dr(a). {ultima.Profesional.Nombres} {ultima.Profesional.Apellidos}"
                 : "Sin asignar";
@@ -2719,6 +2817,7 @@ private static string InferirTipoServicio(string? nombreServicio)
             {
                 id = p.IdPaciente,
                 nombre = p.NombresCompleto,
+                tipoDocumento = p.TipoDocumento,
                 cedula = p.Documento,
                 email = p.Correo,
                 telefono = p.Telefono,
@@ -2730,12 +2829,38 @@ private static string InferirTipoServicio(string? nombreServicio)
                 enSeguimiento = tieneConsultaAtendida && tieneCitaFutura,
                 alerta = tieneAlerta,
                 alertaTexto = tieneAlerta ? p.Alergias : "",
-                consultas = citasPaciente.Select(c => new
+                consultas = citasAtendidas.Take(5).Select(c =>
                 {
-                    fecha = c.FechaHora,
-                    proc = c.Servicio?.Nombre ?? c.Notas ?? "Consulta",
-                    odo = c.Profesional is not null ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}" : "Sin asignar",
-                    nota = c.Notas ?? ""
+                    consultaClinicaPorCita.TryGetValue(c.IdCita, out var consultaClinica);
+                    notaPorCita.TryGetValue(c.IdCita, out var nota);
+                    var diagnosticos = consultaClinica?.Diagnosticos
+                        .OrderByDescending(d => d.EsPrincipal)
+                        .Select(d => d.Descripcion)
+                        .Where(value => !string.IsNullOrWhiteSpace(value)) ?? Enumerable.Empty<string>();
+                    return new
+                    {
+                        fecha = c.FechaHora,
+                        proc = nota?.Procedimiento ?? c.Servicio?.Nombre ?? "Consulta",
+                        odo = c.Profesional is not null ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}" : "Sin asignar",
+                        diagnostico = nota?.Diagnostico ?? string.Join("; ", diagnosticos),
+                        motivoConsulta = consultaClinica?.MotivoConsulta ?? c.MotivoConsulta ?? "",
+                        enfermedadActual = consultaClinica?.EnfermedadActual ?? "",
+                        antecedentesMedicos = consultaClinica?.AntecedentesMedicos ?? "",
+                        sintomas = consultaClinica?.Sintomas.OrderBy(s => s.Orden).Select(s => s.Descripcion).ToArray() ?? [],
+                        habitos = consultaClinica?.Habitos ?? "",
+                        alergias = consultaClinica?.Alergias ?? "",
+                        hallazgos = consultaClinica?.Hallazgos ?? "",
+                        odontogramaObservaciones = consultaClinica?.OdontogramaObservaciones ?? "",
+                        examenesComplementarios = consultaClinica?.ExamenesComplementarios ?? "",
+                        evolucionClinica = consultaClinica?.EvolucionClinica ?? "",
+                        prescripcion = consultaClinica?.Prescripcion ?? "",
+                        nota = string.Join(" · ", new[]
+                        {
+                            consultaClinica?.EvolucionClinica,
+                            nota?.Procedimiento,
+                            consultaClinica?.Prescripcion
+                        }.Where(value => !string.IsNullOrWhiteSpace(value)))
+                    };
                 }),
                 tratamientos = Array.Empty<object>(),
                 documentos = historiaPorPaciente.TryGetValue(p.IdPaciente, out var historiaPaginaId)
@@ -2767,20 +2892,21 @@ private static string InferirTipoServicio(string? nombreServicio)
         if (idProfesionalFiltro is not null)
             citasHoyQuery = citasHoyQuery.Where(c => c.IdProfesional == idProfesionalFiltro);
 
-        int pacientesEnSeguimiento = await universoPacientes.CountAsync(p => p.Estado == "activo" &&
-            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora &&
-                (c.Estado == "Atendida" || c.Estado == "atendida" || c.Estado == "Completada")) &&
+        int pacientesEnSeguimiento = await universoPacientes.CountAsync(p => p.Estado != null && p.Estado.ToLower() == "activo" &&
+            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora && c.Estado != null &&
+                estadosAtendidos.Contains(c.Estado.ToLower())) &&
             _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
-                c.Estado != "Cancelada" && c.Estado != "cancelada"));
+                c.Estado != null && c.Estado.ToLower() != "cancelada" && c.Estado.ToLower() != "cancelado"));
         var estadisticas = new
         {
             total = await universoPacientes.CountAsync(),
             hoy = await citasHoyQuery.Select(c => c.IdPaciente).Distinct().CountAsync(),
-            alertas = await universoPacientes.CountAsync(p => p.Alergias != null && p.Alergias != ""),
-            odontologos = await _context.Profesionales.CountAsync(p => p.Estado == "activo"),
-            activos = await universoPacientes.CountAsync(p => p.Estado == "activo"),
+            alertas = await universoPacientes.CountAsync(p => p.Alergias != null && p.Alergias.Trim() != ""),
+            odontologos = await _context.Profesionales.CountAsync(p => p.Estado != null && p.Estado.ToLower() == "activo"),
+            activos = await universoPacientes.CountAsync(p => p.Estado != null && p.Estado.ToLower() == "activo"),
             seguimiento = pacientesEnSeguimiento,
-            altas = await universoPacientes.CountAsync(p => p.Estado == "inactivo" || p.Estado == "retirado")
+            altas = await universoPacientes.CountAsync(p => p.Estado != null &&
+                (p.Estado.ToLower() == "inactivo" || p.Estado.ToLower() == "retirado"))
         };
 
         return new

@@ -50,20 +50,20 @@ public class GestionPacientesController : Controller
         const int pageSize = 20;
 
         // Totales para los stat-cards (COUNT en BD, no carga de filas)
-        int totalActivos   = await _context.Pacientes.CountAsync(p => p.Estado == "activo");
+        int totalActivos   = await _context.Pacientes.CountAsync(p => p.Estado != null && p.Estado.ToLower() == "activo");
         int conProximaCita = await _context.Pacientes.CountAsync(p =>
-            p.Estado == "activo" && _context.Citas.Any(c =>
+            p.Estado != null && p.Estado.ToLower() == "activo" && _context.Citas.Any(c =>
                 c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
-                c.Estado != "Cancelada" && c.Estado != "cancelada"));
+                c.Estado != null && c.Estado.ToLower() != "cancelada" && c.Estado.ToLower() != "cancelado"));
         int sinAlergias    = await _context.Pacientes.CountAsync(p =>
-            p.Estado == "activo" &&
-            (p.Alergias == null || p.Alergias == ""));
+            p.Estado != null && p.Estado.ToLower() == "activo" &&
+            (p.Alergias == null || p.Alergias.Trim() == ""));
         int conHistorial   = await _context.HistoriasClinicas
             .Select(h => h.IdPaciente).Distinct().CountAsync();
 
         // Primera página de pacientes activos
         var pacientesDb = await _context.Pacientes
-            .Where(p => p.Estado == "activo")
+            .Where(p => p.Estado != null && p.Estado.ToLower() == "activo")
             .OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres)
             .Take(pageSize)
             .ToListAsync();
@@ -207,12 +207,12 @@ public class GestionPacientesController : Controller
         if (string.IsNullOrWhiteSpace(estado) ||
             string.Equals(estado, "activo", StringComparison.OrdinalIgnoreCase))
         {
-            query = query.Where(p => p.Estado == "activo");
+            query = query.Where(p => p.Estado != null && p.Estado.ToLower() == "activo");
         }
         else if (!string.Equals(estado, "todos", StringComparison.OrdinalIgnoreCase))
         {
             string est = estado.Trim().ToLowerInvariant();
-            query = query.Where(p => p.Estado == est);
+            query = query.Where(p => p.Estado != null && p.Estado.ToLower() == est);
         }
 
         // Búsqueda: nombre, apellido o documento
@@ -232,19 +232,19 @@ public class GestionPacientesController : Controller
         }
 
         if (string.Equals(alergias, "con", StringComparison.OrdinalIgnoreCase))
-            query = query.Where(p => p.Alergias != null && p.Alergias != "");
+            query = query.Where(p => p.Alergias != null && p.Alergias.Trim() != "");
         else if (string.Equals(alergias, "sin", StringComparison.OrdinalIgnoreCase))
-            query = query.Where(p => p.Alergias == null || p.Alergias == "");
+            query = query.Where(p => p.Alergias == null || p.Alergias.Trim() == "");
 
         var ahora = DateTime.Now;
         if (string.Equals(cita, "con", StringComparison.OrdinalIgnoreCase))
             query = query.Where(p => _context.Citas.Any(c =>
                 c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
-                c.Estado != "Cancelada" && c.Estado != "cancelada"));
+                c.Estado != null && c.Estado.ToLower() != "cancelada" && c.Estado.ToLower() != "cancelado"));
         else if (string.Equals(cita, "sin", StringComparison.OrdinalIgnoreCase))
             query = query.Where(p => !_context.Citas.Any(c =>
                 c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
-                c.Estado != "Cancelada" && c.Estado != "cancelada"));
+                c.Estado != null && c.Estado.ToLower() != "cancelada" && c.Estado.ToLower() != "cancelado"));
 
         if (string.Equals(historial, "con", StringComparison.OrdinalIgnoreCase))
             query = query.Where(p => _context.Citas.Any(c => c.IdPaciente == p.IdPaciente));

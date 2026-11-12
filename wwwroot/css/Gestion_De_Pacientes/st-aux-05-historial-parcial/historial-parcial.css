@@ -155,6 +155,28 @@ img { max-width: 100%; height: auto; display: block; }
 /* Tabla de historial con scroll horizontal en móvil */
 .table-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: var(--shadow); }
 .table-scroll { overflow-x: auto; }
+.history-card { margin-top: 20px; }
+.history-section-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+.history-section-heading h2 { color: var(--primary); font: 700 1.05rem var(--font-display); }
+.history-section-heading p { margin-top: 4px; color: var(--text-muted); font-size: .82rem; }
+.history-readonly { flex: 0 0 auto; padding: 6px 10px; border-radius: var(--radius-full); background: var(--primary-light); color: var(--primary); font-size: .72rem; font-weight: 700; }
+.history-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: .82rem; }
+.history-table thead { background: var(--bg); }
+.history-table th { padding: 11px 14px; color: var(--text-muted); font-size: .7rem; font-weight: 700; text-align: left; text-transform: uppercase; }
+.history-table td { padding: 12px 14px; border-top: 1px solid var(--border); vertical-align: top; }
+.history-table .history-empty { padding: 28px 16px; color: var(--text-muted); text-align: center; }
+.history-details-row td { padding-top: 0; background: #f8fafc; }
+.history-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 18px; padding: 4px 0 14px; }
+.history-details > div { min-width: 0; }
+.history-details dt { margin-bottom: 3px; color: var(--text-muted); font-size: .68rem; font-weight: 700; text-transform: uppercase; }
+.history-details dd { color: var(--text); font-size: .8rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.related-records-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.related-records-card { min-width: 0; }
+.related-records-card h2 { margin-bottom: 12px; color: var(--primary); font: 700 1rem var(--font-display); }
+.related-records-list { display: grid; gap: 10px; list-style: none; }
+.related-records-list li { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow-wrap: anywhere; }
+.related-records-list li > span { display: block; margin-top: 4px; color: var(--text-muted); font-size: .8rem; line-height: 1.45; }
+.related-record-link { display: inline-block; margin-top: 8px; color: var(--primary); font-size: .8rem; font-weight: 700; }
 .td-fecha { font-weight: 700; color: var(--text); white-space: nowrap; }
 .td-profesional { font-weight: 600; color: var(--text); white-space: nowrap; }
 
@@ -195,6 +217,9 @@ img { max-width: 100%; height: auto; display: block; }
   .main { margin-left: 0; padding: 58px 14px 32px; }
   .page-header { flex-direction: column; align-items: flex-start; }
   .alerta-medica { flex-direction: column; align-items: flex-start; }
+  .history-section-heading { flex-direction: column; }
+  .history-details { grid-template-columns: 1fr; }
+  .related-records-grid { grid-template-columns: 1fr; }
 
 }
 
