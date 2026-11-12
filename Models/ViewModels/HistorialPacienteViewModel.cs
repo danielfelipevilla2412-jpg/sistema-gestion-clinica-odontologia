@@ -33,6 +33,7 @@ public class HistorialPacienteViewModel
     public string? ProximaCitaProfesional { get; set; }
     public List<CitaProximaOpcion> CitasDisponibles { get; set; } = [];
     public HistoriaFormularioViewModel Formulario { get; set; } = new();
+    public List<EvolucionCitaHistorialItem> EvolucionesPorCita { get; set; } = [];
 
     /// <summary>
     /// Registros de consultas pasadas derivados de la tabla Cita.
@@ -110,6 +111,30 @@ public class CitaProximaOpcion
 {
     public int IdCita { get; set; }
     public string Etiqueta { get; set; } = "";
+}
+
+public class EvolucionCitaHistorialItem
+{
+    public int HistoriaId { get; set; }
+    public string CodigoHistoria { get; set; } = "";
+    public int CitaId { get; set; }
+    public DateTime Fecha { get; set; }
+    public string Servicio { get; set; } = "Consulta";
+    public string Profesional { get; set; } = "Sin asignar";
+    public string MotivoConsulta { get; set; } = "";
+    public string EnfermedadActual { get; set; } = "";
+    public string AntecedentesMedicos { get; set; } = "";
+    public string Habitos { get; set; } = "";
+    public string Alergias { get; set; } = "";
+    public List<string> Sintomas { get; set; } = [];
+    public string Diagnosticos { get; set; } = "";
+    public string Hallazgos { get; set; } = "";
+    public string OdontogramaObservaciones { get; set; } = "";
+    public string ExamenesComplementarios { get; set; } = "";
+    public string EvolucionClinica { get; set; } = "";
+    public string Procedimientos { get; set; } = "";
+    public string Prescripcion { get; set; } = "";
+    public List<EventoHistoriaClinicaItem> RegistrosRelacionados { get; set; } = [];
 }
 
 // FASE 1 — DTO de solo lectura para no exponer la entidad Paciente directamente

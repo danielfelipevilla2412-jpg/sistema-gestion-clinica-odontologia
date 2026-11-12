@@ -166,6 +166,51 @@ const getPatients = () => {
     : [];
 };
 
+const normalizarPacienteApi = (patient, index) => {
+  const value = (pascal, camel, fallback = '') => patient[pascal] ?? patient[camel] ?? fallback;
+  const nombres = value('Nombres', 'nombres');
+  const apellidos = value('Apellidos', 'apellidos');
+  const nombre = value('Name', 'name', `${nombres} ${apellidos}`.trim());
+  const tipoDocumento = value('TipoDocumento', 'tipoDocumento');
+  const documento = value('Documento', 'documento');
+  const color = value('Color', 'color', ['blue', 'green', 'yellow', 'purple', 'slate'][index % 5]);
+
+  return {
+    ...patient,
+    Id: value('Id', 'id', 0),
+    Nombres: nombres,
+    Apellidos: apellidos,
+    Name: nombre || 'Sin nombre',
+    Initials: value('Initials', 'initials', `${nombres?.[0] || ''}${apellidos?.[0] || ''}`.toUpperCase() || '??'),
+    TipoDocumento: tipoDocumento,
+    Documento: documento,
+    Doc: value('Doc', 'doc', [tipoDocumento, documento].filter(Boolean).join(' ')),
+    FechaNacimiento: value('FechaNacimiento', 'fechaNacimiento'),
+    Genero: value('Genero', 'genero'),
+    Telefono: value('Telefono', 'telefono'),
+    Correo: value('Correo', 'correo'),
+    Ciudad: value('Ciudad', 'ciudad'),
+    Direccion: value('Direccion', 'direccion'),
+    GrupoSanguineo: value('GrupoSanguineo', 'grupoSanguineo'),
+    AlergiasTexto: value('AlergiasTexto', 'alergiasTexto'),
+    AntecedentesMedicos: value('AntecedentesMedicos', 'antecedentesMedicos'),
+    ContactoEmergencia: value('ContactoEmergencia', 'contactoEmergencia'),
+    TelefonoEmergencia: value('TelefonoEmergencia', 'telefonoEmergencia'),
+    MedicamentosTexto: value('MedicamentosTexto', 'medicamentosTexto'),
+    Estado: value('Estado', 'estado', 'activo'),
+    LastVisit: value('LastVisit', 'lastVisit'),
+    Diagnosis: value('Diagnosis', 'diagnosis'),
+    NextVisit: value('NextVisit', 'nextVisit'),
+    Allergies: value('Allergies', 'allergies', []),
+    Color: color,
+    History: value('History', 'history', []).map(item => ({
+      Date: item.Date ?? item.date,
+      Procedure: item.Procedure ?? item.procedure,
+      Doctor: item.Doctor ?? item.doctor
+    }))
+  };
+};
+
 // ═══════════════════════════════════════════════════════════════════
 //  PAGINACIÓN
 // ═══════════════════════════════════════════════════════════════════
@@ -242,7 +287,7 @@ const fetchPacientes = async () => {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const json = await resp.json();
 
-    window.RAZOR_PATIENTS = json.items ?? [];
+    window.RAZOR_PATIENTS = (json.items ?? []).map(normalizarPacienteApi);
     serverTotal = json.total ?? 0;
     serverPages = json.totalPages ?? 1;
     return true;
@@ -251,7 +296,10 @@ const fetchPacientes = async () => {
     if (err.name === 'AbortError') return false;
     console.error('[SmileTrack][Pacientes] Error búsqueda server-side:', err);
     showToast('No se pudo cargar la lista de pacientes.', 'error');
-    return false;
+    const fallbackPatients = getPatients();
+    serverTotal = fallbackPatients.length;
+    serverPages = Math.max(1, Math.ceil(serverTotal / itemsPerPage));
+    return fallbackPatients.length > 0;
   }
 };
 
@@ -717,6 +765,12 @@ const openPatientModal = (id, type) => {
     title.textContent =
       `Editar paciente: ${patient.Name}`;
 
+    const modalFooter = modal.querySelector('.modal-footer');
+    if (modalFooter) {
+      modalFooter.hidden = true;
+      modalFooter.style.display = 'none';
+    }
+
     /*
      * Nombres y apellidos separados:
      * utilizamos Nombres/Apellidos si están disponibles
@@ -732,8 +786,8 @@ const openPatientModal = (id, type) => {
       patient.Name?.split(' ').slice(-1).join(' ') ||
       '';
 
-    content.innerHTML = `
-      <form id="editPatientForm">
+    content.outerHTML = `
+      <form id="editPatientForm" class="patient-modal-body modal-edit-form" role="document">
 
         <!-- SECCIÓN: INFORMACIÓN PERSONAL -->
         <div class="form-section-title">Información Personal</div>
@@ -1225,7 +1279,7 @@ const openPatientModal = (id, type) => {
   );
 
   // Agregar listener para el botón de desactivar en el modal
-  const btnDisableInModal = content.querySelector('.btn-disable');
+  const btnDisableInModal = modal.querySelector('.btn-disable');
   if (btnDisableInModal) {
     btnDisableInModal.addEventListener(
       'click',
@@ -1254,6 +1308,20 @@ const closePatientModal = () => {
 
   if (!modal) {
     return;
+  }
+
+  const editForm = modal.querySelector('#editPatientForm');
+  if (editForm) {
+    const content = document.createElement('div');
+    content.id = 'modalPatientContent';
+    content.className = 'patient-modal-body';
+    content.setAttribute('role', 'document');
+    editForm.replaceWith(content);
+  }
+  const modalFooter = modal.querySelector('.modal-footer');
+  if (modalFooter) {
+    modalFooter.hidden = false;
+    modalFooter.style.display = '';
   }
 
   modal.classList.remove(

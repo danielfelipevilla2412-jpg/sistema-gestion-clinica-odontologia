@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Text.Json;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -258,6 +259,156 @@ public class HistoriaClinicaStructuredDataTests
         var archivo = Assert.IsType<FileContentResult>(result);
         Assert.Equal("application/pdf", archivo.ContentType);
         Assert.StartsWith("%PDF-", Encoding.ASCII.GetString(archivo.FileContents, 0, 5));
+    }
+
+    [Fact]
+    public async Task Stodo03Historial_CargaEvolucionDeCadaCitaAtendidaYOmiteLasNoAsistidas()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, profesional) = CrearControlador(db);
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow,
+            Activa = true
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+
+        var citas = new[]
+        {
+            new Cita { IdPaciente = paciente.IdPaciente, IdProfesional = profesional.IdProfesional, FechaHora = DateTime.Today.AddDays(-4), Estado = "Atendida", MotivoConsulta = "Dolor" },
+            new Cita { IdPaciente = paciente.IdPaciente, IdProfesional = profesional.IdProfesional, FechaHora = DateTime.Today.AddDays(-2), Estado = "Finalizada" },
+            new Cita { IdPaciente = paciente.IdPaciente, IdProfesional = profesional.IdProfesional, FechaHora = DateTime.Today.AddDays(-1), Estado = "No asistió" }
+        };
+        db.Citas.AddRange(citas);
+        await db.SaveChangesAsync();
+
+        db.ConsultasClinicas.AddRange(
+            new ConsultaClinica
+            {
+                IdHistoria = historia.IdHistoria,
+                IdCita = citas[0].IdCita,
+                MotivoConsulta = "Dolor al masticar",
+                EnfermedadActual = "Molestia de tres días",
+                AntecedentesMedicos = "Hipertensión controlada",
+                Habitos = "Cepillado dos veces al día",
+                Alergias = "Penicilina",
+                EvolucionClinica = "Se realiza valoración",
+                Prescripcion = "Control en una semana",
+                Diagnosticos = [new DiagnosticoConsulta { Descripcion = "Caries dental", EsPrincipal = true }],
+                Sintomas = [new SintomaConsulta { Descripcion = "Sensibilidad", Orden = 0 }]
+            },
+            new ConsultaClinica
+            {
+                IdHistoria = historia.IdHistoria,
+                IdCita = citas[1].IdCita,
+                EvolucionClinica = "Evolución de segunda cita"
+            },
+            new ConsultaClinica
+            {
+                IdHistoria = historia.IdHistoria,
+                IdCita = citas[2].IdCita,
+                EvolucionClinica = "No debe aparecer como atención"
+            });
+        db.NotasClinicas.Add(new NotaClinica
+        {
+            IdHistoria = historia.IdHistoria,
+            IdCita = citas[0].IdCita,
+            IdProfesional = profesional.IdProfesional,
+            Diagnostico = "Caries dental",
+            Procedimiento = "Restauración",
+            Estado = "Realizado"
+        });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<ViewResult>(await controller.Stodo03Historial(paciente.IdPaciente, null, null));
+        var model = Assert.IsType<HistorialPacienteViewModel>(result.Model);
+
+        Assert.Equal(2, model.EvolucionesPorCita.Count);
+        Assert.Contains(model.EvolucionesPorCita, item => item.CitaId == citas[0].IdCita
+            && item.MotivoConsulta == "Dolor al masticar"
+            && item.EnfermedadActual == "Molestia de tres días"
+            && item.AntecedentesMedicos == "Hipertensión controlada"
+            && item.Habitos == "Cepillado dos veces al día"
+            && item.Alergias == "Penicilina"
+            && item.Diagnosticos.Contains("Caries dental")
+            && item.Procedimientos.Contains("Restauración"));
+        Assert.Contains(model.EvolucionesPorCita, item => item.CitaId == citas[1].IdCita
+            && item.EvolucionClinica == "Evolución de segunda cita");
+        Assert.DoesNotContain(model.EvolucionesPorCita, item => item.CitaId == citas[2].IdCita);
+    }
+
+    [Fact]
+    public async Task StrecHistorialData_UsaUltimaAtencionContadoresNormalizadosYConsultaEstructurada()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, profesional) = CrearControlador(db);
+        paciente.Estado = "ACTIVO";
+        paciente.Alergias = "   ";
+        profesional.Estado = "ACTIVO";
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow,
+            Activa = true
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+
+        var citaAtendida = new Cita
+        {
+            IdPaciente = paciente.IdPaciente,
+            IdProfesional = profesional.IdProfesional,
+            FechaHora = DateTime.Today.AddDays(-3),
+            Estado = "Finalizada"
+        };
+        var citaFutura = new Cita
+        {
+            IdPaciente = paciente.IdPaciente,
+            IdProfesional = profesional.IdProfesional,
+            FechaHora = DateTime.Today.AddDays(3),
+            Estado = "Programada"
+        };
+        var citaSinAsistencia = new Cita
+        {
+            IdPaciente = paciente.IdPaciente,
+            IdProfesional = profesional.IdProfesional,
+            FechaHora = DateTime.Today.AddDays(-1),
+            Estado = "No asistió"
+        };
+        db.Citas.AddRange(citaAtendida, citaFutura, citaSinAsistencia);
+        await db.SaveChangesAsync();
+
+        db.ConsultasClinicas.Add(new ConsultaClinica
+        {
+            IdHistoria = historia.IdHistoria,
+            IdCita = citaAtendida.IdCita,
+            MotivoConsulta = "Dolor dental",
+            EnfermedadActual = "Molestia de tres días",
+            EvolucionClinica = "Valoración y control",
+            Prescripcion = "Control en una semana",
+            Diagnosticos = [new DiagnosticoConsulta { Descripcion = "Caries dental", EsPrincipal = true }],
+            Sintomas = [new SintomaConsulta { Descripcion = "Sensibilidad", Orden = 0 }]
+        });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<JsonResult>(await controller.StrecHistorialData());
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(result.Value));
+        var root = payload.RootElement;
+        var stats = root.GetProperty("stats");
+        var pacienteJson = root.GetProperty("items")[0];
+        var atenciones = pacienteJson.GetProperty("consultas");
+
+        Assert.Equal(1, stats.GetProperty("total").GetInt32());
+        Assert.Equal(1, stats.GetProperty("activos").GetInt32());
+        Assert.Equal(1, stats.GetProperty("odontologos").GetInt32());
+        Assert.Equal(0, stats.GetProperty("alertas").GetInt32());
+        Assert.Equal(citaAtendida.FechaHora.Date, DateTime.Parse(pacienteJson.GetProperty("ultimaConsulta").GetString()!).Date);
+        Assert.Single(atenciones.EnumerateArray());
+        Assert.Equal("Dolor dental", atenciones[0].GetProperty("motivoConsulta").GetString());
+        Assert.Equal("Caries dental", atenciones[0].GetProperty("diagnostico").GetString());
+        Assert.Equal("Valoración y control", atenciones[0].GetProperty("evolucionClinica").GetString());
     }
 
     private static async Task<AppDbContext> CrearBaseAsync()

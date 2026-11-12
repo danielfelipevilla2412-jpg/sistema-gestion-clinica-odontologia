@@ -1572,9 +1572,19 @@ public sealed class CambiarEstadoCitaDto
                 null,
                 ct);
 
+            int? pacienteSeleccionadoId = pacienteId;
+            if (pacienteSeleccionadoId is null && editId is > 0)
+            {
+                pacienteSeleccionadoId = await _context.Citas
+                    .AsNoTracking()
+                    .Where(c => c.IdCita == editId.Value)
+                    .Select(c => (int?)c.IdPaciente)
+                    .FirstOrDefaultAsync(ct);
+            }
+
             ViewData["HistorialParcialData"] =
                 await ConstruirHistorialParcialAsync(
-                    pacienteId,
+                    pacienteSeleccionadoId,
                     ct);
 
             return View(
@@ -1617,6 +1627,7 @@ public sealed class CambiarEstadoCitaDto
                     nombre = "Sin paciente asignado",
                     tipoDoc = "",
                     documento = "",
+                    antecedentesMedicos = "",
                     alergias = Array.Empty<string>(),
                     medicamentos = Array.Empty<string>(),
                     grupoSanguineo = "N/D",
@@ -1624,6 +1635,8 @@ public sealed class CambiarEstadoCitaDto
                 },
 
                 consultas = Array.Empty<object>(),
+                tratamientos = Array.Empty<object>(),
+                documentos = Array.Empty<object>(),
                 limite
             };
         }
@@ -1668,28 +1681,144 @@ public sealed class CambiarEstadoCitaDto
             .ToListAsync(ct);
 
         var consultaIds = consultasBase.Select(c => c.id).ToArray();
+        var historiaIds = await _context.HistoriasClinicas
+            .AsNoTracking()
+            .Where(h => h.IdPaciente == paciente.IdPaciente)
+            .Select(h => h.IdHistoria)
+            .ToArrayAsync(ct);
+        var consultasClinicas = historiaIds.Length == 0 || consultaIds.Length == 0
+            ? []
+            : await _context.ConsultasClinicas
+                .AsNoTracking()
+                .Include(c => c.Diagnosticos)
+                .Include(c => c.Sintomas)
+                .Where(c => c.IdHistoria != 0
+                    && historiaIds.Contains(c.IdHistoria)
+                    && c.IdCita.HasValue
+                    && consultaIds.Contains(c.IdCita.Value))
+                .ToListAsync(ct);
+        var consultaClinicaPorCita = consultasClinicas
+            .Where(c => c.IdCita.HasValue)
+            .ToDictionary(c => c.IdCita!.Value);
+
         var notasPorCita = await _context.NotasClinicas
             .AsNoTracking()
-            .Where(n => n.IdCita.HasValue && consultaIds.Contains(n.IdCita.Value))
+            .Where(n => historiaIds.Contains(n.IdHistoria)
+                && n.IdCita.HasValue
+                && consultaIds.Contains(n.IdCita.Value))
             .OrderByDescending(n => n.Fecha)
             .ToListAsync(ct);
 
         var notaRecientePorCita = notasPorCita
             .GroupBy(n => n.IdCita.GetValueOrDefault())
             .ToDictionary(grupo => grupo.Key, grupo => grupo.First());
+        var odontogramaPorCita = consultaIds.Length == 0 || historiaIds.Length == 0
+            ? []
+            : (await _context.RegistrosOdontograma
+                .AsNoTracking()
+                .Where(r => historiaIds.Contains(r.IdHistoria)
+                    && r.IdCita.HasValue
+                    && consultaIds.Contains(r.IdCita.Value))
+                .OrderByDescending(r => r.FechaRegistro)
+                .ToListAsync(ct))
+                .GroupBy(r => r.IdCita!.Value)
+                .ToDictionary(group => group.Key, group => group.Select(r => new
+                {
+                    fecha = r.FechaRegistro,
+                    pieza = r.NumeroFdi,
+                    nombrePieza = r.NombrePieza ?? "Pieza dental",
+                    estado = r.Estado,
+                    observacion = r.Observacion ?? ""
+                }).ToList());
+        var controlesPorCita = consultaIds.Length == 0
+            ? new Dictionary<int, ControlPostoperatorio>()
+            : await _context.ControlesPostoperatorios
+                .AsNoTracking()
+                .Where(c => consultaIds.Contains(c.IdCita))
+                .ToDictionaryAsync(c => c.IdCita, ct);
+        var documentos = historiaIds.Length == 0
+            ? []
+            : await _context.DocumentosClinicos
+                .AsNoTracking()
+                .Where(d => historiaIds.Contains(d.IdHistoria))
+                .OrderByDescending(d => d.FechaSubida)
+                .Select(d => new
+                {
+                    id = d.IdDocumento,
+                    tipo = d.Tipo,
+                    nombre = d.NombreOriginal,
+                    fecha = d.FechaDocumento.HasValue
+                        ? d.FechaDocumento.Value.ToString("yyyy-MM-dd")
+                        : d.FechaSubida.ToString("yyyy-MM-dd"),
+                    observacion = d.Observacion ?? "",
+                    url = $"/historia-clinica/documentos-clinicos/descargar/{d.IdDocumento}"
+                })
+                .ToListAsync(ct);
+        var tratamientos = historiaIds.Length == 0
+            ? []
+            : await _context.PlanesTratamiento
+                .AsNoTracking()
+                .Include(plan => plan.Servicio)
+                .Where(plan => historiaIds.Contains(plan.IdHistoria))
+                .OrderByDescending(plan => plan.ActualizadoEn)
+                .Select(plan => new
+                {
+                    nombre = plan.Servicio != null ? plan.Servicio.Nombre : "Plan de tratamiento",
+                    estado = plan.Estado,
+                    pieza = plan.NumeroFdi ?? "",
+                    observacion = plan.Observacion ?? "",
+                    sesionesEstimadas = plan.SesionesEstimadas
+                })
+                .ToListAsync(ct);
 
         var consultas = consultasBase
             .Select(c =>
             {
                 notaRecientePorCita.TryGetValue(c.id, out var nota);
+                consultaClinicaPorCita.TryGetValue(c.id, out var consultaClinica);
+                var diagnosticosClinicos = consultaClinica?.Diagnosticos
+                    .OrderByDescending(d => d.EsPrincipal)
+                    .Select(d => d.Descripcion)
+                    .Where(d => !string.IsNullOrWhiteSpace(d))
+                    .ToArray() ?? [];
+
                 return new
                 {
                     c.id,
                     c.fecha,
                     c.profesional,
-                    diagnostico = string.IsNullOrWhiteSpace(nota?.Diagnostico)
-                        ? (string.IsNullOrWhiteSpace(c.diagnostico) ? "Sin notas clínicas registradas" : c.diagnostico)
-                        : nota.Diagnostico,
+                    motivoConsulta = consultaClinica?.MotivoConsulta ?? "",
+                    enfermedadActual = consultaClinica?.EnfermedadActual ?? "",
+                    antecedentesMedicos = consultaClinica?.AntecedentesMedicos ?? "",
+                    sintomas = consultaClinica?.Sintomas
+                        .OrderBy(s => s.Orden)
+                        .Select(s => s.Descripcion)
+                        .ToArray() ?? [],
+                    habitos = consultaClinica?.Habitos ?? "",
+                    alergias = consultaClinica?.Alergias ?? "",
+                    hallazgos = consultaClinica?.Hallazgos ?? "",
+                    odontogramaObservaciones = consultaClinica?.OdontogramaObservaciones ?? "",
+                    examenesComplementarios = consultaClinica?.ExamenesComplementarios ?? "",
+                    evolucionClinica = consultaClinica?.EvolucionClinica ?? "",
+                    prescripcion = consultaClinica?.Prescripcion ?? "",
+                    odontograma = odontogramaPorCita.TryGetValue(c.id, out var registrosOdontograma)
+                        ? registrosOdontograma
+                        : [],
+                    controlPostoperatorio = controlesPorCita.TryGetValue(c.id, out var control)
+                        ? new
+                        {
+                            estado = control.Status,
+                            observaciones = control.Observaciones ?? "",
+                            instruccionesJson = control.InstruccionesJson ?? ""
+                        }
+                        : null,
+                    diagnostico = !string.IsNullOrWhiteSpace(nota?.Diagnostico)
+                        ? nota.Diagnostico
+                        : diagnosticosClinicos.Length > 0
+                            ? string.Join("; ", diagnosticosClinicos)
+                            : string.IsNullOrWhiteSpace(c.diagnostico)
+                                ? "Sin notas clínicas registradas"
+                                : c.diagnostico,
                     procedimiento = string.IsNullOrWhiteSpace(nota?.Procedimiento)
                         ? c.procedimiento
                         : nota.Procedimiento
@@ -1705,6 +1834,7 @@ public sealed class CambiarEstadoCitaDto
                 nombre = paciente.NombresCompleto,
                 tipoDoc = paciente.TipoDocumento,
                 documento = paciente.Documento,
+                antecedentesMedicos = paciente.AntecedentesMedicos ?? "",
 
                 alergias =
                     string.IsNullOrWhiteSpace(
@@ -1739,6 +1869,8 @@ public sealed class CambiarEstadoCitaDto
             },
 
             consultas,
+            tratamientos,
+            documentos,
             limite
         };
     }
