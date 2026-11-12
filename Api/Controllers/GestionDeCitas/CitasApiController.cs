@@ -335,73 +335,6 @@ public sealed class CitasApiController : ControllerBase
         }
     }
 
-    [HttpPut]
-    [CookieAwareValidateAntiforgeryToken]
-    [Authorize(Roles = "Administrador,Recepcionista,Profesional", Policy = "ApiOrCookie")]
-    [Route("api/citas/{id:int}/reagendar")]
-    public async Task<IActionResult> Reagendar(
-        int id,
-        [FromBody] CitaReagendarApiRequest request,
-        CancellationToken ct = default)
-    {
-        if (id <= 0 || request is null || request.FechaHora == default || !ModelState.IsValid)
-            return BadRequest(new { success = false, message = "Indica una cita y una fecha/hora válidas." });
-
-        var existente = await _citaService.ObtenerPorIdAsync(id, ct);
-        if (existente is null)
-            return NotFound(new { success = false, message = "Cita no encontrada." });
-        if (!await TieneOwnershipAsync(existente, ct))
-            return Forbid();
-
-        string estadoActual = existente.Estado.Trim().ToLowerInvariant();
-        if (estadoActual is not ("agendada" or "programada" or "confirmada"))
-            return BadRequest(new { success = false, message = "Solo se pueden reagendar citas programadas o confirmadas." });
-        if (existente.IdPaciente <= 0 ||
-            existente.IdProfesional is not > 0 ||
-            existente.IdServicio is not > 0 ||
-            existente.IdConsultorio is not > 0)
-        {
-            return BadRequest(new { success = false, message = "La cita no tiene todos los recursos asignados para poder reagendarla." });
-        }
-
-        try
-        {
-            var actualizada = await _citaService.ActualizarAsync(id, new CitaApiUpdateDto
-            {
-                IdCita = existente.IdCita,
-                IdPaciente = existente.IdPaciente,
-                IdProfesional = existente.IdProfesional,
-                IdServicio = existente.IdServicio,
-                IdConsultorio = existente.IdConsultorio,
-                FechaHora = request.FechaHora,
-                Estado = existente.Estado,
-                IdEstado = existente.IdEstado,
-                Notas = existente.Notas,
-                IdUsuarioModificacion = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int usuarioActual)
-                    ? usuarioActual
-                    : null
-            }, ct);
-
-            if (actualizada is null)
-                return NotFound(new { success = false, message = "Cita no encontrada." });
-
-            await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita reagendada desde la agenda.", ct);
-            return Ok(new
-            {
-                success = true,
-                message = "Cita reagendada correctamente.",
-                id = actualizada.IdCita,
-                fechaHora = actualizada.FechaHora
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return EsConflicto(ex.Message)
-                ? Conflict(new { success = false, message = ex.Message })
-                : BadRequest(new { success = false, message = ex.Message });
-        }
-    }
-
     [HttpPost]
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
@@ -779,7 +712,7 @@ public sealed class CitasApiController : ControllerBase
             await _context.SaveChangesAsync(ct);
 
             await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita reagendada desde la agenda.", ct);
-            return Ok(new { success = true, id = actualizada.IdCita, fechaHora = actualizada.FechaHora });
+            return Ok(new { success = true, message = "Cita reagendada correctamente.", id = actualizada.IdCita, fechaHora = actualizada.FechaHora });
         }
         catch (InvalidOperationException ex)
         {
@@ -857,8 +790,11 @@ public sealed class CitasApiController : ControllerBase
         if (id <= 0)
             return BadRequest(new { success = false, message = "Identificador de cita inválido." });
 
-        if (!await _context.Citas.AsNoTracking().AnyAsync(c => c.IdCita == id, ct))
+        var cita = await _context.Citas.AsNoTracking().FirstOrDefaultAsync(c => c.IdCita == id, ct);
+        if (cita is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
+        if (User.IsInRole("Profesional") && !EsProfesionalPropietario(cita))
+            return Forbid();
 
         var asistencia = await _context.AsistenciasProcedimiento.AsNoTracking()
             .FirstOrDefaultAsync(a => a.IdCita == id, ct);
@@ -890,8 +826,11 @@ public sealed class CitasApiController : ControllerBase
         if (id <= 0 || request is null || !ModelState.IsValid)
             return BadRequest(new { success = false, message = "Datos de asistencia inválidos." });
 
-        if (!await _context.Citas.AnyAsync(c => c.IdCita == id, ct))
+        var cita = await _context.Citas.AsNoTracking().FirstOrDefaultAsync(c => c.IdCita == id, ct);
+        if (cita is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
+        if (User.IsInRole("Profesional") && !EsProfesionalPropietario(cita))
+            return Forbid();
 
         var asistencia = await _context.AsistenciasProcedimiento
             .FirstOrDefaultAsync(a => a.IdCita == id, ct);

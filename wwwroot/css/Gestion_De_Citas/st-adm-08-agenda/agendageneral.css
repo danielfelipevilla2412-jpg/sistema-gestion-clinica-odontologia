@@ -1114,6 +1114,11 @@ body.modal-open {
     font-size: .72rem;
 }
 
+#modalNewApptStatus.form-error {
+    color: #b42318;
+    font-weight: 600;
+}
+
 .form-group input[readonly] {
     background: #f8fafc;
     color: var(--text-muted);

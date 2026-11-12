@@ -70,6 +70,38 @@ public class CitaServiceTests
     }
 
     [Fact]
+    public async Task ObtenerProfesionalesDisponibles_IgnoraCitasRechazadas()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var estadoRechazada = new EstadoCita { NombreEstado = "Rechazada" };
+        db.EstadosCita.Add(estadoRechazada);
+        await db.SaveChangesAsync();
+        var inicioCandidato = ProximaFecha(DayOfWeek.Monday).AddHours(10);
+        db.Citas.Add(new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            IdEstado = estadoRechazada.IdEstado,
+            EstadoCita = estadoRechazada,
+            FechaHora = inicioCandidato,
+            DuracionMinutos = 60,
+            Estado = "Programada"
+        });
+        await db.SaveChangesAsync();
+
+        var disponibles = await CrearServicio(db).ObtenerProfesionalesDisponiblesAsync(
+            inicioCandidato.Date,
+            inicioCandidato.TimeOfDay,
+            duracionMinutos: 60,
+            idServicio: datos.Servicio.IdServicio);
+
+        Assert.Contains(disponibles, profesional => profesional.IdProfesional == datos.Profesional.IdProfesional);
+    }
+
+    [Fact]
     public async Task ObtenerProfesionalesDisponibles_UsaLaDuracionDelServicioSeleccionado()
     {
         await using var db = CrearDb();
@@ -245,6 +277,37 @@ public class CitaServiceTests
         Assert.Contains("pendientes", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Confirmada", (await db.Citas.FindAsync(cita.IdCita))?.Estado);
         Assert.Empty(await db.Notificaciones.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ConfirmarYAsignarCitaAsync_RechazaSolicitudSinServicioConErrorDeNegocio()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        db.EstadosCita.Add(new EstadoCita { NombreEstado = "Solicitada" });
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = null,
+            IdServicio = null,
+            IdConsultorio = null,
+            FechaHora = ColombiaClock.Today.AddDays(2).AddHours(8),
+            Estado = "Solicitada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).ConfirmarYAsignarCitaAsync(cita.IdCita, new CitaConfirmacionAsignacionDto
+            {
+                IdCita = cita.IdCita,
+                IdProfesional = datos.Profesional.IdProfesional,
+                IdConsultorio = datos.Consultorio.IdConsultorio,
+                Fecha = ColombiaClock.Today.AddDays(2),
+                HoraInicio = TimeSpan.FromHours(9)
+            }));
+
+        Assert.Contains("servicio", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -984,6 +1047,38 @@ public class CitaServiceTests
         Assert.Equal(TipoConflictoCita.Profesional, conflictoProfesional.Tipo);
         Assert.Equal(TipoConflictoCita.Paciente, conflictoPaciente.Tipo);
         Assert.Equal(TipoConflictoCita.Consultorio, conflictoConsultorio.Tipo);
+    }
+
+    [Fact]
+    public async Task VerificarConflictoCompletoAsync_IgnoraCitasRechazadas()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var estadoRechazada = new EstadoCita { NombreEstado = "Rechazada" };
+        db.EstadosCita.Add(estadoRechazada);
+        await db.SaveChangesAsync();
+        var inicio = new DateTime(2026, 12, 10, 9, 0, 0);
+        db.Citas.Add(new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            IdEstado = estadoRechazada.IdEstado,
+            EstadoCita = estadoRechazada,
+            FechaHora = inicio,
+            DuracionMinutos = 60,
+            Estado = "Programada"
+        });
+        await db.SaveChangesAsync();
+
+        var conflicto = await CrearServicio(db).VerificarConflictoCompletoAsync(
+            datos.Profesional.IdProfesional,
+            datos.Paciente.IdPaciente,
+            datos.Consultorio.IdConsultorio,
+            inicio.AddMinutes(15));
+
+        Assert.False(conflicto.HayConflicto);
     }
 
     [Fact]

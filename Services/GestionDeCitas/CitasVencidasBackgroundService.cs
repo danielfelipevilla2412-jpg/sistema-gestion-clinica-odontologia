@@ -25,6 +25,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 
 namespace SmileTrack_MVC.Services.GestionDeCitas;
 
@@ -36,12 +37,11 @@ public sealed class CitasVencidasBackgroundService : BackgroundService
     private const string EstadoNoAsistio = "No asistio";
 
     /// <summary>
-    /// Estados "en espera / pendiente": la cita continúa abierta y su horario ya pasó.
-    /// Cualquier otro estado se considera final y no se toca.
+    /// Estados de citas operativas que pueden cerrarse como inasistencia al finalizar una jornada.
+    /// Las solicitudes de pacientes no son reservas confirmadas y no se deben marcar como no-show.
     /// </summary>
     private static readonly string[] EstadosPendientes =
     [
-        "solicitada", "solicitado", "pendiente",
         "agendada", "agendado", "programada", "programado",
         "confirmada", "confirmado",
         "en espera", "en_sala_de_espera"
@@ -62,7 +62,7 @@ public sealed class CitasVencidasBackgroundService : BackgroundService
     {
         // Puesta al día: cierra lo que quedó abierto en días anteriores. El corte es el inicio del
         // día actual para no tocar las citas de la jornada en curso.
-        await CerrarCitasVencidasAsync(DateTime.Today, stoppingToken);
+        await CerrarCitasVencidasAsync(ColombiaClock.Today, stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -77,13 +77,13 @@ public sealed class CitasVencidasBackgroundService : BackgroundService
                 break;
             }
 
-            await CerrarCitasVencidasAsync(DateTime.Now, stoppingToken);
+            await CerrarCitasVencidasAsync(ColombiaClock.Now, stoppingToken);
         }
     }
 
     private static TimeSpan CalcularEsperaHastaProximoCierre()
     {
-        DateTime ahora = DateTime.Now;
+        DateTime ahora = ColombiaClock.Now;
         DateTime proximo = ahora.Date.Add(HoraCierreDiario);
 
         if (proximo <= ahora)
@@ -115,7 +115,8 @@ public sealed class CitasVencidasBackgroundService : BackgroundService
 
             var vencidas = db.Citas
                 .Where(c => c.FechaHora < corte)
-                .Where(c => c.Estado != null && estadosPendientes.Contains(c.Estado!.ToLower()));
+                .Where(c => estadosPendientes.Contains(
+                    ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).ToLower()));
 
             int actualizadas = idNoAsistio.HasValue
                 ? await vencidas.ExecuteUpdateAsync(

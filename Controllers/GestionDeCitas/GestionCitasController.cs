@@ -1340,6 +1340,29 @@ public sealed class CambiarEstadoCitaDto
         if (id <= 0)
             return BadRequest(new { error = "Identificador de cita inválido." });
 
+        // Ownership (RN-25): un Profesional solo puede consultar el historial de sus propias citas.
+        if (User.IsInRole("Profesional"))
+        {
+            var citaHistorial = await _context.Citas.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.IdCita == id, ct);
+            if (citaHistorial is null)
+                return NotFound(new { error = "Cita no encontrada." });
+
+            bool esPropietarioHistorial =
+                int.TryParse(User.FindFirst("IdProfesional")?.Value, out int idProfesionalHistorial) &&
+                citaHistorial.IdProfesional == idProfesionalHistorial;
+
+            if (!esPropietarioHistorial &&
+                int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int idUsuarioHistorial))
+            {
+                esPropietarioHistorial = await _context.Profesionales.AnyAsync(
+                    p => p.IdUsuario == idUsuarioHistorial && p.IdProfesional == citaHistorial.IdProfesional, ct);
+            }
+
+            if (!esPropietarioHistorial)
+                return Forbid();
+        }
+
         try
         {
             var historial = await _context.CitasHistorialEstado
@@ -2270,20 +2293,19 @@ public sealed class CambiarEstadoCitaDto
                     .ToListAsync(ct);
 
                 ViewData["TotalCitasSemana"] = citasSemana.Count;
-                ViewData["CitasProgramadas"] = citasSemana.Count(c => 
-                    c.Estado == "Agendada" || c.Estado == "programada");
-                ViewData["CitasConfirmadas"] = citasSemana.Count(c => 
-                    c.Estado == "Confirmada" || c.Estado == "confirmada");
-                ViewData["CitasAtendidas"] = citasSemana.Count(c => 
-                    c.Estado == "Atendida" || c.Estado == "atendida");
-                ViewData["CitasCanceladas"] = citasSemana.Count(c => 
-                    c.Estado == "Cancelada" || c.Estado == "cancelada");
+                ViewData["CitasProgramadas"] = citasSemana.Count(c =>
+                    NormalizarEstado(c.Estado) == "programada");
+                ViewData["CitasConfirmadas"] = citasSemana.Count(c =>
+                    NormalizarEstado(c.Estado) == "confirmada");
+                ViewData["CitasAtendidas"] = citasSemana.Count(c =>
+                    NormalizarEstado(c.Estado) == "atendida");
+                ViewData["CitasCanceladas"] = citasSemana.Count(c =>
+                    NormalizarEstado(c.Estado) == "cancelada");
 
                 // 2. PRÓXIMAS 3 CITAS (para vista rápida)
                 var proximasCitas = citasSemana
                     .Where(c => c.FechaHora >= ColombiaClock.Now &&
-                               (c.Estado == "Agendada" || c.Estado == "programada" ||
-                                c.Estado == "Confirmada" || c.Estado == "confirmada"))
+                               NormalizarEstado(c.Estado) is "programada" or "confirmada")
                     .OrderBy(c => c.FechaHora)
                     .Take(3)
                     .ToList();
@@ -2292,7 +2314,7 @@ public sealed class CambiarEstadoCitaDto
 
                 // 3. HORAS MÁS OCUPADAS (para insights)
                 var horasOcupadas = citasSemana
-                    .Where(c => c.Estado != "Cancelada" && c.Estado != "cancelada")
+                    .Where(c => NormalizarEstado(c.Estado) != "cancelada")
                     .GroupBy(c => c.FechaHora.Hour)
                     .OrderByDescending(g => g.Count())
                     .Take(3)
@@ -2630,7 +2652,9 @@ public sealed class CambiarEstadoCitaDto
             .CountAsync(n => n.IdPaciente == idPaciente.Value && n.FechaLectura == null && n.Estado != "eliminada", ct);
 
         int totalCitasNoLeidas = await _context.Citas.AsNoTracking()
-            .Where(c => c.IdPaciente == idPaciente.Value && (c.Estado == "Programada" || c.Estado == "Confirmada"))
+            .Where(c => c.IdPaciente == idPaciente.Value && c.Estado != null &&
+                        (c.Estado.ToLower() == "programada" || c.Estado.ToLower() == "agendada" ||
+                         c.Estado.ToLower() == "confirmada"))
             .CountAsync(c => !_context.NotificacionesLeidas.Any(n => n.IdPaciente == idPaciente.Value && n.IdCita == c.IdCita), ct);
 
         return Ok(new { success = true, unreadCount = Math.Max(unreadDb, totalCitasNoLeidas) });

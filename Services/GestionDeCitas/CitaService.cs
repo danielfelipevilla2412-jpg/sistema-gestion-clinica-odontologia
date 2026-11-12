@@ -51,7 +51,6 @@ public class CitaService : ICitaService
     /// "cita_duracion_minutos" o su valor no es un entero positivo.
     /// </summary>
     private const int DuracionFallbackMinutos = 60;
-
     private readonly AppDbContext _context;
     private readonly ILogger<CitaService> _logger;
     private readonly SmileTrack_MVC.Services.Email.IEmailService? _emailService;
@@ -279,10 +278,8 @@ public class CitaService : ICitaService
                 .AnyAsync(c =>
                     c.IdCita != excluir &&
                     c.IdProfesional == idProfesional &&
-                    c.Estado != "Cancelada" &&
-                    c.Estado != "cancelada" &&
-                    c.Estado != "Cancelado" &&
-                    c.Estado != "cancelado" &&
+                    !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
+                        ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()) &&
                     c.FechaHora < fin &&
                     c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : duracionMinutos) > inicio,
                     ct);
@@ -299,10 +296,8 @@ public class CitaService : ICitaService
                 .AnyAsync(c =>
                     c.IdCita != excluir &&
                     c.IdPaciente == idPaciente &&
-                    c.Estado != "Cancelada" &&
-                    c.Estado != "cancelada" &&
-                    c.Estado != "Cancelado" &&
-                    c.Estado != "cancelado" &&
+                    !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
+                        ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()) &&
                     c.FechaHora < fin &&
                     c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : duracionMinutos) > inicio,
                     ct);
@@ -319,10 +314,8 @@ public class CitaService : ICitaService
                 .AnyAsync(c =>
                     c.IdCita != excluir &&
                     c.IdConsultorio == idConsultorio &&
-                    c.Estado != "Cancelada" &&
-                    c.Estado != "cancelada" &&
-                    c.Estado != "Cancelado" &&
-                    c.Estado != "cancelado" &&
+                    !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
+                        ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()) &&
                     c.FechaHora < fin &&
                     c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : duracionMinutos) > inicio,
                     ct);
@@ -776,6 +769,15 @@ public class CitaService : ICitaService
         if (string.IsNullOrWhiteSpace(estadoNuevo) || !EsTransicionEstadoPermitida(estadoActual, estadoNuevo))
             throw new InvalidOperationException(ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
 
+        if (estadoNuevo is "confirmada" or "en_sala_de_espera" or "en_proceso")
+        {
+            if (!cita.IdProfesional.HasValue || cita.IdProfesional.Value <= 0)
+                throw new InvalidOperationException("No se puede confirmar o iniciar la atención de una cita sin profesional asignado.");
+
+            if (!cita.IdConsultorio.HasValue || cita.IdConsultorio.Value <= 0)
+                throw new InvalidOperationException("No se puede confirmar o iniciar la atención de una cita sin consultorio asignado.");
+        }
+
         if (estadoNuevo is "en_proceso" && cita.FechaHora > ColombiaClock.Now)
             throw new InvalidOperationException("La atención solo puede iniciarse el día programado y cuando llegue la hora programada de la cita.");
 
@@ -1145,10 +1147,8 @@ public class CitaService : ICitaService
                 .AsNoTracking()
                 .AnyAsync(c =>
                     c.IdProfesional == prof.IdProfesional &&
-                    !new[] { "cancelada", "cancelado" }.Contains(
-                        (c.EstadoCita != null
-                            ? c.EstadoCita.NombreEstado
-                            : c.Estado).Trim().ToLower()) &&
+                    !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
+                        ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()) &&
                     c.FechaHora < fin &&
                     c.FechaHora.AddMinutes(
                         c.DuracionMinutos > 0 ? c.DuracionMinutos : duracionMinutos) > inicio,
@@ -1209,6 +1209,9 @@ public class CitaService : ICitaService
         DateTime fechaHora = dto.Fecha.Date.Add(dto.HoraInicio);
         if (fechaHora < ColombiaClock.Now.AddMinutes(-5))
             throw new InvalidOperationException("No se puede agendar una cita en fecha u hora pasada.");
+
+        if (cita.IdServicio is not > 0)
+            throw new InvalidOperationException("La solicitud no tiene un servicio válido asignado y no puede confirmarse.");
 
         int duracion = await ObtenerDuracionServicioAsync(cita.IdServicio.Value, ct);
 
@@ -1553,6 +1556,7 @@ public class CitaService : ICitaService
     {
         return estadoActual switch
         {
+            "solicitada" => "Una solicitud solo puede pasar a Programada o Confirmada. Para cancelar o rechazar la solicitud use la acción correspondiente.",
             "programada" => "Una cita programada solo puede pasar a Confirmada o En sala de espera. Para cancelar la cita use la función de cancelación.",
             "confirmada" => "Una cita confirmada solo puede pasar a En sala de espera o En consulta. Para cancelar la cita use la función de cancelación.",
             "en_sala_de_espera" => "Una cita en sala de espera solo puede pasar a En consulta. Para cancelar la cita use la función de cancelación.",

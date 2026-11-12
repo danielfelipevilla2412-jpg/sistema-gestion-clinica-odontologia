@@ -167,7 +167,9 @@ const submitAppointmentData = async (formData, formElement) => {
     } catch (error) {
         console.error('[SmileTrack][API] Error al crear cita:', error);
         if (error.name === 'AbortError') {
-            throw new Error('La solicitud tardó demasiado. Verifica tu conexión e inténtalo de nuevo.');
+            const timeoutError = new Error('No se recibió confirmación del servidor. Actualiza la agenda para verificar si la cita se guardó antes de volver a intentarlo.');
+            timeoutError.name = 'RequestTimeoutError';
+            throw timeoutError;
         }
         throw error;
     } finally {
@@ -316,8 +318,9 @@ const initializeNewAppointmentModal = () => {
     const saveButton = safeGetElement('modalNewApptSave');
     const formElement = safeGetElement('formNewAppointment');
     const statusSelect = formElement?.querySelector('#newApptStatus');
+    const formStatusElement = formElement?.querySelector('#modalNewApptStatus');
 
-    if (!fabButton || !modalOverlay || !formElement) {
+    if (!fabButton || !modalOverlay || !formElement || !saveButton) {
         console.warn('[SmileTrack][Agenda] No se pudieron encontrar elementos del modal de nueva cita');
         return;
     }
@@ -331,6 +334,13 @@ const initializeNewAppointmentModal = () => {
         return Number.isFinite(duration) && duration > 0 ? duration : 60;
     };
 
+    const setFormStatus = (message, isError = false) => {
+        if (!formStatusElement) return;
+        formStatusElement.textContent = message;
+        formStatusElement.hidden = !message;
+        formStatusElement.classList.toggle('form-error', Boolean(message) && isError);
+    };
+
     const syncEndTimeInputs = () => {
         const endInput = formElement.querySelector('#newApptEndTime');
         const startInput = formElement.querySelector('#newApptStartTime');
@@ -338,6 +348,7 @@ const initializeNewAppointmentModal = () => {
     };
 
     const openNewAppointmentModal = () => {
+        setFormStatus('');
         const detailModal = safeGetElement('modalAppointment');
         if (detailModal?.classList.contains('open')) {
             detailModal.classList.remove('open');
@@ -373,6 +384,7 @@ const initializeNewAppointmentModal = () => {
         document.body.classList.remove('modal-open');
         statusSelect?.querySelectorAll('[data-transient-status]').forEach(option => option.remove());
         formElement.reset();
+        setFormStatus('');
         if (lastFocusedElement instanceof HTMLElement) {
             lastFocusedElement.focus();
         } else {
@@ -447,6 +459,8 @@ const initializeNewAppointmentModal = () => {
         saveButton.disabled = true;
         const originalButtonText = saveButton.textContent;
         saveButton.textContent = 'Guardando...';
+        formElement.setAttribute('aria-busy', 'true');
+        setFormStatus('Enviando la cita al servidor...');
 
         try {
             const parseIntOrNull = (val) => {
@@ -469,9 +483,9 @@ const initializeNewAppointmentModal = () => {
             const derivedEndTime = calculateAppointmentEndTime(formDataPayload.HoraInicio, getConfiguredDuration());
 
             if (!formDataPayload.Fecha || !formDataPayload.HoraInicio || !formDataPayload.IdPaciente || !formDataPayload.IdProfesional || !formDataPayload.IdConsultorio || !formDataPayload.IdServicio) {
-                if (window.ToastService) window.ToastService.warning('⚠️ Completa todos los campos obligatorios antes de guardar la cita.');
-                saveButton.disabled = false;
-                saveButton.textContent = originalButtonText;
+                const message = 'Completa todos los campos obligatorios antes de guardar la cita.';
+                setFormStatus(message, true);
+                if (window.ToastService) window.ToastService.warning(`⚠️ ${message}`);
                 return;
             }
 
@@ -501,8 +515,7 @@ const initializeNewAppointmentModal = () => {
                     if (!validationErrors.some(e => e.field === 'general')) {
                         if (window.ToastService) window.ToastService.warning('⚠️ Verifique los campos resaltados en rojo');
                     }
-                    saveButton.disabled = false;
-                    saveButton.textContent = originalButtonText;
+                    setFormStatus('Corrige los campos indicados antes de enviar.', true);
                     return;
                 }
             }
@@ -532,13 +545,17 @@ const initializeNewAppointmentModal = () => {
                     isUpdateOperation ? '✅ Cita actualizada exitosamente' : '✅ Cita creada exitosamente'
                 );
             }
+            setFormStatus('');
             await loadWeekData(targetWeekStart, targetWeekStart !== currentWeekStart);
         } catch (error) {
             console.error('[SmileTrack][Agenda] Error al guardar cita:', error);
-            if (window.ToastService) window.ToastService.error(`❌ ${error.message || 'No fue posible guardar la cita. Intente nuevamente.'}`);
+            const message = error.message || 'No fue posible guardar la cita. Intenta nuevamente.';
+            setFormStatus(message, true);
+            if (window.ToastService) window.ToastService.error(`❌ ${message}`);
         } finally {
             saveButton.disabled = false;
             saveButton.textContent = originalButtonText;
+            formElement.removeAttribute('aria-busy');
         }
     };
 

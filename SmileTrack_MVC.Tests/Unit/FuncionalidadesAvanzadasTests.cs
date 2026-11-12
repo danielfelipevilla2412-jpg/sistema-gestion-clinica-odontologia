@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Services;
@@ -124,6 +125,53 @@ public class FuncionalidadesAvanzadasTests
         var notif = await db.Notificaciones.FirstOrDefaultAsync(n => n.IdPaciente == 1 && n.Tipo == "cambio_profesional");
         Assert.NotNull(notif);
         Assert.Contains("Sofía Vargas", notif.Contenido);
+    }
+
+    [Fact]
+    public async Task RegistrarAusenciaConReasignacionAsync_NoAsignaSustitutoFueraDeSuHorario()
+    {
+        var db = CreateInMemoryDb($"db_reasignar_fuera_horario_{Guid.NewGuid()}");
+        var citaService = new CitaService(db, NullLogger<CitaService>.Instance);
+        var lunes = ColombiaClock.Today.AddDays(1);
+        while (lunes.DayOfWeek != DayOfWeek.Monday)
+            lunes = lunes.AddDays(1);
+
+        var cita = await citaService.CrearAsync(new CitaApiRequest
+        {
+            IdPaciente = 1,
+            IdProfesional = 1,
+            IdServicio = 1,
+            IdConsultorio = 1,
+            FechaHora = lunes.AddHours(10),
+            Estado = "Programada"
+        });
+
+        var horariosSustituto = await db.HorariosProfesional
+            .Where(h => h.IdProfesional == 2)
+            .ToListAsync();
+        db.HorariosProfesional.RemoveRange(horariosSustituto);
+        db.HorariosProfesional.Add(new HorarioProfesional
+        {
+            IdProfesional = 2,
+            DiaSemana = "Lunes",
+            HoraInicio = new TimeOnly(12, 0),
+            HoraFin = new TimeOnly(18, 0),
+            Activo = true
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        var resultado = await service.RegistrarAusenciaConReasignacionAsync(
+            1,
+            lunes,
+            lunes.AddDays(1).AddTicks(-1),
+            "Incapacidad");
+
+        var citaActualizada = await db.Citas.SingleAsync(c => c.IdCita == cita.IdCita);
+        Assert.Equal(0, resultado.TotalReasignadas);
+        Assert.Equal(1, resultado.TotalCanceladas);
+        Assert.Equal(1, citaActualizada.IdProfesional);
+        Assert.Equal("Cancelada", citaActualizada.Estado);
     }
 
     [Fact]

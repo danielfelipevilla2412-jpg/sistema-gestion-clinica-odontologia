@@ -56,7 +56,8 @@ public sealed class CitasEnCursoBackgroundService : BackgroundService
                 .AsNoTracking()
                 .Where(c => c.FechaHora >= inicioDia &&
                             c.FechaHora <= ahora &&
-                            EstadosIniciables.Contains(c.Estado.Trim().ToLower()))
+                            EstadosIniciables.Contains(
+                                ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()))
                 .Select(c => c.IdCita)
                 .ToArrayAsync(ct);
 
