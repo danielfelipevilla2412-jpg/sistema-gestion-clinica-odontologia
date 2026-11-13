@@ -129,13 +129,13 @@ const procedureStorage = {
   key: `smiletrack_procedure_${window.smiletrackAsistenciaProcedData?.citaId || 'sin_cita'}`,
   
   load: () => {
-    const stored = localStorage.getItem(procedureStorage.key);
-    if (stored) {
-      try {
+    try {
+      const stored = localStorage.getItem(procedureStorage.key);
+      if (stored) {
         return JSON.parse(stored);
-      } catch (e) {
-        console.warn('Error al cargar estado del procedimiento, usando valores por defecto');
       }
+    } catch (e) {
+      console.warn('[SmileTrack] No se pudo leer el estado local del procedimiento:', e);
     }
     return {
       minutes: 0,

@@ -133,7 +133,12 @@ const fetchProfessionalsApi = async (queryParams = {}) => {
   if (queryParams.especialidad) urlParams.set('especialidad', queryParams.especialidad);
   if (queryParams.estado) urlParams.set('estado', queryParams.estado);
 
-  return await apiRequest(`${API_BASE_URL}?${urlParams.toString()}`);
+  const result = await apiRequest(`${API_BASE_URL}?${urlParams.toString()}`);
+  if (!result?.success || !Array.isArray(result.data) || !result.pagination) {
+    throw new Error(result?.message || 'La respuesta del servidor no contiene el listado de profesionales.');
+  }
+
+  return result;
 };
 
 /**
@@ -215,6 +220,14 @@ const renderSecondarySpecialtyOptions = (specialtyList) => {
   syncSecondarySpecialtyOptions();
 };
 
+const createSelectOption = (value, label, selected = false) => {
+  const option = document.createElement('option');
+  option.value = String(value ?? '');
+  option.textContent = String(label ?? '');
+  option.selected = selected;
+  return option;
+};
+
 const renderSelectedSpecialtyChips = () => {
   const chipsContainer = getElementByIdSafe('selectedSpecialtyChips');
   const primarySelect = document.querySelector('select[name="IdEspecialidad"]');
@@ -248,7 +261,10 @@ const renderSelectedSpecialtyChips = () => {
 const loadSpecialtiesCatalog = async () => {
   try {
     const apiResult = await apiRequest(`${API_BASE_URL}/especialidades`);
-    const specialtyList = apiResult.data || [];
+    if (!apiResult?.success || !Array.isArray(apiResult.data)) {
+      throw new Error(apiResult?.message || 'No se pudo cargar el catálogo de especialidades.');
+    }
+    const specialtyList = apiResult.data;
 
     const filterSelect = getElementByIdSafe('filterSpecialty');
     const formSelect = document.querySelector('select[name="IdEspecialidad"]');
@@ -256,18 +272,21 @@ const loadSpecialtiesCatalog = async () => {
 
     if (filterSelect) {
       const currentSelectedValue = filterSelect.value;
-      filterSelect.innerHTML = '<option value="">Todas las especialidades</option>' +
-        specialtyList.map(item => `<option value="${item.nombre}">${item.nombre}</option>`).join('');
+      filterSelect.replaceChildren(
+        createSelectOption('', 'Todas las especialidades'),
+        ...specialtyList.map(item => createSelectOption(item.nombre, item.nombre))
+      );
       filterSelect.value = currentSelectedValue;
     }
 
     if (formSelect) {
       const currentSelectedValue = formSelect.value;
-      const placeholderOption = formSelect.querySelector('option[value=""]')?.outerHTML
-        || '<option value="">Sin especialidad</option>';
-      formSelect.innerHTML = placeholderOption + specialtyList
-        .map(item => `<option value="${item.idEspecialidad}">${item.nombre}</option>`)
-        .join('');
+      const placeholderOption = formSelect.querySelector('option[value=""]')?.cloneNode(true)
+        || createSelectOption('', 'Sin especialidad');
+      formSelect.replaceChildren(
+        placeholderOption,
+        ...specialtyList.map(item => createSelectOption(item.idEspecialidad, item.nombre))
+      );
       formSelect.value = currentSelectedValue;
       formSelect.onchange = syncSecondarySpecialtyOptions;
     }
@@ -276,18 +295,18 @@ const loadSpecialtiesCatalog = async () => {
       const currentSelectedValues = new Set(
         Array.from(secondarySpecialtiesSelect.selectedOptions, option => option.value)
       );
-      secondarySpecialtiesSelect.innerHTML = specialtyList
-        .map(item => `<option value="${item.idEspecialidad}">${item.nombre}</option>`)
-        .join('');
-      Array.from(secondarySpecialtiesSelect.options).forEach(option => {
-        option.selected = currentSelectedValues.has(option.value);
-      });
+      secondarySpecialtiesSelect.replaceChildren(
+        ...specialtyList.map(item =>
+          createSelectOption(item.idEspecialidad, item.nombre, currentSelectedValues.has(String(item.idEspecialidad)))
+        )
+      );
       secondarySpecialtiesSelect.addEventListener('change', renderSelectedSpecialtyChips);
       renderSecondarySpecialtyOptions(specialtyList);
     }
     syncSecondarySpecialtyOptions();
   } catch (error) {
     console.error('Error al cargar especialidades', error);
+    window.ToastService?.error?.(`No fue posible cargar las especialidades: ${error.message}`);
   }
 };
 
@@ -304,14 +323,17 @@ const loadProfessionalSchedule = async (professionalId) => {
 
   try {
     const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/horarios`);
-    professionalScheduleRecords = apiResult?.data || [];
+    if (!apiResult?.success || !Array.isArray(apiResult.data)) {
+      throw new Error(apiResult?.message || 'No se recibió una respuesta válida de horarios.');
+    }
+    professionalScheduleRecords = apiResult.data;
     renderScheduleDays();
   } catch (error) {
     professionalScheduleRecords = [];
     renderScheduleDays();
     if (statusMessageLabel) {
-      statusMessageLabel.style.color = 'var(--text-muted)';
-      statusMessageLabel.textContent = 'ℹ️ Sin horario personalizado (aplica horario general de la clínica).';
+      statusMessageLabel.style.color = 'var(--danger, #dc2626)';
+      statusMessageLabel.textContent = `No se pudieron cargar los horarios: ${error.message}. Un profesional sin horario registrado no recibirá citas.`;
     }
   } finally {
     if (loadingIndicator) loadingIndicator.textContent = '';
@@ -328,7 +350,10 @@ const loadProfessionalAbsences = async (professionalId) => {
   if (loadingIndicator) loadingIndicator.textContent = 'Cargando ausencias...';
   try {
     const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias`);
-    professionalAbsenceRecords = apiResult?.data || [];
+    if (!apiResult?.success || !Array.isArray(apiResult.data)) {
+      throw new Error(apiResult?.message || 'No se recibió una respuesta válida de ausencias.');
+    }
+    professionalAbsenceRecords = apiResult.data;
     renderAbsences();
   } catch (error) {
     professionalAbsenceRecords = [];
@@ -349,10 +374,17 @@ const loadProfessionalAbsences = async (professionalId) => {
  * @returns {HTMLTableRowElement}
  */
 const createProfessionalTableRow = (professionalRecord) => {
-  const escapeHtmlUtil = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml || ((str) => str);
+  const escapeHtmlUtil = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml
+    || ((value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    })[character]));
   const tableRow = document.createElement('tr');
   tableRow.setAttribute('role', 'row');
 
+  const professionalId = Number(professionalRecord.idProfesional);
+  const professionalIdAttribute = Number.isSafeInteger(professionalId) && professionalId > 0
+    ? String(professionalId)
+    : '';
   const fullName = `${escapeHtmlUtil(professionalRecord.nombres)} ${escapeHtmlUtil(professionalRecord.apellidos)}`.trim();
   const primarySpecialty = professionalRecord.especialidades && professionalRecord.especialidades.length > 0
     ? escapeHtmlUtil(professionalRecord.especialidades[0].nombre)
@@ -364,7 +396,7 @@ const createProfessionalTableRow = (professionalRecord) => {
 
   const initialFirst = professionalRecord.nombres ? professionalRecord.nombres.charAt(0).toUpperCase() : '';
   const initialLast = professionalRecord.apellidos ? professionalRecord.apellidos.charAt(0).toUpperCase() : '';
-  const initialsText = `${initialFirst}${initialLast}`;
+  const initialsText = escapeHtmlUtil(`${initialFirst}${initialLast}`);
 
   const phoneText = escapeHtmlUtil(professionalRecord.telefono);
   const statusText = escapeHtmlUtil(professionalRecord.estado);
@@ -385,7 +417,7 @@ const createProfessionalTableRow = (professionalRecord) => {
       <div class="actions-cell">
         <button class="btn-secondary action-btn btn-view view"
                 type="button"
-                data-id="${professionalRecord.idProfesional}"
+                data-id="${professionalIdAttribute}"
                 data-name="${fullName}"
                 data-initials="${initialsText}"
                 data-specialty="${primarySpecialty}"
@@ -400,14 +432,14 @@ const createProfessionalTableRow = (professionalRecord) => {
         </button>
         <button class="btn-secondary action-btn edit"
                 type="button"
+                data-id="${professionalIdAttribute}"
                 aria-label="Editar el profesional ${fullName}"
-                title="Editar profesional ${fullName}"
-                onclick="editProfessional(${professionalRecord.idProfesional})">
+                title="Editar profesional ${fullName}">
           <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
         </button>
         <button class="${isProfessionalActive ? 'btn-danger' : 'btn-success'} action-btn btn-delete toggle"
                 type="button"
-                data-id="${professionalRecord.idProfesional}"
+                data-id="${professionalIdAttribute}"
                 data-name="${fullName}"
                 data-estado="${statusText || 'inactivo'}"
                 aria-label="${isProfessionalActive ? 'Desactivar' : 'Reactivar'} el profesional ${fullName}"
@@ -417,18 +449,6 @@ const createProfessionalTableRow = (professionalRecord) => {
       </div>
     </td>
   `;
-
-  // Listener para el botón Ver Detalle
-  const viewButton = tableRow.querySelector('.btn-view');
-  viewButton?.addEventListener('click', () => {
-    openProfessionalDetailView(viewButton, avatarBgColor, statusBadgeClass);
-  });
-
-  // Listener para el botón Desactivar / Reactivar
-  const deleteButton = tableRow.querySelector('.btn-delete');
-  deleteButton?.addEventListener('click', () => {
-    openConfirmToggleEstadoModal(professionalRecord.idProfesional, fullName, deleteButton.dataset.estado || 'activo');
-  });
 
   return tableRow;
 };
@@ -627,14 +647,21 @@ const renderAbsences = () => {
     return;
   }
 
-  const escapeHtmlUtil = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml || ((str) => str);
-
   professionalAbsenceRecords.forEach((absenceItem) => {
     const absenceItemCard = document.createElement('div');
     absenceItemCard.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--border-color,#e5e7eb);padding:10px;border-radius:6px;';
     
     const detailsContainer = document.createElement('div');
-    detailsContainer.innerHTML = `<strong>${escapeHtmlUtil(absenceItem.tipo || 'Ausencia')}</strong><br><small>${escapeHtmlUtil(absenceItem.fechaInicio)} a ${escapeHtmlUtil(absenceItem.fechaFin)}</small>${absenceItem.observaciones ? `<br><small>${escapeHtmlUtil(absenceItem.observaciones)}</small>` : ''}`;
+    const typeLabel = document.createElement('strong');
+    typeLabel.textContent = absenceItem.tipo || 'Ausencia';
+    const dateLabel = document.createElement('small');
+    dateLabel.textContent = `${absenceItem.fechaInicio} a ${absenceItem.fechaFin}`;
+    detailsContainer.append(typeLabel, document.createElement('br'), dateLabel);
+    if (absenceItem.observaciones) {
+      const observations = document.createElement('small');
+      observations.textContent = absenceItem.observaciones;
+      detailsContainer.append(document.createElement('br'), observations);
+    }
     
     const actionButtonsContainer = document.createElement('div');
     const editAbsenceButton = document.createElement('button');
@@ -665,6 +692,9 @@ const renderAbsences = () => {
         onConfirm: async () => {
           try {
             const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceItem.idAusencia}`, { method: 'DELETE' });
+            if (!apiResult?.success) {
+              throw new Error(apiResult?.message || 'El servidor no pudo eliminar la ausencia.');
+            }
             window.ToastService?.success(apiResult.message || 'Ausencia eliminada.');
             await loadProfessionalAbsences(detailProfessionalId);
           } catch (error) {
@@ -1561,8 +1591,17 @@ const initModals = () => {
       openProfessionalDetailView(viewButton, getAvatarColorBySpecialty(viewButton.dataset.specialty || ''), getStatusBadgeClass(viewButton.dataset.status || ''));
       resetModalTabs();
       resetAbsenceForm();
-      loadProfessionalSchedule(Number(viewButton.dataset.id));
-      loadProfessionalAbsences(Number(viewButton.dataset.id));
+      const professionalId = Number(viewButton.dataset.id);
+      loadProfessionalSchedule(professionalId);
+      loadProfessionalAbsences(professionalId);
+    }
+  });
+
+  tableBody?.addEventListener('click', (e) => {
+    const editButton = e.target.closest('.action-btn.edit[data-id]');
+    const professionalId = Number(editButton?.dataset.id);
+    if (Number.isSafeInteger(professionalId) && professionalId > 0) {
+      window.editProfessional(professionalId);
     }
   });
 

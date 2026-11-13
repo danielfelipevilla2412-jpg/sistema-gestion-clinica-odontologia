@@ -96,7 +96,19 @@ function displayUserErrorMessage(message) {
         errorBar.setAttribute('role', 'alert');
         document.body.appendChild(errorBar);
     }
-    errorBar.innerHTML = `<strong>[SmileTrack]</strong> ${message} <button onclick="document.getElementById('smiletrack-error-bar').style.display='none'" style="margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;">×</button>`;
+    const prefix = document.createElement('strong');
+    prefix.textContent = '[SmileTrack] ';
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.textContent = '×';
+    closeButton.setAttribute('aria-label', 'Cerrar mensaje de error');
+    closeButton.style.cssText = 'margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;';
+    closeButton.addEventListener('click', () => {
+        errorBar.style.display = 'none';
+    });
+
+    errorBar.replaceChildren(prefix, document.createTextNode(String(message ?? '')), closeButton);
     errorBar.style.display = 'block';
 }
 
@@ -237,12 +249,7 @@ async function fetchAppointmentsFromApi() {
         return data;
     } catch (error) {
         console.warn('[SmileTrack] No se pudo cargar citas desde /api/citas:', error);
-        appointmentsList = [];
-        const tableBody = safeGetElement('citasBody');
-        if (tableBody) {
-            tableBody.innerHTML = '<div class="empty-state" role="status">No hay citas para los filtros actuales</div>';
-        }
-        return [];
+        throw error;
     }
 }
 

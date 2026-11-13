@@ -34,6 +34,13 @@
   var resultPageSize = pageResult?.PageSize ?? 10;
   var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
   var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
+  var estadoFilterNormalized = SmileTrack_MVC.Helpers.EstadoCitaHelper.Normalize(ViewData["EstadoFilter"]?.ToString());
+  var activeTab = estadoFilterNormalized switch
+  {
+    "cancelada" => "cancelled",
+    "no_asistida" => "no-show",
+    _ => string.IsNullOrWhiteSpace(estadoFilterNormalized) ? "all" : ""
+  };
   var editingCita = ViewData["EditingCita"] as SmileTrack_MVC.Models.Entities.Cita;
   var isEditing = editingCita != null;
 
@@ -110,15 +117,15 @@
 
     <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
     <div class="table-tabs" role="group" aria-label="Filtrar citas por estado">
-      <button type="button" class="tab-btn active" aria-pressed="true" data-tab="all" id="tab-all">
+      <button type="button" class="tab-btn @(activeTab == "all" ? "active" : "")" aria-pressed="@(activeTab == "all" ? "true" : "false")" data-tab="all" id="tab-all">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_note</span>
         Todas las citas
       </button>
-      <button type="button" class="tab-btn" aria-pressed="false" data-tab="cancelled" id="tab-cancelled">
+      <button type="button" class="tab-btn @(activeTab == "cancelled" ? "active" : "")" aria-pressed="@(activeTab == "cancelled" ? "true" : "false")" data-tab="cancelled" id="tab-cancelled">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
         Cancelaciones
       </button>
-      <button type="button" class="tab-btn" aria-pressed="false" data-tab="no-show" id="tab-no-show">
+      <button type="button" class="tab-btn @(activeTab == "no-show" ? "active" : "")" aria-pressed="@(activeTab == "no-show" ? "true" : "false")" data-tab="no-show" id="tab-no-show">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_busy</span>
         No asistió
       </button>
@@ -218,6 +225,8 @@
             {
               var citaFecha = cita.Fecha.ToString("dd/MM/yyyy");
               var citaHora = cita.HoraInicio?.ToString("hh\\:mm") ?? "—";
+              var citaFechaIso = cita.FechaHora.ToString("yyyy-MM-dd");
+              var citaHoraIso = cita.FechaHora.ToString("HH:mm");
               var citaPaciente = cita.Paciente?.NombresCompleto ?? "—";
               var citaProfesional = cita.Profesional?.NombreProfesional ?? "—";
               var citaServicio = cita.MotivoConsulta ?? "—";
@@ -273,16 +282,24 @@
                             class="action-btn btn-secondary btn-view"
                             data-action="view"
                             data-id="@cita.IdCita"
-                            aria-label="Ver detalles de la cita de @Html.Encode(citaPaciente)"
-                            title="Ver detalles de la cita de @Html.Encode(citaPaciente)"
-                            data-fecha="@Html.Encode(citaFecha)"
-                            data-hora="@Html.Encode(citaHora)"
-                            data-paciente="@Html.Encode(citaPaciente)"
-                            data-profesional="@Html.Encode(citaProfesional)"
-                            data-servicio="@Html.Encode(citaServicio)"
-                            data-consultorio="@Html.Encode(citaConsultorio)"
-                            data-estado="@Html.Encode(citaEstado)"
-                            data-notas="@Html.Encode(citaNotas)">
+                            aria-label="Ver detalles de la cita de @citaPaciente"
+                            title="Ver detalles de la cita de @citaPaciente"
+                            data-fecha="@citaFecha"
+                            data-hora="@citaHora"
+                            data-paciente="@citaPaciente"
+                            data-profesional="@citaProfesional"
+                            data-servicio="@citaServicio"
+                            data-consultorio="@citaConsultorio"
+                            data-estado="@citaEstado"
+                            data-notas="@citaNotas"
+                            data-paciente-id="@cita.IdPaciente"
+                            data-profesional-id="@cita.IdProfesional"
+                            data-servicio-id="@cita.IdServicio"
+                            data-consultorio-id="@cita.IdConsultorio"
+                            data-estado-id="@cita.IdEstado"
+                            data-fecha-iso="@citaFechaIso"
+                            data-hora-iso="@citaHoraIso"
+                            data-duracion-minutos="@cita.DuracionMinutos">
                       <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
                       <span class="btn-text">Ver</span>
                     </button>
@@ -290,8 +307,22 @@
                             class="action-btn btn-secondary btn-edit edit"
                             data-action="edit"
                             data-id="@cita.IdCita"
-                            aria-label="Editar la cita de @Html.Encode(citaPaciente)"
-                            title="Editar la cita de @Html.Encode(citaPaciente)">
+                            aria-label="Editar la cita de @citaPaciente"
+                            title="Editar la cita de @citaPaciente"
+                            data-paciente="@citaPaciente"
+                            data-profesional="@citaProfesional"
+                            data-servicio="@citaServicio"
+                            data-consultorio="@citaConsultorio"
+                            data-estado="@citaEstado"
+                            data-notas="@citaNotas"
+                            data-paciente-id="@cita.IdPaciente"
+                            data-profesional-id="@cita.IdProfesional"
+                            data-servicio-id="@cita.IdServicio"
+                            data-consultorio-id="@cita.IdConsultorio"
+                            data-estado-id="@cita.IdEstado"
+                            data-fecha-iso="@citaFechaIso"
+                            data-hora-iso="@citaHoraIso"
+                            data-duracion-minutos="@cita.DuracionMinutos">
                       <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
                       <span class="btn-text">Editar</span>
                     </button>
@@ -628,88 +659,6 @@
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     // Accordion y hamburger manejados por ~/js/shared/sidebar.js
-
-    // ═══ MODAL VER DETALLES: poblar desde data attributes del botón 👁️ ═══
-    const modalView = document.getElementById('modalViewAppointment');
-    const modalViewContent = document.getElementById('modalViewContent');
-    document.querySelectorAll('.btn-view').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const html = `
-          <div style="display:grid; gap:12px; font-size:0.95rem;">
-            <div style="display:flex; justify-content:space-between; gap:12px;">
-              <strong style="color:var(--text-muted); min-width:110px;">Fecha:</strong>
-              <span>${btn.dataset.fecha ?? '—'}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; gap:12px;">
-              <strong style="color:var(--text-muted); min-width:110px;">Hora:</strong>
-              <span>${btn.dataset.hora ?? '—'}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; gap:12px;">
-              <strong style="color:var(--text-muted); min-width:110px;">Paciente:</strong>
-              <span>${btn.dataset.paciente ?? '—'}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; gap:12px;">
-              <strong style="color:var(--text-muted); min-width:110px;">Profesional:</strong>
-              <span>${btn.dataset.profesional ?? '—'}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; gap:12px;">
-              <strong style="color:var(--text-muted); min-width:110px;">Servicio:</strong>
-              <span>${btn.dataset.servicio ?? '—'}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; gap:12px;">
-              <strong style="color:var(--text-muted); min-width:110px;">Consultorio:</strong>
-              <span>${btn.dataset.consultorio ?? '—'}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; gap:12px;">
-              <strong style="color:var(--text-muted); min-width:110px;">Estado:</strong>
-              <span>${btn.dataset.estado ?? '—'}</span>
-            </div>
-            ${(btn.dataset.notas && btn.dataset.notas.length > 0) ? `
-            <div style="margin-top:8px; padding:12px; background:var(--bg-soft); border-radius:8px;">
-              <strong style="color:var(--text-muted); display:block; margin-bottom:4px;">Notas:</strong>
-              <span>${btn.dataset.notas}</span>
-            </div>` : ''}
-          </div>`;
-        if (modalViewContent) modalViewContent.innerHTML = html;
-        if (modalView) {
-          modalView.classList.add('open');
-          modalView.setAttribute('aria-hidden', 'false');
-          modalView.removeAttribute('inert');
-          document.body.style.overflow = 'hidden';
-        }
-      });
-    });
-
-    // Cerrar modal ver detalles al hacer click fuera
-    if (modalView) {
-      modalView.addEventListener('click', function handler(e) {
-        if (e.target === modalView) {
-          modalView.classList.remove('open');
-          modalView.setAttribute('aria-hidden', 'true');
-          modalView.setAttribute('inert', '');
-          document.body.style.overflow = '';
-        }
-      });
-    }
-
-    // Botón "Editar cita" dentro de Ver Detalles
-    const modalViewEditBtn = document.getElementById('modalViewEdit');
-    if (modalViewEditBtn) {
-      modalViewEditBtn.addEventListener('click', () => {
-        if (modalView) {
-          modalView.classList.remove('open');
-          modalView.setAttribute('aria-hidden', 'true');
-          modalView.setAttribute('inert', '');
-        }
-        const modalEdit = document.getElementById('modalEditAppointment');
-        if (modalEdit) {
-          modalEdit.classList.add('open');
-          modalEdit.setAttribute('aria-hidden', 'false');
-          modalEdit.removeAttribute('inert');
-          document.body.style.overflow = 'hidden';
-        }
-      });
-    }
 
     // ═══ AUTO-ABRIR MODAL DE EDICIÓN SI editingCita != null ═══
     const isEditingCita = '@(isEditing ? "true" : "false")' === 'true';

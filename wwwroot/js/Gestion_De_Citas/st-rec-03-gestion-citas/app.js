@@ -450,18 +450,46 @@ const handleTableAction = async (e) => {
   e.preventDefault();
   e.stopPropagation();
   const { action, id } = btn.dataset;
+  const appointment = appointmentStorage.findById(id) || appointmentFromTableButton(btn);
+  if (!appointment) {
+    showToast('No fue posible cargar los datos de esta cita. Recarga la página e inténtalo de nuevo.', 'error');
+    return;
+  }
 
-  if (action === 'view')   return openViewModal(id);
-  if (action === 'edit')   return openEditModal(id, btn.dataset);
+  if (action === 'view')   return openViewModal(id, appointment);
+  if (action === 'edit')   return openEditModal(id, appointment);
   if (action === 'cancel') return openCancelModal(id);
+};
+
+const appointmentFromTableButton = (button) => {
+  const data = button.dataset;
+  const id = Number(data.id);
+  if (!Number.isInteger(id) || id <= 0 || !data.fechaIso || !data.horaIso) return null;
+
+  return mapServerToClient({
+    IdCita: id,
+    IdPaciente: Number(data.pacienteId) || 0,
+    IdProfesional: Number(data.profesionalId) || null,
+    IdServicio: Number(data.servicioId) || null,
+    IdConsultorio: Number(data.consultorioId) || null,
+    IdEstado: Number(data.estadoId) || null,
+    FechaHora: `${data.fechaIso}T${data.horaIso}:00`,
+    Estado: data.estado || '',
+    Notas: data.notas || '',
+    DuracionMinutos: Number(data.duracionMinutos) || null,
+    Paciente: { NombreCompleto: data.paciente || '—' },
+    Profesional: { NombreCompleto: data.profesional || '—' },
+    Servicio: { Nombre: data.servicio || '—' },
+    Consultorio: { Nombre: data.consultorio || '—' }
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
 //  MODAL VER DETALLE
 // ═══════════════════════════════════════════════════════════════════
 
-const openViewModal = (id) => {
-  const a = appointmentStorage.findById(id);
+const openViewModal = (id, appointment = appointmentStorage.findById(id)) => {
+  const a = appointment;
   if (!a) return;
   const content = safeGetElement('modalViewContent');
   if (content) {
@@ -480,7 +508,7 @@ const openViewModal = (id) => {
   if (editBtn) {
     const fresh = editBtn.cloneNode(true);
     editBtn.replaceWith(fresh);
-    fresh.addEventListener('click', () => { modalManager.close('modalViewAppointment'); openEditModal(id); });
+    fresh.addEventListener('click', () => { modalManager.close('modalViewAppointment'); openEditModal(id, a); });
   }
   modalManager.open('modalViewAppointment');
 };
@@ -489,8 +517,8 @@ const openViewModal = (id) => {
 //  MODAL EDITAR CITA (con PUT API)
 // ═══════════════════════════════════════════════════════════════════
 
-const openEditModal = (id) => {
-  const a = appointmentStorage.findById(id);
+const openEditModal = (id, appointment = appointmentStorage.findById(id)) => {
+  const a = appointment;
   if (!a) return;
 
   const raw = a._raw || {};
@@ -1035,20 +1063,48 @@ const init = async () => {
           updateMetrics();
         });
       });
-      const tbody = safeGetElement('appointmentsTable');
-      if (tbody) {
-        tbody.addEventListener('click', handleTableAction);
-        tbody.addEventListener('keydown', (e) => {
-          if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-action]')) {
-            e.preventDefault(); e.target.click();
-          }
-        });
-      }
     } else {
       await fetchSolicitudesPendientes();
       await fetchConfiguredDuration();
       // Modo SSR: animar los KPI renderizados por Razor con data-target
       initServerMetrics();
+
+      const statusSelect = safeGetElement('filterStatus');
+      const statusTabs = Array.from(document.querySelectorAll('.table-tabs [data-tab]'));
+      const statusForm = statusSelect?.form;
+      const selectedStatus = (statusSelect?.value || '').trim().toLowerCase();
+      const activeTab = selectedStatus === 'cancelada'
+        ? 'cancelled'
+        : selectedStatus === 'no_asistida' ? 'no-show'
+          : selectedStatus ? null : 'all';
+
+      statusTabs.forEach(tab => {
+        const active = tab.dataset.tab === activeTab;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-pressed', String(active));
+        tab.addEventListener('click', () => {
+          if (!statusSelect || !statusForm) return;
+          statusSelect.value = tab.dataset.tab === 'cancelled'
+            ? 'cancelada'
+            : tab.dataset.tab === 'no-show' ? 'no_asistida' : '';
+          statusForm.requestSubmit();
+        });
+      });
+    }
+
+    const tbody = safeGetElement('appointmentsTable');
+    if (tbody) {
+      tbody.addEventListener('click', (event) => {
+        const actionButton = event.target.closest('[data-action]');
+        if (useSSR && actionButton?.dataset.action === 'cancel') return;
+        handleTableAction(event);
+      });
+      tbody.addEventListener('keydown', (event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && event.target.closest('[data-action]')) {
+          event.preventDefault();
+          event.target.click();
+        }
+      });
     }
   } catch (err) {
     console.error('[SmileTrack] Error init app.js (recepcionista):', err);
