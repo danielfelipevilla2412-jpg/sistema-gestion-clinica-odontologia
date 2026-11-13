@@ -686,3 +686,28 @@
   outline: 2px solid var(--primary, #005ea4);
   outline-offset: 2px;
 }
+
+/* Keep the admin page header aligned with the admin sidebar across modules. */
+body:has(#sidebar[data-sidebar-role="admin"]) .page-header {
+  background: linear-gradient(180deg, #18284f 0%, #263d73 100%);
+  border-color: rgba(255, 255, 255, .1);
+  color: #c8d3e8;
+}
+
+body:has(#sidebar[data-sidebar-role="admin"]) .page-header h1,
+body:has(#sidebar[data-sidebar-role="admin"]) .page-header .page-title {
+  color: #fff;
+}
+
+body:has(#sidebar[data-sidebar-role="admin"]) .page-header .breadcrumb,
+body:has(#sidebar[data-sidebar-role="admin"]) .page-header .page-subtitle {
+  color: #c8d3e8;
+}
+
+body:has(#sidebar[data-sidebar-role="admin"]) .page-header .bc-active {
+  color: #93c5fd;
+}
+
+body:has(#sidebar[data-sidebar-role="admin"]) .page-header .bc-sep {
+  color: #aab9d4;
+}
