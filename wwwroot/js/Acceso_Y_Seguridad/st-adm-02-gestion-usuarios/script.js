@@ -1008,8 +1008,8 @@ const renderTable = (data) => {
 
           <button class="btn-icon lock"
             title="${blocked ? 'Desbloquear usuario' : 'Bloquear usuario'}"
-            onclick="toggleBlock(${u.id})">
-            ${blocked ? '🔒' : '🔓'}   // correcto
+            onclick="window.toggleBlock(${u.id})">
+            ${blocked ? '🔒' : '🔓'}
           </button>
 
         </div>
@@ -1358,10 +1358,6 @@ window.toggleStatus = async (id) => {
       );
 
     user.status = mapApiUser(response.data).status;
-      
-
-    user.status =
-      response.data.status;
 
     updateStats();
     renderTable(users);
@@ -1375,6 +1371,42 @@ window.toggleStatus = async (id) => {
       error.message,
       'error'
     );
+  }
+};
+
+/* ================================================================
+   BLOQUEAR / DESBLOQUEAR USUARIO
+   Alterna el estado de un usuario entre 'activo' y 'bloqueado'.
+   Expuesto en window para ser llamado desde los botones inline del HTML
+   generado dinámicamente en renderTable().
+================================================================ */
+
+window.toggleBlock = async (id) => {
+  const user = users.find((u) => u.id === id);
+  if (!user) return;
+
+  const currentStatus = normalizeStatus(user.status);
+  const isBlocked = currentStatus === 'Bloqueado';
+  const nextEstado = isBlocked ? 'activo' : 'bloqueado';
+
+  try {
+    const response = await apiFetch(
+      `${API_BASE}/${id}/estado`,
+      { method: 'PATCH', body: { estado: nextEstado } }
+    );
+
+    // Actualizar el estado local desde la respuesta mapeada
+    user.status = mapApiUser(response.data).status;
+
+    updateStats();
+    renderTable(users);
+
+    showToast(
+      response.message ||
+      (isBlocked ? 'Usuario desbloqueado.' : 'Usuario bloqueado.')
+    );
+  } catch (error) {
+    showToast(error.message || 'No se pudo cambiar el estado del usuario.', 'error');
   }
 };
 

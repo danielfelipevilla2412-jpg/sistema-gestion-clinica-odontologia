@@ -43,7 +43,7 @@
       </div>
       @if (perfilPacienteCompleto)
       {
-        <button class="btn-primary" id="btnNuevaCita" aria-label="Solicitar nueva cita" data-i18n="citas.new">+ Solicitar cita</button>
+        <button class="btn-primary" id="btnNuevaCita" aria-label="Agendar nueva cita" data-i18n="citas.new">+ Nueva cita</button>
       }
     </header>
     @if (!perfilPacienteCompleto)
@@ -198,33 +198,50 @@
     </div>
   </div>
 
-  <!-- MODAL: formulario para solicitar una nueva cita (fecha, servicio y notas) -->
+  <!-- MODAL: formulario para agendar una nueva cita (fecha, servicio, profesional y horario) -->
   <!-- BUG FIX accesibilidad: mismo patrón inert -->
   <div class="modal-overlay" id="modalNuevaCita" role="dialog" aria-modal="true"
        aria-labelledby="nuevaCitaTitle" aria-hidden="true" inert>
     <div class="modal">
       <button class="modal-close" id="closeNuevaCita" aria-label="Cerrar" data-i18n-aria-label="common.close"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
-      <h2 class="modal-title" id="nuevaCitaTitle" data-i18n="citas.modal_new_title">Solicitar nueva cita</h2>
-      <!-- Campos del formulario: fecha preferida, tipo de servicio y notas adicionales -->
+      <h2 class="modal-title" id="nuevaCitaTitle">Agendar nueva cita</h2>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label" for="citaFecha" data-i18n="citas.form_preferred_date">Fecha preferida</label>
-          <input type="date" class="form-input" id="citaFecha" />
+          <label class="form-label" for="citaFecha">Fecha</label>
+          <input type="date" class="form-input" id="citaFecha"
+                 min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")"
+                 data-min-date="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")"
+                 data-open-days="1,2,3,4,5,6" required />
         </div>
         <div class="form-group">
-          <label class="form-label" for="citaServicio" data-i18n="citas.form_service_type">Tipo de servicio</label>
-          <select class="form-input" id="citaServicio">
+          <label class="form-label" for="citaServicio">Servicio</label>
+          <select class="form-input" id="citaServicio" required>
             <option value="" data-i18n="citas.loading_services">Cargando servicios...</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="citaNota" data-i18n="citas.form_notes">Notas adicionales</label>
+          <label class="form-label" for="citaProfesional">Profesional</label>
+          <select class="form-input" id="citaProfesional" required disabled>
+            <option value="">Selecciona fecha y servicio primero</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="citaHora">Horario disponible recomendado</label>
+          <select class="form-input" id="citaHora" required disabled>
+            <option value="">Selecciona un profesional primero</option>
+          </select>
+          <small id="citaDisponibilidadAyuda" aria-live="polite">
+            Elige una fecha, servicio y profesional para consultar horarios disponibles.
+          </small>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="citaNota">Notas adicionales</label>
           <textarea class="form-input" id="citaNota" rows="3" placeholder="Describe tu motivo..." data-i18n-ph="citas.form_notes_ph"></textarea>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" id="cancelarNuevaCita" data-i18n="common.cancel">Cancelar</button>
-        <button class="btn-primary" id="confirmarNuevaCita" data-i18n="citas.btn_request">Solicitar</button>
+        <button class="btn-primary" id="confirmarNuevaCita">Agendar cita</button>
       </div>
     </div>
   </div>

@@ -681,6 +681,54 @@ public sealed class ProfesionalServiceTests
     }
 
     [Fact]
+    public async Task ActualizarAsync_ProfesionalSinCuentaActualizaSoloElPerfil()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Especialidades.Add(new Especialidad { IdEspecialidad = 1, Nombre = "Endodoncia" });
+        db.Profesionales.Add(new Profesional
+        {
+            IdProfesional = 7,
+            Nombres = "Carlos",
+            Apellidos = "Ruiz",
+            RegistroMedico = "RM-LEG-001",
+            Estado = "activo",
+            CredencialesAprobadas = false
+        });
+        db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+        {
+            IdProfesional = 7,
+            IdEspecialidad = 1,
+            Principal = true
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        var result = await service.ActualizarAsync(
+            7,
+            new ProfesionalApiRequest
+            {
+                Nombres = "Carlos Andrés",
+                Apellidos = "Ruiz",
+                RegistroMedico = "RM-LEG-001",
+                Categoria = "Endodoncia",
+                Estado = "activo",
+                IdEspecialidad = 1
+            },
+            operadorId: null,
+            ipOrigen: "127.0.0.1");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("no tiene una cuenta", result.Message, StringComparison.OrdinalIgnoreCase);
+        var profesional = await db.Profesionales.SingleAsync();
+        Assert.Equal("Carlos Andrés", profesional.Nombres);
+        Assert.Null(profesional.IdUsuario);
+        Assert.False(profesional.CredencialesAprobadas);
+        Assert.Empty(await db.Usuarios.ToListAsync());
+    }
+
+    [Fact]
     public async Task RegistrarAusenciaConReasignacionAsync_CubreCrucesDeFechaEnCitasYAusencias()
     {
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()

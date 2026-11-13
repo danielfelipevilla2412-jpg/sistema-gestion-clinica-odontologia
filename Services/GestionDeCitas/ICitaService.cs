@@ -77,19 +77,27 @@ public interface ICitaService
         TimeSpan? anticipacionMinima = null,
         CancellationToken ct = default);
 
-    /// <summary>
-    /// Registra una nueva solicitud de cita enviada directamente por un paciente.
-    /// Queda en estado 'Solicitada' y no requiere profesional ni consultorio inmediato,
-    /// para que el recepcionista pueda revisarla, asignarle profesional disponible y confirmarla.
-    /// </summary>
-    Task<Cita> SolicitarCitaPacienteAsync(
+    /// <summary>Reserva una cita programada a partir del horario y profesional elegidos por el paciente.</summary>
+    Task<Cita> AgendarCitaPacienteAsync(
         int idPaciente,
         CitaSolicitudPacienteDto dto,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Devuelve las solicitudes pendientes de confirmación por parte de la recepción.
+    /// Devuelve horas disponibles para el paciente, profesional, servicio y fecha seleccionados.
     /// </summary>
+    Task<List<TimeSpan>> ObtenerHorariosDisponiblesPacienteAsync(
+        int idPaciente,
+        int idServicio,
+        int idProfesional,
+        DateTime fecha,
+        CancellationToken ct = default);
+
+    Task<List<ProfesionalDisponibleDto>> ObtenerProfesionalesPorServicioAsync(
+        int idServicio,
+        CancellationToken ct = default);
+
+    /// <summary>Devuelve solicitudes antiguas que aún requieren resolución durante la transición.</summary>
     Task<List<Cita>> ObtenerSolicitudesPendientesAsync(
         CancellationToken ct = default);
 

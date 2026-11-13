@@ -102,7 +102,7 @@
       </div>
     </section>
 
-    <section class="queue-panel card" aria-labelledby="pendingRequestsTitle">
+    <section class="queue-panel card" id="pendingRequestsPanel" aria-labelledby="pendingRequestsTitle">
       <div class="queue-header">
         <div>
           <p class="queue-kicker">Cola de atención</p>
@@ -433,8 +433,8 @@
           <div class="form-group">
             <label class="form-label" for="newDate">Fecha <span class="required" aria-hidden="true">*</span></label>
             <input type="date" id="newDate" name="Fecha" class="form-input" required aria-required="true" aria-describedby="error-newDate"
-              min="@DateTime.Today.ToString("yyyy-MM-dd")"
-              value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+              min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")"
+              value="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" />
             <span class="error-message" id="error-newDate" role="alert">Por favor selecciona una fecha válida</span>
           </div>
           <div class="form-group">
@@ -533,8 +533,8 @@
           <div class="form-group">
             <label class="form-label" for="editDate">Fecha <span class="required" aria-hidden="true">*</span></label>
             <input type="date" id="editDate" name="Fecha" class="form-input" required aria-required="true" aria-describedby="error-editDate"
-              min="@DateTime.Today.ToString("yyyy-MM-dd")"
-              value="@(editingCita?.Fecha.ToString("yyyy-MM-dd") ?? DateTime.Today.ToString("yyyy-MM-dd"))" />
+              min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")"
+              value="@(editingCita?.Fecha.ToString("yyyy-MM-dd") ?? SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd"))" />
             <span class="error-message" id="error-editDate" role="alert">Por favor selecciona una fecha válida</span>
           </div>
           <div class="form-group">

@@ -290,7 +290,9 @@ public sealed class CitasApiController : ControllerBase
                 }, ct) ?? throw new InvalidOperationException("La cita no existe.")
                 : await _citaService.CrearAsync(request, ct);
 
-            int duracion = await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+            // La duración ya está en la entidad Cita devuelta por CrearAsync/ActualizarAsync.
+            // No hace falta una query adicional a ConfiguracionGeneral.
+            int duracion = cita.DuracionMinutos > 0 ? cita.DuracionMinutos : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
             await RegistrarAuditoriaAsync(updating ? "UPDATE" : "INSERT", cita.IdCita, "Cita guardada desde Agenda.", ct);
             return Ok(new { success = true, message = updating ? "Cita actualizada exitosamente." : "Cita agendada exitosamente.", id = cita.IdCita, idEstado = cita.IdEstado, estado = cita.Estado, updated = updating, duracionMinutos = duracion });
         }
@@ -365,20 +367,83 @@ public sealed class CitasApiController : ControllerBase
 
         try
         {
-            var cita = await _citaService.SolicitarCitaPacienteAsync(idPaciente.Value, dto, ct);
-            await RegistrarAuditoriaAsync("INSERT", cita.IdCita, "Solicitud de cita creada por paciente.", ct);
+            var cita = await _citaService.AgendarCitaPacienteAsync(idPaciente.Value, dto, ct);
+            await RegistrarAuditoriaAsync("INSERT", cita.IdCita, "Cita programada directamente por el paciente.", ct);
             return StatusCode(StatusCodes.Status201Created, new
             {
                 success = true,
-                message = "Solicitud de cita enviada exitosamente. La clínica revisará y confirmará tu cita en breve.",
+                message = "Cita agendada exitosamente.",
                 id = cita.IdCita,
                 estado = cita.Estado
             });
         }
         catch (InvalidOperationException ex)
         {
+            if (ex.Message.Contains("horario", StringComparison.OrdinalIgnoreCase))
+            {
+                var horariosDisponibles = await _citaService.ObtenerHorariosDisponiblesPacienteAsync(
+                    idPaciente.Value,
+                    dto.IdServicio!.Value,
+                    dto.IdProfesional!.Value,
+                    dto.Fecha,
+                    ct);
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                    data = horariosDisponibles.Select(hora => hora.ToString(@"hh\:mm"))
+                });
+            }
             return BadRequest(new { success = false, message = ex.Message });
         }
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
+    [Route("api/citas/profesionales-por-servicio")]
+    public async Task<IActionResult> ObtenerProfesionalesPorServicio(
+        [FromQuery] int idServicio,
+        CancellationToken ct = default)
+    {
+        var profesionales = await _citaService.ObtenerProfesionalesPorServicioAsync(idServicio, ct);
+        return Ok(new { success = true, data = profesionales });
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
+    [Route("api/citas/horarios-disponibles")]
+    public async Task<IActionResult> ObtenerHorariosDisponiblesPaciente(
+        [FromQuery] DateTime fecha,
+        [FromQuery] int idServicio,
+        [FromQuery] int idProfesional,
+        CancellationToken ct = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ||
+            !await _perfilPacienteService.PerfilCompletoAsync(idUsuario, ct))
+        {
+            return Conflict(new
+            {
+                success = false,
+                code = "PROFILE_INCOMPLETE",
+                message = "Confirma tus datos personales antes de agendar una cita.",
+                profileUrl = "/perfiles/st-pac-perfil-paciente"
+            });
+        }
+
+        int? idPaciente = await _context.Pacientes
+            .Where(p => p.IdUsuario == idUsuario)
+            .Select(p => (int?)p.IdPaciente)
+            .FirstOrDefaultAsync(ct);
+        if (idPaciente is not > 0)
+            return Forbid();
+
+        var horarios = await _citaService.ObtenerHorariosDisponiblesPacienteAsync(
+            idPaciente.Value, idServicio, idProfesional, fecha, ct);
+        return Ok(new
+        {
+            success = true,
+            data = horarios.Select(hora => hora.ToString(@"hh\:mm"))
+        });
     }
 
     [HttpGet]

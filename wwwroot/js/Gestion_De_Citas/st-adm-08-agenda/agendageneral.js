@@ -35,6 +35,7 @@ let agendaEditRequestHandlerRef = null;
 let agendaNewAppointmentHandlerRef = null;
 let agendaLoadRequestSequence = 0;
 let availabilityRequestSequence = 0;
+let availabilityAbortController = null;
 
 // ════════════════════════════════════════════════════════════════════
 // 3. UTILIDADES Y HELPERS
@@ -108,7 +109,9 @@ const loadWeekData = async (weekStartIso, pushHistory = true) => {
         if (filterOffice?.value) searchParams.set('officeId', filterOffice.value);
         else searchParams.delete('officeId');
 
-        const requestUrl = `/gestion-de-citas/st-adm-08-agenda?${searchParams.toString()}`;
+        const requestParams = new URLSearchParams(searchParams);
+        requestParams.set('calendarOnly', 'true');
+        const requestUrl = `/gestion-de-citas/st-adm-08-agenda?${requestParams.toString()}`;
         const response = await fetch(requestUrl, {
             credentials: 'same-origin',
             signal: abortController.signal
@@ -116,7 +119,7 @@ const loadWeekData = async (weekStartIso, pushHistory = true) => {
         if (!response.ok) throw new Error('No se pudo cargar la semana');
         const responseHtml = await response.text();
         if (requestSequence !== agendaLoadRequestSequence) return false;
-        replaceCalendarSectionHtml(responseHtml);
+        replaceCalendarSectionHtml(responseHtml, weekStartIso);
 
         if (pushHistory) {
             const newUrl = `${window.location.pathname}?${searchParams.toString()}`;
@@ -179,22 +182,40 @@ const submitAppointmentData = async (formData, formElement) => {
 
 const checkAgendaAvailability = async () => {
     const requestSequence = ++availabilityRequestSequence;
+    availabilityAbortController?.abort();
+    availabilityAbortController = null;
+    const button = safeGetElement('checkAvailabilityButton');
     const date = safeGetElement('availabilityDate')?.value;
     const time = safeGetElement('availabilityTime')?.value;
     const serviceId = safeGetElement('availabilityService')?.value;
     const results = safeGetElement('agendaAvailabilityResults');
-    if (!results) return;
+    if (!results) {
+        if (button) {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+        }
+        return;
+    }
     if (!date || !time || !serviceId) {
         results.textContent = 'Selecciona fecha, hora y servicio para consultar profesionales.';
+        button?.removeAttribute('aria-busy');
+        if (button) button.disabled = false;
         return;
     }
 
+    const abortController = new AbortController();
+    availabilityAbortController = abortController;
+    if (button) {
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+    }
     results.textContent = 'Consultando disponibilidad...';
     const query = new URLSearchParams({ fecha: date, horaInicio: time, idServicio: serviceId });
     try {
-        const response = await fetch(`${API_BASE_URL}/citas/profesionales-disponibles?${query}`, {
+        const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE_URL}/citas/profesionales-disponibles?${query}`, {
             credentials: 'same-origin',
-            headers: { Accept: 'application/json' }
+            headers: { Accept: 'application/json' },
+            signal: abortController.signal
         });
         if (!response.ok) throw new Error('No fue posible consultar la disponibilidad.');
         const payload = await response.json();
@@ -233,7 +254,17 @@ const checkAgendaAvailability = async () => {
         results.appendChild(list);
     } catch (error) {
         if (requestSequence !== availabilityRequestSequence) return;
-        results.textContent = error.message || 'No fue posible consultar la disponibilidad.';
+        results.textContent = error.name === 'TimeoutError'
+            ? 'La consulta de disponibilidad tardó demasiado. Intenta nuevamente.'
+            : error.message || 'No fue posible consultar la disponibilidad.';
+    } finally {
+        if (availabilityAbortController === abortController) {
+            availabilityAbortController = null;
+            if (button) {
+                button.disabled = false;
+                button.removeAttribute('aria-busy');
+            }
+        }
     }
 };
 
@@ -261,10 +292,14 @@ const initializeAgendaAvailability = () => {
             if (window.ToastService) window.ToastService.error('No se pudo identificar al profesional seleccionado.');
             return;
         }
+        const serviceSelect = form.querySelector('#newApptService');
+        const professionalSelect = form.querySelector('#newApptProfessional');
         form.querySelector('#newApptDate').value = date;
         form.querySelector('#newApptStartTime').value = time;
-        form.querySelector('#newApptProfessional').value = professionalId;
-        form.querySelector('#newApptService').value = serviceId;
+        serviceSelect.value = serviceId;
+        serviceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        professionalSelect.value = professionalId;
+        professionalSelect.dispatchEvent(new Event('change', { bubbles: true }));
         document.dispatchEvent(new CustomEvent('smiletrack:new-appointment', { detail: { date } }));
     });
 };
@@ -273,21 +308,25 @@ const initializeAgendaAvailability = () => {
 // 5. RENDERIZADO Y DOM
 // ════════════════════════════════════════════════════════════════════
 
-const replaceCalendarSectionHtml = (htmlText) => {
+const replaceCalendarSectionHtml = (htmlText, weekStartIso) => {
     const parsedDoc = new DOMParser().parseFromString(htmlText, 'text/html');
     const newCalendarSection = parsedDoc.querySelector('.calendar-section');
-    const newWeekLabel = parsedDoc.querySelector('#weekLabel');
     const currentCalendarSection = document.querySelector('.calendar-section');
     const currentWeekLabel = safeGetElement('weekLabel');
 
-    if (!newCalendarSection || !newWeekLabel || !currentCalendarSection || !currentWeekLabel) {
+    if (!newCalendarSection || !currentCalendarSection || !currentWeekLabel) {
         throw new Error('La respuesta del servidor no contiene el calendario semanal esperado.');
     }
 
     currentCalendarSection.replaceWith(newCalendarSection.cloneNode(true));
-    currentWeekLabel.textContent = newWeekLabel.textContent || currentWeekLabel.textContent;
-    currentWeekLabel.dataset.weekStart = newWeekLabel.dataset.weekStart || '';
-    currentWeekLabel.dataset.durationMinutes = newWeekLabel.dataset.durationMinutes || '';
+    const weekStartDate = parseIsoDate(weekStartIso);
+    const weekEndDate = new Date(weekStartDate);
+    weekEndDate.setDate(weekEndDate.getDate() + 6);
+    const formatDayMonth = date => `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+    currentWeekLabel.textContent = `${formatDayMonth(weekStartDate)} - ${formatDayMonth(weekEndDate)}`;
+    currentWeekLabel.dataset.weekStart = weekStartIso;
+    currentWeekLabel.dataset.durationMinutes = newCalendarSection.dataset.durationMinutes
+        || currentWeekLabel.dataset.durationMinutes;
     initializeNewAppointmentModal();
     initializeNativeAnimations();
 };
@@ -760,7 +799,7 @@ const initializeAppointmentDetailModal = () => {
 
         cancelAppointmentButton.disabled = true;
         try {
-            const response = await fetch(`${API_BASE_URL}/citas/${encodeURIComponent(selectedAppointmentData.id)}`, {
+            const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE_URL}/citas/${encodeURIComponent(selectedAppointmentData.id)}`, {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {

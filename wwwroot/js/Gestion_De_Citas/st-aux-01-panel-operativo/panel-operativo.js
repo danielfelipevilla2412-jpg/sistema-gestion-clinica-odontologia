@@ -59,10 +59,11 @@ const trackedRequestAnimationFrame = (callback) => {
 
 async function exportReportPdf() {
   try {
-    const response = await fetch('/gestion-de-citas/st-adm-01-dashboard/exportar-pdf', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/gestion-de-citas/st-adm-01-dashboard/exportar-pdf', {
       method: 'GET',
       credentials: 'same-origin',
-      headers: { Accept: 'application/pdf' }
+      headers: { Accept: 'application/pdf' },
+      timeoutMs: 60000
     });
     if (!response.ok) throw new Error(`Error HTTP ${response.status}`);
     const pdfBlob = await response.blob();

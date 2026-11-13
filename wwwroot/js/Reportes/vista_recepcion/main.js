@@ -1,4 +1,5 @@
 /* =============================================
+/* ============================================
    SmileTrack — Reportes Operativos (Recepción) main.js
    (Misma estructura de interacción que vista_admin)
    ============================================= */

@@ -1,4 +1,5 @@
 /**
+/* ============================================
  * SMILETRACK — HISTORIA CLÍNICA (historial.js)
  * Lógica con persistencia, accesibilidad y validaciones
  */

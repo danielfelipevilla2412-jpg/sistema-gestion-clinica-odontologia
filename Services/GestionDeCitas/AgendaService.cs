@@ -40,14 +40,17 @@ public sealed class AgendaService(
         DateTime? weekStart,
         int? professionalId,
         int? officeId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool includeCatalogs = true)
     {
         var inicioSemana = ObtenerLunes(weekStart?.Date ?? ColombiaClock.Today);
         var finSemana = inicioSemana.AddDays(7);
         var duracion = await _citaService
             .ObtenerDuracionCitaMinutosAsync(cancellationToken);
         var diasAtencion = await ObtenerDiasAtencionAsync(cancellationToken);
-        var horario = await ObtenerHorarioClinicaAsync(cancellationToken);
+        (string Apertura, string Cierre) horario = includeCatalogs
+            ? await ObtenerHorarioClinicaAsync(cancellationToken)
+            : ("07:00", "18:00");
 
         var query = _context.Citas
             .AsNoTracking()
@@ -80,10 +83,10 @@ public sealed class AgendaService(
             WeekStart = inicioSemana,
             SemanaLabel = $"{inicioSemana:dd/MM} - {finSemana.AddDays(-1):dd/MM}",
             Dias = dias,
-            Pacientes = await ObtenerPacientesAsync(cancellationToken),
-            Profesionales = await ObtenerProfesionalesAsync(cancellationToken),
-            Consultorios = await ObtenerConsultoriosAsync(cancellationToken),
-            Servicios = await ObtenerServiciosAsync(cancellationToken),
+            Pacientes = includeCatalogs ? await ObtenerPacientesAsync(cancellationToken) : [],
+            Profesionales = includeCatalogs ? await ObtenerProfesionalesAsync(cancellationToken) : [],
+            Consultorios = includeCatalogs ? await ObtenerConsultoriosAsync(cancellationToken) : [],
+            Servicios = includeCatalogs ? await ObtenerServiciosAsync(cancellationToken) : [],
             ProfessionalId = professionalId,
             OfficeId = officeId,
             DuracionCitaMinutos = duracion,
@@ -215,8 +218,8 @@ public sealed class AgendaService(
         var dias = new HashSet<DayOfWeek>();
         foreach (var token in (valor ?? "1,2,3,4,5,6").Split(','))
         {
-            if (int.TryParse(token.Trim(), out var dia) && dia is >= 1 and <= 7)
-                dias.Add(dia == 7 ? DayOfWeek.Sunday : (DayOfWeek)dia);
+            if (int.TryParse(token.Trim(), out var dia) && dia is >= 1 and <= 6)
+                dias.Add((DayOfWeek)dia);
         }
 
         return dias;

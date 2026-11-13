@@ -908,8 +908,8 @@ GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Configuracion_General WHERE clave = 'dias_atencion')
     INSERT INTO dbo.Configuracion_General (clave, valor, descripcion, modulo)
-    VALUES ('dias_atencion', '1,2,3,4,5,6',
-            'Días de atención separados por coma (1=Lunes … 7=Domingo). Valor predeterminado: lunes a sábado.',
+    VALUES ('dias_atencion', '1,2,3,4,5',
+            'Días de atención entre semana separados por coma (1=Lunes … 5=Viernes).',
             'citas');
 GO
 

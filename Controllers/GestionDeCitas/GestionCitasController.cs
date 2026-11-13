@@ -237,17 +237,23 @@ public class GestionCitasController(
         [FromQuery] DateTime? weekStart,
         [FromQuery] int? professionalId,
         [FromQuery] int? officeId,
+        [FromQuery] bool calendarOnly = false,
         CancellationToken ct = default)
     {
         try
         {
-            _antiforgery.GetAndStoreTokens(HttpContext);
+            if (!calendarOnly)
+                _antiforgery.GetAndStoreTokens(HttpContext);
 
             var model = await _agendaService.ObtenerAgendaAsync(
                 weekStart,
                 professionalId,
                 officeId,
-                ct);
+                ct,
+                includeCatalogs: !calendarOnly);
+
+            if (calendarOnly)
+                return PartialView("~/Views/Gestion_De_Citas/st-adm-08-agenda/_CalendarSection.cshtml", model);
 
             return View(
                 "~/Views/Gestion_De_Citas/st-adm-08-agenda/index.cshtml",
@@ -267,6 +273,9 @@ public class GestionCitasController(
             TempData["ErrorValidacion"] =
                 "Error al consultar datos. Intente nuevamente.";
 
+            if (calendarOnly)
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, "No fue posible actualizar el calendario.");
+
             return View(
                 "~/Views/Gestion_De_Citas/st-adm-08-agenda/index.cshtml",
                 new AgendaViewModel());
@@ -281,6 +290,9 @@ public class GestionCitasController(
             TempData["ErrorValidacion"] =
                 "Servicio temporalmente no disponible. Intente en unos minutos.";
 
+            if (calendarOnly)
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, "No fue posible actualizar el calendario.");
+
             return View(
                 "~/Views/Gestion_De_Citas/st-adm-08-agenda/index.cshtml",
                 new AgendaViewModel());
@@ -292,6 +304,9 @@ public class GestionCitasController(
                 "Error crítico cargando Stadm08Agenda");
 
             TempData["ErrorValidacion"] = MensajeErrorFallback;
+
+            if (calendarOnly)
+                return StatusCode(StatusCodes.Status500InternalServerError, "No fue posible actualizar el calendario.");
 
             return View(
                 "~/Views/Gestion_De_Citas/st-adm-08-agenda/index.cshtml",
@@ -2972,14 +2987,18 @@ public sealed class CambiarEstadoCitaDto
         var ahora = ColombiaClock.Now;
         var limite = ahora.AddMinutes(ventanaMinutos);
 
-        var proximas = await _context.Citas
+        var citasEnVentana = await _context.Citas
             .AsNoTracking()
             .Include(c => c.Paciente)
             .Include(c => c.Profesional)
             .Include(c => c.Servicio)
             .Include(c => c.Consultorio)
-            .Where(c => c.FechaHora > ahora && c.FechaHora <= limite && !EsEstadoCancelado(c.Estado))
+            .Where(c => c.FechaHora > ahora && c.FechaHora <= limite)
             .OrderBy(c => c.FechaHora)
+            .ToListAsync(ct);
+
+        var proximas = citasEnVentana
+            .Where(c => !EsEstadoCancelado(c.Estado))
             .Select(c => new
             {
                 hora = c.FechaHora.ToString("hh:mm tt"),
@@ -2989,7 +3008,7 @@ public sealed class CambiarEstadoCitaDto
                     $"{(c.Profesional == null ? "Sin asignar" : "Dr(a). " + c.Profesional.Nombres + " " + c.Profesional.Apellidos)}" +
                     $"{(c.Consultorio == null ? "" : " - " + c.Consultorio.Nombre)}"
             })
-            .ToListAsync(ct);
+            .ToList();
 
         return Ok(new { success = true, proximasCitas = proximas });
     }

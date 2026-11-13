@@ -29,7 +29,7 @@
     }
     var fechaActual = ViewData["AgendaApoyoFecha"] is DateTime fechaValida
         ? fechaValida.Date
-        : DateTime.Today;
+        : SmileTrack_MVC.Helpers.ColombiaClock.Today;
     var inicioSemanaActual = fechaActual;
     var esVistaSemana = ViewData["AgendaApoyoSemana"] is true;
     var metaTexto = esVistaSemana

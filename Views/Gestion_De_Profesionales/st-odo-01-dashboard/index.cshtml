@@ -61,11 +61,11 @@ NOTAS DE MANTENIMIENTO:
     <section class="next-appointment-banner" aria-live="polite">
         @if (proximaCita != null)
         {
-            var minutos = (proximaCita.FechaHora - DateTime.Now).TotalMinutes;
+            var minutos = (proximaCita.FechaHora - SmileTrack_MVC.Helpers.ColombiaClock.Now).TotalMinutes;
             var urgente = minutos <= 15 && minutos > 0;
             var claseUrgencia = urgente ? "urgent" : "upcoming";
             var nombrePaciente = $"{proximaCita.Paciente?.Nombres} {proximaCita.Paciente?.Apellidos}".Trim();
-            var fechaCita = proximaCita.FechaHora.Date == DateTime.Today
+            var fechaCita = proximaCita.FechaHora.Date == SmileTrack_MVC.Helpers.ColombiaClock.Today
                 ? string.Empty
                 : proximaCita.FechaHora.ToString("dd MMM yyyy");
             

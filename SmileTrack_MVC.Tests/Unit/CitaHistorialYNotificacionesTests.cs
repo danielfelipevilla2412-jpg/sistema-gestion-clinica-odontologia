@@ -79,7 +79,10 @@ public class CitaHistorialYNotificacionesTests
         var db = CreateInMemoryDb($"db_crear_{Guid.NewGuid()}");
         var service = new CitaService(db, NullLogger<CitaService>.Instance);
 
-        var fecha = DateTime.Today.AddDays(2).AddHours(10);
+        var fecha = DateTime.Today.AddDays(2);
+        if (fecha.DayOfWeek == DayOfWeek.Sunday)
+            fecha = fecha.AddDays(1);
+        fecha = fecha.AddHours(10);
 
         var request = new CitaApiRequest
         {
@@ -113,7 +116,10 @@ public class CitaHistorialYNotificacionesTests
         var db = CreateInMemoryDb($"db_cambiar_{Guid.NewGuid()}");
         var service = new CitaService(db, NullLogger<CitaService>.Instance);
 
-        var fecha = DateTime.Today.AddDays(2).AddHours(10);
+        var fecha = DateTime.Today.AddDays(2);
+        if (fecha.DayOfWeek == DayOfWeek.Sunday)
+            fecha = fecha.AddDays(1);
+        fecha = fecha.AddHours(10);
         var request = new CitaApiRequest
         {
             IdPaciente = 1,
@@ -145,7 +151,10 @@ public class CitaHistorialYNotificacionesTests
         var db = CreateInMemoryDb($"db_cancelar_{Guid.NewGuid()}");
         var service = new CitaService(db, NullLogger<CitaService>.Instance);
 
-        var fecha = DateTime.Today.AddDays(2).AddHours(10);
+        var fecha = DateTime.Today.AddDays(2);
+        if (fecha.DayOfWeek == DayOfWeek.Sunday)
+            fecha = fecha.AddDays(1);
+        fecha = fecha.AddHours(10);
         var request = new CitaApiRequest
         {
             IdPaciente = 1,

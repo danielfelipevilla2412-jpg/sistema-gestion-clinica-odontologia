@@ -18,7 +18,7 @@
     Layout = "_Layout";
     ViewData["Title"] = "Citas Finalizadas";
     var citasFinalizadasDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["CitasFinalizadasData"] ?? new object());
-    var fechaResumen = DateTime.Today;
+    var fechaResumen = SmileTrack_MVC.Helpers.ColombiaClock.Today;
     using (var citasFinalizadasDocument = System.Text.Json.JsonDocument.Parse(citasFinalizadasDataJson))
     {
         if (citasFinalizadasDocument.RootElement.TryGetProperty("fechaResumen", out var fechaResumenJson) &&

@@ -6,7 +6,7 @@
     ['editService', 'editDoctor']
   ];
   async function initialize() {
-    const response = await fetch('/gestion-de-citas/api/asignaciones-profesionales', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/gestion-de-citas/api/asignaciones-profesionales', {
       credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
     });
     if (!response.ok) throw new Error(`No se pudo consultar las asignaciones (${response.status}).`);

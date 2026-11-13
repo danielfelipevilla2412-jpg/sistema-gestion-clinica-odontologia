@@ -23,6 +23,7 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using System.ComponentModel.DataAnnotations;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
@@ -282,7 +283,7 @@ public partial class ProfesionalService : IProfesionalService
         string nombres = request.Nombres.Trim();
         string apellidos = request.Apellidos.Trim();
         string registro = request.RegistroMedico.Trim();
-        string correo = request.CorreoAcceso.Trim();
+        string correo = request.CorreoAcceso!.Trim();
         string password = GenerarContrasenaTemporal();
 
         try
@@ -465,7 +466,7 @@ public partial class ProfesionalService : IProfesionalService
         string nombres = request.Nombres.Trim();
         string apellidos = request.Apellidos.Trim();
         string registro = request.RegistroMedico.Trim();
-        string correo = request.CorreoAcceso.Trim();
+        string correo = request.CorreoAcceso?.Trim() ?? string.Empty;
         string? estadoSolicitado = string.IsNullOrWhiteSpace(request.Estado)
             ? null
             : request.Estado.Trim().ToLowerInvariant();
@@ -498,37 +499,46 @@ public partial class ProfesionalService : IProfesionalService
                         .FirstOrDefaultAsync(p => p.IdProfesional == id, ct)
                         ?? throw new ProfesionalNotFoundException();
 
-                    var usuario = profesional.Usuario
-                        ?? throw new InvalidOperationException(
-                            "El profesional no tiene una cuenta de acceso vinculada.");
-
-                    var rolProfesional = await _context.Roles
-                        .FirstOrDefaultAsync(r => r.NombreRol == "Profesional", ct)
-                        ?? throw new InvalidOperationException("No existe el rol Profesional en la base de datos.");
-
-                    bool correoDuplicado = await _context.Usuarios
-                        .AnyAsync(u => u.IdUsuario != usuario.IdUsuario && u.Correo == correo, ct);
-                    if (correoDuplicado)
-                        throw new CorreoDuplicadoException();
-
-                    if (usuario.IdRol != rolProfesional.IdRol)
-                        throw new InvalidOperationException(
-                            "La cuenta vinculada al profesional no tiene el rol Profesional.");
-
-                    // Actualizar usuario
-                    usuario.Nombre = nombres;
-                    usuario.Apellidos = apellidos;
-                    usuario.Correo = correo;
-
-                    if (!string.IsNullOrWhiteSpace(request.ContrasenaAcceso))
+                    var usuario = profesional.Usuario;
+                    if (usuario is null)
                     {
-                        if (!ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
+                        if (!string.IsNullOrWhiteSpace(correo) ||
+                            !string.IsNullOrWhiteSpace(request.ContrasenaAcceso))
                             throw new InvalidOperationException(
-                                "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
+                                "Este profesional no tiene una cuenta vinculada. Edite únicamente los datos del perfil.");
+                    }
+                    else
+                    {
+                        if (string.IsNullOrWhiteSpace(correo))
+                            throw new InvalidOperationException("El correo de acceso es requerido.");
 
-                        usuario.Contrasena = BCrypt.Net.BCrypt.HashPassword(
-                            request.ContrasenaAcceso, workFactor: 11);
-                        usuario.IntentosFallidos = 0;
+                        var rolProfesional = await _context.Roles
+                            .FirstOrDefaultAsync(r => r.NombreRol == "Profesional", ct)
+                            ?? throw new InvalidOperationException("No existe el rol Profesional en la base de datos.");
+
+                        bool correoDuplicado = await _context.Usuarios
+                            .AnyAsync(u => u.IdUsuario != usuario.IdUsuario && u.Correo == correo, ct);
+                        if (correoDuplicado)
+                            throw new CorreoDuplicadoException();
+
+                        if (usuario.IdRol != rolProfesional.IdRol)
+                            throw new InvalidOperationException(
+                                "La cuenta vinculada al profesional no tiene el rol Profesional.");
+
+                        usuario.Nombre = nombres;
+                        usuario.Apellidos = apellidos;
+                        usuario.Correo = correo;
+
+                        if (!string.IsNullOrWhiteSpace(request.ContrasenaAcceso))
+                        {
+                            if (!ProfesionalEstadoHelper.EsPasswordValida(request.ContrasenaAcceso))
+                                throw new InvalidOperationException(
+                                    "La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y símbolo especial.");
+
+                            usuario.Contrasena = BCrypt.Net.BCrypt.HashPassword(
+                                request.ContrasenaAcceso, workFactor: 11);
+                            usuario.IntentosFallidos = 0;
+                        }
                     }
 
                     // Actualizar profesional
@@ -540,7 +550,11 @@ public partial class ProfesionalService : IProfesionalService
                     profesional.Descripcion = request.Descripcion?.Trim();
                     profesional.FechaIngreso ??= ColombiaClock.Today;
 
-                    if (estadoSolicitado is "activo" or "vacaciones")
+                    bool requiereAprobacion =
+                        (estadoSolicitado is "activo" or "vacaciones") &&
+                        !string.Equals(profesional.Estado, "activo", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(profesional.Estado, "vacaciones", StringComparison.OrdinalIgnoreCase);
+                    if (requiereAprobacion)
                     {
                         string? errorCredenciales = await ObtenerErrorCredencialesParaActivacionAsync(id, ct);
                         if (errorCredenciales is not null)
@@ -563,9 +577,12 @@ public partial class ProfesionalService : IProfesionalService
                         profesional.Estado = estadoSolicitado;
 
                     // Sincronizar estado de la cuenta
-                    usuario.Estado = profesional.Estado == "inactivo" && profesional.CredencialesAprobadas
-                        ? "inactivo"
-                        : "activo";
+                    if (usuario is not null)
+                    {
+                        usuario.Estado = profesional.Estado == "inactivo" && profesional.CredencialesAprobadas
+                            ? "inactivo"
+                            : "activo";
+                    }
 
                     await _context.SaveChangesAsync(ct);
 
@@ -629,7 +646,7 @@ public partial class ProfesionalService : IProfesionalService
                             profesional.Apellidos,
                             profesional.RegistroMedico,
                             profesional.Estado,
-                            Correo = correo,
+                            Correo = usuario?.Correo,
                             IdsEspecialidades = idsEspUpd
                         }),
                         Descripcion = $"Profesional actualizado vía API REST. IdProfesional={id}",
@@ -648,7 +665,10 @@ public partial class ProfesionalService : IProfesionalService
 
             var dto = await ObtenerPorIdAsync(profesional!.IdProfesional, ct);
             return ProfesionalApiOperationResult.Ok(
-                "El profesional y su cuenta de acceso fueron actualizados correctamente.", dto);
+                profesional.Usuario is null
+                    ? "El perfil profesional fue actualizado correctamente; no tiene una cuenta de acceso vinculada."
+                    : "El profesional y su cuenta de acceso fueron actualizados correctamente.",
+                dto);
         }
         catch (ProfesionalNotFoundException)
         {
@@ -708,7 +728,11 @@ public partial class ProfesionalService : IProfesionalService
 
                     string estadoAnterior = profesional.Estado;
 
-                    if (estadoNorm is "activo" or "vacaciones")
+                    bool requiereAprobacion =
+                        (estadoNorm is "activo" or "vacaciones") &&
+                        !string.Equals(estadoAnterior, "activo", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(estadoAnterior, "vacaciones", StringComparison.OrdinalIgnoreCase);
+                    if (requiereAprobacion)
                     {
                         string? errorCredenciales = await ObtenerErrorCredencialesParaActivacionAsync(id, ct);
                         if (errorCredenciales is not null)
@@ -1521,8 +1545,13 @@ public partial class ProfesionalService : IProfesionalService
         if (!string.IsNullOrWhiteSpace(request.Telefono) && !EsTelefonoValido(request.Telefono))
             return (false, "El número de teléfono es inválido. Debe contener entre 7 y 15 dígitos.");
 
-        if (string.IsNullOrWhiteSpace(request.CorreoAcceso))
+        string? correo = request.CorreoAcceso?.Trim();
+        if (esCreacion && string.IsNullOrWhiteSpace(correo))
             return (false, "El correo de acceso es requerido.");
+
+        if (!string.IsNullOrWhiteSpace(correo) &&
+            !new EmailAddressAttribute().IsValid(correo))
+            return (false, "El correo de acceso no es válido.");
 
         if (!esCreacion &&
             !string.IsNullOrWhiteSpace(request.ContrasenaAcceso) &&

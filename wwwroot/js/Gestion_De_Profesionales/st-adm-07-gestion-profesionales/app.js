@@ -811,6 +811,7 @@ const openFormModal = (isEditing = false) => {
     const formElement = getElementByIdSafe('formProfessional');
     if (formElement) formElement.reset();
     syncSecondarySpecialtyOptions();
+    configureAccessAccountFields(true);
 
     const modalTitle = getElementByIdSafe('modalFormTitle');
     if (modalTitle) modalTitle.textContent = 'Nuevo Profesional';
@@ -825,6 +826,25 @@ const openFormModal = (isEditing = false) => {
     if (firstInput) firstInput.focus();
     document.body.style.overflow = 'hidden';
   }
+};
+
+const configureAccessAccountFields = (hasAccessAccount) => {
+  const formElement = getElementByIdSafe('formProfessional');
+  const emailInput = getElementByIdSafe('formCorreoAcceso');
+  const requiredIndicator = getElementByIdSafe('formCorreoAccesoRequired');
+  const accountNote = getElementByIdSafe('formCorreoAccesoHelp');
+  if (!emailInput) return;
+
+  if (formElement) formElement.dataset.hasAccessAccount = String(hasAccessAccount);
+  emailInput.disabled = !hasAccessAccount;
+  emailInput.required = hasAccessAccount;
+  emailInput.setAttribute('aria-required', String(hasAccessAccount));
+  if (!hasAccessAccount) {
+    emailInput.value = '';
+    window.ValidationUtils?.clearError(emailInput);
+  }
+  if (requiredIndicator) requiredIndicator.hidden = !hasAccessAccount;
+  if (accountNote) accountNote.hidden = hasAccessAccount;
 };
 
 /**
@@ -938,13 +958,27 @@ const closeConfirmDeleteModal = () => {
  * Carga los datos de un profesional desde la API y llena el formulario de edición.
  * @param {number} professionalId
  */
-window.editProfessional = async (professionalId) => {
-  try {
-    const apiResult = await apiRequest(`${API_BASE_URL}/${professionalId}`);
-    const professionalData = apiResult.data;
-    if (!professionalData) return;
+window.editProfessional = async (professionalId, triggerButton = null) => {
+  const parsedProfessionalId = Number(professionalId);
+  if (!Number.isSafeInteger(parsedProfessionalId) || parsedProfessionalId <= 0) {
+    window.ToastService?.error('No se pudo identificar al profesional que se desea editar.');
+    return;
+  }
 
-    editingProfessionalId = professionalId;
+  const originalButtonText = triggerButton?.textContent;
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = 'Cargando...';
+  }
+
+  try {
+    const apiResult = await apiRequest(`${API_BASE_URL}/${parsedProfessionalId}`);
+    const professionalData = apiResult.data;
+    if (!apiResult?.success || !professionalData) {
+      throw new Error(apiResult?.message || 'El servidor no devolvió los datos del profesional.');
+    }
+
+    editingProfessionalId = parsedProfessionalId;
 
     const setFieldValue = (fieldId, val) => {
       const fieldElement = getElementByIdSafe(fieldId);
@@ -958,6 +992,7 @@ window.editProfessional = async (professionalId) => {
     setFieldValue('formCategoria', professionalData.categoria);
     setFieldValue('formTelefono', professionalData.telefono);
     setFieldValue('formCorreoAcceso', professionalData.correoAcceso);
+    configureAccessAccountFields(Number(professionalData.idUsuario) > 0);
 
     const normalizedStatus = (professionalData.estado || 'activo').toLowerCase();
     const statusSelectElement = getElementByIdSafe('formStatus');
@@ -966,8 +1001,6 @@ window.editProfessional = async (professionalId) => {
       statusSelectElement.dataset.originalEstado = normalizedStatus;
     }
     setFieldValue('formEstado', normalizedStatus);
-    setFieldValue('formContrasenaAcceso', '');
-    updateProfessionalPasswordRules();
 
     const primarySpecialty = (professionalData.especialidades || [])
       .find(specialty => specialty.principal) || professionalData.especialidades?.[0];
@@ -994,7 +1027,13 @@ window.editProfessional = async (professionalId) => {
 
     openFormModal(true);
   } catch (error) {
+    console.error('[SmileTrack][Profesionales] No se pudo abrir la edición:', error);
     window.ToastService?.error(`❌ No se pudo cargar el profesional: ${error.message}`);
+  } finally {
+    if (triggerButton) {
+      triggerButton.disabled = false;
+      triggerButton.textContent = originalButtonText;
+    }
   }
 };
 
@@ -1009,9 +1048,12 @@ const validateProfessionalForm = (formElement) => {
   const requiredFields = [
     { id: 'formNombres', message: 'Ingresa los nombres.' },
     { id: 'formApellidos', message: 'Ingresa los apellidos.' },
-    { id: 'formRegistroMedico', message: 'Ingresa el registro médico.' },
-    { id: 'formCorreoAcceso', message: 'Ingresa un correo de acceso válido.' }
+    { id: 'formRegistroMedico', message: 'Ingresa el registro médico.' }
   ];
+  const emailField = getElementByIdSafe('formCorreoAcceso');
+  if (emailField && !emailField.disabled) {
+    requiredFields.push({ id: 'formCorreoAcceso', message: 'Ingresa un correo de acceso válido.' });
+  }
 
   if (window.ValidationUtils) {
     requiredFields.forEach(({ id }) => {
@@ -1033,7 +1075,6 @@ const validateProfessionalForm = (formElement) => {
     }
   });
 
-  const emailField = getElementByIdSafe('formCorreoAcceso');
   if (emailField && emailField.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailField.value.trim())) {
     isFormValid = false;
     if (window.ValidationUtils) {
@@ -1042,45 +1083,6 @@ const validateProfessionalForm = (formElement) => {
   }
 
   return isFormValid;
-};
-
-/**
- * Actualiza los indicadores visuales de reglas de contraseña.
- */
-const updateProfessionalPasswordRules = () => {
-  const passwordInput = getElementByIdSafe('formContrasenaAcceso');
-  if (!passwordInput) return;
-
-  const inputValue = passwordInput.value || '';
-  const passwordRules = {
-    length: inputValue.length >= 8,
-    upper: /[A-Z]/.test(inputValue),
-    lower: /[a-z]/.test(inputValue),
-    number: /\d/.test(inputValue),
-    symbol: /[^A-Za-z\d]/.test(inputValue)
-  };
-
-  Object.entries(passwordRules).forEach(([ruleKey, isRuleSatisfied]) => {
-    const ruleRow = document.querySelector(`#professionalPasswordRules [data-rule="${ruleKey}"]`);
-    if (!ruleRow) return;
-    const iconSpan = ruleRow.querySelector('.rule-icon');
-    if (iconSpan) iconSpan.textContent = isRuleSatisfied ? '✓' : '✗';
-    ruleRow.style.color = isRuleSatisfied ? '#15803d' : '#b91c1c';
-  });
-
-  const hiddenFormId = getElementByIdSafe('formIdProfesional');
-  const isEditingMode = Number(hiddenFormId?.value || 0) > 0;
-  const helpTextLabel = getElementByIdSafe('formContrasenaHelp');
-
-  if (helpTextLabel) {
-    if (isEditingMode && inputValue.length === 0) {
-      helpTextLabel.textContent = 'La contraseña no se modifica desde esta pantalla.';
-      helpTextLabel.style.color = '#6b7280';
-    } else {
-      helpTextLabel.textContent = 'La contraseña se genera automáticamente en el sistema.';
-      helpTextLabel.style.color = '#6b7280';
-    }
-  }
 };
 
 /**
@@ -1128,7 +1130,9 @@ const saveProfessional = async (event) => {
     registroMedico: getFieldValue('formRegistroMedico'),
     categoria:      getFieldValue('formCategoria') || null,
     telefono:       getFieldValue('formTelefono')  || null,
-    correoAcceso:   getFieldValue('formCorreoAcceso'),
+    correoAcceso:   getElementByIdSafe('formCorreoAcceso')?.disabled
+      ? null
+      : getFieldValue('formCorreoAcceso'),
     idEspecialidad: primarySpecialtyId,
     especialidadesIds: selectedSpecialtyIds,
     estado:         isEditingMode ? (getElementByIdSafe('formStatus')?.value || getElementByIdSafe('formEstado')?.value || '').trim().toLowerCase() || null : null,
@@ -1307,18 +1311,18 @@ const saveAbsence = async (event) => {
         if (!debeReasignar) return;
         apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias-reasignar`, {
           method: 'POST',
-          body: absencePayload
+          body: JSON.stringify(absencePayload)
         });
       } else {
         apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias`, {
           method: 'POST',
-          body: absencePayload
+          body: JSON.stringify(absencePayload)
         });
       }
     } else {
       apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceId}`, {
         method: 'PUT',
-        body: absencePayload
+        body: JSON.stringify(absencePayload)
       });
     }
     window.ToastService?.success(apiResult.message || 'Ausencia guardada.');
@@ -1511,25 +1515,6 @@ const bindProfessionalFieldValidation = () => {
 };
 
 /**
- * Inicializa los eventos del campo de contraseña.
- */
-const initProfessionalPassword = () => {
-  const passwordInput = getElementByIdSafe('formContrasenaAcceso');
-  const toggleVisibilityButton = getElementByIdSafe('toggleProfesionalPassword');
-  if (!passwordInput) return;
-
-  passwordInput.addEventListener('input', updateProfessionalPasswordRules);
-  updateProfessionalPasswordRules();
-
-  toggleVisibilityButton?.addEventListener('click', () => {
-    const isPasswordVisible = passwordInput.type === 'text';
-    passwordInput.type = isPasswordVisible ? 'password' : 'text';
-    toggleVisibilityButton.textContent = isPasswordVisible ? '👁' : '🙈';
-    toggleVisibilityButton.setAttribute('aria-label', isPasswordVisible ? 'Mostrar contraseña' : 'Ocultar contraseña');
-  });
-};
-
-/**
  * Configura los event listeners para abrir, cerrar y procesar modales.
  */
 const initModals = () => {
@@ -1598,10 +1583,13 @@ const initModals = () => {
   });
 
   tableBody?.addEventListener('click', (e) => {
-    const editButton = e.target.closest('.action-btn.edit[data-id]');
+    const clickTarget = e.target instanceof Element ? e.target : null;
+    const editButton = clickTarget?.closest('.action-btn.edit[data-id]');
+    if (!editButton) return;
+    e.preventDefault();
     const professionalId = Number(editButton?.dataset.id);
     if (Number.isSafeInteger(professionalId) && professionalId > 0) {
-      window.editProfessional(professionalId);
+      void window.editProfessional(professionalId, editButton);
     }
   });
 
@@ -1663,10 +1651,16 @@ const init = async () => {
   initModals();
   initModalTabs();
   bindProfessionalFieldValidation();
-  initProfessionalPassword();
   initFiltersAPI();
 
-  await loadSpecialtiesCatalog();
+  // Cargar catálogo de especialidades para los selects del formulario.
+  // Se hace ANTES de habilitar interacciones para que el form de edición
+  // tenga las opciones disponibles en cuanto el usuario haga click en Editar.
+  try {
+    await loadSpecialtiesCatalog();
+  } catch (e) {
+    console.warn('[SmileTrack][Profesionales] No se pudo cargar el catálogo de especialidades:', e);
+  }
   initServerStats();
 
   window.addEventListener('beforeunload', () => {});

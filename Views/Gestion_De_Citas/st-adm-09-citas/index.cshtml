@@ -51,6 +51,15 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
     // Datos para modal de edición
     var editingCita = ViewData["EditingCita"] as SmileTrack_MVC.Models.Entities.Cita;
     var isEditing = editingCita != null;
+    var fechaMinimaCita = SmileTrack_MVC.Helpers.ColombiaClock.Today;
+    var fechaInicialCita = editingCita?.Fecha.Date ?? fechaMinimaCita;
+    if (editingCita == null)
+    {
+      while (fechaInicialCita.DayOfWeek == DayOfWeek.Sunday)
+      {
+        fechaInicialCita = fechaInicialCita.AddDays(1);
+      }
+    }
 }
 
     <!-- Contenido principal -->
@@ -629,8 +638,10 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                     <div class="form-group">
                                         <label class="form-label" for="fechaCita">Fecha *</label>
                                         <input type="date" id="fechaCita" name="Fecha" class="form-input"
-                                               min="@DateTime.Today.ToString("yyyy-MM-dd")"
-                                               value="@(editingCita?.Fecha.ToString("yyyy-MM-dd") ?? DateTime.Today.ToString("yyyy-MM-dd"))"
+                                               min="@fechaMinimaCita.ToString("yyyy-MM-dd")"
+                                               value="@fechaInicialCita.ToString("yyyy-MM-dd")"
+                                               data-open-days="1,2,3,4,5,6"
+                                               data-original-date="@(editingCita?.Fecha.ToString("yyyy-MM-dd") ?? string.Empty)"
                                                required aria-required="true" aria-describedby="error-fechaCita" />
                                         <span class="error-message" id="error-fechaCita" role="alert">Por favor selecciona una fecha
                                             válida.</span>

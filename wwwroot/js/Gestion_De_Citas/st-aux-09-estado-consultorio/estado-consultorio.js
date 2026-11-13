@@ -92,7 +92,7 @@ async function saveConsultorioState() {
   
   const state = consultorioStorage.load();
   try {
-    const response = await fetch(`/api/consultorios/${serverData.consultorioId}/estado-operativo`, {
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/consultorios/${serverData.consultorioId}/estado-operativo`, {
       method: 'PUT',
       credentials: 'same-origin',
       headers: getRequestHeaders(),
@@ -118,7 +118,7 @@ async function loadConsultorios() {
   if (!selectElement) return;
 
   try {
-    const response = await fetch('/api/consultorios', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/api/consultorios', {
       credentials: 'same-origin',
       headers: getRequestHeaders()
     });
@@ -166,7 +166,7 @@ async function handleConsultorioChange(event) {
   selectElement.disabled = true;
 
   try {
-    const response = await fetch('/api/consultorios/guardar-preferencia', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/api/consultorios/guardar-preferencia', {
       method: 'POST',
       credentials: 'same-origin',
       headers: getRequestHeaders(),
@@ -591,7 +591,7 @@ const initTodayAppointments = () => {
 const refreshConsultorioHistory = async (consultorioId) => {
   if (!consultorioId) return false;
   try {
-    const response = await fetch(`/api/consultorios/${consultorioId}/estado-operativo`, {
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/consultorios/${consultorioId}/estado-operativo`, {
       credentials: 'same-origin',
       headers: getRequestHeaders()
     });
@@ -636,7 +636,7 @@ const initConfirmButtons = () => {
         const obsValue = document.getElementById('obsTextarea')?.value ?? '';
 
         if (serverData2?.consultorioId) {
-          const res = await fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
+          const res = await window.SmileTrack.utils.fetchWithTimeout(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
             method: 'POST',
             headers: getRequestHeaders(),
             credentials: 'same-origin',
@@ -701,7 +701,7 @@ const initConfirmButtons = () => {
         const obsValue = document.getElementById('obsTextarea')?.value ?? '';
 
         if (serverData2?.consultorioId) {
-          const res = await fetch(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
+          const res = await window.SmileTrack.utils.fetchWithTimeout(`/api/consultorios/${serverData2.consultorioId}/confirmar-estado`, {
             method: 'POST',
             headers: getRequestHeaders(),
             credentials: 'same-origin',

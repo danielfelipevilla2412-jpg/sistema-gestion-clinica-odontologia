@@ -6,14 +6,13 @@
  * Archivo: Controllers/Api/MobileSolicitudCitasController.cs
  *
  * PROPÓSITO Y JUSTIFICACIÓN:
- * Gestiona las solicitudes preliminares de cita realizadas desde la aplicación móvil.
- * Permite listar los servicios activos disponibles y recepcionar solicitudes de agendamiento
- * pendientes de aprobación/asignación por parte del personal administrativo o de recepción.
+ * Permite que el paciente consulte servicios, profesionales y horarios disponibles y
+ * agende una cita directamente desde la aplicación móvil.
  *
  * REGLAS DE NEGOCIO PRINCIPALES:
  * - Filtra servicios disponibles únicamente en estado "activo".
  * - Valida la existencia del paciente autenticado antes de crear la solicitud.
- * - Registra la cita mediante el flujo centralizado con estado inicial "Solicitada".
+ * - Reserva la cita mediante el flujo centralizado con estado inicial "Programada".
  *
  * DEPENDENCIAS TÉCNICAS:
  * - AppDbContext, ICitaService, JwtBearerDefaults
@@ -26,6 +25,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Services;
@@ -36,6 +36,7 @@ namespace SmileTrack_MVC.Controllers.Api;
 public class SolicitudCitaMovil
 {
     public int IdServicio { get; set; }
+    public int IdProfesional { get; set; }
     public DateTime FechaHora { get; set; }
     public string? Notas { get; set; }
 }
@@ -77,6 +78,46 @@ public class MobileSolicitudCitasController : ControllerBase
         return Ok(servicios);
     }
 
+    [HttpGet("profesionales")]
+    public async Task<IActionResult> ObtenerProfesionales(
+        [FromQuery] int idServicio,
+        CancellationToken cancellationToken)
+    {
+        var profesionales = await _citaService.ObtenerProfesionalesPorServicioAsync(
+            idServicio, cancellationToken);
+        return Ok(profesionales);
+    }
+
+    [HttpGet("horarios")]
+    public async Task<IActionResult> ObtenerHorarios(
+        [FromQuery] int idServicio,
+        [FromQuery] int idProfesional,
+        [FromQuery] DateTime fecha,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ||
+            !await _perfilPacienteService.PerfilCompletoAsync(idUsuario, cancellationToken))
+        {
+            return Conflict(new
+            {
+                code = "PROFILE_INCOMPLETE",
+                message = "Confirma tus datos personales antes de agendar una cita.",
+                profileUrl = "/perfiles/st-pac-perfil-paciente"
+            });
+        }
+
+        int? idPaciente = await _context.Pacientes
+            .Where(p => p.IdUsuario == idUsuario)
+            .Select(p => (int?)p.IdPaciente)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (idPaciente is not > 0)
+            return NotFound(new { message = "No hay un paciente asociado a esta cuenta." });
+
+        var horarios = await _citaService.ObtenerHorariosDisponiblesPacienteAsync(
+            idPaciente.Value, idServicio, idProfesional, fecha, cancellationToken);
+        return Ok(horarios.Select(hora => hora.ToString(@"hh\:mm")));
+    }
+
     [HttpPost]
     public async Task<IActionResult> Solicitar(
         [FromBody] SolicitudCitaMovil solicitud,
@@ -101,11 +142,12 @@ public class MobileSolicitudCitasController : ControllerBase
         }
 
         if (solicitud.IdServicio <= 0 ||
-            solicitud.FechaHora <= DateTime.Now)
+            solicitud.IdProfesional <= 0 ||
+            solicitud.FechaHora <= ColombiaClock.Now)
         {
             return BadRequest(new
             {
-                message = "Selecciona un servicio y una fecha futura."
+                message = "Selecciona un servicio, profesional y horario futuro."
             });
         }
 
@@ -124,25 +166,38 @@ public class MobileSolicitudCitasController : ControllerBase
 
         try
         {
-            var cita = await _citaService.SolicitarCitaPacienteAsync(
+            var cita = await _citaService.AgendarCitaPacienteAsync(
                 paciente.IdPaciente,
                 new CitaSolicitudPacienteDto
                 {
                     IdServicio = solicitud.IdServicio,
+                    IdProfesional = solicitud.IdProfesional,
                     Fecha = solicitud.FechaHora.Date,
+                    HoraInicio = solicitud.FechaHora.TimeOfDay,
                     Notas = solicitud.Notas
                 },
                 cancellationToken);
 
             return Ok(new
             {
+                success = true,
                 id = cita.IdCita,
                 estado = cita.Estado,
-                message = "Solicitud registrada correctamente. La clínica asignará el profesional y confirmará el horario."
+                message = "Cita agendada correctamente."
             });
         }
         catch (InvalidOperationException ex)
         {
+            if (ex.Message.Contains("horario", StringComparison.OrdinalIgnoreCase))
+            {
+                var horariosDisponibles = await _citaService.ObtenerHorariosDisponiblesPacienteAsync(
+                    paciente.IdPaciente,
+                    solicitud.IdServicio,
+                    solicitud.IdProfesional,
+                    solicitud.FechaHora.Date,
+                    cancellationToken);
+                return Conflict(new { message = ex.Message, horariosDisponibles });
+            }
             return BadRequest(new { message = ex.Message });
         }
     }

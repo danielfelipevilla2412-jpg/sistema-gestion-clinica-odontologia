@@ -311,7 +311,7 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="newApptDate">Fecha</label>
-                        <input type="date" id="newApptDate" name="Fecha" required aria-required="true" />
+                        <input type="date" id="newApptDate" name="Fecha" min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" required aria-required="true" />
                     </div>
                     <div class="form-group">
                         <label for="newApptStatus">Estado</label>

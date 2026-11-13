@@ -1,6 +1,7 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Pacientes;
 using SmileTrack_MVC.Models.Entities;
 
@@ -77,7 +78,7 @@ public sealed class PacienteService : IPacienteService
                 .Where(c => idsPagina.Contains(c.IdPaciente))
                 .ToListAsync(ct);
 
-            var ahora = DateTime.Now;
+            var ahora = ColombiaClock.Now;
 
             var data = pacientesPagina.Select(p =>
             {
@@ -309,7 +310,7 @@ public sealed class PacienteService : IPacienteService
             if (estadoNormalizado != "activo" &&
                 await _context.Citas.AnyAsync(c =>
                     c.IdPaciente == id &&
-                    c.FechaHora > DateTime.Now &&
+                    c.FechaHora > ColombiaClock.Now &&
                     c.Estado != "Cancelada" &&
                     c.Estado != "cancelada", ct))
                 return PacienteApiOperationResult.Fail(

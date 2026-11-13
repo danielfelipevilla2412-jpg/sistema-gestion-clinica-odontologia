@@ -146,7 +146,7 @@ const changeAppointmentStatusApi = async (appointmentId, newStatus, onSuccessCal
     if (window.apiRequest) {
       const result = await window.apiRequest(`/api/citas/${encodeURIComponent(appointmentId)}/estado`, {
         method: 'PUT',
-        body: { estado: newStatus }
+        body: JSON.stringify({ estado: newStatus })
       });
       if (!result?.success) {
         throw new Error(result?.message || 'No se pudo actualizar el estado de la cita.');
@@ -355,8 +355,8 @@ const closeModalElement = (modalElement) => {
   if (!modalElement) return;
   modalElement.classList.remove('open');
   modalElement.setAttribute('aria-hidden', 'true');
-  modalElement.setAttribute('hidden', 'true');
-  modalElement.setAttribute('inert', 'true');
+  modalElement.removeAttribute('hidden');
+  modalElement.setAttribute('inert', '');
 };
 
 /**
