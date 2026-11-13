@@ -26,6 +26,11 @@ namespace SmileTrack_MVC.Helpers;
 
 public static class EstadoCitaHelper
 {
+    public static readonly string[] EstadosQueLiberanRecursos =
+    [
+        "cancelada", "cancelado", "rechazada", "rechazado"
+    ];
+
     /// <summary>
     /// Estados que representan el cierre definitivo de una cita (ya no requiere seguimiento).
     /// Se expone como arreglo para poder usarlo directamente en consultas EF: .Contains(...) se
@@ -102,7 +107,7 @@ public static class EstadoCitaHelper
 
         return (actual, siguiente) switch
         {
-            ("solicitada", "programada") => true,
+            ("solicitada", "programada" or "confirmada") => true,
             ("programada", "confirmada" or "en_sala_de_espera" or "en_proceso" or "atendida" or "no_asistida") => true,
             ("confirmada", "en_sala_de_espera" or "en_proceso" or "atendida" or "no_asistida") => true,
             ("en_sala_de_espera", "en_proceso" or "atendida" or "no_asistida") => true,

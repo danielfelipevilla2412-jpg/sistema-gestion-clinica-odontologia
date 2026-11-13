@@ -39,9 +39,3 @@ public sealed class CitaApiUpdateDto
 
     public int? IdUsuarioModificacion { get; set; }
 }
-
-public sealed class CitaReagendarApiRequest
-{
-    [Required(ErrorMessage = "La nueva fecha y hora son obligatorias.")]
-    public DateTime FechaHora { get; set; }
-}

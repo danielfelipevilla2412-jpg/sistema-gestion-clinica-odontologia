@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Controllers;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Perfiles;
@@ -27,6 +29,106 @@ public class CitasApiValidationTests
             .Options;
 
         return new AppDbContext(options);
+    }
+
+    [Fact]
+    public async Task CrearCitaDesdeAgenda_RespuestaExitosa_PersisteLaCita()
+    {
+        var db = CreateInMemoryDb($"citas_api_agenda_persist_{Guid.NewGuid()}");
+        var paciente = new SmileTrack_MVC.Models.Entities.Paciente
+        {
+            IdPaciente = 1,
+            Nombres = "Paciente",
+            Apellidos = "Prueba",
+            Estado = "activo"
+        };
+        var profesional = new SmileTrack_MVC.Models.Entities.Profesional
+        {
+            IdProfesional = 7,
+            Nombres = "Ana",
+            Apellidos = "Profesional",
+            RegistroMedico = "RM-AGENDA-TEST",
+            Estado = "activo"
+        };
+        var especialidad = new SmileTrack_MVC.Models.Entities.Especialidad
+        {
+            IdEspecialidad = 1,
+            Nombre = "Odontología General"
+        };
+        var servicio = new SmileTrack_MVC.Models.Entities.Servicio
+        {
+            IdServicio = 1,
+            Nombre = "Consulta",
+            Estado = "activo",
+            DuracionMinutos = 30,
+            IdEspecialidad = 1
+        };
+        var consultorio = new SmileTrack_MVC.Models.Entities.Consultorio
+        {
+            IdConsultorio = 1,
+            Nombre = "Consultorio 1",
+            Estado = "disponible"
+        };
+        var estado = new SmileTrack_MVC.Models.Entities.EstadoCita
+        {
+            IdEstado = 1,
+            NombreEstado = "Programada"
+        };
+        db.AddRange(paciente, profesional, especialidad, servicio, consultorio, estado);
+        db.ProfesionalEspecialidades.Add(new SmileTrack_MVC.Models.Entities.Profesional_Especialidad
+        {
+            IdProfesional = profesional.IdProfesional,
+            IdEspecialidad = especialidad.IdEspecialidad,
+            Principal = true
+        });
+        db.ProfesionalServicios.Add(new SmileTrack_MVC.Models.Entities.ProfesionalServicio
+        {
+            IdProfesional = profesional.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            Activo = true
+        });
+
+        DateTime fecha = ColombiaClock.Today.AddDays(1);
+        while (fecha.DayOfWeek is DayOfWeek.Sunday)
+            fecha = fecha.AddDays(1);
+        string dia = fecha.DayOfWeek switch
+        {
+            DayOfWeek.Monday => "Lunes",
+            DayOfWeek.Tuesday => "Martes",
+            DayOfWeek.Wednesday => "Miercoles",
+            DayOfWeek.Thursday => "Jueves",
+            DayOfWeek.Friday => "Viernes",
+            DayOfWeek.Saturday => "Sabado",
+            _ => "Domingo"
+        };
+        db.HorariosProfesional.Add(new SmileTrack_MVC.Models.Entities.HorarioProfesional
+        {
+            IdProfesional = profesional.IdProfesional,
+            DiaSemana = dia,
+            HoraInicio = new TimeOnly(8, 0),
+            HoraFin = new TimeOnly(17, 0),
+            Activo = true
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db, "Administrador");
+        var result = await controller.CrearCitaDesdeAgenda(new SmileTrack_MVC.Models.ViewModels.CitaAgendaDto
+        {
+            IdPaciente = paciente.IdPaciente,
+            IdProfesional = profesional.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            IdConsultorio = consultorio.IdConsultorio,
+            Fecha = fecha,
+            HoraInicio = new TimeSpan(10, 0, 0),
+            HoraFin = new TimeSpan(10, 30, 0),
+            Estado = "Programada"
+        });
+
+        var response = Assert.IsType<OkObjectResult>(result);
+        Assert.True((bool)response.Value!.GetType().GetProperty("success")!.GetValue(response.Value)!);
+        var savedAppointment = await db.Citas.SingleAsync();
+        Assert.Equal(paciente.IdPaciente, savedAppointment.IdPaciente);
+        Assert.Equal(fecha.AddHours(10), savedAppointment.FechaHora);
     }
 
     [Fact]
@@ -115,6 +217,102 @@ public class CitasApiValidationTests
         Assert.Equal("atendida", method.Invoke(null, ["Finalizada"]));
         Assert.Equal("atendida", method.Invoke(null, ["finalizada"]));
         Assert.Equal("atendida", method.Invoke(null, ["realizada"]));
+    }
+
+    [Fact]
+    public void CitasApiController_NoDuplicaLaRutaDeReagendar()
+    {
+        var rutas = typeof(CitasApiController)
+            .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .SelectMany(m => m.GetCustomAttributes(typeof(RouteAttribute), inherit: true).Cast<RouteAttribute>())
+            .Select(r => r.Template ?? string.Empty)
+            .ToList();
+
+        int repeticiones = rutas.Count(t => string.Equals(t, "api/citas/{id:int}/reagendar", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(1, repeticiones);
+    }
+
+    [Fact]
+    public async Task Reagendar_RechazaFechaEnElPasado()
+    {
+        var db = CreateInMemoryDb($"citas_api_reagendar_{Guid.NewGuid()}");
+        db.Pacientes.Add(new SmileTrack_MVC.Models.Entities.Paciente
+        {
+            IdPaciente = 1,
+            Nombres = "Ana",
+            Apellidos = "Prueba",
+            Estado = "activo"
+        });
+        db.Citas.Add(new SmileTrack_MVC.Models.Entities.Cita
+        {
+            IdCita = 1,
+            IdPaciente = 1,
+            Estado = "Programada",
+            FechaHora = DateTime.Now.AddDays(1)
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db, "Administrador");
+
+        var result = await controller.Reagendar(1, new CitasApiController.CitaReagendarDto
+        {
+            FechaHora = DateTime.Now.AddDays(-2)
+        });
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var message = badRequest.Value?.GetType().GetProperty("message")?.GetValue(badRequest.Value)?.ToString();
+        Assert.Contains("pasado", message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ObtenerAsistenciaProcedimiento_ProfesionalAjeno_RetornaForbid()
+    {
+        var db = CreateInMemoryDb($"citas_api_asistencia_{Guid.NewGuid()}");
+        db.Citas.Add(new SmileTrack_MVC.Models.Entities.Cita
+        {
+            IdCita = 3,
+            IdPaciente = 1,
+            IdProfesional = 99,
+            Estado = "Programada",
+            FechaHora = DateTime.Now
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db, "Profesional", idProfesional: "7");
+
+        var result = await controller.ObtenerAsistenciaProcedimiento(3);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    private static CitasApiController BuildController(AppDbContext db, string rol, string? idProfesional = null)
+    {
+        var service = new CitaService(db, NullLogger<CitaService>.Instance);
+        var controller = new CitasApiController(
+            db,
+            NullLogger<CitasApiController>.Instance,
+            new NoOpEmailService(),
+            service,
+            new MemoryCache(new MemoryCacheOptions()),
+            new PerfilPacienteService(db));
+
+        var claims = new System.Collections.Generic.List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "5"),
+            new(ClaimTypes.Role, rol)
+        };
+        if (idProfesional is not null)
+            claims.Add(new Claim("IdProfesional", idProfesional));
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"))
+            }
+        };
+
+        return controller;
     }
 
     private sealed class NoOpEmailService : IEmailService

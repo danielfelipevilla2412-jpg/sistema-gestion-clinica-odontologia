@@ -340,7 +340,7 @@ public partial class ProfesionalService : IProfesionalService
                         Descripcion = request.Descripcion?.Trim(),
                         Estado = "inactivo",
                         CredencialesAprobadas = false,
-                        FechaIngreso = DateTime.Today
+                        FechaIngreso = ColombiaClock.Today
                     };
 
                     _context.Profesionales.Add(profesional);
@@ -538,17 +538,23 @@ public partial class ProfesionalService : IProfesionalService
                     profesional.Categoria = request.Categoria?.Trim();
                     profesional.Telefono = request.Telefono?.Trim();
                     profesional.Descripcion = request.Descripcion?.Trim();
-                    profesional.FechaIngreso ??= DateTime.Today;
+                    profesional.FechaIngreso ??= ColombiaClock.Today;
 
-                    if (estadoSolicitado is "activo" or "vacaciones" && !profesional.CredencialesAprobadas)
-                        throw new InvalidOperationException("El profesional no puede activarse hasta que el administrador apruebe sus credenciales.");
+                    if (estadoSolicitado is "activo" or "vacaciones")
+                    {
+                        string? errorCredenciales = await ObtenerErrorCredencialesParaActivacionAsync(id, ct);
+                        if (errorCredenciales is not null)
+                            throw new InvalidOperationException(errorCredenciales);
+                        profesional.CredencialesAprobadas = true;
+                    }
 
                     if (estadoSolicitado == "inactivo" && profesional.Estado != "inactivo")
                     {
                         bool tieneCitasActivas = await _context.Citas.AnyAsync(c =>
                             c.IdProfesional == id &&
-                            !new[] { "cancelada", "cancelado" }.Contains(c.Estado.ToLower()) &&
-                            c.FechaHora >= DateTime.Today, ct);
+                            !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
+                                ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()) &&
+                            c.FechaHora >= ColombiaClock.Today, ct);
                         if (tieneCitasActivas)
                             throw new InvalidOperationException("No se puede inactivar: este profesional tiene citas agendadas pendientes.");
                     }
@@ -702,8 +708,13 @@ public partial class ProfesionalService : IProfesionalService
 
                     string estadoAnterior = profesional.Estado;
 
-                    if (estadoNorm is "activo" or "vacaciones" && !profesional.CredencialesAprobadas)
-                        throw new InvalidOperationException("El profesional no puede activarse hasta que el administrador apruebe sus credenciales.");
+                    if (estadoNorm is "activo" or "vacaciones")
+                    {
+                        string? errorCredenciales = await ObtenerErrorCredencialesParaActivacionAsync(id, ct);
+                        if (errorCredenciales is not null)
+                            throw new InvalidOperationException(errorCredenciales);
+                        profesional.CredencialesAprobadas = true;
+                    }
 
                     // Si se va a inactivar, verificar citas pendientes
                     if (estadoNorm == "inactivo" && estadoAnterior != "inactivo")
@@ -711,11 +722,9 @@ public partial class ProfesionalService : IProfesionalService
                         bool tieneCitasActivas = await _context.Citas
                             .AnyAsync(c =>
                                 c.IdProfesional == id &&
-                                c.Estado != "Cancelada" &&
-                                c.Estado != "cancelada" &&
-                                c.Estado != "Cancelado" &&
-                                c.Estado != "cancelado" &&
-                                c.FechaHora >= DateTime.Today, ct);
+                                !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
+                                    ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()) &&
+                                c.FechaHora >= ColombiaClock.Today, ct);
 
                         if (tieneCitasActivas)
                             throw new InvalidOperationException("No se puede inactivar: este profesional tiene citas agendadas pendientes.");
@@ -733,15 +742,15 @@ public partial class ProfesionalService : IProfesionalService
                     if (estadoNorm == "inactivo")
                     {
                         bool yaBloqueado = await _context.BloqueosProfesional
-                            .AnyAsync(b => b.IdProfesional == id && b.FechaFin > DateTime.Now && b.Motivo == "Profesional inactivo / desactivado", ct);
+                            .AnyAsync(b => b.IdProfesional == id && b.FechaFin > ColombiaClock.Now && b.Motivo == "Profesional inactivo / desactivado", ct);
 
                         if (!yaBloqueado)
                         {
                             _context.BloqueosProfesional.Add(new BloqueoProfesional
                             {
                                 IdProfesional = id,
-                                FechaInicio = DateTime.Now,
-                                FechaFin = DateTime.Now.AddYears(5),
+                                FechaInicio = ColombiaClock.Now,
+                                FechaFin = ColombiaClock.Now.AddYears(5),
                                 Motivo = "Profesional inactivo / desactivado",
                                 AprobadoPor = operadorId
                             });
@@ -828,11 +837,9 @@ public partial class ProfesionalService : IProfesionalService
                     bool tieneCitasActivas = await _context.Citas
                         .AnyAsync(c =>
                             c.IdProfesional == id &&
-                            c.Estado != "Cancelada" &&
-                            c.Estado != "cancelada" &&
-                            c.Estado != "Cancelado" &&
-                            c.Estado != "cancelado" &&
-                            c.FechaHora >= DateTime.Today, ct);
+                            !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
+                                ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()) &&
+                            c.FechaHora >= ColombiaClock.Today, ct);
 
                     if (tieneCitasActivas && profesional.Estado != "inactivo")
                         throw new InvalidOperationException("No se puede desactivar: este profesional tiene citas agendadas pendientes.");
@@ -845,15 +852,15 @@ public partial class ProfesionalService : IProfesionalService
 
                     // Registrar bloqueo en Bloqueo_Profesional
                     bool yaBloqueado = await _context.BloqueosProfesional
-                        .AnyAsync(b => b.IdProfesional == id && b.FechaFin > DateTime.Now && b.Motivo == "Profesional inactivo / desactivado", ct);
+                        .AnyAsync(b => b.IdProfesional == id && b.FechaFin > ColombiaClock.Now && b.Motivo == "Profesional inactivo / desactivado", ct);
 
                     if (!yaBloqueado)
                     {
                         _context.BloqueosProfesional.Add(new BloqueoProfesional
                         {
                             IdProfesional = id,
-                            FechaInicio = DateTime.Now,
-                            FechaFin = DateTime.Now.AddYears(5),
+                            FechaInicio = ColombiaClock.Now,
+                            FechaFin = ColombiaClock.Now.AddYears(5),
                             Motivo = "Profesional inactivo / desactivado",
                             AprobadoPor = operadorId
                         });
@@ -982,13 +989,17 @@ public partial class ProfesionalService : IProfesionalService
             "Lunes", "Martes", "Miércoles", "Miercoles", "Jueves", "Viernes", "Sábado", "Sabado", "Domingo"
         };
 
-        static string NormalizarDiaSemana(string dia) =>
-            dia.Trim().ToLowerInvariant() switch
-            {
-                "miércoles" or "miercoles" => "Miercoles",
-                "sábado" or "sabado" => "Sabado",
-                _ => dia.Trim()
-            };
+        static string NormalizarDiaSemana(string dia) => dia.Trim().ToLowerInvariant() switch
+        {
+            "lunes" => "Lunes",
+            "martes" => "Martes",
+            "miércoles" or "miercoles" => "Miercoles",
+            "jueves" => "Jueves",
+            "viernes" => "Viernes",
+            "sábado" or "sabado" => "Sabado",
+            "domingo" => "Domingo",
+            _ => dia.Trim()
+        };
 
         static string? ObtenerDiaSemana(HorarioSemanalApiRequest bloque) =>
             !string.IsNullOrWhiteSpace(bloque.DiaSemana) ? bloque.DiaSemana :
@@ -1046,6 +1057,50 @@ public partial class ProfesionalService : IProfesionalService
                 Activo = true
             })
             .ToList();
+
+        var citasFuturas = await _context.Citas
+            .AsNoTracking()
+            .Include(c => c.EstadoCita)
+            .Include(c => c.Servicio)
+            .Where(c => c.IdProfesional == id && c.FechaHora >= ColombiaClock.Today)
+            .ToListAsync(ct);
+
+        foreach (var cita in citasFuturas)
+        {
+            string estado = EstadoCitaHelper.Normalize(cita.EstadoCita?.NombreEstado ?? cita.Estado);
+            if (EstadoCitaHelper.EstadosFinales.Contains(estado))
+                continue;
+
+            int duracionCita = cita.DuracionMinutos > 0
+                ? cita.DuracionMinutos
+                : cita.Servicio?.DuracionMinutos > 0
+                    ? cita.Servicio.DuracionMinutos
+                    : 60;
+            DateTime finCita = cita.FechaHora.AddMinutes(duracionCita);
+            if (finCita <= ColombiaClock.Now)
+                continue;
+
+            string diaCita = NormalizarDiaSemana(cita.FechaHora.DayOfWeek switch
+            {
+                DayOfWeek.Monday => "Lunes",
+                DayOfWeek.Tuesday => "Martes",
+                DayOfWeek.Wednesday => "Miercoles",
+                DayOfWeek.Thursday => "Jueves",
+                DayOfWeek.Friday => "Viernes",
+                DayOfWeek.Saturday => "Sabado",
+                _ => "Domingo"
+            });
+            TimeOnly inicioCita = TimeOnly.FromDateTime(cita.FechaHora);
+            TimeOnly finCitaDia = TimeOnly.FromDateTime(finCita);
+            bool quedaCubierta = nuevosHorarios.Any(h =>
+                h.DiaSemana == diaCita &&
+                h.HoraInicio <= inicioCita &&
+                h.HoraFin >= finCitaDia);
+
+            if (!quedaCubierta)
+                return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
+                    $"El nuevo horario dejaría la cita futura #{cita.IdCita} fuera de disponibilidad. Reagende o cancele esa cita antes de cambiar el horario.", 409);
+        }
 
         var existentes = await _context.HorariosProfesional
             .Where(h => h.IdProfesional == id)
@@ -1113,13 +1168,8 @@ public partial class ProfesionalService : IProfesionalService
             .Where(c => c.IdProfesional == id
                      && c.FechaHora <= fin
                      && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > inicio
-                     && c.Estado != null
-                     && c.Estado.ToLower() != "cancelada"
-                     && c.Estado.ToLower() != "cancelado"
-                     && c.Estado.ToLower() != "atendida"
-                     && c.Estado.ToLower() != "no_asistida"
-                     && c.Estado.ToLower() != "no asistió"
-                     && c.Estado.ToLower() != "no asistio")
+                     && !EstadoCitaHelper.EstadosFinales.Contains(
+                         ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()))
             .OrderBy(c => c.FechaHora)
             .Select(c => new CitaAfectadaAusenciaApiDto
             {
@@ -1180,14 +1230,14 @@ public partial class ProfesionalService : IProfesionalService
         int? operadorId,
         CancellationToken ct = default)
     {
-        var validation = await ValidarAusenciaAsync(id, request, ct);
-        if (!validation.Success)
-            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(validation.Message, validation.StatusCode);
-
         var ausencia = await _context.AusenciasProfesional
             .FirstOrDefaultAsync(a => a.IdAusencia == idAusencia && a.IdProfesional == id, ct);
         if (ausencia is null)
             return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail("Ausencia no encontrada.", 404);
+
+        var validation = await ValidarAusenciaAsync(id, request, ct, idAusencia);
+        if (!validation.Success)
+            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(validation.Message, validation.StatusCode);
 
         var citasAfectadas = await ObtenerCitasAfectadasPorAusenciaAsync(id, request.FechaInicio, request.FechaFin, ct);
         if (!citasAfectadas.Success)
@@ -1231,20 +1281,104 @@ public partial class ProfesionalService : IProfesionalService
     private async Task<(bool Success, string Message, int StatusCode)> ValidarAusenciaAsync(
         int id,
         AusenciaProfesionalApiRequest request,
-        CancellationToken ct)
+        CancellationToken ct,
+        int? idAusenciaExcluir = null)
     {
         if (request is null || id <= 0)
             return (false, "Datos de ausencia inválidos.", 400);
         if (!await _context.Profesionales.AnyAsync(p => p.IdProfesional == id, ct))
             return (false, "Profesional no encontrado.", 404);
-        if (request.FechaFin < request.FechaInicio)
+        if (request.FechaInicio == default || request.FechaFin == default || request.FechaFin < request.FechaInicio)
             return (false, "La fecha de fin debe ser igual o posterior a la fecha de inicio.", 400);
 
         string[] tiposPermitidos = ["vacaciones", "incapacidad", "permiso", "otro"];
-        if (!tiposPermitidos.Contains(request.Tipo.Trim(), StringComparer.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(request.Tipo) ||
+            !tiposPermitidos.Contains(request.Tipo.Trim(), StringComparer.OrdinalIgnoreCase))
             return (false, "El tipo de ausencia no es válido.", 400);
 
+        bool rangoSolapado = await _context.AusenciasProfesional.AnyAsync(a =>
+            a.IdProfesional == id &&
+            a.IdAusencia != (idAusenciaExcluir ?? 0) &&
+            a.FechaInicio <= request.FechaFin &&
+            a.FechaFin >= request.FechaInicio,
+            ct);
+        if (rangoSolapado)
+            return (false, "El rango de ausencia se solapa con otra ausencia registrada para este profesional.", 409);
+
         return (true, string.Empty, 200);
+    }
+
+    private static string NombreDia(DayOfWeek dayOfWeek) => dayOfWeek switch
+    {
+        DayOfWeek.Monday => "Lunes",
+        DayOfWeek.Tuesday => "Martes",
+        DayOfWeek.Wednesday => "Miercoles",
+        DayOfWeek.Thursday => "Jueves",
+        DayOfWeek.Friday => "Viernes",
+        DayOfWeek.Saturday => "Sabado",
+        _ => "Domingo"
+    };
+
+    private static string NormalizarDiaSemana(string dia) => string.Concat(
+        dia.Trim().Normalize(System.Text.NormalizationForm.FormD)
+            .Where(character => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) !=
+                                System.Globalization.UnicodeCategory.NonSpacingMark))
+        .ToLowerInvariant();
+
+    private async Task<string?> ObtenerErrorCredencialesParaActivacionAsync(
+        int idProfesional,
+        CancellationToken ct)
+    {
+        var estados = await _context.CredencialesProfesionales
+            .AsNoTracking()
+            .Where(d => d.IdProfesional == idProfesional)
+            .Select(d => d.EstadoRevision)
+            .ToListAsync(ct);
+
+        bool hayPendientes = estados.Any(estado =>
+            string.Equals(estado?.Trim(), "pendiente", StringComparison.OrdinalIgnoreCase));
+        if (hayPendientes)
+            return "Revisa todas las credenciales pendientes antes de activar al profesional.";
+
+        bool hayAprobadas = estados.Any(estado =>
+            string.Equals(estado?.Trim(), "aprobado", StringComparison.OrdinalIgnoreCase));
+        if (!hayAprobadas)
+            return "Aprueba al menos una credencial del profesional antes de activarlo. Si todas fueron rechazadas, el profesional debe cargar una nueva credencial.";
+
+        return null;
+    }
+
+    private static bool HorarioCubreIntervalo(
+        IReadOnlyCollection<HorarioProfesional> horarios,
+        DateTime inicio,
+        DateTime fin)
+    {
+        if (fin <= inicio)
+            return false;
+
+        DateOnly primerDia = DateOnly.FromDateTime(inicio);
+        DateOnly ultimoDia = DateOnly.FromDateTime(fin.AddTicks(-1));
+        for (DateOnly dia = primerDia; dia <= ultimoDia; dia = dia.AddDays(1))
+        {
+            DateTime inicioDia = dia.ToDateTime(TimeOnly.MinValue);
+            DateTime finDia = inicioDia.AddDays(1);
+            TimeOnly inicioTramo = inicio > inicioDia
+                ? TimeOnly.FromDateTime(inicio)
+                : TimeOnly.MinValue;
+            TimeOnly finTramo = fin < finDia
+                ? TimeOnly.FromDateTime(fin)
+                : new TimeOnly(23, 59);
+            string diaNombre = NormalizarDiaSemana(NombreDia(dia.DayOfWeek));
+
+            bool cubierto = horarios.Any(h =>
+                NormalizarDiaSemana(h.DiaSemana) == diaNombre &&
+                h.HoraInicio <= inicioTramo &&
+                h.HoraFin >= finTramo);
+            if (!cubierto)
+                return false;
+        }
+
+        return true;
     }
 
     private static AusenciaProfesionalApiDto MapAusencia(AusenciaProfesional ausencia) => new()
@@ -1448,6 +1582,11 @@ public partial class ProfesionalService : IProfesionalService
         decimal porcentajeComision = 40,
         CancellationToken ct = default)
     {
+        if (fechaFin < fechaInicio)
+            throw new InvalidOperationException("La fecha de fin no puede ser anterior a la fecha de inicio.");
+        if (porcentajeComision is < 0 or > 100)
+            throw new InvalidOperationException("El porcentaje de comisión debe estar entre 0 y 100.");
+
         var profesional = await _context.Profesionales.AsNoTracking()
             .FirstOrDefaultAsync(p => p.IdProfesional == idProfesional, ct);
 
@@ -1583,8 +1722,19 @@ public partial class ProfesionalService : IProfesionalService
 
         var dateInicio = DateOnly.FromDateTime(fechaInicio);
         var dateFin = DateOnly.FromDateTime(fechaFin);
-        if (dateFin < dateInicio)
-            throw new InvalidOperationException("La fecha de fin de la ausencia no puede ser anterior a la fecha de inicio.");
+        string tipoAusencia = string.IsNullOrWhiteSpace(motivo) ? "incapacidad" : motivo.Trim();
+        if (NormalizarDiaSemana(tipoAusencia) == "incapacidad medica")
+            tipoAusencia = "incapacidad";
+        var validacionAusencia = await ValidarAusenciaAsync(idProfesional,
+            new AusenciaProfesionalApiRequest
+            {
+                Tipo = tipoAusencia,
+                FechaInicio = dateInicio,
+                FechaFin = dateFin,
+                Observaciones = observaciones
+            }, ct);
+        if (!validacionAusencia.Success)
+            throw new InvalidOperationException(validacionAusencia.Message);
 
         var inicioAusencia = dateInicio.ToDateTime(TimeOnly.MinValue);
         var finAusencia = dateFin.ToDateTime(TimeOnly.MaxValue);
@@ -1595,7 +1745,7 @@ public partial class ProfesionalService : IProfesionalService
             IdProfesional = idProfesional,
             FechaInicio = dateInicio,
             FechaFin = dateFin,
-            Tipo = string.IsNullOrWhiteSpace(motivo) ? "incapacidad" : motivo.Trim(),
+            Tipo = tipoAusencia,
             Observaciones = string.IsNullOrWhiteSpace(observaciones)
                 ? "Registrado con reasignación automática de citas."
                 : observaciones.Trim(),
@@ -1608,12 +1758,8 @@ public partial class ProfesionalService : IProfesionalService
             .Where(c => c.IdProfesional == idProfesional
                      && c.FechaHora <= finAusencia
                      && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > inicioAusencia
-                     && c.Estado.ToLower() != "cancelada"
-                     && c.Estado.ToLower() != "cancelado"
-                     && c.Estado.ToLower() != "atendida"
-                     && c.Estado.ToLower() != "no_asistida"
-                     && c.Estado.ToLower() != "no asistió"
-                     && c.Estado.ToLower() != "no asistio")
+                     && !EstadoCitaHelper.EstadosFinales.Contains(
+                         ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()))
             .ToListAsync(ct);
 
         var resultado = new SmileTrack_MVC.Models.DTOs.ResultadoReasignacionAusenciaDto
@@ -1684,10 +1830,31 @@ public partial class ProfesionalService : IProfesionalService
 
                 if (candidatoConAusencia) continue;
 
-                // Verificar solapamiento de citas del candidato
+                bool candidatoConBloqueo = await _context.BloqueosProfesional
+                    .AnyAsync(b => b.IdProfesional == candidato.IdProfesional
+                                && b.FechaInicio < finCita
+                                && b.FechaFin > cita.FechaHora, ct);
+                if (candidatoConBloqueo) continue;
+
+                var horariosCandidato = await _context.HorariosProfesional
+                    .AsNoTracking()
+                    .Where(h => h.IdProfesional == candidato.IdProfesional && h.Activo)
+                    .ToListAsync(ct);
+                if (horariosCandidato.Count == 0)
+                    continue;
+
+                if (!HorarioCubreIntervalo(horariosCandidato, cita.FechaHora, finCita))
+                    continue;
+
+                // La sustitución conserva paciente y consultorio, así que los tres recursos
+                // deben estar libres para el intervalo completo.
                 bool candidatoConConflicto = await _context.Citas
-                    .AnyAsync(c => c.IdProfesional == candidato.IdProfesional
-                                && c.Estado.ToLower() != "cancelada"
+                    .AnyAsync(c => c.IdCita != cita.IdCita
+                                && (c.IdProfesional == candidato.IdProfesional
+                                    || c.IdPaciente == cita.IdPaciente
+                                    || (cita.IdConsultorio.HasValue && c.IdConsultorio == cita.IdConsultorio))
+                                && !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
+                                    ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower())
                                 && c.FechaHora < finCita
                                 && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > cita.FechaHora, ct);
 
@@ -1709,7 +1876,7 @@ public partial class ProfesionalService : IProfesionalService
                     IdEstado = cita.IdEstado,
                     EstadoTexto = cita.Estado,
                     Motivo = $"Reasignada automáticamente por ausencia del profesional #{idAnterior} a #{candidatoElegido.IdProfesional}",
-                    FechaCambio = DateTime.UtcNow
+                    FechaCambio = ColombiaClock.Now
                 });
 
                 // Notificación al paciente
@@ -1720,7 +1887,7 @@ public partial class ProfesionalService : IProfesionalService
                     Tipo = "cambio_profesional",
                     Titulo = "Reasignación de profesional",
                     Contenido = $"Tu cita del {cita.FechaHora:dd/MM/yyyy HH:mm} ha sido asignada a {candidatoElegido.Nombres} {candidatoElegido.Apellidos} por ausencia médica.",
-                    CreadaEn = DateTime.UtcNow
+                    CreadaEn = ColombiaClock.Now
                 });
 
                 reasignadas++;
@@ -1748,6 +1915,7 @@ public partial class ProfesionalService : IProfesionalService
                 {
                     cita.Estado = "Cancelada";
                 }
+                cita.MotivoCancelacion = "Cancelación automática por ausencia médica del profesional sin disponibilidad de reemplazo.";
 
                 // Historial de cancelación
                 _context.CitasHistorialEstado.Add(new CitaHistorialEstado
@@ -1756,7 +1924,7 @@ public partial class ProfesionalService : IProfesionalService
                     IdEstado = cita.IdEstado,
                     EstadoTexto = cita.Estado,
                     Motivo = "Cancelación automática por ausencia médica del profesional sin disponibilidad de reemplazo.",
-                    FechaCambio = DateTime.UtcNow
+                    FechaCambio = ColombiaClock.Now
                 });
 
                 // Notificación al paciente
@@ -1767,7 +1935,7 @@ public partial class ProfesionalService : IProfesionalService
                     Tipo = "cancelacion_emergencia",
                     Titulo = "Cita cancelada por fuerza mayor",
                     Contenido = $"Tu cita del {cita.FechaHora:dd/MM/yyyy HH:mm} fue cancelada por incapacidad del profesional. Por favor contacta a recepción para reprogramar.",
-                    CreadaEn = DateTime.UtcNow
+                    CreadaEn = ColombiaClock.Now
                 });
 
                 canceladas++;

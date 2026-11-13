@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;
@@ -16,6 +17,152 @@ namespace SmileTrack_MVC.Tests.Unit;
 
 public sealed class ProfesionalServiceTests
 {
+    [Fact]
+    public async Task CrearAusenciaAsync_RechazaRangosSolapadosDelMismoProfesional()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "activo",
+            RegistroMedico = "RM-AUSENCIA-OVERLAP"
+        };
+        db.Profesionales.Add(profesional);
+        db.AusenciasProfesional.Add(new AusenciaProfesional
+        {
+            IdProfesional = profesional.IdProfesional,
+            Tipo = "vacaciones",
+            FechaInicio = new DateOnly(2026, 12, 1),
+            FechaFin = new DateOnly(2026, 12, 15)
+        });
+        await db.SaveChangesAsync();
+
+        var result = await new ProfesionalService(db, NullLogger<ProfesionalService>.Instance)
+            .CrearAusenciaAsync(profesional.IdProfesional, new AusenciaProfesionalApiRequest
+            {
+                Tipo = "permiso",
+                FechaInicio = new DateOnly(2026, 12, 10),
+                FechaFin = new DateOnly(2026, 12, 20)
+            }, operadorId: 5);
+
+        Assert.False(result.Success);
+        Assert.Equal(409, result.ErrorStatusCode);
+        Assert.Equal(1, await db.AusenciasProfesional.CountAsync());
+    }
+
+    [Fact]
+    public async Task ActualizarAusenciaAsync_NoConsideraSolapamientoConsigoMisma()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "activo",
+            RegistroMedico = "RM-AUSENCIA-UPDATE"
+        };
+        db.Profesionales.Add(profesional);
+        await db.SaveChangesAsync();
+        var ausencia = new AusenciaProfesional
+        {
+            IdProfesional = profesional.IdProfesional,
+            Tipo = "vacaciones",
+            FechaInicio = new DateOnly(2026, 12, 1),
+            FechaFin = new DateOnly(2026, 12, 15)
+        };
+        db.AusenciasProfesional.Add(ausencia);
+        await db.SaveChangesAsync();
+
+        var result = await new ProfesionalService(db, NullLogger<ProfesionalService>.Instance)
+            .ActualizarAusenciaAsync(profesional.IdProfesional, ausencia.IdAusencia,
+                new AusenciaProfesionalApiRequest
+                {
+                    Tipo = "vacaciones",
+                    FechaInicio = ausencia.FechaInicio,
+                    FechaFin = ausencia.FechaFin
+                }, operadorId: 5);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Single(await db.AusenciasProfesional.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ActualizarAusenciaAsync_AusenciaInexistenteRetorna404AntesDeValidarSolapamiento()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "activo",
+            RegistroMedico = "RM-AUSENCIA-MISSING"
+        };
+        db.Profesionales.Add(profesional);
+        db.AusenciasProfesional.Add(new AusenciaProfesional
+        {
+            IdProfesional = profesional.IdProfesional,
+            Tipo = "vacaciones",
+            FechaInicio = new DateOnly(2026, 12, 1),
+            FechaFin = new DateOnly(2026, 12, 15)
+        });
+        await db.SaveChangesAsync();
+
+        var result = await new ProfesionalService(db, NullLogger<ProfesionalService>.Instance)
+            .ActualizarAusenciaAsync(profesional.IdProfesional, 999,
+                new AusenciaProfesionalApiRequest
+                {
+                    Tipo = "permiso",
+                    FechaInicio = new DateOnly(2026, 12, 10),
+                    FechaFin = new DateOnly(2026, 12, 20)
+                }, operadorId: 5);
+
+        Assert.False(result.Success);
+        Assert.Equal(404, result.ErrorStatusCode);
+        Assert.Single(await db.AusenciasProfesional.ToListAsync());
+    }
+
+    [Fact]
+    public async Task RegistrarAusenciaConReasignacionAsync_RechazaRangoSolapadoAntesDePersistir()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "activo",
+            RegistroMedico = "RM-AUSENCIA-REASSIGN"
+        };
+        db.Profesionales.Add(profesional);
+        db.AusenciasProfesional.Add(new AusenciaProfesional
+        {
+            IdProfesional = profesional.IdProfesional,
+            Tipo = "vacaciones",
+            FechaInicio = new DateOnly(2026, 12, 1),
+            FechaFin = new DateOnly(2026, 12, 15)
+        });
+        await db.SaveChangesAsync();
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RegistrarAusenciaConReasignacionAsync(
+                profesional.IdProfesional,
+                new DateTime(2026, 12, 10),
+                new DateTime(2026, 12, 20),
+                "permiso"));
+
+        Assert.Contains("solapa", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(await db.AusenciasProfesional.ToListAsync());
+    }
+
     [Fact]
     public async Task ActualizarHorariosAsync_NormalizaDiasConAcentoParaLaBaseDeDatos()
     {
@@ -87,7 +234,7 @@ public sealed class ProfesionalServiceTests
             new[]
             {
                 new HorarioSemanalApiRequest { DiaSemana = "Lunes", Active = true, Start = "08:00", End = "12:00" },
-                new HorarioSemanalApiRequest { DiaSemana = "Lunes", Active = true, Start = "11:00", End = "15:00" }
+                    new HorarioSemanalApiRequest { DiaSemana = "lunes", Active = true, Start = "11:00", End = "15:00" }
             },
             usuarioActualId: null,
             esAdministrador: true);
@@ -96,6 +243,62 @@ public sealed class ProfesionalServiceTests
         Assert.Equal(422, result.ErrorStatusCode);
         Assert.Contains("solapan", result.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(await db.HorariosProfesional.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ActualizarHorariosAsync_RechazaCambiosQueDejanCitasFuturasFueraDeHorario()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "activo",
+            RegistroMedico = "RM-SCHEDULE-WITH-APPOINTMENT"
+        };
+        db.Profesionales.Add(profesional);
+        await db.SaveChangesAsync();
+
+        DateTime lunes = ColombiaClock.Today.AddDays(1);
+        while (lunes.DayOfWeek != DayOfWeek.Monday)
+            lunes = lunes.AddDays(1);
+
+        db.HorariosProfesional.Add(new HorarioProfesional
+        {
+            IdProfesional = profesional.IdProfesional,
+            DiaSemana = "Lunes",
+            HoraInicio = new TimeOnly(8, 0),
+            HoraFin = new TimeOnly(18, 0),
+            Activo = true
+        });
+        db.Citas.Add(new Cita
+        {
+            IdPaciente = 1,
+            IdProfesional = profesional.IdProfesional,
+            FechaHora = lunes.AddHours(16),
+            DuracionMinutos = 60,
+            Estado = "Programada"
+        });
+        await db.SaveChangesAsync();
+
+        var result = await new ProfesionalService(db, NullLogger<ProfesionalService>.Instance)
+            .ActualizarHorariosAsync(profesional.IdProfesional,
+                [new HorarioSemanalApiRequest
+                {
+                    DiaSemana = "Lunes",
+                    Active = true,
+                    Start = "08:00",
+                    End = "12:00"
+                }],
+                usuarioActualId: null,
+                esAdministrador: true);
+
+        Assert.False(result.Success);
+        Assert.Equal(409, result.ErrorStatusCode);
+        var persistedSchedule = await db.HorariosProfesional.SingleAsync();
+        Assert.Equal(new TimeOnly(18, 0), persistedSchedule.HoraFin);
     }
 
     [Fact]
@@ -246,6 +449,14 @@ public sealed class ProfesionalServiceTests
                 FechaHora = new DateTime(2025, 1, 2, 9, 0, 0),
                 DuracionMinutos = 30,
                 Estado = "cancelada"
+            },
+            new Cita
+            {
+                IdPaciente = 1,
+                IdProfesional = profesional.IdProfesional,
+                FechaHora = new DateTime(2025, 1, 2, 9, 0, 0),
+                DuracionMinutos = 30,
+                Estado = "Rechazada"
             });
         await db.SaveChangesAsync();
 
@@ -535,6 +746,43 @@ public sealed class ProfesionalServiceTests
             FechaInicio = DateOnly.FromDateTime(fechaInicioAusencia),
             FechaFin = DateOnly.FromDateTime(fechaInicioAusencia)
         });
+        string diaCita = fechaCita.DayOfWeek switch
+        {
+            DayOfWeek.Monday => "Lunes",
+            DayOfWeek.Tuesday => "Martes",
+            DayOfWeek.Wednesday => "Miercoles",
+            DayOfWeek.Thursday => "Jueves",
+            DayOfWeek.Friday => "Viernes",
+            DayOfWeek.Saturday => "Sabado",
+            _ => "Domingo"
+        };
+        string diaSiguiente = fechaCita.AddDays(1).DayOfWeek switch
+        {
+            DayOfWeek.Monday => "Lunes",
+            DayOfWeek.Tuesday => "Martes",
+            DayOfWeek.Wednesday => "Miercoles",
+            DayOfWeek.Thursday => "Jueves",
+            DayOfWeek.Friday => "Viernes",
+            DayOfWeek.Saturday => "Sabado",
+            _ => "Domingo"
+        };
+        db.HorariosProfesional.AddRange(
+            new HorarioProfesional
+            {
+                IdProfesional = candidatoDisponible.IdProfesional,
+                DiaSemana = diaCita,
+                HoraInicio = new TimeOnly(22, 0),
+                HoraFin = new TimeOnly(23, 59),
+                Activo = true
+            },
+            new HorarioProfesional
+            {
+                IdProfesional = candidatoDisponible.IdProfesional,
+                DiaSemana = diaSiguiente,
+                HoraInicio = TimeOnly.MinValue,
+                HoraFin = new TimeOnly(2, 0),
+                Activo = true
+            });
         await db.SaveChangesAsync();
 
         var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
@@ -577,6 +825,84 @@ public sealed class ProfesionalServiceTests
         Assert.Equal(409, result.ErrorStatusCode);
         Assert.Equal("inactivo", (await db.Profesionales.SingleAsync()).Estado);
     }
+
+    [Fact]
+    public async Task CambiarEstadoAsync_RecalculaAprobacionDesdeCredencialesAprobadas()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "inactivo",
+            CredencialesAprobadas = false,
+            RegistroMedico = "RM-APPROVED-CREDENTIAL"
+        };
+        db.Profesionales.Add(profesional);
+        await db.SaveChangesAsync();
+        db.CredencialesProfesionales.Add(new CredencialProfesional
+        {
+            IdProfesional = profesional.IdProfesional,
+            Tipo = "Registro profesional",
+            NombreOriginal = "registro.pdf",
+            RutaPrivada = "private_uploads/credential.pdf",
+            ContentType = "application/pdf",
+            TamanoBytes = 100,
+            EstadoRevision = "aprobado"
+        });
+        await db.SaveChangesAsync();
+
+        var result = await new ProfesionalService(db, NullLogger<ProfesionalService>.Instance)
+            .CambiarEstadoAsync(profesional.IdProfesional, "activo", operadorId: 1, ipOrigen: "127.0.0.1");
+
+        Assert.True(result.Success, result.Message);
+        var savedProfessional = await db.Profesionales.SingleAsync();
+        Assert.True(savedProfessional.CredencialesAprobadas);
+        Assert.Equal("activo", savedProfessional.Estado);
+    }
+
+    [Fact]
+    public async Task CambiarEstadoAsync_RechazaReactivacionMientrasQuedenCredencialesPendientes()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var profesional = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Zuluaga",
+            Estado = "inactivo",
+            CredencialesAprobadas = false,
+            RegistroMedico = "RM-PENDING-CREDENTIAL"
+        };
+        db.Profesionales.Add(profesional);
+        await db.SaveChangesAsync();
+        db.CredencialesProfesionales.AddRange(
+            CrearCredencial(profesional.IdProfesional, "Registro aprobado.pdf", "aprobado"),
+            CrearCredencial(profesional.IdProfesional, "Certificado pendiente.pdf", "pendiente"));
+        await db.SaveChangesAsync();
+
+        var result = await new ProfesionalService(db, NullLogger<ProfesionalService>.Instance)
+            .CambiarEstadoAsync(profesional.IdProfesional, "activo", operadorId: 1, ipOrigen: "127.0.0.1");
+
+        Assert.False(result.Success);
+        Assert.Equal(409, result.ErrorStatusCode);
+        Assert.Contains("pendientes", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("inactivo", (await db.Profesionales.SingleAsync()).Estado);
+    }
+
+    private static CredencialProfesional CrearCredencial(int idProfesional, string nombre, string estado) => new()
+    {
+        IdProfesional = idProfesional,
+        Tipo = "Título de especialidad",
+        NombreOriginal = nombre,
+        RutaPrivada = $"private_uploads/{Guid.NewGuid():N}.pdf",
+        ContentType = "application/pdf",
+        TamanoBytes = 100,
+        EstadoRevision = estado
+    };
 
     [Fact]
     public async Task ObtenerVistaMVCAsync_AplicaFiltroYPaginacion()

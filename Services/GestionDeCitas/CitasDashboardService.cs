@@ -36,7 +36,6 @@ namespace SmileTrack_MVC.Services;
 /// </summary>
 public sealed class CitasDashboardService : ICitasDashboardService
 {
-    private static readonly string[] EstadosCancelados = ["cancelada", "cancelado"];
     private static readonly string[] EstadosAtendidos =
     [
         "atendida", "atendido", "completada", "completado",
@@ -143,7 +142,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
                 .CountAsync(p => p.Estado.Trim().ToLower() == "activo", ct);
 
     /// <summary>
-    /// Cuenta citas NO canceladas del día usando rango de fechas sargable
+    /// Cuenta citas que conservan un espacio del día usando rango de fechas sargable
     /// (evita FechaHora.Date que no puede usar el índice IX_Cita_Estado_Fecha).
     /// </summary>
     private Task<int> ContarCitasHoyAsync(
@@ -171,7 +170,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
                 .CountAsync(c =>
                     c.FechaHora >= inicio &&
                     c.FechaHora < fin     &&
-                    !EstadosCancelados.Contains(
+                    !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
                         (c.EstadoCita != null
                             ? c.EstadoCita.NombreEstado
                             : c.Estado).Trim().ToLower()),
@@ -310,7 +309,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
 
         double capacidad = minutosDisponibles / duracion;
 
-        // Las cancelaciones no consumen capacidad; las demás citas reservan un espacio.
+        // Las cancelaciones y solicitudes rechazadas no consumen capacidad.
         int citasActivas = await ContarCitasNoCanceladasAsync(inicioMes, finMes, ct);
 
         return Math.Clamp(

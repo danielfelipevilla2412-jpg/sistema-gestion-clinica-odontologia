@@ -38,6 +38,7 @@ public sealed class CitasDashboardServiceTests
         var programada = new EstadoCita { NombreEstado = "Programada" };
         var cancelada = new EstadoCita { NombreEstado = "Cancelada" };
         var noAsistio = new EstadoCita { NombreEstado = "No asistió" };
+        var rechazada = new EstadoCita { NombreEstado = "Rechazada" };
 
         db.AddRange(
             paciente,
@@ -46,7 +47,8 @@ public sealed class CitasDashboardServiceTests
             atendida,
             programada,
             cancelada,
-            noAsistio);
+            noAsistio,
+            rechazada);
         await db.SaveChangesAsync();
 
         db.HorariosProfesional.AddRange(
@@ -71,6 +73,7 @@ public sealed class CitasDashboardServiceTests
             CrearCita(fecha.AddHours(9), "Programada", atendida, paciente, profesionalActivo),
             CrearCita(fecha.AddHours(10), "Cancelada", programada, paciente, profesionalActivo),
             CrearCita(fecha.AddHours(11), "Programada", cancelada, paciente, profesionalActivo),
+            CrearCita(fecha.AddHours(12), "Rechazada", rechazada, paciente, profesionalActivo),
             CrearCita(fecha.AddDays(1).AddHours(9), "Programada", noAsistio, paciente, profesionalActivo),
             CrearCita(new DateTime(2026, 9, 30, 9, 0, 0), "Atendida", atendida, paciente, profesionalActivo));
         await db.SaveChangesAsync();
@@ -86,11 +89,11 @@ public sealed class CitasDashboardServiceTests
         Assert.Equal(1, dashboard.Kpis.PacientesActivos);
         Assert.Equal(1, dashboard.Kpis.ProfesionalesActivos);
         Assert.Equal(2, dashboard.Kpis.CitasHoy);
-        Assert.Equal(4, dashboard.Estados.Total);
+        Assert.Equal(5, dashboard.Estados.Total);
         Assert.Equal(1, dashboard.Estados.Atendidas);
         Assert.Equal(1, dashboard.Estados.Programadas);
         Assert.Equal(1, dashboard.Estados.Canceladas);
-        Assert.Equal(1, dashboard.Estados.Otros);
+        Assert.Equal(2, dashboard.Estados.Otros);
         Assert.Equal(100, dashboard.Estados.PorcentajeAtendidas +
             dashboard.Estados.PorcentajeConfirmadas +
             dashboard.Estados.PorcentajeProgramadas +

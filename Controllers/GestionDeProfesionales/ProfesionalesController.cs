@@ -160,7 +160,9 @@ public partial class GestionProfesionalesController(
                     var finMes = inicioMes.AddMonths(1);
 
                     var citasDelMes = await _context.Citas
+                        .Include(c => c.Paciente)
                         .Include(c => c.Servicio)
+                        .Include(c => c.Consultorio)
                         .Where(c => c.IdProfesional == profesional.IdProfesional && c.FechaHora >= inicioMes && c.FechaHora < finMes)
                         .AsNoTracking()
                         .ToListAsync(ct);
@@ -172,21 +174,21 @@ public partial class GestionProfesionalesController(
                     // progreso del día (evita que el progreso supere 100%). El valor mensual
                     // OdoCitasAtendidas se reserva para el panel "Tus citas del mes".
                     ViewData["OdoCitasAtendidasHoy"] = citasDelMes.Count(c =>
-                        c.FechaHora.Date == hoy && string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase));
+                        c.FechaHora.Date == hoy && EstadoCitaHelper.Normalize(c.Estado) == "atendida");
 
                     decimal ingresosMes = citasDelMes
-                        .Where(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase) && c.Servicio != null)
+                        .Where(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida" && c.Servicio != null)
                         .Sum(c => c.Servicio!.Precio);
                     ViewData["OdoIngresosMes"] = ingresosMes;
 
-                    ViewData["OdoCitasAtendidas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase));
+                    ViewData["OdoCitasAtendidas"] = citasDelMes.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida");
                     // Solo cuentan como "programadas" las citas que todavía no han pasado; las
                     // vencidas que siguen en espera ya no deben inflar el KPI.
                     ViewData["OdoCitasProgramadas"] = citasDelMes.Count(c =>
                         c.FechaHora >= ahora &&
-                        (string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase)));
-                    ViewData["OdoCitasCanceladas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase));
-                    ViewData["OdoCitasNoAsistio"] = citasDelMes.Count(c => string.Equals(c.Estado, "No asistio", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "no asistió", StringComparison.OrdinalIgnoreCase));
+                        EstadoCitaHelper.Normalize(c.Estado) == "programada");
+                    ViewData["OdoCitasCanceladas"] = citasDelMes.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "cancelada");
+                    ViewData["OdoCitasNoAsistio"] = citasDelMes.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "no_asistida");
                     ViewData["OdoTotalCitasMes"] = citasDelMes.Count;
 
                     // "Próximas citas de hoy": se excluyen las que ya pasaron de hora.
@@ -194,23 +196,13 @@ public partial class GestionProfesionalesController(
                         .Where(c =>
                             c.FechaHora.Date == hoy &&
                             c.FechaHora >= ahora &&
-                            (
-                                string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(c.Estado, "Confirmada", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(c.Estado, "confirmada", StringComparison.OrdinalIgnoreCase)
-                            ))
+                            EstadoCitaHelper.Normalize(c.Estado) is "programada" or "confirmada")
                         .OrderBy(c => c.FechaHora)
                         .Take(4)
                         .ToList();
 
                     ViewData["OdoUltimosPacientes"] = citasDelMes
-                        .Where(c =>
-                            string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(c.Estado, "atendida", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(c.Estado, "finalizada", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(c.Estado, "completada", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(c.Estado, "realizada", StringComparison.OrdinalIgnoreCase))
+                        .Where(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida")
                         .OrderByDescending(c => c.FechaHora)
                         .Take(3)
                         .ToList();
@@ -264,59 +256,44 @@ public partial class GestionProfesionalesController(
                     // ═══════════════════════════════════════════════════════════════
 
                     // 1. PRÓXIMA CITA URGENTE (con datos del paciente incluidos)
-                    var proximaCitaUrgente = await _context.Citas
-                        .Include(c => c.Paciente)
-                        .Include(c => c.Servicio)
-                        .Include(c => c.Consultorio)
-                        .AsNoTracking()
+                    var proximaCitaUrgente = citasDelMes
                         .Where(c =>
-                            c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora >= ColombiaClock.Now &&
-                            (c.Estado == "Agendada" || c.Estado == "programada" || 
-                             c.Estado == "Confirmada" || c.Estado == "confirmada"))
+                            c.FechaHora >= ahora &&
+                            EstadoCitaHelper.Normalize(c.Estado) is "programada" or "confirmada")
                         .OrderBy(c => c.FechaHora)
-                        .FirstOrDefaultAsync(ct);
+                        .FirstOrDefault();
 
                     ViewData["OdoProximaCitaUrgente"] = proximaCitaUrgente;
 
                     // 2. CITAS PENDIENTES DE CONFIRMAR (estado "Agendada" o "programada")
                     //    Solo las que aún no han pasado: una cita vencida ya no está pendiente.
-                    var citasPendientesConfirmar = await _context.Citas
-                        .AsNoTracking()
-                        .CountAsync(c =>
-                            c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora >= ahora &&
-                            (c.Estado == "Agendada" || c.Estado == "programada"), ct);
+                    var citasPendientesConfirmar = citasDelMes.Count(c =>
+                        c.FechaHora >= ahora &&
+                        EstadoCitaHelper.Normalize(c.Estado) == "programada");
 
                     ViewData["CitasPendientesConfirmar"] = citasPendientesConfirmar;
 
                     // 3. PACIENTES EN ESPERA (citas de hoy en estado "Confirmada" y hora ya pasada)
-                    var pacientesEnEspera = await _context.Citas
-                        .AsNoTracking()
-                        .CountAsync(c =>
-                            c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora.Date == hoy &&
-                            c.FechaHora <= ahora &&
-                            (c.Estado == "Confirmada" || c.Estado == "confirmada"), ct);
+                    var pacientesEnEspera = citasDelMes.Count(c =>
+                        c.FechaHora.Date == hoy &&
+                        c.FechaHora <= ahora &&
+                        EstadoCitaHelper.Normalize(c.Estado) == "confirmada");
 
                     ViewData["PacientesEnEspera"] = pacientesEnEspera;
 
                     // 4. HISTORIAS CLÍNICAS PENDIENTES (citas atendidas hoy sin notas)
-                    var historiasPendientes = await _context.Citas
-                        .AsNoTracking()
-                        .CountAsync(c =>
-                            c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora.Date == hoy &&
-                            (c.Estado == "Atendida" || c.Estado == "atendida") &&
-                            string.IsNullOrWhiteSpace(c.Notas), ct);
+                    var historiasPendientes = citasDelMes.Count(c =>
+                        c.FechaHora.Date == hoy &&
+                        EstadoCitaHelper.Normalize(c.Estado) == "atendida" &&
+                        string.IsNullOrWhiteSpace(c.Notas));
 
                     ViewData["HistoriasPendientes"] = historiasPendientes;
 
                     // 5. RENDIMIENTO DEL DÍA (cálculo de tasa de asistencia)
                     var citasHoyTotal = citasDelMes.Count(c => c.FechaHora.Date == hoy);
-                    var citasHoyAtendidas = citasDelMes.Count(c => 
-                        c.FechaHora.Date == hoy && 
-                        (c.Estado == "Atendida" || c.Estado == "atendida"));
+                    var citasHoyAtendidas = citasDelMes.Count(c =>
+                        c.FechaHora.Date == hoy &&
+                        EstadoCitaHelper.Normalize(c.Estado) == "atendida");
                     
                     var tasaAsistencia = citasHoyTotal > 0 
                         ? (int)Math.Round((double)citasHoyAtendidas / citasHoyTotal * 100) 
@@ -327,18 +304,20 @@ public partial class GestionProfesionalesController(
                     // 6. ÚLTIMA ATENCIÓN DEL PACIENTE DE LA PRÓXIMA CITA (para contexto)
                     if (proximaCitaUrgente != null)
                     {
-                        var ultimaAtencion = await _context.Citas
+                        var atencionesPrevias = await _context.Citas
                             .Include(c => c.Servicio)
                             .AsNoTracking()
                             .Where(c =>
                                 c.IdPaciente == proximaCitaUrgente.IdPaciente &&
                                 c.IdProfesional == profesional.IdProfesional &&
-                                c.FechaHora < proximaCitaUrgente.FechaHora &&
-                                (c.Estado == "Atendida" || c.Estado == "atendida"))
+                                c.FechaHora < proximaCitaUrgente.FechaHora)
+                            .ToListAsync(ct);
+                        var ultimaAtencionPaciente = atencionesPrevias
+                            .Where(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida")
                             .OrderByDescending(c => c.FechaHora)
-                            .FirstOrDefaultAsync(ct);
+                            .FirstOrDefault();
 
-                        ViewData["UltimaAtencionProximaCita"] = ultimaAtencion;
+                        ViewData["UltimaAtencionProximaCita"] = ultimaAtencionPaciente;
                     }
                 }
             }
@@ -379,7 +358,7 @@ public partial class GestionProfesionalesController(
         return Ok(new
         {
             citasHoy = citasHoy.Count,
-            citasAtendidas = citasHoy.Count(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase))
+            citasAtendidas = citasHoy.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida")
         });
     }
 
@@ -662,35 +641,36 @@ public partial class GestionProfesionalesController(
         documento.FechaRevision = ColombiaClock.Now;
 
         var profesional = documento.Profesional;
-        if (estado == "rechazado")
-        {
-            profesional.CredencialesAprobadas = false;
-            profesional.Estado = "inactivo";
-        }
-        else
-        {
-            bool tieneDocumentosSinAprobar = await _context.CredencialesProfesionales.AnyAsync(d =>
-                d.IdProfesional == profesional.IdProfesional &&
-                d.IdCredencial != documento.IdCredencial &&
-                d.EstadoRevision == "pendiente", ct);
-            if (!tieneDocumentosSinAprobar)
-            {
-                profesional.CredencialesAprobadas = true;
-                profesional.Estado = "activo";
-                if (profesional.Usuario is not null)
-                    profesional.Usuario.Estado = "activo";
+        var credenciales = await _context.CredencialesProfesionales
+            .Where(d => d.IdProfesional == profesional.IdProfesional)
+            .ToListAsync(ct);
+        bool tieneCredencialesPendientes = credenciales.Any(d =>
+            string.Equals(d.EstadoRevision?.Trim(), "pendiente", StringComparison.OrdinalIgnoreCase));
+        bool tieneCredencialesAprobadas = credenciales.Any(d =>
+            string.Equals(d.EstadoRevision?.Trim(), "aprobado", StringComparison.OrdinalIgnoreCase));
+        bool puedeActivarse = tieneCredencialesAprobadas && !tieneCredencialesPendientes;
 
-                var bloqueos = await _context.BloqueosProfesional
-                    .Where(b => b.IdProfesional == profesional.IdProfesional && b.Motivo == "Profesional inactivo / desactivado")
-                    .ToListAsync(ct);
-                _context.BloqueosProfesional.RemoveRange(bloqueos);
-            }
+        profesional.CredencialesAprobadas = puedeActivarse;
+        profesional.Estado = puedeActivarse ? "activo" : "inactivo";
+        if (puedeActivarse)
+        {
+            if (profesional.Usuario is not null)
+                profesional.Usuario.Estado = "activo";
+
+            var bloqueos = await _context.BloqueosProfesional
+                .Where(b => b.IdProfesional == profesional.IdProfesional && b.Motivo == "Profesional inactivo / desactivado")
+                .ToListAsync(ct);
+            _context.BloqueosProfesional.RemoveRange(bloqueos);
         }
 
         await _context.SaveChangesAsync(ct);
-        TempData["Mensaje"] = estado == "aprobado"
-            ? "Credencial aprobada."
-            : "Credencial rechazada; el perfil permanece inactivo.";
+        TempData["Mensaje"] = puedeActivarse
+            ? estado == "aprobado"
+                ? "Credencial aprobada. Hay una credencial aprobada y no quedan revisiones pendientes; el profesional puede activarse."
+                : "Credencial rechazada. Se conserva otra credencial aprobada y no quedan revisiones pendientes."
+            : tieneCredencialesPendientes
+                ? "La credencial fue revisada, pero quedan credenciales pendientes. Aprueba o rechaza todas antes de reactivar el perfil."
+                : "No hay credenciales aprobadas. El profesional debe cargar una nueva credencial y esperar su aprobación para poder reactivarse.";
         return RedirectToAction(nameof(Stadm07GestionProfesionales));
     }
 

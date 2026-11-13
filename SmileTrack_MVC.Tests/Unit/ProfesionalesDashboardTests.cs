@@ -1,15 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Controllers;
 using SmileTrack_MVC.Controllers.Api;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Services;
@@ -19,6 +22,54 @@ namespace SmileTrack_MVC.Tests.Unit;
 
 public sealed class ProfesionalesDashboardTests
 {
+    [Fact]
+    public async Task RevisarCredencial_RechazarDocumentoAdicional_ConservaOtraAprobada()
+    {
+        await using var db = CreateDatabase();
+        var profesional = new Profesional
+        {
+            IdProfesional = 7,
+            IdUsuario = 42,
+            Nombres = "Ana",
+            Apellidos = "Profesional",
+            RegistroMedico = "RM-CREDENTIAL-REVIEW",
+            Estado = "inactivo",
+            CredencialesAprobadas = false
+        };
+        var aprobada = CreateCredential(profesional.IdProfesional, "Registro.pdf");
+        aprobada.EstadoRevision = "aprobado";
+        var pendiente = CreateCredential(profesional.IdProfesional, "Certificado.pdf");
+        db.Profesionales.Add(profesional);
+        db.CredencialesProfesionales.AddRange(aprobada, pendiente);
+        await db.SaveChangesAsync();
+
+        var controller = new GestionProfesionalesController(
+            db,
+            NullLogger<GestionProfesionalesController>.Instance,
+            null!,
+            null!)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [
+                        new Claim(ClaimTypes.NameIdentifier, "99"),
+                        new Claim(ClaimTypes.Role, "Administrador")
+                    ], "test"))
+                }
+            }
+        };
+        controller.TempData = new TempDataDictionary(controller.ControllerContext.HttpContext, new MemoryTempDataProvider());
+
+        var result = await controller.RevisarCredencialProfesional(pendiente.IdCredencial, "rechazado", "No legible");
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(profesional.CredencialesAprobadas);
+        Assert.Equal("activo", profesional.Estado);
+    }
+
     [Fact]
     public async Task DashboardStats_DevuelveSoloCitasDelProfesionalAutenticado()
     {
@@ -57,6 +108,13 @@ public sealed class ProfesionalesDashboardTests
             },
             new Cita
             {
+                IdPaciente = 4,
+                IdProfesional = profesional.IdProfesional,
+                FechaHora = DateTime.Today.AddHours(12),
+                Estado = "Finalizada"
+            },
+            new Cita
+            {
                 IdPaciente = 3,
                 IdProfesional = otroProfesional.IdProfesional,
                 FechaHora = DateTime.Today.AddHours(11),
@@ -68,8 +126,8 @@ public sealed class ProfesionalesDashboardTests
         var result = Assert.IsType<OkObjectResult>(await controller.DashboardStats());
         var payload = result.Value!;
 
-        Assert.Equal(2, ReadInt(payload, "citasHoy"));
-        Assert.Equal(1, ReadInt(payload, "citasAtendidas"));
+        Assert.Equal(3, ReadInt(payload, "citasHoy"));
+        Assert.Equal(2, ReadInt(payload, "citasAtendidas"));
     }
 
     [Fact]
@@ -172,6 +230,13 @@ public sealed class ProfesionalesDashboardTests
             TamanoBytes = 10,
             EstadoRevision = "pendiente"
         };
+
+    private sealed class MemoryTempDataProvider : ITempDataProvider
+    {
+        public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();
+
+        public void SaveTempData(HttpContext context, IDictionary<string, object> values) { }
+    }
 
     private static int ReadInt(object payload, string propertyName) =>
         (int)payload.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)!
