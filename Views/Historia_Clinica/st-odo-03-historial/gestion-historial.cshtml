@@ -114,29 +114,13 @@
 
 @section Styles {
     <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-03-historial/gestion-historial.css")" asp-append-version="true" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/odontograma-fdi.css")" asp-append-version="true" />
 }
 
 <main class="main clinical-main" id="main-content">
     @* CAMBIO DE DISEÑO: se estandariza la vista con la misma estructura de encabezado,
        tipografía y proporciones del resto del sistema; también se elimina la información
        predefinida para dejar el formulario listo para editar cuando no hay paciente activo. *@
-    <header class="clinical-topbar" data-purpose="top-navigation-bar">
-        <div class="clinical-header-left">
-            <nav class="clinical-breadcrumb" aria-label="Breadcrumb">
-                <span>Odontólogo</span>
-                <span class="breadcrumb-divider">›</span>
-                <span>Pacientes</span>
-            </nav>
-        </div>
-
-        <div class="clinical-header-actions">
-            <div class="lang-switcher" aria-label="Selector de idioma">
-                <button type="button" class="lang-btn active" aria-label="Español">ES</button>
-                <button type="button" class="lang-btn" aria-label="English">EN</button>
-            </div>
-        </div>
-    </header>
-
     <div class="clinical-content-shell">
         <section class="page-hero">
             <div class="page-hero-copy">
@@ -187,8 +171,8 @@
                     </div>
                 </div>
                 <div class="patient-summary-actions">
-                    <button type="button" class="soft-btn subtle">Buscar paciente</button>
-                    <button type="button" class="mini-btn">Nueva historia</button>
+                    <button type="button" class="soft-btn subtle" id="btnBuscarPaciente">Buscar paciente</button>
+                    <button type="button" class="mini-btn" id="btnNuevaHistoria">Nueva historia</button>
                 </div>
             </div>
         </section>
@@ -449,19 +433,8 @@
                     </div>
                     <p id="odontogramaSnapshotNotice" class="snapshot-notice" role="status" hidden></p>
                     <div id="odontogramaHost" class="history-odontogram-viewer">
-                        <div class="history-viewer-wrap">
-                            <div class="history-viewer-loading" id="historyViewerLoading" role="status">
-                                <span class="history-loading-spinner" aria-hidden="true"></span>
-                                <span>Cargando odontograma 3D...</span>
-                            </div>
-                            <div class="history-viewer-error" id="historyViewerError" role="alert" hidden>
-                                <p>No se pudo cargar el modelo 3D.</p>
-                                <button type="button" id="btnRetryHistoryViewer">Reintentar</button>
-                            </div>
-                            <iframe id="historyOdontogramFrame"
-                                    title="Odontograma digital 3D en modo de solo lectura"
-                                    allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
-                        </div>
+                        <div id="historyOdontogramChart" class="odontograma-fdi-chart" role="group" aria-label="Odontograma FDI histórico"></div>
+                        <p class="fdi-chart-help">Selecciona un diente para consultar su evolución.</p>
                         <p id="historyToothStatus" class="history-tooth-status" aria-live="polite">Pasa sobre un diente para consultar su estado en la fecha seleccionada.</p>
                     </div>
                 </aside>
@@ -496,6 +469,20 @@
         <div id="toothHistoryRecords" class="tooth-history-records" aria-live="polite"></div>
     </dialog>
 
+    <dialog id="patientSearchDialog" class="tooth-history-dialog patient-search-dialog" aria-labelledby="patientSearchTitle">
+        <header class="tooth-history-header">
+            <h2 id="patientSearchTitle">Buscar paciente</h2>
+            <button type="button" id="closePatientSearch" aria-label="Cerrar">×</button>
+        </header>
+        <label for="patientSearchInput">Nombre, apellido o documento</label>
+        <div class="patient-search-controls">
+            <input id="patientSearchInput" type="search" maxlength="100" autocomplete="off" />
+            <button type="button" class="primary-btn" id="runPatientSearch">Buscar</button>
+        </div>
+        <p id="patientSearchStatus" role="status" aria-live="polite">Escribe al menos dos caracteres para buscar.</p>
+        <div id="patientSearchResults" class="patient-search-results"></div>
+    </dialog>
+
     <div id="holo-tooltip-historial" role="status" aria-live="polite"></div>
 </main>
 
@@ -514,6 +501,6 @@
 </script>
 
 @section Scripts {
-    <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
+    <script src="@Url.Content("~/js/shared/odontograma-fdi.js")" asp-append-version="true"></script>
     <script src="@Url.Content("~/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js")" asp-append-version="true"></script>
 }

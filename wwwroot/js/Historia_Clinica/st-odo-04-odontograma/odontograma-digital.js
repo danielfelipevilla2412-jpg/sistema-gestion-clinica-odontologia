@@ -12,6 +12,9 @@ const safeGetElement = (id) => {
     return el;
 };
 
+const getAntiForgeryToken = () =>
+    document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+
 const showToast = (message, type = 'success') => {
     const toast = safeGetElement('toast');
     if (!toast) return;
@@ -49,9 +52,6 @@ const ESTADOS = [
     { key: 'protesis',   label: 'Prótesis',   color: '#c2410c', ico: '◇' },
 ];
 
-const MODELO_ADULTO = '7f5b381c66674e0a969e8db04d139666';
-const SKETCHFAB_API_VERSION = '1.12.1';
-
 const MAPEO_FDI = {
     '11': 'Incisivo Central Superior Derecho',   '12': 'Incisivo Lateral Superior Derecho',
     '13': 'Canino Superior Derecho',             '14': 'Primer Premolar Superior Derecho',
@@ -75,17 +75,10 @@ const MAPEO_FDI = {
 //  ESTADO GLOBAL
 // ═══════════════════════════════════════════════════════════════════
 
-let apiActual = null;
-let apiListo = false;
 let seleccionadoNodeId = null;
 let seleccionadoNombre = "";
 let baseDatosTratamientos = {};
 let mapeoFDI = {};
-let mapaNodos = {};
-let mapeoActivo = false;
-let dienteActualMapeo = null;
-let tooltipVisible = false;
-let ultimoInstanceId = null;
 
 const config = window.smiletrackOdontogramaConfig || {};
 const paciente = {
@@ -106,23 +99,23 @@ const paciente = {
 
 function cargarDatos() {
     baseDatosTratamientos = {};
-    mapeoFDI = {};
+    mapeoFDI = Object.fromEntries(
+        Object.keys(MAPEO_FDI).map(numeroFdi => [`fdi-${numeroFdi}`, numeroFdi])
+    );
 
     try {
         if (config.estadoPersistido) {
             const persistido = typeof config.estadoPersistido === 'string' ? JSON.parse(config.estadoPersistido) : config.estadoPersistido;
-            if (persistido?.registros) baseDatosTratamientos = persistido.registros;
-            if (persistido?.mapeoFDI) mapeoFDI = persistido.mapeoFDI;
-        }
-
-        baseDatosTratamientos = normalizarRegistros(baseDatosTratamientos);
-        if (!mapeoFDI || typeof mapeoFDI !== 'object' || Array.isArray(mapeoFDI)) {
-            mapeoFDI = {};
+            const registros = normalizarRegistros(persistido?.registros);
+            const mapeoGuardado = persistido?.mapeoFDI || {};
+            Object.entries(registros).forEach(([instanceId, registro]) => {
+                const numeroFdi = mapeoGuardado[instanceId] || instanceId.match(/^fdi-(\d{2})$/)?.[1];
+                if (numeroFdi in MAPEO_FDI) baseDatosTratamientos[`fdi-${numeroFdi}`] = registro;
+            });
         }
     } catch (e) {
         console.error('No se pudieron cargar los datos persistidos del odontograma.', e);
         baseDatosTratamientos = {};
-        mapeoFDI = {};
     }
 
     try {
@@ -194,338 +187,6 @@ async function persistirEstado({ mostrarToast: shouldShowToast = true } = {}) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  NOMENCLATURA
-// ═══════════════════════════════════════════════════════════════════
-
-function obtenerNombreNodo(instanceID) {
-    return mapaNodos[instanceID] || `PIEZA ${instanceID}`;
-}
-
-function obtenerNombrePieza(nodeName, instanceID) {
-    if (mapeoFDI[instanceID]) {
-        const num = mapeoFDI[instanceID];
-        return `${num} - ${MAPEO_FDI[num] || 'Pieza Dental'}`;
-    }
-    return nodeName ? nodeName.toUpperCase() : `PIEZA ${instanceID}`;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  TOOLTIP HOVER
-// ═══════════════════════════════════════════════════════════════════
-
-function generarTooltipContent(hoverName, instanceID) {
-    const historialPieza = baseDatosTratamientos[instanceID];
-    let content = `<div class="tooltip-header">${escapeHtml(hoverName)}</div>`;
-
-    if (historialPieza && historialPieza.tratamientos && historialPieza.tratamientos.length > 0) {
-        const tratamientos = historialPieza.tratamientos;
-        const actual = tratamientos[tratamientos.length - 1];
-        const est = ESTADOS.find(x => x.key === actual.key) || { label: 'Estado no reconocido', color: '#64748b' };
-
-                content += `
-            <div class="tooltip-section">
-                <div class="tooltip-label">Estado Actual</div>
-                <div class="tooltip-current">
-                    <div class="tooltip-current-status" style="color:${est.color};">● ${escapeHtml(est.label.toUpperCase())}</div>
-                    ${actual.obs ? `<div class="tooltip-current-obs">"${escapeHtml(actual.obs)}"</div>` : ''}
-                    ${actual.profesional ? `<div class="tooltip-current-doctor">👨‍⚕️ ${escapeHtml(actual.profesional)}</div>` : ''}
-                </div>
-            </div>
-        `;
-
-        if (tratamientos.length > 1) {
-            content += `<div class="tooltip-section"><div class="tooltip-history-title">📊 Historial (${tratamientos.length})</div>`;
-            for (let i = tratamientos.length - 1; i >= 0; i--) {
-                const t = tratamientos[i];
-                const e = ESTADOS.find(x => x.key === t.key) || { label: 'Estado no reconocido', color: '#64748b' };
-                const f = new Date(t.fecha).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-             content += `
-                    <div class="tooltip-history-item">
-                        <div class="tooltip-history-status" style="color:${e.color};">● ${escapeHtml(e.label)}</div>
-                        ${t.obs ? `<div class="tooltip-history-obs">"${escapeHtml(t.obs)}"</div>` : ''}
-                        ${t.profesional ? `<div class="tooltip-history-doctor">👨‍⚕️ ${escapeHtml(t.profesional)}</div>` : ''}
-                        <div class="tooltip-history-date">${escapeHtml(f)}</div>
-                    </div>
-                `;
-            }
-            content += '</div>';
-        }
-    } else {
-        content += `<div class="tooltip-empty">Sin registros de tratamiento</div>`;
-    }
-    return content;
-}
-
-function actualizarPosicionTooltip(e) {
-    const tooltip = safeGetElement('holo-tooltip');
-    if (!tooltip) return;
-    let x = e.clientX + 20, y = e.clientY + 20;
-    const rect = tooltip.getBoundingClientRect();
-    if (x + 320 > window.innerWidth) x = e.clientX - 340;
-    if (y + rect.height > window.innerHeight) y = e.clientY - rect.height - 20;
-    tooltip.style.left = x + 'px';
-    tooltip.style.top = y + 'px';
-
-    // Yeray - Flecha guía: línea desde el diente (posición del cursor) hasta el
-    // borde más cercano del tooltip, para que sea evidente a qué pieza corresponde.
-    actualizarFlechaTooltip(e.clientX, e.clientY);
-}
-
-// Yeray - Dibuja la flecha guía. El punto de destino se calcula como el punto del
-// rectángulo del tooltip más cercano al cursor (funciona igual sin importar si el
-// tooltip terminó a la derecha, izquierda, arriba o abajo del cursor).
-function actualizarFlechaTooltip(cursorX, cursorY) {
-    const svg = safeGetElement('tooltip-arrow-svg');
-    const linea = safeGetElement('tooltip-arrow-line');
-    const tooltip = safeGetElement('holo-tooltip');
-    if (!svg || !linea || !tooltip) return;
-
-    const rect = tooltip.getBoundingClientRect();
-    const destinoX = Math.max(rect.left, Math.min(cursorX, rect.right));
-    const destinoY = Math.max(rect.top, Math.min(cursorY, rect.bottom));
-
-    linea.setAttribute('x1', cursorX);
-    linea.setAttribute('y1', cursorY);
-    linea.setAttribute('x2', destinoX);
-    linea.setAttribute('y2', destinoY);
-    svg.style.display = 'block';
-}
-
-function ocultarFlechaTooltip() {
-    const svg = safeGetElement('tooltip-arrow-svg');
-    if (svg) svg.style.display = 'none';
-}
-
-
-// ═══════════════════════════════════════════════════════════════════
-//  MAPEO FDI
-// ═══════════════════════════════════════════════════════════════════
-
-function toggleMapeoFDI() {
-    mapeoActivo = !mapeoActivo;
-    const panel = safeGetElement('mapeo-panel');
-    const banner = safeGetElement('modo-mapeo-banner');
-    const btn = safeGetElement('btnMapeo');
-
-    if (mapeoActivo) {
-        panel.classList.add('visible');
-        banner.classList.add('visible');
-        btn.textContent = '❌ Salir de Mapeo';
-        generarBotonesMapeo();
-        actualizarProgresoMapeo();
-    } else {
-        panel.classList.remove('visible');
-        banner.classList.remove('visible');
-        btn.textContent = '🔧 Mapear FDI';
-        dienteActualMapeo = null;
-        safeGetElement('mapeo-current').classList.remove('visible');
-    }
-}
-
-function resetearMapeo() {
-    if (confirm('¿Seguro que quieres borrar todo el mapeo FDI?')) {
-        if (Object.keys(baseDatosTratamientos).length > 0) {
-            showToast('No puedes borrar el mapeo mientras existan registros dentales.', 'warning');
-            return;
-        }
-
-        const mapeoAnterior = mapeoFDI;
-        mapeoFDI = {};
-        persistirEstado({ mostrarToast: false }).then((guardado) => {
-            if (!guardado) {
-                mapeoFDI = mapeoAnterior;
-                showToast('No se pudo restablecer el mapeo.', 'error');
-            } else {
-                showToast('Mapeo restablecido', 'success');
-            }
-            generarBotonesMapeo();
-            actualizarProgresoMapeo();
-        });
-    }
-}
-
-function generarBotonesMapeo() {
-    const grid = safeGetElement('mapeo-grid');
-    if (!grid) return;
-    grid.innerHTML = Object.keys(MAPEO_FDI).map(num => {
-        const mapeado = Object.values(mapeoFDI).includes(num);
-        return `<button class="mapeo-btn ${mapeado ? 'mapped' : ''}" onclick="asignarFDI('${num}')" title="${MAPEO_FDI[num]}">${num}</button>`;
-    }).join('');
-}
-
-async function asignarFDI(numeroFDI) {
-    if (!dienteActualMapeo) {
-        showToast('Primero haz clic en un diente del modelo 3D', 'warning');
-        return;
-    }
-    const instanciaExistente = Object.keys(mapeoFDI).find(
-        instanceId => mapeoFDI[instanceId] === numeroFDI && instanceId !== String(dienteActualMapeo.instanceID)
-    );
-    if (instanciaExistente) {
-        showToast(`El diente ${numeroFDI} ya está asignado a otra pieza.`, 'warning');
-        return;
-    }
-
-    const instanceId = String(dienteActualMapeo.instanceID);
-    const numeroAnterior = mapeoFDI[instanceId];
-    mapeoFDI[instanceId] = numeroFDI;
-    const nombre = `${numeroFDI} - ${MAPEO_FDI[numeroFDI]}`;
-    generarBotonesMapeo();
-    actualizarProgresoMapeo();
-    const current = safeGetElement('mapeo-current');
-    if (current) current.classList.remove('visible');
-    dienteActualMapeo = null;
-    const guardado = await persistirEstado({ mostrarToast: false });
-    if (!guardado) {
-        if (numeroAnterior) mapeoFDI[instanceId] = numeroAnterior;
-        else delete mapeoFDI[instanceId];
-        generarBotonesMapeo();
-        actualizarProgresoMapeo();
-        showToast('No se pudo guardar el mapeo.', 'error');
-        return;
-    }
-    showToast(`Asignado: ${nombre}`, 'success');
-}
-
-function actualizarProgresoMapeo() {
-    const el = safeGetElement('mapeo-progress');
-    if (el) el.textContent = `Dientes mapeados: ${Object.keys(mapeoFDI).length} / 32`;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN VISOR SKETCHFAB
-// ═══════════════════════════════════════════════════════════════════
-
-function inicializarVisor() {
-    const iframe = safeGetElement('api-frame');
-    if (!iframe) {
-        console.error('❌ No se encontró el iframe del visor');
-        return;
-    }
-
-    const loading = safeGetElement('viewerLoading');
-    const error = safeGetElement('viewerError');
-    const tooltip = safeGetElement('holo-tooltip');
-
-    // La API debe crear y enlazar el embed. Asignar iframe.src manualmente
-    // antes de init puede abrir un visor sin el canal de eventos de la API.
-    // Sketchfab 1.12.1 recibe primero la versión y luego el iframe.
-    const client = new Sketchfab(SKETCHFAB_API_VERSION, iframe);
-
-    client.init(MODELO_ADULTO, {
-        ui_infos: 0, ui_watermark: 0, ui_controls: 1, ui_help: 0,
-        ui_settings: 0, ui_vr: 0, ui_fullscreen: 0, ui_annotations: 0, ui_stop: 0,
-
-        success: function(api) {
-            api.start();
-            apiActual = api;
-
-            // Ocultar loading cuando esté listo
-            if (loading) loading.style.display = 'none';
-            if (error) error.style.display = 'none';
-
-            api.addEventListener('viewerready', function() {
-                apiListo = true;
-
-                api.getNodeMap(function(err, nodes) {
-                    if (err) {
-                        console.error('❌ No se pudo obtener el mapa de nodos:', err);
-                        return;
-                    }
-
-                    mapaNodos = {};
-                    // getNodeMap devuelve una lista de nodos. El índice del array
-                    // no es el instanceID que reciben click/nodeMouseEnter.
-                    Object.values(nodes || {}).forEach(node => {
-                        if (node?.instanceID == null) return;
-
-                        if (node.name) mapaNodos[node.instanceID] = node.name;
-
-                        const nombre = (node.name || '').toLowerCase();
-                        if (
-                            nombre.includes('screw') ||
-                            nombre.includes('implant') ||
-                            nombre.includes('metal')
-                        ) {
-                            api.hide(node.instanceID);
-                        }
-                    });
-
-                });
-
-                // CLICK en diente
-                api.addEventListener('click', function(info) {
-                    // instanceID puede ser 0; solo null/undefined significa que
-                    // el clic fue en el fondo y no sobre un nodo del modelo.
-                    if (!info || info.instanceID == null) return;
-                    const instanceID = info.instanceID;
-                    const nombreNodo = obtenerNombreNodo(instanceID);
-
-                    if (mapeoActivo) {
-                        dienteActualMapeo = { instanceID, nodeName: nombreNodo };
-                        const current = safeGetElement('mapeo-current');
-                        current.classList.add('visible');
-                        safeGetElement('mapeo-current-value').textContent = `${nombreNodo} (ID: ${instanceID})`;
-                        return;
-                    }
-
-                    seleccionadoNodeId = instanceID;
-                    seleccionadoNombre = obtenerNombrePieza(nombreNodo, instanceID);
-                    abrirPanelDiagnostico();
-                }, { pick: 'fast' });
-
-                 api.addEventListener('nodeMouseEnter', function(node) {
-                    if (!tooltip || !node || node.instanceID == null) return;
-
-                    // Yeray - Filtro anti-falsos-positivos: solo se muestra el tooltip para
-                    // piezas realmente mapeadas a un número FDI. La encía, la lengua u otras
-                    // partes del modelo 3D reciben instanceID igual que los dientes, pero
-                    // nunca se mapean a un FDI real — si el nodo no está en mapeoFDI, se
-                    // ignora en vez de mostrar un "diente 64" o "362" que no existe.
-                    if (!mapeoFDI[node.instanceID]) return;
-
-                    const hoverName = obtenerNombrePieza(null, node.instanceID);
-                    if (ultimoInstanceId !== node.instanceID) {
-                        ultimoInstanceId = node.instanceID;
-                        tooltip.innerHTML = generarTooltipContent(hoverName, node.instanceID);
-                    }
-                    tooltip.style.display = 'block';
-                    tooltipVisible = true;
-                }, { pick: 'fast' });
-
-                api.addEventListener('nodeMouseLeave', function() {
-                    if (!tooltip) return;
-                    tooltip.style.display = 'none';
-                    tooltipVisible = false;
-                    ultimoInstanceId = null;
-                    ocultarFlechaTooltip(); // Yeray - oculta también la flecha guía
-                }, { pick: 'fast' });
-
-                document.addEventListener('mousemove', function(e) {
-                    if (tooltipVisible) actualizarPosicionTooltip(e);
-                });
-            });
-        },
-
-        error: function(err) {
-            console.error('❌ Error Sketchfab:', err);
-            if (loading) loading.style.display = 'none';
-            if (error) error.style.display = 'block';
-            showToast('Error al cargar el modelo 3D', 'error');
-        }
-    });
-}
-
-// Reintentar carga
-function reintentarCarga() {
-    const loading = safeGetElement('viewerLoading');
-    const error = safeGetElement('viewerError');
-    if (loading) loading.style.display = 'block';
-    if (error) error.style.display = 'none';
-    inicializarVisor();
-}
-
-// ═══════════════════════════════════════════════════════════════════
 //  PANEL DE DIAGNÓSTICO
 // ═══════════════════════════════════════════════════════════════════
 
@@ -582,6 +243,24 @@ function abrirPanelDiagnostico() {
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+function renderOdontogramaFDI() {
+    const chart = safeGetElement('odontogramaFdiChart');
+    if (!chart || !window.SmileTrackOdontogramaFDI) return;
+
+    const tratamientos = Object.fromEntries(
+        Object.entries(baseDatosTratamientos).map(([instanceId, pieza]) => [
+            mapeoFDI[instanceId],
+            pieza.tratamientos?.at(-1)?.key || ''
+        ])
+    );
+
+    window.SmileTrackOdontogramaFDI.render(chart, tratamientos, numeroFdi => {
+        seleccionadoNodeId = `fdi-${numeroFdi}`;
+        seleccionadoNombre = `${numeroFdi} - ${MAPEO_FDI[numeroFdi]}`;
+        abrirPanelDiagnostico();
+    });
+}
+
 function renderHistorialPieza() {
     const hist = safeGetElement('piezaHist');
     if (!hist) return;
@@ -632,8 +311,9 @@ async function guardarRegistro() {
       // Yeray - Se agrega el nombre del profesional actual a cada registro.
     // config.profesionalNombre ya venía inyectado desde el backend (Model.ProfesionalNombre)
     // pero no se estaba guardando junto al tratamiento; ahora queda persistido con la fecha y el estado.
-    const nuevo = { key: estadoKey, obs: observacion, fecha: new Date().toISOString(), profesional: config.profesionalNombre || null };  
+    const nuevo = { key: estadoKey, obs: observacion, fecha: new Date().toISOString(), profesional: config.profesionalNombre || null };
 
+    const registroPrevio = baseDatosTratamientos[seleccionadoNodeId];
     if (!baseDatosTratamientos[seleccionadoNodeId]) {
         baseDatosTratamientos[seleccionadoNodeId] = {
             nombrePieza: seleccionadoNombre,
@@ -644,10 +324,21 @@ async function guardarRegistro() {
 
     renderUltimasMods();
     updateCounts();
+    renderOdontogramaFDI();
     abrirPanelDiagnostico();
     const guardado = await persistirEstado({ mostrarToast: false });
-    if (guardado) showToast('Historial actualizado', 'success');
-    else showToast('El cambio no se guardó. Verifica los datos e inténtalo de nuevo.', 'error');
+    if (!guardado) {
+        baseDatosTratamientos[seleccionadoNodeId].tratamientos.pop();
+        if (!registroPrevio) delete baseDatosTratamientos[seleccionadoNodeId];
+        renderUltimasMods();
+        updateCounts();
+        renderOdontogramaFDI();
+        abrirPanelDiagnostico();
+        showToast('El cambio no se guardó. Verifica la conexión e inténtalo de nuevo.', 'error');
+        return;
+    }
+
+    showToast('Historial actualizado', 'success');
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -710,7 +401,7 @@ function renderUltimasMods() {
 
 function updateCounts() {
     const piezas = Object.values(baseDatosTratamientos);
-    const totalMapeado = Object.keys(mapeoFDI).length || 32;
+    const totalMapeado = Object.keys(MAPEO_FDI).length;
 
     let sanos = 0, caries = 0, tratados = 0;
 
@@ -721,9 +412,6 @@ function updateCounts() {
         else if (actual === 'caries') caries++;
         else tratados++;
     });
-
-    const piezasRegistradas = piezas.length;
-    sanos += Math.max(0, totalMapeado - piezasRegistradas);
 
     animateCounter(safeGetElement('stat-sanos'), sanos);
     animateCounter(safeGetElement('stat-caries'), caries);
@@ -924,16 +612,12 @@ function init() {
     renderUltimasMods();
     updateCounts();
 
-    // Visor 3D. Los controles se registran antes: si Sketchfab no carga o
-    // falla, el botón Mapear FDI continúa abriendo el panel e informa el fallo.
-    try {
-        inicializarVisor();
-    } catch (err) {
-        console.error('❌ Error al inicializar el visor 3D:', err);
-        safeGetElement('viewerLoading')?.style.setProperty('display', 'none');
-        safeGetElement('viewerError')?.style.setProperty('display', 'block');
-        showToast('No se pudo inicializar el visor 3D', 'error');
-    }
+    renderOdontogramaFDI();
+    safeGetElement('btnMapeo')?.addEventListener('click', () => {
+        const chart = safeGetElement('odontogramaFdiChart');
+        chart?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        chart?.querySelector('.fdi-tooth')?.focus({ preventScroll: true });
+    });
 
     // Modal
     safeGetElement('modalGuardarClose')?.addEventListener('click', () => closeModal(safeGetElement('modalGuardar')));

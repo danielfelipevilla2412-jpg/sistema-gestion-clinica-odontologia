@@ -93,7 +93,7 @@ const parseOdontogramaPersistido = (estadoPersistidoRaw) => {
   const tratamientos = {};
   const observaciones = {};
   let mapeoFDI = {};
-  if (!estadoPersistidoRaw) return { tratamientos, observaciones };
+  if (!estadoPersistidoRaw) return { tratamientos, observaciones, mapeoFDI };
 
   try {
     const persistido = typeof estadoPersistidoRaw === 'string' ? JSON.parse(estadoPersistidoRaw) : estadoPersistidoRaw;
@@ -101,7 +101,7 @@ const parseOdontogramaPersistido = (estadoPersistidoRaw) => {
     mapeoFDI = persistido?.mapeoFDI || {};
 
     Object.entries(registros).forEach(([instanceID, registro]) => {
-      const numeroDiente = mapeoFDI[instanceID];
+      const numeroDiente = mapeoFDI[instanceID] || instanceID.match(/^fdi-(\d{2})$/)?.[1];
       if (!numeroDiente) return;
       const tratamientosPieza = registro?.tratamientos || registro?.Tratamientos || [];
       if (!tratamientosPieza.length) return;
@@ -838,65 +838,18 @@ const renderOdontogramaActual = () => {
   };
   odontogramaMapeoFDI = paciente.mapeoFDI;
   mostrarEstadoDiente(null);
+  renderOdontogramaMini();
 };
 
-const inicializarVisorOdontograma = () => {
-  const iframe = safeGetElement('historyOdontogramFrame');
-  const loading = safeGetElement('historyViewerLoading');
-  const error = safeGetElement('historyViewerError');
-  if (!iframe || typeof window.Sketchfab !== 'function') {
-    if (loading) loading.hidden = true;
-    if (error) error.hidden = false;
-    return;
-  }
-
-  if (loading) loading.hidden = false;
-  if (error) error.hidden = true;
-
-  const client = new window.Sketchfab('1.12.1', iframe);
-  client.init('7f5b381c66674e0a969e8db04d139666', {
-    ui_infos: 0,
-    ui_watermark: 0,
-    ui_controls: 1,
-    ui_help: 0,
-    ui_settings: 0,
-    ui_vr: 0,
-    ui_fullscreen: 0,
-    ui_annotations: 0,
-    ui_stop: 0,
-    success: api => {
-      api.start();
-      api.addEventListener('viewerready', () => {
-        if (loading) loading.hidden = true;
-        api.getNodeMap((mapError, nodes) => {
-          if (mapError) return;
-          Object.values(nodes || {}).forEach(node => {
-            if (node?.instanceID == null) return;
-            const name = (node.name || '').toLowerCase();
-            if (name.includes('screw') || name.includes('implant') || name.includes('metal')) {
-              api.hide(node.instanceID);
-            }
-          });
-        });
-
-        api.addEventListener('click', info => {
-          const numeroFdi = odontogramaMapeoFDI[info?.instanceID];
-          if (numeroFdi) cargarEvolucionDiente(numeroFdi);
-        }, { pick: 'fast' });
-
-        api.addEventListener('nodeMouseEnter', node => {
-          const numeroFdi = node?.instanceID == null ? null : odontogramaMapeoFDI[node.instanceID];
-          if (numeroFdi) mostrarEstadoDiente(numeroFdi);
-        }, { pick: 'fast' });
-
-        api.addEventListener('nodeMouseLeave', () => mostrarEstadoDiente(null), { pick: 'fast' });
-      });
-    },
-    error: () => {
-      if (loading) loading.hidden = true;
-      if (error) error.hidden = false;
-    }
-  });
+const renderOdontogramaMini = () => {
+  const chart = document.getElementById('historyOdontogramChart');
+  if (!chart || !window.SmileTrackOdontogramaFDI) return;
+  window.SmileTrackOdontogramaFDI.render(
+    chart,
+    odontogramaEstadoFecha.tratamientos,
+    numeroFdi => cargarEvolucionDiente(numeroFdi),
+    numeroFdi => mostrarEstadoDiente(numeroFdi)
+  );
 };
 
 const cargarOdontogramaHasta = async fecha => {
@@ -918,6 +871,7 @@ const cargarOdontogramaHasta = async fecha => {
     });
     odontogramaEstadoFecha = { tratamientos, observaciones };
     mostrarEstadoDiente(null);
+    renderOdontogramaMini();
     if (aviso) {
       aviso.hidden = false;
       aviso.textContent = `Estás viendo el estado al ${formatFecha(fecha, true)}.`;
@@ -985,8 +939,6 @@ const initAccionesOdontogramaHistorial = () => {
     const button = event.target.closest('[data-snapshot-date]');
     if (button) cargarOdontogramaHasta(button.dataset.snapshotDate);
   });
-  inicializarVisorOdontograma();
-  safeGetElement('btnRetryHistoryViewer')?.addEventListener('click', inicializarVisorOdontograma);
   safeGetElement('btnVolverHoy')?.addEventListener('click', () => {
     renderOdontogramaActual();
     setFormularioHistorico(false);
@@ -1486,8 +1438,8 @@ const initFormularioClinico = () => {
   const form = safeGetElement('historia-clinica-form');
   if (!form) return;
 
-  document.getElementById('btnNuevaConsultaClinica')?.addEventListener('click', () => {
-    if (!window.confirm('¿Iniciar una nueva consulta clínica? Los cambios no guardados se perderán.')) return;
+  const iniciarNuevaConsulta = (confirmar = true) => {
+    if (confirmar && !window.confirm('¿Iniciar una nueva consulta clínica? Los cambios no guardados se perderán.')) return;
     form.reset();
     window.smiletrackHistoriaData.consultaClinicaId = null;
     diagnosticosSecundarios.clear();
@@ -1507,7 +1459,9 @@ const initFormularioClinico = () => {
     if (secundariosHistoricos) secundariosHistoricos.hidden = true;
     showToast('Nueva consulta iniciada. Guarda para crear su registro.', 'success');
     safeGetElement('motivo_consulta')?.focus();
-  });
+  };
+
+  document.getElementById('btnNuevaConsultaClinica')?.addEventListener('click', () => iniciarNuevaConsulta());
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -1567,6 +1521,126 @@ const initFormularioClinico = () => {
       if (button) button.disabled = false;
     }
   });
+};
+
+const initAccionesPaciente = () => {
+  const dialog = document.getElementById('patientSearchDialog');
+  const input = document.getElementById('patientSearchInput');
+  const status = document.getElementById('patientSearchStatus');
+  const results = document.getElementById('patientSearchResults');
+  const buscar = document.getElementById('runPatientSearch');
+  if (!dialog || !input || !status || !results || !buscar) return;
+
+  let mode = 'search';
+  let requestSequence = 0;
+
+  const buscarPacientes = async () => {
+    const busqueda = input.value.trim();
+    const sequence = ++requestSequence;
+    results.replaceChildren();
+    if (busqueda.length === 1) {
+      status.textContent = 'Escribe al menos dos caracteres para buscar.';
+      return;
+    }
+
+    status.textContent = busqueda
+      ? 'Buscando pacientes…'
+      : 'Cargando pacientes vinculados a este profesional…';
+    buscar.disabled = true;
+    try {
+      const query = new URLSearchParams({ busqueda });
+      const response = await fetch(`/historia-clinica/st-odo-03-historial/buscar-pacientes?${query}`, {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin'
+      });
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('No se recibió una respuesta de búsqueda válida. Recarga la página e inicia sesión de nuevo.');
+      }
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Tu sesión no tiene permiso para buscar pacientes. Inicia sesión de nuevo.');
+        }
+        throw new Error(data.message || 'No se pudieron buscar pacientes.');
+      }
+      if (sequence !== requestSequence) return;
+
+      if (!data.pacientes.length) {
+        status.textContent = 'No se encontraron pacientes a los que tengas acceso.';
+        return;
+      }
+
+      status.textContent = data.hayMasPacientes
+        ? `Mostrando los primeros ${data.pacientes.length} pacientes vinculados. Escribe para filtrar la lista.`
+        : busqueda
+          ? `${data.pacientes.length} paciente(s) encontrado(s).`
+          : `${data.pacientes.length} paciente(s) vinculado(s) a este profesional.`;
+      data.pacientes.forEach(paciente => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'patient-search-result';
+        const nombre = document.createElement('strong');
+        nombre.textContent = paciente.nombre;
+        const documento = document.createElement('small');
+        documento.textContent = paciente.documento;
+        button.append(nombre, documento);
+        button.addEventListener('click', () => {
+          const url = new URL('/historia-clinica/st-odo-03-historial', window.location.origin);
+          url.searchParams.set('pacienteId', paciente.id);
+          if (mode === 'new') url.searchParams.set('nuevaConsulta', '1');
+          window.location.assign(url);
+        });
+        results.appendChild(button);
+      });
+    } catch (error) {
+      if (sequence === requestSequence) {
+        status.textContent = error.message || 'No se pudieron buscar pacientes.';
+      }
+    } finally {
+      if (sequence === requestSequence) buscar.disabled = false;
+    }
+  };
+
+  const abrirBusqueda = nextMode => {
+    mode = nextMode;
+    document.getElementById('patientSearchTitle').textContent =
+      nextMode === 'new' ? 'Seleccionar paciente para nueva historia' : 'Buscar paciente';
+    input.value = '';
+    results.replaceChildren();
+    status.textContent = 'Cargando pacientes vinculados a este profesional…';
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    }
+    input.focus();
+    void buscarPacientes();
+  };
+
+  document.getElementById('btnBuscarPaciente')?.addEventListener('click', () => abrirBusqueda('search'));
+  document.getElementById('btnNuevaHistoria')?.addEventListener('click', () => {
+    if (!window.smiletrackHistoriaData?.pacienteId) {
+      abrirBusqueda('new');
+      return;
+    }
+    if (window.smiletrackHistoriaData.citaId) {
+      showToast('Esta historia está vinculada a una cita; usa “Finalizar consulta” para guardar su evolución.', 'warning');
+      return;
+    }
+    document.getElementById('btnNuevaConsultaClinica')?.click();
+  });
+  document.getElementById('closePatientSearch')?.addEventListener('click', () => {
+    if (typeof dialog.close === 'function') dialog.close();
+    else dialog.removeAttribute('open');
+  });
+  buscar.addEventListener('click', buscarPacientes);
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      buscarPacientes();
+    }
+  });
+  input.addEventListener('input', debounce(buscarPacientes, 250));
 };
 
 const initCamposDinamicosHistoria = () => {
@@ -1746,6 +1820,7 @@ const initAdjuntosClinicos = () => {
       loadAttachedFiles();
     };
 const init = async () => {
+  initAccionesPaciente();
   initSidebar();
   initScrollToForm();
   initForm();
@@ -1801,6 +1876,14 @@ const init = async () => {
     filtroProfesional?.appendChild(option);
   });
   await initObservacionesCita();
+
+  if (new URLSearchParams(window.location.search).get('nuevaConsulta') === '1') {
+    const nuevaConsulta = safeGetElement('btnNuevaConsultaClinica');
+    if (nuevaConsulta && !window.smiletrackHistoriaData?.citaId) nuevaConsulta.click();
+    const url = new URL(window.location.href);
+    url.searchParams.delete('nuevaConsulta');
+    window.history.replaceState({}, '', url);
+  }
   
   // Limpieza al unload
   window.addEventListener('beforeunload', () => {

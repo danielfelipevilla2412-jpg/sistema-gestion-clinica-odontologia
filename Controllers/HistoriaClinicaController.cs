@@ -788,6 +788,54 @@ public class HistoriaClinicaController(
     }
 
     [HttpGet]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/buscar-pacientes")]
+    public async Task<IActionResult> BuscarPacientesHistoria(
+        [FromQuery] string? busqueda,
+        CancellationToken cancellationToken)
+    {
+        int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        if (idProfesional is null)
+            return Forbid();
+
+        string[] terminos = (busqueda ?? string.Empty)
+            .Trim()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Take(5)
+            .ToArray();
+
+        var query = _context.Pacientes
+            .AsNoTracking()
+            .Where(p => p.IdProfesionalAsignado == idProfesional
+                || _context.Citas.Any(c =>
+                    c.IdPaciente == p.IdPaciente
+                    && c.IdProfesional == idProfesional));
+
+        foreach (string termino in terminos)
+        {
+            query = query.Where(p =>
+                p.Nombres.Contains(termino)
+                || p.Apellidos.Contains(termino)
+                || p.Documento.Contains(termino));
+        }
+
+        var pacientes = await query
+            .OrderBy(p => p.Apellidos)
+            .ThenBy(p => p.Nombres)
+            .Take(21)
+            .Select(p => new
+            {
+                id = p.IdPaciente,
+                nombre = p.NombresCompleto,
+                documento = $"{p.TipoDocumento} {p.Documento}"
+            })
+            .ToListAsync(cancellationToken);
+
+        bool hayMasPacientes = pacientes.Count > 20;
+        return Json(new { success = true, pacientes = pacientes.Take(20), hayMasPacientes });
+    }
+
+    [HttpGet]
     [Authorize(Roles = "Profesional,Paciente")]
     [Route("historia-clinica/st-odo-03-historial/exportar-pdf")]
     public async Task<IActionResult> ExportarHistoriaClinicaPdf(
@@ -2545,32 +2593,52 @@ private static string InferirTipoServicio(string? nombreServicio)
                 estadoClinico = new JsonObject();
             }
 
-            var mapeoJson = estadoClinico["mapeoFDI"] as JsonObject;
-            var mapeo = mapeoJson?.ToDictionary(
-                item => item.Key,
-                item => item.Value?.ToString() ?? "") ?? new Dictionary<string, string>();
-            var instanciasPorFdi = mapeo
-                .Where(item => !string.IsNullOrWhiteSpace(item.Value))
-                .GroupBy(item => item.Value, StringComparer.Ordinal)
-                .ToDictionary(grupo => grupo.Key, grupo => grupo.First().Key, StringComparer.Ordinal);
-
             var registrosClinicos = await _context.RegistrosOdontograma
                 .AsNoTracking()
                 .Where(registro => registro.IdHistoria == historia.IdHistoria)
                 .OrderByDescending(registro => registro.FechaRegistro)
                 .ToListAsync();
 
-            if (registrosClinicos.Count > 0 && instanciasPorFdi.Count > 0)
+            var registrosGuardados = estadoClinico["registros"] as JsonObject;
+            var mapeoGuardado = estadoClinico["mapeoFDI"] as JsonObject;
+            var registrosActuales = new JsonObject();
+            var mapeoFdi = new JsonObject();
+            foreach (var cuadrante in Enumerable.Range(1, 4))
             {
-                var registrosActuales = new Dictionary<string, OdontogramaRegistroPayload>();
-                foreach (var registro in registrosClinicos
-                    .GroupBy(item => item.NumeroFdi)
-                    .Select(grupo => grupo.First()))
+                foreach (var posicion in Enumerable.Range(1, 8))
                 {
-                    if (!instanciasPorFdi.TryGetValue(registro.NumeroFdi, out string? instanciaId))
-                        continue;
+                    string numeroFdi = $"{cuadrante}{posicion}";
+                    mapeoFdi[$"fdi-{numeroFdi}"] = numeroFdi;
+                }
+            }
 
-                    registrosActuales[instanciaId] = new OdontogramaRegistroPayload
+            if (registrosGuardados is not null)
+            {
+                foreach (var (instanceId, registroGuardado) in registrosGuardados)
+                {
+                    var numeroFdi = mapeoGuardado?[instanceId]?.ToString();
+                    if (string.IsNullOrWhiteSpace(numeroFdi)
+                        && instanceId.StartsWith("fdi-", StringComparison.Ordinal))
+                    {
+                        numeroFdi = instanceId["fdi-".Length..];
+                    }
+
+                    if (registroGuardado is not null
+                        && NumeroFdiHelper.EsPiezaPermanente(numeroFdi))
+                    {
+                        registrosActuales[$"fdi-{numeroFdi}"] = registroGuardado.DeepClone();
+                    }
+                }
+            }
+
+            foreach (var registro in registrosClinicos
+                .Where(item => NumeroFdiHelper.EsPiezaPermanente(item.NumeroFdi))
+                .GroupBy(item => item.NumeroFdi)
+                .Select(grupo => grupo.First()))
+            {
+                string instanceId = $"fdi-{registro.NumeroFdi}";
+                registrosActuales[instanceId] = JsonSerializer.SerializeToNode(
+                    new OdontogramaRegistroPayload
                     {
                         NombrePieza = registro.NombrePieza,
                         Tratamientos =
@@ -2582,14 +2650,13 @@ private static string InferirTipoServicio(string? nombreServicio)
                                 Fecha = registro.FechaRegistro.ToString("O")
                             }
                         ]
-                    };
-                }
-
-                estadoClinico["registros"] = JsonSerializer.SerializeToNode(
-                    registrosActuales,
+                    },
                     new JsonSerializerOptions(JsonSerializerDefaults.Web));
-                estadoPersistido = estadoClinico.ToJsonString();
             }
+
+            estadoClinico["mapeoFDI"] = mapeoFdi;
+            estadoClinico["registros"] = registrosActuales;
+            estadoPersistido = estadoClinico.ToJsonString();
         }
 
         return new OdontogramaViewModel
@@ -2601,7 +2668,7 @@ private static string InferirTipoServicio(string? nombreServicio)
             FechaNacimiento = paciente.FechaNacimiento.ToString("yyyy-MM-dd"),
             ProfesionalNombre = profesionalNombre,
             ProfesionalCorreo = profesionalCorreo,
-            ObservacionesGenerales = historia?.ObservacionesGenerales,
+            ObservacionesGenerales = estadoPersistido,
             EstadoPersistido = estadoPersistido
         };
     }

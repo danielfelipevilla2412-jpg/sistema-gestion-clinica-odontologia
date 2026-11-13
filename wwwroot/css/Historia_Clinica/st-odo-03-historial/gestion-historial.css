@@ -1486,6 +1486,17 @@ a { text-decoration: none; }
 .clinical-note-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .clinical-note-dialog { max-width: 560px; }
 
+.patient-search-dialog { max-width: 560px; }
+.patient-search-dialog > label { display: block; margin: 8px 0 6px; color: var(--text-soft); font-size: 12px; font-weight: 700; }
+.patient-search-controls { display: flex; gap: 8px; }
+.patient-search-controls input { min-width: 0; flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f9fbff; color: var(--text); }
+#patientSearchStatus { min-height: 20px; margin: 10px 0; color: var(--text-soft); font-size: 12px; }
+.patient-search-results { display: grid; gap: 8px; max-height: 40vh; overflow: auto; }
+.patient-search-result { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); text-align: left; }
+.patient-search-result:hover,
+.patient-search-result:focus-visible { border-color: var(--brand); background: var(--brand-soft); }
+.patient-search-result small { color: var(--text-soft); }
+
 @media (max-width: 900px) {
   .history-workspace-grid { grid-template-columns: 1fr; }
 }

@@ -194,71 +194,13 @@ img { max-width: 100%; height: auto; display: block; }
     border-bottom: 1px solid var(--border);
 }
 
-/* ═══ VISOR 3D ═══ */
+/* ═══ ODONTOGRAMA FDI ═══ */
 .viewer-wrap {
-    background: #030d1a;
+    background: transparent;
     border-radius: var(--radius-sm);
-    padding: 16px;
-    position: relative;
-    overflow: hidden;
-    border: 1px solid rgba(0, 212, 255, 0.15);
-    min-height: 452px;
-}
-.api-frame-style {
-    width: 100%;
-    height: 420px;
-    border: 1px solid rgba(0, 212, 255, 0.2);
-    border-radius: var(--radius-sm);
-    background: rgba(0, 10, 20, 0.6);
-    display: block;
-    position: relative;
-    z-index: 1;
-}
-
-/* Estados del visor */
-.viewer-loading {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-    color: rgba(0, 212, 255, 0.8);
-    font-size: .9rem;
-    z-index: 10;
-    pointer-events: none;
-}
-
-.loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(0, 212, 255, 0.2);
-    border-top-color: #00d4ff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 12px;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.viewer-error {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-    color: #ff6b6b;
-    font-size: .9rem;
-    z-index: 10;
-    background: rgba(0, 10, 20, 0.9);
-    padding: 20px;
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255, 100, 100, 0.3);
-}
-
-.viewer-error p {
-    margin-bottom: 12px;
+    padding: 0;
+    overflow: visible;
+    border: 0;
 }
 
 /* Leyenda */
@@ -275,127 +217,6 @@ img { max-width: 100%; height: auto; display: block; }
 }
 .li-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .li-bar { width: 16px; height: 4px; border-radius: 2px; display: inline-block; }
-
-/* ═══ TOOLTIP FLOTANTE ═══ */
-#holo-tooltip {
-    position: fixed;
-    background: rgba(0, 10, 25, 0.97);
-    border: 1.5px solid #00d4ff;
-    color: #ffffff;
-    padding: 12px 14px;
-    font-size: 11px;
-    border-radius: 8px;
-    pointer-events: none;
-    display: none;
-    z-index: 9999;
-    font-family: monospace;
-    box-shadow: 0 0 20px rgba(0, 212, 255, 0.6), 0 4px 12px rgba(0, 0, 0, 0.8);
-    line-height: 1.5;
-    max-width: 320px;
-    max-height: 400px;
-    overflow-y: auto;
-}
-.tooltip-header {
-    font-weight: bold; font-size: 12px; color: #00d4ff;
-    border-bottom: 1px solid rgba(0, 212, 255, 0.4);
-    padding-bottom: 6px; margin-bottom: 8px;
-    text-transform: uppercase; letter-spacing: 0.05em;
-}
-.tooltip-section { margin-bottom: 8px; }
-.tooltip-label { font-size: 9px; color: rgba(0, 212, 255, 0.6); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
-.tooltip-current {
-    background: rgba(0, 212, 255, 0.1);
-    border: 1px solid rgba(0, 212, 255, 0.3);
-    border-radius: 6px; padding: 8px; margin-bottom: 10px;
-}
-.tooltip-current-status { font-weight: bold; font-size: 11px; margin-bottom: 4px; }
-.tooltip-current-obs { font-size: 10px; color: rgba(255, 255, 255, 0.8); font-style: italic; line-height: 1.4; }
-.tooltip-current-doctor { font-size: 9px; color: rgba(0, 212, 255, 0.75); margin-top: 4px; font-weight: 500; }
-.tooltip-history-title { font-size: 10px; color: rgba(0, 212, 255, 0.8); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
-.tooltip-history-item { padding: 5px 0; border-bottom: 1px solid rgba(0, 212, 255, 0.1); font-size: 10px; }
-.tooltip-history-item:last-child { border-bottom: none; }
-.tooltip-history-status { font-weight: 500; margin-bottom: 2px; }
-.tooltip-history-obs { color: rgba(255, 255, 255, 0.6); font-size: 9px; margin-top: 2px; }
-.tooltip-history-doctor { color: rgba(0, 212, 255, 0.6); font-size: 9px; margin-top: 2px; }
-.tooltip-history-date { color: rgba(0, 212, 255, 0.5); font-size: 9px; margin-top: 2px; }
-.tooltip-empty { color: rgba(255, 255, 255, 0.4); font-size: 10px; text-align: center; padding: 10px 0; }
-
-/* ═══ PANEL DE MAPEO FDI ═══ */
-.mapeo-panel {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 20px;
-    box-shadow: var(--shadow);
-    display: none;
-}
-.mapeo-panel.visible { display: block; }
-.mapeo-title {
-    font-family: var(--font-display);
-    font-size: 1rem; font-weight: 700; color: var(--primary);
-    margin-bottom: 12px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-}
-.mapeo-instruction {
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    border-radius: var(--radius-sm);
-    padding: 10px 14px;
-    margin-bottom: 14px;
-    font-size: .8rem;
-    color: var(--text);
-}
-.mapeo-current {
-    background: rgba(26, 86, 204, 0.08);
-    border: 1px solid rgba(26, 86, 204, 0.3);
-    border-radius: var(--radius-sm);
-    padding: 12px;
-    margin-bottom: 14px;
-    text-align: center;
-    display: none;
-}
-.mapeo-current.visible { display: block; }
-.mapeo-current-label { font-size: .75rem; color: var(--text-muted); margin-bottom: 4px; }
-.mapeo-current-value { font-size: 1rem; font-weight: 700; color: var(--primary); word-break: break-all; }
-.mapeo-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 6px;
-    margin-bottom: 14px;
-}
-.mapeo-btn {
-    padding: 8px 4px;
-    border: 1.5px solid var(--border);
-    background: var(--white);
-    color: var(--text);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: .8rem;
-    font-weight: 700;
-    transition: all var(--tr);
-}
-.mapeo-btn:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
-.mapeo-btn.mapped { background: var(--green); border-color: var(--green); color: #fff; }
-.mapeo-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-.mapeo-progress { text-align: center; font-size: .8rem; color: var(--text-muted); margin-bottom: 12px; font-weight: 600; }
-
-/* Banner modo mapeo */
-.modo-mapeo-banner {
-    position: fixed; top: 20px; left: 50%;
-    transform: translateX(-50%);
-    background: linear-gradient(90deg, #f59e0b, #fbbf24);
-    color: #000;
-    padding: 12px 24px;
-    border-radius: var(--radius-full);
-    font-size: .85rem; font-weight: 700;
-    display: none;
-    z-index: 9998;
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
-    animation: pulse 2s infinite;
-}
-.modo-mapeo-banner.visible { display: block; }
-@keyframes pulse { 0%, 100% { opacity: .85; } 50% { opacity: 1; } }
 
 /* ═══ CARD PIEZA ═══ */
 .card-pieza {
@@ -627,15 +448,6 @@ img { max-width: 100%; height: auto; display: block; }
     .page-header-actions { width: 100%; justify-content: space-between; }
     .content-grid { grid-template-columns: 1fr; }
     .mobile-nav { display: flex; }
-    .mapeo-grid { grid-template-columns: repeat(4, 1fr); }
-    .api-frame-style { height: 320px; }
-    .viewer-wrap { min-height: 352px; }
-    .modo-mapeo-banner {
-        font-size: .75rem;
-        padding: 8px 16px;
-        top: 60px;
-        max-width: 90%;
-    }
 }
 
 @media (max-width: 480px) {
@@ -654,7 +466,7 @@ img { max-width: 100%; height: auto; display: block; }
     body { background: #fff !important; color: #000 !important; }
       .sidebar, .hamburger, .overlay, .mobile-nav, .toast,
       .btn-primary, .btn-secondary, .btn-danger,
-      #holo-tooltip, .modo-mapeo-banner, .mapeo-panel, .viewer-loading, .viewer-error { display: none !important; }
+      .fdi-chart-help { color: #000 !important; }
       .main { margin-left: 0 !important; padding: 0 !important; }
       .site-footer { margin-left: 0 !important; }
   }
@@ -684,28 +496,3 @@ img { max-width: 100%; height: auto; display: block; }
   overflow: hidden; transition: max-height 0.3s ease;
 }
 .nav-group-items .nav-item { padding-left: 24px; }
-
-/* La flecha debe dibujarse sobre el iframe de Sketchfab. */
-#tooltip-arrow-svg {
-    position: fixed !important;
-    inset: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    overflow: visible !important;
-    pointer-events: none !important;
-    z-index: 2147483646 !important;
-}
-
-#holo-tooltip {
-    z-index: 2147483647 !important;
-}
-
-.viewer-wrap,
-.api-frame-style {
-    isolation: auto !important;
-}
-
-.api-frame-style {
-    position: relative;
-    z-index: 1;
-}

@@ -30,8 +30,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SmileTrack — Odontograma Digital 3D</title>
-    <meta name="description" content="Visualiza y gestiona el estado dental con odontograma 3D holográfico" />
+    <title>SmileTrack — Odontograma Digital FDI</title>
+    <meta name="description" content="Visualiza y registra el estado dental con numeración FDI" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
@@ -41,9 +41,8 @@
         window.smiletrackOdontogramaConfig = @Html.Raw(configJson);
     </script>
 
-    <!-- API de Sketchfab -->
-    <script type="text/javascript" src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
     <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/css/shared/odontograma-fdi.css")" asp-append-version="true" />
     <!-- Shared: sidebar responsive (Sprint 1) -->
     <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
 </head>
@@ -67,12 +66,7 @@
 
   <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
-
-    <!-- BANNER MODO MAPEO -->
-    <div class="modo-mapeo-banner" id="modo-mapeo-banner" role="status" aria-live="polite">
-        🎯 MODO MAPEO ACTIVO — Haz clic en un diente del modelo 3D
-    </div>
-
+    @Html.AntiForgeryToken()
 
         <!-- HEADER -->
         <header class="page-header">
@@ -80,9 +74,9 @@
                 <nav class="breadcrumb" aria-label="Ruta de navegación">
                     <span>Odontólogo</span>
                     <span class="bc-sep" aria-hidden="true">→</span>
-                    <span class="bc-active">Odontograma Digital 3D</span>
+                    <span class="bc-active">Odontograma Digital FDI</span>
                 </nav>
-                <h1 class="page-title">Odontograma Digital 3D</h1>
+                <h1 class="page-title">Odontograma Digital FDI</h1>
                 <p class="page-subtitle">
                     <time datetime="" id="headerDate" aria-live="polite">Cargando fecha…</time> ·
                     <span id="patientName" aria-label="Paciente">@Model.PacienteNombre</span> ·
@@ -95,9 +89,8 @@
                  class="btn-secondary"
                   id="btnMapeo"
                   type="button"
-                  onclick="toggleMapeoFDI()"
-                  aria-label="Mapear numeración FDI">
-                  🔧 Mapear FDI
+                  aria-label="Ir al odontograma con numeración FDI">
+                  🦷 Numeración FDI
                 </button>
                 <button class="btn-primary" id="btnGuardar" aria-label="Guardar cambios">💾 Guardar cambios</button>
             </div>
@@ -130,25 +123,11 @@
             <section class="odontograma-section" aria-labelledby="odontograma-title">
 
                 <div class="odontograma-widget" aria-labelledby="odontograma-widget-title">
-                    <h2 class="widget-title" id="odontograma-widget-title">🦷 Odontograma 3D Holográfico</h2>
+                    <h2 class="widget-title" id="odontograma-widget-title">🦷 Odontograma FDI interactivo</h2>
 
                     <div class="viewer-wrap">
-                        <!-- Indicador de carga -->
-                        <div class="viewer-loading" id="viewerLoading">
-                            <div class="loading-spinner"></div>
-                            <p>Cargando modelo 3D...</p>
-                        </div>
-
-                        <!-- Mensaje de error -->
-                        <div class="viewer-error" id="viewerError" style="display:none;">
-                            <p>⚠️ No se pudo cargar el modelo 3D</p>
-                            <button class="btn-secondary" onclick="reintentarCarga()">Reintentar</button>
-                        </div>
-
-                        <iframe id="api-frame" class="api-frame-style"
-                                allow="autoplay; fullscreen; xr-spatial-tracking"
-                                role="img"
-                                aria-label="Modelo 3D interactivo de dentadura. Haz clic en un diente para seleccionarlo."></iframe>
+                        <div id="odontogramaFdiChart" class="odontograma-fdi-chart" role="group" aria-label="Odontograma FDI. Selecciona un diente para registrar su estado clínico." tabindex="-1"></div>
+                        <p class="fdi-chart-help">Selecciona una pieza para registrar o consultar su estado. La numeración FDI se guarda junto a la historia clínica.</p>
                     </div>
 
                     <!-- Leyenda -->
@@ -158,24 +137,6 @@
                         <div class="li"><span class="li-dot" style="background:#f4a62a"></span>Sellante</div>
                         <div class="li"><span class="li-bar" style="background:#1D9E75"></span>Placa</div>
                         <div class="li"><span class="li-dot" style="background:#00d4ff"></span>Sano</div>
-                    </div>
-                </div>
-
-                <!-- PANEL DE MAPEO FDI -->
-                <div class="mapeo-panel" id="mapeo-panel" aria-labelledby="mapeo-title">
-                    <div class="mapeo-title" id="mapeo-title">🗺️ Mapeo de Numeración FDI</div>
-                    <div class="mapeo-instruction">
-                        <strong>Instrucciones:</strong> Haz clic en un diente del modelo 3D y luego selecciona su número FDI (11-48).
-                    </div>
-                    <div class="mapeo-progress" id="mapeo-progress">Dientes mapeados: 0 / 32</div>
-                    <div class="mapeo-current" id="mapeo-current">
-                        <div class="mapeo-current-label">Diente seleccionado:</div>
-                        <div class="mapeo-current-value" id="mapeo-current-value">-</div>
-                    </div>
-                    <div class="mapeo-grid" id="mapeo-grid"></div>
-                    <div class="mapeo-actions">
-                        <button class="btn-secondary" onclick="toggleMapeoFDI()">Cerrar Panel</button>
-                        <button class="btn-danger" onclick="resetearMapeo()">Resetear</button>
                     </div>
                 </div>
 
@@ -267,19 +228,7 @@
     <!-- TOAST -->
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-       <!-- Yeray - FLECHA GUÍA hacia el tooltip: SVG a pantalla completa, no bloquea clicks -->
-    <svg id="tooltip-arrow-svg" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:9998; display:none;">
-        <defs>
-            <marker id="tooltip-arrow-head" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                <path d="M0,0 L0,6 L7,3 z" fill="#00d4ff" />
-            </marker>
-        </defs>
-        <line id="tooltip-arrow-line" x1="0" y1="0" x2="0" y2="0" stroke="#00d4ff" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#tooltip-arrow-head)" />
-    </svg>
-
-    <!-- TOOLTIP FLOTANTE -->
-    <div id="holo-tooltip"></div>
-    
+    <script src="@Url.Content("~/js/shared/odontograma-fdi.js")" asp-append-version="true"></script>
     <script
     src="@Url.Content("~/js/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.js")"
     asp-append-version="true">
