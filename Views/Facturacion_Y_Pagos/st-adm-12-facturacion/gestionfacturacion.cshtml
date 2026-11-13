@@ -29,7 +29,9 @@ DEPENDENCIAS TÉCNICAS:
 
 - Razor / ASP.NET MVC.
 - CSS: ~/css/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.css
+- CSS: ~/css/shared/sidebar.css
 - JS: ~/js/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.js
+- JS: ~/js/shared/sidebar.js
 - Partial: _SidebarAdmin
 - Datos de facturación: ViewData["FacturasJson"]
 
@@ -62,6 +64,7 @@ NOTAS DE MANTENIMIENTO:
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.css")" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" asp-append-version="true" />
   <link rel="stylesheet" href="@Url.Content("~/css/shared/scrollbars.css")" asp-append-version="true" />
 </head>
 
@@ -92,81 +95,7 @@ NOTAS DE MANTENIMIENTO:
   común del sistema.
   =========================================================
   -->
-  <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
-  <div class="sidebar-logo">
-    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
-  </div>
-  @* 
-  Partial de navegación del administrador.
-  WHY: evita duplicar la estructura común del sidebar en
-  cada vista administrativa.
-  *@
   @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
-    <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_inicio">Inicio <span class="nav-arrow" aria-hidden="true">▼</span></div>
-      <div class="nav-group-items">
-        <a href="/" class="nav-item" data-icon="🏠" data-i18n="common_nav_homepage">Homepage</a>
-      </div>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_acceso_seguridad">Acceso y Seguridad <span class="nav-arrow" aria-hidden="true">▼</span></div>
-      <div class="nav-group-items">
-        <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios" class="nav-item" data-icon="👥" data-i18n="common_nav_gestion_usuarios">Gestión de Usuarios</a>
-        <a href="/acceso-y-seguridad/st-adm-03-gestion-roles" class="nav-item" data-icon="🛡️" data-i18n="common_nav_gestion_roles">Gestión de Roles</a>
-        <a href="/acceso-y-seguridad/st-adm-15-bitacora" class="nav-item" data-icon="📜" data-i18n="common_nav_bitacora">Bitácora del Sistema</a>
-      </div>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_gestion_pacientes">Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span></div>
-      <div class="nav-group-items">
-        <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="nav-item" data-icon="👥" data-i18n="common_nav_gestion_pacientes">Gestión de Pacientes</a>
-
-      </div>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_gestion_profesionales">Gestión de Profesionales <span class="nav-arrow" aria-hidden="true">▼</span></div>
-      <div class="nav-group-items">
-        <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" class="nav-item" data-icon="🩺" data-i18n="common_nav_gestion_profesionales">Gestión de Profesionales</a>
-        <a href="/gestion-de-profesionales/st-adm-14-reportes-clinicos" class="nav-item" data-icon="📈" data-i18n="common_nav_reportes_clinicos">Reportes Clínicos</a>
-      </div>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_gestion_citas">Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span></div>
-      <div class="nav-group-items">
-        <a href="/gestion-de-citas/st-adm-01-dashboard" class="nav-item" data-icon="📊" data-i18n="common_nav_dashboard">Dashboard General</a>
-        <a href="/gestion-de-citas/st-adm-08-agenda" class="nav-item" data-icon="📅" data-i18n="common_nav_agenda">Agenda General</a>
-        <a href="/gestion-de-citas/st-adm-09-citas" class="nav-item" data-icon="🗓️" data-i18n="common_nav_gestion_citas_int">Gestión Integral de Citas</a>
-      </div>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_historia_clinica">Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span></div>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_facturacion_pagos">Facturación y Pagos <span class="nav-arrow" aria-hidden="true">▼</span></div>
-      <div class="nav-group-items">
-        <a href="/facturacion-y-pagos/st-adm-12-facturacion" class="nav-item active" data-icon="💰" aria-current="page" data-i18n="common_nav_gestion_facturacion">Gestión de Facturación</a>
-      </div>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" data-i18n="common_nav_servicios_recursos">Servicios y Recursos <span class="nav-arrow" aria-hidden="true">▼</span></div>
-      <div class="nav-group-items">
-        <a href="/servicios-y-recursos/st-adm-10-servicios" class="nav-item" data-icon="🔧" data-i18n="common_nav_catalogo_servicios">Catálogo de Servicios</a>
-        <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="nav-item" data-icon="⚙️" data-i18n="common_nav_configuracion">Configuración General</a>
-      </div>
-    </div>
-    <div class="nav-separator" aria-hidden="true"></div>
-    <a href="/acceso-y-seguridad/login" class="nav-item nav-item--logout" data-icon="🚪" data-i18n-aria-label="common_nav_logout_aria" data-i18n="common_nav_cerrar_sesion" aria-label="Cerrar sesión y volver al login">Cerrar sesión</a>
-  </nav>
-  <div class="sidebar-user">
-    <div class="user-avatar" aria-hidden="true">AD</div>
-    <div class="user-info">
-      <span class="user-role" data-i18n="common_role_admin">Administrador</span>
-      <span class="user-email">admin@smiletrack.co</span>
-    </div>
-  </div>
-</aside>
-
-
 
   <!--
   =========================================================
@@ -646,6 +575,7 @@ NOTAS DE MANTENIMIENTO:
 <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-adm-12-facturacion/gestionfacturacion.js")"></script>
 <script src="@Url.Content("~/js/i18n-core.js")"></script>
 <script src="@Url.Content("~/js/i18n.config.js")"></script>
+<script src="@Url.Content("~/js/shared/sidebar.js")" asp-append-version="true"></script>
   @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
 </body>
 

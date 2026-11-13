@@ -512,29 +512,6 @@ const updateStats = () => {
 //  INICIALIZACIÓN DE COMPONENTES
 // ═══════════════════════════════════════════════════════════════════
 
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  if (!hamburger || !sidebar || !overlay) return;
-  
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
-    if (show) { const firstLink = sidebar.querySelector('.nav-item'); if (firstLink) firstLink.focus(); }
-    else { hamburger.focus(); }
-  };
-  
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-  sidebar.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => { if (window.innerWidth <= 680) toggleMenu(false); });
-  });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sidebar.classList.contains('open')) { e.preventDefault(); toggleMenu(false); }});
-};
-
 const initSearch = () => {
   const searchInput = safeGetElement('searchInvoices');
   searchInput?.addEventListener('input', debounce((e) => {
@@ -840,7 +817,6 @@ const initNewInvoice = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 const init = async () => {
-  initSidebar();
   initSearch();
   initFilters();
   initPagination();
