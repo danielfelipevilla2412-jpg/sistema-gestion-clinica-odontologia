@@ -25,12 +25,13 @@
       const options = originalProfessionals.filter(o => !o.value || ids.has(o.value));
       professional.replaceChildren(...options.map(o => o.cloneNode(true)));
       professional.value = ids.has(previous) ? previous : '';
-      professional.disabled = !valid || allowed.length === 0;
-      save.disabled = !Array.isArray(assignments);
+      const hasEligibleProfessionals = valid && allowed.length > 0;
+      professional.disabled = !hasEligibleProfessionals;
       const selected = allowed.find(a => String(a.idProfesional) === professional.value);
+      save.disabled = !selected;
       if (!Array.isArray(assignments)) hint.textContent = 'No se pudieron validar las asignaciones. No es posible guardar la cita.';
       else if (!selectedService) hint.textContent = 'Selecciona un servicio para ver los profesionales habilitados.';
-      else if (!allowed.length) hint.textContent = 'Este servicio no tiene profesionales habilitados.';
+      else if (!allowed.length) hint.textContent = 'Este servicio no tiene profesionales habilitados. El administrador debe configurar la especialidad del servicio y asignarlo a un profesional compatible.';
       else if (selected) hint.textContent = `Precio de referencia: ${Number(selected.precioAplicado).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}${selected.precioPersonalizado ? ' (personalizado)' : ' (base)'}. No modifica facturación.`;
       else hint.textContent = `${allowed.length} profesional(es) habilitado(s) para este servicio. La disponibilidad horaria se valida al guardar.`;
     };
