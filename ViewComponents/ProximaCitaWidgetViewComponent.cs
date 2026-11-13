@@ -20,6 +20,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.ViewModels.Components;
 
 namespace SmileTrack_MVC.ViewComponents;
@@ -48,7 +49,7 @@ public class ProximaCitaWidgetViewComponent : ViewComponent
         int? idPaciente = null,
         bool incluirUltimaAtencion = true)
     {
-        var ahora = DateTime.Now;
+        var ahora = ColombiaClock.Now;
 
         // Query base: citas futuras no canceladas ni completadas
         var query = _context.Citas

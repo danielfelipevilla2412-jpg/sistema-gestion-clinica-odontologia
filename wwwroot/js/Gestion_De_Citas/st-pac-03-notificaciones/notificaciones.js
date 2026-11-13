@@ -91,7 +91,7 @@ const markReadOnServer = async (notification) => {
   const endpointUrl = notification.idNotificacion
     ? `/api/notificaciones/${notification.idNotificacion}/leida`
     : `/api/notificaciones/citas/${notification.idCita}/leida`;
-  const response = await fetch(endpointUrl, {
+  const response = await window.SmileTrack.utils.fetchWithTimeout(endpointUrl, {
     method: 'PUT',
     credentials: 'same-origin',
     headers: {
@@ -110,7 +110,7 @@ const deleteOnServer = async (notification) => {
   if (!notification.idNotificacion) {
     throw new Error('Esta notificación informativa no se puede eliminar.');
   }
-  const response = await fetch(`/api/notificaciones/${notification.idNotificacion}`, {
+  const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/notificaciones/${notification.idNotificacion}`, {
     method: 'DELETE',
     credentials: 'same-origin',
     headers: {
@@ -127,7 +127,7 @@ const deleteOnServer = async (notification) => {
 
 const fetchNotificationsApi = async () => {
   try {
-    const response = await fetch('/api/notificaciones', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/api/notificaciones', {
       headers: { 'Accept': 'application/json' },
       credentials: 'same-origin'
     });

@@ -116,7 +116,7 @@
         <div class="agenda-availability-controls">
             <div class="filter-group">
                 <label class="filter-label" for="availabilityDate">Fecha</label>
-                <input class="status-select" type="date" id="availabilityDate" min="@DateTime.Today.ToString("yyyy-MM-dd")" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                <input class="status-select" type="date" id="availabilityDate" min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" value="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" />
             </div>
             <div class="filter-group">
                 <label class="filter-label" for="availabilityTime">Hora</label>
@@ -149,82 +149,7 @@
         </button>
     </div>
 
-    <!-- Calendario semanal -->
-    <section class="calendar-section" aria-labelledby="calendarTitle">
-        <h2 class="visually-hidden" id="calendarTitle" data-i18n="adm08_calendar_title">Calendario semanal de citas</h2>
-        <div class="calendar-scroll-wrapper">
-            <div class="calendar-header" role="row">
-                @foreach (var dia in Model.Dias)
-                {
-                    var headerClasses = "calendar-day-header";
-                    if (dia.EsHoy) headerClasses += " current";
-                    if (dia.Cerrado) headerClasses += " closed";
-                    <div class="@headerClasses" role="columnheader" aria-current="@(dia.EsHoy ? "date" : null)">
-                        <span class="day-name">@dia.NombreDia</span>
-                        <time datetime="@dia.Fecha.ToString("yyyy-MM-dd")" class="day-number">@dia.NumeroDia</time>
-                        @if (dia.EsHoy) { <span class="day-indicator" aria-hidden="true"></span> }
-                    </div>
-                }
-            </div>
-            <div class="calendar-body" role="grid" aria-label="Citas por día">
-                @foreach (var dia in Model.Dias)
-                {
-                    var diaClasses = "calendar-day";
-                    if (dia.EsHoy) diaClasses += " current";
-                    if (dia.Cerrado) diaClasses += " closed";
-                    var diaId = $"day-{dia.Fecha.ToString("yyyyMMdd")}";
-                    <div class="@diaClasses" role="row" aria-labelledby="@diaId" data-date="@dia.Fecha.ToString("yyyy-MM-dd")">
-                        <span id="@diaId" class="visually-hidden">@dia.NombreDia @dia.Fecha.Day de @dia.Fecha.ToString("MMMM")</span>
-                        @if (dia.Cerrado)
-                        {
-                            <div class="day-closed">
-                                <span class="material-symbols-outlined" aria-hidden="true">block</span>
-                                <span data-i18n="adm08_day_closed">CERRADO</span>
-                            </div>
-                        }
-
-                        @foreach (var cita in dia.Citas)
-                        {
-                            var ariaLabel = $"Cita {cita.Estado}: {cita.Paciente}, {cita.Hora}, {cita.Servicio}, {cita.Consultorio}";
-                            var dateTimeValue = $"{dia.Fecha.ToString("yyyy-MM-dd")}T{cita.Hora}:00";
-                            var esReagendable = cita.Estado.Equals("agendada", StringComparison.OrdinalIgnoreCase)
-                                || cita.Estado.Equals("programada", StringComparison.OrdinalIgnoreCase)
-                                || cita.Estado.Equals("confirmada", StringComparison.OrdinalIgnoreCase);
-                            <div class="appointment @cita.ClaseEstado" tabindex="0" role="button"
-                                aria-label="@ariaLabel"
-                                data-id="@cita.Id" data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
-                                data-start-time="@Html.Encode(cita.HoraInicio)" data-end-time="@Html.Encode(cita.HoraFin)"
-                                data-patient-id="@cita.IdPaciente" data-professional-id="@cita.IdProfesional"
-                                data-office-id="@cita.IdConsultorio" data-service-id="@cita.IdServicio"
-                                data-status="@Html.Encode(cita.Estado)" data-notes="@Html.Encode(cita.Notas)"
-                                data-patient-name="@Html.Encode(cita.Paciente)" data-service-name="@Html.Encode(cita.Servicio)"
-                                data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)"
-                                data-professional-email="@Html.Encode(cita.CorreoProfesional)"
-                                data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
-                                data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
-                                data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)"
-                                data-reschedulable="@esReagendable.ToString().ToLowerInvariant()"
-                                draggable="@esReagendable.ToString().ToLowerInvariant()">
-                                <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
-                                <span class="appt-patient">@cita.Paciente</span>
-                                <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
-                            </div>
-                        }
-
-                        @if (!dia.Cerrado && !dia.Citas.Any())
-                        {
-                            <div class="appointment available" tabindex="0" role="button"
-                                data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
-                                aria-label="Sin citas registradas para @dia.Fecha.ToString("dd/MM")">
-                                <time datetime="@dia.Fecha.ToString("yyyy-MM-dd")" class="appt-time"></time>
-                                <span class="appt-patient" data-i18n="adm08_no_appointments">Sin citas</span>
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
-        </div>
-    </section>
+    @await Html.PartialAsync("~/Views/Gestion_De_Citas/st-adm-08-agenda/_CalendarSection.cshtml", Model)
 
     <!-- Leyenda -->
     <section class="legend-section" aria-labelledby="legendTitle">
@@ -272,7 +197,7 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="newApptDate" data-i18n="citas.date">Fecha</label>
-                        <input type="date" id="newApptDate" name="Fecha" required aria-required="true" />
+                        <input type="date" id="newApptDate" name="Fecha" min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" required aria-required="true" />
                     </div>
                     <div class="form-group">
                         <label for="newApptStatus" data-i18n="citas.status">Estado</label>

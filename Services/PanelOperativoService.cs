@@ -17,7 +17,7 @@ public sealed class PanelOperativoService : IPanelOperativoService
     public async Task<PanelOperativoViewModel> ObtenerAsync(
         CancellationToken ct = default)
     {
-        var ahora = DateTime.Now;
+        var ahora = ColombiaClock.Now;
         var inicio = ahora.Date;
         var fin = inicio.AddDays(1);
         var cultura = new System.Globalization.CultureInfo("es-CO");

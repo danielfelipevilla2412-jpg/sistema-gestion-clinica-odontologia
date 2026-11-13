@@ -64,7 +64,7 @@ async function persistProcedureState() {
   if (!procedureData.citaId || procedureData.estadoNormalizado !== 'en_proceso') return;
   const state = procedureStorage.load();
   try {
-    const response = await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
       method: 'PUT',
       credentials: 'same-origin',
       headers: procedureHeaders(),
@@ -87,7 +87,7 @@ async function persistProcedureState() {
 async function hydrateProcedureState() {
   if (!procedureData.citaId) return;
   try {
-    const response = await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
       credentials: 'same-origin', headers: procedureHeaders()
     });
     if (!response.ok) return;

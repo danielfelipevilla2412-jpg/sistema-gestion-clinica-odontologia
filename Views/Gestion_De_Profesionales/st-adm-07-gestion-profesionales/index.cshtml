@@ -436,27 +436,16 @@ NOTAS DE MANTENIMIENTO:
           <small id="formEspecialidadesSecundariasHelp">Selecciona una o varias especialidades. La principal se define arriba.</small>
         </div>
         <div class="form-group">
-          <label class="form-label" for="formCorreoAcceso" data-i18n="gestionprofesionales_form_correo_label">Correo de acceso *</label>
-          <input type="email" id="formCorreoAcceso" name="CorreoAcceso" class="form-input" required aria-required="true" placeholder="Ej. profesional@smiletrack.co" value="" data-i18n-ph="gestionprofesionales_form_correo_ph">
+          <label class="form-label" for="formCorreoAcceso">
+            <span data-i18n="gestionprofesionales_form_correo_label">Correo de acceso</span>
+            <span id="formCorreoAccesoRequired" aria-hidden="true">*</span>
+          </label>
+          <input type="email" id="formCorreoAcceso" name="CorreoAcceso" class="form-input" required aria-required="true" aria-describedby="error-formCorreoAcceso formCorreoAccesoHelp" placeholder="Ej. profesional@smiletrack.co" value="" data-i18n-ph="gestionprofesionales_form_correo_ph">
           <span class="error-message" id="error-formCorreoAcceso" role="alert" data-i18n="gestionprofesionales_form_correo_error">Ingresa un correo válido.</span>
+          <small id="formCorreoAccesoHelp" hidden data-i18n="gestionprofesionales_form_correo_no_account">Este profesional no tiene una cuenta de acceso vinculada. Esta edición solo actualizará sus datos profesionales.</small>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="formContrasenaAcceso" data-i18n="gestionprofesionales_form_password_label">Contraseña</label>
-          <div style="position:relative;">
-            <input type="password" id="formContrasenaAcceso" name="ContrasenaAcceso" class="form-input" minlength="8" placeholder="Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo" style="padding-right:44px;" data-i18n-ph="gestionprofesionales_form_password_ph">
-            <button type="button" id="toggleProfesionalPassword" aria-label="Mostrar contraseña" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;font-size:16px;" data-i18n-aria-label="gestionprofesionales_form_password_toggle_aria"><span class="material-symbols-outlined" aria-hidden="true">visibility</span></button>
-          </div>
-          <small id="formContrasenaHelp" style="display:block;margin-top:5px;color:var(--text-muted);" data-i18n="gestionprofesionales_form_password_help">Debe tener 8+ caracteres, mayúscula, minúscula, número y símbolo.</small>
-        </div>
-        <div class="form-group full-width" id="professionalPasswordRules">
-          <div style="font-size:12px;line-height:1.6;">
-            <div style="font-weight:600;margin-bottom:4px;" data-i18n="gestionprofesionales_form_password_rules_title">La contraseña debe cumplir:</div>
-            <div data-rule="length"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_length">Mínimo 8 caracteres</span></div>
-            <div data-rule="upper"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_upper">Una letra mayúscula</span></div>
-            <div data-rule="lower"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_lower">Una letra minúscula</span></div>
-            <div data-rule="number"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_number">Un número</span></div>
-            <div data-rule="symbol"><span class="rule-icon material-symbols-outlined" aria-hidden="true">close</span> <span class="rule-text" data-i18n="gestionprofesionales_form_password_rule_symbol">Un símbolo especial</span></div>
-          </div>
+        <div class="form-group full-width">
+          <small data-i18n="gestionprofesionales_form_access_note">La contraseña de acceso no se configura desde este formulario.</small>
         </div>
         <div class="form-group" id="statusGroup">
           <label class="form-label" for="formStatus" data-i18n="gestionprofesionales_form_estado_label">Estado</label>

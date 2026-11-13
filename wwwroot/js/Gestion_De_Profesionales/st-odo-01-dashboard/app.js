@@ -123,7 +123,7 @@ const setupAutoRefreshStats = () => {
     }
 
     try {
-      const response = await fetch('/api/profesionales/dashboard-stats', {
+      const response = await window.SmileTrack.utils.fetchWithTimeout('/api/profesionales/dashboard-stats', {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       });

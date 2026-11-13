@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Facturacion;
 using SmileTrack_MVC.Models.Entities;
 
@@ -87,7 +88,7 @@ public sealed class FacturacionService : IFacturacionService
         var factura = new Factura
         {
             NumeroFactura = await NuevoNumeroAsync(ct),
-            FechaFactura = DateTime.Now,
+            FechaFactura = ColombiaClock.Now,
             Subtotal = precio,
             Total = precio,
             Estado = "pendiente",
@@ -123,7 +124,7 @@ public sealed class FacturacionService : IFacturacionService
         var subtotal = detalles.Sum(x => x.Cantidad * x.PrecioUnitario);
         var descuento = detalles.Sum(x => x.Cantidad * x.Descuento);
         var total = detalles.Sum(x => x.SubtotalLinea);
-        var f = new Factura { NumeroFactura = await NuevoNumeroAsync(ct), FechaFactura = DateTime.Now, Subtotal = subtotal, Descuento = descuento, Total = total, Estado = "pendiente", IdPaciente = request.IdPaciente, IdCita = request.IdCita, IdProfesional = request.IdProfesional, Notas = Clean(request.Notas), GeneradaPor = idUsuario, MontoPagado = 0, Detalles = detalles };
+        var f = new Factura { NumeroFactura = await NuevoNumeroAsync(ct), FechaFactura = ColombiaClock.Now, Subtotal = subtotal, Descuento = descuento, Total = total, Estado = "pendiente", IdPaciente = request.IdPaciente, IdCita = request.IdCita, IdProfesional = request.IdProfesional, Notas = Clean(request.Notas), GeneradaPor = idUsuario, MontoPagado = 0, Detalles = detalles };
         _db.Facturas.Add(f);
         AgregarNotificacion(f.IdPaciente, f.IdCita, "Factura creada", $"Se creó la factura {f.NumeroFactura} por {f.Total:C}.");
         await _db.SaveChangesAsync(ct);
@@ -148,7 +149,7 @@ public sealed class FacturacionService : IFacturacionService
             throw new InvalidOperationException(
                 $"El monto del abono ({FormatoMonto(request.MontoPagado)}) supera el saldo pendiente ({FormatoMonto(total)}). Ajusta el valor e inténtalo de nuevo.");
 
-        var fechaPago = DateTime.Now;
+        var fechaPago = ColombiaClock.Now;
         var referenciaPago = $"CAJ-{Guid.NewGuid():N}"[..36];
         var facturaId = await ExecuteInTransactionAsync(async () =>
         {
@@ -385,7 +386,7 @@ public sealed class FacturacionService : IFacturacionService
             Descripcion = descripcion,
             Fecha = DateTime.UtcNow
         });
-    private async Task<string> NuevoNumeroAsync(CancellationToken ct) { var year = DateTime.Now.Year; var n = await _db.Facturas.CountAsync(x => x.FechaFactura.Year == year, ct) + 1; string v; do { v = $"FAC-{year}-{n:D5}"; n++; } while (await _db.Facturas.AnyAsync(x => x.NumeroFactura == v, ct)); return v; }
+    private async Task<string> NuevoNumeroAsync(CancellationToken ct) { var year = ColombiaClock.Now.Year; var n = await _db.Facturas.CountAsync(x => x.FechaFactura.Year == year, ct) + 1; string v; do { v = $"FAC-{year}-{n:D5}"; n++; } while (await _db.Facturas.AnyAsync(x => x.NumeroFactura == v, ct)); return v; }
     private static bool EsEstadoFacturable(string? estado) => estado?.Trim().ToLowerInvariant() is "atendida" or "completada" or "finalizada";
     private static FacturaDto Map(Factura x) => new() { Id=x.IdFactura, Numero=x.NumeroFactura, IdPaciente=x.IdPaciente, IdCita=x.IdCita, IdProfesional=x.IdProfesional, Paciente=x.Paciente==null?"Paciente":$"{x.Paciente.Nombres} {x.Paciente.Apellidos}", Documento=x.Paciente?.Documento??"N/A", Fecha=x.FechaFactura, Subtotal=x.Subtotal, Descuento=x.Descuento, Total=x.Total, MontoPagado=x.MontoPagado, Pendiente=Math.Max(x.Total-x.MontoPagado,0), Estado=x.Estado, Notas=x.Notas, FechaPago=x.FechaPago, Detalles=x.Detalles.Select(d=>new FacturaDetalleDto { Id=d.IdDetalle, IdServicio=d.IdServicio, Descripcion=d.Descripcion, Cantidad=d.Cantidad, PrecioUnitario=d.PrecioUnitario, Descuento=d.Descuento, Subtotal=d.SubtotalLinea }).ToList(), Pagos=x.Pagos.Select(p=>new PagoDto { Id=p.IdPago, Monto=p.Monto, FechaPago=p.FechaUtc.ToLocalTime(), MetodoPago=p.MetodoPago, Referencia=p.Referencia, RegistradoPor=p.RegistradoPor, Observaciones=p.Observaciones }).ToList() };
 }

@@ -61,11 +61,12 @@ const sendRemindersToPatients = async (selectedIds, customMessageText, buttonOve
     const requestPayload = { IdsCitas: appointmentIds };
     if (customMessageText) requestPayload.MensajePersonalizado = customMessageText;
 
-    const response = await fetch('/api/citas/recordatorios/enviar', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/api/citas/recordatorios/enviar', {
       method: 'POST',
       credentials: 'same-origin',
       headers: buildApiAuthHeaders(),
-      body: JSON.stringify(requestPayload)
+      body: JSON.stringify(requestPayload),
+      timeoutMs: 60000
     });
 
     const responseText = await response.text();
@@ -269,24 +270,36 @@ const setupAlertButtonsListeners = () => {
       overdueAlertBtn.disabled = true;
       overdueAlertBtn.textContent = 'Enviando…';
       try {
-        const response = await fetch('/api/facturas/recordatorios-vencidas', {
+        const response = await window.SmileTrack.utils.fetchWithTimeout('/api/facturas/recordatorios-vencidas', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: buildApiAuthHeaders()
+          headers: buildApiAuthHeaders(),
+          timeoutMs: 60000
         });
 
         let payload;
-        try { payload = await response.json(); } catch { payload = { success: response.ok }; }
+        try {
+          payload = await response.json();
+        } catch {
+          throw new Error('El servidor devolvió una respuesta inválida al procesar los recordatorios de pago.');
+        }
 
-        if (response.ok && payload.success !== false) {
-          const notifyHandler = (payload.enviados ?? 0) > 0
-            ? window.ToastService?.success
-            : window.ToastService?.warning;
-          if (notifyHandler) notifyHandler(payload.message || 'Recordatorios de pago procesados.');
+        if (!response.ok || payload?.success !== true) {
+          throw new Error(payload?.message || `No fue posible enviar los recordatorios de pago (HTTP ${response.status}).`);
+        }
+
+        const enviados = Number(payload.enviados) || 0;
+        const fallidos = Number(payload.fallidos) || 0;
+        const mensaje = payload.message || 'Recordatorios de pago procesados.';
+        if (fallidos > 0) {
+          const notifyHandler = enviados > 0
+            ? window.ToastService?.warning
+            : window.ToastService?.error;
+          notifyHandler?.(mensaje);
+        } else if (enviados > 0) {
+          window.ToastService?.success(mensaje);
         } else {
-          if (window.ToastService) {
-            window.ToastService.error(payload.message || 'No fue posible enviar los recordatorios de pago.');
-          }
+          window.ToastService?.warning(mensaje);
         }
       } catch (err) {
         console.warn('[SmileTrack] Error al enviar recordatorios de pago:', err);

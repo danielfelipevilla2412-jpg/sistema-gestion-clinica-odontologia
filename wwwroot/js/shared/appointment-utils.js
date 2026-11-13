@@ -61,45 +61,62 @@ window.AppointmentUtils = (() => {
     // ════════════════════════════════════════════════════════════════════
     //  VALIDACIÓN DE CITAS
     // ════════════════════════════════════════════════════════════════════
+    /**
+     * Valida fecha/hora de una cita.
+     *
+     * - Solo bloquea si la FECHA es anterior a hoy (el servidor maneja margen de ±5 min).
+     * - La duración mínima es 15 minutos; sin máximo fijo para soportar servicios largos.
+     *   Se elimina la restricción hardcodeada de "exactamente 60 minutos".
+     * - horaFin es opcional: si se omite, solo se valida que horaInicio no sea en el pasado.
+     *
+     * @param {string} fecha        'YYYY-MM-DD'
+     * @param {string} horaInicio   'HH:mm'
+     * @param {string} [horaFin]    'HH:mm' (opcional)
+     * @returns {{ field: string, message: string }[]}
+     */
     const validateAppointmentTime = (fecha, horaInicio, horaFin) => {
         const errors = [];
 
-        if (!fecha || !horaInicio || !horaFin) {
+        if (!fecha || !horaInicio) {
             errors.push({
                 field: 'general',
-                message: 'La fecha y las horas de inicio y fin son obligatorias.'
+                message: 'La fecha y la hora de inicio son obligatorias.'
             });
-
             return errors;
         }
 
-        const inicio = new Date(`${fecha}T${horaInicio}`);
-        const fin = new Date(`${fecha}T${horaFin}`);
+        // Solo validar si la FECHA es anterior a hoy (no la hora exacta — el servidor lo hace)
+        const [y, m, d] = fecha.split('-').map(Number);
+        const selectedDay = new Date(y, m - 1, d);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-        if (horaInicio >= horaFin) {
-            errors.push({
-                field: 'horaInicio',
-                message: 'La hora de inicio debe ser anterior a la hora de fin.'
-            });
-        } else {
-            const duracionMinutos = (fin - inicio) / 60000;
-
-            if (duracionMinutos !== 60) {
-                errors.push({
-                    field: 'horaFin',
-                    message: 'La cita debe tener una duración de 60 minutos.'
-                });
-            }
-        }
-
-        const minDate = new Date();
-        minDate.setMinutes(minDate.getMinutes() - 5);
-
-        if (inicio < minDate) {
+        if (selectedDay < today) {
             errors.push({
                 field: 'fecha',
-                message: 'No puedes agendar una cita en un horario pasado.'
+                message: 'No puedes agendar una cita en una fecha pasada.'
             });
+        }
+
+        // Validar coherencia horaInicio < horaFin solo si horaFin está presente
+        if (horaFin) {
+            if (horaInicio >= horaFin) {
+                errors.push({
+                    field: 'horaInicio',
+                    message: 'La hora de inicio debe ser anterior a la hora de fin.'
+                });
+            } else {
+                const inicio = new Date(`${fecha}T${horaInicio}`);
+                const fin = new Date(`${fecha}T${horaFin}`);
+                const duracionMinutos = (fin - inicio) / 60000;
+
+                if (duracionMinutos < 15) {
+                    errors.push({
+                        field: 'horaFin',
+                        message: 'La cita debe tener una duración mínima de 15 minutos.'
+                    });
+                }
+            }
         }
 
         return errors;
@@ -227,7 +244,6 @@ window.AppointmentUtils = (() => {
             isDirty = checkDirty();
             if (!isDirty) { closeFn(); return; }
 
-            // Intentar usar ModalService canónico primero, luego ConfirmModalService si existe
             if (window.ModalService && typeof window.ModalService.confirm === 'function') {
                 window.ModalService.confirm({
                     title: '¿Descartar cambios?',
@@ -235,15 +251,6 @@ window.AppointmentUtils = (() => {
                     confirmText: 'Sí, descartar',
                     cancelText: 'Seguir editando',
                     isDanger: true,
-                    onConfirm: () => { snapshot = null; closeFn(); }
-                });
-            } else if (confirmModal && window.ConfirmModalService) {
-                window.ConfirmModalService.show({
-                    title: '¿Descartar cambios?',
-                    message: 'Tienes cambios sin guardar. Si cierras ahora perderás la información ingresada.',
-                    confirmText: 'Sí, descartar',
-                    cancelText: 'Seguir editando',
-                    confirmClass: 'btn-danger',
                     onConfirm: () => { snapshot = null; closeFn(); }
                 });
             } else {

@@ -31,6 +31,8 @@ const API_PAGE_SIZE = 500;
 let currentFilterTab = 'all';
 let appointmentsList = [];
 let pendingCancelAppointmentId = null;
+let professionalOptionsRequestId = 0;
+let availableTimesRequestId = 0;
 
 // ═══════════════════════════════════════════════════════════════════
 // 3. UTILIDADES Y HELPERS
@@ -116,13 +118,11 @@ const toLocalDateInputValue = (dateObj) => {
 };
 
 const getEarliestRequestDate = () => {
-  const dateObj = new Date();
-  dateObj.setDate(dateObj.getDate() + 1);
-  return toLocalDateInputValue(dateObj);
+  return toLocalDateInputValue(new Date());
 };
 
 const setMinimumRequestDate = (dateInput) => {
-  if (dateInput) dateInput.min = getEarliestRequestDate();
+  if (dateInput) dateInput.min = dateInput.dataset.minDate || getEarliestRequestDate();
 };
 
 const formatTimeLabel = (isoDateString) => {
@@ -158,7 +158,7 @@ async function fetchPatientAppointments() {
     const allAppointments = [];
     let page = 1;
     while (true) {
-      const response = await fetch(`${API_BASE_URL}/citas?page=${page}&pageSize=${API_PAGE_SIZE}`, {
+      const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE_URL}/citas?page=${page}&pageSize=${API_PAGE_SIZE}`, {
         method: 'GET',
         headers: buildAuthHeaders()
       });
@@ -187,7 +187,7 @@ const loadAvailableServicesModalOptions = async () => {
   const serviceSelect = safeGetElement('citaServicio');
   if (!serviceSelect) return;
   try {
-    const response = await fetch('/api/servicios', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/api/servicios', {
       headers: { 'Accept': 'application/json' }
     });
     if (!response.ok) throw new Error(`status ${response.status}`);
@@ -196,6 +196,7 @@ const loadAvailableServicesModalOptions = async () => {
     if (!Array.isArray(servicesList) || servicesList.length === 0) throw new Error('catálogo vacío');
 
     serviceSelect.required = true;
+    serviceSelect.disabled = false;
     serviceSelect.innerHTML = '<option value="">Selecciona un servicio</option>';
     servicesList.forEach(serviceItem => {
       const optionElement = document.createElement('option');
@@ -212,6 +213,127 @@ const loadAvailableServicesModalOptions = async () => {
   }
 };
 
+const resetProfessionalAndTimeOptions = (professionalMessage, timeMessage) => {
+  const professionalSelect = safeGetElement('citaProfesional');
+  const timeSelect = safeGetElement('citaHora');
+  if (professionalSelect) {
+    professionalSelect.innerHTML = `<option value="">${escapeHtml(professionalMessage)}</option>`;
+    professionalSelect.disabled = true;
+  }
+  if (timeSelect) {
+    timeSelect.innerHTML = `<option value="">${escapeHtml(timeMessage)}</option>`;
+    timeSelect.disabled = true;
+  }
+};
+
+const loadAvailableProfessionals = async () => {
+  const requestId = ++professionalOptionsRequestId;
+  availableTimesRequestId += 1;
+  const dateInput = safeGetElement('citaFecha');
+  const serviceSelect = safeGetElement('citaServicio');
+  const professionalSelect = safeGetElement('citaProfesional');
+  if (!professionalSelect) return;
+
+  resetProfessionalAndTimeOptions('Cargando profesionales...', 'Selecciona un profesional primero');
+  if (!dateInput?.value || !serviceSelect?.value) {
+    resetProfessionalAndTimeOptions('Selecciona fecha y servicio primero', 'Selecciona un profesional primero');
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      idServicio: serviceSelect.value
+    });
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/citas/profesionales-por-servicio?${params}`, {
+      headers: buildAuthHeaders()
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+      throw new Error(payload?.message || 'No se pudieron cargar los profesionales.');
+    }
+    if (requestId !== professionalOptionsRequestId) return;
+
+    professionalSelect.innerHTML = '<option value="">Selecciona un profesional</option>';
+    payload.data.forEach(professional => {
+      const option = document.createElement('option');
+      option.value = String(professional.idProfesional ?? professional.IdProfesional ?? '');
+      option.textContent = professional.nombreCompleto ?? professional.NombreCompleto ?? 'Profesional';
+      professionalSelect.appendChild(option);
+    });
+    professionalSelect.disabled = payload.data.length === 0;
+    if (payload.data.length === 0) {
+      resetProfessionalAndTimeOptions('No hay profesionales asignados a este servicio', 'No hay horarios disponibles');
+      const help = safeGetElement('citaDisponibilidadAyuda');
+      if (help) help.textContent = 'El servicio no tiene profesionales disponibles. Prueba otro servicio.';
+      return;
+    }
+    const help = safeGetElement('citaDisponibilidadAyuda');
+    if (help) help.textContent = 'Selecciona un profesional para ver sus horarios disponibles.';
+  } catch (error) {
+    if (requestId !== professionalOptionsRequestId) return;
+    resetProfessionalAndTimeOptions('No se pudieron cargar profesionales', 'No hay horarios disponibles');
+    const help = safeGetElement('citaDisponibilidadAyuda');
+    if (help) help.textContent = error.message || 'No se pudo consultar la disponibilidad.';
+    console.error('[SmileTrack] Error cargando profesionales para la cita:', error);
+  }
+};
+
+const loadAvailableAppointmentTimes = async () => {
+  const requestId = ++availableTimesRequestId;
+  const dateInput = safeGetElement('citaFecha');
+  const serviceSelect = safeGetElement('citaServicio');
+  const professionalSelect = safeGetElement('citaProfesional');
+  const timeSelect = safeGetElement('citaHora');
+  const help = safeGetElement('citaDisponibilidadAyuda');
+  if (!timeSelect) return;
+
+  timeSelect.innerHTML = '<option value="">Consultando horarios...</option>';
+  timeSelect.disabled = true;
+  if (!dateInput?.value || !serviceSelect?.value || !professionalSelect?.value) {
+    resetProfessionalAndTimeOptions(
+      professionalSelect?.value ? 'Selecciona un profesional' : 'Selecciona fecha y servicio primero',
+      'Selecciona fecha, servicio y profesional primero'
+    );
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      fecha: dateInput.value,
+      idServicio: serviceSelect.value,
+      idProfesional: professionalSelect.value
+    });
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/citas/horarios-disponibles?${params}`, {
+      headers: buildAuthHeaders()
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+      throw new Error(payload?.message || 'No se pudieron consultar los horarios.');
+    }
+    if (requestId !== availableTimesRequestId) return;
+
+    timeSelect.innerHTML = '<option value="">Selecciona un horario disponible</option>';
+    payload.data.forEach(time => {
+      const option = document.createElement('option');
+      option.value = String(time).slice(0, 5);
+      option.textContent = option.value;
+      timeSelect.appendChild(option);
+    });
+    timeSelect.disabled = payload.data.length === 0;
+    if (help) {
+      help.textContent = payload.data.length
+        ? 'Estos horarios están disponibles ahora. La disponibilidad se verificará de nuevo al agendar.'
+        : 'No hay horarios disponibles para esta fecha y profesional. Prueba otra fecha o profesional.';
+    }
+  } catch (error) {
+    if (requestId !== availableTimesRequestId) return;
+    timeSelect.innerHTML = '<option value="">No se pudieron cargar horarios</option>';
+    timeSelect.disabled = true;
+    if (help) help.textContent = error.message || 'No se pudo consultar la disponibilidad.';
+    console.error('[SmileTrack] Error cargando horarios de cita:', error);
+  }
+};
+
 const confirmAppointmentCancellation = async () => {
   if (!pendingCancelAppointmentId) return;
   const appointmentItem = appointmentsList.find(item => item.id === pendingCancelAppointmentId);
@@ -220,6 +342,7 @@ const confirmAppointmentCancellation = async () => {
   const reasonInput = safeGetElement('cancelarMotivo');
   const cancellationReason = reasonInput?.value?.trim() || '';
   const errorBox = safeGetElement('cancelarError');
+  const cancelButton = safeGetElement('cancelarSi');
   if (cancellationReason.length < 5) {
     if (errorBox) {
       errorBox.textContent = 'El motivo de cancelación debe tener al menos 5 caracteres.';
@@ -231,20 +354,30 @@ const confirmAppointmentCancellation = async () => {
 
   let operationSuccess = false;
   let statusMessage = null;
+  const originalButtonText = cancelButton?.textContent;
+  if (cancelButton) {
+    cancelButton.disabled = true;
+    cancelButton.textContent = 'Cancelando…';
+  }
+
   try {
-    const response = await fetch(`${API_BASE_URL}/citas/${pendingCancelAppointmentId}`, {
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE_URL}/citas/${pendingCancelAppointmentId}`, {
       method: 'DELETE',
       headers: buildAuthHeaders(),
       body: JSON.stringify({ Motivo: cancellationReason })
     });
-    let payload;
-    try { payload = await response.json(); } catch { payload = { success: response.ok }; }
-    operationSuccess = response.ok && payload.success;
-    statusMessage = payload.message;
+    const payload = await response.json().catch(() => null);
+    operationSuccess = response.ok && payload?.success === true;
+    statusMessage = payload?.message || (response.ok ? 'El servidor no confirmó la cancelación.' : null);
   } catch (err) {
     console.warn('[SmileTrack] Cancel cita offline paciente:', err);
     operationSuccess = false;
     statusMessage = 'No fue posible conectar con la API para cancelar la cita.';
+  } finally {
+    if (cancelButton) {
+      cancelButton.disabled = false;
+      cancelButton.textContent = originalButtonText;
+    }
   }
 
   if (operationSuccess) {
@@ -265,66 +398,95 @@ const confirmAppointmentCancellation = async () => {
 const handleNewAppointmentSubmit = async () => {
   const dateInput = safeGetElement('citaFecha');
   const serviceSelect = safeGetElement('citaServicio');
+  const professionalSelect = safeGetElement('citaProfesional');
+  const timeSelect = safeGetElement('citaHora');
   const noteTextarea = safeGetElement('citaNota');
   const confirmButton = safeGetElement('confirmarNuevaCita');
 
-  if (!dateInput?.value) {
-    dateInput?.focus();
-    if (dateInput) { dateInput.style.borderColor = 'var(--orange)'; setTimeout(() => dateInput.style.borderColor = '', 2000); }
-    notifyUser('warning', 'Falta la fecha', 'Por favor selecciona una fecha para la cita.');
+  if (!dateInput?.value || !serviceSelect?.value || !professionalSelect?.value || !timeSelect?.value) {
+    const firstInvalidField = [dateInput, serviceSelect, professionalSelect, timeSelect]
+      .find(field => !field?.value);
+    firstInvalidField?.focus();
+    notifyUser('warning', 'Datos incompletos', 'Selecciona fecha, servicio, profesional y horario disponible.');
     return;
   }
 
-  const earliestRequestDate = getEarliestRequestDate();
-  if (dateInput.value < earliestRequestDate) {
-    dateInput.value = earliestRequestDate;
-    notifyUser('warning', 'Fecha inválida', 'Las solicitudes deben ser para una fecha posterior a hoy.');
+  const [year, month, day] = dateInput.value.split('-').map(Number);
+  const dayOfWeek = new Date(year, month - 1, day, 12).getDay();
+  // Usar los días de atención configurados en el input de fecha (data-open-days).
+  // Por defecto lunes-viernes (1-5) si no está configurado.
+  const openDaysRaw = safeGetElement('citaFecha')?.dataset?.openDays || '1,2,3,4,5';
+  const openDaysSet = new Set(
+    openDaysRaw.split(',').map(v => Number(v.trim())).filter(Number.isInteger)
+  );
+  // dayOfWeek: 0=Dom, 1=Lun…6=Sáb → convertir a ISO 8601 (1=Lun…7=Dom)
+  const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+  if (!openDaysSet.has(isoDay)) {
+    notifyUser('warning', 'Día sin atención', 'La clínica no atiende ese día. Selecciona un día hábil disponible.');
     return;
   }
 
   const requestBody = {
     Fecha: dateInput.value,
+    HoraInicio: `${timeSelect.value}:00`,
     IdServicio: serviceSelect?.value ? Number(serviceSelect.value) : 0,
+    IdProfesional: Number(professionalSelect.value),
     Notas: noteTextarea?.value?.trim() || null
   };
 
-  if (confirmButton) { confirmButton.disabled = true; confirmButton.textContent = 'Enviando…'; }
+  if (confirmButton) { confirmButton.disabled = true; confirmButton.textContent = 'Agendando…'; }
 
   try {
     const headers = buildAuthHeaders();
-    const response = await fetch('/api/citas/solicitar', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/api/citas/solicitar', {
       method: 'POST',
       credentials: 'same-origin',
       headers,
       body: JSON.stringify(requestBody)
     });
 
-    let payload;
-    try { payload = await response.json(); } catch { payload = { success: response.ok }; }
+    const payload = await response.json().catch(() => null);
 
-    if (response.ok && payload.success !== false) {
+    if (response.ok && payload?.success === true) {
       const modalElement = safeGetElement('modalNuevaCita');
       if (modalElement) {
         modalElement.classList.remove('open');
         modalElement.setAttribute('aria-hidden', 'true');
         modalElement.setAttribute('inert', '');
       }
-      notifyUser('success', '¡Solicitud enviada!',
-        'Tu solicitud de cita fue recibida. El equipo de recepción la revisará y te confirmará los detalles en breve.');
-
+      notifyUser('success', '¡Cita agendada!',
+        `Tu cita quedó programada para el ${dateInput.value} a las ${timeSelect.value}.`);
+      professionalOptionsRequestId += 1;
+      availableTimesRequestId += 1;
       await fetchPatientAppointments();
       animateAppointmentCounters();
       updateAppointmentStats();
       renderAppointmentsTable();
     } else {
-      const failureMsg = payload.message || 'No fue posible enviar tu solicitud. Inténtalo de nuevo.';
-      notifyUser('error', 'Error al solicitar', failureMsg);
+      const failureMsg = payload?.message || (response.ok
+        ? 'El servidor no confirmó el agendamiento de la cita.'
+        : 'No fue posible agendar la cita. Inténtalo de nuevo.');
+      if (Array.isArray(payload?.data)) {
+        timeSelect.innerHTML = '<option value="">El horario elegido se ocupó; selecciona una alternativa</option>';
+        payload.data.forEach(time => {
+          const option = document.createElement('option');
+          option.value = String(time).slice(0, 5);
+          option.textContent = option.value;
+          timeSelect.appendChild(option);
+        });
+        timeSelect.disabled = payload.data.length === 0;
+        const help = safeGetElement('citaDisponibilidadAyuda');
+        if (help) help.textContent = payload.data.length
+          ? 'El horario se ocupó mientras confirmabas. Elige una de estas alternativas.'
+          : 'Ese horario se ocupó y no hay más horarios disponibles para esta fecha. Prueba otra fecha.';
+      }
+      notifyUser('error', 'No se pudo agendar', failureMsg);
     }
   } catch (err) {
     console.warn('[SmileTrack] Error al solicitar cita:', err);
     notifyUser('error', 'Sin conexión', 'No fue posible conectar con el servidor. Verifica tu conexión y vuelve a intentarlo.');
   } finally {
-    if (confirmButton) { confirmButton.disabled = false; confirmButton.textContent = 'Solicitar'; }
+    if (confirmButton) { confirmButton.disabled = false; confirmButton.textContent = 'Agendar cita'; }
   }
 };
 
@@ -595,6 +757,9 @@ const setupNewAppointmentModal = () => {
   if (!newAppointmentModal || !newAppointmentBtn) return;
 
   const dateInput = safeGetElement('citaFecha');
+  const serviceSelect = safeGetElement('citaServicio');
+  const professionalSelect = safeGetElement('citaProfesional');
+  const timeSelect = safeGetElement('citaHora');
   setMinimumRequestDate(dateInput);
 
   const closeModalHandler = () => {
@@ -606,8 +771,15 @@ const setupNewAppointmentModal = () => {
   };
 
   newAppointmentBtn.addEventListener('click', () => {
+    professionalOptionsRequestId += 1;
+    availableTimesRequestId += 1;
     newAppointmentModal.dataset.opener = 'btnNuevaCita';
     setMinimumRequestDate(dateInput);
+    if (dateInput) dateInput.value = '';
+    if (serviceSelect) serviceSelect.value = '';
+    resetProfessionalAndTimeOptions('Selecciona fecha y servicio primero', 'Selecciona un profesional primero');
+    const help = safeGetElement('citaDisponibilidadAyuda');
+    if (help) help.textContent = 'Elige una fecha, servicio y profesional para consultar horarios disponibles.';
     newAppointmentModal.classList.add('open');
     newAppointmentModal.setAttribute('aria-hidden', 'false');
     newAppointmentModal.removeAttribute('inert');
@@ -620,10 +792,27 @@ const setupNewAppointmentModal = () => {
   newAppointmentModal.addEventListener('click', event => { if (event.target === newAppointmentModal) closeModalHandler(); });
 
   dateInput?.addEventListener('change', () => {
-    const earliestRequestDate = getEarliestRequestDate();
-    if (dateInput.value < earliestRequestDate) {
-      dateInput.value = earliestRequestDate;
-      notifyUser('warning', 'Fecha inválida', 'La solicitud se ha ajustado al día siguiente como fecha más próxima.');
+    const minimumDate = dateInput.dataset.minDate || getEarliestRequestDate();
+    if (dateInput.value < minimumDate) {
+      dateInput.value = minimumDate;
+      notifyUser('warning', 'Fecha inválida', 'No puedes agendar una cita en una fecha pasada.');
+    } else if (dateInput.value) {
+      const [year, month, day] = dateInput.value.split('-').map(Number);
+      const dayOfWeek = new Date(year, month - 1, day, 12).getDay();
+      if (dayOfWeek === 0) {
+        dateInput.value = '';
+        notifyUser('warning', 'Día sin atención', 'La clínica no atiende los domingos. Selecciona un día de lunes a sábado.');
+      }
+    }
+    loadAvailableProfessionals();
+  });
+
+  serviceSelect?.addEventListener('change', loadAvailableProfessionals);
+  professionalSelect?.addEventListener('change', loadAvailableAppointmentTimes);
+  timeSelect?.addEventListener('change', () => {
+    const help = safeGetElement('citaDisponibilidadAyuda');
+    if (help && timeSelect.value) {
+      help.textContent = 'Horario seleccionado. Se verificará nuevamente al agendar.';
     }
   });
 

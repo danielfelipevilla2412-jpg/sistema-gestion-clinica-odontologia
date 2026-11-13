@@ -1,14 +1,15 @@
 /* ============================================
-SmileTrack — Gestión de Citas Recepción (st-rec-03-gestion-citas)
-============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026 (actualizado 2026-07-31)
+/* ============================================
+   SmileTrack — Gestión de Citas Recepción (st-rec-03-gestion-citas)
+   ============================================
+   Autor: Johan Santamaria
+   Fecha: 29/07/2026 (actualizado 2026-07-31)
 
-DESCRIPCIÓN:
-Módulo principal de recepcionista. La API REST es la fuente de verdad del listado y las operaciones.
+   DESCRIPCIÓN:
+   Módulo principal de recepcionista. La API REST es la fuente de verdad del listado y las operaciones.
 
-FUNCIONALIDADES PRINCIPALES:
-- Carga de citas desde la API, sin persistencia local alternativa
+   FUNCIONALIDADES PRINCIPALES:
+   - Carga de citas desde la API, sin persistencia local alternativa
 - Filtros combinados (búsqueda texto, profesional, fecha, estado)
 - CRUD UI: ver detalle y edición mediante formularios HTML a /gestion-de-citas/guardar-cita;
            cancelación mediante POST a /gestion-de-citas/eliminar-cita
@@ -43,6 +44,9 @@ const getAuthHeaders = () => {
   } catch (e) { /* sessionStorage deshabilitado (modo privado) */ }
   return headers;
 };
+
+const getRequestVerificationToken = () =>
+  document.querySelector('input[name="__RequestVerificationToken"]')?.value?.trim() || '';
 
 function mostrarErrorUsuario(mensaje) {
   let div = document.getElementById('smiletrack-error-bar');
@@ -632,7 +636,7 @@ const actualizarProfesionalesDisponibles = debounce(async () => {
 
   try {
     const params = new URLSearchParams({ fecha, horaInicio: hora });
-    const res = await fetch(`${API_BASE}/citas/profesionales-disponibles?${params}`, {
+    const res = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE}/citas/profesionales-disponibles?${params}`, {
       headers: { 'Accept': 'application/json' }
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
@@ -670,10 +674,11 @@ const actualizarProfesionalesDisponibles = debounce(async () => {
 const fetchSolicitudesPendientes = async () => {
   const listEl = safeGetElement('solicitudesPendientesList');
   const badgeEl = safeGetElement('solicitudesPendientesBadge');
+  const panelEl = safeGetElement('pendingRequestsPanel');
   if (!listEl) return [];
 
   try {
-    const res = await fetch(`${API_BASE}/citas/solicitudes-pendientes`, {
+    const res = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE}/citas/solicitudes-pendientes`, {
       method: 'GET',
       credentials: 'same-origin',
       headers: { ...getAuthHeaders(), 'Accept': 'application/json' }
@@ -685,10 +690,11 @@ const fetchSolicitudesPendientes = async () => {
     if (badgeEl) badgeEl.textContent = String(solicitudes.length);
 
     if (!solicitudes.length) {
-      listEl.innerHTML = '<div class="empty-state" role="status" style="padding:1.25rem; color:#64748b;">No hay solicitudes pendientes por confirmar.</div>';
+      if (panelEl) panelEl.hidden = true;
       return solicitudes;
     }
 
+    if (panelEl) panelEl.hidden = false;
     const items = solicitudes.map((solicitud) => {
       const fecha = solicitud?.fecha ? new Date(solicitud.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha';
       const hora = solicitud?.horaInicio ? String(solicitud.horaInicio).slice(0, 5) : '08:00';
@@ -720,7 +726,7 @@ const fetchSolicitudesPendientes = async () => {
         try {
           const fecha = solicitud.fecha ? String(solicitud.fecha).slice(0, 10) : new Date().toISOString().slice(0, 10);
           const horaBase = solicitud.horaInicio ? String(solicitud.horaInicio).slice(0, 5) : '09:00';
-          const professionalesRes = await fetch(`${API_BASE}/citas/profesionales-disponibles?fecha=${encodeURIComponent(fecha)}&horaInicio=${encodeURIComponent(horaBase)}&idServicio=${encodeURIComponent(solicitud.servicio?.idServicio ?? 0)}`, {
+          const professionalesRes = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE}/citas/profesionales-disponibles?fecha=${encodeURIComponent(fecha)}&horaInicio=${encodeURIComponent(horaBase)}&idServicio=${encodeURIComponent(solicitud.servicio?.idServicio ?? 0)}`, {
             method: 'GET',
             credentials: 'same-origin',
             headers: { ...getAuthHeaders(), 'Accept': 'application/json' }
@@ -729,6 +735,12 @@ const fetchSolicitudesPendientes = async () => {
           const profesionales = Array.isArray(profesionalesPayload.data) ? profesionalesPayload.data : [];
           if (!profesionales.length) {
             showToast('No hay profesionales disponibles para confirmar esta solicitud. Intente otra fecha u horario.', 'error');
+            return;
+          }
+
+          const csrfToken = getRequestVerificationToken();
+          if (!csrfToken) {
+            showToast('No se pudo validar la solicitud. Recarga la página e intenta nuevamente.', 'error');
             return;
           }
 
@@ -742,15 +754,16 @@ const fetchSolicitudesPendientes = async () => {
             notas: solicitud.notas || solicitud.motivoConsulta || ''
           };
 
-          const res = await fetch(`${API_BASE}/citas/${idCita}/confirmar-asignacion`, {
+          button.disabled = true;
+          const res = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE}/citas/${idCita}/confirmar-asignacion`, {
             method: 'PUT',
             credentials: 'same-origin',
-            headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)?.[2] ? decodeURIComponent(document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/)[2]) : '', 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': csrfToken },
             body: JSON.stringify(payload)
           });
           const result = await res.json().catch(() => ({}));
-          if (!res.ok || result.success === false) {
-            throw new Error(result.message || 'No fue posible confirmar la solicitud.');
+          if (!res.ok || result?.success !== true) {
+            throw new Error(result?.message || 'No fue posible confirmar la solicitud.');
           }
           showToast('Solicitud confirmada y cita asignada correctamente.', 'success');
           if (shouldUseServerRenderedList()) {
@@ -764,6 +777,8 @@ const fetchSolicitudesPendientes = async () => {
         } catch (error) {
           console.warn('[SmileTrack] Error confirmando solicitud pendiente:', error);
           showToast(error.message || 'No fue posible confirmar la solicitud pendiente.', 'error');
+        } finally {
+          button.disabled = false;
         }
       });
     });
@@ -780,9 +795,7 @@ const fetchSolicitudesPendientes = async () => {
           return;
         }
 
-        const csrfMatch = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
-        const csrfToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value
-          || (csrfMatch ? decodeURIComponent(csrfMatch[2]) : '');
+        const csrfToken = getRequestVerificationToken();
         if (!csrfToken) {
           showToast('No se pudo validar la solicitud. Recarga la página e intenta nuevamente.', 'error');
           return;
@@ -790,15 +803,15 @@ const fetchSolicitudesPendientes = async () => {
 
         button.disabled = true;
         try {
-          const response = await fetch(`${API_BASE}/citas/${idCita}/rechazar-solicitud`, {
+          const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE}/citas/${idCita}/rechazar-solicitud`, {
             method: 'POST',
             credentials: 'same-origin',
             headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': csrfToken },
             body: JSON.stringify({ motivo: motivoNormalizado })
           });
           const result = await response.json().catch(() => ({}));
-          if (!response.ok || result.success === false) {
-            throw new Error(result.message || 'No fue posible rechazar la solicitud.');
+          if (!response.ok || result?.success !== true) {
+            throw new Error(result?.message || 'No fue posible rechazar la solicitud.');
           }
 
           showToast('Solicitud rechazada y paciente notificado.', 'success');
@@ -836,8 +849,6 @@ const initNewAppointmentButtons = () => {
       form.querySelectorAll('.error-message.visible').forEach(x => x.classList.remove('visible'));
       form.querySelectorAll('input, select, textarea').forEach(input => input.removeAttribute('aria-invalid'));
     }
-    const dtInp = safeGetElement('newDate');
-    if (dtInp) dtInp.min = new Date().toISOString().split('T')[0];
     // Ocultar alerta de disponibilidad al abrir
     const alert = safeGetElement('availabilityAlert');
     if (alert) alert.style.display = 'none';
@@ -896,15 +907,15 @@ const guardarCitaPorApi = async (form, actualizar, submitBtn) => {
   };
 
   try {
-    const response = await fetch(`${API_BASE}/citas/agenda`, {
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE}/citas/agenda`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { ...getAuthHeaders(), 'X-CSRF-TOKEN': token },
       body: JSON.stringify(body)
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload.success === false)
-      throw new Error(payload.message || 'No fue posible guardar la cita.');
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.success !== true)
+      throw new Error(payload?.message || 'No fue posible confirmar el guardado de la cita.');
     window.ToastService?.success?.(actualizar ? 'Cita actualizada correctamente.' : 'Cita creada correctamente.');
     window.setTimeout(() => window.location.reload(), 300);
   } catch (error) {
@@ -932,7 +943,7 @@ async function fetchAppointments(page = 1) {
     if (date) params.set('fecha', date);
     if (status) params.set('estado', status);
 
-    const res = await fetch(`${API_BASE}/citas?${params.toString()}`, {
+    const res = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE}/citas?${params.toString()}`, {
       method: 'GET',
       credentials: 'same-origin',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'Accept': 'application/json' }
@@ -958,7 +969,7 @@ async function fetchAppointments(page = 1) {
 
 async function fetchConfiguredDuration() {
   try {
-    const res = await fetch(`${API_BASE}/citas?page=1&pageSize=1`, {
+    const res = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE}/citas?page=1&pageSize=1`, {
       method: 'GET',
       credentials: 'same-origin',
       headers: { ...getAuthHeaders(), Accept: 'application/json' }
