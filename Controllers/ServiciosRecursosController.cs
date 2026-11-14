@@ -112,9 +112,24 @@ public class ServiciosRecursosController : Controller
     [Route("servicios-y-recursos/st-odo-05-servicios")]
     public async Task<IActionResult> Stodo05Servicios(CancellationToken ct)
     {
-        var serviciosDb = await _context.Servicios.AsNoTracking()
-            .Where(s => s.Estado == "activo").OrderBy(s => s.Nombre).ToListAsync(ct);
-        return View("~/Views/Servicios_Y_Recursos/st-odo-05-servicios/index.cshtml", serviciosDb);
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(claim, out var usuarioId)) return Challenge();
+
+        var profesional = await _context.Profesionales.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdUsuario == usuarioId, ct);
+        if (profesional is null)
+        {
+            return View("~/Views/Servicios_Y_Recursos/st-odo-05-servicios/index.cshtml",
+                new List<SmileTrack_MVC.Models.Entities.ProfesionalServicio>());
+        }
+
+        ViewData["NombreProfesional"] = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
+        var asignaciones = await _context.ProfesionalServicios.AsNoTracking()
+            .Include(ps => ps.Servicio).ThenInclude(s => s!.Especialidad)
+            .Where(ps => ps.IdProfesional == profesional.IdProfesional)
+            .OrderBy(ps => ps.Servicio!.Nombre)
+            .ToListAsync(ct);
+        return View("~/Views/Servicios_Y_Recursos/st-odo-05-servicios/index.cshtml", asignaciones);
     }
 
     // Endpoints de consulta. Las vistas específicas de equipos e inventario aún no forman parte de este módulo.
