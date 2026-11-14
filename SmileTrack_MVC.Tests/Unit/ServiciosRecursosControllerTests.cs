@@ -97,7 +97,7 @@ public sealed class ServiciosRecursosControllerTests
     }
 
     [Fact]
-    public async Task Stodo05Servicios_SoloDevuelveServiciosActivos()
+    public async Task Stodo05Servicios_SinProfesionalAsociado_RetornaListaVacia()
     {
         await using var db = CrearContext();
         db.Servicios.AddRange(
@@ -105,12 +105,15 @@ public sealed class ServiciosRecursosControllerTests
             new Servicio { IdServicio = 2, Nombre = "Inactivo", Precio = 1000m, Estado = "inactivo" });
         await db.SaveChangesAsync();
 
+        // El usuario autenticado tiene Id=1, pero no existe un profesional
+        // asociado a ese usuario. Los servicios globales no deben mostrarse.
         var controller = CrearControlador(db);
 
         var result = await controller.Stodo05Servicios(CancellationToken.None);
 
         var view = Assert.IsType<ViewResult>(result);
-        Assert.Equal(1, Contar(Assert.IsAssignableFrom<IEnumerable>(view.Model)));
+        Assert.Equal("~/Views/Servicios_Y_Recursos/st-odo-05-servicios/index.cshtml", view.ViewName);
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable>(view.Model));
     }
 
     [Fact]
