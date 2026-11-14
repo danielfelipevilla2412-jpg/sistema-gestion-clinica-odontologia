@@ -23,6 +23,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.IO;
 using System.Text.RegularExpressions;
+using SmileTrack_MVC.Services.Perfiles;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -563,6 +564,10 @@ builder.Services.AddScoped<
     SmileTrack_MVC.Services.AuditoriaHistoriaClinicaService>();
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.PacienteFusionService>();
+
+builder.Services.AddScoped<
+    ActualizacionPerfilPacienteService>();
+
 
 // -----------------------------------------------------------------------------
 // URL DE ESCUCHA
