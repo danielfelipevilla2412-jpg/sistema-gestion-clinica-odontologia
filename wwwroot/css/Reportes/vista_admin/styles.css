@@ -904,40 +904,18 @@ img {
   transition: transform .15s;
 }
 
+.report-download-form {
+  display: inline-block;
+}
+
 .btn-icon:hover {
   transform: scale(1.15);
 }
 
 /* ═══ RESPONSIVE — sidebar móvil: gestionado por shared/sidebar.css ═══ */
 @media (max-width: 900px) {
-  .main {
-    margin-left: 0;
-    padding: 70px 16px 30px;
-  }
-
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .charts-grid {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 600px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .data-table th,
-  .data-table td {
-    padding: 8px 6px;
-    font-size: .75rem;
   }
 }
 

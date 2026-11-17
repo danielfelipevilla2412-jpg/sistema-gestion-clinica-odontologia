@@ -424,6 +424,8 @@ img {
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
     overflow: hidden;
+    min-width: 0;
+    max-width: 100%;
     margin-bottom: 20px;
     position: relative;
     transition: opacity var(--tr);
@@ -449,6 +451,9 @@ img {
 }
 
 .calendar-scroll-wrapper {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
@@ -812,8 +817,23 @@ body.modal-open {
 .modal-footer {
     display: flex;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 10px;
     padding-top: 10px;
+    /* El modal tiene max-height + overflow-y: auto. Sin anclar el pie, con un
+       detalle largo las acciones (Cancelar Cita / Reagendar / Editar) quedan
+       por debajo del área visible y el usuario no las ve al abrir el modal. */
+    position: sticky;
+    bottom: 0;
+    background: var(--white);
+    border-top: 1px solid var(--border);
+}
+
+/* El atributo [hidden] no oculta estos botones por sí solo: los estilos de
+   autor (.btn-primary/.btn-secondary/.btn-danger) declaran display:inline-flex
+   y ganan a la regla del user-agent [hidden]{display:none}. */
+.modal-footer > [hidden] {
+    display: none !important;
 }
 
 /* Formularios en modales */
@@ -991,7 +1011,7 @@ body.modal-open {
     }
 
     .calendar-section {
-        overflow: visible;
+        overflow: hidden;
     }
 
     .calendar-scroll-wrapper {
@@ -1044,9 +1064,7 @@ body.modal-open {
     }
 
     .modal-footer {
-        position: sticky;
-        bottom: -20px;
-        background: var(--white);
+        bottom: 0;
         padding: 12px 0 0;
     }
 }

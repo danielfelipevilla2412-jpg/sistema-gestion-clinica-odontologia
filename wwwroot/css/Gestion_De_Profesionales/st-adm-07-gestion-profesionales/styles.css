@@ -846,3 +846,57 @@ img { max-width: 100%; height: auto; display: block; }
     grid-column: span 1;
   }
 }
+
+.modal-schedule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.modal-schedule-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.modal-schedule-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+.modal-schedule-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.modal-absence-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.modal-absence-full {
+  grid-column: 1 / -1;
+}
+.modal-absence-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+.modal-absence-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.modal-confirm-delete-msg {
+  margin-bottom: 8px;
+}
+.modal-confirm-delete-warn {
+  margin-bottom: 20px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}

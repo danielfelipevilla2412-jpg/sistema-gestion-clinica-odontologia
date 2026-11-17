@@ -25,7 +25,7 @@ namespace SmileTrack_MVC.Controllers.Api;
 
 [ApiController]
 [Route("api/consultorios")]
-[Authorize(Roles = "Auxiliar,Administrador")]
+[Authorize(Roles = "Auxiliar,Administrador", Policy = "ApiOrCookie")]
 [Produces("application/json")]
 public sealed class ConsultoriosApiController : ControllerBase
 {

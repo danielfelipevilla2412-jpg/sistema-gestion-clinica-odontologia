@@ -230,7 +230,7 @@ async function fetchAppointmentsFromApi() {
         if (filterProfessionalValue) params.set('profesional', filterProfessionalValue);
         if (filterDateValue) params.set('fecha', filterDateValue);
 
-        const response = await fetch(`${API_BASE_URL}/citas?${params.toString()}`, {
+        const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE_URL}/citas?${params.toString()}`, {
             method: 'GET',
             credentials: 'same-origin',
             headers: {
@@ -255,7 +255,7 @@ async function fetchAppointmentsFromApi() {
 
 const loadConfiguredDurationMinutes = async () => {
     try {
-        const response = await fetch(`${API_BASE_URL}/citas?page=1&pageSize=1`, {
+        const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE_URL}/citas?page=1&pageSize=1`, {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         });
@@ -272,13 +272,15 @@ const loadConfiguredDurationMinutes = async () => {
 const createInvoiceFromAppointment = async (id, buttonElement) => {
     buttonElement.disabled = true;
     try {
-        const response = await fetch(`${API_BASE_URL}/facturas/desde-cita/${id}`, {
+        const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE_URL}/facturas/desde-cita/${id}`, {
             method: 'POST',
             credentials: 'same-origin',
             headers: getInvoiceHeaders()
         });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.message || 'No fue posible generar la factura.');
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || payload?.success !== true) {
+            throw new Error(payload?.message || 'No fue posible confirmar la creación de la factura.');
+        }
         if (window.ToastService) window.ToastService.success(payload.message || 'Factura generada correctamente.');
         appointmentsList = await fetchAppointmentsFromApi();
         renderAppointmentsTable();
@@ -353,8 +355,10 @@ const renderAppointmentsTable = () => {
 
     const filteredData = getFilteredAppointmentsList();
 
+    // El estado vacío lo renderiza el servidor con _EmptyState como <tr> (bajo SSR
+    // esta función retorna antes). Aquí solo se resetea la paginación; no se inyecta
+    // HTML en el <tbody> para no producir marcado inválido.
     if (!filteredData.length) {
-        tableBody.innerHTML = '<div class="empty-state" role="status">No hay citas para los filtros actuales</div>';
         updatePaginationDisplay(0);
         return;
     }
@@ -366,7 +370,7 @@ const renderAppointmentsTable = () => {
         const status = statusLabelsProxy[appointment.status] || statusLabelsProxy.programada;
         const invoiceButton = ['atendida', 'completada', 'finalizada'].includes(String(status.label).toLowerCase())
             ? `<button class="action-btn btn-secondary btn-invoice" aria-label="Generar factura de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Generar factura">
-                  <span class="material-symbols-outlined action-icon" aria-hidden="true">receipt_long</span><span class="btn-text">Facturar</span>
+                  <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span><span class="btn-text">Facturar</span>
                </button>`
             : '';
 
@@ -403,14 +407,14 @@ const renderAppointmentsTable = () => {
                 <td class="col-acciones text-right" role="cell" data-label="Acciones">
                     <div class="actions-cell">
                         <button class="action-btn btn-secondary btn-view" aria-label="Ver detalle de cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Ver detalle">
-                          <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
+                          <span class="material-symbols-outlined" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
                         </button>
                         <a href="/gestion-de-citas/st-adm-09-citas?editId=${appointment.id}" class="action-btn btn-secondary btn-edit" aria-label="Editar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Editar cita">
-                          <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
+                          <span class="material-symbols-outlined" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
                         </a>
                         ${invoiceButton}
                         <button type="button" class="action-btn btn-danger btn-delete" aria-label="Cancelar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" data-paciente="${escapeHtml(appointment.patient)}" title="Cancelar cita">
-                          <span class="material-symbols-outlined action-icon" aria-hidden="true">event_busy</span> <span class="btn-text">Cancelar</span>
+                          <span class="material-symbols-outlined" aria-hidden="true">event_busy</span> <span class="btn-text">Cancelar</span>
                         </button>
                     </div>
                 </td>
@@ -485,6 +489,24 @@ const updateSummaryStats = () => {
 
 const validateCitaForm = (form) => {
     let valid = true;
+    const dateField = form.querySelector('#fechaCita');
+    const selectedDateValue = dateField?.value || '';
+    const openDays = new Set(
+        (dateField?.dataset.openDays || '1,2,3,4,5,6')
+            .split(',')
+            .map(day => Number(day.trim()))
+            .filter(day => Number.isInteger(day) && day >= 1 && day <= 7)
+    );
+    const selectedDay = selectedDateValue
+        ? (() => {
+            const [year, month, day] = selectedDateValue.split('-').map(Number);
+            const dayOfWeek = new Date(year, month - 1, day, 12).getDay();
+            return dayOfWeek === 0 ? 7 : dayOfWeek;
+        })()
+        : null;
+    const existingClosedDate = selectedDateValue
+        && selectedDateValue === dateField?.dataset.originalDate;
+    const closedDaySelection = selectedDay && !openDays.has(selectedDay) && !existingClosedDate;
 
     const requiredFields = [
         { field: form.querySelector('#idPacienteCita'), message: 'Selecciona un paciente.' },
@@ -521,6 +543,16 @@ const validateCitaForm = (form) => {
         }
     });
 
+    if (closedDaySelection) {
+        if (dateField) {
+            dateField.setAttribute('aria-invalid', 'true');
+            if (window.ValidationUtils) {
+                window.ValidationUtils.showError(dateField, null, 'La clínica no atiende los fines de semana. Selecciona un día de lunes a viernes.');
+            }
+        }
+        valid = false;
+    }
+
     const fecha = form.querySelector('#fechaCita')?.value || '';
     const horaInicio = form.querySelector('#horaInicioCita')?.value || '';
     const horaFin = form.querySelector('#horaFinCita')?.value || '';
@@ -551,11 +583,17 @@ const validateCitaForm = (form) => {
     }
 
     if (fecha && horaInicio) {
-        const selectedDate = new Date(`${fecha}T${horaInicio}`);
-        if (selectedDate < new Date()) {
+        // Solo bloquear si la FECHA es anterior a hoy.
+        // La validación de hora exacta la hace el servidor (margen de ±5 min),
+        // evitando rechazar citas del día actual que aún tienen hora futura.
+        const [y, m, d] = fecha.split('-').map(Number);
+        const selectedDay = new Date(y, m - 1, d);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (selectedDay < today) {
             const fechaField = form.querySelector('#fechaCita');
             if (fechaField && window.ValidationUtils) {
-                window.ValidationUtils.showError(fechaField, null, 'No puedes agendar una cita en un horario pasado.');
+                window.ValidationUtils.showError(fechaField, null, 'No puedes agendar una cita en una fecha pasada.');
             }
             valid = false;
         }
@@ -644,7 +682,7 @@ const openAppointmentModal = (id, mode) => {
             </p>
             <p>
                 <strong>Estado:</strong> 
-                <select id="editStatus" class="filter-select" style="margin-left:8px">
+                <select id="editStatus" class="filter-select" data-state-select style="margin-left:8px">
                     <option value="programada" ${appointment.status === 'programada' ? 'selected' : ''}>Programada</option>
                     <option value="confirmada" ${appointment.status === 'confirmada' ? 'selected' : ''}>Confirmada</option>
                     <option value="atendida" ${appointment.status === 'atendida' ? 'selected' : ''}>Atendida</option>
@@ -693,7 +731,7 @@ const saveAppointmentEdit = (id) => {
         __RequestVerificationToken: tokenInput.value,
         ReturnUrl: window.location.pathname + window.location.search,
         IdCita: id,
-        IdPaciente: rawData.IdPaciente || appointment.id || 0,
+        IdPaciente: rawData.IdPaciente ?? 0,
         IdProfesional: rawData.IdProfesional || 0,
         IdConsultorio: rawData.IdConsultorio || 0,
         IdServicio: rawData.IdServicio || 0,
@@ -730,43 +768,45 @@ const setupNewAppointmentModalTrigger = () => {
 };
 
 const setupEstadoConfirmationModal = () => {
-    const statusSelects = document.querySelectorAll('.form-estado-inline select[name="Estado"]');
+    const body = safeGetElement('citasBody');
+    if (!body) return;
 
-    statusSelects.forEach(select => {
-        select.addEventListener('focus', function () {
-            this.dataset.previousValue = this.value;
-        });
+    body.addEventListener('focusin', event => {
+        const select = event.target.closest('.form-estado-inline select[name="Estado"]');
+        if (select) select.dataset.previousValue = select.value;
+    });
 
-        select.addEventListener('change', function () {
-            const sel = this;
-            const previousValue = sel.dataset.previousValue ?? sel.value;
-            const newValue = sel.value;
+    body.addEventListener('change', event => {
+        const select = event.target.closest('.form-estado-inline select[name="Estado"]');
+        if (!select) return;
 
-            if (previousValue === newValue) return;
+        const previousValue = select.dataset.previousValue ?? select.value;
+        const newValue = select.value;
+        if (previousValue === newValue) return;
 
-            const capitalize = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+        const capitalize = value => value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : value;
 
-            if (window.ModalService) {
-                window.ModalService.confirm({
-                    title: 'Cambiar estado de cita',
-                    message: `¿Confirmas cambiar el estado de "<strong>${capitalize(previousValue)}</strong>" a "<strong>${capitalize(newValue)}</strong>"?`,
-                    confirmText: 'Sí, cambiar',
-                    cancelText: 'Cancelar',
-                    isDanger: false,
-                    onConfirm: () => {
-                        sel.value = newValue;
-                        sel.form.submit();
-                    }
-                });
-            }
-            sel.value = previousValue;
-        });
+        if (window.ModalService) {
+            window.ModalService.confirm({
+                title: 'Cambiar estado de cita',
+                message: `¿Confirmas cambiar el estado de "<strong>${capitalize(previousValue)}</strong>" a "<strong>${capitalize(newValue)}</strong>"?`,
+                confirmText: 'Sí, cambiar',
+                cancelText: 'Cancelar',
+                isDanger: false,
+                onConfirm: () => {
+                    select.value = newValue;
+                    select.form.submit();
+                }
+            });
+        }
+        select.value = previousValue;
     });
 };
 
 const setupHoraCitaCalculator = () => {
     const horaInicio = document.getElementById('horaInicioCita');
     const horaFin = document.getElementById('horaFinCita');
+    const fechaCita = document.getElementById('fechaCita');
 
     if (!horaInicio || !horaFin) return;
 
@@ -805,7 +845,31 @@ const setupHoraCitaCalculator = () => {
     horaInicio.addEventListener('input', () => { calcularHoraFin(); validarHorarioInline(); });
     horaInicio.addEventListener('change', () => { calcularHoraFin(); validarHorarioInline(); });
     horaFin.addEventListener('change', validarHorarioInline);
-    document.getElementById('fechaCita')?.addEventListener('change', validarHorarioInline);
+    fechaCita?.addEventListener('change', () => {
+        const selectedDate = fechaCita.value;
+        if (selectedDate && selectedDate !== fechaCita.dataset.originalDate) {
+            const [year, month, day] = selectedDate.split('-').map(Number);
+            const dayOfWeek = new Date(year, month - 1, day, 12).getDay();
+            const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+            const openDays = new Set(
+                (fechaCita.dataset.openDays || '1,2,3,4,5,6')
+                    .split(',')
+                    .map(value => Number(value.trim()))
+            );
+            if (!openDays.has(isoDay)) {
+                fechaCita.value = '';
+                if (window.ValidationUtils) {
+                    window.ValidationUtils.showError(
+                        fechaCita,
+                        null,
+                        'La clínica no atiende los fines de semana. Selecciona un día de lunes a viernes.'
+                    );
+                }
+                return;
+            }
+        }
+        validarHorarioInline();
+    });
 
     calcularHoraFin();
 };

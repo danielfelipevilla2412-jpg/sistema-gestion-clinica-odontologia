@@ -1,193 +1,73 @@
-/* =============================================
-   SmileTrack – main.js (Reportes Profesional)
-   Idéntico al patrón de st-odo-01-dashboard
-   ============================================= */
-
 (function () {
   'use strict';
 
-  /* ---- Sidebar toggle (mobile) — patrón dashboard ---- */
-  const sidebar = document.getElementById('sidebar');
-  const hamburger = document.getElementById('hamburger');
-  const overlay = document.getElementById('overlay');
+  const activeTriggers = new WeakMap();
 
-  if (hamburger && sidebar && overlay) {
-    hamburger.addEventListener('click', () => {
-      const isOpen = sidebar.classList.toggle('open');
-      overlay.classList.toggle('open', isOpen);
-      hamburger.setAttribute('aria-expanded', String(isOpen));
-      document.body.style.overflow = isOpen ? 'hidden' : '';
+  function openDialog(dialogId, trigger) {
+    const dialog = document.getElementById(dialogId);
+    if (!(dialog instanceof HTMLDialogElement) || dialog.open) return;
+
+    activeTriggers.set(dialog, trigger);
+    dialog.showModal();
+    const closeButton = dialog.querySelector('[data-dialog-close]');
+    if (closeButton instanceof HTMLElement) closeButton.focus();
+  }
+
+  document.querySelectorAll('[data-dialog-open]').forEach(trigger => {
+    trigger.addEventListener('click', () => {
+      const dialogId = trigger.getAttribute('data-dialog-open');
+      if (dialogId) openDialog(dialogId, trigger);
     });
+  });
 
-    overlay.addEventListener('click', closeSidebar);
+  document.querySelectorAll('[data-dialog-close]').forEach(button => {
+    button.addEventListener('click', () => {
+      const dialog = button.closest('dialog');
+      if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
+    });
+  });
 
-    document.querySelectorAll('.nav-item').forEach(item => {
-      item.addEventListener('click', () => {
-        if (window.innerWidth <= 680) closeSidebar();
+  document.querySelectorAll('dialog').forEach(dialog => {
+    dialog.addEventListener('close', () => {
+      const trigger = activeTriggers.get(dialog);
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+      activeTriggers.delete(dialog);
+    });
+  });
+
+  document.querySelectorAll('[data-appointment-name]').forEach(trigger => {
+    trigger.addEventListener('click', () => {
+      const estadoVisible = trigger.closest('tr')?.querySelector('.status')?.textContent?.trim();
+      const values = {
+        detalleCitaPaciente: trigger.getAttribute('data-appointment-name'),
+        detalleCitaServicio: trigger.getAttribute('data-appointment-service'),
+        detalleCitaHora: trigger.getAttribute('data-appointment-time'),
+        detalleCitaEstado: estadoVisible || trigger.getAttribute('data-appointment-status')
+      };
+
+      Object.entries(values).forEach(([id, value]) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value || '';
       });
-    });
 
-    window.addEventListener('resize', () => {
-      if (window.innerWidth > 680) closeSidebar();
-    });
-  }
-
-  function closeSidebar() {
-    if (!sidebar) return;
-    sidebar.classList.remove('open');
-    overlay && overlay.classList.remove('open');
-    hamburger && hamburger.setAttribute('aria-expanded', 'false');
-    document.body.style.overflow = '';
-  }
-
-  /* ---- Nav-group accordion — idéntico a dashboard ---- */
-  document.querySelectorAll('.nav-group-header').forEach(header => {
-    const group = header.closest('.nav-group');
-    if (!group) return;
-
-    // Auto-expande el grupo con el link activo
-    if (group.querySelector('.nav-item.active')) {
-      group.setAttribute('aria-expanded', 'true');
-    } else {
-      group.setAttribute('aria-expanded', 'false');
-    }
-
-    function toggle() {
-      const expanded = group.getAttribute('aria-expanded') === 'true';
-      group.setAttribute('aria-expanded', String(!expanded));
-    }
-
-    header.addEventListener('click', toggle);
-    header.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      openDialog('modalDetalleCita', trigger);
     });
   });
 
-  /* ---- Progress bar animation ---- */
-  function animateBars() {
-    document.querySelectorAll('.progress-fill').forEach(bar => {
-      const target = bar.style.width;
-      bar.style.width = '0%';
-      requestAnimationFrame(() => {
-        setTimeout(() => { bar.style.width = target; }, 80);
-      });
-    });
-  }
+  document.querySelectorAll('[data-treatment-name]').forEach(trigger => {
+    trigger.addEventListener('click', () => {
+      const nombre = document.getElementById('detalleTratNombre');
+      const cantidad = document.getElementById('detalleTratCantidad');
+      const porcentaje = document.getElementById('detalleTratPorcentaje');
 
-  /* ---- Donut animation ---- */
-  function animateDonut() {
-    const fill = document.querySelector('.donut-fill');
-    if (!fill) return;
-    const finalOffset = parseFloat(fill.getAttribute('stroke-dashoffset') || '87.9');
-    fill.style.transition = 'none';
-    fill.setAttribute('stroke-dashoffset', '251.2');
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        fill.style.transition = 'stroke-dashoffset 1s ease';
-        fill.setAttribute('stroke-dashoffset', String(finalOffset));
-      }, 200);
-    });
-  }
+      if (nombre) nombre.textContent = trigger.getAttribute('data-treatment-name') || '';
+      if (cantidad) cantidad.textContent = trigger.getAttribute('data-treatment-count') || '0';
+      if (porcentaje) porcentaje.textContent = `${trigger.getAttribute('data-treatment-percent') || '0'}%`;
 
-  /* ---- Action buttons ---- */
-  /* ---- Modal helpers (mismo patrón que vista_admin/app.js) ---- */
-  function openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-    modal.removeAttribute('hidden');
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-  }
-
-  function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('hidden', '');
-    document.body.style.overflow = '';
-  }
-
-  document.querySelectorAll('[data-modal-close]').forEach(closeBtn => {
-    closeBtn.addEventListener('click', () => {
-      const target = closeBtn.getAttribute('data-modal-close');
-      if (target) closeModal(target);
+      openDialog('modalDetalleTratamiento', trigger);
     });
   });
 
-  document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', e => {
-      if (e.target === overlay) closeModal(overlay.id);
-    });
-  });
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      document.querySelectorAll('.modal-overlay.open').forEach(m => closeModal(m.id));
-    }
-  });
-
-  /* ---- Modal: Detalle de cita ---- */
-  document.querySelectorAll('.btn-icon[data-paciente]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      document.getElementById('detalleCitaPaciente').textContent = btn.dataset.paciente + ' (ID: #' + btn.dataset.id + ')';
-      document.getElementById('detalleCitaServicio').textContent = btn.dataset.servicio;
-      document.getElementById('detalleCitaHora').textContent = btn.dataset.hora;
-      document.getElementById('detalleCitaEstado').textContent = btn.dataset.estado;
-      openModal('modalDetalleCita');
-    });
-  });
-
-  /* ---- Modal: Detalle de tratamiento ---- */
-  document.querySelectorAll('.prof-revenue-row[data-nombre]').forEach(row => {
-    row.addEventListener('click', () => {
-      document.getElementById('detalleTratNombre').textContent = row.dataset.nombre;
-      document.getElementById('detalleTratCantidad').textContent = row.dataset.cantidad + ' citas';
-      document.getElementById('detalleTratPorcentaje').textContent = row.dataset.porcentaje + '% del total de citas';
-      openModal('modalDetalleTratamiento');
-    });
-  });
-
-  /* ---- Modal: Nueva cita rápida ---- */
-  const btnNuevaCita = document.getElementById('btnNuevaCita');
-  if (btnNuevaCita) {
-    btnNuevaCita.addEventListener('click', () => openModal('modalNuevaCita'));
-  }
-
-  const formNuevaCita = document.getElementById('formNuevaCita');
-  if (formNuevaCita) {
-    formNuevaCita.addEventListener('submit', e => {
-      e.preventDefault();
-      // Nota: esto todavía no guarda en la base de datos.
-      // Para persistir la cita hace falta un endpoint que acepte el rol "Profesional".
-      closeModal('modalNuevaCita');
-      alert('Solicitud registrada. Un recepcionista confirmará el horario en la agenda.');
-      formNuevaCita.reset();
-    });
-  }
-
-  /* ---- Modal: Confirmar exportar PDF ---- */
-  const btnDescargarPdf = document.getElementById('btnDescargarPdf');
-  if (btnDescargarPdf) {
-    btnDescargarPdf.addEventListener('click', () => openModal('modalExportarPdf'));
-  }
-
-  const btnConfirmarExportar = document.getElementById('btnConfirmarExportar');
-  if (btnConfirmarExportar) {
-    btnConfirmarExportar.addEventListener('click', () => {
-      closeModal('modalExportarPdf');
-      window.print();
-    });
-  }
-
-  /* ---- Run ---- */
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { animateBars(); animateDonut(); });
-  } else {
-    animateBars();
-    animateDonut();
-  }
-
+  const printButton = document.getElementById('btnDescargarPdf');
+  if (printButton) printButton.addEventListener('click', () => window.print());
 })();

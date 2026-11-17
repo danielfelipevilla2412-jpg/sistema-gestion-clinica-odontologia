@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
 
 namespace SmileTrack_MVC.Services.Perfiles;
@@ -125,7 +126,7 @@ public sealed class PerfilPacienteService : IPerfilPacienteService
         var pendientes = citas.Where(c => EsEstado(c.Estado, "agendada", "programada", "confirmada")).ToList();
         var completadas = citas.Where(c => EsEstado(c.Estado, "completada", "atendida")).ToList();
         var canceladas = citas.Count(c => EsEstado(c.Estado, "cancelada", "no asistió", "no asistio"));
-        var ahora = DateTime.Now;
+        var ahora = ColombiaClock.Now;
 
         var proxima = await _context.Citas.AsNoTracking()
             .Include(c => c.Profesional).ThenInclude(p => p!.Usuario)

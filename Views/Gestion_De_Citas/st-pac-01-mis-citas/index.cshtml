@@ -14,12 +14,10 @@
    - CSS: ~/css/Gestion_De_Citas/st-pac-01-mis-citas/styles.css
    - JS: ~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js
    ============================================ *@
-@inject SmileTrack_MVC.Services.Perfiles.IPerfilPacienteService PerfilPacienteService
 @{
   Layout = "_Layout";
   ViewData["Title"] = "Mis Citas";
-  int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int idUsuarioPaciente);
-  var perfilPacienteCompleto = idUsuarioPaciente > 0 && await PerfilPacienteService.PerfilCompletoAsync(idUsuarioPaciente);
+  var perfilPacienteCompleto = ViewData["PerfilPacienteCompleto"] as bool? ?? false;
 }
 
 @section Styles {
@@ -43,7 +41,7 @@
       </div>
       @if (perfilPacienteCompleto)
       {
-        <button class="btn-primary" id="btnNuevaCita" aria-label="Solicitar nueva cita" data-i18n="citas.new">+ Solicitar cita</button>
+        <button class="btn-primary" id="btnNuevaCita" aria-label="Agendar nueva cita" data-i18n="citas.new">+ Nueva cita</button>
       }
     </header>
     @if (!perfilPacienteCompleto)
@@ -76,10 +74,10 @@
         <span class="stat-number" id="cnt-canceladas" data-target="0">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
       </div>
-      <div class="stat-card" data-color="red">
-        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
+      <div class="stat-card" data-color="purple">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">block</span>
         <span class="stat-number" id="cnt-rechazadas" data-target="0">0</span>
-        <span class="stat-label">Solicitudes rechazadas</span>
+        <span class="stat-label" data-i18n="citas.stat_rejected">Solicitudes rechazadas</span>
       </div>
     </section>
 
@@ -87,23 +85,23 @@
     <div class="table-tabs" role="group" aria-label="Filtrar mis citas por estado">
       <button type="button" class="tab-btn active" aria-pressed="true" data-tab="all" id="tab-all">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_note</span>
-        Todas las citas
+        <span data-i18n="citas.tab_all">Todas las citas</span>
       </button>
       <button type="button" class="tab-btn" aria-pressed="false" data-tab="pending" id="tab-pending">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">schedule</span>
-        Pendientes
+        <span data-i18n="citas.tab_pending">Pendientes</span>
       </button>
       <button type="button" class="tab-btn" aria-pressed="false" data-tab="completed" id="tab-completed">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">check_circle</span>
-        Completadas
+        <span data-i18n="citas.tab_completed">Completadas</span>
       </button>
       <button type="button" class="tab-btn" aria-pressed="false" data-tab="cancelled" id="tab-cancelled">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
-        Canceladas
+        <span data-i18n="citas.tab_cancelled">Canceladas</span>
       </button>
       <button type="button" class="tab-btn" aria-pressed="false" data-tab="rejected" id="tab-rejected">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">block</span>
-        Rechazadas
+        <span data-i18n="citas.tab_rejected">Rechazadas</span>
       </button>
     </div>
 
@@ -129,17 +127,17 @@
                    autocomplete="off" />
           </div>
           <div class="filter-wrap">
-            <label for="filterEstado" class="visually-hidden">Filtrar por estado</label>
-            <select id="filterEstado" class="status-select" aria-label="Filtrar citas por estado">
+            <label for="filterEstado" class="visually-hidden" data-i18n="table.filter">Filtrar por estado</label>
+            <select id="filterEstado" class="status-select" aria-label="Filtrar citas por estado" data-i18n-aria-label="table.filter">
               <option value="" data-i18n="table.filter_all_states">Todos los estados</option>
               <option value="Agendada" data-i18n="status.scheduled">Agendada</option>
-              <option value="Solicitada">Solicitada</option>
+              <option value="Solicitada" data-i18n="status.requested">Solicitada</option>
               <option value="Confirmada" data-i18n="status.confirmed">Confirmada</option>
-              <option value="En curso">En curso</option>
+              <option value="En curso" data-i18n="status.in_progress">En curso</option>
               <option value="Completada" data-i18n="status.completed">Completada</option>
               <option value="Cancelada" data-i18n="status.cancelled">Cancelada</option>
-              <option value="Rechazada">Rechazada</option>
-              <option value="No asistió">No asistió</option>
+              <option value="Rechazada" data-i18n="status.rejected">Rechazada</option>
+              <option value="No asistió" data-i18n="status.no_show">No asistió</option>
             </select>
           </div>
           <span class="count-label" id="countLabel" aria-live="polite"></span>
@@ -198,24 +196,41 @@
     </div>
   </div>
 
-  <!-- MODAL: formulario para solicitar una nueva cita (fecha, servicio y notas) -->
+  <!-- MODAL: formulario para agendar una nueva cita (fecha, servicio, profesional y horario) -->
   <!-- BUG FIX accesibilidad: mismo patrón inert -->
   <div class="modal-overlay" id="modalNuevaCita" role="dialog" aria-modal="true"
        aria-labelledby="nuevaCitaTitle" aria-hidden="true" inert>
     <div class="modal">
       <button class="modal-close" id="closeNuevaCita" aria-label="Cerrar" data-i18n-aria-label="common.close"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
-      <h2 class="modal-title" id="nuevaCitaTitle" data-i18n="citas.modal_new_title">Solicitar nueva cita</h2>
-      <!-- Campos del formulario: fecha preferida, tipo de servicio y notas adicionales -->
+      <h2 class="modal-title" id="nuevaCitaTitle" data-i18n="citas.modal_new_title">Agendar nueva cita</h2>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label" for="citaFecha" data-i18n="citas.form_preferred_date">Fecha preferida</label>
-          <input type="date" class="form-input" id="citaFecha" />
+          <label class="form-label" for="citaFecha" data-i18n="citas.form_date">Fecha</label>
+          <input type="date" class="form-input" id="citaFecha"
+                 min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")"
+                 data-min-date="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")"
+                 data-open-days="1,2,3,4,5,6" required />
         </div>
         <div class="form-group">
-          <label class="form-label" for="citaServicio" data-i18n="citas.form_service_type">Tipo de servicio</label>
-          <select class="form-input" id="citaServicio">
+          <label class="form-label" for="citaServicio" data-i18n="citas.form_service">Servicio</label>
+          <select class="form-input" id="citaServicio" required>
             <option value="" data-i18n="citas.loading_services">Cargando servicios...</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="citaProfesional" data-i18n="citas.form_professional">Profesional</label>
+          <select class="form-input" id="citaProfesional" required disabled>
+            <option value="" data-i18n="citas.select_date_service_first">Selecciona fecha y servicio primero</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="citaHora" data-i18n="citas.form_schedule">Horario disponible recomendado</label>
+          <select class="form-input" id="citaHora" required disabled>
+            <option value="" data-i18n="citas.select_professional_first">Selecciona un profesional primero</option>
+          </select>
+          <small id="citaDisponibilidadAyuda" aria-live="polite" data-i18n="citas.schedule_help">
+            Elige una fecha, servicio y profesional para consultar horarios disponibles.
+          </small>
         </div>
         <div class="form-group">
           <label class="form-label" for="citaNota" data-i18n="citas.form_notes">Notas adicionales</label>
@@ -224,21 +239,13 @@
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" id="cancelarNuevaCita" data-i18n="common.cancel">Cancelar</button>
-        <button class="btn-primary" id="confirmarNuevaCita" data-i18n="citas.btn_request">Solicitar</button>
+        <button class="btn-primary" id="confirmarNuevaCita" data-i18n="citas.btn_schedule">Agendar cita</button>
       </div>
     </div>
   </div>
 
-  <!-- TOAST: notificación flotante temporal para confirmar acciones al usuario -->
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <!-- El toast y el footer son provistos por el shell compartido (_Layout + footer.js). -->
 
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
-    </div>
-    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
-  </footer>
 @section Scripts {
   <script src="~/js/Gestion_De_Citas/st-pac-01-mis-citas/mis-citas.js" asp-append-version="true" defer></script>
   <script src="~/js/shared/perfil-paciente-service.js" asp-append-version="true" defer></script>

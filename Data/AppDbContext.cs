@@ -59,6 +59,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Inventario> Inventarios => Set<Inventario>();
     public DbSet<Equipo> Equipos => Set<Equipo>();
     public DbSet<ConfiguracionGeneral> ConfiguracionesGenerales => Set<ConfiguracionGeneral>();
+    public DbSet<ReporteGenerado> ReportesGenerados => Set<ReporteGenerado>();
+
+    // ── Seguridad & Compliance ─────────────────────────────────────────────────
+    /// <summary>Auditoría de consentimiento de datos personales (Ley 1581/2012).</summary>
+    public DbSet<RegistroConsentimiento> RegistrosConsentimiento => Set<RegistroConsentimiento>();
 
     // Yeray (2025) - DbSet para Alergia_Paciente.
     // El campo Paciente.Alergias (texto libre) sigue existiendo para compatibilidad.
@@ -130,6 +135,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(u => u.UltimoLogin).HasColumnName("ultimo_login");
             entity.Property(u => u.CodigoRecuperacion).HasColumnName("codigo_recuperacion");
             entity.Property(u => u.FechaExpiracionCodigo).HasColumnName("fecha_expiracion_codigo");
+            entity.Property(u => u.BloqueadoHasta).HasColumnName("bloqueado_hasta");
+            entity.HasIndex(u => u.Correo)
+                .IsUnique()
+                .HasDatabaseName("UX_Usuario_Correo");
 
             entity.HasOne(u => u.Rol)
                   .WithMany()
@@ -179,6 +188,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.MedicamentosActuales).HasColumnName("medicamentos_actuales");
             entity.Property(p => p.AntecedentesFamiliares).HasColumnName("antecedentes_familiares");
             entity.Property(p => p.IdProfesionalAsignado).HasColumnName("id_profesional_asignado");
+            entity.HasIndex(p => new { p.TipoDocumento, p.Documento })
+                .IsUnique()
+                .HasDatabaseName("UX_Paciente_TipoDocumento_Documento");
 
             entity.HasOne(p => p.ProfesionalAsignado)
                   .WithMany()
@@ -814,6 +826,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(40).IsRequired();
             entity.Property(p => p.RegistradoPor).HasColumnName("registrado_por");
             entity.Property(p => p.FechaUtc).HasColumnName("fecha_utc");
+            entity.Property(p => p.Observaciones).HasColumnName("observaciones").HasMaxLength(500);
             entity.HasIndex(p => p.Referencia).IsUnique();
             entity.HasIndex(p => new { p.IdFactura, p.FechaUtc });
 
@@ -846,31 +859,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(d => d.IdServicio)
                   .OnDelete(DeleteBehavior.Restrict);
         });
-
-            modelBuilder.Entity<PagoFactura>(entity =>
-            {
-                  entity.ToTable("Pago_Factura");
-                  entity.HasKey(p => p.IdPago);
-                  entity.Property(p => p.IdPago).HasColumnName("id_pago");
-                  entity.Property(p => p.IdFactura).HasColumnName("id_factura");
-                  entity.Property(p => p.Monto).HasColumnName("monto").HasPrecision(12, 2);
-                  entity.Property(p => p.MetodoPago).HasColumnName("metodo_pago").HasMaxLength(30).IsRequired();
-                  entity.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20).IsRequired();
-                  entity.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(40).IsRequired();
-                  entity.Property(p => p.RegistradoPor).HasColumnName("registrado_por");
-                  entity.Property(p => p.FechaUtc).HasColumnName("fecha_utc");
-                  entity.Property(p => p.Observaciones).HasColumnName("observaciones").HasMaxLength(500);
-                  entity.HasIndex(p => p.Referencia).IsUnique();
-                  entity.HasIndex(p => new { p.IdFactura, p.FechaUtc });
-                  entity.HasOne(p => p.Factura)
-                        .WithMany(f => f.Pagos)
-                        .HasForeignKey(p => p.IdFactura)
-                        .OnDelete(DeleteBehavior.Restrict);
-                  entity.HasOne(p => p.Usuario)
-                        .WithMany()
-                        .HasForeignKey(p => p.RegistradoPor)
-                        .OnDelete(DeleteBehavior.Restrict);
-            });
 
         modelBuilder.Entity<PqrEntity>(entity =>
         {
@@ -963,6 +951,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.UltimoMantenimiento).HasColumnName("ultimo_mantenimiento");
             entity.Property(e => e.ProximoMantenimiento).HasColumnName("proximo_mantenimiento");
             entity.Property(e => e.Ubicacion).HasColumnName("ubicacion");
+        });
+
+        modelBuilder.Entity<ReporteGenerado>(entity =>
+        {
+            entity.ToTable("Reporte_Generado");
+            entity.HasKey(r => r.IdReporte);
+            entity.Property(r => r.IdReporte).HasColumnName("id_reporte");
+            entity.Property(r => r.Nombre).HasColumnName("nombre").HasMaxLength(120).IsRequired();
+            entity.Property(r => r.Categoria).HasColumnName("categoria").HasMaxLength(30).IsRequired();
+            entity.Property(r => r.Periodo).HasColumnName("periodo").HasColumnType("char(7)").IsRequired();
+            entity.Property(r => r.Notas).HasColumnName("notas").HasMaxLength(1000);
+            entity.Property(r => r.FechaGeneracionUtc).HasColumnName("fecha_generacion_utc");
+            entity.Property(r => r.GeneradoPor).HasColumnName("generado_por");
+            entity.Property(r => r.DatosJson).HasColumnName("datos_json").HasColumnType("nvarchar(max)").IsRequired();
+            entity.HasIndex(r => new { r.Categoria, r.FechaGeneracionUtc });
+            entity.HasOne<Usuario>()
+                .WithMany()
+                .HasForeignKey(r => r.GeneradoPor)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // Yeray - Configuración Fluent API para Documento_Clinico.
@@ -1250,8 +1257,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<VwCitasDashboard>(entity =>
         {
             entity.ToView("vw_Citas_Dashboard");
-            entity.HasNoKey(); // Las vistas no tienen clave en el sentido de EF Core
-            entity.HasKey(v => v.IdCita); // Pero definimos una para LINQ
+            entity.HasKey(v => v.IdCita);
         });
 
         // Vista: vw_Profesionales_Completo
@@ -1259,7 +1265,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<VwProfesionalesCompleto>(entity =>
         {
             entity.ToView("vw_Profesionales_Completo");
-            entity.HasNoKey();
             entity.HasKey(v => v.IdProfesional);
         });
     }

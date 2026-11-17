@@ -20,6 +20,7 @@
 @{ 
     Layout = "_Layout"; 
     ViewData["Title"] = "Mi Agenda";
+    ViewData["UseGestionModulesDesignSystem"] = true;
 
     var diaHoy = Model.Dias.FirstOrDefault(d => d.EsHoy);
     int citasHoyCount = diaHoy?.Citas.Count ?? 0;
@@ -50,9 +51,9 @@
             </p>
         </div>
         <div class="header-right agenda-print-actions no-print">
-            <button type="button" class="btn-secondary" onclick="window.print()" aria-label="Imprimir mi agenda semanal" data-i18n-aria-label="form.print">
+            <button type="button" class="btn-secondary" id="btnImprimirAgenda" aria-label="Imprimir mi agenda semanal" data-i18n-aria-label="form.print">
                 <span class="material-symbols-outlined" aria-hidden="true">print</span>
-                Imprimir Agenda
+                <span data-i18n="form.print">Imprimir Agenda</span>
             </button>
         </div>
     </header>
@@ -219,10 +220,6 @@
                                      data-status="@Html.Encode(cita.Estado)" data-notes="@Html.Encode(cita.Notas)"
                                      data-patient-name="@Html.Encode(cita.Paciente)" data-service-name="@Html.Encode(cita.Servicio)"
                                      data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)"
-                                     data-professional-email="@Html.Encode(cita.CorreoProfesional)"
-                                     data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
-                                     data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
-                                     data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)"
                                      data-reschedulable="@esReagendable.ToString().ToLowerInvariant()"
                                      draggable="@esReagendable.ToString().ToLowerInvariant()">
                                     <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
@@ -311,7 +308,7 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="newApptDate">Fecha</label>
-                        <input type="date" id="newApptDate" name="Fecha" required aria-required="true" />
+                        <input type="date" id="newApptDate" name="Fecha" min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" required aria-required="true" />
                     </div>
                     <div class="form-group">
                         <label for="newApptStatus">Estado</label>
@@ -373,34 +370,6 @@
         </div>
     </div>
 </div>
-
-<!-- Navegación móvil -->
-<nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
-        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">dashboard</span></span>
-        <span>Dashboard</span>
-    </a>
-    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item active" aria-current="page">
-        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
-        <span>Agenda</span>
-    </a>
-    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item">
-        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
-        <span>Perfil</span>
-    </a>
-</nav>
-
-<!-- Toast para notificaciones accesibles -->
-<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-<!-- Footer -->
-<footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-        <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-</footer>
 
 @await Html.PartialAsync("~/Views/Shared/_ReagendarCitaModal.cshtml")
 

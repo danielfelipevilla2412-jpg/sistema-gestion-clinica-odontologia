@@ -1,4 +1,4 @@
-@* ============================================
+﻿@* ============================================
    SmileTrack — Módulo: Gestión de Citas
    Vista: Gestión de Citas Recepción (st-rec-03-gestion-citas)
    ============================================
@@ -14,7 +14,11 @@
    - CSS: ~/css/Gestion_De_Citas/st-rec-03-gestion-citas/styles.css
    - JS: ~/js/Gestion_De_Citas/st-rec-03-gestion-citas/app.js
    ============================================ *@
-@{ Layout = "_Layout"; ViewData["Title"] = "Gestión de Citas"; }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Gestión de Citas";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-rec-03-gestion-citas/styles.css" asp-append-version="true" />
@@ -60,7 +64,7 @@
         <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
           <span data-i18n="nav.group_citas">Recepción</span>
           <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active" data-i18n="citas.title">Gestión de citas</span>
+          <span class="bc-active" aria-current="page" data-i18n="citas.title">Gestión de citas</span>
         </nav>
         <h1 class="page-title" data-i18n="citas.title">Gestión de Citas</h1>
         <p class="page-subtitle" data-i18n="citas.rec_subtitle">Programa, modifica y cancela citas de manera eficiente.</p>
@@ -102,7 +106,7 @@
       </div>
     </section>
 
-    <section class="queue-panel card" aria-labelledby="pendingRequestsTitle">
+    <section class="queue-panel card" id="pendingRequestsPanel" aria-labelledby="pendingRequestsTitle">
       <div class="queue-header">
         <div>
           <p class="queue-kicker">Cola de atención</p>
@@ -145,7 +149,7 @@
             @foreach (var profesional in profesionalesFilterOptions)
             {
               var isSelected = ViewData["ProfesionalFilter"]?.ToString() == profesional.IdProfesional.ToString();
-              <option value="@profesional.IdProfesional" @(isSelected ? "selected" : "")>@profesional.NombreProfesional</option>
+              <option value="@profesional.IdProfesional" selected="@(isSelected ? "selected" : null)">@profesional.NombreProfesional</option>
             }
           </select>
         </div>
@@ -170,7 +174,7 @@
               foreach (var (valorEstado, etiquetaEstado) in estadosFiltrar)
               {
                 var isSelected = estadoActual == valorEstado;
-                <option value="@valorEstado" @(isSelected ? "selected" : "")>@etiquetaEstado</option>
+                <option value="@valorEstado" selected="@(isSelected ? "selected" : null)">@etiquetaEstado</option>
               }
             }
           </select>
@@ -433,8 +437,8 @@
           <div class="form-group">
             <label class="form-label" for="newDate">Fecha <span class="required" aria-hidden="true">*</span></label>
             <input type="date" id="newDate" name="Fecha" class="form-input" required aria-required="true" aria-describedby="error-newDate"
-              min="@DateTime.Today.ToString("yyyy-MM-dd")"
-              value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+              min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")"
+              value="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" />
             <span class="error-message" id="error-newDate" role="alert">Por favor selecciona una fecha válida</span>
           </div>
           <div class="form-group">
@@ -525,7 +529,7 @@
               @foreach (var p in pacientes)
               {
                 var isSelected = editingCita?.IdPaciente == p.IdPaciente;
-                <option value="@p.IdPaciente" @(isSelected ? "selected" : "")>@p.NombresCompleto</option>
+                <option value="@p.IdPaciente" selected="@(isSelected ? "selected" : null)">@p.NombresCompleto</option>
               }
             </select>
             <span class="error-message" id="error-editPatient" role="alert">Por favor selecciona un paciente</span>
@@ -533,8 +537,8 @@
           <div class="form-group">
             <label class="form-label" for="editDate">Fecha <span class="required" aria-hidden="true">*</span></label>
             <input type="date" id="editDate" name="Fecha" class="form-input" required aria-required="true" aria-describedby="error-editDate"
-              min="@DateTime.Today.ToString("yyyy-MM-dd")"
-              value="@(editingCita?.Fecha.ToString("yyyy-MM-dd") ?? DateTime.Today.ToString("yyyy-MM-dd"))" />
+              min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")"
+              value="@(editingCita?.Fecha.ToString("yyyy-MM-dd") ?? SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd"))" />
             <span class="error-message" id="error-editDate" role="alert">Por favor selecciona una fecha válida</span>
           </div>
           <div class="form-group">
@@ -551,7 +555,7 @@
               @foreach (var p in profesionales)
               {
                 var isSelected = editingCita?.IdProfesional == p.IdProfesional;
-                <option value="@p.IdProfesional" @(isSelected ? "selected" : "")>@p.NombreProfesional</option>
+                <option value="@p.IdProfesional" selected="@(isSelected ? "selected" : null)">@p.NombreProfesional</option>
               }
             </select>
             <span class="error-message" id="error-editDoctor" role="alert">Por favor selecciona un profesional</span>
@@ -564,7 +568,7 @@
               @foreach (var s in servicios)
               {
                 var isSelected = editingCita?.IdServicio == s.IdServicio;
-                <option value="@s.IdServicio" @(isSelected ? "selected" : "")>@s.Nombre</option>
+                <option value="@s.IdServicio" selected="@(isSelected ? "selected" : null)">@s.Nombre</option>
               }
             </select>
             <span class="error-message" id="error-editService" role="alert">Por favor selecciona un servicio</span>
@@ -577,7 +581,7 @@
               @foreach (var c in consultorios)
               {
                 var isSelected = editingCita?.IdConsultorio == c.IdConsultorio;
-                <option value="@c.IdConsultorio" @(isSelected ? "selected" : "")>@c.Nombre</option>
+                <option value="@c.IdConsultorio" selected="@(isSelected ? "selected" : null)">@c.Nombre</option>
               }
             </select>
             <span class="error-message" id="error-editOffice" role="alert">Por favor selecciona un consultorio</span>
@@ -589,7 +593,7 @@
               @foreach (var ec in estadosCita)
               {
                 var isSelected = editingCita?.IdEstado == ec.IdEstado || editingCita?.EstadoCita?.NombreEstado == ec.NombreEstado;
-                <option value="@ec.IdEstado" @(isSelected ? "selected" : "")>@ec.NombreEstado</option>
+                <option value="@ec.IdEstado" selected="@(isSelected ? "selected" : null)">@ec.NombreEstado</option>
               }
             </select>
             <span class="error-message" id="error-editStatus" role="alert">Por favor selecciona un estado válido.</span>
@@ -647,13 +651,6 @@
     </div>
   </div>
 
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track. <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
-    </div>
-    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO – SENA</p>
-  </footer>
 <script src="@Url.Content("~/js/Gestion_De_Citas/st-rec-03-gestion-citas/app.js")" defer></script>
 
 <script>
@@ -673,24 +670,8 @@
       }
     }
 
-    // Cerrar modales de Nueva/Editar al hacer click fuera del overlay
-    const modalesClicFuera = [
-      document.getElementById('modalNewAppointment'),
-      document.getElementById('modalEditAppointment')
-    ];
-    modalesClicFuera.forEach(m => {
-      if (!m) return;
-      m.addEventListener('click', function handler(e) {
-        if (e.target === m) {
-          m.classList.remove('open');
-          m.setAttribute('aria-hidden', 'true');
-          m.setAttribute('inert', '');
-          if (!document.querySelector('.modal-overlay.open')) {
-            document.body.style.overflow = '';
-          }
-        }
-      });
-    });
+    // El cierre por backdrop de los modales Nueva/Editar cita lo gestiona
+    // shared/appointment-utils.js (con guard de cambios sin guardar). No duplicar aquí.
 
     // ═══ MODAL CONFIRMAR CANCELACIÓN DE CITA (patrón st-adm-09 SSR) ═══
     const modalCancelCita = document.getElementById('modalConfirmCancelCita');

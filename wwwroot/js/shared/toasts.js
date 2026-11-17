@@ -39,22 +39,37 @@ const ToastService = (function () {
         else if (type === 'error') iconStr = 'error';
         else if (type === 'warning') iconStr = 'warning';
 
-        toast.innerHTML = `
-            <span class="material-symbols-outlined toast-icon" aria-hidden="true">${iconStr}</span>
-            <div class="toast-content">
-                <h4 class="toast-title">${title}</h4>
-                <p class="toast-message">${message}</p>
-            </div>
-            <button class="toast-close" aria-label="Cerrar notificación">&times;</button>
-        `;
+        const icon = document.createElement('span');
+        icon.className = 'material-symbols-outlined toast-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = iconStr;
+
+        const content = document.createElement('div');
+        content.className = 'toast-content';
+
+        const titleElement = document.createElement('h4');
+        titleElement.className = 'toast-title';
+        titleElement.textContent = title;
+
+        const messageElement = document.createElement('p');
+        messageElement.className = 'toast-message';
+        messageElement.textContent = message;
+
+        content.append(titleElement, messageElement);
+
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'toast-close';
+        closeBtn.setAttribute('aria-label', 'Cerrar notificación');
+        closeBtn.textContent = '×';
+
+        toast.append(icon, content, closeBtn);
 
         cont.appendChild(toast);
 
         // Forzar reflujo para la animación
         void toast.offsetWidth;
         toast.classList.add('show');
-
-        const closeBtn = toast.querySelector('.toast-close');
 
         const removeToast = () => {
             toast.classList.remove('show');

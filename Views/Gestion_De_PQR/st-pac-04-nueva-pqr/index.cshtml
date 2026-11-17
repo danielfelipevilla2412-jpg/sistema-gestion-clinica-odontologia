@@ -1,252 +1,213 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @using Microsoft.AspNetCore.Antiforgery
 @inject IAntiforgery Antiforgery
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Nueva PQR";
+    ViewData["Description"] = "Radica una petición, queja o reclamo ante SmileTrack.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
 
-﻿﻿@{ Layout = null; }
+    @* Token antiforgery consumido por script.js vía <meta name="csrf-request-token"> *@
+    var pqrRequestToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+}
 
-<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_PQR/st-pac-04-nueva-pqr/styles.css" asp-append-version="true" />
+}
 
-<head>
-    @{
-        var pqrRequestToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
-    }
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<main class="main pqr-nueva-page" id="main-content">
     <meta name="csrf-request-token" content="@pqrRequestToken" />
-    <title>SmileTrack — Nueva Solicitud PQR</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_PQR/st-pac-04-nueva-pqr/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
 
-<body>
-    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-    <a href="#main-content" class="skip-link" data-i18n="nav.skip_link">Saltar al contenido principal</a>
+    <header class="page-header">
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="layout_breadcrumb_aria">
+            <a href="/" data-i18n="nav.homepage">Inicio</a>
+            <span class="bc-sep" aria-hidden="true">/</span>
+            <span class="bc-active" aria-current="page" data-i18n="pqr.title">Peticiones, Quejas y Reclamos</span>
+        </nav>
+        <div class="page-header-content">
+            <div class="page-header-title">
+                <h1 class="page-title" data-i18n="pac_pqr.page_title">Nueva PQR</h1>
+                <p class="page-subtitle" data-i18n="pac_pqr.page_subtitle">Módulo PQR - SmileTrack</p>
+            </div>
+        </div>
+    </header>
 
-    @if (User.IsInRole("Paciente"))
-    {
-        await Html.RenderPartialAsync("_SidebarPaciente");
-    }
-    else if (User.IsInRole("Profesional"))
-    {
-        await Html.RenderPartialAsync("_SidebarProfesional");
-    }
-    else if (User.IsInRole("Administrador"))
-    {
-        await Html.RenderPartialAsync("_SidebarAdmin");
-    }
-    else if (User.IsInRole("Recepcionista"))
-    {
-        await Html.RenderPartialAsync("_SidebarRecepcionista");
-    }
-    else if (User.IsInRole("Auxiliar"))
-    {
-        await Html.RenderPartialAsync("_SidebarAuxiliar");
-    }
-    else
-    {
-        await Html.RenderPartialAsync("_SidebarPaciente");
-    }
+    <!-- Content Grid -->
+    <div class="content-grid">
+        <!-- Main Form -->
+        <div class="main-form">
+            <div class="section-title" data-i18n="pqr.type">1 - TIPO DE SOLICITUD</div>
 
-    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-        <span aria-hidden="true"></span>
-        <span aria-hidden="true"></span>
-        <span aria-hidden="true"></span>
-    </button>
-    <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-    <!-- Main Content -->
-    <main class="main-content" id="main-content">
-        <!-- Top Bar -->
-        <div class="top-bar">
-            <div>
-                <div class="breadcrumb">
-                    <a href="/" data-i18n="nav.homepage">Inicio</a> › <span data-i18n="pqr.title">Peticiones, Quejas y Reclamos</span>
+            <!-- Request Types -->
+            <div class="request-types">
+                <div class="request-card petition selected" data-request-type="petition">
+                    <div class="request-icon">
+                        <span class="material-symbols-outlined" aria-hidden="true">description</span>
+                    </div>
+                    <div class="request-title" data-i18n="pqr.type_petition">Petición</div>
+                    <div class="request-desc" data-i18n="pqr.petition_description">Solicita información, documentos o servicios relacionados con tu atención.</div>
                 </div>
-                <div class="page-title">
-                    <h1>Nueva PQR</h1>
-                    <p data-i18n="pqr.response_time">MÓdulo PQR - SmileTrack</p>
+                <div class="request-card complaint" data-request-type="complaint">
+                    <div class="request-icon">
+                        <span class="material-symbols-outlined" aria-hidden="true">forum</span>
+                    </div>
+                    <div class="request-title" data-i18n="pqr.type_complaint">Queja</div>
+                    <div class="request-desc" data-i18n="pqr.complaint_description">Manifiesta inconformidad con la atención o servicio recibido.</div>
+                </div>
+                <div class="request-card claim" data-request-type="claim">
+                    <div class="request-icon">
+                        <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+                    </div>
+                    <div class="request-title" data-i18n="pqr.type_claim">Reclamo</div>
+                    <div class="request-desc" data-i18n="pqr.claim_description">Exige la corrección de irregularidades o incumplimientos del servicio.</div>
                 </div>
             </div>
 
+            <div class="section-title section-title--spaced" data-i18n="pqr.applicant_data">2 - DATOS DEL SOLICITANTE</div>
+
+            <form id="pqrForm" method="post" action="/gestion-de-pqr/crear">
+                @Html.AntiForgeryToken()
+                <div class="form-row">
+                    <div class="form-group">
+                        <label data-i18n="common.name">Nombre completo</label>
+                        <input type="text" placeholder="Ej: María Fernanda López" required data-i18n-ph="common.name">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="pacientes.document">Número de documento</label>
+                        <input type="text" placeholder="Cédula o T.I." required data-i18n-ph="pacientes.document">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label data-i18n="pac_pqr.label_email">Correo electrónico</label>
+                        <input type="email" placeholder="correo@ejemplo.com" required data-i18n-ph="pac_pqr.ph_email">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="pac_pqr.label_phone">Teléfono de contacto</label>
+                        <input type="tel" placeholder="+57 300 000 0000" required data-i18n-ph="pac_pqr.ph_phone">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label data-i18n="pac_pqr.label_service_date">Fecha del servicio</label>
+                        <input type="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="pac_pqr.label_dentist">Odontólogo tratante</label>
+                        <input type="text" placeholder="Nombre del profesional" data-i18n-ph="pac_pqr.ph_dentist">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="pac_pqr.label_subject">Asunto *</label>
+                    <input type="text" id="pqrAsunto" name="asunto" placeholder="Ej: Demora en la atención de la cita" required data-i18n-ph="pac_pqr.ph_subject">
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="pac_pqr.label_description">Descripción detallada *</label>
+                    <textarea id="pqrDescripcion" name="descripcion"
+                        placeholder="Describe con detalle tu solicitud, queja o reclamo. Incluye fechas, nombres y circunstancias relevantes."
+                        required data-i18n-ph="pac_pqr.ph_description"></textarea>
+                    <div class="char-counter">0 / 1000</div>
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="pac_pqr.label_attachment">Adjuntar soporte (opcional)</label>
+                    <div class="file-upload" id="fileUpload">
+                        <div class="file-upload-content" id="fileUploadContent">
+                            <span class="material-symbols-outlined" aria-hidden="true">cloud_upload</span>
+                            <div data-i18n="pac_pqr.upload_hint">Haz clic para adjuntar un archivo (PDF, JPG, PNG — máx. 5 MB)</div>
+                        </div>
+                        <input type="file" id="fileInput" name="evidencia" hidden accept=".pdf,.jpg,.jpeg,.png">
+                    </div>
+                </div>
+
+                <div class="submit-section">
+                    <button type="submit" class="btn-submit">
+                        <span class="material-symbols-outlined" aria-hidden="true">send</span>
+                        <span data-i18n="pac_pqr.submit">Radicar solicitud</span>
+                    </button>
+                    <p class="terms-text" data-i18n="pac_pqr.terms">Al enviar, aceptas nuestra política de tratamiento de datos personales.</p>
+                </div>
+            </form>
         </div>
 
-        <!-- Content Grid -->
-        <div class="content-grid">
-            <!-- Main Form -->
-            <div class="main-form">
-                <div class="section-title" data-i18n="pqr.type">1 - TIPO DE SOLICITUD</div>
-
-                <!-- Request Types -->
-                <div class="request-types">
-                    <div class="request-card petition selected" onclick="selectRequestType(this, 'petition')">
-                        <div class="request-icon">
-                            <i class="fas fa-file-alt"></i>
-                        </div>
-                        <div class="request-title" data-i18n="pqr.type_petition">Petición</div>
-                        <div class="request-desc" data-i18n="pqr.petition_description">Solicita información, documentos o servicios relacionados con tu atención.</div>
+        <!-- Sidebar Right -->
+        <div class="sidebar-right">
+            <!-- Response Times -->
+            <div class="info-card">
+                <h3 data-i18n="pac_pqr.response_times">Tiempos de respuesta</h3>
+                <div class="time-item">
+                    <div class="time-label petition">
+                        <span class="material-symbols-outlined" aria-hidden="true">description</span>
+                        <span data-i18n="pqr.type_petition">Petición</span>
                     </div>
-                    <div class="request-card complaint" onclick="selectRequestType(this, 'complaint')">
-                        <div class="request-icon">
-                            <i class="fas fa-comment-dots"></i>
-                        </div>
-                        <div class="request-title" data-i18n="pqr.type_complaint">Queja</div>
-                        <div class="request-desc" data-i18n="pqr.complaint_description">Manifiesta inconformidad con la atención o servicio recibido.</div>
-                    </div>
-                    <div class="request-card claim" onclick="selectRequestType(this, 'claim')">
-                        <div class="request-icon">
-                            <i class="fas fa-exclamation-triangle"></i>
-                        </div>
-                        <div class="request-title" data-i18n="pqr.type_claim">Reclamo</div>
-                        <div class="request-desc" data-i18n="pqr.claim_description">Exige la corrección de irregularidades o incumplimientos del servicio.</div>
-                    </div>
+                    <div class="time-value" data-i18n="pac_pqr.time_petition">15 días hábiles</div>
                 </div>
-
-                <div class="section-title" style="margin-top: 30px;" data-i18n="pqr.applicant_data">2 - DATOS DEL SOLICITANTE</div>
-
-                <form id="pqrForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label data-i18n="common.name">Nombre completo</label>
-                            <input type="text" placeholder="Ej: María Fernanda López" required data-i18n-ph="common.name">
-                        </div>
-                        <div class="form-group">
-                            <label data-i18n="pacientes.document">Número de documento</label>
-                            <input type="text" placeholder="Cédula o T.I." required data-i18n-ph="pacientes.document">
-                        </div>
+                <div class="time-item">
+                    <div class="time-label complaint">
+                        <span class="material-symbols-outlined" aria-hidden="true">forum</span>
+                        <span data-i18n="pqr.type_complaint">Queja</span>
                     </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Correo electrÓnico</label>
-                            <input type="email" placeholder="correo@ejemplo.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label>TelÉfono de contacto</label>
-                            <input type="tel" placeholder="+57 300 000 0000" required>
-                        </div>
+                    <div class="time-value" data-i18n="pac_pqr.time_complaint">10 días hábiles</div>
+                </div>
+                <div class="time-item">
+                    <div class="time-label claim">
+                        <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+                        <span data-i18n="pqr.type_claim">Reclamo</span>
                     </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Fecha del servicio</label>
-                            <input type="date" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Odontólogo tratante</label>
-                            <input type="text" placeholder="Nombre del profesional">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Asunto *</label>
-                        <input type="text" id="pqrAsunto" placeholder="Ej: Demora en la atención de la cita" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Descripción detallada *</label>
-                        <textarea id="pqrDescripcion"
-                            placeholder="Describe con detalle tu solicitud, queja o reclamo. Incluye fechas, nombres y circunstancias relevantes."
-                            required></textarea>
-                        <div style="text-align: right; font-size: 12px; color: var(--text-light); margin-top: 5px;">0 /
-                            1000</div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Adjuntar soporte (opcional)</label>
-                        <div class="file-upload" onclick="document.getElementById('fileInput').click()">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            <div>Haz clic para adjuntar un archivo (PDF, JPG, PNG — m—x. 5 MB)</div>
-                            <input type="file" id="fileInput" hidden accept=".pdf,.jpg,.jpeg,.png">
-                        </div>
-                    </div>
-
-                    <div class="submit-section">
-                        <button type="submit" class="btn-submit">
-                            <i class="fas fa-paper-plane"></i>
-                            Radicar solicitud
-                        </button>
-                        <p class="terms-text">Al enviar, aceptas nuestra política de tratamiento de datos personales.
-                        </p>
-                    </div>
-                </form>
+                    <div class="time-value" data-i18n="pac_pqr.time_claim">5 días hábiles</div>
+                </div>
             </div>
 
-            <!-- Sidebar Right -->
-            <div class="sidebar-right">
-                <!-- Response Times -->
-                <div class="info-card">
-                    <h3>Tiempos de respuesta</h3>
-                    <div class="time-item">
-                        <div class="time-label petition">
-                            <i class="fas fa-file-alt"></i>
-                            <span>Petición</span>
-                        </div>
-                        <div class="time-value">15 días hábiles</div>
-                    </div>
-                    <div class="time-item">
-                        <div class="time-label complaint">
-                            <i class="fas fa-comment-dots"></i>
-                            <span>Queja</span>
-                        </div>
-                        <div class="time-value">10 días hábiles</div>
-                    </div>
-                    <div class="time-item">
-                        <div class="time-label claim">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <span>Reclamo</span>
-                        </div>
-                        <div class="time-value">5 días hábiles</div>
-                    </div>
+            <!-- Contact Channels -->
+            <div class="info-card">
+                <h3 data-i18n="pac_pqr.contact_channels">Canales de atención</h3>
+                <div class="channel-item">
+                    <div class="channel-label" data-i18n="pac_pqr.channel_phone_label">Línea PQR</div>
+                    <div class="channel-value">01 8000 123 456</div>
+                    <div class="channel-hours" data-i18n="pac_pqr.channel_phone_hours">Lun - Vie: 7 am - 6 pm</div>
                 </div>
-
-                <!-- Contact Channels -->
-                <div class="info-card">
-                    <h3>Canales de atención</h3>
-                    <div class="channel-item">
-                        <div class="channel-label">Línea PQR</div>
-                        <div class="channel-value">01 8000 123 456</div>
-                        <div style="font-size: 12px; color: var(--text-light);">Lun - Vie: 7 am - 6 pm</div>
-                    </div>
-                    <div class="channel-item">
-                        <div class="channel-label">Correo oficial</div>
-                        <div class="channel-value">pqr@smiletrack.co</div>
-                        <div style="font-size: 12px; color: var(--text-light);">Respuesta en 24 h hábiles</div>
-                    </div>
+                <div class="channel-item">
+                    <div class="channel-label" data-i18n="pac_pqr.channel_email_label">Correo oficial</div>
+                    <div class="channel-value">pqr@smiletrack.co</div>
+                    <div class="channel-hours" data-i18n="pac_pqr.channel_email_hours">Respuesta en 24 h hábiles</div>
                 </div>
+            </div>
 
-                <!-- How it Works -->
-                <div class="info-card how-it-works">
-                    <h3><i class="fas fa-info-circle"></i> —Cómo funciona?</h3>
-                    <div class="step">
-                        <div class="step-number">01</div>
-                        <div>Diligencia el formulario con tu información y descripción del caso.</div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">02</div>
-                        <div>Recibes un número de radicado en tu correo electrÓnico.</div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">03</div>
-                        <div>Nuestro equipo analiza y gestiona tu solicitud.</div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">04</div>
-                        <div>Te notificamos la respuesta según los tiempos legales.</div>
-                    </div>
+            <!-- How it Works -->
+            <div class="info-card how-it-works">
+                <h3>
+                    <span class="material-symbols-outlined" aria-hidden="true">info</span>
+                    <span data-i18n="pac_pqr.how_it_works">¿Cómo funciona?</span>
+                </h3>
+                <div class="step">
+                    <div class="step-number">01</div>
+                    <div data-i18n="pac_pqr.step1">Diligencia el formulario con tu información y descripción del caso.</div>
                 </div>
+                <div class="step">
+                    <div class="step-number">02</div>
+                    <div data-i18n="pac_pqr.step2">Recibes un número de radicado en tu correo electrónico.</div>
+                </div>
+                <div class="step">
+                    <div class="step-number">03</div>
+                    <div data-i18n="pac_pqr.step3">Nuestro equipo analiza y gestiona tu solicitud.</div>
+                </div>
+                <div class="step">
+                    <div class="step-number">04</div>
+                    <div data-i18n="pac_pqr.step4">Te notificamos la respuesta según los tiempos legales.</div>
+                </div>
+            </div>
 
-                <!-- Recent Requests -->
-                <div class="info-card">
-                    <h3 style="display: flex; justify-content: space-between; align-items: center;">
-                        Radicados recientes
-                        <a href="#" style="font-size: 12px; color: var(--primary-blue); text-decoration: none;">Ver
-                            todos</a>
-                    </h3>
-                    <div id="recentPqrList">
+            <!-- Recent Requests -->
+            <div class="info-card">
+                <h3 class="info-card-title--split">
+                    <span data-i18n="pac_pqr.recent_title">Radicados recientes</span>
+                    <a href="#recentPqrList" class="info-card-link" data-i18n="pac_pqr.view_all">Ver todos</a>
+                </h3>
+                <div id="recentPqrList" aria-live="polite">
                     <div class="recent-item">
                         <div class="recent-code">PQR-2024-001847</div>
                         <div class="recent-title">Demora en entrega de historia clínica</div>
@@ -265,54 +226,43 @@
                         <div class="recent-date">Reclamo — 18 Abr 2024</div>
                         <span class="badge closed">Cerrado</span>
                     </div>
-                    </div>
                 </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Detalle de una PQR para el paciente -->
-    <div class="pqr-detail-overlay" id="pqrDetailOverlay" hidden>
-        <div class="pqr-detail-modal" role="dialog" aria-modal="true" aria-labelledby="pqrDetailTitle">
-            <button type="button" class="pqr-detail-close" id="pqrDetailClose" aria-label="Cerrar">&times;</button>
-            <div class="pqr-detail-header">
-                <div>
-                    <span class="pqr-detail-ticket" id="pqrDetailTicket"></span>
-                    <h2 id="pqrDetailTitle">Detalle de la PQR</h2>
-                </div>
-                <span class="badge process" id="pqrDetailStatus"></span>
-            </div>
-            <div class="pqr-detail-meta" id="pqrDetailMeta"></div>
-            <div class="pqr-detail-block">
-                <h3>Asunto</h3>
-                <p id="pqrDetailSubject"></p>
-            </div>
-            <div class="pqr-detail-block">
-                <h3>Descripción</h3>
-                <p id="pqrDetailDescription"></p>
-            </div>
-            <div class="pqr-detail-response">
-                <h3>Respuesta de SmileTrack</h3>
-                <p id="pqrDetailResponse"></p>
-                <small id="pqrDetailResponseDate"></small>
             </div>
         </div>
     </div>
+</main>
 
-    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<!-- Detalle de una PQR para el paciente -->
+<div class="pqr-detail-overlay" id="pqrDetailOverlay" hidden>
+    <div class="pqr-detail-modal" role="dialog" aria-modal="true" aria-labelledby="pqrDetailTitle">
+        <button type="button" class="pqr-detail-close" id="pqrDetailClose" aria-label="Cerrar" data-i18n-aria-label="common.close">&times;</button>
+        <div class="pqr-detail-header">
+            <div>
+                <span class="pqr-detail-ticket" id="pqrDetailTicket"></span>
+                <h2 id="pqrDetailTitle" data-i18n="pac_pqr.detail_title">Detalle de la PQR</h2>
+            </div>
+            <span class="badge process" id="pqrDetailStatus"></span>
+        </div>
+        <div class="pqr-detail-meta" id="pqrDetailMeta"></div>
+        <div class="pqr-detail-block">
+            <h3 data-i18n="pac_pqr.detail_subject">Asunto</h3>
+            <p id="pqrDetailSubject"></p>
+        </div>
+        <div class="pqr-detail-block">
+            <h3 data-i18n="pac_pqr.detail_description">Descripción</h3>
+            <p id="pqrDetailDescription"></p>
+        </div>
+        <div class="pqr-detail-response">
+            <h3 data-i18n="pac_pqr.detail_response">Respuesta de SmileTrack</h3>
+            <p id="pqrDetailResponse"></p>
+            <small id="pqrDetailResponseDate"></small>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
     <script>
         window.RAZOR_MIS_PQRS = @Html.Raw(ViewData["MisPqrsJson"] ?? "[]");
     </script>
-    <script src="@Url.Content("~/js/Gestion_De_PQR/st-pac-04-nueva-pqr/script.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/i18n-core.js")"></script>
-    <script src="@Url.Content("~/js/i18n.config.js")"></script>
-    @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-
-</html>
-
-
-
+    <script src="~/js/Gestion_De_PQR/st-pac-04-nueva-pqr/script.js" asp-append-version="true" defer></script>
+}

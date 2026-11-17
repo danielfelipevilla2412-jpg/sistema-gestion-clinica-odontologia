@@ -2,7 +2,7 @@
     --sidebar-w: 220px;
     --primary: #1a56cc;
     --primary-soft: #eaf2ff;
-    --primary-strong: #0f2057;
+    --primary-strong: #1a3580 ;
     --bg-soft: #f4f7fb;
     --card-bg: #ffffff;
     --card-border: #e2e8f0;
@@ -24,7 +24,7 @@ html {
 
 body {
     margin: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: var(--font, 'DM Sans', sans-serif);
     background: var(--bg-soft);
     color: var(--text);
     overflow-x: hidden;
@@ -84,8 +84,17 @@ input {
     flex-wrap: wrap;
 }
 
+.help-center-page .page-header {
+    background: linear-gradient(180deg, #18284f 0%, #263d73 100%);
+    border-color: rgba(255, 255, 255, .1);
+}
+
 .header-left {
     min-width: 0;
+}
+
+.help-center-page .breadcrumb {
+    color: #c8d3e8;
 }
 
 .breadcrumb {
@@ -101,13 +110,27 @@ input {
     color: #94a3b8;
 }
 
+.help-center-page .bc-sep {
+    color: #aab9d4;
+}
+
+.help-center-page .bc-active {
+    color: #93c5fd;
+    font-weight: 600;
+}
+
 .bc-active {
     color: var(--primary);
     font-weight: 600;
 }
 
+.help-center-page .page-title {
+    color: #fff;
+}
+
 .page-title {
     margin: 0;
+    font-family: var(--font-display, 'Syne', sans-serif);
     color: var(--text);
     font-size: clamp(1.7rem, 2vw, 2.2rem);
     line-height: 1.2;
@@ -118,6 +141,10 @@ input {
     margin: 8px 0 0;
     color: var(--muted);
     font-size: 0.94rem;
+}
+
+.help-center-page .page-subtitle {
+    color: #c8d3e8;
 }
 
 .btn-support {
@@ -433,7 +460,7 @@ input {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 680px) {
     .main,
     .main-content {
         margin-left: 0;

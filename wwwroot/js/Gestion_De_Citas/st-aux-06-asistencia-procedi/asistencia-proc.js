@@ -41,9 +41,6 @@ let procedurePillsInitialized = false;
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
-const debounce = (fn, delay) =>
-  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
-
 const procedureHeaders = () => {
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
   const tokenElement = document.querySelector('input[name="__RequestVerificationToken"]');
@@ -60,11 +57,17 @@ const procedureHeaders = () => {
 // 4. SERVICIOS Y API
 // ═══════════════════════════════════════════════════════════════════
 
+// Decisión de diseño: los fallos de sincronización se registran con console.warn
+// (no con ToastService). persistProcedureState/hydrateProcedureState son
+// sincronización de fondo que se dispara de forma repetida (debounce + polling);
+// notificar cada fallo al usuario resultaría ruidoso y molesto. El respaldo local
+// (procedureStorage) garantiza que no se pierdan datos mientras dure el corte.
+
 async function persistProcedureState() {
   if (!procedureData.citaId || procedureData.estadoNormalizado !== 'en_proceso') return;
   const state = procedureStorage.load();
   try {
-    const response = await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
       method: 'PUT',
       credentials: 'same-origin',
       headers: procedureHeaders(),
@@ -87,7 +90,7 @@ async function persistProcedureState() {
 async function hydrateProcedureState() {
   if (!procedureData.citaId) return;
   try {
-    const response = await fetch(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
+    const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/citas/${procedureData.citaId}/asistencia-procedimiento`, {
       credentials: 'same-origin', headers: procedureHeaders()
     });
     if (!response.ok) return;
@@ -264,10 +267,8 @@ const initTimer = () => {
     timerValueElement.textContent = minutes;
     procedureStorage.updateMinutes(minutes);
   }, TIMER_INTERVAL_MS);
-  
-  window.addEventListener('beforeunload', () => {
-    if (procedureTimerIntervalRef) clearInterval(procedureTimerIntervalRef);
-  });
+  // El cleanup del temporizador se centraliza en un único 'beforeunload' registrado
+  // en initializeAsistenciaProcediModule (evita listeners duplicados).
 };
 
 const initProcedurePills = () => {

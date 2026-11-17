@@ -26,7 +26,7 @@
         "Mis citas" => "nav.group_gestion_citas",
         "Mi historial" => "nav.group_historia_clinica",
         "PQR" => "nav.group_gestion_pqr",
-        "Gestión de Ayuda" => "nav.group_centro_ayuda",
+        "Centro de Ayuda" => "nav.group_centro_ayuda",
         "Mi perfil" => "profile.title",
         _ => "common.info"
     };
@@ -84,7 +84,7 @@
         },
         new
         {
-            Title = "Gestión de Ayuda",
+            Title = "Centro de Ayuda",
             Items = new[]
             {
                 new { Label = "Cómo programar una cita", Href = "/centro-de-ayuda/como-programar-cita", Icon = "📅" },
@@ -104,7 +104,7 @@
     };
 }
 
-<aside class="sidebar" id="sidebar" aria-label="Navegación principal" data-i18n-aria-label="sidebar_main_nav">
+<aside class="sidebar" id="sidebar" data-sidebar-role="paciente" aria-label="Navegación principal" data-i18n-aria-label="sidebar_main_nav">
     <div class="sidebar-logo">
         <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
     </div>
@@ -127,8 +127,8 @@
             }
 
             <div class="nav-group">
-                <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="@groupKey(group.Title)">
-                    @group.Title
+                <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+                    <span class="nav-group-label" data-i18n="@groupKey(group.Title)">@group.Title</span>
                     <span class="nav-arrow" aria-hidden="true">▼</span>
                 </div>
 
@@ -156,12 +156,14 @@
     </nav>
 
     <div class="sidebar-user">
-        <div class="user-avatar">@_iniciales</div>
-        <span class="user-role">@_pNombre</span>
-        <span class="user-email">@_pEmail</span>
-        <div class="sidebar-lang" aria-label="Cambiar idioma">
-            <button type="button" data-i18n-switcher data-i18n-lang="es" class="lang-btn" aria-label="Español">ES</button>
-            <button type="button" data-i18n-switcher data-i18n-lang="en" class="lang-btn" aria-label="English">EN</button>
+        <div class="user-avatar" aria-hidden="true">@_iniciales</div>
+        <div class="user-info">
+            <span class="user-role">@_pNombre</span>
+            <span class="user-email">@_pEmail</span>
+        </div>
+        <div class="sidebar-lang" aria-label="Cambiar idioma" data-i18n-aria-label="sidebar_change_language">
+            <button type="button" data-i18n-switcher data-i18n-lang="es" class="lang-btn" aria-label="Español" data-i18n-aria-label="sidebar_lang_es">ES</button>
+            <button type="button" data-i18n-switcher data-i18n-lang="en" class="lang-btn" aria-label="English" data-i18n-aria-label="sidebar_lang_en">EN</button>
         </div>
     </div>
 </aside>

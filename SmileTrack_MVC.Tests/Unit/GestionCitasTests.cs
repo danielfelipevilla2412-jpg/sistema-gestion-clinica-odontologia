@@ -41,6 +41,10 @@ public class GestionCitasTests
             IdEspecialidad = especialidad.IdEspecialidad
         };
         var fechaHora = DateTime.Today.AddDays(1).AddHours(9);
+        // La clínica no atiende domingos (dias_atencion por defecto = 1..6).
+        // Si "mañana" cae en domingo, se desplaza un día para usar una fecha válida.
+        if (fechaHora.DayOfWeek == DayOfWeek.Sunday)
+            fechaHora = fechaHora.AddDays(1);
         var diaSemana = fechaHora.DayOfWeek switch
         {
             DayOfWeek.Monday => "Lunes",

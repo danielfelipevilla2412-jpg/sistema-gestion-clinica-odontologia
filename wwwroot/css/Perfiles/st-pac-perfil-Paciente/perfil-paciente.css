@@ -169,77 +169,50 @@ img { max-width: 100%; height: auto; display: block; }
 .breadcrumb .sep { opacity: .5; }
 .breadcrumb .current { color: var(--text); font-weight: 600; }
 
-/* ═══ PROFILE HEADER ═══ */
-.profile-header {
-  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
-  border-radius: var(--radius);
-  padding: 24px 28px;
-  margin-bottom: 22px;
-  color: #11a3dd;
+/* ═══ UTILIDAD DE VISIBILIDAD ═══ */
+.is-hidden { display: none !important; }
+
+/* ═══ CABECERA DE PERFIL (page-header estandarizado) ═══ */
+.header-left { min-width: 0; }
+.page-header-identity {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  box-shadow: var(--shadow-md);
-
+  gap: 14px;
+  margin-top: 8px;
 }
-.header-avatar-wrap { display: flex; align-items: center; gap: 16px; }
+.page-header-title { min-width: 0; }
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .header-avatar {
-  width: 60px; height: 60px; border-radius: 50%;
-  background: rgba(255,255,255,.2);
-  border: 3px solid rgba(255,255,255,.3);
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--primary);
+  border: 3px solid var(--primary-light);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font-display);
-  font-size: 1.2rem; font-weight: 700; color: #fff;
+  font-size: 1.15rem; font-weight: 700; color: #fff;
   flex-shrink: 0;
   overflow: hidden;
 }
 .header-avatar img {
   width: 100%; height: 100%; object-fit: cover;
 }
-.header-name {
-  font-family: var(--font-display);
-  font-size: 1.4rem; font-weight: 700;
-  color: #1b9bd6; margin-bottom: 4px;
-}
-.header-sub { font-size: .82rem; color: rgba(20, 117, 182, 0.75); }
-.header-sub span { color: rgba(34, 200, 241, 0.95); font-weight: 600; }
-.header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.page-header-title .page-title { margin-bottom: 2px; }
+.page-header-title .page-subtitle span { font-weight: 600; }
 
-/* ═══ BUTTONS ═══ */
-.btn-editar {
-  background: #16a34a; color: #fdfdfd;
-  border: 1.5px solid rgba(255,255,255,.3);
-  border-radius: var(--radius-sm); padding: 9px 18px;
-  font-family: var(--font); font-size: .88rem; font-weight: 700;
-  cursor: pointer; transition: background var(--tr);
-  display: inline-flex; align-items: center; gap: 8px;
-}
-.btn-editar:hover { background: rgba(255,255,255,.25); }
-.btn-editar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
-.btn-guardar {
-  background: var(--green); color: #fff; border: none;
-  border-radius: var(--radius-sm); padding: 9px 18px;
-  font-family: var(--font); font-size: .88rem; font-weight: 700;
-  cursor: pointer; transition: background var(--tr), transform var(--tr);
-  box-shadow: 0 3px 12px rgba(34,197,94,.3);
-  display: none; align-items: center; gap: 8px;
-}
-.btn-guardar:hover { background: #16a34a; transform: translateY(-1px); }
-.btn-guardar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* ═══ LAYOUT DE FORMULARIO (una columna) ═══ */
+.form-grid--single { grid-template-columns: 1fr; }
 
-.btn-cancelar {
-  background: rgb(255, 0, 0); color: rgba(255,255,255,.8);
-  border: 1.5px solid rgba(255,255,255,.2);
-  border-radius: var(--radius-sm); padding: 9px 16px;
-  font-family: var(--font); font-size: .85rem; font-weight: 600;
-  cursor: pointer; transition: background var(--tr);
-  display: none; align-items: center; gap: 8px;
-}
-.btn-cancelar:hover { background: rgba(255,255,255,.20); }
-.btn-cancelar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* ═══ ICONOS MATERIAL SYMBOLS ═══ */
+.card-title .material-symbols-outlined { font-size: 1.15rem; }
+.field-note .material-symbols-outlined { font-size: .9rem; vertical-align: -2px; }
+.info-readonly-note .material-symbols-outlined { font-size: 1rem; }
+.tag .tag-icon { font-size: .9rem; }
+
 
 /* ═══ MAIN GRID ═══ */
 .main-grid {
@@ -333,10 +306,12 @@ img { max-width: 100%; height: auto; display: block; }
 .pass-wrap .form-input { padding-right: 38px; }
 .btn-eye {
   position: absolute; right: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
   background: none; border: none; cursor: pointer;
-  font-size: .9rem; color: var(--text-muted);
+  color: var(--text-muted);
   padding: 4px; transition: color var(--tr);
 }
+.btn-eye .material-symbols-outlined { font-size: 1.15rem; }
 .btn-eye:hover { color: var(--text); }
 .btn-eye:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
@@ -452,25 +427,24 @@ img { max-width: 100%; height: auto; display: block; }
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-md); }
   .overlay.open { display: block; }
-  .main { margin-left: 0; padding: 58px 14px 80px; }
-  .profile-header { flex-direction: column; align-items: flex-start; padding: 20px; }
-  .header-avatar-wrap { flex-direction: column; align-items: flex-start; }
-  .mobile-nav { display: flex; }
+  .main { margin-left: 0; padding: 58px 14px 40px; }
+  .page-header-identity { flex-direction: column; align-items: flex-start; }
+  .page-header-actions { width: 100%; }
+  .page-header-actions .btn-primary,
+  .page-header-actions .btn-secondary { flex: 1 1 auto; justify-content: center; }
 }
 @media (max-width: 480px) {
-  .header-name { font-size: 1.2rem; }
-  .header-avatar { width: 50px; height: 50px; font-size: 1rem; }
-  .header-actions { width: 100%; }
-  .btn-editar, .btn-guardar, .btn-cancelar { flex: 1; justify-content: center; }
+  .header-avatar { width: 48px; height: 48px; font-size: 1rem; }
+  .page-header-actions .btn-primary,
+  .page-header-actions .btn-secondary { flex: 1 1 100%; }
 }
 
 /* ═══ PRINT ═══ */
 @media print {
-  body { background: #fff !important; color: #000 !important; }
-  .sidebar, .hamburger, .overlay, .mobile-nav, .toast, .header-actions { display: none !important; }
+  .sidebar, .hamburger, .overlay, .mobile-nav, .toast, .page-header-actions { display: none !important; }
   .main { margin-left: 0 !important; padding: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
-  .profile-header { background: var(--primary) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page-header { border: 1px solid #ccc !important; }
   @page { size: letter; margin: 1.5cm; }
 }
 

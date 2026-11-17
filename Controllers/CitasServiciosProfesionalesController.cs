@@ -16,13 +16,17 @@ public sealed class CitasServiciosProfesionalesController : Controller
     [HttpGet("gestion-de-citas/api/asignaciones-profesionales")]
     public async Task<IActionResult> ObtenerAsignaciones(CancellationToken ct)
     {
+        // La condición de especialidad es un refinamiento opcional:
+        // un profesional con ProfesionalServicio activo ya fue validado por el ADM.
+        // No aplicamos el INNER JOIN de especialidad aquí para no excluir profesionales
+        // válidamente asignados cuando el servicio no tiene especialidad configurada
+        // o cuando la tabla ProfesionalEspecialidades está desincronizada.
+        // La verificación de especialidad se realiza al momento de guardar la cita
+        // en CitaService.ValidarDisponibilidadProfesionalAsync.
         var asignaciones = await (
             from ps in _context.ProfesionalServicios.AsNoTracking()
             join p in _context.Profesionales.AsNoTracking() on ps.IdProfesional equals p.IdProfesional
             join s in _context.Servicios.AsNoTracking() on ps.IdServicio equals s.IdServicio
-            join pe in _context.ProfesionalEspecialidades.AsNoTracking()
-                on new { ps.IdProfesional, IdEspecialidad = s.IdEspecialidad ?? -1 }
-                equals new { pe.IdProfesional, pe.IdEspecialidad }
             where ps.Activo && p.Estado == "activo" && s.Estado == "activo"
             select new
             {

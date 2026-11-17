@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using System.Linq;
@@ -21,6 +22,127 @@ namespace SmileTrack_MVC.Tests.Controllers;
 
 public class HistoriaClinicaStructuredDataTests
 {
+    [Fact]
+    public async Task BuscarPacientesHistoria_FiltraPorNombreCompletoYAccesoProfesional()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, _) = CrearControlador(db);
+        paciente.Nombres = "Samuel";
+        paciente.Apellidos = "Torres";
+        paciente.Documento = "987654";
+        db.Pacientes.Add(new Paciente
+        {
+            Nombres = "Samuel",
+            Apellidos = "Torres",
+            Documento = "111222",
+            FechaNacimiento = new DateTime(1988, 1, 1)
+        });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<JsonResult>(
+            await controller.BuscarPacientesHistoria("Samuel Torres", CancellationToken.None));
+
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(result.Value));
+        var pacientes = payload.RootElement.GetProperty("pacientes").EnumerateArray().ToArray();
+        var pacienteEncontrado = Assert.Single(pacientes);
+        Assert.Equal(paciente.IdPaciente, pacienteEncontrado.GetProperty("id").GetInt32());
+        Assert.Equal("Samuel Torres", pacienteEncontrado.GetProperty("nombre").GetString());
+    }
+
+    [Fact]
+    public async Task BuscarPacientesHistoria_SinTerminoListaPacientesVinculadosAlProfesional()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, pacienteAsignado, profesional) = CrearControlador(db);
+        var pacienteConCita = new Paciente
+        {
+            Nombres = "Paciente",
+            Apellidos = "Con cita",
+            Documento = "654321",
+            FechaNacimiento = new DateTime(1990, 1, 1)
+        };
+        var pacienteSinVinculo = new Paciente
+        {
+            Nombres = "Paciente",
+            Apellidos = "Sin vínculo",
+            Documento = "112233",
+            FechaNacimiento = new DateTime(1990, 1, 1)
+        };
+        db.Pacientes.AddRange(pacienteConCita, pacienteSinVinculo);
+        await db.SaveChangesAsync();
+        db.Citas.Add(new Cita
+        {
+            IdPaciente = pacienteConCita.IdPaciente,
+            IdProfesional = profesional.IdProfesional,
+            FechaHora = DateTime.UtcNow.AddDays(1),
+            Estado = "Programada"
+        });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<JsonResult>(
+            await controller.BuscarPacientesHistoria(null, CancellationToken.None));
+
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(result.Value));
+        var root = payload.RootElement;
+        var pacientes = root.GetProperty("pacientes").EnumerateArray().ToArray();
+        Assert.Equal(2, pacientes.Length);
+        Assert.Contains(pacientes, paciente =>
+            paciente.GetProperty("id").GetInt32() == pacienteAsignado.IdPaciente);
+        Assert.Contains(pacientes, paciente =>
+            paciente.GetProperty("id").GetInt32() == pacienteConCita.IdPaciente);
+        Assert.DoesNotContain(pacientes, paciente =>
+            paciente.GetProperty("id").GetInt32() == pacienteSinVinculo.IdPaciente);
+        Assert.False(root.GetProperty("hayMasPacientes").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Stodo03Historial_ReconstruyeMiniOdontogramaDesdeRegistrosYMapeo()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, profesional) = CrearControlador(db);
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow,
+            Activa = true,
+            ObservacionesGenerales = JsonSerializer.Serialize(new
+            {
+                mapeoFDI = new Dictionary<string, string> { ["node-16"] = "16" }
+            })
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+        db.RegistrosOdontograma.Add(new RegistroOdontograma
+        {
+            IdHistoria = historia.IdHistoria,
+            NumeroFdi = "16",
+            NombrePieza = "Primer molar superior derecho",
+            Estado = "caries",
+            Observacion = "Lesión oclusal",
+            FechaRegistro = DateTime.UtcNow,
+            IdProfesional = profesional.IdProfesional
+        });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<ViewResult>(
+            await controller.Stodo03Historial(paciente.IdPaciente, null, null));
+        var model = Assert.IsType<HistorialPacienteViewModel>(result.Model);
+        using var estado = JsonDocument.Parse(model.Odontograma.EstadoPersistido!);
+
+        Assert.Equal(
+            "16",
+            estado.RootElement.GetProperty("mapeoFDI").GetProperty("fdi-16").GetString());
+        Assert.Equal(32, estado.RootElement.GetProperty("mapeoFDI").EnumerateObject().Count());
+        Assert.False(estado.RootElement.GetProperty("mapeoFDI").TryGetProperty("node-16", out _));
+        Assert.Equal(model.Odontograma.EstadoPersistido, model.Odontograma.ObservacionesGenerales);
+        Assert.Equal(
+            "caries",
+            estado.RootElement.GetProperty("registros").GetProperty("fdi-16")
+                .GetProperty("tratamientos")[0].GetProperty("key").GetString());
+        Assert.Contains(model.LineaDeTiempo, item =>
+            item.Categoria == "odontograma" && item.Descripcion.Contains("Lesión oclusal"));
+    }
+
     [Fact]
     public async Task GuardarFormularioHistoria_GuardaConsultaRelacionadaSinCrearCita()
     {

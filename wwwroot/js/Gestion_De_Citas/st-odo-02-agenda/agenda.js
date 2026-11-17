@@ -146,7 +146,7 @@ const changeAppointmentStatusApi = async (appointmentId, newStatus, onSuccessCal
     if (window.apiRequest) {
       const result = await window.apiRequest(`/api/citas/${encodeURIComponent(appointmentId)}/estado`, {
         method: 'PUT',
-        body: { estado: newStatus }
+        body: JSON.stringify({ estado: newStatus })
       });
       if (!result?.success) {
         throw new Error(result?.message || 'No se pudo actualizar el estado de la cita.');
@@ -257,7 +257,6 @@ const renderAppointmentModalContent = (modalContentElement, appointmentData) => 
 const updateRealtimeAppointmentIndicators = () => {
   const currentDate = new Date();
   const appointmentCards = document.querySelectorAll('.appointment[data-start-time]');
-  let updatedCount = 0;
 
   appointmentCards.forEach(card => {
     const cardDate = card.dataset.date;
@@ -278,69 +277,19 @@ const updateRealtimeAppointmentIndicators = () => {
       card.classList.add('in-progress');
       indicatorSpan.textContent = 'EN CURSO';
       indicatorSpan.setAttribute('aria-label', 'Cita en curso');
-      updatedCount++;
     } else if (currentDate < startDateTime) {
       const minutesRemaining = Math.floor((startDateTime - currentDate) / 60000);
       if (minutesRemaining <= 15) {
         card.classList.add('upcoming');
         indicatorSpan.textContent = `En ${minutesRemaining} min`;
         indicatorSpan.setAttribute('aria-label', `Cita en ${minutesRemaining} minutos`);
-        updatedCount++;
       }
     } else if (currentDate > endDateTime && !['atendida', 'cancelada', 'completada'].includes((currentStatus || '').toLowerCase())) {
       card.classList.add('overdue');
       indicatorSpan.textContent = 'RETRASADA';
       indicatorSpan.setAttribute('aria-label', 'Cita retrasada');
-      updatedCount++;
     }
   });
-
-  if (updatedCount > 0) {
-    console.log(`⏰ ${updatedCount} indicadores de tiempo actualizados`);
-  }
-};
-
-/**
- * Recalcula y actualiza los contadores del panel de estadísticas.
- */
-const updateAgendaStatisticsCounters = () => {
-  const appointmentCards = document.querySelectorAll('.appointment:not(.available)');
-  const statistics = {
-    total: 0,
-    programada: 0,
-    confirmada: 0,
-    atendida: 0,
-    cancelada: 0
-  };
-
-  appointmentCards.forEach(card => {
-    if (card.style.display === 'none') return;
-
-    statistics.total++;
-    const statusLower = (card.dataset.status || '').toLowerCase();
-
-    if (statusLower.includes('programada') || statusLower.includes('agendada')) {
-      statistics.programada++;
-    } else if (statusLower.includes('confirmada')) {
-      statistics.confirmada++;
-    } else if (statusLower.includes('atendida')) {
-      statistics.atendida++;
-    } else if (statusLower.includes('cancelada')) {
-      statistics.cancelada++;
-    }
-  });
-
-  const updateStatValue = (selector, value) => {
-    const targetElement = document.querySelector(selector);
-    if (targetElement) targetElement.textContent = value;
-  };
-
-  updateStatValue('.quick-stat-item[data-status="total"] strong', statistics.total);
-  updateStatValue('.quick-stat-item[data-status="programada"] strong', statistics.programada);
-  updateStatValue('.quick-stat-item[data-status="confirmada"] strong', statistics.confirmada);
-  updateStatValue('.quick-stat-item[data-status="atendida"] strong', statistics.atendida);
-
-  console.log('📊 Estadísticas actualizadas:', statistics);
 };
 
 // ===================================================================
@@ -355,8 +304,8 @@ const closeModalElement = (modalElement) => {
   if (!modalElement) return;
   modalElement.classList.remove('open');
   modalElement.setAttribute('aria-hidden', 'true');
-  modalElement.setAttribute('hidden', 'true');
-  modalElement.setAttribute('inert', 'true');
+  modalElement.removeAttribute('hidden');
+  modalElement.setAttribute('inert', '');
 };
 
 /**
@@ -564,7 +513,6 @@ const initViewModeToggle = () => {
       localStorage.setItem('agendaView', selectedView);
 
       announceScreenReaderMessage(`Vista cambiada a ${btn.textContent.trim()}`);
-      console.log(`📅 Vista cambiada a: ${selectedView}`);
     });
   });
 
@@ -621,8 +569,6 @@ const initRealtimePatientSearch = () => {
       } else if (queryText) {
         announceScreenReaderMessage(`${matchCount} cita${matchCount !== 1 ? 's' : ''} encontrada${matchCount !== 1 ? 's' : ''}`);
       }
-
-      console.log(`🔍 Búsqueda: "${queryText}" - ${matchCount} resultados`);
     }, 300);
   });
 
@@ -667,7 +613,6 @@ const initStatusFilter = () => {
 
     const statusLabelText = selectedStatus || 'todos los estados';
     announceScreenReaderMessage(`Mostrando ${visibleCount} citas con estado: ${statusLabelText}`);
-    console.log(`🎯 Filtro de estado: ${statusLabelText} - ${visibleCount} citas`);
   });
 };
 
@@ -703,8 +648,6 @@ const initKeyboardShortcuts = () => {
       document.getElementById('btnNext')?.click();
     }
   });
-
-  console.log('⌨️ Atajos de teclado configurados: V (cambiar vista), H (hoy), Ctrl+← → (navegar semanas)');
 };
 
 // ===================================================================
@@ -782,7 +725,6 @@ const initOfficeFilterControl = () => {
  * Inicializa todas las funcionalidades avanzadas de la agenda.
  */
 const initAdvancedAgendaFeatures = () => {
-  console.log('🚀 Inicializando mejoras de la agenda...');
   initViewModeToggle();
   initRealtimePatientSearch();
   initStatusFilter();
@@ -793,7 +735,6 @@ const initAdvancedAgendaFeatures = () => {
     if (!document.hidden) updateRealtimeAppointmentIndicators();
   }, 60000);
   window.addEventListener('pagehide', () => window.clearInterval(realtimeIndicatorInterval), { once: true });
-  updateAgendaStatisticsCounters();
 
   if (!document.getElementById('agenda-animations')) {
     const styleElement = document.createElement('style');
@@ -810,8 +751,6 @@ const initAdvancedAgendaFeatures = () => {
     `;
     document.head.appendChild(styleElement);
   }
-
-  console.log('✅ Agenda mejorada iniciada correctamente');
 };
 
 /**
@@ -822,6 +761,9 @@ const initAgendaDashboard = () => {
   initOfficeFilterControl();
   initAppointmentModals();
   initNewAppointmentModal();
+  document.getElementById('btnImprimirAgenda')?.addEventListener('click', () => {
+    window.print();
+  });
 };
 
 if (document.readyState === 'loading') {

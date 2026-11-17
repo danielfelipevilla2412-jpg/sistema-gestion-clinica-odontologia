@@ -28,9 +28,8 @@ public sealed class ProfesionalApiRequest
     [StringLength(30, ErrorMessage = "El estado no puede superar 30 caracteres.")]
     public string? Estado { get; set; }
 
-    [Required(ErrorMessage = "El correo de acceso es obligatorio.")]
     [EmailAddress(ErrorMessage = "El correo de acceso no es válido.")]
-    public string CorreoAcceso { get; set; } = string.Empty;
+    public string? CorreoAcceso { get; set; }
 
     [StringLength(100, MinimumLength = 8, ErrorMessage = "La contraseña debe tener mínimo 8 caracteres.")]
     public string? ContrasenaAcceso { get; set; }

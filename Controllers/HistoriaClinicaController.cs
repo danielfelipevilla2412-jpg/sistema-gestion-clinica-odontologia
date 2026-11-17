@@ -788,6 +788,54 @@ public class HistoriaClinicaController(
     }
 
     [HttpGet]
+    [Authorize(Roles = "Profesional")]
+    [Route("historia-clinica/st-odo-03-historial/buscar-pacientes")]
+    public async Task<IActionResult> BuscarPacientesHistoria(
+        [FromQuery] string? busqueda,
+        CancellationToken cancellationToken)
+    {
+        int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        if (idProfesional is null)
+            return Forbid();
+
+        string[] terminos = (busqueda ?? string.Empty)
+            .Trim()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Take(5)
+            .ToArray();
+
+        var query = _context.Pacientes
+            .AsNoTracking()
+            .Where(p => p.IdProfesionalAsignado == idProfesional
+                || _context.Citas.Any(c =>
+                    c.IdPaciente == p.IdPaciente
+                    && c.IdProfesional == idProfesional));
+
+        foreach (string termino in terminos)
+        {
+            query = query.Where(p =>
+                p.Nombres.Contains(termino)
+                || p.Apellidos.Contains(termino)
+                || p.Documento.Contains(termino));
+        }
+
+        var pacientes = await query
+            .OrderBy(p => p.Apellidos)
+            .ThenBy(p => p.Nombres)
+            .Take(21)
+            .Select(p => new
+            {
+                id = p.IdPaciente,
+                nombre = p.NombresCompleto,
+                documento = $"{p.TipoDocumento} {p.Documento}"
+            })
+            .ToListAsync(cancellationToken);
+
+        bool hayMasPacientes = pacientes.Count > 20;
+        return Json(new { success = true, pacientes = pacientes.Take(20), hayMasPacientes });
+    }
+
+    [HttpGet]
     [Authorize(Roles = "Profesional,Paciente")]
     [Route("historia-clinica/st-odo-03-historial/exportar-pdf")]
     public async Task<IActionResult> ExportarHistoriaClinicaPdf(
@@ -1663,6 +1711,9 @@ public class HistoriaClinicaController(
         [FromQuery] string? alergias = null, [FromQuery] string? cita = null, [FromQuery] string? servicio = null)
     {
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        if (idProfesional is null)
+            return Forbid();
+
         var resultado = await BuildPacientesHistorialAsync(idProfesional, page, pageSize, search, estado, alergias, cita, servicio);
         await _auditoria.RegistrarAsync(
             HttpContext,
@@ -2545,32 +2596,52 @@ private static string InferirTipoServicio(string? nombreServicio)
                 estadoClinico = new JsonObject();
             }
 
-            var mapeoJson = estadoClinico["mapeoFDI"] as JsonObject;
-            var mapeo = mapeoJson?.ToDictionary(
-                item => item.Key,
-                item => item.Value?.ToString() ?? "") ?? new Dictionary<string, string>();
-            var instanciasPorFdi = mapeo
-                .Where(item => !string.IsNullOrWhiteSpace(item.Value))
-                .GroupBy(item => item.Value, StringComparer.Ordinal)
-                .ToDictionary(grupo => grupo.Key, grupo => grupo.First().Key, StringComparer.Ordinal);
-
             var registrosClinicos = await _context.RegistrosOdontograma
                 .AsNoTracking()
                 .Where(registro => registro.IdHistoria == historia.IdHistoria)
                 .OrderByDescending(registro => registro.FechaRegistro)
                 .ToListAsync();
 
-            if (registrosClinicos.Count > 0 && instanciasPorFdi.Count > 0)
+            var registrosGuardados = estadoClinico["registros"] as JsonObject;
+            var mapeoGuardado = estadoClinico["mapeoFDI"] as JsonObject;
+            var registrosActuales = new JsonObject();
+            var mapeoFdi = new JsonObject();
+            foreach (var cuadrante in Enumerable.Range(1, 4))
             {
-                var registrosActuales = new Dictionary<string, OdontogramaRegistroPayload>();
-                foreach (var registro in registrosClinicos
-                    .GroupBy(item => item.NumeroFdi)
-                    .Select(grupo => grupo.First()))
+                foreach (var posicion in Enumerable.Range(1, 8))
                 {
-                    if (!instanciasPorFdi.TryGetValue(registro.NumeroFdi, out string? instanciaId))
-                        continue;
+                    string numeroFdi = $"{cuadrante}{posicion}";
+                    mapeoFdi[$"fdi-{numeroFdi}"] = numeroFdi;
+                }
+            }
 
-                    registrosActuales[instanciaId] = new OdontogramaRegistroPayload
+            if (registrosGuardados is not null)
+            {
+                foreach (var (instanceId, registroGuardado) in registrosGuardados)
+                {
+                    var numeroFdi = mapeoGuardado?[instanceId]?.ToString();
+                    if (string.IsNullOrWhiteSpace(numeroFdi)
+                        && instanceId.StartsWith("fdi-", StringComparison.Ordinal))
+                    {
+                        numeroFdi = instanceId["fdi-".Length..];
+                    }
+
+                    if (registroGuardado is not null
+                        && NumeroFdiHelper.EsPiezaPermanente(numeroFdi))
+                    {
+                        registrosActuales[$"fdi-{numeroFdi}"] = registroGuardado.DeepClone();
+                    }
+                }
+            }
+
+            foreach (var registro in registrosClinicos
+                .Where(item => NumeroFdiHelper.EsPiezaPermanente(item.NumeroFdi))
+                .GroupBy(item => item.NumeroFdi)
+                .Select(grupo => grupo.First()))
+            {
+                string instanceId = $"fdi-{registro.NumeroFdi}";
+                registrosActuales[instanceId] = JsonSerializer.SerializeToNode(
+                    new OdontogramaRegistroPayload
                     {
                         NombrePieza = registro.NombrePieza,
                         Tratamientos =
@@ -2582,14 +2653,13 @@ private static string InferirTipoServicio(string? nombreServicio)
                                 Fecha = registro.FechaRegistro.ToString("O")
                             }
                         ]
-                    };
-                }
-
-                estadoClinico["registros"] = JsonSerializer.SerializeToNode(
-                    registrosActuales,
+                    },
                     new JsonSerializerOptions(JsonSerializerDefaults.Web));
-                estadoPersistido = estadoClinico.ToJsonString();
             }
+
+            estadoClinico["mapeoFDI"] = mapeoFdi;
+            estadoClinico["registros"] = registrosActuales;
+            estadoPersistido = estadoClinico.ToJsonString();
         }
 
         return new OdontogramaViewModel
@@ -2601,7 +2671,7 @@ private static string InferirTipoServicio(string? nombreServicio)
             FechaNacimiento = paciente.FechaNacimiento.ToString("yyyy-MM-dd"),
             ProfesionalNombre = profesionalNombre,
             ProfesionalCorreo = profesionalCorreo,
-            ObservacionesGenerales = historia?.ObservacionesGenerales,
+            ObservacionesGenerales = estadoPersistido,
             EstadoPersistido = estadoPersistido
         };
     }
@@ -2703,10 +2773,16 @@ private static string InferirTipoServicio(string? nombreServicio)
                     (p.Estado.ToLower() == "inactivo" || p.Estado.ToLower() == "retirado"));
             else if (estadoNormalizado == "seguimiento")
                 pacientesQuery = pacientesQuery.Where(p => p.Estado != null && p.Estado.ToLower() == "activo" &&
-                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora && c.Estado != null &&
+                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                        (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                        c.FechaHora <= ahora && c.Estado != null &&
                         estadosAtendidos.Contains(c.Estado.ToLower())) &&
-                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
-                        c.Estado != null && c.Estado.ToLower() != "cancelada" && c.Estado.ToLower() != "cancelado"));
+                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                        (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                        c.FechaHora > ahora &&
+                        c.Estado != null && c.Estado.ToLower() != "cancelada" &&
+                        c.Estado.ToLower() != "cancelado" && c.Estado.ToLower() != "no_asistida" &&
+                        c.Estado.ToLower() != "rechazada"));
             else if (estadoNormalizado is "activo" or "inactivo" or "retirado")
                 pacientesQuery = pacientesQuery.Where(p => p.Estado != null && p.Estado.ToLower() == estadoNormalizado);
         }
@@ -2720,13 +2796,16 @@ private static string InferirTipoServicio(string? nombreServicio)
 
         if (string.Equals(cita, "con", StringComparison.OrdinalIgnoreCase))
             pacientesQuery = pacientesQuery.Where(p => _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
                 c.FechaHora > ahora && c.Estado != "Cancelada" && c.Estado != "cancelada"));
         else if (string.Equals(cita, "sin", StringComparison.OrdinalIgnoreCase))
             pacientesQuery = pacientesQuery.Where(p => !_context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
                 c.FechaHora > ahora && c.Estado != "Cancelada" && c.Estado != "cancelada"));
 
         if (!string.IsNullOrWhiteSpace(servicio))
             pacientesQuery = pacientesQuery.Where(p => _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
                 c.Servicio != null && c.Servicio.Nombre == servicio));
 
         if (!string.IsNullOrWhiteSpace(odontologo))
@@ -2808,6 +2887,11 @@ private static string InferirTipoServicio(string? nombreServicio)
             bool tieneCitaFutura = citasPaciente.Any(c => c.FechaHora > ahora &&
                 !new[] { "cancelada", "no_asistida", "rechazada" }.Contains(EstadoCitaHelper.Normalize(c.Estado)));
             var ultima = citasAtendidas.FirstOrDefault();
+            var proxima = citasPaciente
+                .Where(c => c.FechaHora > ahora &&
+                    !new[] { "cancelada", "no_asistida", "rechazada" }.Contains(EstadoCitaHelper.Normalize(c.Estado)))
+                .OrderBy(c => c.FechaHora)
+                .FirstOrDefault();
             string odontologo = ultima?.Profesional is not null
                 ? $"Dr(a). {ultima.Profesional.Nombres} {ultima.Profesional.Apellidos}"
                 : "Sin asignar";
@@ -2829,6 +2913,11 @@ private static string InferirTipoServicio(string? nombreServicio)
                 enSeguimiento = tieneConsultaAtendida && tieneCitaFutura,
                 alerta = tieneAlerta,
                 alertaTexto = tieneAlerta ? p.Alergias : "",
+                proximaCita = proxima is null ? null : new
+                {
+                    fecha = proxima.FechaHora,
+                    servicio = proxima.Servicio?.Nombre
+                },
                 consultas = citasAtendidas.Take(5).Select(c =>
                 {
                     consultaClinicaPorCita.TryGetValue(c.IdCita, out var consultaClinica);
@@ -2873,8 +2962,10 @@ private static string InferirTipoServicio(string? nombreServicio)
         var odontologos = await _context.Profesionales.AsNoTracking()
             .Select(p => new { p.Nombres, p.Apellidos })
             .ToListAsync();
-        var serviciosDisponibles = await _context.Servicios.AsNoTracking()
-            .Select(s => s.Nombre)
+        var serviciosDisponibles = await _context.Citas.AsNoTracking()
+            .Where(c => (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                c.Servicio != null)
+            .Select(c => c.Servicio!.Nombre)
             .Distinct()
             .OrderBy(nombre => nombre)
             .ToListAsync();
@@ -2893,10 +2984,16 @@ private static string InferirTipoServicio(string? nombreServicio)
             citasHoyQuery = citasHoyQuery.Where(c => c.IdProfesional == idProfesionalFiltro);
 
         int pacientesEnSeguimiento = await universoPacientes.CountAsync(p => p.Estado != null && p.Estado.ToLower() == "activo" &&
-            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora && c.Estado != null &&
+            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                c.FechaHora <= ahora && c.Estado != null &&
                 estadosAtendidos.Contains(c.Estado.ToLower())) &&
-            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
-                c.Estado != null && c.Estado.ToLower() != "cancelada" && c.Estado.ToLower() != "cancelado"));
+            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                c.FechaHora > ahora &&
+                c.Estado != null && c.Estado.ToLower() != "cancelada" &&
+                c.Estado.ToLower() != "cancelado" && c.Estado.ToLower() != "no_asistida" &&
+                c.Estado.ToLower() != "rechazada"));
         var estadisticas = new
         {
             total = await universoPacientes.CountAsync(),

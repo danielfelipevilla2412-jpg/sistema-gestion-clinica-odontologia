@@ -63,6 +63,45 @@ window.SmileTrack.utils = {
   },
 
   /**
+   * Ejecuta una petición fetch con tiempo máximo de espera.
+   * @param {string} url
+   * @param {Object} options
+   * @param {number} timeoutMs
+   * @returns {Promise<Response>}
+   */
+  fetchWithTimeout: async function(url, options = {}, timeoutMs = options.timeoutMs ?? 15000) {
+    const externalSignal = options.signal;
+    const controller = new AbortController();
+    const timeout = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
+      ? Number(timeoutMs)
+      : 15000;
+    const timeoutId = window.setTimeout(() => controller.abort(), timeout);
+    const abortFromCaller = () => controller.abort();
+    const fetchOptions = { ...options, signal: controller.signal };
+    delete fetchOptions.timeoutMs;
+
+    if (externalSignal?.aborted) {
+      abortFromCaller();
+    } else {
+      externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
+    }
+
+    try {
+      return await fetch(url, fetchOptions);
+    } catch (error) {
+      if (controller.signal.aborted && !externalSignal?.aborted) {
+        const timeoutError = new Error(`La solicitud tardó más de ${Math.ceil(timeout / 1000)} segundos.`);
+        timeoutError.name = 'TimeoutError';
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+      externalSignal?.removeEventListener('abort', abortFromCaller);
+    }
+  },
+
+  /**
    * Petición API centralizada con soporte para CSRF (MVC) y JWT (Legacy API)
    * Maneja automáticamente headers, autenticación y parsing de respuesta
    * @param {string} url - URL del endpoint
@@ -72,6 +111,14 @@ window.SmileTrack.utils = {
    */
   apiRequest: async function(url, options = {}) {
     const headers = new Headers(options.headers || {});
+    const externalSignal = options.signal;
+    const controller = new AbortController();
+    const requestedTimeout = Number(options.timeoutMs);
+    const timeoutMs = Number.isFinite(requestedTimeout) && requestedTimeout > 0
+      ? requestedTimeout
+      : 15000;
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    const abortFromCaller = () => controller.abort();
 
     // Headers por defecto
     headers.set('Accept', 'application/json');
@@ -85,6 +132,12 @@ window.SmileTrack.utils = {
       headers.set('X-CSRF-TOKEN', csrfToken);
     }
 
+    if (externalSignal?.aborted) {
+      abortFromCaller();
+    } else {
+      externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
+    }
+
     // JWT Token (Legacy API - si está disponible en sessionStorage)
     try {
       const jwt = sessionStorage.getItem('st_jwt');
@@ -96,11 +149,14 @@ window.SmileTrack.utils = {
     }
 
     try {
-      const response = await fetch(url, {
+      const requestOptions = {
         ...options,
         headers,
-        credentials: 'same-origin'
-      });
+        credentials: 'same-origin',
+        signal: controller.signal
+      };
+      delete requestOptions.timeoutMs;
+      const response = await fetch(url, requestOptions);
 
       let data;
       try {
@@ -120,7 +176,15 @@ window.SmileTrack.utils = {
       return data;
     } catch (error) {
       console.error('[SmileTrack API] Error en', url, ':', error);
+      if (controller.signal.aborted && !externalSignal?.aborted) {
+        const timeoutError = new Error(`La solicitud tardó más de ${Math.ceil(timeoutMs / 1000)} segundos.`);
+        timeoutError.name = 'TimeoutError';
+        throw timeoutError;
+      }
       throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+      externalSignal?.removeEventListener('abort', abortFromCaller);
     }
   },
 

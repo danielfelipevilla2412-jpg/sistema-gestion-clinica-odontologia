@@ -201,7 +201,10 @@ public class FuncionalidadesAvanzadasTests
         var db = CreateInMemoryDb($"db_espera_{Guid.NewGuid()}");
         var citaService = new CitaService(db, NullLogger<CitaService>.Instance);
 
-        var fechaCita = DateTime.Today.AddDays(2).AddHours(14);
+        var fechaCita = DateTime.Today.AddDays(2);
+        if (fechaCita.DayOfWeek == DayOfWeek.Sunday)
+            fechaCita = fechaCita.AddDays(1);
+        fechaCita = fechaCita.AddHours(14);
 
         // Paciente 2 está en lista de espera para la misma fecha/hora y servicio
         db.ListaEsperaCitas.Add(new ListaEsperaCita

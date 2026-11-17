@@ -61,10 +61,11 @@
      * @returns {Promise<Response>}
      */
     const fetchDashboardPdf = () =>
-        fetch(API_ENDPOINTS.exportPdf, {
+        window.SmileTrack.utils.fetchWithTimeout(API_ENDPOINTS.exportPdf, {
             method:      'GET',
             credentials: 'same-origin',
-            headers:     { Accept: 'application/pdf' }
+            headers:     { Accept: 'application/pdf' },
+            timeoutMs:   60000
         });
 
     // ═══════════════════════════════════════════════════════════════════

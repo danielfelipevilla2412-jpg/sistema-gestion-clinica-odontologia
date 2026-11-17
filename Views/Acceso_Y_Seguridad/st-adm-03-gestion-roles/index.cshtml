@@ -1,80 +1,51 @@
-﻿@{
+﻿@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
     ViewData["Title"] = "Gestión de Roles";
+    ViewData["Description"] = "Configura permisos por rol y módulo en SmileTrack.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
 }
-<!DOCTYPE html>
-<html lang="es">
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Configura permisos por rol y módulo en SmileTrack" />
-  <title>SmileTrack — Gestión de Roles</title>
+@section Styles {
+  <link rel="stylesheet" href="~/css/Acceso_Y_Seguridad/st-adm-03-gestion-roles/styles.css" asp-append-version="true" />
+}
 
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-
-  <!-- Styles -->
-  <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/st-adm-03-gestion-roles/styles.css")" />
-
-  <!-- Preload critical assets -->
-  <link rel="preload" href="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" as="image" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-<body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-
-  <!-- ═════ SKIP LINKS PARA ACCESIBILIDAD ═════ -->
-  <div class="skip-links">
-    <a href="#main-content" class="skip-link" data-i18n="nav.skip_link">Saltar al contenido principal</a>
-    <a href="#sidebar" class="skip-link" data-i18n="nav.sidebar_label">Saltar a navegación</a>
-    <a href="#matrixBody" class="skip-link" data-i18n="table.filter">Saltar a matriz de permisos</a>
-  </div>
-
-  <!-- ═════ SIDEBAR UNIFICADO ═════ -->
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
-
-  <!-- ═════ HAMBURGER PARA MÓVIL ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú de navegación" aria-expanded="false"
-    aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ═════ CONTENIDO PRINCIPAL ═════ -->
-  <main class="main" id="main-content" role="main" aria-label="Contenido principal">
+<a href="#matrixBody" class="skip-link" data-i18n="gestionroles_skip_matrix">Saltar a la matriz de permisos</a>
+<main class="main" id="main-content">
 
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
-          <a href="/gestion-de-citas/st-adm-01-dashboard" class="bc-link" data-i18n="nav.group_acceso">Administración</a>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="gestionroles_breadcrumb_aria">
+          <span class="bc-link" data-i18n="common_nav_acceso_seguridad">Acceso y Seguridad</span>
           <span class="bc-sep" aria-hidden="true">→</span>
           <span class="bc-active" aria-current="page" data-i18n="nav.gestion_roles">Gestión de Roles</span>
         </nav>
         <h1 class="page-title" data-i18n="nav.gestion_roles">Gestión de Roles y Permisos</h1>
-        <p class="page-subtitle" data-i18n="common.loading">Configura qué puede hacer cada rol en cada módulo del sistema</p>
+        <p class="page-subtitle" data-i18n="gestionroles_subtitle">Configura qué puede hacer cada rol en cada módulo del sistema</p>
       </div>
       <div class="header-actions">
         <!-- Badge de cambios pendientes -->
         <span id="pendingBadge" class="pending-badge hidden" role="status" aria-live="polite" aria-atomic="true">
-          <span aria-hidden="true">⚠️</span>
+          <span class="material-symbols-outlined" aria-hidden="true">pending_actions</span>
           <span id="pendingCount">0</span>
-          <span class="visually-hidden">cambios pendientes de guardar</span>
+          <span class="visually-hidden" data-i18n="gestionroles_pending_changes">cambios pendientes de guardar</span>
         </span>
 
         <!-- Botones de acción -->
         <div class="action-buttons">
-          <button class="btn-icon" id="btnShortcuts" aria-label="Ver atajos de teclado" data-i18n-aria-label="table.filter"
-            title="Atajos de teclado (Shift+?)" data-i18n-title="table.filter">⌨️</button>
-          <button class="btn-secondary" id="btnExport" aria-label="Exportar configuración" data-i18n-aria-label="table.export" data-i18n="table.export">📤 Exportar</button>
+          <button class="btn-icon" id="btnShortcuts" type="button" aria-label="Ver atajos de teclado"
+            data-i18n-aria-label="gestionroles_shortcuts_aria" title="Atajos de teclado (Shift+?)"
+            data-i18n-title="gestionroles_shortcuts_title">
+            <span class="material-symbols-outlined" aria-hidden="true">keyboard</span>
+          </button>
+          <button class="btn-secondary" id="btnExport" type="button" aria-label="Exportar configuración"
+            data-i18n-aria-label="gestionroles_export_aria">
+            <span class="material-symbols-outlined" aria-hidden="true">download</span>
+            <span data-i18n="table.export">Exportar</span>
+          </button>
           <button class="btn-primary" id="btnSave" disabled aria-label="Guardar configuración de permisos" data-i18n-aria-label="form.save"
-            aria-disabled="true">
-            <span aria-hidden="true">💾</span>
+            aria-disabled="true" type="button">
+            <span class="material-symbols-outlined" aria-hidden="true">save</span>
             <span id="saveBtnText" data-i18n="form.save">Guardar</span>
           </button>
         </div>
@@ -82,9 +53,12 @@
     </header>
 
     <!-- Panel de ayuda contextual (oculto por defecto) -->
-    <div id="helpPanel" class="help-panel hidden" role="complementary" aria-label="Ayuda y atajos">
-      <button class="help-close" id="helpClose" aria-label="Cerrar ayuda" data-i18n-aria-label="common.close">×</button>
-      <h3 class="help-title" data-i18n="table.filter">⌨️ Atajos de teclado</h3>
+    <div id="helpPanel" class="help-panel hidden" role="complementary" aria-label="Ayuda y atajos"
+      data-i18n-aria-label="gestionroles_shortcuts_title">
+      <button class="btn-icon help-close" id="helpClose" type="button" aria-label="Cerrar ayuda" data-i18n-aria-label="common.close">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+      <h3 class="help-title" data-i18n="gestionroles_shortcuts_title">Atajos de teclado</h3>
       <ul class="help-list">
         <li><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> — Navegar matriz</li>
         <li><kbd>Enter</kbd> — Editar permiso seleccionado</li>
@@ -99,19 +73,23 @@
     </div>
 
     <!-- Filtros y Búsqueda -->
-    <section class="filters-section" aria-label="Filtros de matriz">
+    <section class="filters-section" aria-label="Filtros de matriz" data-i18n-aria-label="gestionroles_filters_aria">
       <div class="filters-row">
         <div class="search-wrap">
-          <label for="searchMatrix" class="visually-hidden" data-i18n="table.filter">Buscar módulo o permiso</label>
-          <span class="search-icon" aria-hidden="true">🔍</span>
+          <label for="searchMatrix" class="visually-hidden" data-i18n="gestionroles_search_aria">Buscar módulo o permiso</label>
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
           <input type="search" id="searchMatrix" class="search-input" placeholder="Buscar módulo o permiso..."
-            aria-label="Buscar en matriz de permisos" data-i18n-ph="table.search" data-i18n-aria-label="table.search" autocomplete="off">
-          <button class="search-clear" id="searchClear" aria-label="Limpiar búsqueda" data-i18n-aria-label="form.clear" hidden>×</button>
+            aria-label="Buscar en matriz de permisos" data-i18n-ph="gestionroles_search_ph"
+            data-i18n-aria-label="gestionroles_search_aria" autocomplete="off">
+          <button class="btn-icon search-clear" id="searchClear" type="button" aria-label="Limpiar búsqueda"
+            data-i18n-aria-label="gestionroles_search_clear_aria" hidden>
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
         </div>
-        <div class="filter-wrap">
-          <label for="filterRole" class="filter-label">Rol:</label>
-          <select id="filterRole" class="status-select" aria-label="Filtrar matriz por rol">
-            <option value="">Todos los roles</option>
+        <div class="filter-wrap role-filter">
+          <label for="filterRole" class="filter-label" data-i18n="gestionroles_filter_role_label">Rol:</label>
+          <select id="filterRole" class="status-select" aria-label="Filtrar matriz por rol" data-i18n-aria-label="gestionroles_filter_role_label">
+            <option value="" data-i18n="gestionroles_filter_role_all">Todos los roles</option>
             <option value="admin">Administrador</option>
             <option value="profesional">Profesional</option>
             <option value="auxiliar">Auxiliar</option>
@@ -119,10 +97,10 @@
             <option value="paciente">Paciente</option>
           </select>
         </div>
-        <div class="filter-wrap">
-          <label for="filterModule" class="filter-label">Módulo:</label>
-          <select id="filterModule" class="status-select" aria-label="Filtrar matriz por módulo">
-            <option value="">Todos los módulos</option>
+        <div class="filter-wrap module-filter">
+          <label for="filterModule" class="filter-label" data-i18n="gestionroles_filter_module_label">Módulo:</label>
+          <select id="filterModule" class="status-select" aria-label="Filtrar matriz por módulo" data-i18n-aria-label="gestionroles_filter_module_label">
+            <option value="" data-i18n="gestionroles_filter_module_all">Todos los módulos</option>
             <option value="usuarios">Usuarios</option>
             <option value="pacientes">Pacientes</option>
             <option value="citas">Citas</option>
@@ -132,44 +110,54 @@
             <option value="config">Configuración</option>
           </select>
         </div>
-        <button class="btn-secondary" id="btnResetFilters" aria-label="Resetear todos los filtros">🔄 Resetear</button>
+        <button class="btn-secondary" id="btnResetFilters" type="button" aria-label="Resetear todos los filtros"
+          data-i18n-aria-label="gestionroles_reset_filters_aria">
+          <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+          <span data-i18n="gestionroles_reset_filters">Resetear</span>
+        </button>
       </div>
 
       <!-- Filtros activos -->
-      <div id="activeFilters" class="active-filters hidden" role="list" aria-label="Filtros aplicados">
+      <div id="activeFilters" class="active-filters hidden" role="list" aria-label="Filtros aplicados"
+        data-i18n-aria-label="gestionroles_active_filters_aria">
         <!-- Chips de filtros inyectados por JS -->
       </div>
     </section>
 
     <!-- Matriz de Permisos -->
     <section class="matrix-section" aria-labelledby="matrixTitle">
-      <h2 id="matrixTitle" class="visually-hidden">Matriz de permisos por rol y módulo</h2>
+      <h2 id="matrixTitle" class="visually-hidden" data-i18n="gestionroles_matrix_title">Matriz de permisos por rol y módulo</h2>
 
       <!-- Cabecera de la matriz -->
+      <div class="matrix-scroll" tabindex="0" role="region" aria-label="Contenedor desplazable de la matriz"
+        data-i18n-aria-label="gestionroles_matrix_scroll">
       <div class="matrix-header" role="row">
-        <div class="matrix-col-module" role="columnheader" scope="col">
-          <span>Módulo / Permiso</span>
-          <button class="sort-btn" id="btnSortModules" aria-label="Ordenar módulos" aria-sort="none"
-            title="Ordenar alfabéticamente">↕</button>
+        <div class="matrix-col-module" role="columnheader">
+          <span data-i18n="gestionroles_module_permission">Módulo / Permiso</span>
+          <button class="btn-icon sort-btn" id="btnSortModules" type="button" aria-label="Ordenar módulos"
+            aria-sort="none" title="Ordenar alfabéticamente" data-i18n-aria-label="gestionroles_sort_modules"
+            data-i18n-title="gestionroles_sort_modules">
+            <span class="material-symbols-outlined" aria-hidden="true">swap_vert</span>
+          </button>
         </div>
-        <div class="matrix-col-roles" role="rowgroup">
-          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Administrador">
+        <div class="matrix-col-roles" role="presentation">
+          <div class="matrix-role-header" role="columnheader" aria-label="Administrador">
             <span class="role-badge admin" aria-hidden="true">Admin</span>
             <span class="visually-hidden">Columna: Administrador</span>
           </div>
-          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Profesional">
+          <div class="matrix-role-header" role="columnheader" aria-label="Profesional">
             <span class="role-badge odo" aria-hidden="true">Profesional</span>
             <span class="visually-hidden">Columna: Profesional</span>
           </div>
-          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Auxiliar">
+          <div class="matrix-role-header" role="columnheader" aria-label="Auxiliar">
             <span class="role-badge aux" aria-hidden="true">Auxiliar</span>
             <span class="visually-hidden">Columna: Auxiliar</span>
           </div>
-          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Recepción">
+          <div class="matrix-role-header" role="columnheader" aria-label="Recepción">
             <span class="role-badge rec" aria-hidden="true">Recepción</span>
             <span class="visually-hidden">Columna: Recepción</span>
           </div>
-          <div class="matrix-role-header" role="columnheader" scope="col" aria-label="Paciente">
+          <div class="matrix-role-header" role="columnheader" aria-label="Paciente">
             <span class="role-badge pac" aria-hidden="true">Paciente</span>
             <span class="visually-hidden">Columna: Paciente</span>
           </div>
@@ -177,22 +165,24 @@
       </div>
 
       <!-- Cuerpo de la matriz (renderizado dinámico) -->
-      <div class="matrix-body" id="matrixBody" role="grid" aria-label="Matriz de permisos" tabindex="0">
+      <div class="matrix-body" id="matrixBody" role="grid" aria-label="Matriz de permisos"
+        data-i18n-aria-label="gestionroles_matrix_title" tabindex="0">
         <!-- Filas inyectadas por JS con role="row" -->
       </div>
 
       <!-- Empty state -->
       <div class="empty-state" id="matrixEmpty" hidden role="status" aria-live="polite">
-        <div class="empty-icon" aria-hidden="true">🔍</div>
-        <h3 class="empty-title">No se encontraron permisos</h3>
-        <p class="empty-desc">Intenta ajustar los filtros o limpiar la búsqueda</p>
-        <button class="btn-secondary" id="emptyResetBtn">Resetear filtros</button>
+        <span class="material-symbols-outlined empty-icon" aria-hidden="true">search_off</span>
+        <h3 class="empty-title" data-i18n="gestionroles_empty_title">No se encontraron permisos</h3>
+        <p class="empty-desc" data-i18n="gestionroles_empty_desc">Intenta ajustar los filtros o limpiar la búsqueda</p>
+        <button class="btn-secondary" id="emptyResetBtn" type="button" data-i18n="gestionroles_reset_filters">Resetear filtros</button>
       </div>
 
       <!-- Loading state -->
       <div class="loading-state" id="matrixLoading" hidden aria-live="polite">
         <div class="spinner" aria-hidden="true"></div>
-        <span>Cargando permisos...</span>
+        <span data-i18n="gestionroles_loading">Cargando permisos...</span>
+      </div>
       </div>
     </section>
 
@@ -241,20 +231,23 @@
 
     <!-- Historial de cambios (panel lateral opcional) -->
     <aside class="history-panel" id="historyPanel" aria-label="Historial de cambios" hidden>
-      <h3 class="history-title">📋 Cambios recientes</h3>
+      <h3 class="history-title">
+        <span class="material-symbols-outlined" aria-hidden="true">history</span>
+        <span data-i18n="gestionroles_history_title">Cambios recientes</span>
+      </h3>
       <ul class="history-list" id="historyList" role="list" aria-live="polite">
         <!-- Items inyectados por JS -->
       </ul>
-      <button class="btn-secondary btn-sm" id="btnClearHistory">Limpiar historial</button>
+      <button class="btn-secondary btn-sm" id="btnClearHistory" type="button">Limpiar historial</button>
     </aside>
-
-  </main>
 
   <!-- ═════ MODAL: EDITAR PERMISO ═════ -->
   <div class="modal-overlay" id="modalPerm" role="dialog" aria-modal="true" aria-labelledby="modalPermTitle"
     aria-describedby="modalPermDesc" aria-hidden="true" inert>
     <div class="modal" role="document">
-      <button class="modal-close" id="modalPermClose" aria-label="Cerrar ventana de edición">×</button>
+      <button class="btn-icon modal-close" id="modalPermClose" type="button" aria-label="Cerrar ventana de edición" data-i18n-aria-label="common.close">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
 
       <h3 class="modal-title" id="modalPermTitle">Editar Permiso</h3>
       <p id="modalPermDesc" class="modal-subtitle">
@@ -317,7 +310,10 @@
 
         <div class="modal-footer">
           <button type="button" class="btn-secondary" id="modalPermCancel">Cancelar</button>
-          <button type="submit" class="btn-primary">Aplicar cambio</button>
+          <button type="submit" class="btn-primary">
+            <span class="material-symbols-outlined" aria-hidden="true">check</span>
+            <span>Aplicar cambio</span>
+          </button>
         </div>
       </form>
     </div>
@@ -336,121 +332,23 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" id="modalConfirmCancel">Cancelar</button>
-        <button type="button" class="btn-primary" id="modalConfirmApply">✅ Sí, guardar cambios</button>
+        <button type="button" class="btn-primary" id="modalConfirmApply">
+          <span class="material-symbols-outlined" aria-hidden="true">check</span>
+          <span>Sí, guardar cambios</span>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- ═════ TOAST NOTIFICATIONS ═════ -->
-  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
-    <span id="toastIcon" aria-hidden="true">✅</span>
-    <span id="toastMsg"></span>
-    <button class="toast-close" id="toastClose" aria-label="Cerrar notificación">×</button>
-  </div>
-
   <!-- ═════ ANNOUNCER PARA SCREEN READERS ═════ -->
   <div id="announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+</main>
 
-  <!-- ═════ ESTILOS INLINE PARA ACCESIBILIDAD CRÍTICA ═════ -->
-  <style>
-    /* Skip links - siempre visibles al enfocar */
-    .skip-links {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 9999;
-    }
-
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 12px 20px;
-      z-index: 10000;
-      transition: top 0.2s ease;
-      text-decoration: none;
-      font-weight: 600;
-      border-radius: 0 0 8px 0;
-    }
-
-    .skip-link:focus {
-      top: 0;
-      outline: 3px solid #fff;
-      outline-offset: -3px;
-    }
-
-    /* Visually hidden - accesible solo para screen readers */
-    .visually-hidden:not(:focus):not(:active) {
-      position: absolute !important;
-      width: 1px !important;
-      height: 1px !important;
-      padding: 0 !important;
-      margin: -1px !important;
-      overflow: hidden !important;
-      clip: rect(0, 0, 0, 0) !important;
-      white-space: nowrap !important;
-      border: 0 !important;
-    }
-
-    /* Focus visible - accesibilidad teclado */
-    :focus-visible {
-      outline: 3px solid var(--primary);
-      outline-offset: 2px;
-      box-shadow: 0 0 0 4px var(--input-focus-ring);
-    }
-
-    /* High contrast support */
-    @@media (prefers-contrast: high) {
-      :focus-visible {
-        outline-width: 4px;
-      }
-
-      .perm-cell {
-        border-width: 3px;
-      }
-
-      .btn-primary,
-      .btn-secondary {
-        border-width: 2px;
-      }
-    }
-
-    /* Reduced motion support */
-    @@media (prefers-reduced-motion: reduce) {
-
-      *,
-      *::before,
-      *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
-      }
-    }
-  </style>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span style="font-size:1rem;">🦷</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-<script>
-  window.RAZOR_ROLES = @Html.Raw(ViewData["RolesJson"] ?? "[]");
-</script>
-<script src="@Url.Content("~/js/Acceso_Y_Seguridad/st-adm-03-gestion-roles/script.js")" defer></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-</body>
-
-</html>
+@section Scripts {
+  <script>
+    window.RAZOR_ROLES = @Html.Raw(ViewData["RolesJson"] ?? "[]");
+  </script>
+  <script src="~/js/Acceso_Y_Seguridad/st-adm-03-gestion-roles/script.js" asp-append-version="true" defer></script>
+}
 
 

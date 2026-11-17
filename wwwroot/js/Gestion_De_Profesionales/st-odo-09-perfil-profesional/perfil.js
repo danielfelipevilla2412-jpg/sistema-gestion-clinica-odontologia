@@ -318,9 +318,9 @@ const submitPasswordChangeApi = async (event) => {
       })
     });
 
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload.success === false) {
-      throw new Error(payload.message || 'No fue posible cambiar la contraseña.');
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.success !== true) {
+      throw new Error(payload?.message || 'No fue posible confirmar el cambio de contraseña.');
     }
 
     window.ToastService?.success(payload.message || 'Contraseña actualizada. Inicia sesión nuevamente.');
@@ -441,9 +441,9 @@ const saveScheduleChangesApi = async () => {
       body: JSON.stringify(fullUpdatedSchedule)
     });
 
-    if (!response.ok) {
-      const errorJson = await response.json().catch(() => ({}));
-      const errorMessage = errorJson.message || `Error ${response.status}`;
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.success !== true) {
+      const errorMessage = result?.message || `Error ${response.status}`;
       window.ToastService?.error('❌ Error al guardar el horario', errorMessage);
       return;
     }

@@ -1,25 +1,12 @@
-@{ Layout = null; }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Carga de Documentos Clínicos";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Carga de Documentos Clínicos</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-aux-08-documentos-clinicos/documentos-cli.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-
-  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
+@section Styles {
+  <link rel="stylesheet" href="~/css/Historia_Clinica/st-aux-08-documentos-clinicos/documentos-cli.css" asp-append-version="true" />
+}
 
   @Html.AntiForgeryToken()
   @* Yeray (2025) - Fallo 2: la vista no tenía el campo oculto con el pacienteId,
@@ -28,26 +15,15 @@
      exponerlo en el HTML para que documentos-cli.js lo pueda leer. *@
   <input type="hidden" id="pacienteIdInput" value="@(ViewData["PacienteId"]?.ToString() ?? "")" />
 
-  @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
-
-  <!-- ═════ HAMBURGER (móvil) ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay"></div>
-
-  <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
 
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb">
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
           <span data-i18n="common_role_auxiliar">Auxiliar</span>
-          <span class="bc-sep">→</span>
-          <span class="bc-active" data-i18n="historia.attachments">Carga de documentos</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" aria-current="page" data-i18n="historia.attachments">Carga de documentos</span>
         </nav>
         <h1 class="page-title" data-i18n="historia.attachments">Carga de Documentos Clínicos</h1>
         <p class="page-subtitle">@ViewData["PacienteNombre"] · @ViewData["PacienteCodigoHC"]</p>
@@ -185,31 +161,8 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span style="font-size:1rem;">🦷</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-  <script src="@Url.Content("~/js/Historia_Clinica/st-aux-08-documentos-clinicos/documentos-cli.js")"></script>
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-
-  <style>
-    .skip-link { position:absolute;top:-40px;left:0;background:var(--primary);color:#fff;padding:8px 16px;z-index:1000;transition:top .15s; }
-    .skip-link:focus { top:0; }
-    .visually-hidden { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
-  </style>
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-
-</html>
+@section Scripts {
+  <script src="~/js/Historia_Clinica/st-aux-08-documentos-clinicos/documentos-cli.js" asp-append-version="true"></script>
+}
 
 

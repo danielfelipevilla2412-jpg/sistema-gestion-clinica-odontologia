@@ -1,575 +1,565 @@
-/**
- * SMILETRACK — CATÁLOGO DE SERVICIOS (script.js)
- * Conectado a SQL Server vía API REST (ServiciosRecursosController)
- * Accesibilidad + Filtros funcionales + Drawer accesible
- */
+(() => {
+  'use strict';
 
-// ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
-// ═══════════════════════════════════════════════════════════════════
+  const translate = (key, vars) => window.I18N?.t(key, vars) || key;
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[character]));
 
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  return el;
-};
-
-const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
-};
-
-const showToast = (message, type = 'success') => {
-  const toast = safeGetElement('toast');
-  if (!toast) return;
-  toast.textContent = message;
-  toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  FUENTE DE DATOS: SQL Server (renderizado por el servidor) + API REST
-//  para las acciones de escritura (crear/editar/activar/desactivar/eliminar).
-//  Ya no se usa localStorage como fuente de verdad de los servicios.
-// ═══════════════════════════════════════════════════════════════════
-
-const servicesStorage = {
-  // Los datos vienen siempre del servidor (ServiciosRecursosController ->
-  // AppDbContext.Servicios), serializados en ViewData["ServiciosJson"].
-  load: () => Array.isArray(window.RAZOR_SERVICIOS) ? window.RAZOR_SERVICIOS : [],
-
-  getService: (id) => servicesStorage.load().find(s => s.id === id),
-
-  // Actualiza solo el estado en memoria para reflejar de inmediato el
-  // resultado de una llamada a la API; la próxima recarga de página
-  // siempre traerá el estado real desde SQL Server.
-  updateLocalCache: (id, updates) => {
-    const idx = services.findIndex(s => s.id === id);
-    if (idx !== -1) {
-      services[idx] = { ...services[idx], ...updates };
-      return true;
-    }
-    return false;
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  DATOS Y ESTADO
-// ═══════════════════════════════════════════════════════════════════
-
-let services = servicesStorage.load();
-let searchQuery = '';
-let filterCategory = '';
-let filterStatus = '';
-let currentPage = 1;
-let editingServiceId = null;
-const itemsPerPage = 4;
-
-// ═══════════════════════════════════════════════════════════════════
-// CARGA DE ESPECIALIDADES DESDE SQL SERVER
-// ═══════════════════════════════════════════════════════════════════
-
-const loadSpecialties = () => {
-    const select = safeGetElement('serviceSpecialty');
-    if (!select) return;
-
-    const especialidades = Array.isArray(window.RAZOR_ESPECIALIDADES)
-        ? window.RAZOR_ESPECIALIDADES
-        : [];
-
-    // Limpiar las opciones anteriores.
-    select.replaceChildren();
-
-    // Opción para servicios sin especialidad específica.
-    const defaultOption = document.createElement('option');
-    defaultOption.value = '';
-    defaultOption.textContent = 'Odontología General / Cualquier profesional';
-
-    select.appendChild(defaultOption);
-
-    // Agregar las especialidades provenientes de SQL Server.
-    especialidades.forEach(especialidad => {
-        const option = document.createElement('option');
-
-        option.value = especialidad.id;
-        option.textContent = especialidad.nombre;
-
-        select.appendChild(option);
-    });
-
-    if (especialidades.length === 0) {
-        console.warn('[SmileTrack] No se recibieron especialidades desde el servidor.');
-    }
-
-    console.log(
-        `[SmileTrack] Especialidades cargadas: ${especialidades.length}`,
-        especialidades
-    );
-};
-
-const categoryLabels = {
-  prevencion: { label: 'Prevención', class: 'prevencion' },
-  estetica: { label: 'Estética', class: 'estetica' },
-  cirugia: { label: 'Cirugía', class: 'cirugia' },
-  ortodoncia: { label: 'Ortodoncia', class: 'ortodoncia' },
-  endodoncia: { label: 'Endodoncia', class: 'endodoncia' },
-  general: { label: 'General', class: 'general' }
-};
-
-const statusLabels = {
-  true: { label: 'Activo', class: 'activo' },
-  false: { label: 'Inactivo', class: 'inactivo' }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES
-// ═══════════════════════════════════════════════════════════════════
-
-const fmtCost = (cost) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 }).format(Number(cost) || 0);
-
-// ═══════════════════════════════════════════════════════════════════
-//  FILTRADO COMBINADO
-// ═══════════════════════════════════════════════════════════════════
-
-const getFilteredServices = () => {
-  return services.filter(s => {
-    // Filtro por búsqueda
-    if (searchQuery && !s.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-
-    // Filtro por categoría
-    if (filterCategory && s.category !== filterCategory) return false;
-
-    // Filtro por estado
-    if (filterStatus && String(s.active) !== filterStatus) return false;
-
-    return true;
-  });
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  RENDER: TABLA DE SERVICIOS
-// ═══════════════════════════════════════════════════════════════════
-
-const renderServices = () => {
-  const body = safeGetElement('servicesBody');
-  if (!body) return;
-
-  const filtered = getFilteredServices();
-
-  if (!filtered.length) {
-    body.innerHTML = '<div class="empty-state" role="status">No se encontraron servicios con los criterios de búsqueda.</div>';
-    return;
-  }
-
-  // Paginación
-  const start = (currentPage - 1) * itemsPerPage;
-  const pageData = filtered.slice(start, start + itemsPerPage);
-
-  body.innerHTML = pageData.map(s => {
-    const category = categoryLabels[s.category] || categoryLabels.general;
-    const status = statusLabels[String(s.active)];
-
-    return `
-      <div class="table-row" role="row" tabindex="0" aria-label="Servicio ${s.name}">
-        <div class="table-col col-nombre" role="cell" data-label="Nombre del Servicio">
-          <div class="service-info">
-            <span class="service-icon" aria-hidden="true">${s.icon}</span>
-            <span class="service-name">${s.name}</span>
-          </div>
-        </div>
-        <div class="table-col col-categoria" role="cell" data-label="Categoría">
-          <span class="category-badge ${category.class}" role="status" aria-label="Categoría: ${category.label}">${category.label}</span>
-          <small class="service-specialty">${s.specialtyName || 'Sin especialidad configurada'}</small>
-        </div>
-        <div class="table-col col-duracion" role="cell" data-label="Duración">${s.duration} min</div>
-        <div class="table-col col-costo" role="cell" data-label="Costo">${fmtCost(s.cost)}</div>
-        <div class="table-col col-estado text-center" role="cell" data-label="Estado">
-          <span class="status-badge ${status.class}" role="status" aria-label="Estado: ${status.label}">${status.label}</span>
-        </div>
-        <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
-          <div class="actions-cell">
-            <button class="action-btn btn-edit" aria-label="Editar servicio ${s.name}" data-id="${s.id}" title="Editar">✏️</button>
-            <button class="action-btn btn-toggle ${s.active ? '' : 'btn-delete'}" 
-                    aria-label="${s.active ? 'Desactivar' : 'Activar'} servicio ${s.name}" 
-                    data-id="${s.id}" 
-                    title="${s.active ? 'Bloquear' : 'Activar'}">
-              ${s.active ? '🔓' : '🔒'}
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  // Event listeners para acciones
-  body.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', (e) => openDrawer(parseInt(e.currentTarget.dataset.id)));
-    btn.addEventListener('keydown', (e) => { if (['Enter',' '].includes(e.key)) { e.preventDefault(); openDrawer(parseInt(e.currentTarget.dataset.id)); }});
-  });
-  body.querySelectorAll('.btn-toggle').forEach(btn => {
-    btn.addEventListener('click', (e) => toggleServiceStatus(parseInt(e.currentTarget.dataset.id)));
-    btn.addEventListener('keydown', (e) => { if (['Enter',' '].includes(e.key)) { e.preventDefault(); toggleServiceStatus(parseInt(e.currentTarget.dataset.id)); }});
-  });
-
-  updatePagination(filtered.length);
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  DRAWER: EDITAR SERVICIO
-// ═══════════════════════════════════════════════════════════════════
-
-const openDrawer = (id = null) => {
-  const drawer = safeGetElement('drawerOverlay');
-  const form = safeGetElement('serviceForm');
-  const title = safeGetElement('drawerTitle');
-  const toggle = safeGetElement('serviceActiveToggle');
-
-  if (!drawer || !form || !title) return;
-
-  editingServiceId = id;
-
-  if (id) {
-    // Modo edición
-    const service = servicesStorage.getService(id);
-    if (!service) return;
-
-    title.textContent = 'Editar Servicio';
-    safeGetElement('serviceName').value = service.name;
-    safeGetElement('serviceDescription').value = service.description || '';
-    safeGetElement('serviceCategory').value = service.category;
-    safeGetElement('serviceSpecialty').value = service.specialtyId || '';
-    safeGetElement('serviceCost').value = service.cost;
-    safeGetElement('serviceDuration').value = service.duration;
-
-    // Toggle switch
-    toggle.setAttribute('aria-checked', service.active);
-    toggle.classList.toggle('active', service.active);
-  } else {
-    // Modo nuevo
-    title.textContent = 'Nuevo Servicio';
-    form.reset();
-    safeGetElement('serviceSpecialty').value = '';
-    safeGetElement('serviceDuration').value = 60;
-    toggle.setAttribute('aria-checked', 'true');
-    toggle.classList.add('active');
-  }
-
-  // Mostrar drawer
-  drawer.classList.add('open');
-  drawer.setAttribute('aria-hidden', 'false');
-  drawer.removeAttribute('inert');
-  document.body.style.overflow = 'hidden';
-
-  // Enfocar primer input
-  const firstInput = form.querySelector('input, textarea, select');
-  if (firstInput) firstInput.focus();
-};
-
-const closeDrawer = () => {
-  const drawer = safeGetElement('drawerOverlay');
-  if (drawer) {
-    drawer.classList.remove('open');
-    drawer.setAttribute('aria-hidden', 'true');
-    drawer.setAttribute('inert', '');
-    document.body.style.overflow = '';
-  }
-  editingServiceId = null;
-};
-
-// Toggle switch accesible
-const initToggleSwitch = () => {
-  const toggle = safeGetElement('serviceActiveToggle');
-  toggle?.addEventListener('click', () => {
-    const isActive = toggle.getAttribute('aria-checked') === 'true';
-    toggle.setAttribute('aria-checked', !isActive);
-    toggle.classList.toggle('active', !isActive);
-  });
-  toggle?.addEventListener('keydown', (e) => {
-    if (['Enter',' '].includes(e.key)) {
-      e.preventDefault();
-      toggle.click();
-    }
-  });
-};
-
-// Guardar servicio (nuevo o editar) — persiste en SQL Server vía API real.
-const saveService = async (e) => {
-  e.preventDefault();
-
-  const service = {
-    name: safeGetElement('serviceName')?.value?.trim(),
-    description: safeGetElement('serviceDescription')?.value?.trim(),
-    category: safeGetElement('serviceCategory')?.value,
-    specialtyId: safeGetElement('serviceSpecialty')?.value || null,
-    specialtyName: safeGetElement('serviceSpecialty')?.selectedOptions?.[0]?.textContent || null,
-    cost: parseFloat(safeGetElement('serviceCost')?.value) || 0,
-    duration: parseInt(safeGetElement('serviceDuration')?.value) || 0,
-    active: safeGetElement('serviceActiveToggle')?.getAttribute('aria-checked') === 'true'
-  };
-
-  if (!service.name || !service.category || !service.specialtyId) {
-    showToast('⚠️ Nombre, categoría y especialidad son obligatorios', 'warning');
-    return;
-  }
-  if (!Number.isFinite(service.cost) || service.cost <= 0) {
-    showToast('⚠️ El precio debe ser mayor que $0 COP', 'warning');
-    return;
-  }
-  if (!Number.isInteger(service.duration) || service.duration < 5 || service.duration > 480) {
-    showToast('⚠️ La duración debe estar entre 5 y 480 minutos', 'warning');
-    return;
-  }
-
-  const payload = {
-    nombre: service.name,
-    descripcion: service.description,
-    precio: service.cost,
-    category: service.category,
-    idEspecialidad: service.specialtyId ? Number(service.specialtyId) : null,
-    duration: service.duration
-  };
-
-  try {
-    if (editingServiceId) {
-      // Actualizar existente
-      const result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${editingServiceId}`, {
-        method: 'PUT',
-        body: payload
-      });
-
-      if (!result || result.success !== true) {
-        showToast(result?.message || 'No fue posible actualizar el servicio.', 'error');
-        return;
-      }
-
-      servicesStorage.updateLocalCache(editingServiceId, service);
-      renderServices();
-      updateStats();
-      closeDrawer();
-      showToast(`✅ Servicio "${service.name}" actualizado`);
-    } else {
-      // Crear nuevo
-      const result = await window.apiRequest('/servicios-y-recursos/api/servicios', {
-        method: 'POST',
-        body: payload
-      });
-
-      if (!result || result.success !== true) {
-        showToast(result?.message || 'No fue posible crear el servicio.', 'error');
-        return;
-      }
-
-      const selectedSpecialty = safeGetElement('serviceSpecialty')?.selectedOptions?.[0];
-      services.unshift({
-        ...service,
-        specialtyName: service.specialtyId ? selectedSpecialty?.textContent : null,
-        id: result.data.id,
-        icon: '🦷'
-      });
-      renderServices();
-      updateStats();
-      closeDrawer();
-      showToast(`✅ Servicio "${service.name}" creado`);
-    }
-  } catch (error) {
-    console.error('Error guardando servicio:', error);
-    showToast('Error de conexión al guardar el servicio.', 'error');
-  }
-};
-
-// Alternar estado de servicio (activo/inactivo) — persiste en SQL Server.
-const toggleServiceStatus = async (id) => {
-  const service = servicesStorage.getService(id);
-  if (!service) return;
-
-  const nuevoEstado = service.active ? 'inactivo' : 'activo';
-
-  try {
-    const result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${id}/estado`, {
-      method: 'PUT',
-      body: { estado: nuevoEstado }
-    });
-
-    if (!result || result.success !== true) {
-      showToast(result?.message || 'No fue posible cambiar el estado del servicio.', 'error');
+  const showToast = (message, type = 'success') => {
+    const toast = window.ToastService?.[type];
+    if (typeof toast !== 'function') {
+      console.error('[SmileTrack][Servicios] El servicio compartido de notificaciones no está disponible.');
       return;
     }
 
-    servicesStorage.updateLocalCache(id, { active: nuevoEstado === 'activo' });
-    renderServices();
-    updateStats();
-    showToast(`🔄 Servicio "${service.name}" ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'}`);
-  } catch (error) {
-    console.error('Error cambiando estado del servicio:', error);
-    showToast('Error de conexión al cambiar el estado.', 'error');
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  PAGINACIÓN Y CONTADORES
-// ═══════════════════════════════════════════════════════════════════
-
-const updatePagination = (totalItems) => {
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const showing = Math.min(itemsPerPage, totalItems - (currentPage - 1) * itemsPerPage);
-
-  const pageShowing = safeGetElement('pageShowing');
-  const pageTotal = safeGetElement('pageTotal');
-  const btnPrev = safeGetElement('btnPrev');
-  const btnNext = safeGetElement('btnNext');
-
-  if (pageShowing) pageShowing.textContent = showing;
-  if (pageTotal) pageTotal.textContent = totalItems;
-  if (btnPrev) btnPrev.disabled = currentPage === 1;
-  if (btnNext) btnNext.disabled = currentPage >= totalPages;
-};
-
-const animateCounter = (el, target) => {
-  if (!el) return;
-  let current = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const timer = setInterval(() => {
-    current = Math.min(current + step, target);
-    el.textContent = current;
-    if (current >= target) clearInterval(timer);
-  }, 30);
-};
-
-const updateStats = () => {
-  const total = services.length;
-  const active = services.filter(s => s.active).length;
-  const inactive = total - active;
-
-  animateCounter(safeGetElement('statTotal'), total);
-  animateCounter(safeGetElement('statActive'), active);
-  animateCounter(safeGetElement('statInactive'), inactive);
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN DE COMPONENTES
-// ═══════════════════════════════════════════════════════════════════
-
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  if (!hamburger || !sidebar || !overlay) return;
-
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
-    if (show) { const firstLink = sidebar.querySelector('.nav-item'); if (firstLink) firstLink.focus(); }
-    else { hamburger.focus(); }
+    const titleKey = type === 'error'
+      ? 'servicios.toast_error'
+      : type === 'warning' ? 'servicios.toast_warning'
+        : type === 'success' ? 'servicios.toast_success' : 'servicios.toast_info';
+    toast(translate(titleKey), escapeHtml(message));
   };
 
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-  sidebar.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => { if (window.innerWidth <= 680) toggleMenu(false); });
-  });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sidebar.classList.contains('open')) { e.preventDefault(); toggleMenu(false); }});
-};
+  const debounce = (fn, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => fn(...args), delay);
+    };
+  };
 
-const initSearch = () => {
-  const searchInput = safeGetElement('searchServices');
-  searchInput?.addEventListener('input', debounce((e) => {
-    searchQuery = e.target.value.toLowerCase();
-    currentPage = 1;
-    renderServices();
-  }, 250));
-};
+  const categoryKeys = {
+    prevencion: 'servicios.category_prevencion',
+    estetica: 'servicios.category_estetica',
+    cirugia: 'servicios.category_cirugia',
+    ortodoncia: 'servicios.category_ortodoncia',
+    endodoncia: 'servicios.category_endodoncia',
+    periodoncia: 'servicios.category_periodoncia',
+    general: 'servicios.category_general'
+  };
 
-const initFilters = () => {
-  const filterCategoryEl = safeGetElement('filterCategory');
-  const filterStatusEl = safeGetElement('filterStatus');
+  const normalizeCategory = (category) => {
+    const key = String(category || '')
+      .trim()
+      .toLocaleLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[\s-]+/g, '_');
+    const aliases = {
+      preventiva: 'prevencion',
+      odontologia_general: 'general'
+    };
+    const normalized = aliases[key] || key;
+    return Object.prototype.hasOwnProperty.call(categoryKeys, normalized) ? normalized : null;
+  };
 
-  filterCategoryEl?.addEventListener('change', (e) => {
-    filterCategory = e.target.value;
-    currentPage = 1;
-    renderServices();
-  });
+  const getCategory = (category) => {
+    const key = normalizeCategory(category);
+    return {
+      label: key ? translate(categoryKeys[key]) : String(category || translate('common.not_available')),
+      className: key || 'other'
+    };
+  };
 
-  filterStatusEl?.addEventListener('change', (e) => {
-    filterStatus = e.target.value;
-    currentPage = 1;
-    renderServices();
-  });
-};
+  const getStatus = (active) => active
+    ? { label: translate('servicios.active'), className: 'activo' }
+    : { label: translate('status.inactive'), className: 'inactivo' };
 
-const initPagination = () => {
-  const btnPrev = safeGetElement('btnPrev');
-  const btnNext = safeGetElement('btnNext');
+  const formatPrice = (value) => {
+    const locale = window.I18N?.lang === 'en' ? 'en-US' : 'es-CO';
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: 'COP',
+      maximumFractionDigits: 0
+    }).format(Number(value) || 0);
+  };
 
-  btnPrev?.addEventListener('click', () => {
-    if (currentPage > 1) { currentPage--; renderServices(); }
-  });
+  let services = Array.isArray(window.RAZOR_SERVICIOS) ? [...window.RAZOR_SERVICIOS] : [];
+  let searchQuery = '';
+  let filterCategory = '';
+  let filterStatus = '';
+  let currentPage = 1;
+  let editingServiceId = null;
+  let drawerFocusTarget = null;
+  let bodyOverflowBeforeDrawer = '';
+  const itemsPerPage = 10;
+  const counterTimers = new WeakMap();
 
-  btnNext?.addEventListener('click', () => {
+  const servicesStorage = {
+    getService: (id) => services.find(service => Number(service.id) === Number(id)),
+
+    updateLocalCache: (id, updates) => {
+      const index = services.findIndex(service => Number(service.id) === Number(id));
+      if (index < 0) return false;
+      services[index] = { ...services[index], ...updates };
+      return true;
+    }
+  };
+
+  const loadSpecialties = () => {
+    const select = document.getElementById('serviceSpecialty');
+    if (!select) return;
+
+    const previousValue = select.value;
+    const specialties = Array.isArray(window.RAZOR_ESPECIALIDADES)
+      ? window.RAZOR_ESPECIALIDADES
+      : [];
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = translate('servicios.select_specialty');
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    select.replaceChildren(placeholder);
+
+    specialties.forEach(specialty => {
+      const option = document.createElement('option');
+      option.value = String(specialty.id);
+      option.textContent = specialty.nombre;
+      select.appendChild(option);
+    });
+
+    if (specialties.some(specialty => String(specialty.id) === previousValue)) {
+      select.value = previousValue;
+    }
+    select.disabled = specialties.length === 0;
+    const hint = document.getElementById('serviceSpecialtyHint');
+    if (hint) {
+      hint.textContent = translate(specialties.length
+        ? 'servicios.specialty_required_hint'
+        : 'servicios.no_specialties');
+    }
+    const saveButton = document.getElementById('serviceSaveButton');
+    if (saveButton && !document.getElementById('drawerOverlay')?.classList.contains('open')) {
+      saveButton.disabled = specialties.length === 0;
+    }
+  };
+
+  const getFilteredServices = () => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    return services.filter(service => {
+      const name = String(service.name || '').toLocaleLowerCase();
+      const description = String(service.description || '').toLocaleLowerCase();
+      if (query && !name.includes(query) && !description.includes(query)) return false;
+      if (filterCategory && normalizeCategory(service.category) !== filterCategory) return false;
+      if (filterStatus && String(Boolean(service.active)) !== filterStatus) return false;
+      return true;
+    });
+  };
+
+  const updatePagination = (totalItems) => {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    currentPage = totalPages ? Math.min(Math.max(currentPage, 1), totalPages) : 1;
+
+    const start = (currentPage - 1) * itemsPerPage;
+    const showing = totalItems ? Math.min(itemsPerPage, totalItems - start) : 0;
+    const pageShowing = document.getElementById('pageShowing');
+    const pageTotal = document.getElementById('pageTotal');
+    const pagination = document.getElementById('servicePagination');
+    if (pageShowing) pageShowing.textContent = String(showing);
+    if (pageTotal) pageTotal.textContent = String(totalItems);
+    if (!pagination) return;
+
+    const pages = Array.from({ length: totalPages }, (_, index) => {
+      const page = index + 1;
+      const current = page === currentPage;
+      return `<button type="button" class="pagination-btn${current ? ' active' : ''}" data-page="${page}"${current ? ' aria-current="page"' : ''} aria-label="${escapeHtml(translate('servicios.page_number', { page }))}">${page}</button>`;
+    }).join('');
+
+    pagination.innerHTML = `
+      <button type="button" class="pagination-btn" data-page="${Math.max(1, currentPage - 1)}" aria-label="${escapeHtml(translate('servicios.previous_page'))}"${currentPage <= 1 ? ' disabled' : ''}>
+        <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+      </button>
+      ${pages}
+      <button type="button" class="pagination-btn" data-page="${Math.min(totalPages || 1, currentPage + 1)}" aria-label="${escapeHtml(translate('servicios.next_page'))}"${!totalPages || currentPage >= totalPages ? ' disabled' : ''}>
+        <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+      </button>
+    `;
+  };
+
+  const renderServices = () => {
+    const body = document.getElementById('servicesBody');
+    if (!body) return;
+
     const filtered = getFilteredServices();
     const totalPages = Math.ceil(filtered.length / itemsPerPage);
-    if (currentPage < totalPages) { currentPage++; renderServices(); }
-  });
-};
+    currentPage = totalPages ? Math.min(Math.max(currentPage, 1), totalPages) : 1;
+    const start = (currentPage - 1) * itemsPerPage;
+    const pageData = filtered.slice(start, start + itemsPerPage);
 
-const initDrawer = () => {
-  const drawer = safeGetElement('drawerOverlay');
-  const drawerClose = safeGetElement('drawerClose');
-  const drawerCancel = safeGetElement('drawerCancel');
-  const serviceForm = safeGetElement('serviceForm');
-
-  // Cerrar drawer
-  drawerClose?.addEventListener('click', closeDrawer);
-  drawerCancel?.addEventListener('click', closeDrawer);
-  drawer?.addEventListener('click', (e) => { if (e.target === drawer) closeDrawer(); });
-
-  // Submit del formulario
-  serviceForm?.addEventListener('submit', saveService);
-
-  // Escape cierra drawer
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && drawer?.classList.contains('open')) {
-      e.preventDefault();
-      closeDrawer();
+    if (!pageData.length) {
+      body.innerHTML = `
+        <div class="services-empty-state empty-state" role="status">
+          <span class="material-symbols-outlined empty-state-icon" aria-hidden="true">medical_services</span>
+          <h3>${escapeHtml(translate('servicios.empty_title'))}</h3>
+          <p>${escapeHtml(translate(filtered.length || searchQuery || filterCategory || filterStatus
+            ? 'servicios.empty_filtered'
+            : 'servicios.no_services'))}</p>
+        </div>
+      `;
+      updatePagination(filtered.length);
+      return;
     }
-  });
 
-  // Toggle switch
-  initToggleSwitch();
-};
+    body.innerHTML = pageData.map(service => {
+      const name = String(service.name || '');
+      const category = getCategory(service.category);
+      const status = getStatus(Boolean(service.active));
+      const specialty = service.specialtyName || translate('servicios.specialty_not_configured');
+      const editLabel = translate('servicios.edit_action', { name });
+      const toggleKey = service.active ? 'servicios.deactivate_action' : 'servicios.activate_action';
+      const toggleLabel = translate(toggleKey, { name });
 
-const initNewService = () => {
-  const btn = safeGetElement('btnNewService');
-  btn?.addEventListener('click', () => openDrawer(null));
-};
+      return `
+        <div class="table-row" role="row" tabindex="0" data-id="${escapeHtml(service.id)}" aria-label="${escapeHtml(translate('servicios.service_aria', { name }))}">
+          <div class="table-col col-nombre" role="cell" data-label="${escapeHtml(translate('servicios.column_name'))}">
+            <div class="service-info">
+              <span class="material-symbols-outlined service-icon" aria-hidden="true">medical_services</span>
+              <span class="service-name">${escapeHtml(name)}</span>
+            </div>
+          </div>
+          <div class="table-col col-categoria" role="cell" data-label="${escapeHtml(translate('servicios.category'))}">
+            <div>
+              <span class="category-badge ${category.className}">${escapeHtml(category.label)}</span>
+              <small class="service-specialty">${escapeHtml(specialty)}</small>
+            </div>
+          </div>
+          <div class="table-col col-duracion" role="cell" data-label="${escapeHtml(translate('servicios.duration'))}">${escapeHtml(service.duration)} ${escapeHtml(translate('servicios.minutes_short'))}</div>
+          <div class="table-col col-costo" role="cell" data-label="${escapeHtml(translate('servicios.price'))}">${escapeHtml(formatPrice(service.cost))}</div>
+          <div class="table-col col-estado text-center" role="cell" data-label="${escapeHtml(translate('facturacion.status'))}">
+            <span class="status-badge ${status.className}" role="status" aria-label="${escapeHtml(translate('servicios.status_aria', { status: status.label }))}">${escapeHtml(status.label)}</span>
+          </div>
+          <div class="table-col col-acciones text-right" role="cell" data-label="${escapeHtml(translate('table.actions'))}">
+            <div class="actions-cell">
+              <button type="button" class="action-btn btn-edit" data-action="edit" data-id="${escapeHtml(service.id)}" aria-label="${escapeHtml(editLabel)}" title="${escapeHtml(translate('servicios.edit'))}">
+                <span class="material-symbols-outlined" aria-hidden="true">edit</span><span class="btn-text">${escapeHtml(translate('common.edit'))}</span>
+              </button>
+              <button type="button" class="action-btn btn-service-toggle${service.active ? '' : ' is-inactive'}" data-action="toggle" data-id="${escapeHtml(service.id)}" aria-label="${escapeHtml(toggleLabel)}" title="${escapeHtml(toggleLabel)}">
+                <span class="material-symbols-outlined" aria-hidden="true">${service.active ? 'pause_circle' : 'play_circle'}</span><span class="btn-text">${escapeHtml(translate(service.active ? 'servicios.deactivate' : 'servicios.activate'))}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
 
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN PRINCIPAL
-// ═══════════════════════════════════════════════════════════════════
+    updatePagination(filtered.length);
+  };
 
-const init = async () => {
-    initSidebar();
-    initSearch();
+  const animateCounter = (element, target) => {
+    if (!element) return;
+    clearInterval(counterTimers.get(element));
+    let current = 0;
+    const step = Math.max(1, Math.ceil(target / 30));
+    const timer = setInterval(() => {
+      current = Math.min(current + step, target);
+      element.textContent = String(current);
+      if (current >= target) {
+        clearInterval(timer);
+        counterTimers.delete(element);
+      }
+    }, 30);
+    counterTimers.set(element, timer);
+  };
+
+  const updateStats = () => {
+    const active = services.filter(service => Boolean(service.active)).length;
+    animateCounter(document.getElementById('statTotal'), services.length);
+    animateCounter(document.getElementById('statActive'), active);
+    animateCounter(document.getElementById('statInactive'), services.length - active);
+  };
+
+  const setDrawerStatus = (active) => {
+    const status = document.getElementById('serviceDrawerStatus');
+    if (!status) return;
+    const currentStatus = getStatus(Boolean(active));
+    status.className = `status-badge ${currentStatus.className}`;
+    status.textContent = currentStatus.label;
+  };
+
+  const openDrawer = (id = null) => {
+    const drawer = document.getElementById('drawerOverlay');
+    const form = document.getElementById('serviceForm');
+    const title = document.getElementById('drawerTitle');
+    const saveButton = document.getElementById('serviceSaveButton');
+    if (!drawer || !form || !title || !saveButton) return;
+
+    const service = id === null ? null : servicesStorage.getService(id);
+    if (id !== null && !service) return;
+
+    if (!drawer.classList.contains('open')) {
+      drawerFocusTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      bodyOverflowBeforeDrawer = document.body.style.overflow;
+    }
+
+    editingServiceId = service ? Number(service.id) : null;
+    form.reset();
+    title.textContent = translate(service ? 'servicios.edit' : 'servicios.new');
+    saveButton.textContent = translate(service ? 'servicios.save_changes' : 'servicios.create');
+
+    if (service) {
+      document.getElementById('serviceName').value = service.name || '';
+      document.getElementById('serviceDescription').value = service.description || '';
+      document.getElementById('serviceCategory').value = normalizeCategory(service.category) || '';
+      document.getElementById('serviceSpecialty').value = service.specialtyId ? String(service.specialtyId) : '';
+      document.getElementById('serviceCost').value = service.cost;
+      document.getElementById('serviceDuration').value = service.duration;
+      setDrawerStatus(service.active);
+    } else {
+      document.getElementById('serviceDuration').value = '60';
+      setDrawerStatus(true);
+    }
+
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    drawer.removeAttribute('inert');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('serviceName')?.focus();
+  };
+
+  const closeDrawer = () => {
+    const drawer = document.getElementById('drawerOverlay');
+    if (!drawer?.classList.contains('open')) return;
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    drawer.setAttribute('inert', '');
+    document.body.style.overflow = bodyOverflowBeforeDrawer;
+    editingServiceId = null;
+    if (drawerFocusTarget?.isConnected) drawerFocusTarget.focus();
+    drawerFocusTarget = null;
+  };
+
+  const saveService = async (event) => {
+    event.preventDefault();
+
+    const serviceId = editingServiceId;
+    const specialtyValue = document.getElementById('serviceSpecialty').value;
+    const service = {
+      name: document.getElementById('serviceName').value.trim(),
+      description: document.getElementById('serviceDescription').value.trim(),
+      category: document.getElementById('serviceCategory').value,
+      specialtyId: specialtyValue ? Number(specialtyValue) : null,
+      specialtyName: document.getElementById('serviceSpecialty').selectedOptions[0]?.textContent || null,
+      cost: Number(document.getElementById('serviceCost').value),
+      duration: Number(document.getElementById('serviceDuration').value)
+    };
+
+    if (!service.name || !service.category || !Number.isInteger(service.specialtyId)) {
+      showToast(translate('servicios.required_fields_error'), 'warning');
+      return;
+    }
+    if (!Number.isFinite(service.cost) || service.cost <= 0) {
+      showToast(translate('servicios.price_error'), 'warning');
+      return;
+    }
+    if (!Number.isInteger(service.duration) || service.duration < 5 || service.duration > 480) {
+      showToast(translate('servicios.duration_error'), 'warning');
+      return;
+    }
+
+    const saveButton = document.getElementById('serviceSaveButton');
+    saveButton.disabled = true;
+    try {
+      const payload = {
+        nombre: service.name,
+        descripcion: service.description,
+        precio: service.cost,
+        category: service.category,
+        idEspecialidad: service.specialtyId,
+        duration: service.duration
+      };
+
+      if (serviceId !== null) {
+        const existing = servicesStorage.getService(serviceId);
+        const result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${serviceId}`, {
+          method: 'PUT',
+          body: payload
+        });
+        if (result?.success !== true) {
+          showToast(result?.message || translate('servicios.update_error'), 'error');
+          return;
+        }
+
+        servicesStorage.updateLocalCache(serviceId, {
+          ...service,
+          id: serviceId,
+          active: Boolean(existing?.active),
+          icon: existing?.icon || 'medical_services'
+        });
+        showToast(translate('servicios.updated', { name: service.name }));
+      } else {
+        const result = await window.apiRequest('/servicios-y-recursos/api/servicios', {
+          method: 'POST',
+          body: payload
+        });
+        if (result?.success !== true || !result.data?.id) {
+          showToast(result?.message || translate('servicios.create_error'), 'error');
+          return;
+        }
+
+        services.unshift({
+          ...service,
+          id: Number(result.data.id),
+          active: true,
+          icon: 'medical_services'
+        });
+        currentPage = 1;
+        showToast(translate('servicios.created', { name: service.name }));
+      }
+
+      renderServices();
+      updateStats();
+      closeDrawer();
+    } catch (error) {
+      console.error('Error guardando el servicio.', error);
+      showToast(translate(serviceId === null ? 'servicios.create_error' : 'servicios.update_error'), 'error');
+    } finally {
+      if (saveButton) saveButton.disabled = false;
+    }
+  };
+
+  const toggleServiceStatus = async (id) => {
+    const service = servicesStorage.getService(id);
+    if (!service) return;
+
+    const active = !Boolean(service.active);
+    try {
+      const result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${id}/estado`, {
+        method: 'PUT',
+        body: { estado: active ? 'activo' : 'inactivo' }
+      });
+      if (result?.success !== true) {
+        showToast(result?.message || translate('servicios.status_error'), 'error');
+        return;
+      }
+
+      servicesStorage.updateLocalCache(id, { active });
+      renderServices();
+      updateStats();
+      showToast(translate(active ? 'servicios.activated' : 'servicios.deactivated', { name: service.name }));
+    } catch (error) {
+      console.error('Error cambiando el estado del servicio.', error);
+      showToast(translate('servicios.status_error'), 'error');
+    }
+  };
+
+  const initFilters = () => {
+    document.getElementById('searchServices')?.addEventListener('input', debounce(event => {
+      searchQuery = event.target.value;
+      currentPage = 1;
+      renderServices();
+    }, 250));
+
+    document.getElementById('filterCategory')?.addEventListener('change', event => {
+      filterCategory = event.target.value;
+      currentPage = 1;
+      renderServices();
+    });
+
+    document.getElementById('filterStatus')?.addEventListener('change', event => {
+      filterStatus = event.target.value;
+      currentPage = 1;
+      renderServices();
+    });
+  };
+
+  const initPagination = () => {
+    document.getElementById('servicePagination')?.addEventListener('click', event => {
+      const button = event.target.closest('button[data-page]');
+      if (!button || button.disabled) return;
+      currentPage = Number(button.dataset.page);
+      renderServices();
+    });
+  };
+
+  const initTableActions = () => {
+    const body = document.getElementById('servicesBody');
+    if (!body) return;
+
+    body.addEventListener('click', event => {
+      const button = event.target.closest('button[data-action]');
+      if (button) {
+        event.stopPropagation();
+        const id = Number(button.dataset.id);
+        if (button.dataset.action === 'edit') openDrawer(id);
+        else if (button.dataset.action === 'toggle') toggleServiceStatus(id);
+        return;
+      }
+
+      const row = event.target.closest('.table-row[data-id]');
+      if (row) openDrawer(Number(row.dataset.id));
+    });
+
+    body.addEventListener('keydown', event => {
+      if (!['Enter', ' '].includes(event.key) || event.target.closest('button')) return;
+      const row = event.target.closest('.table-row[data-id]');
+      if (!row) return;
+      event.preventDefault();
+      openDrawer(Number(row.dataset.id));
+    });
+  };
+
+  const initDrawer = () => {
+    const drawer = document.getElementById('drawerOverlay');
+    document.getElementById('drawerClose')?.addEventListener('click', closeDrawer);
+    document.getElementById('drawerCancel')?.addEventListener('click', closeDrawer);
+    document.getElementById('btnNewService')?.addEventListener('click', () => openDrawer());
+    document.getElementById('serviceForm')?.addEventListener('submit', saveService);
+    drawer?.addEventListener('click', event => {
+      if (event.target === drawer) closeDrawer();
+    });
+
+    document.addEventListener('keydown', event => {
+      if (!drawer?.classList.contains('open')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeDrawer();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(drawer.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter(element => !element.hidden && element.getClientRects().length > 0);
+      if (!focusable.length) {
+        event.preventDefault();
+        drawer.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+  };
+
+  const init = () => {
+    loadSpecialties();
     initFilters();
     initPagination();
-
-    loadSpecialties();
-
-    initNewService();
+    initTableActions();
     initDrawer();
-
-    services = servicesStorage.load();
     updateStats();
     renderServices();
-
-    window.addEventListener('beforeunload', () => {
-        /* Cleanup en SPA real */
+    document.addEventListener('i18n:change', () => {
+      loadSpecialties();
+      renderServices();
+      updateStats();
     });
-};
+  };
 
-document.addEventListener('DOMContentLoaded', init);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+})();

@@ -40,6 +40,25 @@
 
 
 /* ═══════════════════════════════════════════
+   LAYOUT BASE DEL CONTENIDO (.main)
+   ═══════════════════════════════════════════ */
+@media (min-width: 681px) {
+  .main {
+    margin-left: var(--sidebar-w, 220px);
+    transition: margin-left var(--tr, .18s ease);
+  }
+  .main.sidebar-mini-offset {
+    margin-left: 56px !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .main {
+    margin-left: 0 !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
    SIDEBAR PRINCIPAL
    ═══════════════════════════════════════════ */
 
@@ -502,17 +521,22 @@
     display: none;
   }
 
-  /* Centrar el ícono en el ancho reducido */
+  /* Centrar el ícono en el ancho reducido y ocultar texto de forma robusta */
   .sidebar.mini .nav-item {
     padding: 10px 0;
     justify-content: center;
     gap: 0;
     position: relative;
+    font-size: 0 !important;
+  }
+
+  .sidebar.mini .nav-item::before {
+    font-size: 16px !important;
   }
 
   /* Ocultar texto del nav-item dejando solo el ::before (ícono emoji) */
   .sidebar.mini .nav-item .nav-text {
-    display: none;
+    display: none !important;
   }
 
   /* Tooltip nativo al hover: muestra el texto del ítem en modo mini */

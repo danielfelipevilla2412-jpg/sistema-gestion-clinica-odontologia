@@ -16,13 +16,38 @@ const safeGetElement = (id) => {
   return el;
 };
 
+// Usa el servicio de toasts compartido del layout si está disponible;
+// si no, cae al contenedor local (#toast) para mantener compatibilidad.
 const showToast = (message, type = 'success') => {
+  const service = window.ToastService;
+  if (service && typeof service[type] === 'function') {
+    service[type](message);
+    return;
+  }
   const toast = safeGetElement('toast');
   if (!toast) return;
   toast.textContent = message;
   toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
   if (toast._timeoutId) clearTimeout(toast._timeoutId);
   toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
+};
+
+// Traduce una clave con el motor i18n compartido cuando esté disponible.
+const translate = (key, fallback) => {
+  try {
+    return (window.I18N && typeof window.I18N.t === 'function') ? window.I18N.t(key) : fallback;
+  } catch (_) {
+    return fallback;
+  }
+};
+
+// Traduce una clave si el diccionario la conoce; si no, devuelve el texto de respaldo.
+const t = (key, fallback) => (window.I18N && window.I18N.has(key)) ? window.I18N.t(key) : fallback;
+
+// Muestra/oculta un elemento mediante la clase utilitaria .is-hidden
+// (reemplaza el manejo de style.display inline).
+const setHidden = (el, hidden) => {
+  if (el) el.classList.toggle('is-hidden', hidden);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -67,21 +92,21 @@ function activarEdicion() {
 
   // Mostrar avatar upload
   const avatarUpload = safeGetElement('avatarUpload');
-  if (avatarUpload) avatarUpload.style.display = 'flex';
+  setHidden(avatarUpload, false);
 
   // Botones
   const btnEditar = safeGetElement('btnEditar');
   const btnGuardar = safeGetElement('btnGuardar');
   const btnCancelar = safeGetElement('btnCancelar');
-  if (btnEditar) btnEditar.style.display = 'none';
-  if (btnGuardar) btnGuardar.style.display = 'inline-flex';
-  if (btnCancelar) btnCancelar.style.display = 'inline-flex';
+  setHidden(btnEditar, true);
+  setHidden(btnGuardar, false);
+  setHidden(btnCancelar, false);
 
   // Enfocar primer campo
   const nombreInput = safeGetElement('nombre');
   if (nombreInput) nombreInput.focus();
 
-  showToast('✏️ Modo edición activado');
+  showToast(t('pac_profile.toast_edit_mode', 'Modo edición activado'));
 }
 
 function cancelarEdicion() {
@@ -96,7 +121,7 @@ function cancelarEdicion() {
   });
 
   desactivarEdicion();
-  showToast('↩️ Cambios descartados');
+  showToast(t('pac_profile.toast_changes_discarded', 'Cambios descartados'));
 }
 
 function guardarCambios() {
@@ -107,17 +132,17 @@ function guardarCambios() {
 
   if (passNueva || passConfirm) {
     if (!passActual) {
-      showToast('❌ Ingresa tu contraseña actual', 'error');
+      showToast(t('pac_profile.toast_need_current_password', 'Ingresa tu contraseña actual'), 'error');
       safeGetElement('passActual')?.focus();
       return;
     }
     if (passNueva.length < 8) {
-      showToast('❌ La nueva contraseña debe tener al menos 8 caracteres', 'error');
+      showToast(t('pac_profile.toast_password_min', 'La nueva contraseña debe tener al menos 8 caracteres'), 'error');
       safeGetElement('passNueva')?.focus();
       return;
     }
     if (passNueva !== passConfirm) {
-      showToast('❌ Las contraseñas no coinciden', 'error');
+      showToast(t('pac_profile.toast_password_mismatch', 'Las contraseñas no coinciden'), 'error');
       safeGetElement('passConfirm')?.focus();
       return;
     }
@@ -126,7 +151,7 @@ function guardarCambios() {
   // Validar email
   const email = safeGetElement('email')?.value?.trim() || '';
   if (email && !email.includes('@')) {
-    showToast('❌ Ingresa un correo electrónico válido', 'error');
+    showToast(t('pac_profile.toast_invalid_email', 'Ingresa un correo electrónico válido'), 'error');
     safeGetElement('email')?.focus();
     return;
   }
@@ -172,7 +197,7 @@ function guardarCambios() {
 
   desactivarEdicion();
   window.PerfilPacienteService?.invalidateCache();
-  showToast('✅ Perfil actualizado correctamente');
+  showToast(t('pac_profile.toast_profile_updated', 'Perfil actualizado correctamente'));
 }
 
 function desactivarEdicion() {
@@ -195,15 +220,15 @@ function desactivarEdicion() {
 
   // Ocultar avatar upload
   const avatarUpload = safeGetElement('avatarUpload');
-  if (avatarUpload) avatarUpload.style.display = 'none';
+  setHidden(avatarUpload, true);
 
   // Botones
   const btnEditar = safeGetElement('btnEditar');
   const btnGuardar = safeGetElement('btnGuardar');
   const btnCancelar = safeGetElement('btnCancelar');
-  if (btnEditar) btnEditar.style.display = 'inline-flex';
-  if (btnGuardar) btnGuardar.style.display = 'none';
-  if (btnCancelar) btnCancelar.style.display = 'none';
+  setHidden(btnEditar, false);
+  setHidden(btnGuardar, true);
+  setHidden(btnCancelar, true);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -222,14 +247,14 @@ function initAvatarUpload() {
 
     // Validar tamaño (2MB)
     if (file.size > 2 * 1024 * 1024) {
-      showToast('❌ La imagen debe ser menor a 2MB', 'error');
+      showToast(t('pac_profile.toast_image_too_large', 'La imagen debe ser menor a 2MB'), 'error');
       avatarInput.value = '';
       return;
     }
 
     // Validar tipo
     if (!file.type.startsWith('image/')) {
-      showToast('❌ Solo se permiten imágenes (JPG, PNG)', 'error');
+      showToast(t('pac_profile.toast_invalid_image_type', 'Solo se permiten imágenes (JPG, PNG)'), 'error');
       avatarInput.value = '';
       return;
     }
@@ -240,15 +265,15 @@ function initAvatarUpload() {
 
       // Actualizar preview
       if (avatarPreview) {
-        avatarPreview.innerHTML = `<img src="${imgURL}" alt="Foto de perfil" />`;
+        avatarPreview.innerHTML = `<img src="${imgURL}" alt="${t('pac_profile.photo_alt', 'Foto de perfil')}" />`;
       }
 
       // Actualizar header
       if (headerAvatar) {
-        headerAvatar.innerHTML = `<img src="${imgURL}" alt="Foto de perfil" />`;
+        headerAvatar.innerHTML = `<img src="${imgURL}" alt="${t('pac_profile.photo_alt', 'Foto de perfil')}" />`;
       }
 
-      showToast('📷 Foto actualizada');
+      showToast(t('pac_profile.toast_photo_updated', 'Foto actualizada'));
     };
     reader.readAsDataURL(file);
   });
@@ -257,83 +282,34 @@ function initAvatarUpload() {
 // ═══════════════════════════════════════════════════════════════════
 //  TOGGLE CONTRASEÑA
 // ═══════════════════════════════════════════════════════════════════
-window.togglePass = (inputId, btn) => {
+function togglePass(inputId, btn) {
   const input = safeGetElement(inputId);
   if (!input || input.disabled) return;
-  if (input.type === 'password') {
-    input.type = 'text';
-    btn.textContent = '🙈';
-    btn.setAttribute('aria-label', 'Ocultar contraseña');
-  } else {
-    input.type = 'password';
-    btn.textContent = '👁️';
-    btn.setAttribute('aria-label', 'Mostrar contraseña');
-  }
-};
 
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN DE COMPONENTES
-// ═══════════════════════════════════════════════════════════════════
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  if (!hamburger || !sidebar || !overlay) return;
+  const icon = btn.querySelector('.material-symbols-outlined');
+  const mostrar = input.type === 'password';
 
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
-    if (show) {
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      hamburger.focus();
-    }
-  };
+  input.type = mostrar ? 'text' : 'password';
+  if (icon) icon.textContent = mostrar ? 'visibility_off' : 'visibility';
+  btn.setAttribute('aria-label', translate(mostrar ? 'pac_profile.hide_password' : 'pac_profile.show_password', mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña'));
+}
 
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
+function initPasswordToggles() {
+  document.querySelectorAll('.btn-eye').forEach(btn => {
+    const target = btn.getAttribute('data-target');
+    if (!target) return;
+    btn.addEventListener('click', () => togglePass(target, btn));
   });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
-};
-
-const initNavGroups = () => {
-  document.querySelectorAll('.nav-group-header').forEach(header => {
-    const group = header.parentElement;
-    const toggle = () => {
-      const isOpen = group.classList.toggle('open');
-      header.setAttribute('aria-expanded', isOpen);
-    };
-    header.addEventListener('click', toggle);
-    header.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        toggle();
-      }
-    });
-  });
-};
+}
 
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
 const init = () => {
-  initSidebar();
-  initNavGroups();
+  // El sidebar, hamburger, overlay y grupos de navegación los gestiona
+  // el sidebar.js compartido del layout (_Layout.cshtml).
   initAvatarUpload();
+  initPasswordToggles();
 
   // Botones del header
   const btnEditar = safeGetElement('btnEditar');

@@ -16,6 +16,9 @@
  * - HTML: Views/Gestion_De_Citas/st-pac-03-notificaciones/index.cshtml
  * ============================================ */
 
+// Traduce una clave si el diccionario la conoce; si no, devuelve el texto de respaldo.
+const t = (key, fallback) => (window.I18N && window.I18N.has(key)) ? window.I18N.t(key) : fallback;
+
 // ═══════════════════════════════════════════════════════════════════
 // 1. CONSTANTES Y CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════
@@ -43,10 +46,9 @@ let lastActiveTriggerElement = null;
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
+// El token antiforgery lo renderiza @Html.AntiForgeryToken() como input oculto en la vista.
 const getCsrfToken = () =>
-  safeGetElement('notificationAntiforgeryToken')?.value
-  || document.querySelector('input[name="__RequestVerificationToken"]')?.value
-  || '';
+  document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
 
 const debounce = (fn, delay) =>
   window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
@@ -65,8 +67,8 @@ const getBadgeClassForType = (badgeKey) => {
 };
 
 const getBadgeLabelForType = (badgeKey) => {
-  const labelMap = { 'pending': 'Pendiente', 'new': 'Nueva', 'read': 'Leída' };
-  return labelMap[badgeKey] || 'Leída';
+  const labelMap = { 'pending': t('status.pending', 'Pendiente'), 'new': t('status.new', 'Nueva'), 'read': t('pac_notif.badge_read', 'Leída') };
+  return labelMap[badgeKey] || t('pac_notif.badge_read', 'Leída');
 };
 
 const getIconForNotificationType = (notificationType) => {
@@ -91,7 +93,7 @@ const markReadOnServer = async (notification) => {
   const endpointUrl = notification.idNotificacion
     ? `/api/notificaciones/${notification.idNotificacion}/leida`
     : `/api/notificaciones/citas/${notification.idCita}/leida`;
-  const response = await fetch(endpointUrl, {
+  const response = await window.SmileTrack.utils.fetchWithTimeout(endpointUrl, {
     method: 'PUT',
     credentials: 'same-origin',
     headers: {
@@ -102,15 +104,35 @@ const markReadOnServer = async (notification) => {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.success === false) {
-    throw new Error(payload.message || 'No fue posible guardar el estado de lectura.');
+    throw new Error(payload.message || t('pac_notif.error_mark_read', 'No fue posible guardar el estado de lectura.'));
+  }
+};
+
+// Marca en lote (una sola petición) las notificaciones persistidas por su IdNotificacion.
+// El endpoint sólo acepta IdNotificacion; las derivadas de citas usan markReadOnServer.
+const markAllReadOnServer = async (idsNotificacion) => {
+  const response = await window.SmileTrack.utils.fetchWithTimeout('/api/notificaciones/leidas', {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': getCsrfToken()
+    },
+    body: JSON.stringify(idsNotificacion)
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.success === false) {
+    throw new Error(payload.message || t('pac_notif.error_mark_all_read', 'No fue posible marcar las notificaciones como leídas.'));
   }
 };
 
 const deleteOnServer = async (notification) => {
   if (!notification.idNotificacion) {
-    throw new Error('Esta notificación informativa no se puede eliminar.');
+    throw new Error(t('pac_notif.error_delete_informative', 'Esta notificación informativa no se puede eliminar.'));
   }
-  const response = await fetch(`/api/notificaciones/${notification.idNotificacion}`, {
+  const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/notificaciones/${notification.idNotificacion}`, {
     method: 'DELETE',
     credentials: 'same-origin',
     headers: {
@@ -121,13 +143,15 @@ const deleteOnServer = async (notification) => {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.success === false) {
-    throw new Error(payload.message || 'No fue posible eliminar la notificación.');
+    throw new Error(payload.message || t('pac_notif.error_delete', 'No fue posible eliminar la notificación.'));
   }
 };
 
 const fetchNotificationsApi = async () => {
+  const listContainer = safeGetElement('notificationsList');
+  listContainer?.setAttribute('aria-busy', 'true');
   try {
-    const response = await fetch('/api/notificaciones', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/api/notificaciones', {
       headers: { 'Accept': 'application/json' },
       credentials: 'same-origin'
     });
@@ -141,7 +165,10 @@ const fetchNotificationsApi = async () => {
       renderNotificationsList();
     }
   } catch (err) {
+    // Fallback legítimo: si la API falla, se conservan los datos SSR ya renderizados.
     console.warn('[SmileTrack] Fallback a datos SSR:', err);
+  } finally {
+    listContainer?.setAttribute('aria-busy', 'false');
   }
 };
 
@@ -172,7 +199,7 @@ const createNotificationCardElement = (item) => {
   
   if (!item.leida) {
     listItemElement.setAttribute('role', 'article');
-    listItemElement.setAttribute('aria-label', `Notificación sin leer: ${item.titulo}`);
+    listItemElement.setAttribute('aria-label', `${t('pac_notif.unread_aria_prefix', 'Notificación sin leer:')} ${item.titulo}`);
     listItemElement.setAttribute('tabindex', '0');
   }
   
@@ -183,26 +210,26 @@ const createNotificationCardElement = (item) => {
     <div class="notification-card__body">
       <div class="notification-card__header">
         <h3 class="notification-card__title">${escapeHtml(item.titulo)}</h3>
-        <span class="badge ${escapeHtml(getBadgeClassForType(item.badge))}" aria-label="Estado: ${escapeHtml(getBadgeLabelForType(item.badge))}">${escapeHtml(getBadgeLabelForType(item.badge))}</span>
+        <span class="badge ${escapeHtml(getBadgeClassForType(item.badge))}" aria-label="${t('pac_notif.status_aria_prefix', 'Estado:')} ${escapeHtml(getBadgeLabelForType(item.badge))}">${escapeHtml(getBadgeLabelForType(item.badge))}</span>
       </div>
       <p class="notification-card__desc">${escapeHtml(item.desc)}</p>
       <div class="notification-card__footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
         <time class="notification-card__time" datetime="${escapeHtml(item.time)}">${escapeHtml(item.displayTime)}</time>
         <div class="card-actions" style="display:flex; gap:6px;">
-          <button type="button" class="btn-icon btn-view-detail" data-id="${item.id}" title="Ver detalle" aria-label="Ver detalle de la notificación">
+          <button type="button" class="btn-icon btn-view-detail" data-id="${item.id}" title="${t('pqr.view_details', 'Ver detalle')}" aria-label="${t('pac_notif.view_detail_aria', 'Ver detalle de la notificación')}">
             <span class="material-symbols-outlined" style="font-size:1.1rem;">visibility</span>
           </button>
           ${!item.leida ? `
-          <button type="button" class="btn-icon btn-mark-read" data-id="${item.id}" title="Marcar como leída" aria-label="Marcar como leída">
+          <button type="button" class="btn-icon btn-mark-read" data-id="${item.id}" title="${t('pac_notif.mark_read', 'Marcar como leída')}" aria-label="${t('pac_notif.mark_read', 'Marcar como leída')}">
             <span class="material-symbols-outlined" style="font-size:1.1rem;">done</span>
           </button>` : ''}
-          ${item.idNotificacion ? `<button type="button" class="btn-icon btn-delete-notif" data-id="${escapeHtml(item.id)}" title="Eliminar" aria-label="Eliminar notificación">
+          ${item.idNotificacion ? `<button type="button" class="btn-icon btn-delete-notif" data-id="${escapeHtml(item.id)}" title="${t('pac_notif.delete', 'Eliminar')}" aria-label="${t('pac_notif.delete_aria', 'Eliminar notificación')}">
             <span class="material-symbols-outlined" style="font-size:1.1rem; color:var(--danger, #ef4444);">delete</span>
           </button>` : ''}
         </div>
       </div>
     </div>
-    ${!item.leida ? '<span class="notification-card__dot" aria-label="No leída" role="status"></span>' : ''}
+    ${!item.leida ? `<span class="notification-card__dot" aria-label="${t('pac_notif.unread_dot_aria', 'No leída')}" role="status"></span>` : ''}
   `;
   
   return listItemElement;
@@ -217,7 +244,9 @@ const renderNotificationsList = () => {
   listContainer.replaceChildren();
   
   const countLabel = safeGetElement('countLabel');
-  if (countLabel) countLabel.textContent = `${filteredData.length} resultado${filteredData.length !== 1 ? 's' : ''}`;
+  if (countLabel) countLabel.textContent = filteredData.length === 1
+    ? `${filteredData.length} ${t('pac_notif.count_result', 'resultado')}`
+    : `${filteredData.length} ${t('pac_notif.count_results', 'resultados')}`;
   
   if (!filteredData.length) {
     if (emptyStateElement) {
@@ -247,10 +276,10 @@ const openModalDetail = (notif, triggerElement) => {
   const modalElement = safeGetElement('modalNotifDetail');
   if (!modalElement) return;
 
-  safeGetElement('modalNotifTitle').textContent = notif.titulo || 'Detalle de Notificación';
+  safeGetElement('modalNotifTitle').textContent = notif.titulo || t('notifications.modal_detail_title', 'Detalle de Notificación');
   safeGetElement('modalNotifDesc').textContent = notif.desc || '';
   safeGetElement('modalNotifTime').textContent = `${formatRelativeTime(notif.time)} (${new Date(notif.time).toLocaleString()})`;
-  safeGetElement('modalNotifCanal').textContent = notif.canal || 'Interno (In-App)';
+  safeGetElement('modalNotifCanal').textContent = notif.canal || t('notifications.channel_inapp', 'Interno (In-App)');
   
   const iconBadge = safeGetElement('modalNotifIcon');
   if (iconBadge) iconBadge.textContent = getIconForNotificationType(notif.tipo);
@@ -313,7 +342,7 @@ const handleNotificationCardAction = async (event) => {
         notificationItem.badge = 'read';
         renderNotificationsList();
       } catch (err) {
-        console.warn('[SmileTrack] Error al marcar leída:', err);
+        if (window.ToastService) window.ToastService.error(err.message || t('pac_notif.toast_mark_read_error', 'No se pudo marcar la notificación como leída'));
       }
     }
     return;
@@ -326,7 +355,7 @@ const handleNotificationCardAction = async (event) => {
       notificationItem.leida = true;
       notificationItem.badge = 'read';
       renderNotificationsList();
-      if (window.ToastService) window.ToastService.success('Notificación marcada como leída');
+      if (window.ToastService) window.ToastService.success(t('pac_notif.toast_mark_read_success', 'Notificación marcada como leída'));
     } catch (error) {
       if (window.ToastService) window.ToastService.error(error.message);
     }
@@ -339,7 +368,7 @@ const handleNotificationCardAction = async (event) => {
       await deleteOnServer(notificationItem);
       notificationsList = notificationsList.filter(item => item !== notificationItem);
       renderNotificationsList();
-      if (window.ToastService) window.ToastService.success('Notificación eliminada');
+      if (window.ToastService) window.ToastService.success(t('pac_notif.toast_deleted', 'Notificación eliminada'));
     } catch (error) {
       if (window.ToastService) window.ToastService.error(error.message);
     }
@@ -349,12 +378,24 @@ const handleNotificationCardAction = async (event) => {
 const markAllNotificationsAsRead = async () => {
   const unreadItems = notificationsList.filter(item => !item.leida);
   if (!unreadItems.length) {
-    if (window.ToastService) window.ToastService.success('No hay notificaciones sin leer');
+    if (window.ToastService) window.ToastService.success(t('pac_notif.toast_no_unread', 'No hay notificaciones sin leer'));
     return;
   }
-  
+
+  // Las notificaciones persistidas se marcan en una sola petición (batch);
+  // las derivadas de citas (sin idNotificacion) usan su endpoint individual.
+  const dbIds = unreadItems.filter(item => item.idNotificacion).map(item => item.idNotificacion);
+  const citaOnlyItems = unreadItems.filter(item => !item.idNotificacion);
+
   try {
-    const results = await Promise.all(unreadItems.map(async item => {
+    if (dbIds.length) {
+      await markAllReadOnServer(dbIds);
+      unreadItems
+        .filter(item => item.idNotificacion)
+        .forEach(item => { item.leida = true; item.badge = 'read'; });
+    }
+
+    const citaResults = await Promise.all(citaOnlyItems.map(async item => {
       try {
         await markReadOnServer(item);
         item.leida = true;
@@ -364,11 +405,12 @@ const markAllNotificationsAsRead = async () => {
         return false;
       }
     }));
+
     renderNotificationsList();
-    if (results.every(Boolean)) {
-      if (window.ToastService) window.ToastService.success('Todas las notificaciones marcadas como leídas');
+    if (citaResults.every(Boolean)) {
+      if (window.ToastService) window.ToastService.success(t('pac_notif.toast_all_read', 'Todas las notificaciones marcadas como leídas'));
     } else if (window.ToastService) {
-      window.ToastService.error('Algunas notificaciones no se pudieron marcar como leídas');
+      window.ToastService.error(t('pac_notif.toast_some_failed', 'Algunas notificaciones no se pudieron marcar como leídas'));
     }
   } catch (error) {
     if (window.ToastService) window.ToastService.error(error.message);
@@ -397,7 +439,7 @@ const toggleUnreadFilterMode = () => {
     toggleBtn.classList.toggle('btn-primary', showOnlyUnreadState);
     toggleBtn.classList.toggle('btn-secondary', !showOnlyUnreadState);
   }
-  if (toggleLabel) toggleLabel.textContent = showOnlyUnreadState ? 'Ver todas' : 'Solo no leídas';
+  if (toggleLabel) toggleLabel.textContent = showOnlyUnreadState ? t('notifications.show_all', 'Ver todas') : t('notifications.only_unread', 'Solo no leídas');
   renderNotificationsList();
 };
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -89,7 +90,7 @@ public class CitasApiValidationTests
         });
 
         DateTime fecha = ColombiaClock.Today.AddDays(1);
-        while (fecha.DayOfWeek is DayOfWeek.Sunday)
+        while (fecha.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
             fecha = fecha.AddDays(1);
         string dia = fecha.DayOfWeek switch
         {
@@ -320,6 +321,8 @@ public class CitasApiValidationTests
         public Task SendRecoveryCodeAsync(string recipientEmail, string code, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task SendCitaNotificacionAsync(string recipientEmail, string nombrePaciente, DateTime fechaCita, string profesional, string servicio, string nuevoEstado, CancellationToken cancellationToken = default, string? motivoCancelacion = null, string? mensajePersonalizado = null) => Task.CompletedTask;
+
+        public Task SendFacturaRecordatorioAsync(string recipientEmail, string nombrePaciente, IReadOnlyList<FacturaRecordatorioEmail> facturas, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<(bool Exito, string Detalle)> ProbarConfiguracionSmtpAsync(string correoDestino, CancellationToken cancellationToken = default) => Task.FromResult((true, "OK"));
     }

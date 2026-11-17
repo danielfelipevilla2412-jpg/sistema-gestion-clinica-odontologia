@@ -1,279 +1,118 @@
-﻿﻿@{ Layout = null; }
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Configuración General";
+    ViewData["Description"] = "Configura parámetros del centro, citas y notificaciones en SmileTrack.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
-<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+    <link rel="stylesheet" href="~/css/Servicios_Y_Recursos/st-adm-16-configuracion-general/styles.css" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Configura parámetros del centro, citas y notificaciones en SmileTrack." />
-  <title>SmileTrack — Configuración General</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Servicios_Y_Recursos/st-adm-16-configuracion-general/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-
-  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
-
-  <!-- ----- SIDEBAR UNIFICADO (Activo: Configuración) ----- -->
-
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
-
-
-  <!-- ----- HAMBURGER (mÓvil) ----- -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
-
-    <!-- Header -->
+<main class="main config-page" id="main-content">
     <header class="page-header">
-      <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
-          <span data-i18n="common_bc_administracion">Administración</span>
-          <span class="bc-sep material-symbols-outlined" aria-hidden="true">chevron_right</span>
-          <span class="bc-active" data-i18n="config.title">Configuración General</span>
-        </nav>
-        <h1 class="page-title" data-i18n="config.title">Configuración General</h1>
-        <p class="page-subtitle" data-i18n="config.schedule">Gestión de parámetros del centro, citas e interactividad del sistema.</p>
-      </div>
+        <div class="header-left">
+            <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="layout_breadcrumb_aria">
+                <a href="/gestion-de-citas/st-adm-01-dashboard" data-i18n="common_bc_administracion">Administración</a>
+                <span class="bc-sep" aria-hidden="true">›</span>
+                <span class="bc-active" aria-current="page" data-i18n="config.title">Configuración General</span>
+            </nav>
+            <h1 class="page-title" data-i18n="config.title">Configuración General</h1>
+            <p class="page-subtitle" data-i18n="config.subtitle">Administra los datos del centro, las citas y las notificaciones.</p>
+        </div>
     </header>
 
-    <!-- Banner de éxito accesible -->
-    <div id="successAlert" class="success-banner" role="status" aria-live="polite" aria-hidden="true"
-      style="display:none">
-      <span class="success-icon material-symbols-outlined" aria-hidden="true">check_circle</span>
-      <span id="alertMessage" data-i18n="config.saved">Cambios guardados correctamente</span>
-      <button class="success-close" id="alertClose" aria-label="Cerrar notificación">—</button>
-    </div>
+    <form id="configForm" class="config-form" novalidate>
+        @Html.AntiForgeryToken()
+        <div class="config-grid">
+            <section class="config-card" aria-labelledby="appointmentsTitle">
+                <h2 class="card-title" id="appointmentsTitle" data-i18n="config.appointments">Configuración de citas</h2>
+                <div class="config-list">
+                    <div class="form-group">
+                        <label for="defaultDuration" class="form-label" data-i18n="config.duration">Duración predeterminada (minutos)</label>
+                        <input type="number" id="defaultDuration" class="form-input" min="5" max="180" step="5" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="openTime" class="form-label" data-i18n="config.opening_time">Horario de apertura</label>
+                        <input type="time" id="openTime" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="closeTime" class="form-label" data-i18n="config.closing_time">Horario de cierre</label>
+                        <input type="time" id="closeTime" class="form-input" required>
+                    </div>
+                </div>
+            </section>
 
-    <!-- Grid de configuración -->
-    <div class="config-grid">
+            <section class="config-card" aria-labelledby="centerTitle">
+                <h2 class="card-title" id="centerTitle" data-i18n="config.center_data">Datos del centro</h2>
+                <p class="card-subtitle" data-i18n="config.center_hint">Información que aparece en documentos y comunicaciones.</p>
+                <div class="config-list">
+                    <div class="form-group">
+                        <label for="centerName" class="form-label" data-i18n="config.clinic_name">Nombre de la clínica</label>
+                        <input type="text" id="centerName" class="form-input" maxlength="150" minlength="3" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="centerNIT" class="form-label" data-i18n="config.nit">Número de NIT / Identificación</label>
+                        <input type="text" id="centerNIT" class="form-input" pattern="\d{3}\.\d{3}\.\d{3}-\d" aria-describedby="nitHelp" required>
+                        <small class="form-help" id="nitHelp" data-i18n="config.nit_hint">Formato: 000.000.000-0</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="centerAddress" class="form-label" data-i18n="config.address">Dirección</label>
+                        <input type="text" id="centerAddress" class="form-input" maxlength="250" minlength="5" required>
+                    </div>
+                </div>
+            </section>
 
-      <!-- Columna Izquierda -->
-      <div class="config-column">
+            <section class="config-card" aria-labelledby="notificationsTitle">
+                <h2 class="card-title" id="notificationsTitle" data-i18n="common.notifications">Notificaciones</h2>
+                <div class="toggle-list">
+                    <div class="toggle-item">
+                        <span class="toggle-info">
+                            <strong data-i18n="config.email_reminders">Recordatorios por correo</strong>
+                            <small data-i18n="config.email_reminders_hint">Enviar avisos por correo antes de la cita.</small>
+                        </span>
+                        <button type="button" class="toggle-switch" id="toggleEmail" role="switch" aria-checked="true" aria-label="Recordatorios por correo" data-i18n-aria-label="config.email_reminders">
+                            <span class="toggle-dot" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <div class="toggle-item">
+                        <span class="toggle-info">
+                            <strong data-i18n="config.sms_reminders">Recordatorios por SMS</strong>
+                            <small data-i18n="config.sms_reminders_hint">Enviar avisos de texto al teléfono registrado.</small>
+                        </span>
+                        <button type="button" class="toggle-switch" id="toggleSMS" role="switch" aria-checked="false" aria-label="Recordatorios por SMS" data-i18n-aria-label="config.sms_reminders">
+                            <span class="toggle-dot" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <div class="toggle-item">
+                        <span class="toggle-info">
+                            <strong data-i18n="config.system_notifications">Notificaciones del sistema</strong>
+                            <small data-i18n="config.system_notifications_hint">Mostrar alertas internas de actividad.</small>
+                        </span>
+                        <button type="button" class="toggle-switch" id="toggleSystem" role="switch" aria-checked="true" aria-label="Notificaciones del sistema" data-i18n-aria-label="config.system_notifications">
+                            <span class="toggle-dot" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+            </section>
 
-        <!-- Tarjeta: Config de citas -->
-        <section class="config-card" aria-labelledby="citasTitle">
-          <h2 class="card-title" id="citasTitle" data-i18n="citas.title">Configuración de citas</h2>
+            <section class="config-card config-note" aria-labelledby="settingsNoteTitle">
+                <h2 class="card-title" id="settingsNoteTitle" data-i18n="config.save_title">Guardar configuración</h2>
+                <p class="card-subtitle" data-i18n="config.save_hint">Los cambios se aplicarán al sistema cuando guardes el formulario.</p>
+                <button type="submit" class="btn-primary btn-submit" id="btnSaveChanges">
+                    <span class="material-symbols-outlined" aria-hidden="true">save</span>
+                    <span data-i18n="config.save">Guardar cambios</span>
+                </button>
+            </section>
+        </div>
+    </form>
+</main>
 
-          <div class="config-list">
-            <div class="config-item">
-              <span class="config-label" data-i18n="citas.duration">Duración predeterminada</span>
-              <div class="config-value">
-                <span id="defaultDuration" class="value-text">30 min</span>
-                <button class="btn-edit" data-field="duration" aria-label="Editar duración predeterminada"><span class="material-symbols-outlined" aria-hidden="true">edit</span></button>
-              </div>
-            </div>
-            <div class="config-item">
-              <span class="config-label" data-i18n="config.schedule">Horario apertura</span>
-              <div class="config-value">
-                <span id="openTime" class="value-text">07:00 AM</span>
-                <button class="btn-edit" data-field="open" aria-label="Editar horario de apertura"><span class="material-symbols-outlined" aria-hidden="true">edit</span></button>
-              </div>
-            </div>
-            <div class="config-item">
-              <span class="config-label" data-i18n="config.schedule">Horario cierre</span>
-              <div class="config-value">
-                <span id="closeTime" class="value-text">06:00 PM</span>
-                <button class="btn-edit" data-field="close" aria-label="Editar horario de cierre"><span class="material-symbols-outlined" aria-hidden="true">edit</span></button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Tarjeta: Datos del centro -->
-        <section class="config-card" aria-labelledby="centerTitle">
-          <h2 class="card-title" id="centerTitle" data-i18n="config.clinic_name">Datos del centro</h2>
-          <p class="card-subtitle" data-i18n="common.info">Información corporativa que aparece en las facturas e informes.</p>
-
-          <form id="centerForm" class="config-form" novalidate>
-            <div class="form-group">
-              <label for="centerName" class="form-label" data-i18n="config.clinic_name">Nombre del Centro</label>
-              <input type="text" id="centerName" class="form-input" value="SmileTrack Dental Clinic" required
-                pattern=".{3,}" aria-describedby="nameHelp">
-              <small id="nameHelp" class="form-help">Mínimo 3 caracteres</small>
-            </div>
-
-            <div class="form-group">
-              <label for="centerNIT" class="form-label">Número de NIT / Identificación</label>
-              <input type="text" id="centerNIT" class="form-input" value="901.482.350-4" required
-                pattern="\d{3}\.\d{3}\.\d{3}-\d" aria-describedby="nitHelp">
-              <small id="nitHelp" class="form-help">Formato: 000.000.000-0</small>
-            </div>
-
-            <div class="form-group">
-              <label for="centerAddress" class="form-label" data-i18n="config.address">Dirección Física</label>
-              <input type="text" id="centerAddress" class="form-input" value="Avenida de la Salud #45-12, Piso 4"
-                required aria-describedby="addressHelp">
-              <small id="addressHelp" class="form-help">Dirección completa para facturas</small>
-            </div>
-
-            <button type="submit" class="btn-primary btn-submit" id="btnSaveChanges">
-              <span class="material-symbols-outlined" aria-hidden="true">save</span> <span data-i18n="config.save">Guardar cambios</span>
-            </button>
-          </form>
-        </section>
-      </div>
-
-      <!-- Columna Derecha -->
-      <div class="config-column">
-
-        <!-- Tarjeta: Notificaciones -->
-        <section class="config-card" aria-labelledby="notifTitle">
-          <h2 class="card-title" id="notifTitle" data-i18n="common.notifications">Notificaciones</h2>
-
-          <div class="toggle-list">
-            <div class="toggle-item">
-              <div class="toggle-info">
-                <strong>Recordatorios correo</strong>
-                <small>Enviar emails automáticos a los pacientes antes de su cita.</small>
-              </div>
-              <button class="toggle-switch" id="toggleEmail" role="switch" aria-checked="true"
-                aria-label="Activar recordatorios por correo">
-                <span class="toggle-dot"></span>
-              </button>
-            </div>
-
-            <div class="toggle-item">
-              <div class="toggle-info">
-                <strong>Recordatorios SMS</strong>
-                <small>Alertas de texto cortas enviadas al teléfono mÓvil registrado.</small>
-              </div>
-              <button class="toggle-switch" id="toggleSMS" role="switch" aria-checked="false"
-                aria-label="Activar recordatorios por SMS">
-                <span class="toggle-dot"></span>
-              </button>
-            </div>
-
-            <div class="toggle-item">
-              <div class="toggle-info">
-                <strong>Notificaciones del sistema</strong>
-                <small>Alertas internas para nuevas reservas o cancelaciones.</small>
-              </div>
-              <button class="toggle-switch" id="toggleSystem" role="switch" aria-checked="true"
-                aria-label="Activar notificaciones del sistema">
-                <span class="toggle-dot"></span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <!-- Tarjeta: Estado del sistema -->
-        <section class="config-card" aria-labelledby="statusTitle">
-          <h2 class="card-title" id="statusTitle" data-i18n="facturacion.status">Estado del sistema</h2>
-
-          <div class="status-list">
-            <div class="status-item">
-              <span class="status-label">Versión:</span>
-              <span class="status-value">v1.0.0</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">Base de Datos:</span>
-              <span class="status-value">SmileTrackDB</span>
-            </div>
-            <div class="status-connection">
-              <span class="status-dot" aria-hidden="true"></span>
-              <span>Conectado al Servidor</span>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-
-  </main>
-
-  <!-- Mobile bottom nav -->
-  <nav class="mobile-nav" aria-label="Navegación mÓvil">
-    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
-      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">dashboard</span>
-      <span>Dashboard</span>
-    </a>
-    <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios" class="mobile-nav-item">
-      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">groups</span>
-      <span>Usuarios</span>
-    </a>
-    <a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">settings</span>
-      <span>Config</span>
-    </a>
-    <a href="/facturacion-y-pagos/st-adm-12-facturacion" class="mobile-nav-item">
-      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">receipt_long</span>
-      <span>Facturación</span>
-    </a>
-    <a href="/servicios-y-recursos/st-adm-10-servicios" class="mobile-nav-item">
-      <span class="mobile-nav-icon material-symbols-outlined" aria-hidden="true">inventory_2</span>
-      <span>Config</span>
-    </a>
-  </nav>
-
-  <!-- Toast para notificaciones accesibles -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Estilos para screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" style="font-size:1rem;" aria-hidden="true">copyright</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-  <script src="@Url.Content("~/js/Servicios_Y_Recursos/st-adm-16-configuracion-general/script.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-
-</html>
-
-
+@section Scripts {
+    <script>
+        window.CONFIG_GENERAL = @Html.Raw(ViewData["ConfigsJson"] ?? "{}");
+    </script>
+    <script src="~/js/lib/apiRequest.js" asp-append-version="true"></script>
+    <script src="~/js/Servicios_Y_Recursos/st-adm-16-configuracion-general/script.js" asp-append-version="true"></script>
+}

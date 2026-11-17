@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Globalization;
+using System.Text;
 using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -448,6 +450,124 @@ Este es un mensaje automático, no respondas a este correo.
         {
             try { if (client.IsConnected) await client.DisconnectAsync(true, cancellationToken); }
             catch { }
+        }
+    }
+
+    public async Task SendFacturaRecordatorioAsync(
+        string recipientEmail,
+        string nombrePaciente,
+        IReadOnlyList<FacturaRecordatorioEmail> facturas,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(recipientEmail))
+            throw new ArgumentException("El correo del destinatario es obligatorio.", nameof(recipientEmail));
+        if (facturas is null || facturas.Count == 0)
+            throw new ArgumentException("Debe incluirse al menos una factura vencida.", nameof(facturas));
+
+        ValidarConfiguracionSmtp();
+
+        string finalRecipient = string.IsNullOrWhiteSpace(_options.RecipientOverride)
+            ? recipientEmail
+            : _options.RecipientOverride.Trim();
+        string nombreSeguro = WebUtility.HtmlEncode(nombrePaciente);
+        var cultura = CultureInfo.GetCultureInfo("es-CO");
+        var filasHtml = new StringBuilder();
+        var detalleTexto = new StringBuilder();
+
+        foreach (var factura in facturas)
+        {
+            string numeroSeguro = WebUtility.HtmlEncode(factura.NumeroFactura);
+            string fecha = factura.FechaFactura.ToString("dd/MM/yyyy", cultura);
+            string saldo = factura.SaldoPendiente.ToString("C0", cultura);
+            filasHtml.Append(
+                $"<tr><td style=\"padding:8px;border-bottom:1px solid #e2e8f0;\">{numeroSeguro}</td>" +
+                $"<td style=\"padding:8px;border-bottom:1px solid #e2e8f0;\">{fecha}</td>" +
+                $"<td style=\"padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;\">{saldo}</td></tr>");
+            detalleTexto.AppendLine($"- Factura {factura.NumeroFactura}, emitida el {fecha}: saldo pendiente {saldo}.");
+        }
+
+        var bodyBuilder = new BodyBuilder
+        {
+            TextBody = $"""
+Hola {nombrePaciente},
+
+Te recordamos que tienes facturas pendientes de pago en SmileTrack:
+
+{detalleTexto}
+Para consultar las opciones de pago, comunícate con el equipo de recepción.
+
+SmileTrack | Sistema de Gestión Odontológica
+Este es un mensaje automático, por favor no respondas a este correo.
+""",
+            HtmlBody = $"""
+<html>
+  <body style="margin:0;padding:24px;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+    <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+      <div style="padding:20px 24px;background:#1a56cc;color:#fff;">
+        <h1 style="margin:0;font-size:20px;">SmileTrack</h1>
+        <p style="margin:6px 0 0;font-size:14px;">Recordatorio de pago</p>
+      </div>
+      <div style="padding:24px;">
+        <p>Hola, <strong>{nombreSeguro}</strong>.</p>
+        <p>Te recordamos que tienes las siguientes facturas pendientes de pago:</p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+          <thead><tr><th style="padding:8px;text-align:left;">Factura</th><th style="padding:8px;text-align:left;">Fecha</th><th style="padding:8px;text-align:right;">Saldo pendiente</th></tr></thead>
+          <tbody>{filasHtml}</tbody>
+        </table>
+        <p>Para consultar las opciones de pago, comunícate con el equipo de recepción.</p>
+      </div>
+      <div style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;text-align:center;">
+        SmileTrack | Sistema de Gestión Odontológica<br />
+        Este es un mensaje automático, por favor no respondas a este correo.
+      </div>
+    </div>
+  </body>
+</html>
+"""
+        };
+
+        var socketOptions = _options.Port switch
+        {
+            465 => SecureSocketOptions.SslOnConnect,
+            587 => SecureSocketOptions.StartTls,
+            _ => _options.EnableSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.None
+        };
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("SmileTrack", _options.Username));
+        message.To.Add(new MailboxAddress(finalRecipient, finalRecipient));
+        message.Subject = "SmileTrack — Recordatorio de pago";
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using var client = new SmtpClient { Timeout = 15_000 };
+        try
+        {
+            await client.ConnectAsync(_options.Host, _options.Port, socketOptions, cancellationToken);
+            await client.AuthenticateAsync(_options.Username, _options.Password, cancellationToken);
+            await client.SendAsync(message, cancellationToken);
+            _logger.LogInformation(
+                "Recordatorio de pago enviado. Facturas={CantidadFacturas}",
+                facturas.Count);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "No fue posible enviar un recordatorio de pago.");
+            throw new InvalidOperationException("No fue posible enviar el recordatorio de pago.", ex);
+        }
+        finally
+        {
+            try
+            {
+                if (client.IsConnected)
+                    await client.DisconnectAsync(true, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo cerrar limpiamente la conexión SMTP del recordatorio de pago.");
+            }
         }
     }
 

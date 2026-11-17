@@ -1,44 +1,28 @@
-// ===== CHROME COMPARTIDO (sidebar / hamburger / toast) =====
-const safeGetElement = (id) => document.getElementById(id);
-
-const showToast = (message, type = 'success') => {
-  const toast = safeGetElement('toast');
-  if (!toast) return;
-  toast.textContent = message;
-  toast.className = `toast${type === 'error' ? ' error' : type === 'warning' ? ' warning' : ''} show`;
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
-};
-
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  if (!hamburger || !sidebar || !overlay) return;
-
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', String(show));
-    overlay.setAttribute('aria-hidden', String(!show));
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(!sidebar.classList.contains('open')));
-  overlay.addEventListener('click', () => toggleMenu(false));
-};
-
-document.addEventListener('DOMContentLoaded', initSidebar);
-
-
 // ===== LOGICA PROPIA DEL FORMULARIO PQR =====
+// El chrome compartido (sidebar / hamburger / overlay) lo aportan _Layout + shared/sidebar.js
+// y las notificaciones el ToastService de shared/toasts.js.
 
 // Mapeo entre el tipo mostrado en las tarjetas y el valor esperado por el backend
 const PQR_TYPE_MAP = { petition: 'peticion', complaint: 'queja', claim: 'reclamo' };
-const PQR_TYPE_LABEL = { peticion: 'Petición', queja: 'Queja', reclamo: 'Reclamo' };
+const PQR_TYPE_LABEL_KEY = { peticion: 'pqr.type_petition', queja: 'pqr.type_complaint', reclamo: 'pqr.type_claim' };
 let selectedPqrType = 'petition';
 
-// Select Request Type
-function selectRequestType(element, type) {
+// Traduce una clave si el diccionario la conoce; si no, devuelve el texto de respaldo.
+const t = (key, fallback) => (window.I18N && window.I18N.has(key)) ? window.I18N.t(key) : fallback;
+const pqrTypeLabel = (tipo) => tipo ? t(PQR_TYPE_LABEL_KEY[tipo], tipo) : '';
+
+// Notificación mediante el servicio compartido de toasts provisto por el layout.
+const showToast = (message, type = 'success') => {
+    const notify = window.ToastService?.[type];
+    if (typeof notify !== 'function') {
+        console.error('[SmileTrack][PQR] El servicio compartido de notificaciones no está disponible.');
+        return;
+    }
+    notify(message);
+};
+
+// Selecciona el tipo de solicitud en las tarjetas (listeners enlazados en initRequestTypes).
+const selectRequestType = (element, type) => {
     // Remove selected class from all cards
     document.querySelectorAll('.request-card').forEach(card => {
         card.classList.remove('selected');
@@ -49,6 +33,14 @@ function selectRequestType(element, type) {
 
     // Store selected type
     selectedPqrType = type;
+};
+
+function initRequestTypes() {
+    document.querySelectorAll('.request-card').forEach(card => {
+        card.addEventListener('click', () => {
+            selectRequestType(card, card.dataset.requestType || 'petition');
+        });
+    });
 }
 
 // Renderiza el listado de "Radicados recientes" con datos reales de la BD
@@ -58,21 +50,21 @@ function renderRecentPqrs() {
 
     const pqrs = Array.isArray(window.RAZOR_MIS_PQRS) ? window.RAZOR_MIS_PQRS : [];
     if (pqrs.length === 0) {
-        container.innerHTML = '<div class="pqr-empty-state">Aún no tienes solicitudes radicadas.</div>';
+        container.innerHTML = `<div class="pqr-empty-state">${escapeHtml(t('pac_pqr.empty_recent', 'Aún no tienes solicitudes radicadas.'))}</div>`;
         return;
     }
 
     const badgeByStatus = {
-        recibida: { label: 'Recibido', cls: 'process' },
-        en_proceso: { label: 'En proceso', cls: 'process' },
-        resuelta: { label: 'Resuelto', cls: 'resolved' },
-        cerrada: { label: 'Cerrado', cls: 'closed' },
-        rechazada: { label: 'Rechazado', cls: 'closed' }
+        recibida: { label: t('pac_pqr.st_received', 'Recibido'), cls: 'process' },
+        en_proceso: { label: t('pac_pqr.st_in_progress', 'En proceso'), cls: 'process' },
+        resuelta: { label: t('pac_pqr.st_resolved', 'Resuelto'), cls: 'resolved' },
+        cerrada: { label: t('pac_pqr.st_closed', 'Cerrado'), cls: 'closed' },
+        rechazada: { label: t('pac_pqr.st_rejected', 'Rechazado'), cls: 'closed' }
     };
 
     container.innerHTML = pqrs.slice(0, 5).map(p => {
-        const badge = badgeByStatus[p.Estado] || { label: p.Estado || 'Sin estado', cls: 'process' };
-        const tipoLabel = PQR_TYPE_LABEL[p.Tipo] || p.Tipo || '';
+        const badge = badgeByStatus[p.Estado] || { label: p.Estado || t('pac_pqr.no_status', 'Sin estado'), cls: 'process' };
+        const tipoLabel = pqrTypeLabel(p.Tipo);
         const fecha = p.FechaCreacion
             ? new Date(p.FechaCreacion).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
             : '';
@@ -84,10 +76,10 @@ function renderRecentPqrs() {
                 <div class="recent-date">${escapeHtml(tipoLabel)} · ${fecha}</div>
                 <span class="badge ${badge.cls}">${escapeHtml(badge.label)}</span>
                 <div class="recent-response-status ${tieneRespuesta ? 'answered' : ''}">
-                    <i class="fas ${tieneRespuesta ? 'fa-check-circle' : 'fa-clock'}"></i>
-                    ${tieneRespuesta ? 'Tiene respuesta' : 'Pendiente de respuesta'}
+                    <span class="material-symbols-outlined" aria-hidden="true">${tieneRespuesta ? 'check_circle' : 'schedule'}</span>
+                    ${tieneRespuesta ? t('pac_pqr.has_response', 'Tiene respuesta') : t('pac_pqr.pending_response', 'Pendiente de respuesta')}
                 </div>
-                <button type="button" class="btn-view-pqr" data-pqr-id="${p.IdPqr}">Ver detalle</button>
+                <button type="button" class="btn-view-pqr" data-pqr-id="${p.IdPqr}">${escapeHtml(t('pqr.view_details', 'Ver detalle'))}</button>
             </div>`;
     }).join('');
 
@@ -121,32 +113,32 @@ function openPqrDetail(pqr) {
     if (!overlay) return;
 
     const statusMap = {
-        recibida: { label: 'Recibido', cls: 'process' },
-        en_proceso: { label: 'En proceso', cls: 'process' },
-        resuelta: { label: 'Resuelto', cls: 'resolved' },
-        cerrada: { label: 'Cerrado', cls: 'closed' },
-        rechazada: { label: 'Rechazado', cls: 'closed' }
+        recibida: { label: t('pac_pqr.st_received', 'Recibido'), cls: 'process' },
+        en_proceso: { label: t('pac_pqr.st_in_progress', 'En proceso'), cls: 'process' },
+        resuelta: { label: t('pac_pqr.st_resolved', 'Resuelto'), cls: 'resolved' },
+        cerrada: { label: t('pac_pqr.st_closed', 'Cerrado'), cls: 'closed' },
+        rechazada: { label: t('pac_pqr.st_rejected', 'Rechazado'), cls: 'closed' }
     };
-    const status = statusMap[pqr.Estado] || { label: pqr.Estado || 'Sin estado', cls: 'process' };
+    const status = statusMap[pqr.Estado] || { label: pqr.Estado || t('pac_pqr.no_status', 'Sin estado'), cls: 'process' };
 
     document.getElementById('pqrDetailTicket').textContent = `PQR-${String(pqr.IdPqr).padStart(4, '0')}`;
-    document.getElementById('pqrDetailTitle').textContent = pqr.Asunto || 'Detalle de la PQR';
+    document.getElementById('pqrDetailTitle').textContent = pqr.Asunto || t('pac_pqr.detail_title', 'Detalle de la PQR');
     const statusElement = document.getElementById('pqrDetailStatus');
     statusElement.textContent = status.label;
     statusElement.className = `badge ${status.cls}`;
-    document.getElementById('pqrDetailMeta').textContent = `${PQR_TYPE_LABEL[pqr.Tipo] || pqr.Tipo || ''} · Radicada ${formatPqrDate(pqr.FechaCreacion)}`;
-    document.getElementById('pqrDetailSubject').textContent = pqr.Asunto || 'Sin asunto';
-    document.getElementById('pqrDetailDescription').textContent = pqr.Descripcion || 'Sin descripción.';
+    document.getElementById('pqrDetailMeta').textContent = `${pqrTypeLabel(pqr.Tipo)} · ${t('pac_pqr.filed_on', 'Radicada')} ${formatPqrDate(pqr.FechaCreacion)}`;
+    document.getElementById('pqrDetailSubject').textContent = pqr.Asunto || t('pac_pqr.no_subject', 'Sin asunto');
+    document.getElementById('pqrDetailDescription').textContent = pqr.Descripcion || t('pac_pqr.no_description', 'Sin descripción.');
 
     const responseElement = document.getElementById('pqrDetailResponse');
     const responseDate = document.getElementById('pqrDetailResponseDate');
     if (pqr.Respuesta && pqr.Respuesta.trim()) {
         responseElement.textContent = pqr.Respuesta;
         responseDate.textContent = pqr.FechaRespuesta
-            ? `Respondida el ${formatPqrDate(pqr.FechaRespuesta)}`
-            : 'Respuesta registrada';
+            ? `${t('pac_pqr.answered_on', 'Respondida el')} ${formatPqrDate(pqr.FechaRespuesta)}`
+            : t('pac_pqr.response_registered', 'Respuesta registrada');
     } else {
-        responseElement.textContent = 'Esta solicitud aún no tiene una respuesta registrada.';
+        responseElement.textContent = t('pac_pqr.no_response_yet', 'Esta solicitud aún no tiene una respuesta registrada.');
         responseDate.textContent = '';
     }
 
@@ -172,6 +164,7 @@ function formatPqrDate(value) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    initRequestTypes();
     renderRecentPqrs();
     document.getElementById('pqrDetailClose')?.addEventListener('click', closePqrDetail);
     document.getElementById('pqrDetailOverlay')?.addEventListener('click', event => {
@@ -194,10 +187,10 @@ document.getElementById('pqrForm').addEventListener('submit', async function (e)
 
     const submitBtn = this.querySelector('.btn-submit');
     const originalContent = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+    submitBtn.innerHTML = `<span class="material-symbols-outlined spin" aria-hidden="true">progress_activity</span> ${t('pac_pqr.processing', 'Procesando...')}`;
     submitBtn.disabled = true;
 
-    const asunto = document.getElementById('pqrAsunto')?.value?.trim() || 'Sin asunto';
+    const asunto = document.getElementById('pqrAsunto')?.value?.trim() || t('pac_pqr.no_subject', 'Sin asunto');
     const descripcion = document.getElementById('pqrDescripcion')?.value?.trim() || '';
     const tipo = PQR_TYPE_MAP[selectedPqrType] || 'peticion';
     const archivo = document.getElementById('fileInput')?.files?.[0] || null;
@@ -221,21 +214,21 @@ document.getElementById('pqrForm').addEventListener('submit', async function (e)
         const result = await response.json();
 
         if (response.ok && result.success) {
-            showToast(`Solicitud radicada exitosamente. Radicado: PQR-${String(result.id).padStart(4, '0')}`);
+            showToast(`${t('pac_pqr.success_filed', 'Solicitud radicada exitosamente. Radicado: ')}PQR-${String(result.id).padStart(4, '0')}`);
             this.reset();
             resetFileUpload();
 
             // Reflejar inmediatamente la nueva solicitud en "Radicados recientes".
             const recentList = document.getElementById('recentPqrList');
             if (recentList) {
-                const tipoLabel = PQR_TYPE_LABEL[tipo] || tipo;
+                const tipoLabel = pqrTypeLabel(tipo);
                 const nuevoItem = document.createElement('div');
                 nuevoItem.className = 'recent-item';
                 nuevoItem.innerHTML = `
                     <div class="recent-code">PQR-${String(result.id).padStart(4, '0')}</div>
                     <div class="recent-title">${asunto}</div>
-                    <div class="recent-date">${tipoLabel} · Hoy</div>
-                    <span class="badge process">Recibido</span>
+                    <div class="recent-date">${tipoLabel} · ${t('common.today', 'Hoy')}</div>
+                    <span class="badge process">${t('pac_pqr.st_received', 'Recibido')}</span>
                 `;
                 recentList.prepend(nuevoItem);
             }
@@ -243,61 +236,74 @@ document.getElementById('pqrForm').addEventListener('submit', async function (e)
             document.querySelector('.request-card.petition')?.classList.add('selected');
             selectedPqrType = 'petition';
         } else {
-            showToast(result.message || 'No se pudo radicar la solicitud', 'error');
+            showToast(result.message || t('pac_pqr.error_filed', 'No se pudo radicar la solicitud'), 'error');
         }
     } catch (err) {
         console.error('Error al radicar PQR:', err);
-        showToast('Error de conexión al radicar la solicitud', 'error');
+        showToast(t('pac_pqr.error_connection_filed', 'Error de conexión al radicar la solicitud'), 'error');
     } finally {
         submitBtn.innerHTML = originalContent;
         submitBtn.disabled = false;
     }
 });
 
+// ===== CARGA DE ARCHIVO (soporte adjunto) =====
+const fileUploadContainer = document.getElementById('fileUpload');
+const fileInput = document.getElementById('fileInput');
+
+// El contenedor abre el selector nativo; el evento del propio input no debe reabrir el selector.
+fileInput?.addEventListener('click', event => event.stopPropagation());
+fileUploadContainer?.addEventListener('click', () => fileInput?.click());
+
+function resetFileUpload() {
+    const input = document.getElementById('fileInput');
+    if (input) input.value = '';
+
+    const content = document.getElementById('fileUploadContent');
+    if (!content) return;
+    content.innerHTML = `
+        <span class="material-symbols-outlined" aria-hidden="true">cloud_upload</span>
+        <div data-i18n="pac_pqr.upload_hint">Haz clic para adjuntar un archivo (PDF, JPG, PNG — máx. 5 MB)</div>
+    `;
+    window.I18N?.apply?.(content);
+}
+
 // File Upload Preview
-document.getElementById('fileInput').addEventListener('change', function (e) {
+fileInput?.addEventListener('change', function () {
     if (this.files && this.files[0]) {
         const fileName = this.files[0].name;
         const fileSize = (this.files[0].size / 1024 / 1024).toFixed(2);
 
         if (fileSize > 5) {
-            alert('El archivo excede el tamaño máximo permitido (5 MB)');
+            showToast(t('pac_pqr.file_too_large', 'El archivo excede el tamaño máximo permitido (5 MB)'), 'error');
             this.value = '';
             return;
         }
 
-        const uploadDiv = this.parentElement;
-        uploadDiv.innerHTML = `
-            <i class="fas fa-check-circle" style="color: var(--success-green);"></i>
-            <div><strong>${fileName}</strong></div>
-            <div style="font-size: 12px; color: var(--text-light);">${fileSize} MB</div>
-            <div style="margin-top: 10px; color: var(--primary-blue); cursor: pointer;" onclick="resetFileUpload()">
-                <i class="fas fa-trash"></i> Eliminar archivo
-            </div>
+        const content = document.getElementById('fileUploadContent');
+        if (!content) return;
+        content.innerHTML = `
+            <span class="material-symbols-outlined file-preview-icon" aria-hidden="true">check_circle</span>
+            <div class="file-preview-name">${fileName}</div>
+            <div class="file-preview-size">${fileSize} MB</div>
+            <button type="button" class="file-remove">
+                <span class="material-symbols-outlined" aria-hidden="true">delete</span> ${t('pac_pqr.remove_file', 'Eliminar archivo')}
+            </button>
         `;
+        content.querySelector('.file-remove')?.addEventListener('click', event => {
+            event.stopPropagation();
+            resetFileUpload();
+        });
     }
 });
 
-function resetFileUpload() {
-    const fileInput = document.getElementById('fileInput');
-    fileInput.value = '';
-    fileInput.parentElement.innerHTML = `
-        <i class="fas fa-cloud-upload-alt"></i>
-        <div>Haz clic para adjuntar un archivo (PDF, JPG, PNG — máx. 5 MB)</div>
-    `;
-}
-
 // Character Counter for Textarea
 const textarea = document.querySelector('textarea');
-textarea.addEventListener('input', function () {
+textarea?.addEventListener('input', function () {
     const maxLength = 1000;
     const currentLength = this.value.length;
-    const counter = this.parentElement.querySelector('div[style*="text-align: right"]');
+    const counter = this.parentElement.querySelector('.char-counter');
+    if (!counter) return;
     counter.textContent = `${currentLength} / ${maxLength}`;
-
-    if (currentLength > maxLength) {
-        counter.style.color = 'var(--danger-red)';
-    } else {
-        counter.style.color = 'var(--text-light)';
-    }
+    counter.classList.toggle('is-over-limit', currentLength > maxLength);
 });

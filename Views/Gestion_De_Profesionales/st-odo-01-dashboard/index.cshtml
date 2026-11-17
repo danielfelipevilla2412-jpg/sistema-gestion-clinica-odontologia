@@ -1,54 +1,40 @@
 @* ============================================
 SmileTrack — Dashboard del Odontólogo (st-odo-01-dashboard)
 ============================================
-Autor: Johan Santamaria
-Fecha: 29/07/2026
-
-DESCRIPCIÓN:
-Vista de dashboard personal del odontólogo que muestra un resumen del día: próximas citas, procedimientos pendientes, estadísticas de la jornada y accesos directos a las funciones más usadas.
-
-FUNCIONALIDADES PRINCIPALES:
-- Tarjetas de métricas de la jornada (citas atendidas, pendientes, canceladas) con animación de conteo
-- Lista de próximas citas del día con estado visual por color de badge
-- Panel de accesos rápidos a agenda, reportes y perfil del profesional
-- Notificaciones activas del sistema con capacidad de dismissal individual
-
-DEPENDENCIAS TÉCNICAS:
-- Controller: GestionProfesionalesController o DashboardOdontologoController
-- CSS: ~/css/Gestion_De_Profesionales/st-odo-01-dashboard/styles.css
-- JS: ~/js/Gestion_De_Profesionales/st-odo-01-dashboard/app.js
-- Partial / Otros: Layout = null (standalone)
-
-NOTAS DE MANTENIMIENTO:
-- Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
-- Los contadores de métricas se animan al cargar la vista para atraer la atención del profesional hacia los KPIs del día.
+Dashboard personal del profesional. El layout compartido selecciona el sidebar correspondiente al rol.
 ============================================ *@
-@{ Layout = "_Layout"; ViewData["Title"] = "Dashboard Odontólogo"; }
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Dashboard General";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Profesionales/st-odo-01-dashboard/styles.css" asp-append-version="true" />
 }
 
   <!-- ═════ MAIN ═════ -->
-  <main class="main" id="main-content">
+  <main class="main professional-dashboard" id="main-content">
 
     <!-- Header -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Profesional</span>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="odo01.breadcrumb_aria">
+          <span data-i18n="odo01.breadcrumb_professional">Profesional</span>
           <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active">Dashboard</span>
+          <span class="bc-active" data-i18n="odo01.breadcrumb_dashboard">Dashboard</span>
         </nav>
         <h1 class="page-title" data-i18n="nav.dashboard_general">Dashboard General</h1>
         <p class="page-subtitle">
-          Resumen en tiempo real ·
-          <time datetime="" id="headerDate">Cargando fecha...</time>
+          <span data-i18n="odo01.subtitle">Resumen de tu actividad profesional</span>
+          <span aria-hidden="true">·</span>
+          <time datetime="" id="headerDate"></time>
         </p>
       </div>
       <a href="/reportes/vista-prof" class="btn-secondary">
-        <span class="material-symbols-outlined">analytics</span>
-        Ver Reportes Completos
+        <span class="material-symbols-outlined" aria-hidden="true">analytics</span>
+        <span data-i18n="odo01.view_reports">Ver reportes completos</span>
       </a>
     </header>
 
@@ -61,51 +47,83 @@ NOTAS DE MANTENIMIENTO:
     <section class="next-appointment-banner" aria-live="polite">
         @if (proximaCita != null)
         {
-            var minutos = (proximaCita.FechaHora - DateTime.Now).TotalMinutes;
+            var minutos = (proximaCita.FechaHora - SmileTrack_MVC.Helpers.ColombiaClock.Now).TotalMinutes;
             var urgente = minutos <= 15 && minutos > 0;
             var claseUrgencia = urgente ? "urgent" : "upcoming";
             var nombrePaciente = $"{proximaCita.Paciente?.Nombres} {proximaCita.Paciente?.Apellidos}".Trim();
-            var fechaCita = proximaCita.FechaHora.Date == DateTime.Today
+            var fechaCita = proximaCita.FechaHora.Date == SmileTrack_MVC.Helpers.ColombiaClock.Today
                 ? string.Empty
                 : proximaCita.FechaHora.ToString("dd MMM yyyy");
             
             <div class="next-appt-card @claseUrgencia" data-fecha-hora="@proximaCita.FechaHora.ToString("s")">
                 <div class="next-appt-icon">
-                    <span class="material-symbols-outlined">@(urgente ? "notification_important" : "schedule")</span>
+                    <span class="material-symbols-outlined" aria-hidden="true">@(urgente ? "notification_important" : "schedule")</span>
                 </div>
                 <div class="next-appt-info">
-                    <span class="next-appt-label">@(urgente ? "¡CITA URGENTE!" : "Próxima cita")</span>
+                    <span class="next-appt-label" data-i18n="@(urgente ? "odo01.next_urgent" : "odo01.next_label")">
+                        @(urgente ? "¡CITA URGENTE!" : "Próxima cita")
+                    </span>
                     <strong class="next-appt-patient">@nombrePaciente</strong>
                     <span class="next-appt-time">
                         @if (!string.IsNullOrEmpty(fechaCita))
                         {
-                            <time datetime="@proximaCita.FechaHora.ToString("yyyy-MM-dd")">@fechaCita</time>
+                            <time datetime="@proximaCita.FechaHora.ToString("yyyy-MM-dd")" data-date-format="long">@fechaCita</time>
                             <span aria-hidden="true">—</span>
                         }
                         <time datetime="@proximaCita.FechaHora.ToString("s")">@proximaCita.FechaHora.ToString("HH:mm")</time>
-                        <span aria-hidden="true">—</span> @(proximaCita.Servicio?.Nombre ?? "Consulta") — @(proximaCita.Consultorio?.Nombre ?? "Sin asignar")
+                        <span aria-hidden="true">—</span>
+                        @if (proximaCita.Servicio?.Nombre is string nombreServicio)
+                        {
+                            @nombreServicio
+                        }
+                        else
+                        {
+                            <span data-i18n="odo01.consultation">Consulta</span>
+                        }
+                        <span aria-hidden="true">—</span>
+                        @if (proximaCita.Consultorio?.Nombre is string nombreConsultorio)
+                        {
+                            @nombreConsultorio
+                        }
+                        else
+                        {
+                            <span data-i18n="odo01.office_unassigned">Sin asignar</span>
+                        }
                     </span>
-                    <span class="next-appt-countdown" style="@(urgente ? string.Empty : "display:none")">
-                        @(urgente ? $"⏰ En {(int)minutos} minutos" : string.Empty)
+                    <span class="next-appt-countdown" aria-live="polite" aria-atomic="true" hidden>
+                      <span class="material-symbols-outlined countdown-icon" aria-hidden="true"></span>
+                      <span class="countdown-text"></span>
                     </span>
                     @if (ultimaAtencion != null)
                     {
                         <span class="next-appt-context">
-                            Última atención: @ultimaAtencion.FechaHora.ToString("dd/MM/yyyy") - @(ultimaAtencion.Servicio?.Nombre ?? "Consulta")
+                            <span data-i18n="odo01.last_visit">Última atención</span>:
+                            <time datetime="@ultimaAtencion.FechaHora.ToString("yyyy-MM-dd")" data-date-format="long">
+                                @ultimaAtencion.FechaHora.ToString("dd/MM/yyyy")
+                            </time>
+                            <span aria-hidden="true">—</span>
+                            @if (ultimaAtencion.Servicio?.Nombre is string ultimoServicio)
+                            {
+                                @ultimoServicio
+                            }
+                            else
+                            {
+                                <span data-i18n="odo01.consultation">Consulta</span>
+                            }
                         </span>
                     }
                 </div>
                 <a href="/gestion-de-citas/st-odo-02-agenda" class="btn-primary btn-sm">
-                    <span class="material-symbols-outlined">calendar_month</span>
-                    Ver en Agenda
+                    <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                    <span data-i18n="odo01.view_in_agenda">Ver en agenda</span>
                 </a>
             </div>
         }
         else
         {
             <div class="next-appt-card empty">
-                <span class="material-symbols-outlined">check_circle</span>
-                <span>No tienes citas próximas. ¡Buen trabajo!</span>
+                <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                <span data-i18n="odo01.no_upcoming">No tienes citas próximas. ¡Buen trabajo!</span>
             </div>
         }
     </section>
@@ -116,65 +134,66 @@ NOTAS DE MANTENIMIENTO:
         var atendidasHoyCount = (int)(ViewData["OdoCitasAtendidasHoy"] ?? 0);
         var progresoDia = citasHoyCount > 0 ? (int)Math.Round((double)atendidasHoyCount / citasHoyCount * 100) : 0;
     }
-    <div class="progress-row" role="progressbar" aria-valuenow="@progresoDia" aria-valuemin="0" aria-valuemax="100"
-      aria-label="Progreso del día: @progresoDia%">
-      <div class="progress-bar-wrap">
-        <div class="progress-bar" id="topProgressBar" style="width:@progresoDia%"></div>
+    <div class="progress-row" role="group" aria-label="Progreso del día" data-i18n-aria-label="odo01.daily_progress_aria">
+      <div class="progress-bar-wrap" role="progressbar" aria-valuenow="@progresoDia" aria-valuemin="0" aria-valuemax="100"
+           aria-label="Progreso del día: @progresoDia%" data-progress-aria>
+        <div class="progress-bar" id="topProgressBar" data-width="@progresoDia"></div>
       </div>
-      <span class="progress-label" id="dailyProgressLabel" aria-live="polite">
+      <span class="progress-label" id="dailyProgressLabel" aria-live="polite"
+            data-attended="@atendidasHoyCount" data-total="@citasHoyCount" data-percent="@progresoDia">
         @atendidasHoyCount de @citasHoyCount citas completadas hoy (@progresoDia%)
       </span>
     </div>
 
     <!-- Accesos Rápidos -->
-    <section class="quick-actions" aria-label="Accesos rápidos">
-        <h2 class="section-subtitle">Accesos Rápidos</h2>
+    <section class="quick-actions" aria-label="Accesos rápidos" data-i18n-aria-label="odo01.quick_actions">
+        <h2 class="section-subtitle" data-i18n="odo01.quick_actions">Accesos rápidos</h2>
         <div class="quick-actions-grid">
             <a href="/gestion-de-citas/st-odo-02-agenda" class="quick-action-card">
-                <span class="material-symbols-outlined">calendar_month</span>
-                <strong>Mi Agenda</strong>
-                <span>Ver y gestionar citas</span>
+                <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                <strong data-i18n="odo01.my_agenda">Mi agenda</strong>
+                <span data-i18n="odo01.my_agenda_desc">Ver y gestionar citas</span>
             </a>
             <a href="/historia-clinica/st-odo-06-pacientes" class="quick-action-card">
-                <span class="material-symbols-outlined">folder_open</span>
-                <strong>Mis Pacientes</strong>
-                <span>Historial clínico</span>
+                <span class="material-symbols-outlined" aria-hidden="true">folder_open</span>
+                <strong data-i18n="odo01.my_patients">Mis pacientes</strong>
+                <span data-i18n="odo01.my_patients_desc">Historial clínico</span>
             </a>
             <a href="/reportes/vista-prof" class="quick-action-card">
-                <span class="material-symbols-outlined">analytics</span>
-                <strong>Reportes</strong>
-                <span>Estadísticas detalladas</span>
+                <span class="material-symbols-outlined" aria-hidden="true">analytics</span>
+                <strong data-i18n="odo01.reports">Reportes</strong>
+                <span data-i18n="odo01.reports_desc">Estadísticas detalladas</span>
             </a>
             <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="quick-action-card">
-                <span class="material-symbols-outlined">person</span>
-                <strong>Mi Perfil</strong>
-                <span>Datos personales</span>
+                <span class="material-symbols-outlined" aria-hidden="true">person</span>
+                <strong data-i18n="odo01.my_profile">Mi perfil</strong>
+                <span data-i18n="odo01.my_profile_desc">Datos personales</span>
             </a>
         </div>
     </section>
 
     <!-- Stats Grid -->
-    <section class="stats-grid" aria-label="Métricas principales">
-      <div class="stat-card" data-color="blue">
+    <section class="stats-grid" aria-label="Métricas principales" data-i18n-aria-label="odo01.stats_aria">
+      <div class="stat-card" data-color="blue" data-i18n-title="odo01.tooltip_patients">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">groups</span>
         <span class="stat-number" id="statPacientes" data-target="@(ViewData["OdoPacientesActivos"] ?? 0)" aria-live="polite">0</span>
-        <span class="stat-label">Pacientes del mes</span>
+        <span class="stat-label" data-i18n="odo01.stat_patients">Pacientes con cita este mes</span>
       </div>
-      <div class="stat-card" data-color="green">
+      <div class="stat-card" data-color="green" data-i18n-title="odo01.tooltip_today">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event</span>
         <span class="stat-number" id="statCitas" data-target="@(ViewData["OdoCitasHoy"] ?? 0)" aria-live="polite">0</span>
-        <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
+        <span class="stat-label" data-i18n="odo01.stat_today">Citas hoy</span>
       </div>
-      <div class="stat-card" data-color="orange">
+      <div class="stat-card" data-color="green" data-i18n-title="odo01.tooltip_attended">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
         <span class="stat-number" id="statProfesionales" data-target="@(ViewData["OdoCitasAtendidasHoy"] ?? 0)" aria-live="polite">0</span>
-        <span class="stat-label" data-i18n="status.attended">Citas atendidas</span>
+        <span class="stat-label" data-i18n="odo01.stat_attended">Citas atendidas hoy</span>
       </div>
-      <div class="stat-card" data-color="purple">
+      <div class="stat-card" data-color="purple" data-i18n-title="odo01.tooltip_revenue">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
         <span class="stat-number" id="statIngresos" data-format="currency-cop" data-target="@(Convert.ToDecimal(ViewData["OdoIngresosMes"] ?? 0))" aria-live="polite">0</span>
-        <span class="stat-label">Ingresos del mes</span>
-        <small>Fórmula: suma del precio de los servicios asociados a citas atendidas este mes; no equivale a comisión neta.</small>
+        <span class="stat-label" data-i18n="odo01.stat_revenue">Ingresos del mes</span>
+        <small data-i18n="odo01.revenue_note">Suma de servicios en citas atendidas; no equivale a comisión neta.</small>
       </div>
     </section>
 
@@ -186,50 +205,66 @@ NOTAS DE MANTENIMIENTO:
 
         <!-- Gráfico de ingresos -->
         <section class="card" aria-labelledby="revenueTitle">
-          <h2 class="card-title" id="revenueTitle">Ingresos de los últimos 3 meses</h2>
-          <div class="chart-container" id="revenueChart" role="img" aria-label="Ingresos reales de los últimos tres meses"></div>
-          <p class="chart-summary" aria-live="polite">Datos calculados exclusivamente con las citas del profesional autenticado.</p>
+          <h2 class="card-title" id="revenueTitle" data-i18n="odo01.revenue_title">Ingresos de los últimos 3 meses</h2>
+          <div class="chart-container" id="revenueChart" role="group" aria-label="Ingresos de los últimos tres meses" data-i18n-aria-label="odo01.revenue_aria"></div>
+          <p class="chart-summary" aria-live="polite" data-i18n="odo01.revenue_summary">Datos calculados exclusivamente con las citas del profesional autenticado.</p>
         </section>
 
         <!-- Últimos pacientes atendidos -->
         <section class="card" aria-labelledby="topProfTitle">
-          <h2 class="card-title" id="topProfTitle">Últimos pacientes atendidos</h2>
+          <h2 class="card-title" id="topProfTitle" data-i18n="odo01.recent_patients">Últimos pacientes atendidos</h2>
           <div class="table-wrap">
-            <table class="table-base" aria-label="Tabla de últimos pacientes atendidos">
+            <table class="table-base" aria-label="Tabla de últimos pacientes atendidos" data-i18n-aria-label="odo01.patients_table_aria">
               <thead>
                 <tr>
-                  <th scope="col">Paciente</th>
-                  <th scope="col" style="text-align:center">Servicio</th>
-                  <th scope="col" style="text-align:right">Fecha</th>
+                  <th scope="col" data-i18n="odo01.patient">Paciente</th>
+                  <th scope="col" class="table-cell--service" data-i18n="odo01.service">Servicio</th>
+                  <th scope="col" class="table-cell--date" data-i18n="odo01.date">Fecha</th>
                 </tr>
               </thead>
               <tbody>
                 @{
-                  var avatarColors = new[] { "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444" };
+                  var avatarColors = new[] { "blue", "green", "yellow", "purple", "slate" };
                   var ultimosPacientes = ViewData["OdoUltimosPacientes"] as List<SmileTrack_MVC.Models.Entities.Cita> ?? new();
                   if (ultimosPacientes.Any())
                   {
-                    int colorIdx = 0;
                     foreach (var cita in ultimosPacientes)
                     {
                       var nombrePaciente = $"{cita.Paciente?.Nombres} {cita.Paciente?.Apellidos}".Trim();
                       var initials = string.Concat(nombrePaciente.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
-                      var color = avatarColors[colorIdx % avatarColors.Length];
-                      colorIdx++;
+                      var color = avatarColors[Math.Abs(cita.IdPaciente % avatarColors.Length)];
                       <tr>
-                        <td style="display:flex; align-items:center; gap:10px;">
-                          <div class="td-avatar" style="background:@color; color:#fff; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:700; flex-shrink:0;">@initials</div>
+                        <td class="patient-cell">
+                          <span class="patient-avatar" data-color="@color" aria-hidden="true">@initials</span>
                           <span class="td-name">@nombrePaciente</span>
                         </td>
-                        <td style="text-align:center"><span class="badge-spec">@(cita.Servicio?.Nombre ?? "Consulta")</span></td>
-                        <td style="text-align:right; font-size:.85rem; color:var(--text-muted);">@cita.FechaHora.ToString("dd MMM")</td>
+                        <td class="table-cell--service">
+                          <span class="badge-spec">
+                            @if (cita.Servicio?.Nombre is string nombreServicioPaciente)
+                            {
+                                @nombreServicioPaciente
+                            }
+                            else
+                            {
+                                <span data-i18n="odo01.consultation">Consulta</span>
+                            }
+                          </span>
+                        </td>
+                        <td class="table-cell--date">
+                          <time datetime="@cita.FechaHora.ToString("s")" data-date-format="short">@cita.FechaHora.ToString("dd MMM")</time>
+                        </td>
                       </tr>
                     }
                   }
                   else
                   {
                     <tr>
-                      <td colspan="3" style="text-align:center; color:var(--text-muted); padding:16px;">No hay pacientes atendidos este mes.</td>
+                      <td colspan="3">
+                        <div class="empty-state">
+                          <span class="material-symbols-outlined empty-icon" aria-hidden="true">person_search</span>
+                          <p class="empty-state-text" data-i18n="odo01.no_recent_patients">No hay pacientes atendidos este mes.</p>
+                        </div>
+                      </td>
                     </tr>
                   }
                 }
@@ -244,51 +279,58 @@ NOTAS DE MANTENIMIENTO:
       <div class="content-right">
         @{
             var totalCitas = (int)(ViewData["OdoTotalCitasMes"] ?? 0);
-            var pctAtendidas = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasAtendidas"] ?? 0) / totalCitas * 100) : 0;
-            var pctProgramadas = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasProgramadas"] ?? 0) / totalCitas * 100) : 0;
-            var pctCanceladas = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasCanceladas"] ?? 0) / totalCitas * 100) : 0;
-            var pctNoAsistio = totalCitas > 0 ? (int)Math.Round((double)(int)(ViewData["OdoCitasNoAsistio"] ?? 0) / totalCitas * 100) : 0;
-            
+            var citasAtendidasMes = (int)(ViewData["OdoCitasAtendidas"] ?? 0);
+            var citasProgramadasMes = (int)(ViewData["OdoCitasProgramadas"] ?? 0);
+            var citasCanceladasMes = (int)(ViewData["OdoCitasCanceladas"] ?? 0);
+            var citasNoAsistioMes = (int)(ViewData["OdoCitasNoAsistio"] ?? 0);
+            var pctAtendidas = totalCitas > 0 ? (int)Math.Round((double)citasAtendidasMes / totalCitas * 100) : 0;
+            var pctProgramadas = totalCitas > 0 ? (int)Math.Round((double)citasProgramadasMes / totalCitas * 100) : 0;
+            var pctCanceladas = totalCitas > 0 ? (int)Math.Round((double)citasCanceladasMes / totalCitas * 100) : 0;
+            var pctNoAsistio = totalCitas > 0 ? (int)Math.Round((double)citasNoAsistioMes / totalCitas * 100) : 0;
+
             var tasaAsistencia = (int)(ViewData["TasaAsistenciaHoy"] ?? 0);
             var iconoMs = tasaAsistencia >= 80 ? "local_fire_department" : tasaAsistencia >= 50 ? "thumb_up" : "warning";
-            var mensajeRendimiento = tasaAsistencia >= 80 
-                ? "¡Excelente día! Estás cumpliendo tus objetivos."
-                : tasaAsistencia >= 50 
-                    ? "Buen ritmo, continúa así."
-                    : "Varias citas pendientes, organiza tu tiempo.";
-            var colorMensaje = tasaAsistencia >= 80 ? "#10b981" : tasaAsistencia >= 50 ? "#f59e0b" : "#ef4444";
+            var mensajeRendimientoKey = tasaAsistencia >= 80
+                ? "odo01.performance_excellent"
+                : tasaAsistencia >= 50
+                    ? "odo01.performance_good"
+                    : "odo01.performance_low";
+            var citasPendientesConfirmar = (int)(ViewData["CitasPendientesConfirmar"] ?? 0);
+            var pacientesEspera = (int)(ViewData["PacientesEnEspera"] ?? 0);
+            var historiasPendientes = (int)(ViewData["HistoriasPendientes"] ?? 0);
+            var hayNotificaciones = citasPendientesConfirmar > 0 || pacientesEspera > 0 || historiasPendientes > 0;
         }
 
         <!-- Rendimiento del Día -->
         <section class="card" aria-labelledby="performanceTitle">
             <h2 class="card-title" id="performanceTitle">
-                <span class="material-symbols-outlined">trending_up</span>
-                Rendimiento del Día
+                <span class="material-symbols-outlined" aria-hidden="true">trending_up</span>
+                <span data-i18n="odo01.performance">Rendimiento del día</span>
             </h2>
             <div class="performance-score">
                 <div class="score-circle" data-score="@tasaAsistencia">
-                    <svg width="120" height="120" viewBox="0 0 120 120">
+                    <svg width="120" height="120" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
                         <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="10"/>
-                        <circle cx="60" cy="60" r="50" fill="none" stroke="url(#gradient)" 
+                        <circle class="score-progress-circle" cx="60" cy="60" r="50" fill="none" stroke="url(#gradient)"
                                 stroke-width="10" stroke-linecap="round"
                                 stroke-dasharray="@(314 * tasaAsistencia / 100) 314"
-                                transform="rotate(-90 60 60)"
-                                style="transition: stroke-dasharray 1s ease;"/>
+                                transform="rotate(-90 60 60)"/>
                         <defs>
                             <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                                <stop class="score-gradient-start" offset="0%" />
+                                <stop class="score-gradient-end" offset="100%" />
                             </linearGradient>
                         </defs>
                     </svg>
                     <div class="score-text">
                         <span class="score-emoji material-symbols-outlined" aria-hidden="true">@iconoMs</span>
                         <strong class="score-value">@tasaAsistencia%</strong>
-                        <span class="score-label">Atendidas</span>
+                        <span class="score-label" data-i18n="odo01.performance_attended">Atendidas</span>
                     </div>
                 </div>
                 <p class="performance-message">
-                    <strong style="color: @colorMensaje;">@mensajeRendimiento</strong>
+                    <strong class="performance-message--@((tasaAsistencia >= 80) ? "excellent" : (tasaAsistencia >= 50) ? "good" : "low")"
+                            data-i18n="@mensajeRendimientoKey"></strong>
                 </p>
             </div>
         </section>
@@ -296,101 +338,105 @@ NOTAS DE MANTENIMIENTO:
         <!-- Panel de Notificaciones -->
         <section class="card notifications-card" aria-labelledby="notifTitle">
             <h2 class="card-title" id="notifTitle">
-                <span class="material-symbols-outlined">notifications</span>
-                Notificaciones
+                <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+                <span data-i18n="odo01.notifications">Notificaciones</span>
             </h2>
             <div class="notifications-list">
-                @{
-                    var citasPendientesConfirmar = (int)(ViewData["CitasPendientesConfirmar"] ?? 0);
-                    var pacientesEspera = (int)(ViewData["PacientesEnEspera"] ?? 0);
-                    var historiasPendientes = (int)(ViewData["HistoriasPendientes"] ?? 0);
-                }
-                
                 @if (citasPendientesConfirmar > 0)
                 {
-                    <div class="notif-item warning">
-                        <span class="material-symbols-outlined">schedule</span>
+                    <button class="notif-item warning" type="button" data-i18n-aria-label="odo01.dismiss_notification">
+                        <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
                         <div>
-                            <strong>@citasPendientesConfirmar citas sin confirmar</strong>
-                            <span>Revisa tu agenda para confirmar</span>
+                            <strong data-i18n-count="odo01.notification_unconfirmed" data-count="@citasPendientesConfirmar">
+                                @citasPendientesConfirmar citas sin confirmar
+                            </strong>
+                            <span data-i18n="odo01.review_agenda">Revisa tu agenda para confirmar</span>
                         </div>
-                    </div>
+                    </button>
                 }
-                
+
                 @if (pacientesEspera > 0)
                 {
-                    <div class="notif-item urgent">
-                        <span class="material-symbols-outlined">groups</span>
+                    <button class="notif-item urgent" type="button" data-i18n-aria-label="odo01.dismiss_notification">
+                        <span class="material-symbols-outlined" aria-hidden="true">groups</span>
                         <div>
-                            <strong>@pacientesEspera pacientes en espera</strong>
-                            <span>Esperando en sala de atención</span>
+                            <strong data-i18n-count="odo01.notification_waiting" data-count="@pacientesEspera">
+                                @pacientesEspera pacientes en espera
+                            </strong>
+                            <span data-i18n="odo01.waiting_desc">Esperando en sala de atención</span>
                         </div>
-                    </div>
+                    </button>
                 }
-                
+
                 @if (historiasPendientes > 0)
                 {
-                    <div class="notif-item info">
-                        <span class="material-symbols-outlined">assignment</span>
+                    <button class="notif-item info" type="button" data-i18n-aria-label="odo01.dismiss_notification">
+                        <span class="material-symbols-outlined" aria-hidden="true">assignment</span>
                         <div>
-                            <strong>@historiasPendientes historias por completar</strong>
-                            <span>Cierra las historias clínicas pendientes</span>
+                            <strong data-i18n-count="odo01.notification_records" data-count="@historiasPendientes">
+                                @historiasPendientes historias por completar
+                            </strong>
+                            <span data-i18n="odo01.complete_records">Completa las historias clínicas pendientes</span>
                         </div>
-                    </div>
+                    </button>
                 }
-                
-                @if (citasPendientesConfirmar == 0 && pacientesEspera == 0 && historiasPendientes == 0)
-                {
-                    <div class="notif-empty">
-                        <span class="material-symbols-outlined">check_circle</span>
-                        <span>Todo al día</span>
-                    </div>
-                }
+                <div class="notif-empty" @(hayNotificaciones ? "hidden" : "")>
+                    <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                    <span data-i18n="odo01.notifications_empty">Todo al día</span>
+                </div>
             </div>
         </section>
 
         <!-- Estado de citas -->
         <section class="card" aria-labelledby="statusTitle">
-          <h2 class="card-title" id="statusTitle">Tus citas del mes</h2>
-          <div class="status-chart" id="statusChart" role="img" aria-label="Gráfico de estado de citas">
+          <h2 class="card-title" id="statusTitle" data-i18n="odo01.monthly_appointments">Tus citas del mes</h2>
+          <div class="status-chart" id="statusChart" role="group" aria-label="Estado de tus citas del mes" data-i18n-aria-label="odo01.status_chart_aria">
             <div class="status-row">
-              <span class="status-label">Atendidas</span>
+              <span class="status-label" data-i18n="odo01.status_attended">Atendidas</span>
               <div class="status-bar-bg">
-                <div class="status-bar-fill green" data-width="@pctAtendidas" style="width:0" role="progressbar" aria-valuenow="@pctAtendidas"
-                  aria-valuemin="0" aria-valuemax="100" aria-label="Atendidas: @(ViewData["OdoCitasAtendidas"] ?? 0) citas, @pctAtendidas%"></div>
+                <div class="status-bar-fill status-attended" data-width="@pctAtendidas" role="progressbar"
+                  aria-valuenow="@pctAtendidas" aria-valuemin="0" aria-valuemax="100"
+                  data-status-key="odo01.status_attended_aria" data-count="@citasAtendidasMes" data-percent="@pctAtendidas"
+                  aria-label="Atendidas: @citasAtendidasMes, @pctAtendidas%"></div>
               </div>
-              <span class="status-val">@(ViewData["OdoCitasAtendidas"] ?? 0)</span>
+              <span class="status-val">@citasAtendidasMes</span>
             </div>
             <div class="status-row">
-              <span class="status-label">Programadas</span>
+              <span class="status-label" data-i18n="odo01.status_scheduled">Programadas</span>
               <div class="status-bar-bg">
-                <div class="status-bar-fill blue" data-width="@pctProgramadas" style="width:0" role="progressbar" aria-valuenow="@pctProgramadas"
-                  aria-valuemin="0" aria-valuemax="100" aria-label="Programadas: @(ViewData["OdoCitasProgramadas"] ?? 0) citas, @pctProgramadas%"></div>
+                <div class="status-bar-fill status-scheduled" data-width="@pctProgramadas" role="progressbar"
+                  aria-valuenow="@pctProgramadas" aria-valuemin="0" aria-valuemax="100"
+                  data-status-key="odo01.status_scheduled_aria" data-count="@citasProgramadasMes" data-percent="@pctProgramadas"
+                  aria-label="Programadas: @citasProgramadasMes, @pctProgramadas%"></div>
               </div>
-              <span class="status-val">@(ViewData["OdoCitasProgramadas"] ?? 0)</span>
+              <span class="status-val">@citasProgramadasMes</span>
             </div>
             <div class="status-row">
-              <span class="status-label">Canceladas</span>
+              <span class="status-label" data-i18n="odo01.status_cancelled">Canceladas</span>
               <div class="status-bar-bg">
-                <div class="status-bar-fill red" data-width="@pctCanceladas" style="width:0" role="progressbar" aria-valuenow="@pctCanceladas"
-                  aria-valuemin="0" aria-valuemax="100" aria-label="Canceladas: @(ViewData["OdoCitasCanceladas"] ?? 0) citas, @pctCanceladas%"></div>
+                <div class="status-bar-fill status-cancelled" data-width="@pctCanceladas" role="progressbar"
+                  aria-valuenow="@pctCanceladas" aria-valuemin="0" aria-valuemax="100"
+                  data-status-key="odo01.status_cancelled_aria" data-count="@citasCanceladasMes" data-percent="@pctCanceladas"
+                  aria-label="Canceladas: @citasCanceladasMes, @pctCanceladas%"></div>
               </div>
-              <span class="status-val">@(ViewData["OdoCitasCanceladas"] ?? 0)</span>
+              <span class="status-val">@citasCanceladasMes</span>
             </div>
             <div class="status-row">
-              <span class="status-label">No asistió</span>
+              <span class="status-label" data-i18n="odo01.status_no_show">No asistió</span>
               <div class="status-bar-bg">
-                <div class="status-bar-fill orange" data-width="@pctNoAsistio" style="width:0" role="progressbar"
-                  aria-valuenow="@pctNoAsistio" aria-valuemin="0" aria-valuemax="100" aria-label="No asistió: @(ViewData["OdoCitasNoAsistio"] ?? 0) citas, @pctNoAsistio%"></div>
+                <div class="status-bar-fill status-no-show" data-width="@pctNoAsistio" role="progressbar"
+                  aria-valuenow="@pctNoAsistio" aria-valuemin="0" aria-valuemax="100"
+                  data-status-key="odo01.status_no_show_aria" data-count="@citasNoAsistioMes" data-percent="@pctNoAsistio"
+                  aria-label="No asistió: @citasNoAsistioMes, @pctNoAsistio%"></div>
               </div>
-              <span class="status-val">@(ViewData["OdoCitasNoAsistio"] ?? 0)</span>
+              <span class="status-val">@citasNoAsistioMes</span>
             </div>
           </div>
         </section>
 
         <!-- Próximas citas -->
         <section class="card" aria-labelledby="invoicesTitle">
-          <h2 class="card-title" id="invoicesTitle">Próximas citas de hoy</h2>
+          <h2 class="card-title" id="invoicesTitle" data-i18n="odo01.upcoming_today">Próximas citas de hoy</h2>
           <div class="invoices-list" role="list">
             @{
                 var proximasCitas = ViewData["OdoProximasCitas"] as List<SmileTrack_MVC.Models.Entities.Cita> ?? new();
@@ -401,19 +447,41 @@ NOTAS DE MANTENIMIENTO:
                         <div class="invoice-item" role="listitem">
                           <div>
                             <p class="invoice-code">@(cita.HoraInicio?.ToString(@"hh\:mm") ?? "00:00")</p>
-                            <p class="invoice-desc">Paciente: @(cita.Paciente?.Nombres ?? "N/A") @(cita.Paciente?.Apellidos ?? "")</p>
+                            <p class="invoice-desc">
+                              <span data-i18n="odo01.patient_label">Paciente:</span>
+                              @if (cita.Paciente is not null)
+                              {
+                                  <span>@cita.Paciente.Nombres @cita.Paciente.Apellidos</span>
+                              }
+                              else
+                              {
+                                  <span data-i18n="odo01.not_available">No disponible</span>
+                              }
+                            </p>
                           </div>
-                          <p class="invoice-amount" style="font-size: 0.9rem; font-weight: 500;">@(cita.Servicio?.Nombre ?? "Consulta")</p>
-                          <a class="btn-secondary btn-sm"
+                          <p class="invoice-amount">
+                            @if (cita.Servicio?.Nombre is string nombreServicioCita)
+                            {
+                                @nombreServicioCita
+                            }
+                            else
+                            {
+                                <span data-i18n="odo01.consultation">Consulta</span>
+                            }
+                          </p>
+                          <a class="btn-secondary"
                              href="@Url.Action("Stodo04Odontograma", "HistoriaClinica", new { pacienteId = cita.IdPaciente, citaId = cita.IdCita })">
-                            Abrir odontograma
+                            <span data-i18n="odo01.open_odontogram">Abrir odontograma</span>
                           </a>
                         </div>
                     }
                 }
                 else
                 {
-                    <p style="padding: 16px; color: var(--text-muted); font-size: 0.9rem;">No tienes más citas programadas para hoy.</p>
+                    <div class="empty-state">
+                      <span class="material-symbols-outlined empty-icon" aria-hidden="true">event_busy</span>
+                      <p class="empty-state-text" data-i18n="odo01.no_more_appointments_today">No tienes más citas programadas para hoy.</p>
+                    </div>
                 }
             }
           </div>
@@ -425,37 +493,7 @@ NOTAS DE MANTENIMIENTO:
 
   </main>
 
-  <!-- Navegación móvil -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">dashboard</span></span>
-      <span>Dashboard</span>
-    </a>
-    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
-      <span>Agenda</span>
-    </a>
-    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
-      <span>Perfil</span>
-    </a>
-  </nav>
-
-  <!-- Toast -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Estilos para screen readers -->
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-  </footer>
-  <script>
-    window.ODO_REVENUE = @Html.Raw((string)(ViewData["OdoRevenueMonthsJson"] ?? "[]"));  </script>
+  <script type="application/json" id="revenueChartData">@Html.Raw((string)(ViewData["OdoRevenueMonthsJson"] ?? "[]"))</script>
 @section Scripts {
     <script src="~/js/Gestion_De_Profesionales/st-odo-01-dashboard/app.js" asp-append-version="true" defer></script>
-    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
 }

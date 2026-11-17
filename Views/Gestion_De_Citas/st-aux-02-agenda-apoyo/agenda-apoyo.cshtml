@@ -17,19 +17,14 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Agenda de Apoyo Clínico";
-    var agendaApoyoDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["AgendaApoyoData"] ?? new object());
-    var agendaApoyoCitas = new List<System.Text.Json.JsonElement>();
-    using (var agendaDocument = System.Text.Json.JsonDocument.Parse(agendaApoyoDataJson))
-    {
-        if (agendaDocument.RootElement.TryGetProperty("citas", out var agendaCitas) &&
-            agendaCitas.ValueKind == System.Text.Json.JsonValueKind.Array)
-        {
-            agendaApoyoCitas.AddRange(agendaCitas.EnumerateArray().Select(cita => cita.Clone()));
-        }
-    }
+    ViewData["UseGestionModulesDesignSystem"] = true;
+    var agendaApoyoData = ViewData["AgendaApoyoData"] as SmileTrack_MVC.Models.ViewModels.GestionDeCitas.AgendaApoyoViewModel
+        ?? new SmileTrack_MVC.Models.ViewModels.GestionDeCitas.AgendaApoyoViewModel();
+    var agendaApoyoCitas = agendaApoyoData.Citas;
+    var agendaApoyoDataJson = System.Text.Json.JsonSerializer.Serialize(agendaApoyoData);
     var fechaActual = ViewData["AgendaApoyoFecha"] is DateTime fechaValida
         ? fechaValida.Date
-        : DateTime.Today;
+        : SmileTrack_MVC.Helpers.ColombiaClock.Today;
     var inicioSemanaActual = fechaActual;
     var esVistaSemana = ViewData["AgendaApoyoSemana"] is true;
     var metaTexto = esVistaSemana
@@ -80,22 +75,10 @@
           <div class="dropdown-menu" id="dropdownMenu" role="menu" aria-label="Seleccionar profesional">
             <div class="dd-item active" role="menuitem" tabindex="0" data-value="todos">Todos los profesionales</div>
             @{
-                var profesionalesUnicos = new HashSet<string>();
-                using var agendaObjDd = System.Text.Json.JsonDocument.Parse(agendaApoyoDataJson);
-                if (agendaObjDd.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                    agendaObjDd.RootElement.TryGetProperty("citas", out var citasEl) &&
-                    citasEl.ValueKind == System.Text.Json.JsonValueKind.Array)
-                {
-                    foreach (var cita in citasEl.EnumerateArray())
-                    {
-                        if (cita.TryGetProperty("profesional", out var profEl))
-                        {
-                            var nombre = profEl.GetString() ?? "";
-                            if (!string.IsNullOrWhiteSpace(nombre))
-                                profesionalesUnicos.Add(nombre);
-                        }
-                    }
-                }
+                var profesionalesUnicos = agendaApoyoCitas
+                    .Select(c => c.Profesional)
+                    .Where(p => !string.IsNullOrWhiteSpace(p) && p != "Sin asignar")
+                    .Distinct();
             }
             @foreach (var prof in profesionalesUnicos.OrderBy(p => p))
             {
@@ -120,7 +103,7 @@
       <!-- Tabla de citas con estructura accesible -->
       <div class="table-card">
         <div class="table-scroll">
-          <table class="table-base agenda-table" aria-label="Agenda de citas que requieren asistencia" data-i18n-aria-label="citas.title">
+          <table class="table-base agenda-table" aria-label="Agenda de citas que requieren asistencia">
             <thead>
               <tr>
                 <th scope="col">DÍA</th>
@@ -144,13 +127,13 @@
                 @foreach (var cita in agendaApoyoCitas)
                 {
                   <tr>
-                    <td>@cita.GetProperty("fecha").GetString()</td>
-                    <td>@cita.GetProperty("hora").GetString()</td>
-                    <td>@cita.GetProperty("paciente").GetString()</td>
-                    <td>@cita.GetProperty("profesional").GetString()</td>
-                    <td>@cita.GetProperty("tipo").GetString()</td>
-                    <td>@(cita.GetProperty("alergia").ValueKind == System.Text.Json.JsonValueKind.Null ? "—" : cita.GetProperty("alergia").GetString())</td>
-                    <td>@cita.GetProperty("estado").GetString()</td>
+                    <td>@cita.Fecha</td>
+                    <td>@cita.Hora</td>
+                    <td>@cita.Paciente</td>
+                    <td>@cita.Profesional</td>
+                    <td>@cita.Tipo</td>
+                    <td>@(string.IsNullOrWhiteSpace(cita.Alergia) ? "—" : cita.Alergia)</td>
+                    <td>@cita.Estado</td>
                   </tr>
                 }
               }
@@ -187,13 +170,6 @@
 
   <!-- Estilos para contenido solo accesible por screen readers -->
 
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-  </footer>
   <script>
     window.smiletrackAgendaApoyoData = @Html.Raw(agendaApoyoDataJson);
   </script>

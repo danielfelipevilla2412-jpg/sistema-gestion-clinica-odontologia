@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Facturacion;
+using SmileTrack_MVC.Services.Email;
 using SmileTrack_MVC.Services.Facturacion;
 
 namespace SmileTrack_MVC.Controllers.Api.Facturacion;
@@ -17,11 +19,18 @@ public sealed class FacturacionApiController : ControllerBase
     private readonly IFacturacionService _service;
     private readonly AppDbContext _db;
     private readonly ILogger<FacturacionApiController> _logger;
-    public FacturacionApiController(IFacturacionService service, AppDbContext db, ILogger<FacturacionApiController> logger)
+    private readonly IEmailService _emailService;
+
+    public FacturacionApiController(
+        IFacturacionService service,
+        AppDbContext db,
+        ILogger<FacturacionApiController> logger,
+        IEmailService emailService)
     {
         _service = service;
         _db = db;
         _logger = logger;
+        _emailService = emailService;
     }
 
     // ============================================================
@@ -79,6 +88,28 @@ public sealed class FacturacionApiController : ControllerBase
         var uid = User.FindFirstValue(ClaimTypes.NameIdentifier); if (!int.TryParse(uid, out var idUsuario)) return Unauthorized(new { success=false, message="No se pudo identificar al usuario." });
         try { var r = await _service.CrearAsync(request, idUsuario, ct); return CreatedAtAction(nameof(Obtener), new { id = r.Id }, new { success=true, message="Factura creada correctamente.", data=r }); }
         catch (InvalidOperationException ex) { return BadRequest(new { success=false, message=ex.Message }); }
+    }
+
+    [HttpPost("desde-cita/{idCita:int}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CrearDesdeCita(int idCita, CancellationToken ct)
+    {
+        var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(uid, out var idUsuario))
+            return Unauthorized(new { success = false, message = "No se pudo identificar al usuario." });
+
+        try
+        {
+            var factura = await _service.CrearDesdeCitaAsync(idCita, idUsuario, ct);
+            return CreatedAtAction(
+                nameof(Obtener),
+                new { id = factura.Id },
+                new { success = true, message = "Factura creada correctamente.", data = factura });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
     #endregion
 
@@ -161,5 +192,77 @@ public sealed class FacturacionApiController : ControllerBase
 
     [HttpGet("catalogos/servicios")]
     public async Task<IActionResult> Servicios(CancellationToken ct) => Ok(new { success=true, data=await _db.Servicios.AsNoTracking().Where(x=>x.Estado=="activo").Select(x=>new { id=x.IdServicio, nombre=x.Nombre, descripcion=x.Descripcion, precio=x.Precio }).OrderBy(x=>x.nombre).ToListAsync(ct) });
+
+    [HttpPost("recordatorios-vencidas")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EnviarRecordatoriosVencidas(CancellationToken ct)
+    {
+        var fechaLimite = ColombiaClock.Today.AddDays(-15);
+        var facturasVencidas = await _db.Facturas
+            .AsNoTracking()
+            .Include(f => f.Paciente)
+            .Where(f => f.Estado == "pendiente" && f.FechaFactura < fechaLimite)
+            .OrderBy(f => f.IdPaciente)
+            .ThenBy(f => f.FechaFactura)
+            .ToListAsync(ct);
+
+        int enviados = 0;
+        int fallidos = 0;
+
+        foreach (var grupoPaciente in facturasVencidas.GroupBy(f => f.IdPaciente))
+        {
+            var paciente = grupoPaciente.First().Paciente;
+            if (paciente is null || string.IsNullOrWhiteSpace(paciente.Correo))
+            {
+                _logger.LogWarning(
+                    "No se envió recordatorio de pago para el paciente {IdPaciente}: no tiene un correo registrado.",
+                    grupoPaciente.Key);
+                fallidos++;
+                continue;
+            }
+
+            var detalleFacturas = grupoPaciente
+                .Select(f => new FacturaRecordatorioEmail(
+                    f.NumeroFactura,
+                    f.FechaFactura,
+                    Math.Max(f.Total - f.MontoPagado, 0)))
+                .ToArray();
+
+            try
+            {
+                await _emailService.SendFacturaRecordatorioAsync(
+                    paciente.Correo,
+                    $"{paciente.Nombres} {paciente.Apellidos}".Trim(),
+                    detalleFacturas,
+                    ct);
+                enviados++;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar recordatorio de pago para el paciente {IdPaciente}.",
+                    grupoPaciente.Key);
+                fallidos++;
+            }
+        }
+
+        string mensaje = facturasVencidas.Count == 0
+            ? "No hay facturas vencidas para notificar."
+            : $"Facturas vencidas: {facturasVencidas.Count}. Recordatorios enviados a {enviados} paciente(s); {fallidos} paciente(s) sin envío.";
+
+        return Ok(new
+        {
+            success = true,
+            facturas = facturasVencidas.Count,
+            enviados,
+            fallidos,
+            message = mensaje
+        });
+    }
 #endregion
 } 

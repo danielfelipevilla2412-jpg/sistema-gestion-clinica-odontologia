@@ -39,9 +39,6 @@ let finalizedStatusFilter = 'all';
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
-const debounce = (fn, delay) =>
-  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
-
 const formatDateForExport = () => {
   const dateObj = new Date();
   const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -61,7 +58,7 @@ const escapeCsvValue = (value) => {
 
 const exportFinalizedAppointmentsToCsv = (buttonElement) => {
   const originalHtml = buttonElement.innerHTML;
-  buttonElement.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">hourglass_top</span><span class="btn-text">Generando...</span>';
+  buttonElement.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">hourglass_top</span><span class="btn-text">Generando...</span>';
   buttonElement.disabled = true;
 
   try {
@@ -93,7 +90,7 @@ const exportFinalizedAppointmentsToCsv = (buttonElement) => {
     document.body.removeChild(downloadLink);
     URL.revokeObjectURL(downloadUrl);
 
-    buttonElement.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">check_circle</span><span class="btn-text">Descargado</span>';
+    buttonElement.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">check_circle</span><span class="btn-text">Descargado</span>';
     buttonElement.style.background = '#dcfce7';
     buttonElement.style.borderColor = '#22c55e';
     buttonElement.style.color = '#166534';
@@ -350,7 +347,6 @@ const initializeCitasFinalizadasModule = () => {
     renderAppointmentsTable(appointmentsList);
     updateSummaryCounters();
     
-    window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
 };
 
 document.addEventListener('DOMContentLoaded', initializeCitasFinalizadasModule);

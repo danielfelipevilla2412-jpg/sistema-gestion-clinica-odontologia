@@ -13,6 +13,36 @@ namespace SmileTrack_MVC.Tests.Unit;
 public class AgendaServiceTests
 {
     [Fact]
+    public async Task ObtenerAgendaAsync_OmiteCatalogosEnActualizacionesDelCalendario()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new AppDbContext(options);
+        db.Pacientes.Add(new Paciente
+        {
+            Nombres = "Ana",
+            Apellidos = "Prueba",
+            Estado = "activo"
+        });
+        await db.SaveChangesAsync();
+
+        var agenda = new AgendaService(db, new CitaService(db, NullLogger<CitaService>.Instance));
+
+        var resultado = await agenda.ObtenerAgendaAsync(
+            DateTime.Today,
+            null,
+            null,
+            includeCatalogs: false);
+
+        Assert.Empty(resultado.Pacientes);
+        Assert.Empty(resultado.Profesionales);
+        Assert.Empty(resultado.Consultorios);
+        Assert.Empty(resultado.Servicios);
+        Assert.Equal(7, resultado.Dias.Count);
+    }
+
+    [Fact]
     public async Task ObtenerAgendaAsync_UsaLaDuracionRegistradaEnLaCita()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -145,5 +175,8 @@ public class AgendaServiceTests
         var diaCerrado = Assert.Single(resultado.Dias, dia => dia.Fecha.Date == domingo.Date);
         Assert.True(diaCerrado.Cerrado);
         Assert.Single(diaCerrado.Citas);
+
+        var sabado = Assert.Single(resultado.Dias, dia => dia.Fecha.Date == domingo.AddDays(-1).Date);
+        Assert.False(sabado.Cerrado);
     }
 }

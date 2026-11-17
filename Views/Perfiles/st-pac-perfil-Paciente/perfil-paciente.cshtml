@@ -1,375 +1,383 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @model SmileTrack_MVC.Models.Entities.Paciente
-@{ Layout = null; }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Mi Perfil";
+    ViewData["Description"] = "Consulta y edita tu información personal en SmileTrack.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Mi Perfil - SmileTrack Paciente: Consulta y edita tu información personal" />
-  <title>Mi Perfil — SmileTrack Paciente</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Perfiles/st-pac-perfil-Paciente/perfil-paciente.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/perfil-paciente-ui.css")" />
-</head>
-<body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
+@section Styles {
+  <link rel="stylesheet" href="~/css/Perfiles/st-pac-perfil-Paciente/perfil-paciente.css" asp-append-version="true" />
+  <link rel="stylesheet" href="~/css/shared/perfil-paciente-ui.css" asp-append-version="true" />
+}
 
-  <!-- ═════ SIDEBAR DEL PACIENTE (Activo: Mi Perfil) ═════ -->
-  @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
+<main class="main" id="main-content">
 
-  <!-- Overlay móvil -->
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- Hamburger -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span></span><span></span><span></span>
-  </button>
-
-  <!-- ═══ MAIN ═══ -->
-  <main class="main" id="main-content">
-    <div data-perfil-paciente-header></div>
-    <!-- Breadcrumb -->
-    <div class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
-      <span data-i18n="nav.group_inicio">Inicio</span>
-      <span class="sep" aria-hidden="true">→</span>
-      <span class="current" data-i18n="profile.title">Mi Perfil</span>
-    </div>
-
-    <!-- Profile Header -->
-    @{
+  <!-- Cabecera de perfil: breadcrumb + identidad + acciones -->
+  @{
     var iniciales = $"{(string.IsNullOrEmpty(Model.Nombres) ? "" : Model.Nombres[0].ToString())}{(string.IsNullOrEmpty(Model.Apellidos) ? "" : Model.Apellidos[0].ToString())}".ToUpperInvariant();
     var estadoTexto = Model.Estado == "activo" ? "Paciente activo" : "Paciente inactivo";
+    var estadoKey = Model.Estado == "activo" ? "pac_profile.status_active" : "pac_profile.status_inactive";
     var odontologoTexto = Model.ProfesionalAsignado != null
         ? $"Dr(a). {Model.ProfesionalAsignado.Nombres} {Model.ProfesionalAsignado.Apellidos}"
         : "Sin asignar";
-      }
-      <div class="header-avatar" id="headerAvatar">@iniciales</div>
-      <div>
-        <h1 class="header-name" id="headerNombre">@Model.Nombres @Model.Apellidos</h1>
-        <p class="header-sub">
-          @estadoTexto · Odontólogo: <span>@odontologoTexto</span>
-        </p>
+  }
+  <header class="page-header">
+    <div class="header-left">
+      <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="common.breadcrumb_nav">
+        <a href="/" data-i18n="nav.group_inicio">Inicio</a>
+        <span class="bc-sep" aria-hidden="true">›</span>
+        <span class="bc-active" aria-current="page" data-i18n="profile.title">Mi Perfil</span>
+      </nav>
+      <div class="page-header-identity">
+        <div class="header-avatar" id="headerAvatar">@iniciales</div>
+        <div class="page-header-title">
+          <h1 class="page-title" id="headerNombre">@Model.Nombres @Model.Apellidos</h1>
+          <p class="page-subtitle">
+            <span data-i18n="@estadoKey">@estadoTexto</span>
+            <span aria-hidden="true"> · </span>
+            <span data-i18n="pac_profile.odontologist_label">Odontólogo:</span>
+            <span>@odontologoTexto</span>
+          </p>
+        </div>
       </div>
-      </div>
-      <div class="header-actions">
-        @if (ViewBag.PerfilCompleto is bool perfilCompleto && !perfilCompleto)
-        {
-          <a class="btn-editar" href="#confirmarDatos">Confirmar datos personales</a>
-        }
-        <button class="btn-editar" id="btnEditar" aria-label="Activar modo edición" data-i18n-aria-label="profile.edit"><span data-i18n="profile.edit">✏️ Editar perfil</span></button>
-        <button class="btn-guardar" id="btnGuardar" aria-label="Guardar cambios" data-i18n-aria-label="common.save"><span data-i18n="common.save">💾 Guardar</span></button>
-        <button class="btn-cancelar" id="btnCancelar" aria-label="Cancelar edición" data-i18n-aria-label="common.cancel"><span data-i18n="common.cancel">✕ Cancelar</span></button>
-      </div>
-    </header>
-
-      @if (ViewBag.PerfilCompleto is bool perfilConfirmado && !perfilConfirmado)
+    </div>
+    <div class="page-header-actions">
+      @if (ViewBag.PerfilCompleto is bool perfilCompleto && !perfilCompleto)
       {
-        <section class="card profile-confirmation-card" id="confirmarDatos" aria-labelledby="confirmarDatosTitulo">
-          <h2 class="card-title" id="confirmarDatosTitulo">Confirma tus datos de identidad</h2>
-          <p>Necesitamos validar documento y fecha de nacimiento para habilitar las solicitudes de citas y la consulta de tu historia clínica.</p>
-          @if (TempData["PerfilPacienteAviso"] is string aviso)
-          {
-            <p class="profile-confirmation-message" role="status">@aviso</p>
-          }
-          <form method="post" action="/perfiles/st-pac-completar-perfil">
-            @Html.AntiForgeryToken()
-            <div class="form-grid">
-              <div class="form-group">
-                <label class="form-label" for="confirmTipoDocumento">Tipo de documento</label>
-                <select class="form-input" id="confirmTipoDocumento" name="TipoDocumento" required>
-                  <option value="">Selecciona un tipo</option>
-                  @foreach (var tipo in new[] { ("CC", "Cédula de ciudadanía"), ("TI", "Tarjeta de identidad"), ("CE", "Cédula de extranjería"), ("PAS", "Pasaporte") })
-                  {
-                    <option value="@tipo.Item1" selected="@(Model.TipoDocumento == tipo.Item1)">@tipo.Item2</option>
-                  }
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="confirmDocumento">Número de documento</label>
-                <input class="form-input" id="confirmDocumento" name="Documento" value="@Model.Documento" autocomplete="off" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="confirmFechaNacimiento">Fecha de nacimiento</label>
-                <input class="form-input" id="confirmFechaNacimiento" name="FechaNacimiento" type="date" value="@(Model.FechaNacimiento >= new DateTime(1900, 1, 1) ? Model.FechaNacimiento.ToString("yyyy-MM-dd") : string.Empty)" max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" required />
-              </div>
-            </div>
-            <button type="submit" class="btn-editar">Guardar y confirmar</button>
-          </form>
-        </section>
+        <a class="btn-primary" href="#confirmarDatos" data-i18n="pac_profile.confirm_data">Confirmar datos personales</a>
       }
+      <button type="button" class="btn-secondary" id="btnEditar" aria-label="Activar modo edición" data-i18n-aria-label="profile.edit">
+        <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+        <span data-i18n="profile.edit">Editar perfil</span>
+      </button>
+      <button type="button" class="btn-primary is-hidden" id="btnGuardar" aria-label="Guardar cambios" data-i18n-aria-label="common.save">
+        <span class="material-symbols-outlined" aria-hidden="true">save</span>
+        <span data-i18n="common.save">Guardar</span>
+      </button>
+      <button type="button" class="btn-secondary is-hidden" id="btnCancelar" aria-label="Cancelar edición" data-i18n-aria-label="common.cancel">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        <span data-i18n="common.cancel">Cancelar</span>
+      </button>
+    </div>
+  </header>
 
-    <!-- Main Grid -->
-    <div class="main-grid">
+  <div data-perfil-paciente-header></div>
 
-      <!-- Columna izquierda -->
-      <div class="left-col">
-
-        <!-- Card: Datos personales -->
-        <div class="card" id="cardPersonal">
-          <h2 class="card-title"><span class="card-icon" aria-hidden="true">👤</span> <span data-i18n="common.personal_data">Datos personales</span></h2>
-
-          <!-- Avatar Upload (oculto fuera de edición) -->
-          <div class="avatar-upload" id="avatarUpload" style="display:none;">
-            <div class="avatar-preview" id="avatarPreview">PG</div>
-            <div class="avatar-upload-actions">
-              <label class="btn-upload" tabindex="0" role="button" aria-label="Subir foto de perfil">
-                📷 Cambiar foto
-                <input type="file" id="avatarInput" accept="image/*" style="display:none;" />
-              </label>
-              <span class="upload-hint">JPG, PNG. Máx 2MB</span>
-            </div>
-          </div>
-
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label" for="nombre">Nombre completo</label>
-              <input class="form-input" id="nombre" type="text" value="@Model.Nombres @Model.Apellidos" disabled disabled />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="cedula">Número de cédula</label>
-              <input class="form-input locked" id="cedula" type="text" value="@Model.Documento" disabled disabled />
-              <span class="field-note">🔒 No editable</span>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="fechaNac">Fecha de nacimiento</label>
-              <input class="form-input locked" id="fechaNac" type="text" value="@(Model.FechaNacimiento >= new DateTime(1900, 1, 1) ? Model.FechaNacimiento.ToString("dd/MM/yyyy") : "Pendiente de confirmar")" disabled disabled />
-              <span class="field-note">🔒 No editable</span>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="genero">Género</label>
-              <select class="form-input" id="genero" disabled>
-              <option value="M" selected="@(Model.Genero == "M")">Masculino</option>
-              <option value="F" selected="@(Model.Genero == "F")">Femenino</option>
-              <option value="O" selected="@(Model.Genero == "O")">Otro</option>
-            </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="tipoSangre">Tipo de sangre</label>
-              @{ var tiposSangre = new[] { "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-" }; }
-              <select class="form-input locked" id="tipoSangre" disabled>
-                @foreach (var tipo in tiposSangre)
-                {
-                    <option value="@tipo" selected="@(Model.GrupoSanguineo == tipo)">@tipo</option>
-                }
-              </select>
-              <span class="field-note">🔒 No editable</span>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="estadoCivil">Estado civil</label>
-              @{
-                var estadosCiviles = new (string valor, string texto)[] {
-                    ("soltero", "Soltero/a"), ("casado", "Casado/a"), ("union-libre", "Unión libre"),
-                    ("divorciado", "Divorciado/a"), ("viudo", "Viudo/a")
-                };
-            }
-            <select class="form-input" id="estadoCivil" disabled>
-              @foreach (var (valor, texto) in estadosCiviles)
+  @if (ViewBag.PerfilCompleto is bool perfilConfirmado && !perfilConfirmado)
+  {
+    <section class="card profile-confirmation-card" id="confirmarDatos" aria-labelledby="confirmarDatosTitulo">
+      <h2 class="card-title" id="confirmarDatosTitulo">
+        <span class="material-symbols-outlined card-icon" aria-hidden="true">assignment</span>
+        <span data-i18n="pac_profile.confirm_identity_title">Confirma tus datos de identidad</span>
+      </h2>
+      <p data-i18n="pac_profile.confirm_identity_desc">Necesitamos validar documento y fecha de nacimiento para habilitar las solicitudes de citas y la consulta de tu historia clínica.</p>
+      @if (TempData["PerfilPacienteAviso"] is string aviso)
+      {
+        <p class="profile-confirmation-message" role="status">@aviso</p>
+      }
+      <form method="post" action="/perfiles/st-pac-completar-perfil">
+        @Html.AntiForgeryToken()
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="confirmTipoDocumento" data-i18n="pac_profile.document_type">Tipo de documento</label>
+            <select class="form-input" id="confirmTipoDocumento" name="TipoDocumento" required>
+              <option value="" data-i18n="pac_profile.select_type">Selecciona un tipo</option>
+              @foreach (var tipo in new[] { ("CC", "Cédula de ciudadanía"), ("TI", "Tarjeta de identidad"), ("CE", "Cédula de extranjería"), ("PAS", "Pasaporte") })
               {
-                  <option value="@valor" selected="@(Model.EstadoCivil == valor)">@texto</option>
+                <option value="@tipo.Item1" data-i18n="@($"pac_profile.doc_{tipo.Item1.ToLowerInvariant()}")" selected="@(Model.TipoDocumento == tipo.Item1)">@tipo.Item2</option>
               }
             </select>
-            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="confirmDocumento" data-i18n="pac_profile.document_number">Número de documento</label>
+            <input class="form-input" id="confirmDocumento" name="Documento" value="@Model.Documento" autocomplete="off" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="confirmFechaNacimiento" data-i18n="pac_profile.birth_date">Fecha de nacimiento</label>
+            <input class="form-input" id="confirmFechaNacimiento" name="FechaNacimiento" type="date" value="@(Model.FechaNacimiento >= new DateTime(1900, 1, 1) ? Model.FechaNacimiento.ToString("yyyy-MM-dd") : string.Empty)" max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" required />
+          </div>
+        </div>
+        <button type="submit" class="btn-primary" data-i18n="pac_profile.save_confirm">Guardar y confirmar</button>
+      </form>
+    </section>
+  }
+
+  <!-- Main Grid -->
+  <div class="main-grid">
+
+    <!-- Columna izquierda -->
+    <div class="left-col">
+
+      <!-- Card: Datos personales -->
+      <div class="card" id="cardPersonal">
+        <h2 class="card-title">
+          <span class="material-symbols-outlined card-icon" aria-hidden="true">person</span>
+          <span data-i18n="common.personal_data">Datos personales</span>
+        </h2>
+
+        <!-- Avatar Upload (oculto fuera de edición) -->
+        <div class="avatar-upload is-hidden" id="avatarUpload">
+          <div class="avatar-preview" id="avatarPreview">@iniciales</div>
+          <div class="avatar-upload-actions">
+            <label class="btn-upload" tabindex="0" role="button" aria-label="Subir foto de perfil" data-i18n-aria-label="pac_profile.upload_photo_aria">
+              <span class="material-symbols-outlined" aria-hidden="true">photo_camera</span>
+              <span data-i18n="pac_profile.change_photo">Cambiar foto</span>
+              <input type="file" id="avatarInput" accept="image/*" class="is-hidden" />
+            </label>
+            <span class="upload-hint" data-i18n="pac_profile.upload_hint">JPG, PNG. Máx 2MB</span>
           </div>
         </div>
 
-        <!-- Card: Información de contacto -->
-        <div class="card" id="cardContacto">
-          <h2 class="card-title"><span class="card-icon" aria-hidden="true">📞</span> Información de contacto</h2>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label" for="email">Correo electrónico</label>
-              <input class="form-input" id="email" type="email" @Model.Correo disabled />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="telefono">Teléfono</label>
-              <input class="form-input" id="telefono" type="tel" 	@Model.Telefono disabled />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="direccion">Dirección</label>
-              <input class="form-input" id="direccion" type="text" @Model.Direccion disabled />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="ciudad">Ciudad</label>
-              <input class="form-input" id="ciudad" type="text" @Model.Ciudad disabled />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="departamento">Departamento</label>
-              <input class="form-input" id="departamento" type="text" @Model.Departamento disabled />
-            </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="nombre" data-i18n="pac_profile.full_name">Nombre completo</label>
+            <input class="form-input" id="nombre" type="text" value="@Model.Nombres @Model.Apellidos" disabled />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cedula" data-i18n="pac_profile.id_number">Número de cédula</label>
+            <input class="form-input locked" id="cedula" type="text" value="@Model.Documento" disabled />
+            <span class="field-note">
+              <span class="material-symbols-outlined" aria-hidden="true">lock</span>
+              <span data-i18n="pac_profile.not_editable">No editable</span>
+            </span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="fechaNac" data-i18n="pac_profile.birth_date">Fecha de nacimiento</label>
+            <input class="form-input locked" id="fechaNac" type="text" value="@(Model.FechaNacimiento >= new DateTime(1900, 1, 1) ? Model.FechaNacimiento.ToString("dd/MM/yyyy") : "Pendiente de confirmar")" disabled />
+            <span class="field-note">
+              <span class="material-symbols-outlined" aria-hidden="true">lock</span>
+              <span data-i18n="pac_profile.not_editable">No editable</span>
+            </span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="genero" data-i18n="pac_profile.gender">Género</label>
+            <select class="form-input" id="genero" disabled>
+              <option value="M" data-i18n="pac_profile.gender_m" selected="@(Model.Genero == "M")">Masculino</option>
+              <option value="F" data-i18n="pac_profile.gender_f" selected="@(Model.Genero == "F")">Femenino</option>
+              <option value="O" data-i18n="pac_profile.gender_o" selected="@(Model.Genero == "O")">Otro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tipoSangre" data-i18n="pac_profile.blood_type">Tipo de sangre</label>
+            @{ var tiposSangre = new[] { "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-" }; }
+            <select class="form-input locked" id="tipoSangre" disabled>
+              @foreach (var tipo in tiposSangre)
+              {
+                <option value="@tipo" selected="@(Model.GrupoSanguineo == tipo)">@tipo</option>
+              }
+            </select>
+            <span class="field-note">
+              <span class="material-symbols-outlined" aria-hidden="true">lock</span>
+              <span data-i18n="pac_profile.not_editable">No editable</span>
+            </span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="estadoCivil" data-i18n="pac_profile.marital_status">Estado civil</label>
+            @{
+              var estadosCiviles = new (string valor, string texto, string clave)[] {
+                  ("soltero", "Soltero/a", "pac_profile.marital_single"), ("casado", "Casado/a", "pac_profile.marital_married"),
+                  ("union-libre", "Unión libre", "pac_profile.marital_free_union"),
+                  ("divorciado", "Divorciado/a", "pac_profile.marital_divorced"), ("viudo", "Viudo/a", "pac_profile.marital_widowed")
+              };
+            }
+            <select class="form-input" id="estadoCivil" disabled>
+              @foreach (var (valor, texto, clave) in estadosCiviles)
+              {
+                <option value="@valor" data-i18n="@clave" selected="@(Model.EstadoCivil == valor)">@texto</option>
+              }
+            </select>
           </div>
         </div>
-
-        <!-- Card: Contacto de emergencia -->
-        <div class="card" id="cardEmergencia">
-          <h2 class="card-title"><span class="card-icon" aria-hidden="true">🚨</span> Contacto de emergencia</h2>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label" for="emergNombre">Nombre</label>
-              <input class="form-input" id="emergNombre" type="text" 	@Model.ContactoEmergencia disabled />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="emergParentesco">Parentesco</label>
-              <input class="form-input" id="emergParentesco" type="text" @Model.ParentescoEmergencia disabled />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="emergTelefono">Teléfono</label>
-              <input class="form-input" id="emergTelefono" type="tel" @Model.TelefonoEmergencia disabled />
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      <!-- Columna derecha -->
-      <div class="right-col">
-
-        <!-- Card: Información médica (solo lectura) -->
-        <div class="card" id="cardMedica">
-          <h2 class="card-title"><span class="card-icon" aria-hidden="true">🏥</span> Información médica</h2>
-          <div class="info-readonly-note">
-            🔒 Esta información solo puede ser modificada por tu odontólogo
+      <!-- Card: Información de contacto -->
+      <div class="card" id="cardContacto">
+        <h2 class="card-title">
+          <span class="material-symbols-outlined card-icon" aria-hidden="true">call</span>
+          <span data-i18n="pac_profile.contact_info">Información de contacto</span>
+        </h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="email" data-i18n="common.email">Correo electrónico</label>
+            <input class="form-input" id="email" type="email" @Model.Correo disabled />
           </div>
+          <div class="form-group">
+            <label class="form-label" for="telefono" data-i18n="common.phone">Teléfono</label>
+            <input class="form-input" id="telefono" type="tel" @Model.Telefono disabled />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="direccion" data-i18n="common.address">Dirección</label>
+            <input class="form-input" id="direccion" type="text" @Model.Direccion disabled />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ciudad" data-i18n="pac_profile.city">Ciudad</label>
+            <input class="form-input" id="ciudad" type="text" @Model.Ciudad disabled />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="departamento" data-i18n="pac_profile.department">Departamento</label>
+            <input class="form-input" id="departamento" type="text" @Model.Departamento disabled />
+          </div>
+        </div>
+      </div>
 
-          @{
-            var alergias = (Model.Alergias ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var condiciones = (Model.AntecedentesMedicos ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var medicamentos = (Model.MedicamentosActuales ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var antecedentesFam = (Model.AntecedentesFamiliares ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+      <!-- Card: Contacto de emergencia -->
+      <div class="card" id="cardEmergencia">
+        <h2 class="card-title">
+          <span class="material-symbols-outlined card-icon" aria-hidden="true">emergency</span>
+          <span data-i18n="pac_profile.emergency_contact">Contacto de emergencia</span>
+        </h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="emergNombre" data-i18n="common.name">Nombre</label>
+            <input class="form-input" id="emergNombre" type="text" @Model.ContactoEmergencia disabled />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="emergParentesco" data-i18n="pac_profile.relationship">Parentesco</label>
+            <input class="form-input" id="emergParentesco" type="text" @Model.ParentescoEmergencia disabled />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="emergTelefono" data-i18n="common.phone">Teléfono</label>
+            <input class="form-input" id="emergTelefono" type="tel" @Model.TelefonoEmergencia disabled />
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Columna derecha -->
+    <div class="right-col">
+
+      <!-- Card: Información médica (solo lectura) -->
+      <div class="card" id="cardMedica">
+        <h2 class="card-title">
+          <span class="material-symbols-outlined card-icon" aria-hidden="true">medical_services</span>
+          <span data-i18n="pac_profile.medical_info">Información médica</span>
+        </h2>
+        <div class="info-readonly-note">
+          <span class="material-symbols-outlined" aria-hidden="true">lock</span>
+          <span data-i18n="pac_profile.medical_readonly_note">Esta información solo puede ser modificada por tu odontólogo</span>
+        </div>
+
+        @{
+          var alergias = (Model.Alergias ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+          var condiciones = (Model.AntecedentesMedicos ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+          var medicamentos = (Model.MedicamentosActuales ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+          var antecedentesFam = (Model.AntecedentesFamiliares ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
 
         <div class="med-section">
-          <div class="med-label">Alergias</div>
+          <div class="med-label" data-i18n="pac_profile.allergies">Alergias</div>
           <div class="tags-wrap">
-            @if (alergias.Length == 0) { <span class="tag neutral">Sin alergias registradas</span> }
-            @foreach (var a in alergias) { <span class="tag alerta">⚠️ @a</span> }
+            @if (alergias.Length == 0) { <span class="tag neutral" data-i18n="pac_profile.no_allergies">Sin alergias registradas</span> }
+            @foreach (var a in alergias) { <span class="tag alerta"><span class="material-symbols-outlined tag-icon" aria-hidden="true">warning</span> @a</span> }
           </div>
         </div>
 
         <div class="med-section">
-          <div class="med-label">Enfermedades o condiciones</div>
+          <div class="med-label" data-i18n="pac_profile.conditions">Enfermedades o condiciones</div>
           <div class="tags-wrap">
-            @if (condiciones.Length == 0) { <span class="tag neutral">Ninguna registrada</span> }
+            @if (condiciones.Length == 0) { <span class="tag neutral" data-i18n="pac_profile.none_registered_feminine">Ninguna registrada</span> }
             @foreach (var c in condiciones) { <span class="tag info">@c</span> }
           </div>
         </div>
 
         <div class="med-section">
-          <div class="med-label">Medicamentos actuales</div>
+          <div class="med-label" data-i18n="pac_profile.medications">Medicamentos actuales</div>
           <div class="tags-wrap">
-            @if (medicamentos.Length == 0) { <span class="tag neutral">Ninguno registrado</span> }
+            @if (medicamentos.Length == 0) { <span class="tag neutral" data-i18n="pac_profile.none_registered">Ninguno registrado</span> }
             @foreach (var m in medicamentos) { <span class="tag neutral">@m</span> }
           </div>
         </div>
 
         <div class="med-section">
-          <div class="med-label">Antecedentes familiares</div>
+          <div class="med-label" data-i18n="pac_profile.family_history">Antecedentes familiares</div>
           <div class="tags-wrap">
-            @if (antecedentesFam.Length == 0) { <span class="tag neutral">Ninguno registrado</span> }
+            @if (antecedentesFam.Length == 0) { <span class="tag neutral" data-i18n="pac_profile.none_registered">Ninguno registrado</span> }
             @foreach (var af in antecedentesFam) { <span class="tag neutral">@af</span> }
           </div>
         </div>
-        <!-- Card: Seguro / EPS -->
-        <div class="card" id="cardSeguro">
-          <h2 class="card-title"><span class="card-icon" aria-hidden="true">🏦</span> Seguro / EPS</h2>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label" for="eps">EPS / Aseguradora</label>
-              <input class="form-input" id="eps" type="text" value="@Model.EpsAseguradora" disabled />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="poliza">Número de póliza</label>
-              <input class="form-input" id="poliza" type="text" value="@Model.NumeroPoliza" disabled />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="afiliacion">Tipo de afiliación</label>
-              @{
-                var afiliaciones = new (string valor, string texto)[] {
-                    ("contributivo", "Régimen contributivo"), ("subsidiado", "Régimen subsidiado"), ("particular", "Particular")
-                };
+      </div>
+
+      <!-- Card: Seguro / EPS -->
+      <div class="card" id="cardSeguro">
+        <h2 class="card-title">
+          <span class="material-symbols-outlined card-icon" aria-hidden="true">account_balance</span>
+          <span data-i18n="pac_profile.insurance">Seguro / EPS</span>
+        </h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="eps" data-i18n="pac_profile.eps">EPS / Aseguradora</label>
+            <input class="form-input" id="eps" type="text" value="@Model.EpsAseguradora" disabled />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="poliza" data-i18n="pac_profile.policy_number">Número de póliza</label>
+            <input class="form-input" id="poliza" type="text" value="@Model.NumeroPoliza" disabled />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="afiliacion" data-i18n="pac_profile.affiliation_type">Tipo de afiliación</label>
+            @{
+              var afiliaciones = new (string valor, string texto, string clave)[] {
+                  ("contributivo", "Régimen contributivo", "pac_profile.affiliation_contributory"),
+                  ("subsidiado", "Régimen subsidiado", "pac_profile.affiliation_subsidized"),
+                  ("particular", "Particular", "pac_profile.affiliation_private")
+              };
             }
             <select class="form-input" id="afiliacion" disabled>
-              @foreach (var (valor, texto) in afiliaciones)
+              @foreach (var (valor, texto, clave) in afiliaciones)
               {
-                  <option value="@valor" selected="@(Model.TipoAfiliacion == valor)">@texto</option>
+                <option value="@valor" data-i18n="@clave" selected="@(Model.TipoAfiliacion == valor)">@texto</option>
               }
             </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Seguridad -->
+      <div class="card" id="cardSeguridad">
+        <h2 class="card-title">
+          <span class="material-symbols-outlined card-icon" aria-hidden="true">key</span>
+          <span data-i18n="pac_profile.security">Seguridad</span>
+        </h2>
+        <div class="form-grid form-grid--single">
+          <div class="form-group">
+            <label class="form-label" for="passActual" data-i18n="pac_profile.current_password">Contraseña actual</label>
+            <div class="pass-wrap">
+              <input class="form-input" id="passActual" type="password" placeholder="••••••••" disabled />
+              <button type="button" class="btn-eye" data-target="passActual" aria-label="Mostrar contraseña" data-i18n-aria-label="pac_profile.show_password">
+                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="passNueva" data-i18n="pac_profile.new_password">Nueva contraseña</label>
+            <div class="pass-wrap">
+              <input class="form-input" id="passNueva" type="password" placeholder="Mínimo 8 caracteres" data-i18n-ph="pac_profile.new_password_ph" disabled />
+              <button type="button" class="btn-eye" data-target="passNueva" aria-label="Mostrar contraseña" data-i18n-aria-label="pac_profile.show_password">
+                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="passConfirm" data-i18n="common.confirm_password">Confirmar contraseña</label>
+            <div class="pass-wrap">
+              <input class="form-input" id="passConfirm" type="password" placeholder="Repite la contraseña" data-i18n-ph="pac_profile.confirm_password_ph" disabled />
+              <button type="button" class="btn-eye" data-target="passConfirm" aria-label="Mostrar contraseña" data-i18n-aria-label="pac_profile.show_password">
+                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+              </button>
             </div>
           </div>
         </div>
-
-        <!-- Card: Seguridad -->
-        <div class="card" id="cardSeguridad">
-          <h2 class="card-title"><span class="card-icon" aria-hidden="true">🔑</span> Seguridad</h2>
-          <div class="form-grid" style="grid-template-columns: 1fr;">
-            <div class="form-group">
-              <label class="form-label" for="passActual">Contraseña actual</label>
-              <div class="pass-wrap">
-                <input class="form-input" id="passActual" type="password" placeholder="••••••••" disabled />
-                <button type="button" class="btn-eye" onclick="togglePass('passActual', this)" aria-label="Mostrar contraseña">👁️</button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="passNueva">Nueva contraseña</label>
-              <div class="pass-wrap">
-                <input class="form-input" id="passNueva" type="password" placeholder="Mínimo 8 caracteres" disabled />
-                <button type="button" class="btn-eye" onclick="togglePass('passNueva', this)" aria-label="Mostrar contraseña">👁️</button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="passConfirm">Confirmar contraseña</label>
-              <div class="pass-wrap">
-                <input class="form-input" id="passConfirm" type="password" placeholder="Repite la contraseña" disabled />
-                <button type="button" class="btn-eye" onclick="togglePass('passConfirm', this)" aria-label="Mostrar contraseña">👁️</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
 
     </div>
-  </main>
 
-  <!-- Toast -->
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+</main>
 
-  <!-- Mobile Nav -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">🏠</span>
-      <span>Inicio</span>
-    </a>
-    <a href="/perfiles/st-pac-perfil-paciente" class="mobile-nav-item active">
-      <span class="mobile-nav-icon" aria-hidden="true">👤</span>
-      <span>Perfil</span>
-    </a>
-    <a href="/gestion-de-citas/st-pac-01-mis-citas" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
-      <span>Citas</span>
-    </a>
-    <a href="/historia-clinica/st-pac-02-historial" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
-      <span>Historial</span>
-    </a>
-    <a href="/gestion-de-citas/st-pac-03-notificaciones" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">🔔</span>
-      <span>Avisos</span>
-    </a>
-  </nav>
-  <script src="@Url.Content("~/js/shared/perfil-paciente-service.js")"></script>
-  <script src="@Url.Content("~/js/shared/perfil-paciente-ui.js")"></script>
-  <script src="@Url.Content("~/js/Perfiles/st-pac-perfil-Paciente/perfil-paciente.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-</html>
+@section Scripts {
+  <script src="~/js/shared/perfil-paciente-service.js" asp-append-version="true" defer></script>
+  <script src="~/js/shared/perfil-paciente-ui.js" asp-append-version="true" defer></script>
+  <script src="~/js/Perfiles/st-pac-perfil-Paciente/perfil-paciente.js" asp-append-version="true" defer></script>
+}

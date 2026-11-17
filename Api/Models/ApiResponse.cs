@@ -27,3 +27,26 @@ public class ApiResponse<T>
         };
     }
 }
+
+public class ApiResponse : ApiResponse<object>
+{
+    public static ApiResponse Ok(string? message = null)
+    {
+        return new ApiResponse
+        {
+            Success = true,
+            Message = message,
+            Data = null
+        };
+    }
+
+    public static new ApiResponse Fail(string message, IEnumerable<string>? errors = null)
+    {
+        return new ApiResponse
+        {
+            Success = false,
+            Message = message,
+            Errors = errors
+        };
+    }
+}

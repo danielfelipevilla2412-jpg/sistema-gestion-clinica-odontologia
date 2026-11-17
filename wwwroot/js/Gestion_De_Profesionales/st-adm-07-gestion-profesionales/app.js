@@ -89,11 +89,11 @@ const getSpecialtyBadgeClass = (specialtyName) => SPECIALTY_COLOR_MAP[specialtyN
  */
 const getStatusBadgeClass = (statusValue) => {
   const statusClassMap = {
-    'activo': 'activo', 'Activo': 'activo',
-    'vacaciones': 'vacaciones', 'Vacaciones': 'vacaciones',
-    'inactivo': 'inactivo', 'Inactivo': 'inactivo',
+    'activo': 'badge-activo', 'Activo': 'badge-activo',
+    'vacaciones': 'badge-vacaciones', 'Vacaciones': 'badge-vacaciones',
+    'inactivo': 'badge-inactivo', 'Inactivo': 'badge-inactivo',
   };
-  return statusClassMap[statusValue] || 'inactivo';
+  return statusClassMap[statusValue] || 'badge-inactivo';
 };
 
 /**
@@ -428,14 +428,14 @@ const createProfessionalTableRow = (professionalRecord) => {
                 data-status-class="${statusBadgeClass}"
                 aria-label="Ver detalles del profesional ${fullName}"
                 title="Ver detalles del profesional ${fullName}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
+          <span class="material-symbols-outlined" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
         </button>
         <button class="btn-secondary action-btn edit"
                 type="button"
                 data-id="${professionalIdAttribute}"
                 aria-label="Editar el profesional ${fullName}"
                 title="Editar profesional ${fullName}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
+          <span class="material-symbols-outlined" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
         </button>
         <button class="${isProfessionalActive ? 'btn-danger' : 'btn-success'} action-btn btn-delete toggle"
                 type="button"
@@ -444,7 +444,7 @@ const createProfessionalTableRow = (professionalRecord) => {
                 data-estado="${statusText || 'inactivo'}"
                 aria-label="${isProfessionalActive ? 'Desactivar' : 'Reactivar'} el profesional ${fullName}"
                 title="${isProfessionalActive ? 'Desactivar' : 'Reactivar'} profesional ${fullName}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">${isProfessionalActive ? 'block' : 'check_circle'}</span> <span class="btn-text">${isProfessionalActive ? 'Desactivar' : 'Reactivar'}</span>
+          <span class="material-symbols-outlined" aria-hidden="true">${isProfessionalActive ? 'block' : 'check_circle'}</span> <span class="btn-text">${isProfessionalActive ? 'Desactivar' : 'Reactivar'}</span>
         </button>
       </div>
     </td>
@@ -460,6 +460,7 @@ const createProfessionalTableRow = (professionalRecord) => {
  * @param {string} defaultStatusClass
  */
 const openProfessionalDetailView = (viewButton, defaultAvatarBg, defaultStatusClass) => {
+  lastFocusedElement = viewButton instanceof HTMLElement ? viewButton : document.activeElement;
   const avatarEl = getElementByIdSafe('detailAvatar');
   const nameEl = getElementByIdSafe('detailName');
   const specialtyEl = getElementByIdSafe('detailSpecialty');
@@ -811,6 +812,7 @@ const openFormModal = (isEditing = false) => {
     const formElement = getElementByIdSafe('formProfessional');
     if (formElement) formElement.reset();
     syncSecondarySpecialtyOptions();
+    configureAccessAccountFields(true);
 
     const modalTitle = getElementByIdSafe('modalFormTitle');
     if (modalTitle) modalTitle.textContent = 'Nuevo Profesional';
@@ -825,6 +827,25 @@ const openFormModal = (isEditing = false) => {
     if (firstInput) firstInput.focus();
     document.body.style.overflow = 'hidden';
   }
+};
+
+const configureAccessAccountFields = (hasAccessAccount) => {
+  const formElement = getElementByIdSafe('formProfessional');
+  const emailInput = getElementByIdSafe('formCorreoAcceso');
+  const requiredIndicator = getElementByIdSafe('formCorreoAccesoRequired');
+  const accountNote = getElementByIdSafe('formCorreoAccesoHelp');
+  if (!emailInput) return;
+
+  if (formElement) formElement.dataset.hasAccessAccount = String(hasAccessAccount);
+  emailInput.disabled = !hasAccessAccount;
+  emailInput.required = hasAccessAccount;
+  emailInput.setAttribute('aria-required', String(hasAccessAccount));
+  if (!hasAccessAccount) {
+    emailInput.value = '';
+    window.ValidationUtils?.clearError(emailInput);
+  }
+  if (requiredIndicator) requiredIndicator.hidden = !hasAccessAccount;
+  if (accountNote) accountNote.hidden = hasAccessAccount;
 };
 
 /**
@@ -938,13 +959,27 @@ const closeConfirmDeleteModal = () => {
  * Carga los datos de un profesional desde la API y llena el formulario de edición.
  * @param {number} professionalId
  */
-window.editProfessional = async (professionalId) => {
-  try {
-    const apiResult = await apiRequest(`${API_BASE_URL}/${professionalId}`);
-    const professionalData = apiResult.data;
-    if (!professionalData) return;
+window.editProfessional = async (professionalId, triggerButton = null) => {
+  const parsedProfessionalId = Number(professionalId);
+  if (!Number.isSafeInteger(parsedProfessionalId) || parsedProfessionalId <= 0) {
+    window.ToastService?.error('No se pudo identificar al profesional que se desea editar.');
+    return;
+  }
 
-    editingProfessionalId = professionalId;
+  const originalButtonText = triggerButton?.textContent;
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = 'Cargando...';
+  }
+
+  try {
+    const apiResult = await apiRequest(`${API_BASE_URL}/${parsedProfessionalId}`);
+    const professionalData = apiResult.data;
+    if (!apiResult?.success || !professionalData) {
+      throw new Error(apiResult?.message || 'El servidor no devolvió los datos del profesional.');
+    }
+
+    editingProfessionalId = parsedProfessionalId;
 
     const setFieldValue = (fieldId, val) => {
       const fieldElement = getElementByIdSafe(fieldId);
@@ -958,6 +993,7 @@ window.editProfessional = async (professionalId) => {
     setFieldValue('formCategoria', professionalData.categoria);
     setFieldValue('formTelefono', professionalData.telefono);
     setFieldValue('formCorreoAcceso', professionalData.correoAcceso);
+    configureAccessAccountFields(Number(professionalData.idUsuario) > 0);
 
     const normalizedStatus = (professionalData.estado || 'activo').toLowerCase();
     const statusSelectElement = getElementByIdSafe('formStatus');
@@ -966,8 +1002,6 @@ window.editProfessional = async (professionalId) => {
       statusSelectElement.dataset.originalEstado = normalizedStatus;
     }
     setFieldValue('formEstado', normalizedStatus);
-    setFieldValue('formContrasenaAcceso', '');
-    updateProfessionalPasswordRules();
 
     const primarySpecialty = (professionalData.especialidades || [])
       .find(specialty => specialty.principal) || professionalData.especialidades?.[0];
@@ -994,7 +1028,13 @@ window.editProfessional = async (professionalId) => {
 
     openFormModal(true);
   } catch (error) {
+    console.error('[SmileTrack][Profesionales] No se pudo abrir la edición:', error);
     window.ToastService?.error(`❌ No se pudo cargar el profesional: ${error.message}`);
+  } finally {
+    if (triggerButton) {
+      triggerButton.disabled = false;
+      triggerButton.textContent = originalButtonText;
+    }
   }
 };
 
@@ -1009,9 +1049,12 @@ const validateProfessionalForm = (formElement) => {
   const requiredFields = [
     { id: 'formNombres', message: 'Ingresa los nombres.' },
     { id: 'formApellidos', message: 'Ingresa los apellidos.' },
-    { id: 'formRegistroMedico', message: 'Ingresa el registro médico.' },
-    { id: 'formCorreoAcceso', message: 'Ingresa un correo de acceso válido.' }
+    { id: 'formRegistroMedico', message: 'Ingresa el registro médico.' }
   ];
+  const emailField = getElementByIdSafe('formCorreoAcceso');
+  if (emailField && !emailField.disabled) {
+    requiredFields.push({ id: 'formCorreoAcceso', message: 'Ingresa un correo de acceso válido.' });
+  }
 
   if (window.ValidationUtils) {
     requiredFields.forEach(({ id }) => {
@@ -1033,7 +1076,6 @@ const validateProfessionalForm = (formElement) => {
     }
   });
 
-  const emailField = getElementByIdSafe('formCorreoAcceso');
   if (emailField && emailField.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailField.value.trim())) {
     isFormValid = false;
     if (window.ValidationUtils) {
@@ -1042,45 +1084,6 @@ const validateProfessionalForm = (formElement) => {
   }
 
   return isFormValid;
-};
-
-/**
- * Actualiza los indicadores visuales de reglas de contraseña.
- */
-const updateProfessionalPasswordRules = () => {
-  const passwordInput = getElementByIdSafe('formContrasenaAcceso');
-  if (!passwordInput) return;
-
-  const inputValue = passwordInput.value || '';
-  const passwordRules = {
-    length: inputValue.length >= 8,
-    upper: /[A-Z]/.test(inputValue),
-    lower: /[a-z]/.test(inputValue),
-    number: /\d/.test(inputValue),
-    symbol: /[^A-Za-z\d]/.test(inputValue)
-  };
-
-  Object.entries(passwordRules).forEach(([ruleKey, isRuleSatisfied]) => {
-    const ruleRow = document.querySelector(`#professionalPasswordRules [data-rule="${ruleKey}"]`);
-    if (!ruleRow) return;
-    const iconSpan = ruleRow.querySelector('.rule-icon');
-    if (iconSpan) iconSpan.textContent = isRuleSatisfied ? '✓' : '✗';
-    ruleRow.style.color = isRuleSatisfied ? '#15803d' : '#b91c1c';
-  });
-
-  const hiddenFormId = getElementByIdSafe('formIdProfesional');
-  const isEditingMode = Number(hiddenFormId?.value || 0) > 0;
-  const helpTextLabel = getElementByIdSafe('formContrasenaHelp');
-
-  if (helpTextLabel) {
-    if (isEditingMode && inputValue.length === 0) {
-      helpTextLabel.textContent = 'La contraseña no se modifica desde esta pantalla.';
-      helpTextLabel.style.color = '#6b7280';
-    } else {
-      helpTextLabel.textContent = 'La contraseña se genera automáticamente en el sistema.';
-      helpTextLabel.style.color = '#6b7280';
-    }
-  }
 };
 
 /**
@@ -1128,15 +1131,13 @@ const saveProfessional = async (event) => {
     registroMedico: getFieldValue('formRegistroMedico'),
     categoria:      getFieldValue('formCategoria') || null,
     telefono:       getFieldValue('formTelefono')  || null,
-    correoAcceso:   getFieldValue('formCorreoAcceso'),
+    correoAcceso:   getElementByIdSafe('formCorreoAcceso')?.disabled
+      ? null
+      : getFieldValue('formCorreoAcceso'),
     idEspecialidad: primarySpecialtyId,
     especialidadesIds: selectedSpecialtyIds,
     estado:         isEditingMode ? (getElementByIdSafe('formStatus')?.value || getElementByIdSafe('formEstado')?.value || '').trim().toLowerCase() || null : null,
   };
-
-  if (!isEditingMode) {
-    delete requestPayload.contrasenaAcceso;
-  }
 
   try {
     let apiResult;
@@ -1307,18 +1308,18 @@ const saveAbsence = async (event) => {
         if (!debeReasignar) return;
         apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias-reasignar`, {
           method: 'POST',
-          body: absencePayload
+          body: JSON.stringify(absencePayload)
         });
       } else {
         apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias`, {
           method: 'POST',
-          body: absencePayload
+          body: JSON.stringify(absencePayload)
         });
       }
     } else {
       apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceId}`, {
         method: 'PUT',
-        body: absencePayload
+        body: JSON.stringify(absencePayload)
       });
     }
     window.ToastService?.success(apiResult.message || 'Ausencia guardada.');
@@ -1380,48 +1381,10 @@ window.goToPage = async (pageNumber) => {
   await loadProfessionalsList();
 };
 
-/**
- * Inicializa el comportamiento del sidebar responsive en dispositivos móviles.
- */
-const initSidebar = () => {
-  const hamburgerButton = getElementByIdSafe('hamburger');
-  const sidebarElement = getElementByIdSafe('sidebar');
-  const overlayElement = getElementByIdSafe('overlay');
-
-  if (!hamburgerButton || !sidebarElement || !overlayElement) return;
-
-  const toggleMobileMenu = (showMenu) => {
-    sidebarElement.classList.toggle('open', showMenu);
-    overlayElement.classList.toggle('open', showMenu);
-    hamburgerButton.setAttribute('aria-expanded', showMenu);
-    overlayElement.setAttribute('aria-hidden', !showMenu);
-
-    if (showMenu) {
-      const firstNavigationLink = sidebarElement.querySelector('.nav-item');
-      if (firstNavigationLink) firstNavigationLink.focus();
-    } else {
-      hamburgerButton.focus();
-    }
-  };
-
-  hamburgerButton.addEventListener('click', () => toggleMobileMenu(true));
-  overlayElement.addEventListener('click', () => toggleMobileMenu(false));
-
-  sidebarElement.querySelectorAll('.nav-item').forEach(navItem => {
-    navItem.addEventListener('click', () => {
-      if (window.innerWidth <= 680) {
-        toggleMobileMenu(false);
-      }
-    });
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && sidebarElement.classList.contains('open')) {
-      event.preventDefault();
-      toggleMobileMenu(false);
-    }
-  });
-};
+// NOTA: la apertura/cierre del sidebar móvil (hamburger + overlay + foco) y el
+// accordion los gestiona shared/sidebar.js (cargado por _Layout). No duplicar
+// esa lógica aquí: al enlazar dos veces los mismos elementos, el botón abre y
+// no vuelve a cerrar correctamente el menú.
 
 /**
  * Inicializa la lógica de filtrado reactivo debounced y el formulario de búsqueda.
@@ -1511,25 +1474,6 @@ const bindProfessionalFieldValidation = () => {
 };
 
 /**
- * Inicializa los eventos del campo de contraseña.
- */
-const initProfessionalPassword = () => {
-  const passwordInput = getElementByIdSafe('formContrasenaAcceso');
-  const toggleVisibilityButton = getElementByIdSafe('toggleProfesionalPassword');
-  if (!passwordInput) return;
-
-  passwordInput.addEventListener('input', updateProfessionalPasswordRules);
-  updateProfessionalPasswordRules();
-
-  toggleVisibilityButton?.addEventListener('click', () => {
-    const isPasswordVisible = passwordInput.type === 'text';
-    passwordInput.type = isPasswordVisible ? 'password' : 'text';
-    toggleVisibilityButton.textContent = isPasswordVisible ? '👁' : '🙈';
-    toggleVisibilityButton.setAttribute('aria-label', isPasswordVisible ? 'Mostrar contraseña' : 'Ocultar contraseña');
-  });
-};
-
-/**
  * Configura los event listeners para abrir, cerrar y procesar modales.
  */
 const initModals = () => {
@@ -1590,18 +1534,19 @@ const initModals = () => {
     if (viewButton) {
       openProfessionalDetailView(viewButton, getAvatarColorBySpecialty(viewButton.dataset.specialty || ''), getStatusBadgeClass(viewButton.dataset.status || ''));
       resetModalTabs();
-      resetAbsenceForm();
       const professionalId = Number(viewButton.dataset.id);
       loadProfessionalSchedule(professionalId);
-      loadProfessionalAbsences(professionalId);
     }
   });
 
   tableBody?.addEventListener('click', (e) => {
-    const editButton = e.target.closest('.action-btn.edit[data-id]');
+    const clickTarget = e.target instanceof Element ? e.target : null;
+    const editButton = clickTarget?.closest('.action-btn.edit[data-id]');
+    if (!editButton) return;
+    e.preventDefault();
     const professionalId = Number(editButton?.dataset.id);
     if (Number.isSafeInteger(professionalId) && professionalId > 0) {
-      window.editProfessional(professionalId);
+      void window.editProfessional(professionalId, editButton);
     }
   });
 
@@ -1659,14 +1604,19 @@ const initModals = () => {
  * Función de inicialización principal.
  */
 const init = async () => {
-  initSidebar();
   initModals();
   initModalTabs();
   bindProfessionalFieldValidation();
-  initProfessionalPassword();
   initFiltersAPI();
 
-  await loadSpecialtiesCatalog();
+  // Cargar catálogo de especialidades para los selects del formulario.
+  // Se hace ANTES de habilitar interacciones para que el form de edición
+  // tenga las opciones disponibles en cuanto el usuario haga click en Editar.
+  try {
+    await loadSpecialtiesCatalog();
+  } catch (e) {
+    console.warn('[SmileTrack][Profesionales] No se pudo cargar el catálogo de especialidades:', e);
+  }
   initServerStats();
 
   window.addEventListener('beforeunload', () => {});

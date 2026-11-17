@@ -60,7 +60,7 @@ const getActionMeta = (actionType) => {
 const refreshUpcomingAppointmentsData = async () => {
   if (document.hidden) return;
   try {
-    const response = await fetch('/api/citas/proximas?ventanaMinutos=30', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/api/citas/proximas?ventanaMinutos=30', {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' }
     });

@@ -78,31 +78,10 @@ const initMetricCounters = () => {
 // 6. MANEJO DE MODALES Y SIDEBAR
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Inicializa el sidebar responsive (hamburger + overlay + cierre por Escape).
- */
-const initSidebar = () => {
-    const hamburger = safeGetElement('hamburger');
-    const sidebar   = safeGetElement('sidebar');
-    const overlay   = safeGetElement('overlay');
-    if (!hamburger || !sidebar || !overlay) return;
-
-    const toggleMenu = show => {
-        sidebar.classList.toggle('open', show);
-        overlay.classList.toggle('open', show);
-        hamburger.setAttribute('aria-expanded', String(show));
-        overlay.setAttribute('aria-hidden',     String(!show));
-    };
-
-    hamburger.addEventListener('click', () => toggleMenu(true));
-    overlay.addEventListener('click',   () => toggleMenu(false));
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-            e.preventDefault();
-            toggleMenu(false);
-        }
-    });
-};
+// NOTA: la apertura/cierre del sidebar móvil (hamburger + overlay + foco) y el
+// accordion los gestiona shared/sidebar.js (cargado por _Layout). No duplicar
+// esa lógica aquí: al enlazar dos veces los mismos elementos, el botón abre y
+// no vuelve a cerrar correctamente el menú.
 
 /**
  * Inicializa el modal de alertas de reporte.
@@ -126,6 +105,7 @@ const initAlertModal = () => {
         }
         modal.classList.add('is-open');
         modal.setAttribute('aria-hidden', 'false');
+        modal.removeAttribute('inert');
         document.body.style.overflow = 'hidden';
         closeBtn?.focus();
     };
@@ -133,6 +113,7 @@ const initAlertModal = () => {
     const closeModal = () => {
         modal.classList.remove('is-open');
         modal.setAttribute('aria-hidden', 'true');
+        modal.setAttribute('inert', '');
         document.body.style.overflow = '';
         if (previousFocus?.isConnected) previousFocus.focus();
         previousFocus = null;
@@ -183,7 +164,6 @@ const initAlertModal = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 const initReportesModule = () => {
-    initSidebar();
     initMetricCounters();
     initAlertModal();
 };
