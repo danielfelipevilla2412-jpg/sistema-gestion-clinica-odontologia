@@ -267,7 +267,7 @@ const loadAvailableProfessionals = async () => {
     }
     if (requestId !== professionalOptionsRequestId) return;
 
-    professionalSelect.innerHTML = `<option value="">${t('pac_miscitas.select_professional', 'Selecciona un profesional')}</option>`;
+    professionalSelect.innerHTML = `<option value="">${t('pac_miscitas.any_professional', 'Cualquier profesional')}</option>`;
     payload.data.forEach(professional => {
       const option = document.createElement('option');
       option.value = String(professional.idProfesional ?? professional.IdProfesional ?? '');
@@ -303,10 +303,10 @@ const loadAvailableAppointmentTimes = async () => {
 
   timeSelect.innerHTML = `<option value="">${t('pac_miscitas.checking_schedules', 'Consultando horarios...')}</option>`;
   timeSelect.disabled = true;
-  if (!dateInput?.value || !serviceSelect?.value || !professionalSelect?.value) {
+  if (!dateInput?.value || !serviceSelect?.value) {
     resetProfessionalAndTimeOptions(
-      professionalSelect?.value ? t('pac_miscitas.select_professional', 'Selecciona un profesional') : t('citas.select_date_service_first', 'Selecciona fecha y servicio primero'),
-      t('pac_miscitas.select_date_service_professional_first', 'Selecciona fecha, servicio y profesional primero')
+      t('pac_miscitas.any_professional', 'Cualquier profesional'),
+      t('citas.select_date_service_first', 'Selecciona fecha y servicio primero')
     );
     return;
   }
@@ -314,9 +314,9 @@ const loadAvailableAppointmentTimes = async () => {
   try {
     const params = new URLSearchParams({
       fecha: dateInput.value,
-      idServicio: serviceSelect.value,
-      idProfesional: professionalSelect.value
+      idServicio: serviceSelect.value
     });
+    if (professionalSelect?.value) params.set('idProfesional', professionalSelect.value);
     const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/citas/horarios-disponibles?${params}`, {
       headers: buildAuthHeaders()
     });
@@ -337,7 +337,7 @@ const loadAvailableAppointmentTimes = async () => {
     if (help) {
       help.textContent = payload.data.length
         ? t('pac_miscitas.schedules_available_help', 'Estos horarios están disponibles ahora. La disponibilidad se verificará de nuevo al agendar.')
-        : t('pac_miscitas.no_schedules_help', 'No hay horarios disponibles para esta fecha y profesional. Prueba otra fecha o profesional.');
+        : t('pac_miscitas.no_schedules_help', 'No hay horarios disponibles para esta fecha. Prueba otra fecha o únete a la lista de espera.');
     }
   } catch (error) {
     if (requestId !== availableTimesRequestId) return;
@@ -417,11 +417,11 @@ const handleNewAppointmentSubmit = async () => {
   const noteTextarea = safeGetElement('citaNota');
   const confirmButton = safeGetElement('confirmarNuevaCita');
 
-  if (!dateInput?.value || !serviceSelect?.value || !professionalSelect?.value || !timeSelect?.value) {
-    const firstInvalidField = [dateInput, serviceSelect, professionalSelect, timeSelect]
+  if (!dateInput?.value || !serviceSelect?.value || !timeSelect?.value) {
+    const firstInvalidField = [dateInput, serviceSelect, timeSelect]
       .find(field => !field?.value);
     firstInvalidField?.focus();
-    notifyUser('warning', t('pac_miscitas.data_incomplete_title', 'Datos incompletos'), t('pac_miscitas.data_incomplete_msg', 'Selecciona fecha, servicio, profesional y horario disponible.'));
+    notifyUser('warning', t('pac_miscitas.data_incomplete_title', 'Datos incompletos'), t('pac_miscitas.data_incomplete_msg', 'Selecciona fecha, servicio y horario disponible.'));
     return;
   }
 
@@ -444,7 +444,7 @@ const handleNewAppointmentSubmit = async () => {
     Fecha: dateInput.value,
     HoraInicio: `${timeSelect.value}:00`,
     IdServicio: serviceSelect?.value ? Number(serviceSelect.value) : 0,
-    IdProfesional: Number(professionalSelect.value),
+    IdProfesional: professionalSelect?.value ? Number(professionalSelect.value) : null,
     Notas: noteTextarea?.value?.trim() || null
   };
 
@@ -468,8 +468,8 @@ const handleNewAppointmentSubmit = async () => {
         modalElement.setAttribute('aria-hidden', 'true');
         modalElement.setAttribute('inert', '');
       }
-      notifyUser('success', t('pac_miscitas.scheduled_title', '¡Cita agendada!'),
-        `${t('pac_miscitas.scheduled_msg_prefix', 'Tu cita quedó programada para el')} ${dateInput.value} ${t('pac_miscitas.at_time', 'a las')} ${timeSelect.value}.`);
+      notifyUser('success', t('common.success', 'Solicitud recibida'),
+        `Tu solicitud para el ${dateInput.value} a las ${timeSelect.value} quedó pendiente de confirmación por recepción.`);
       professionalOptionsRequestId += 1;
       availableTimesRequestId += 1;
       await fetchPatientAppointments();
@@ -833,6 +833,127 @@ const setupNewAppointmentModal = () => {
   });
 
   safeGetElement('confirmarNuevaCita')?.addEventListener('click', handleNewAppointmentSubmit);
+
+  const waitlistModal = safeGetElement('modalListaEspera');
+  const openWaitlistButton = safeGetElement('btnAbrirListaEspera');
+  const loadWaitlistProfessionals = async () => {
+    const waitService = safeGetElement('listaEsperaServicio');
+    const waitProfessional = safeGetElement('listaEsperaProfesional');
+    if (!waitProfessional) return;
+    const preferredId = waitProfessional.value;
+    waitProfessional.innerHTML = `<option value="">${t('pac_miscitas.any_professional', 'Cualquier profesional')}</option>`;
+    if (!waitService?.value) return;
+    try {
+      const params = new URLSearchParams({ idServicio: waitService.value });
+      const response = await window.SmileTrack.utils.fetchWithTimeout(`/api/citas/profesionales-por-servicio?${params}`, {
+        headers: buildAuthHeaders()
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+        throw new Error(payload?.message || 'No se pudieron cargar los profesionales.');
+      }
+      payload.data.forEach(professional => {
+        const option = document.createElement('option');
+        option.value = String(professional.idProfesional ?? professional.IdProfesional ?? '');
+        option.textContent = professional.nombreCompleto ?? professional.NombreCompleto ?? 'Profesional';
+        waitProfessional.appendChild(option);
+      });
+      if (Array.from(waitProfessional.options).some(option => option.value === preferredId))
+        waitProfessional.value = preferredId;
+    } catch (error) {
+      console.error('[SmileTrack] No se pudieron cargar profesionales de lista de espera:', error);
+      notifyUser('error', 'No se pudo cargar', error.message || 'No se pudieron cargar los profesionales.');
+    }
+  };
+  const closeWaitlist = () => {
+    if (!waitlistModal) return;
+    waitlistModal.classList.remove('open');
+    waitlistModal.setAttribute('aria-hidden', 'true');
+    waitlistModal.setAttribute('inert', '');
+    const openerId = waitlistModal.dataset.opener;
+    if (openerId) safeGetElement(openerId)?.focus();
+  };
+  openWaitlistButton?.addEventListener('click', () => {
+    const start = safeGetElement('listaEsperaDesde');
+    const end = safeGetElement('listaEsperaHasta');
+    const waitService = safeGetElement('listaEsperaServicio');
+    const waitProfessional = safeGetElement('listaEsperaProfesional');
+    const sourceService = safeGetElement('citaServicio');
+    const sourceProfessional = safeGetElement('citaProfesional');
+    const today = getEarliestRequestDate();
+    const until = new Date();
+    until.setDate(until.getDate() + 14);
+    if (start) {
+      start.min = today;
+      start.value = dateInput?.value && dateInput.value >= today ? dateInput.value : today;
+    }
+    if (end) {
+      end.min = start?.value || today;
+      end.value = toLocalDateInputValue(until);
+    }
+    if (waitService && sourceService) {
+      waitService.replaceChildren(...Array.from(sourceService.options, option => option.cloneNode(true)));
+      waitService.value = sourceService.value;
+    }
+    if (waitProfessional && sourceProfessional) {
+      waitProfessional.replaceChildren(...Array.from(sourceProfessional.options, option => option.cloneNode(true)));
+      waitProfessional.value = sourceProfessional.value;
+    }
+    if (waitlistModal) waitlistModal.dataset.opener = 'btnAbrirListaEspera';
+    loadWaitlistProfessionals();
+    waitlistModal?.classList.add('open');
+    waitlistModal?.setAttribute('aria-hidden', 'false');
+    waitlistModal?.removeAttribute('inert');
+    start?.focus();
+  });
+  safeGetElement('listaEsperaDesde')?.addEventListener('change', event => {
+    const start = event.currentTarget;
+    const end = safeGetElement('listaEsperaHasta');
+    if (!end) return;
+    end.min = start.value || getEarliestRequestDate();
+    if (end.value < end.min) end.value = end.min;
+  });
+  safeGetElement('listaEsperaServicio')?.addEventListener('change', loadWaitlistProfessionals);
+  safeGetElement('closeListaEspera')?.addEventListener('click', closeWaitlist);
+  safeGetElement('cancelarListaEspera')?.addEventListener('click', closeWaitlist);
+  waitlistModal?.addEventListener('click', event => {
+    if (event.target === waitlistModal) closeWaitlist();
+  });
+  safeGetElement('confirmarListaEspera')?.addEventListener('click', async event => {
+    const button = event.currentTarget;
+    const start = safeGetElement('listaEsperaDesde');
+    const end = safeGetElement('listaEsperaHasta');
+    const waitService = safeGetElement('listaEsperaServicio');
+    const waitProfessional = safeGetElement('listaEsperaProfesional');
+    if (!start?.value || !end?.value || !waitService?.value || end.value < start.value) {
+      notifyUser('warning', 'Datos incompletos', 'Selecciona un servicio y un rango de fechas válido.');
+      return;
+    }
+    button.disabled = true;
+    try {
+      const response = await window.SmileTrack.utils.fetchWithTimeout('/api/citas/lista-espera', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: buildAuthHeaders(),
+        body: JSON.stringify({
+          IdServicio: Number(waitService.value),
+          IdProfesionalPreferido: waitProfessional?.value ? Number(waitProfessional.value) : null,
+          FechaDeseadaInicio: start.value,
+          FechaDeseadaFin: end.value
+        })
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.success !== true) {
+        throw new Error(payload?.message || 'No fue posible registrarte en la lista de espera.');
+      }
+      closeWaitlist();
+      notifyUser('success', 'Lista de espera', payload.message || 'Quedaste inscrito en la lista de espera.');
+    } catch (error) {
+      notifyUser('error', 'No se pudo completar', error.message || 'No fue posible conectarse con el servidor.');
+    } finally {
+      button.disabled = false;
+    }
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -895,10 +1016,13 @@ const initializeMisCitasModule = async () => {
     document.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
       const newAppointmentModal = safeGetElement('modalNuevaCita');
+      const waitlistModal = safeGetElement('modalListaEspera');
       const cancelModal = safeGetElement('modalCancelar');
       const detailModal = safeGetElement('modalOverlay');
 
-      if (newAppointmentModal?.classList.contains('open')) {
+      if (waitlistModal?.classList.contains('open')) {
+        safeGetElement('closeListaEspera')?.click();
+      } else if (newAppointmentModal?.classList.contains('open')) {
         newAppointmentModal.classList.remove('open');
         newAppointmentModal.setAttribute('aria-hidden', 'true');
         newAppointmentModal.setAttribute('inert', '');

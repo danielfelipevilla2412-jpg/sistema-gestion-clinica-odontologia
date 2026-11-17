@@ -90,6 +90,11 @@ public interface ICitaService
         CitaSolicitudPacienteDto dto,
         CancellationToken ct = default);
 
+    Task<ListaEsperaCita> RegistrarListaEsperaAsync(
+        int idPaciente,
+        ListaEsperaSolicitudDto dto,
+        CancellationToken ct = default);
+
     /// <summary>
     /// Devuelve horas disponibles para el paciente, profesional, servicio y fecha seleccionados.
     /// </summary>
@@ -97,6 +102,13 @@ public interface ICitaService
         int idPaciente,
         int idServicio,
         int idProfesional,
+        DateTime fecha,
+        CancellationToken ct = default);
+
+    Task<List<TimeSpan>> ObtenerHorariosSolicitudPacienteAsync(
+        int idPaciente,
+        int idServicio,
+        int? idProfesionalPreferido,
         DateTime fecha,
         CancellationToken ct = default);
 

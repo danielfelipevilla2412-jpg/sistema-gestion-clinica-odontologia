@@ -207,12 +207,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.Nombres).HasColumnName("nombres");
             entity.Property(p => p.Apellidos).HasColumnName("apellidos");
             entity.Property(p => p.RegistroMedico).HasColumnName("registro_medico");
+            entity.Property(p => p.TarjetaProfesional).HasColumnName("tarjeta_profesional").HasMaxLength(50);
             entity.Property(p => p.Descripcion).HasColumnName("descripcion");
             entity.Property(p => p.Categoria).HasColumnName("categoria");
             entity.Property(p => p.Telefono).HasColumnName("telefono");
             entity.Property(p => p.Estado).HasColumnName("estado");
             entity.Property(p => p.CredencialesAprobadas).HasColumnName("credenciales_aprobadas").HasDefaultValue(true);
             entity.Property(p => p.FechaIngreso).HasColumnName("fecha_ingreso");
+            entity.HasIndex(p => p.TarjetaProfesional)
+                .HasDatabaseName("UX_Profesional_TarjetaProfesional")
+                .IsUnique()
+                .HasFilter("[tarjeta_profesional] IS NOT NULL");
 
             entity.HasOne(p => p.Usuario)
                   .WithMany()
@@ -311,6 +316,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(c => c.IdCita).HasColumnName("id_cita");
             entity.Property(c => c.IdPaciente).HasColumnName("id_paciente");
             entity.Property(c => c.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(c => c.IdProfesionalPreferido).HasColumnName("id_profesional_preferido");
             entity.Property(c => c.IdServicio).HasColumnName("id_servicio");
             entity.Property(c => c.IdConsultorio).HasColumnName("id_consultorio");
             entity.Property(c => c.IdEstado).HasColumnName("id_estado");
@@ -335,6 +341,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(c => c.Profesional)
                   .WithMany()
                   .HasForeignKey(c => c.IdProfesional)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne<Profesional>()
+                  .WithMany()
+                  .HasForeignKey(c => c.IdProfesionalPreferido)
                   .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne(c => c.Servicio)
@@ -743,6 +754,44 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(c => c.IdCita)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ListaEsperaCita>(entity =>
+        {
+            entity.ToTable("Lista_Espera_Cita");
+            entity.HasKey(x => x.IdListaEspera);
+            entity.Property(x => x.IdListaEspera).HasColumnName("id_lista_espera");
+            entity.Property(x => x.IdPaciente).HasColumnName("id_paciente");
+            entity.Property(x => x.IdServicio).HasColumnName("id_servicio");
+            entity.Property(x => x.IdProfesionalPreferido).HasColumnName("id_profesional_preferido");
+            entity.Property(x => x.IdCitaAsignada).HasColumnName("id_cita_asignada");
+            entity.Property(x => x.FechaDeseadaInicio).HasColumnName("fecha_deseada_inicio");
+            entity.Property(x => x.FechaDeseadaFin).HasColumnName("fecha_deseada_fin");
+            entity.Property(x => x.Estado).HasColumnName("estado").HasMaxLength(20);
+            entity.Property(x => x.FechaRegistro).HasColumnName("fecha_registro");
+            entity.Property(x => x.Notas).HasColumnName("notas").HasMaxLength(500);
+            entity.HasIndex(x => new { x.Estado, x.FechaDeseadaInicio, x.FechaDeseadaFin })
+                .HasDatabaseName("IX_ListaEspera_Estado_Franja");
+            entity.HasIndex(x => x.IdCitaAsignada)
+                .HasDatabaseName("UX_ListaEspera_CitaAsignada")
+                .IsUnique()
+                .HasFilter("[id_cita_asignada] IS NOT NULL");
+            entity.HasOne(x => x.Paciente)
+                .WithMany()
+                .HasForeignKey(x => x.IdPaciente)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Servicio)
+                .WithMany()
+                .HasForeignKey(x => x.IdServicio)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.ProfesionalPreferido)
+                .WithMany()
+                .HasForeignKey(x => x.IdProfesionalPreferido)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.CitaAsignada)
+                .WithMany()
+                .HasForeignKey(x => x.IdCitaAsignada)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Auditoria>(entity =>

@@ -44,7 +44,7 @@ public sealed class DashboardKpiViewModel
 /// <summary>
 /// Distribución mensual de citas por estado.
 /// Los porcentajes se calculan sobre todas las citas del mes; los estados no mostrados
-/// individualmente se agrupan en Otros.
+/// individualmente se agrupan en Otros, excepto las inasistencias que tienen KPI propio.
 /// </summary>
 public sealed class DashboardEstadosViewModel
 {
@@ -53,12 +53,14 @@ public sealed class DashboardEstadosViewModel
     public int Confirmadas { get; init; }
     public int Programadas { get; init; }
     public int Canceladas  { get; init; }
+    public int NoAsistio   { get; init; }
     public int Otros       { get; init; }
 
     public int PorcentajeAtendidas   => Calcular(Atendidas);
     public int PorcentajeConfirmadas => Calcular(Confirmadas);
     public int PorcentajeProgramadas => Calcular(Programadas);
     public int PorcentajeCanceladas  => Calcular(Canceladas);
+    public int PorcentajeNoAsistio   => Calcular(NoAsistio);
     public int PorcentajeOtros       => Calcular(Otros);
 
     private int Calcular(int valor) =>

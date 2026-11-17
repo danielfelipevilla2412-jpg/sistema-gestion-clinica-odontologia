@@ -38,6 +38,11 @@ namespace SmileTrack_MVC.Models.ViewModels
         [RegularExpression(@"^[A-Za-z0-9\-\. ]+$", ErrorMessage = "El registro médico solo puede contener letras, números, puntos, guiones y espacios (3-30 caracteres)")]
         public string RegistroMedico { get; set; } = string.Empty;
 
+        [Required(ErrorMessage = "La tarjeta profesional es obligatoria")]
+        [StringLength(50, MinimumLength = 3, ErrorMessage = "La tarjeta profesional debe tener entre 3 y 50 caracteres")]
+        [RegularExpression(@"^[A-Za-z0-9\-\. ]+$", ErrorMessage = "La tarjeta profesional solo puede contener letras, números, puntos, guiones y espacios")]
+        public string TarjetaProfesional { get; set; } = string.Empty;
+
         [StringLength(100, ErrorMessage = "La categoría no puede superar los 100 caracteres")]
         public string? Categoria { get; set; }
 

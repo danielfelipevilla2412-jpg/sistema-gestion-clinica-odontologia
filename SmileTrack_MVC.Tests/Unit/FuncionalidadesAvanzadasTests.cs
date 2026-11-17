@@ -234,13 +234,14 @@ public class FuncionalidadesAvanzadasTests
 
         Assert.True(cancelado);
 
-        // Paciente 2 en lista de espera debe haber sido notificado
+        // Paciente 2 debe recibir la cita liberada y quedar asociado a ella.
         var espera = await db.ListaEsperaCitas.FirstOrDefaultAsync(l => l.IdPaciente == 2);
         Assert.NotNull(espera);
-        Assert.Equal("notificado", espera.Estado);
+        Assert.Equal("asignada", espera.Estado);
+        Assert.NotNull(espera.IdCitaAsignada);
 
-        var notifEspera = await db.Notificaciones.FirstOrDefaultAsync(n => n.IdPaciente == 2 && n.Tipo == "lista_espera_liberada");
+        var notifEspera = await db.Notificaciones.FirstOrDefaultAsync(n => n.IdPaciente == 2 && n.Tipo == "lista_espera_asignada");
         Assert.NotNull(notifEspera);
-        Assert.Contains("Se ha liberado un turno", notifEspera.Contenido);
+        Assert.Contains("Se asignó automáticamente tu cita", notifEspera.Contenido);
     }
 }

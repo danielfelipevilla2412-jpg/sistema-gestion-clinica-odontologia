@@ -28,8 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const getCsrfToken = () => {
-      const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
-      return match ? decodeURIComponent(match[2]) : null;
+      const chatbotToken = document.querySelector('#smiletrack-chatbot')?.dataset.chatbotToken;
+      const formToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+      return chatbotToken || formToken || null;
     };
 
     document.querySelectorAll('.nav-item--logout').forEach((link) => {

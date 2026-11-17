@@ -218,8 +218,8 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="citaProfesional" data-i18n="citas.form_professional">Profesional</label>
-          <select class="form-input" id="citaProfesional" required disabled>
+          <label class="form-label" for="citaProfesional">Profesional preferido (opcional)</label>
+          <select class="form-input" id="citaProfesional" disabled>
             <option value="" data-i18n="citas.select_date_service_first">Selecciona fecha y servicio primero</option>
           </select>
         </div>
@@ -239,7 +239,37 @@
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" id="cancelarNuevaCita" data-i18n="common.cancel">Cancelar</button>
-        <button class="btn-primary" id="confirmarNuevaCita" data-i18n="citas.btn_schedule">Agendar cita</button>
+        <button class="btn-secondary" id="btnAbrirListaEspera" type="button">Unirme a lista de espera</button>
+        <button class="btn-primary" id="confirmarNuevaCita" type="button">Solicitar cita</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalListaEspera" role="dialog" aria-modal="true"
+       aria-labelledby="listaEsperaTitle" aria-hidden="true" inert>
+    <div class="modal modal--sm">
+      <button class="modal-close" id="closeListaEspera" type="button" aria-label="Cerrar"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+      <h2 class="modal-title" id="listaEsperaTitle">Unirme a la lista de espera</h2>
+      <p class="modal-desc">Si se libera un espacio compatible dentro de estas fechas, el sistema te asignará automáticamente una cita y te notificará.</p>
+      <div class="form-group">
+        <label class="form-label" for="listaEsperaDesde">Desde</label>
+        <input type="date" class="form-input" id="listaEsperaDesde" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="listaEsperaHasta">Hasta</label>
+        <input type="date" class="form-input" id="listaEsperaHasta" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="listaEsperaServicio">Servicio</label>
+        <select class="form-input" id="listaEsperaServicio" required></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="listaEsperaProfesional">Profesional preferido (opcional)</label>
+        <select class="form-input" id="listaEsperaProfesional"></select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelarListaEspera" type="button">Cancelar</button>
+        <button class="btn-primary" id="confirmarListaEspera" type="button">Inscribirme</button>
       </div>
     </div>
   </div>

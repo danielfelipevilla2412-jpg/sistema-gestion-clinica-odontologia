@@ -337,8 +337,6 @@ builder.Services.AddScoped<
 // al día siguiente (las citas en espera que ya pasaron pasan a "No asistio").
 builder.Services.AddHostedService<
     SmileTrack_MVC.Services.GestionDeCitas.CitasVencidasBackgroundService>();
-builder.Services.AddHostedService<
-    SmileTrack_MVC.Services.GestionDeCitas.CitasEnCursoBackgroundService>();
 
 // -----------------------------------------------------------------------------
 // JWT

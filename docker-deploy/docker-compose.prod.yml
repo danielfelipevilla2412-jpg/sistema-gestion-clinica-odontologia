@@ -1,0 +1,72 @@
+services:
+
+  # ─── Base de datos SQL Server 2022 con inicialización integrada ─────────────
+  sqlserver:
+    build:
+      context: ./Database
+      dockerfile: Dockerfile
+    image: johanmaa2/smiletrack-db:latest
+    container_name: smiletrack-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "SmileTrack#2025"
+      MSSQL_PID: "Express"
+    # Puerto NO expuesto al exterior — solo accesible desde la red interna Docker
+    expose:
+      - "1433"
+    volumes:
+      - smiletrack-sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/docker-entrypoint-initdb.d/healthcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    restart: always
+    networks:
+      - default
+
+  # ─── Aplicación Web (imagen desde Docker Hub) ────────────────────────────────
+  web:
+    image: johanmaa2/smiletrack-web:latest
+    container_name: smiletrack-web
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    ports:
+      - "9096:80"      # HTTP — puerto 9096 externo mapeado al puerto 80 interno del contenedor
+    environment:
+      ASPNETCORE_URLS: "http://+:80"
+      ASPNETCORE_ENVIRONMENT: "Production"
+      Storage__ClinicalDocumentsPath: "/app/App_Data/clinical-documents"
+      # Cadena de conexión apunta al contenedor sqlserver
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SmileTrackDB;User Id=sa;Password=SmileTrack#2025;TrustServerCertificate=True;Connect Timeout=30;"
+      # JWT — clave secreta y configuración de tokens
+      Jwt__Key: "SmileTrack_Secret_Key_Production_2025_Secure_Jwt_Token_Signing_Key"
+      Jwt__Issuer: "SmileTrack"
+      Jwt__Audience: "SmileTrackClient"
+      Jwt__ExpiryMinutes: "60"
+      # SMTP para correos
+      Smtp__Host: "smtp.gmail.com"
+      Smtp__Port: "587"
+      Smtp__Username: "smiletrack18@gmail.com"
+      Smtp__Password: "tqox azaz jwtw twpp"
+      Smtp__EnableSsl: "true"
+    volumes:
+      - smiletrack-dataprotection:/root/.aspnet/DataProtection-Keys
+      - smiletrack-clinical-files:/app/App_Data/clinical-documents
+    restart: always
+    networks:
+      - default
+
+# ─── Volúmenes persistentes ───────────────────────────────────────────────────
+volumes:
+  smiletrack-sqldata:
+  smiletrack-dataprotection:
+  smiletrack-clinical-files:
+
+# ─── Red externa ─────────────────────────────────────────────────────────────
+networks:
+  default:
+    name: "2f36368fc146f552b59eeacfa72040d6fa9f26ce1bbbb513b537de08a32ef60c"
+    external: true

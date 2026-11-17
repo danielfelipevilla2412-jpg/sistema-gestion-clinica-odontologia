@@ -233,6 +233,7 @@ NOTAS DE MANTENIMIENTO:
               <th scope="col" data-i18n="gestionprofesionales_th_profesional">PROFESIONAL</th>
               <th scope="col" data-i18n="gestionprofesionales_th_especialidad">ESPECIALIDAD</th>
               <th scope="col" data-i18n="gestionprofesionales_th_registro">REGISTRO</th>
+              <th scope="col">TARJETA PROFESIONAL</th>
               <th scope="col" data-i18n="gestionprofesionales_th_telefono">TELÉFONO</th>
               <th scope="col" data-i18n="gestionprofesionales_th_estado">ESTADO</th>
               <th scope="col" data-i18n="gestionprofesionales_th_acciones">ACCIONES</th>
@@ -244,7 +245,7 @@ NOTAS DE MANTENIMIENTO:
               @await Html.PartialAsync("_EmptyState", new { 
                 message = "No se encontraron profesionales",
                 icon = "🩺",
-                colspan = 6
+                colspan = 7
               })
             }
             @foreach (var profesional in profesionales)
@@ -261,6 +262,7 @@ NOTAS DE MANTENIMIENTO:
                 </td>
                 <td><span class="badge-spec @((especialidadPrincipal ?? string.Empty).ToLowerInvariant())">@especialidadPrincipal</span></td>
                 <td>@profesional.RegistroMedico</td>
+                <td>@profesional.TarjetaProfesional</td>
                 <td>@profesional.Telefono</td>
                 <td><span class="badge-status badge-@((profesional.Estado ?? string.Empty).ToLowerInvariant())">@profesional.Estado</span></td>
                 <td>
@@ -280,6 +282,7 @@ NOTAS DE MANTENIMIENTO:
                     data-initials="@profIniciales"
                     data-specialty="@(especialidadPrincipal ?? "")"
                     data-registry="@(profesional.RegistroMedico ?? "")"
+                    data-professional-card="@(profesional.TarjetaProfesional ?? "")"
                     data-phone="@(profesional.Telefono ?? "")"
                     data-status="@(profesional.Estado ?? "")"
                     data-avatar-color="@profAvatarColor"
@@ -400,6 +403,11 @@ NOTAS DE MANTENIMIENTO:
           <span class="error-message" id="error-formRegistroMedico" role="alert" data-i18n="gestionprofesionales_form_registro_error">Por favor ingresa el registro médico.</span>
         </div>
         <div class="form-group">
+          <label class="form-label" for="formTarjetaProfesional">Tarjeta profesional *</label>
+          <input type="text" id="formTarjetaProfesional" name="TarjetaProfesional" class="form-input" required minlength="3" maxlength="50" pattern="[A-Za-z0-9 .-]+" aria-required="true" aria-describedby="error-formTarjetaProfesional" placeholder="Ej. TP-123456" value="">
+          <span class="error-message" id="error-formTarjetaProfesional" role="alert">Ingresa una tarjeta profesional válida.</span>
+        </div>
+        <div class="form-group">
           <label class="form-label" for="formCategoria" data-i18n="gestionprofesionales_form_categoria_label">Categoría</label>
           <select id="formCategoria" name="Categoria" class="form-input">
             <option value="">Seleccionar categoría</option>
@@ -504,6 +512,10 @@ NOTAS DE MANTENIMIENTO:
               <span class="detail-value" id="detailRegistry">--</span>
             </div>
             <div class="detail-item">
+              <span class="detail-key">Tarjeta profesional</span>
+              <span class="detail-value" id="detailProfessionalCard">--</span>
+            </div>
+            <div class="detail-item">
               <span class="detail-key" data-i18n="gestionprofesionales_detail_telefono">Teléfono</span>
               <span class="detail-value" id="detailPhone">--</span>
             </div>
@@ -529,6 +541,7 @@ NOTAS DE MANTENIMIENTO:
             <span class="material-symbols-outlined" aria-hidden="true">lightbulb</span> <em data-i18n="gestionprofesionales_schedule_hint">Configura los días y franjas horarias en las que este profesional atiende citas. Si no tiene días configurados, el sistema usará el horario general de la clínica por defecto.</em>
           </p>
           <form id="scheduleForm">
+            <p>Agrega varias franjas por día cuando el profesional tenga jornadas divididas.</p>
             <div class="schedule-grid" id="scheduleDaysContainer">
               <!-- Renderizado dinámico desde app.js -->
             </div>

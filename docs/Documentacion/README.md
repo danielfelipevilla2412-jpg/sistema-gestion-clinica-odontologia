@@ -33,6 +33,8 @@ Documentación específica de los módulos de Gestión de Citas y Gestión de Pr
 
 - **`PLAN_UNICO_CITAS_Y_PROFESIONALES.md`**: Plan unificado de implementación para estos módulos.
 
+- **`REQUERIMIENTOS_FUNCIONALES_ALINEADOS_IMPLEMENTACION.md`**: Propuesta versionada de alcance funcional alineado al código, con brechas importantes conservadas como pendientes.
+
 #### `2026-09-16-Implementacion-Vistas-SQL/`
 Documentación relacionada con la implementación de vistas SQL en fecha específica.
 

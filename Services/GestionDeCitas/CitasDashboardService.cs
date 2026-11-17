@@ -113,6 +113,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
                     Confirmadas = resumen.Confirmadas,
                     Programadas = resumen.Programadas,
                     Canceladas = resumen.Canceladas,
+                    NoAsistio = resumen.NoAsistio,
                     Otros = resumen.Otros
                 },
 
@@ -178,7 +179,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
 
     private sealed record ResumenMes(
         int Total, int Atendidas, int Confirmadas,
-        int Programadas, int Canceladas, int Otros, decimal ValorAtendido);
+        int Programadas, int Canceladas, int NoAsistio, int Otros, decimal ValorAtendido);
 
     private async Task<ResumenMes> ObtenerResumenCitasMesAsync(
         DateTime inicioMes, DateTime finMes, CancellationToken ct)
@@ -194,7 +195,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
             })
             .ToListAsync(ct);
 
-        int     total       = 0, atendidas = 0, confirmadas = 0, programadas = 0, canceladas = 0, otros = 0;
+        int     total       = 0, atendidas = 0, confirmadas = 0, programadas = 0, canceladas = 0, noAsistio = 0, otros = 0;
         decimal valorAtendido = 0m;
 
         foreach (var fila in filas)
@@ -215,13 +216,16 @@ public sealed class CitasDashboardService : ICitasDashboardService
                 case "cancelada":
                     canceladas++;
                     break;
+                case "no_asistida":
+                    noAsistio++;
+                    break;
                 default:
                     otros++;
                     break;
             }
         }
 
-        return new ResumenMes(total, atendidas, confirmadas, programadas, canceladas, otros, valorAtendido);
+        return new ResumenMes(total, atendidas, confirmadas, programadas, canceladas, noAsistio, otros, valorAtendido);
     }
 
     private async Task<IReadOnlyList<TopProfesionalViewModel>> ObtenerTopProfesionalesAsync(

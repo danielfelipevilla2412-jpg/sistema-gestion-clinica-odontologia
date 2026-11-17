@@ -547,7 +547,7 @@ public sealed class ProfesionalServiceTests
         Assert.Equal(125000m, serviciosOrtodoncia.Data[0].PrecioEfectivo);
         Assert.True(serviciosEndodoncia.Success);
         Assert.Equal(
-            new[] { "Endodoncia", "Valoración" },
+            new[] { "Endodoncia" },
             serviciosEndodoncia.Data.Select(s => s.NombreServicio).OrderBy(n => n).ToArray());
     }
 
@@ -604,6 +604,7 @@ public sealed class ProfesionalServiceTests
                 Nombres = "María",
                 Apellidos = "García",
                 RegistroMedico = "RM-GEN-001",
+                TarjetaProfesional = "TP-GEN-001",
                 CorreoAcceso = "maria.garcia@smiletrack.test",
                 ContrasenaAcceso = null
             },
@@ -635,6 +636,7 @@ public sealed class ProfesionalServiceTests
                 Nombres = "María",
                 Apellidos = "García",
                 RegistroMedico = "RM-CAT-001",
+                TarjetaProfesional = "TP-CAT-001",
                 Categoria = "Categoría inventada",
                 CorreoAcceso = "maria.categoria@smiletrack.test"
             },
@@ -665,6 +667,7 @@ public sealed class ProfesionalServiceTests
                 Nombres = "María",
                 Apellidos = "García",
                 RegistroMedico = "RM-MULTI-001",
+                TarjetaProfesional = "TP-MULTI-001",
                 CorreoAcceso = "maria.multi@smiletrack.test",
                 IdsEspecialidades = new List<int> { 1, 2 }
             },
@@ -712,6 +715,7 @@ public sealed class ProfesionalServiceTests
                 Nombres = "Carlos Andrés",
                 Apellidos = "Ruiz",
                 RegistroMedico = "RM-LEG-001",
+                TarjetaProfesional = "TP-LEG-001",
                 Categoria = "Endodoncia",
                 Estado = "activo",
                 IdEspecialidad = 1

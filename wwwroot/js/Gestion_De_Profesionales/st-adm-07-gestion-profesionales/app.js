@@ -401,6 +401,7 @@ const createProfessionalTableRow = (professionalRecord) => {
   const phoneText = escapeHtmlUtil(professionalRecord.telefono);
   const statusText = escapeHtmlUtil(professionalRecord.estado);
   const medicalLicense = escapeHtmlUtil(professionalRecord.registroMedico);
+  const professionalCard = escapeHtmlUtil(professionalRecord.tarjetaProfesional);
 
   const isProfessionalActive = (statusText || '').toLowerCase() === 'activo';
 
@@ -411,6 +412,7 @@ const createProfessionalTableRow = (professionalRecord) => {
     </td>
     <td><span class="badge-spec ${specialtyBadgeClass}">${primarySpecialty || '—'}</span></td>
     <td>${medicalLicense}</td>
+    <td>${professionalCard || '—'}</td>
     <td>${phoneText || '—'}</td>
     <td><span class="badge-status ${statusBadgeClass}" role="status" aria-label="Estado: ${statusText}">${statusText}</span></td>
     <td>
@@ -422,6 +424,7 @@ const createProfessionalTableRow = (professionalRecord) => {
                 data-initials="${initialsText}"
                 data-specialty="${primarySpecialty}"
                 data-registry="${medicalLicense}"
+                data-professional-card="${professionalCard}"
                 data-phone="${phoneText}"
                 data-status="${statusText}"
                 data-avatar-color="${avatarBgColor}"
@@ -465,6 +468,7 @@ const openProfessionalDetailView = (viewButton, defaultAvatarBg, defaultStatusCl
   const nameEl = getElementByIdSafe('detailName');
   const specialtyEl = getElementByIdSafe('detailSpecialty');
   const registryEl = getElementByIdSafe('detailRegistry');
+  const professionalCardEl = getElementByIdSafe('detailProfessionalCard');
   const phoneEl = getElementByIdSafe('detailPhone');
   const statusEl = getElementByIdSafe('detailStatus');
 
@@ -475,6 +479,7 @@ const openProfessionalDetailView = (viewButton, defaultAvatarBg, defaultStatusCl
   if (nameEl) nameEl.textContent = viewButton.dataset.name || '--';
   if (specialtyEl) specialtyEl.textContent = viewButton.dataset.specialty || '--';
   if (registryEl) registryEl.textContent = viewButton.dataset.registry || '--';
+  if (professionalCardEl) professionalCardEl.textContent = viewButton.dataset.professionalCard || '--';
   if (phoneEl) phoneEl.textContent = viewButton.dataset.phone || '--';
   if (statusEl) {
     statusEl.textContent = viewButton.dataset.status || '--';
@@ -583,20 +588,36 @@ const renderPaginationFromApi = (apiResult) => {
 /**
  * Renderiza las filas para la configuración de horarios semanales.
  */
+const appendScheduleBlock = (blocksContainer, start = '', end = '') => {
+  const block = document.createElement('div');
+  block.className = 'schedule-block';
+  block.innerHTML = `
+    <label class="schedule-time-group">
+      <span class="schedule-time-label">Inicio:</span>
+      <input type="time" class="form-input schedule-time-start" value="${start}" required>
+    </label>
+    <label class="schedule-time-group">
+      <span class="schedule-time-label">Fin:</span>
+      <input type="time" class="form-input schedule-time-end" value="${end}" required>
+    </label>
+    <button type="button" class="btn-secondary schedule-remove-block" aria-label="Quitar esta franja">Quitar franja</button>
+  `;
+  blocksContainer.appendChild(block);
+};
+
 const renderScheduleDays = () => {
   const container = getElementByIdSafe('scheduleDaysContainer');
   if (!container) return;
   container.innerHTML = '';
 
   WEEK_DAYS.forEach((dayConfig) => {
-    const existingSchedule = professionalScheduleRecords.find(
-      (s) => (s.diaSemana || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
-             dayConfig.key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const normalizeDay = (value) => (value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const existingSchedules = professionalScheduleRecords.filter(
+      (schedule) => normalizeDay(schedule.diaSemana) === normalizeDay(dayConfig.key)
     );
-
-    const isDayActive = existingSchedule ? existingSchedule.activo : (dayConfig.key !== 'Sabado' && dayConfig.key !== 'Domingo');
-    const startTimeValue = existingSchedule?.horaInicio ? existingSchedule.horaInicio.substring(0, 5) : '08:00';
-    const endTimeValue = existingSchedule?.horaFin ? existingSchedule.horaFin.substring(0, 5) : '17:00';
+    const isDayActive = existingSchedules.length > 0
+      ? existingSchedules.some(schedule => schedule.activo)
+      : (dayConfig.key !== 'Sabado' && dayConfig.key !== 'Domingo');
 
     const dayRowElement = document.createElement('div');
     dayRowElement.className = `schedule-row ${isDayActive ? '' : 'inactive'}`;
@@ -608,29 +629,36 @@ const renderScheduleDays = () => {
         <input type="checkbox" class="schedule-day-active" ${isDayActive ? 'checked' : ''} data-day="${dayConfig.key}">
         <span>${isDayActive ? 'Atiende' : 'No atiende'}</span>
       </label>
-      <div class="schedule-time-group">
-        <span class="schedule-time-label">Inicio:</span>
-        <input type="time" class="form-input schedule-time-start" value="${startTimeValue}" ${isDayActive ? '' : 'disabled'} style="padding:4px 8px;font-size:0.85rem;" required>
-      </div>
-      <div class="schedule-time-group">
-        <span class="schedule-time-label">Fin:</span>
-        <input type="time" class="form-input schedule-time-end" value="${endTimeValue}" ${isDayActive ? '' : 'disabled'} style="padding:4px 8px;font-size:0.85rem;" required>
-      </div>
+      <div class="schedule-blocks"></div>
+      <button type="button" class="btn-secondary schedule-add-block" ${isDayActive ? '' : 'disabled'}>Agregar franja</button>
     `;
 
     const activeCheckbox = dayRowElement.querySelector('.schedule-day-active');
     const labelSpanText = dayRowElement.querySelector('.schedule-toggle span');
-    const startInput = dayRowElement.querySelector('.schedule-time-start');
-    const endInput = dayRowElement.querySelector('.schedule-time-end');
+    const blocksContainer = dayRowElement.querySelector('.schedule-blocks');
+    const addBlockButton = dayRowElement.querySelector('.schedule-add-block');
+
+    existingSchedules.forEach(schedule => appendScheduleBlock(
+      blocksContainer,
+      (schedule.horaInicio || '').substring(0, 5),
+      (schedule.horaFin || '').substring(0, 5)
+    ));
+    if (isDayActive && existingSchedules.length === 0) appendScheduleBlock(blocksContainer, '08:00', '17:00');
 
     activeCheckbox.addEventListener('change', (e) => {
       const isChecked = e.target.checked;
       dayRowElement.classList.toggle('inactive', !isChecked);
       labelSpanText.textContent = isChecked ? 'Atiende' : 'No atiende';
-      startInput.disabled = !isChecked;
-      endInput.disabled = !isChecked;
+      blocksContainer.querySelectorAll('input, button').forEach(element => { element.disabled = !isChecked; });
+      addBlockButton.disabled = !isChecked;
     });
 
+    addBlockButton.addEventListener('click', () => appendScheduleBlock(blocksContainer));
+    blocksContainer.addEventListener('click', (event) => {
+      const removeButton = event.target.closest('.schedule-remove-block');
+      if (!removeButton) return;
+      removeButton.closest('.schedule-block')?.remove();
+    });
     container.appendChild(dayRowElement);
   });
 };
@@ -990,6 +1018,7 @@ window.editProfessional = async (professionalId, triggerButton = null) => {
     setFieldValue('formNombres', professionalData.nombres);
     setFieldValue('formApellidos', professionalData.apellidos);
     setFieldValue('formRegistroMedico', professionalData.registroMedico);
+    setFieldValue('formTarjetaProfesional', professionalData.tarjetaProfesional);
     setFieldValue('formCategoria', professionalData.categoria);
     setFieldValue('formTelefono', professionalData.telefono);
     setFieldValue('formCorreoAcceso', professionalData.correoAcceso);
@@ -1049,7 +1078,8 @@ const validateProfessionalForm = (formElement) => {
   const requiredFields = [
     { id: 'formNombres', message: 'Ingresa los nombres.' },
     { id: 'formApellidos', message: 'Ingresa los apellidos.' },
-    { id: 'formRegistroMedico', message: 'Ingresa el registro médico.' }
+    { id: 'formRegistroMedico', message: 'Ingresa el registro médico.' },
+    { id: 'formTarjetaProfesional', message: 'Ingresa la tarjeta profesional.' }
   ];
   const emailField = getElementByIdSafe('formCorreoAcceso');
   if (emailField && !emailField.disabled) {
@@ -1081,6 +1111,12 @@ const validateProfessionalForm = (formElement) => {
     if (window.ValidationUtils) {
       window.ValidationUtils.showError(emailField, null, 'Ingresa un correo de acceso válido.');
     }
+  }
+
+  const cardField = getElementByIdSafe('formTarjetaProfesional');
+  if (cardField?.value.trim() && !/^[A-Za-z0-9 .-]{3,50}$/.test(cardField.value.trim())) {
+    isFormValid = false;
+    window.ValidationUtils?.showError(cardField, null, 'La tarjeta profesional debe tener entre 3 y 50 caracteres válidos.');
   }
 
   return isFormValid;
@@ -1129,6 +1165,7 @@ const saveProfessional = async (event) => {
     nombres:        getFieldValue('formNombres'),
     apellidos:      getFieldValue('formApellidos'),
     registroMedico: getFieldValue('formRegistroMedico'),
+    tarjetaProfesional: getFieldValue('formTarjetaProfesional'),
     categoria:      getFieldValue('formCategoria') || null,
     telefono:       getFieldValue('formTelefono')  || null,
     correoAcceso:   getElementByIdSafe('formCorreoAcceso')?.disabled
@@ -1185,20 +1222,17 @@ const applyDefaultSchedule = () => {
     const isWeekday = dayKey !== 'Sabado' && dayKey !== 'Domingo';
     const activeCheckbox = row.querySelector('.schedule-day-active');
     const labelSpanText = row.querySelector('.schedule-toggle span');
-    const startInput = row.querySelector('.schedule-time-start');
-    const endInput = row.querySelector('.schedule-time-end');
+    const blocksContainer = row.querySelector('.schedule-blocks');
+    const addBlockButton = row.querySelector('.schedule-add-block');
 
     if (activeCheckbox) activeCheckbox.checked = isWeekday;
     if (labelSpanText) labelSpanText.textContent = isWeekday ? 'Atiende' : 'No atiende';
     row.classList.toggle('inactive', !isWeekday);
-    if (startInput) {
-      startInput.value = '08:00';
-      startInput.disabled = !isWeekday;
+    if (blocksContainer) {
+      blocksContainer.innerHTML = '';
+      if (isWeekday) appendScheduleBlock(blocksContainer, '08:00', '17:00');
     }
-    if (endInput) {
-      endInput.value = '17:00';
-      endInput.disabled = !isWeekday;
-    }
+    if (addBlockButton) addBlockButton.disabled = !isWeekday;
   });
   window.ToastService?.info?.('Horario estándar (Lun-Vie 08:00 - 17:00) cargado en el formulario. Recuerda guardar cambios.');
 };
@@ -1217,28 +1251,39 @@ const saveSchedule = async (event) => {
   for (const row of dayRows) {
     const dayKey = row.dataset.day;
     const isActive = row.querySelector('.schedule-day-active').checked;
-    const startTime = row.querySelector('.schedule-time-start').value;
-    const endTime = row.querySelector('.schedule-time-end').value;
+    const blocks = Array.from(row.querySelectorAll('.schedule-block'));
 
     if (isActive) {
-      if (!startTime || !endTime) {
-        window.ToastService?.warning?.(`Debes especificar hora de inicio y fin para el ${dayKey}.`);
+      if (blocks.length === 0) {
+        window.ToastService?.warning?.(`Agrega al menos una franja horaria para el ${dayKey}.`);
         return;
       }
-      if (endTime <= startTime) {
-        window.ToastService?.warning?.(`La hora de fin debe ser posterior a la hora de inicio para el ${dayKey}.`);
-        return;
+      for (const block of blocks) {
+        const startTime = block.querySelector('.schedule-time-start').value;
+        const endTime = block.querySelector('.schedule-time-end').value;
+        if (!startTime || !endTime || endTime <= startTime) {
+          window.ToastService?.warning?.(`Revisa las horas de inicio y fin de las franjas del ${dayKey}.`);
+          return;
+        }
+        schedulePayload.push({
+          day: dayKey.substring(0, 3),
+          diaSemana: dayKey,
+          dayFull: dayKey,
+          active: true,
+          start: startTime,
+          end: endTime
+        });
       }
+    } else {
+      schedulePayload.push({
+        day: dayKey.substring(0, 3),
+        diaSemana: dayKey,
+        dayFull: dayKey,
+        active: false,
+        start: '',
+        end: ''
+      });
     }
-
-    schedulePayload.push({
-      day: dayKey.substring(0, 3),
-      diaSemana: dayKey,
-      dayFull: dayKey,
-      active: isActive,
-      start: startTime,
-      end: endTime
-    });
   }
 
   const saveButton = getElementByIdSafe('scheduleSaveButton');

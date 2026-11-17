@@ -17,6 +17,9 @@ namespace SmileTrack_MVC.Models.Entities
         [Column("id_profesional")]
         public int? IdProfesional { get; set; }
 
+        [Column("id_profesional_preferido")]
+        public int? IdProfesionalPreferido { get; set; }
+
         [Column("id_servicio")]
         public int? IdServicio { get; set; }
 

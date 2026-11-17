@@ -1,0 +1,36 @@
+@baseUrl = http://localhost:5259
+@sessionCookie = replace-with-authenticated-patient-cookie
+@antiforgeryToken = replace-with-rendered-request-token
+
+### Consultar horarios disponibles con cualquier profesional compatible
+GET {{baseUrl}}/api/citas/horarios-disponibles?fecha=2026-12-01&idServicio=1
+Cookie: {{sessionCookie}}
+Accept: application/json
+
+### Solicitar una cita pendiente, sin reservar recursos
+POST {{baseUrl}}/api/citas/solicitar
+Cookie: {{sessionCookie}}
+RequestVerificationToken: {{antiforgeryToken}}
+Content-Type: application/json
+
+{
+  "Fecha": "2026-12-01",
+  "HoraInicio": "09:00:00",
+  "IdServicio": 1,
+  "IdProfesional": null,
+  "Notas": "Valoración odontológica"
+}
+
+### Inscribirse en la lista de espera
+POST {{baseUrl}}/api/citas/lista-espera
+Cookie: {{sessionCookie}}
+RequestVerificationToken: {{antiforgeryToken}}
+Content-Type: application/json
+
+{
+  "IdServicio": 1,
+  "IdProfesionalPreferido": null,
+  "FechaDeseadaInicio": "2026-12-01",
+  "FechaDeseadaFin": "2026-12-31",
+  "Notas": "Disponible en cualquier horario"
+}
