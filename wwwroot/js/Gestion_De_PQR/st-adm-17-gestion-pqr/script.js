@@ -345,7 +345,11 @@ function initPqrNotifications() {
 function showManagement() {}
 
 // Show Detail Panel
+let pendingPqrStatus = null;
+let sendingPqrResponse = false;
+
 function showDetail(id) {
+  pendingPqrStatus = null;
   currentId = id;
   const data = pqrsData[id];
   if (!data) return;
@@ -396,6 +400,7 @@ function showDetail(id) {
   }
 
   updateStatusButtons(data.estado);
+  cargarHistorialPqr(data.id);
 }
 
 function renderResponseThread(data) {
@@ -419,6 +424,36 @@ function renderResponseThread(data) {
   }
 }
 
+async function cargarHistorialPqr(id) {
+  const thread = safeGetElement('responsesThread');
+  const title = safeGetElement('responsesTitle');
+  if (!thread || !title) return;
+  try {
+    const response = await fetch(`/gestion-de-pqr/api/pqr/${encodeURIComponent(id)}/historial`, {
+      credentials: 'same-origin', headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) return;
+    const result = await response.json();
+    if (String(currentId) !== String(id) || !result.success) return;
+    const eventos = result.eventos || [];
+    if (!eventos.length) return; // Los registros anteriores conservan la vista de respuesta existente.
+    title.textContent = `Historial de seguimiento (${eventos.length})`;
+    thread.innerHTML = eventos.map(e => `
+      <div class="timeline-item">
+        <div class="timeline-header">
+          <span class="timeline-author">${escapeHtml(e.tipoEvento === 'respuesta' ? 'Respuesta administrativa' : 'Cambio de estado')}</span>
+          <span class="timeline-date">${escapeHtml(new Date(e.fechaEvento).toLocaleString('es-CO'))}</span>
+        </div>
+        <div class="timeline-content">
+          <div>${escapeHtml(e.estadoAnterior || '—')} → ${escapeHtml(e.estadoNuevo)}</div>
+          ${e.respuesta ? `<p>${escapeHtml(e.respuesta)}</p>` : ''}
+        </div>
+      </div>`).join('');
+  } catch (error) {
+    console.error('[PQR] No fue posible consultar el historial:', error);
+  }
+}
+
 function updateBadgeColors(data) {
   const tipoBadge = TIPO_BADGE[data.tipo] || TIPO_BADGE.peticion;
   const estadoBadge = ESTADO_BADGE[data.estado] || ESTADO_BADGE.recibida;
@@ -438,9 +473,18 @@ function updateBadgeColors(data) {
 }
 
 function updateStatusButtons(estado) {
-  document.querySelectorAll('.status-btn').forEach(btn => btn.classList.remove('active'));
+  const finalizada = ['resuelta', 'cerrada', 'rechazada'].includes(estado);
+  document.querySelectorAll('.status-btn').forEach(btn => {
+    btn.classList.remove('active');
+    btn.disabled = finalizada;
+  });
+  const respuesta = document.getElementById('responseTextarea');
+  const btnRespuesta = document.getElementById('btnSendResponse');
+  const yaRespondida = Boolean(currentId && pqrsData[currentId]?.respuesta);
+  if (respuesta) respuesta.disabled = finalizada || yaRespondida;
+  if (btnRespuesta) btnRespuesta.disabled = finalizada || yaRespondida;
   const map = { recibida: 'recibido', en_proceso: 'proceso', resuelta: 'resuelto', cerrada: 'cerrado', rechazada: 'rechazado' };
-  const btnClass = map[estado];
+  const btnClass = map[pendingPqrStatus || estado];
   if (btnClass) {
     const btn = document.querySelector(`.status-btn.${btnClass}`);
     if (btn) btn.classList.add('active');
@@ -456,37 +500,30 @@ function closeDetail() {
   safeGetElement('detailOverlay').setAttribute('aria-hidden', 'true');
   document.querySelectorAll('tbody tr').forEach(row => row.classList.remove('selected'));
   currentId = null;
+  pendingPqrStatus = null;
   Array.from(document.querySelectorAll('button[data-action="view"]'))
     .find(button => button.dataset.id === String(previousId))?.focus();
 }
 
-// Change Status — persiste en SQL Server vía PUT /gestion-de-pqr/api/pqr/{id}/estado
-async function changeStatus(btn, estado) {
-  if (!currentId) return;
-
-  try {
-    const result = await pqrApiRequest(`/gestion-de-pqr/api/pqr/${currentId}/estado`, {
-      method: 'PUT',
-      body: { estado }
-    });
-
-    if (!result || result.success !== true) {
-      showToast(result?.message || 'No fue posible actualizar el estado.', 'error');
-      return;
-    }
-
-    pqrsData[currentId].estado = result.data?.estado || estado;
-    document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    updateBadgeColors(pqrsData[currentId]);
-    renderTable();
-    filterTable();
-    renderStats();
-    showToast('Estado actualizado correctamente.');
-  } catch (error) {
-    console.error('Error cambiando estado:', error);
-    showToast(error instanceof Error ? error.message : 'Error de conexión al actualizar el estado.', 'error');
+// Selección provisional: no guardar estado ni bloquear la respuesta hasta enviar.
+function changeStatus(btn, estado) {
+  if (!currentId || sendingPqrResponse) return;
+  const data = pqrsData[currentId];
+  if (!data || ['resuelta', 'cerrada', 'rechazada'].includes(data.estado) || data.respuesta) {
+    showToast('Esta PQR ya está finalizada o respondida y no admite cambios.', 'warning');
+    return;
   }
+  const permitted = data.estado === 'recibida'
+    ? ['en_proceso', 'resuelta', 'cerrada', 'rechazada']
+    : data.estado === 'en_proceso'
+      ? ['resuelta', 'cerrada', 'rechazada'] : [];
+  if (estado !== data.estado && !permitted.includes(estado)) {
+    showToast('La transición seleccionada no está permitida.', 'warning');
+    return;
+  }
+  pendingPqrStatus = estado === data.estado ? null : estado;
+  updateStatusButtons(data.estado);
+  showToast('Estado seleccionado. Se guardará al enviar la respuesta.');
 }
 
 // Enviar respuesta — persiste en SQL Server vía POST /gestion-de-pqr/api/pqr/{id}/responder
@@ -494,6 +531,10 @@ function initResponseForm() {
   const btn = safeGetElement('btnSendResponse');
   btn?.addEventListener('click', async () => {
     if (!currentId) return;
+    if (['resuelta', 'cerrada', 'rechazada'].includes(pqrsData[currentId]?.estado) || pqrsData[currentId]?.respuesta) {
+      showToast('Esta PQR no admite nuevas respuestas.', 'warning');
+      return;
+    }
 
     const textarea = safeGetElement('responseTextarea');
     const respuesta = textarea?.value?.trim();
@@ -503,11 +544,12 @@ function initResponseForm() {
       return;
     }
 
+    sendingPqrResponse = true;
     btn.disabled = true;
     try {
       const result = await pqrApiRequest(`/gestion-de-pqr/api/pqr/${currentId}/responder`, {
         method: 'POST',
-        body: { respuesta }
+        body: { respuesta, nuevoEstado: pendingPqrStatus }
       });
 
       if (!result || result.success !== true) {
@@ -520,6 +562,7 @@ function initResponseForm() {
       data.fechaRespuesta = result.data.fechaRespuesta;
       data.atendidaPor = result.data.atendidaPor;
       data.estado = result.data.estado;
+      pendingPqrStatus = null;
 
       renderResponseThread(data);
       updateBadgeColors(data);
@@ -534,7 +577,8 @@ function initResponseForm() {
       console.error('Error enviando respuesta:', error);
       showToast(error instanceof Error ? error.message : 'Error de conexión al enviar la respuesta.', 'error');
     } finally {
-      btn.disabled = false;
+      sendingPqrResponse = false;
+      if (currentId) updateStatusButtons(pqrsData[currentId].estado);
     }
   });
 }

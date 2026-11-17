@@ -289,6 +289,59 @@ public sealed class PqrControllerTests
         Assert.IsType<NotFoundObjectResult>(result);
     }
 
+    [Theory]
+    [InlineData("resuelta")]
+    [InlineData("cerrada")]
+    [InlineData("rechazada")]
+    public async Task ApiActualizarEstado_PqrFinalizada_NoPermiteReapertura(string estado)
+    {
+        await using var db = CrearContext();
+        db.Pacientes.Add(CrearPaciente(1, 10));
+        db.PQRs.Add(new PqrEntity { IdPqr = 1, IdPaciente = 1, Asunto = "Uno", Descripcion = "Descripción válida", Estado = estado, FechaCreacion = DateTime.Now });
+        await db.SaveChangesAsync();
+        var result = await CrearControlador(db).ApiActualizarEstado(1, new ActualizarEstadoPqrRequest { Estado = "en_proceso" });
+        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Equal(estado, (await db.PQRs.FindAsync(1))!.Estado);
+    }
+
+    [Theory]
+    [InlineData("resuelta")]
+    [InlineData("cerrada")]
+    [InlineData("rechazada")]
+    public async Task ApiResponderPqr_PqrFinalizada_NoPermiteRespuesta(string estado)
+    {
+        await using var db = CrearContext();
+        db.Pacientes.Add(CrearPaciente(1, 10));
+        db.PQRs.Add(new PqrEntity { IdPqr = 1, IdPaciente = 1, Asunto = "Uno", Descripcion = "Descripción válida", Estado = estado, FechaCreacion = DateTime.Now });
+        await db.SaveChangesAsync();
+        var result = await CrearControlador(db).ApiResponderPqr(1, new ResponderPqrRequest { Respuesta = "Respuesta de prueba" });
+        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Null((await db.PQRs.FindAsync(1))!.Respuesta);
+    }
+
+    [Fact]
+    public async Task ApiActualizarEstado_NoPermiteRegresarARecibida()
+    {
+        await using var db = CrearContext();
+        db.Pacientes.Add(CrearPaciente(1, 10));
+        db.PQRs.Add(new PqrEntity { IdPqr = 1, IdPaciente = 1, Asunto = "Uno", Descripcion = "Descripción válida", Estado = "en_proceso", FechaCreacion = DateTime.Now });
+        await db.SaveChangesAsync();
+        var result = await CrearControlador(db).ApiActualizarEstado(1, new ActualizarEstadoPqrRequest { Estado = "recibida" });
+        Assert.IsType<ConflictObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task ApiResponderPqr_NoSobrescribeRespuestaExistente()
+    {
+        await using var db = CrearContext();
+        db.Pacientes.Add(CrearPaciente(1, 10));
+        db.PQRs.Add(new PqrEntity { IdPqr = 1, IdPaciente = 1, Asunto = "Uno", Descripcion = "Descripción válida", Estado = "en_proceso", Respuesta = "Respuesta original", FechaCreacion = DateTime.Now });
+        await db.SaveChangesAsync();
+        var result = await CrearControlador(db).ApiResponderPqr(1, new ResponderPqrRequest { Respuesta = "Respuesta nueva" });
+        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Equal("Respuesta original", (await db.PQRs.FindAsync(1))!.Respuesta);
+    }
+
     private static IFormFile CrearArchivo(long longitud, string contentType, string nombre)
         => new FakeFormFile(longitud, contentType, nombre);
 

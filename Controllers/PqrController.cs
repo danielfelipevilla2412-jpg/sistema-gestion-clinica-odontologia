@@ -18,6 +18,21 @@ public class PqrController : Controller
     private static readonly string[] TiposArchivoPermitidos = ["image/jpeg", "image/png", "application/pdf"];
     private const long TamanoMaximoArchivo = 5 * 1024 * 1024; // 5 MB
 
+    // Estados terminales: la opción A impide su reapertura o modificación.
+    private static readonly HashSet<string> EstadosFinales = new(StringComparer.OrdinalIgnoreCase)
+        { "resuelta", "cerrada", "rechazada" };
+
+    private static bool TransicionPermitida(string actual, string siguiente)
+    {
+        if (EstadosFinales.Contains(actual)) return false;
+        return actual switch
+        {
+            "recibida" => siguiente is "en_proceso" or "resuelta" or "cerrada" or "rechazada",
+            "en_proceso" => siguiente is "resuelta" or "cerrada" or "rechazada",
+            _ => false
+        };
+    }
+
     public PqrController(AppDbContext context, ILogger<PqrController> logger)
     {
         _context = context;
@@ -235,6 +250,23 @@ public class PqrController : Controller
     // API REST - Gestión real de PQR
     // =========================================================================
 
+    [HttpGet]
+    [Authorize(Roles = "Administrador")]
+    [Route("gestion-de-pqr/api/pqr/{id:int}/historial")]
+    public async Task<IActionResult> ApiHistorialPqr(int id, CancellationToken ct = default)
+    {
+        if (!await _context.PQRs.AsNoTracking().AnyAsync(p => p.IdPqr == id, ct))
+            return NotFound(new { success = false, message = "PQR no encontrada." });
+
+        var eventos = await _context.PqrHistorial.AsNoTracking()
+            .Where(h => h.IdPqr == id)
+            .OrderBy(h => h.FechaEvento).ThenBy(h => h.IdHistorial)
+            .Select(h => new { h.IdHistorial, h.IdUsuario, h.EstadoAnterior, h.EstadoNuevo,
+                h.Respuesta, h.TipoEvento, h.FechaEvento })
+            .ToListAsync(ct);
+        return Ok(new { success = true, eventos });
+    }
+
     [HttpPut]
     [Authorize(Roles = "Administrador")]
     [Route("gestion-de-pqr/api/pqr/{id:int}/estado")]
@@ -254,7 +286,22 @@ public class PqrController : Controller
                 return NotFound(new { success = false, message = "PQR no encontrada." });
             }
 
+            if (!TransicionPermitida(pqr.Estado, request.Estado))
+            {
+                return Conflict(new { success = false, message = EstadosFinales.Contains(pqr.Estado)
+                    ? "La PQR está finalizada y no admite modificaciones ni reapertura."
+                    : "La transición de estado solicitada no está permitida." });
+            }
+
+            var estadoAnterior = pqr.Estado;
             pqr.Estado = request.Estado;
+            int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var usuarioId);
+            _context.PqrHistorial.Add(new PqrHistorial
+            {
+                IdPqr = id, IdUsuario = usuarioId > 0 ? usuarioId : null,
+                EstadoAnterior = estadoAnterior, EstadoNuevo = request.Estado,
+                TipoEvento = "estado", FechaEvento = DateTime.UtcNow
+            });
             await _context.SaveChangesAsync(ct);
 
             return Ok(new { success = true, message = "Estado actualizado correctamente.", data = new { id, estado = pqr.Estado } });
@@ -285,22 +332,35 @@ public class PqrController : Controller
                 return NotFound(new { success = false, message = "PQR no encontrada." });
             }
 
+            if (EstadosFinales.Contains(pqr.Estado))
+            {
+                return Conflict(new { success = false, message = "La PQR está finalizada y no admite nuevas respuestas." });
+            }
+
+            string siguienteEstado = !string.IsNullOrWhiteSpace(request.NuevoEstado)
+                ? request.NuevoEstado
+                : pqr.Estado == "recibida" ? "en_proceso" : pqr.Estado;
+            if (siguienteEstado != pqr.Estado && !TransicionPermitida(pqr.Estado, siguienteEstado))
+            {
+                return Conflict(new { success = false, message = "La transición de estado solicitada no está permitida." });
+            }
+
             string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             int.TryParse(userIdStr, out int adminId);
 
+            var estadoAnterior = pqr.Estado;
             pqr.Respuesta = request.Respuesta.Trim();
             pqr.FechaRespuesta = DateTime.Now;
             pqr.AtendidaPor = adminId > 0 ? adminId : null;
 
-            if (!string.IsNullOrWhiteSpace(request.NuevoEstado))
+            pqr.Estado = siguienteEstado;
+            _context.PqrHistorial.Add(new PqrHistorial
             {
-                pqr.Estado = request.NuevoEstado;
-            }
-            else if (pqr.Estado == "recibida")
-            {
-                pqr.Estado = "en_proceso";
-            }
-
+                IdPqr = id, IdUsuario = adminId > 0 ? adminId : null,
+                EstadoAnterior = estadoAnterior, EstadoNuevo = siguienteEstado,
+                Respuesta = pqr.Respuesta, TipoEvento = "respuesta", FechaEvento = DateTime.UtcNow
+            });
+            // La respuesta, el estado y la bitácora se guardan en una sola transacción de SaveChanges.
             await _context.SaveChangesAsync(ct);
 
             var atendidaPorUsuario = adminId > 0 ? await _context.Usuarios.FirstOrDefaultAsync(u => u.IdUsuario == adminId, ct) : null;

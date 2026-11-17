@@ -55,6 +55,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             public DbSet<PagoFactura> Pagos => Set<PagoFactura>();
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
+    public DbSet<PqrHistorial> PqrHistorial => Set<PqrHistorial>();
     public DbSet<TicketSoporte> TicketsSoporte => Set<TicketSoporte>();
     public DbSet<Inventario> Inventarios => Set<Inventario>();
     public DbSet<Equipo> Equipos => Set<Equipo>();
@@ -860,6 +861,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<PqrHistorial>(entity =>
+        {
+            entity.ToTable("PQR_Historial");
+            entity.HasKey(h => h.IdHistorial);
+            entity.Property(h => h.IdHistorial).HasColumnName("id_historial");
+            entity.Property(h => h.IdPqr).HasColumnName("id_pqr");
+            entity.Property(h => h.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(h => h.EstadoAnterior).HasColumnName("estado_anterior").HasMaxLength(30);
+            entity.Property(h => h.EstadoNuevo).HasColumnName("estado_nuevo").HasMaxLength(30);
+            entity.Property(h => h.Respuesta).HasColumnName("respuesta").HasMaxLength(2000);
+            entity.Property(h => h.TipoEvento).HasColumnName("tipo_evento").HasMaxLength(20);
+            entity.Property(h => h.FechaEvento).HasColumnName("fecha_evento").HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.HasOne<PqrEntity>().WithMany().HasForeignKey(h => h.IdPqr).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<PqrEntity>(entity =>
         {
             entity.ToTable("PQR", tableBuilder => tableBuilder.UseSqlOutputClause(false));
