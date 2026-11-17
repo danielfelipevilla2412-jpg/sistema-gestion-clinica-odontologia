@@ -1139,7 +1139,9 @@ public class HistoriaClinicaController(
         // Historial de estados del diente desde Registro_Odontograma
         var registrosDiente = await _context.RegistrosOdontograma
             .Include(r => r.Profesional)
-            .Where(r => r.IdHistoria == historia.IdHistoria && r.NumeroFdi == numerofdi)
+            .Where(r => r.IdHistoria == historia.IdHistoria
+                && r.NumeroFdi == numerofdi
+                && r.Estado != "sin_registro")
             .OrderByDescending(r => r.FechaRegistro)
             .Select(r => new
             {
@@ -1251,23 +1253,87 @@ public class HistoriaClinicaController(
                 "Historia_Clinica",
                 null,
                 "Consulta histórica del odontograma.");
-            return Ok(new { success = true, hasta = hasta.ToString("yyyy-MM-dd"), registros = Array.Empty<object>() });
+            return Ok(new
+            {
+                success = true,
+                hasta = hasta.ToString("yyyy-MM-dd"),
+                registros = Array.Empty<object>(),
+                mapeoFDI = new Dictionary<string, string>()
+            });
         }
 
         DateTime limiteExclusivo = hasta.AddDays(1).ToDateTime(TimeOnly.MinValue);
-        var registros = await _context.RegistrosOdontograma.AsNoTracking()
-            .Where(r => r.IdHistoria == historia.IdHistoria && r.FechaRegistro < limiteExclusivo)
+        var registrosHasta = _context.RegistrosOdontograma.AsNoTracking()
+            .Where(registro => registro.IdHistoria == historia.IdHistoria
+                && registro.FechaRegistro < limiteExclusivo);
+        var ultimasFechasPorDiente = registrosHasta
             .GroupBy(r => r.NumeroFdi)
-            .Select(g => g.OrderByDescending(r => r.FechaRegistro).First())
-            .OrderBy(r => r.NumeroFdi)
-            .Select(r => new
+            .Select(grupo => new
             {
-                r.NumeroFdi,
-                r.Estado,
-                r.Observacion,
-                r.FechaRegistro
-            })
+                NumeroFdi = grupo.Key,
+                FechaRegistro = grupo.Max(registro => registro.FechaRegistro)
+            });
+        var registrosCandidatos = await registrosHasta
+            .Join(
+                ultimasFechasPorDiente,
+                registro => new { registro.NumeroFdi, registro.FechaRegistro },
+                ultimo => new { ultimo.NumeroFdi, ultimo.FechaRegistro },
+                (registro, _) => new
+                {
+                    registro.NumeroFdi,
+                    registro.Estado,
+                    registro.Observacion,
+                    registro.FechaRegistro
+                })
             .ToListAsync();
+        var registros = registrosCandidatos
+            .GroupBy(registro => registro.NumeroFdi)
+            .Select(grupo => grupo.First())
+            .OrderBy(r => r.NumeroFdi)
+            .ToList();
+        registros = registros
+            .Where(registro => registro.Estado != "sin_registro")
+            .ToList();
+
+        var mapeoFdiSeleccionado = new Dictionary<string, string>(StringComparer.Ordinal);
+        try
+        {
+            var estadoClinico = JsonNode.Parse(historia.ObservacionesGenerales ?? "{}") as JsonObject;
+            var limiteMapeo = limiteExclusivo;
+            var historialMapeos = estadoClinico?["mapeoFDIHistorial"] as JsonArray;
+            JsonObject? mapeoHistorico;
+            if (historialMapeos is { Count: > 0 })
+            {
+                mapeoHistorico = historialMapeos
+                    .OfType<JsonObject>()
+                    .Select(snapshot => new
+                    {
+                        Fecha = DateTime.TryParse(snapshot["fecha"]?.ToString(), out var fecha) ? fecha : DateTime.MinValue,
+                        Mapeo = snapshot["mapeoFDI"] as JsonObject
+                    })
+                    .Where(snapshot => snapshot.Fecha < limiteMapeo && snapshot.Mapeo is not null)
+                    .OrderByDescending(snapshot => snapshot.Fecha)
+                    .FirstOrDefault()?.Mapeo;
+            }
+            else
+            {
+                mapeoHistorico = estadoClinico?["mapeoFDI"] as JsonObject;
+            }
+
+            if (mapeoHistorico is not null)
+            {
+                foreach (var (instanceId, numeroNode) in mapeoHistorico)
+                {
+                    var numeroFdi = numeroNode?.ToString();
+                    if (!string.IsNullOrWhiteSpace(instanceId) && !string.IsNullOrWhiteSpace(numeroFdi))
+                        mapeoFdiSeleccionado[instanceId] = numeroFdi;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Older or malformed clinical JSON still allows the historical status list to load.
+        }
 
         await _auditoria.RegistrarAsync(
             HttpContext,
@@ -1275,7 +1341,13 @@ public class HistoriaClinicaController(
             "Historia_Clinica",
             historia.IdHistoria,
             "Consulta histórica del odontograma.");
-        return Ok(new { success = true, hasta = hasta.ToString("yyyy-MM-dd"), registros });
+        return Ok(new
+        {
+            success = true,
+            hasta = hasta.ToString("yyyy-MM-dd"),
+            registros,
+            mapeoFDI = mapeoFdiSeleccionado
+        });
     }
 
     [HttpPost]
@@ -2390,7 +2462,8 @@ private async Task<HistorialPacienteViewModel> BuildHistorialPacienteViewModelAs
         var registrosOdontograma = await _context.RegistrosOdontograma
             .AsNoTracking()
             .Include(r => r.Profesional)
-            .Where(r => r.IdHistoria == vm.Odontograma.HistoriaId.Value)
+            .Where(r => r.IdHistoria == vm.Odontograma.HistoriaId.Value
+                && r.Estado != "sin_registro")
             .OrderByDescending(r => r.FechaRegistro)
             .ToListAsync();
 
@@ -2663,6 +2736,12 @@ private static string InferirTipoServicio(string? nombreServicio)
                     instanceId = $"fdi-{registro.NumeroFdi}";
                     mapeoFdi[instanceId] = registro.NumeroFdi;
                     instanciaPorFdi[registro.NumeroFdi] = instanceId;
+                }
+
+                if (string.Equals(registro.Estado, "sin_registro", StringComparison.OrdinalIgnoreCase))
+                {
+                    registrosActuales.Remove(instanceId);
+                    continue;
                 }
 
                 registrosActuales[instanceId] = JsonSerializer.SerializeToNode(

@@ -326,7 +326,7 @@ const buildCard = (treatment) => {
         </div>
         <section class="session-summary" aria-label="${escapeHtml(t('odo07.session_followup_aria'))}">
           <p>${escapeHtml(t('odo07.sessions_completed_count', { completed: sesionesRealizadas, estimated: sesionesEstimadas }))}</p>
-          <progress max="100" value="${progreso}" aria-label="${escapeHtml(t('odo07.session_progress_aria', { progress }))}">${progreso}%</progress>
+          <progress max="100" value="${progreso}" aria-label="${escapeHtml(t('odo07.session_progress_aria', { progress: progreso }))}">${progreso}%</progress>
           ${superaEstimacion ? `<p class="session-warning">${escapeHtml(t('odo07.over_estimate'))}</p>` : ''}
           <button type="button" class="btn-secondary btn-registrar-sesion" data-plan-id="${id}">${escapeHtml(t('odo07.register_session'))}</button>
           <details><summary>${escapeHtml(t('odo07.view_sessions', { count: sesionesPlan.length }))}</summary><div class="session-list">${sesionesHtml}</div></details>
@@ -524,7 +524,7 @@ const guardarPlan = async (payload, button) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        RequestVerificationToken: token
+        'X-CSRF-TOKEN': token
       },
       body: JSON.stringify(payload)
     });
@@ -587,7 +587,7 @@ const enviarSesion = async (url, payload, dialog, button, successKey) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        RequestVerificationToken: token
+        'X-CSRF-TOKEN': token
       },
       body: JSON.stringify(payload)
     });
