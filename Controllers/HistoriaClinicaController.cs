@@ -2606,12 +2606,23 @@ private static string InferirTipoServicio(string? nombreServicio)
             var mapeoGuardado = estadoClinico["mapeoFDI"] as JsonObject;
             var registrosActuales = new JsonObject();
             var mapeoFdi = new JsonObject();
-            foreach (var cuadrante in Enumerable.Range(1, 4))
+
+            var instanciaPorFdi = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (mapeoGuardado is not null)
             {
-                foreach (var posicion in Enumerable.Range(1, 8))
+                foreach (var (instanceId, valorFdi) in mapeoGuardado)
                 {
-                    string numeroFdi = $"{cuadrante}{posicion}";
-                    mapeoFdi[$"fdi-{numeroFdi}"] = numeroFdi;
+                    string? numeroFdi = valorFdi?.ToString();
+                    if (string.IsNullOrWhiteSpace(instanceId)
+                        || string.IsNullOrWhiteSpace(numeroFdi)
+                        || !NumeroFdiHelper.EsPiezaPermanente(numeroFdi)
+                        || instanciaPorFdi.ContainsKey(numeroFdi))
+                    {
+                        continue;
+                    }
+
+                    mapeoFdi[instanceId] = numeroFdi;
+                    instanciaPorFdi[numeroFdi] = instanceId;
                 }
             }
 
@@ -2626,11 +2637,19 @@ private static string InferirTipoServicio(string? nombreServicio)
                         numeroFdi = instanceId["fdi-".Length..];
                     }
 
-                    if (registroGuardado is not null
-                        && NumeroFdiHelper.EsPiezaPermanente(numeroFdi))
+                    if (registroGuardado is null || !NumeroFdiHelper.EsPiezaPermanente(numeroFdi))
                     {
-                        registrosActuales[$"fdi-{numeroFdi}"] = registroGuardado.DeepClone();
+                        continue;
                     }
+
+                    if (!instanciaPorFdi.TryGetValue(numeroFdi!, out string? instanciaId))
+                    {
+                        instanciaId = $"fdi-{numeroFdi}";
+                        mapeoFdi[instanciaId] = numeroFdi;
+                        instanciaPorFdi[numeroFdi!] = instanciaId;
+                    }
+
+                    registrosActuales[instanciaId] = registroGuardado.DeepClone();
                 }
             }
 
@@ -2639,7 +2658,13 @@ private static string InferirTipoServicio(string? nombreServicio)
                 .GroupBy(item => item.NumeroFdi)
                 .Select(grupo => grupo.First()))
             {
-                string instanceId = $"fdi-{registro.NumeroFdi}";
+                if (!instanciaPorFdi.TryGetValue(registro.NumeroFdi, out string? instanceId))
+                {
+                    instanceId = $"fdi-{registro.NumeroFdi}";
+                    mapeoFdi[instanceId] = registro.NumeroFdi;
+                    instanciaPorFdi[registro.NumeroFdi] = instanceId;
+                }
+
                 registrosActuales[instanceId] = JsonSerializer.SerializeToNode(
                     new OdontogramaRegistroPayload
                     {

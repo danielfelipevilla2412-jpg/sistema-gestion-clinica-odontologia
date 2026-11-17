@@ -96,7 +96,7 @@ public class HistoriaClinicaStructuredDataTests
     }
 
     [Fact]
-    public async Task Stodo03Historial_ReconstruyeMiniOdontogramaDesdeRegistrosYMapeo()
+    public async Task Stodo03Historial_PreservaMapeoDeNodosYReconstruyeRegistros()
     {
         await using var db = await CrearBaseAsync();
         var (controller, paciente, profesional) = CrearControlador(db);
@@ -131,16 +131,96 @@ public class HistoriaClinicaStructuredDataTests
 
         Assert.Equal(
             "16",
-            estado.RootElement.GetProperty("mapeoFDI").GetProperty("fdi-16").GetString());
-        Assert.Equal(32, estado.RootElement.GetProperty("mapeoFDI").EnumerateObject().Count());
-        Assert.False(estado.RootElement.GetProperty("mapeoFDI").TryGetProperty("node-16", out _));
+            estado.RootElement.GetProperty("mapeoFDI").GetProperty("node-16").GetString());
+        Assert.Single(estado.RootElement.GetProperty("mapeoFDI").EnumerateObject());
         Assert.Equal(model.Odontograma.EstadoPersistido, model.Odontograma.ObservacionesGenerales);
+        Assert.Equal(
+            "caries",
+            estado.RootElement.GetProperty("registros").GetProperty("node-16")
+                .GetProperty("tratamientos")[0].GetProperty("key").GetString());
+        Assert.Contains(model.LineaDeTiempo, item =>
+            item.Categoria == "odontograma" && item.Descripcion.Contains("Lesión oclusal"));
+    }
+
+    [Fact]
+    public async Task Stodo03Historial_SinMapeoConservaCompatibilidadConIdentificadorFdi()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, profesional) = CrearControlador(db);
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow,
+            Activa = true,
+            ObservacionesGenerales = "{}"
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+        db.RegistrosOdontograma.Add(new RegistroOdontograma
+        {
+            IdHistoria = historia.IdHistoria,
+            NumeroFdi = "16",
+            NombrePieza = "Primer molar superior derecho",
+            Estado = "caries",
+            FechaRegistro = DateTime.UtcNow,
+            IdProfesional = profesional.IdProfesional
+        });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<ViewResult>(
+            await controller.Stodo03Historial(paciente.IdPaciente, null, null));
+        var model = Assert.IsType<HistorialPacienteViewModel>(result.Model);
+        using var estado = JsonDocument.Parse(model.Odontograma.EstadoPersistido!);
+
+        Assert.Equal(
+            "16",
+            estado.RootElement.GetProperty("mapeoFDI").GetProperty("fdi-16").GetString());
         Assert.Equal(
             "caries",
             estado.RootElement.GetProperty("registros").GetProperty("fdi-16")
                 .GetProperty("tratamientos")[0].GetProperty("key").GetString());
-        Assert.Contains(model.LineaDeTiempo, item =>
-            item.Categoria == "odontograma" && item.Descripcion.Contains("Lesión oclusal"));
+    }
+
+    [Fact]
+    public async Task Stodo03Historial_PreservaMapeoFdiSinteticoDeLaVistaActual()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, profesional) = CrearControlador(db);
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow,
+            Activa = true,
+            ObservacionesGenerales = JsonSerializer.Serialize(new
+            {
+                mapeoFDI = new Dictionary<string, string> { ["fdi-16"] = "16" }
+            })
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+        db.RegistrosOdontograma.Add(new RegistroOdontograma
+        {
+            IdHistoria = historia.IdHistoria,
+            NumeroFdi = "16",
+            NombrePieza = "Primer molar superior derecho",
+            Estado = "caries",
+            FechaRegistro = DateTime.UtcNow,
+            IdProfesional = profesional.IdProfesional
+        });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<ViewResult>(
+            await controller.Stodo03Historial(paciente.IdPaciente, null, null));
+        var model = Assert.IsType<HistorialPacienteViewModel>(result.Model);
+        using var estado = JsonDocument.Parse(model.Odontograma.EstadoPersistido!);
+
+        Assert.Equal(
+            "16",
+            estado.RootElement.GetProperty("mapeoFDI").GetProperty("fdi-16").GetString());
+        Assert.Equal(
+            "caries",
+            estado.RootElement.GetProperty("registros").GetProperty("fdi-16")
+                .GetProperty("tratamientos")[0].GetProperty("key").GetString());
     }
 
     [Fact]
