@@ -17,6 +17,9 @@
  * - HTML: Views/Gestion_De_Citas/st-pac-01-mis-citas/index.cshtml
  * ============================================ */
 
+// Traduce una clave si el diccionario la conoce; si no, devuelve el texto de respaldo.
+const t = (key, fallback) => (window.I18N && window.I18N.has(key)) ? window.I18N.t(key) : fallback;
+
 // ═══════════════════════════════════════════════════════════════════
 // 1. CONSTANTES Y CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════
@@ -76,7 +79,7 @@ function displayUserErrorMessage(errorMessage) {
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.textContent = '×';
-  closeBtn.setAttribute('aria-label', 'Cerrar mensaje de error');
+  closeBtn.setAttribute('aria-label', t('pac_miscitas.error_close_aria', 'Cerrar mensaje de error'));
   closeBtn.style.cssText = 'margin-left:16px;background:white;color:#dc2626;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;';
   closeBtn.addEventListener('click', () => { errorBanner.style.display = 'none'; });
   errorBanner.append(strongTag, document.createTextNode(` ${errorMessage} `), closeBtn);
@@ -103,9 +106,16 @@ const notifyUser = (type, title, message) => {
 const formatDateLabel = (isoDateString) => {
   try {
     const dateObj = new Date(isoDateString);
-    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const dayNames = [
+      t('pac_miscitas.day_sun', 'Dom'), t('pac_miscitas.day_mon', 'Lun'), t('pac_miscitas.day_tue', 'Mar'), t('pac_miscitas.day_wed', 'Mié'),
+      t('pac_miscitas.day_thu', 'Jue'), t('pac_miscitas.day_fri', 'Vie'), t('pac_miscitas.day_sat', 'Sáb')
+    ];
     const monthDay = String(dateObj.getDate()).padStart(2, '0');
-    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const monthNames = [
+      t('pac_miscitas.month_jan', 'Ene'), t('pac_miscitas.month_feb', 'Feb'), t('pac_miscitas.month_mar', 'Mar'), t('pac_miscitas.month_apr', 'Abr'),
+      t('pac_miscitas.month_may', 'May'), t('pac_miscitas.month_jun', 'Jun'), t('pac_miscitas.month_jul', 'Jul'), t('pac_miscitas.month_aug', 'Ago'),
+      t('pac_miscitas.month_sep', 'Sep'), t('pac_miscitas.month_oct', 'Oct'), t('pac_miscitas.month_nov', 'Nov'), t('pac_miscitas.month_dec', 'Dic')
+    ];
     return `${dayNames[dateObj.getDay()]} ${monthDay} ${monthNames[dateObj.getMonth()]}`;
   } catch { return '—'; }
 };
@@ -154,6 +164,8 @@ const getBadgeClassForStatus = (statusLabel) => {
 // ═══════════════════════════════════════════════════════════════════
 
 async function fetchPatientAppointments() {
+  const table = safeGetElement('citasTable');
+  table?.setAttribute('aria-busy', 'true');
   try {
     const allAppointments = [];
     let page = 1;
@@ -179,7 +191,9 @@ async function fetchPatientAppointments() {
   } catch (err) {
     console.warn('[SmileTrack] Mis citas paciente: no se pudo cargar la API:', err);
     appointmentsList = [];
-    displayUserErrorMessage('No fue posible consultar tus citas. La lista está vacía hasta recuperar la conexión con la API.');
+    displayUserErrorMessage(t('pac_miscitas.error_load_appointments', 'No fue posible consultar tus citas. La lista está vacía hasta recuperar la conexión con la API.'));
+  } finally {
+    table?.setAttribute('aria-busy', 'false');
   }
 }
 
@@ -197,7 +211,7 @@ const loadAvailableServicesModalOptions = async () => {
 
     serviceSelect.required = true;
     serviceSelect.disabled = false;
-    serviceSelect.innerHTML = '<option value="">Selecciona un servicio</option>';
+    serviceSelect.innerHTML = `<option value="">${t('pac_miscitas.select_service', 'Selecciona un servicio')}</option>`;
     servicesList.forEach(serviceItem => {
       const optionElement = document.createElement('option');
       optionElement.value = serviceItem.idServicio ?? serviceItem.IdServicio ?? '';
@@ -207,9 +221,9 @@ const loadAvailableServicesModalOptions = async () => {
   } catch (err) {
     console.warn('[SmileTrack] No se pudieron cargar servicios desde API:', err);
     serviceSelect.required = true;
-    serviceSelect.innerHTML = '<option value="" selected>No hay servicios disponibles. Intenta recargar.</option>';
+    serviceSelect.innerHTML = `<option value="" selected>${t('pac_miscitas.no_services', 'No hay servicios disponibles. Intenta recargar.')}</option>`;
     serviceSelect.disabled = true;
-    displayUserErrorMessage('No se pudo cargar el catálogo de servicios. Recarga la página antes de solicitar una cita.');
+    displayUserErrorMessage(t('pac_miscitas.error_load_services', 'No se pudo cargar el catálogo de servicios. Recarga la página antes de solicitar una cita.'));
   }
 };
 
@@ -234,9 +248,9 @@ const loadAvailableProfessionals = async () => {
   const professionalSelect = safeGetElement('citaProfesional');
   if (!professionalSelect) return;
 
-  resetProfessionalAndTimeOptions('Cargando profesionales...', 'Selecciona un profesional primero');
+  resetProfessionalAndTimeOptions(t('pac_miscitas.loading_professionals', 'Cargando profesionales...'), t('citas.select_professional_first', 'Selecciona un profesional primero'));
   if (!dateInput?.value || !serviceSelect?.value) {
-    resetProfessionalAndTimeOptions('Selecciona fecha y servicio primero', 'Selecciona un profesional primero');
+    resetProfessionalAndTimeOptions(t('citas.select_date_service_first', 'Selecciona fecha y servicio primero'), t('citas.select_professional_first', 'Selecciona un profesional primero'));
     return;
   }
 
@@ -249,31 +263,31 @@ const loadAvailableProfessionals = async () => {
     });
     const payload = await response.json();
     if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
-      throw new Error(payload?.message || 'No se pudieron cargar los profesionales.');
+      throw new Error(payload?.message || t('pac_miscitas.error_load_professionals', 'No se pudieron cargar los profesionales.'));
     }
     if (requestId !== professionalOptionsRequestId) return;
 
-    professionalSelect.innerHTML = '<option value="">Selecciona un profesional</option>';
+    professionalSelect.innerHTML = `<option value="">${t('pac_miscitas.select_professional', 'Selecciona un profesional')}</option>`;
     payload.data.forEach(professional => {
       const option = document.createElement('option');
       option.value = String(professional.idProfesional ?? professional.IdProfesional ?? '');
-      option.textContent = professional.nombreCompleto ?? professional.NombreCompleto ?? 'Profesional';
+      option.textContent = professional.nombreCompleto ?? professional.NombreCompleto ?? t('citas.form_professional', 'Profesional');
       professionalSelect.appendChild(option);
     });
     professionalSelect.disabled = payload.data.length === 0;
     if (payload.data.length === 0) {
-      resetProfessionalAndTimeOptions('No hay profesionales asignados a este servicio', 'No hay horarios disponibles');
+      resetProfessionalAndTimeOptions(t('pac_miscitas.no_professionals_assigned', 'No hay profesionales asignados a este servicio'), t('pac_miscitas.no_schedules', 'No hay horarios disponibles'));
       const help = safeGetElement('citaDisponibilidadAyuda');
-      if (help) help.textContent = 'El servicio no tiene profesionales disponibles. Prueba otro servicio.';
+      if (help) help.textContent = t('pac_miscitas.service_no_professionals_help', 'El servicio no tiene profesionales disponibles. Prueba otro servicio.');
       return;
     }
     const help = safeGetElement('citaDisponibilidadAyuda');
-    if (help) help.textContent = 'Selecciona un profesional para ver sus horarios disponibles.';
+    if (help) help.textContent = t('pac_miscitas.select_professional_help', 'Selecciona un profesional para ver sus horarios disponibles.');
   } catch (error) {
     if (requestId !== professionalOptionsRequestId) return;
-    resetProfessionalAndTimeOptions('No se pudieron cargar profesionales', 'No hay horarios disponibles');
+    resetProfessionalAndTimeOptions(t('pac_miscitas.error_load_professionals_short', 'No se pudieron cargar profesionales'), t('pac_miscitas.no_schedules', 'No hay horarios disponibles'));
     const help = safeGetElement('citaDisponibilidadAyuda');
-    if (help) help.textContent = error.message || 'No se pudo consultar la disponibilidad.';
+    if (help) help.textContent = error.message || t('pac_miscitas.error_availability', 'No se pudo consultar la disponibilidad.');
     console.error('[SmileTrack] Error cargando profesionales para la cita:', error);
   }
 };
@@ -287,12 +301,12 @@ const loadAvailableAppointmentTimes = async () => {
   const help = safeGetElement('citaDisponibilidadAyuda');
   if (!timeSelect) return;
 
-  timeSelect.innerHTML = '<option value="">Consultando horarios...</option>';
+  timeSelect.innerHTML = `<option value="">${t('pac_miscitas.checking_schedules', 'Consultando horarios...')}</option>`;
   timeSelect.disabled = true;
   if (!dateInput?.value || !serviceSelect?.value || !professionalSelect?.value) {
     resetProfessionalAndTimeOptions(
-      professionalSelect?.value ? 'Selecciona un profesional' : 'Selecciona fecha y servicio primero',
-      'Selecciona fecha, servicio y profesional primero'
+      professionalSelect?.value ? t('pac_miscitas.select_professional', 'Selecciona un profesional') : t('citas.select_date_service_first', 'Selecciona fecha y servicio primero'),
+      t('pac_miscitas.select_date_service_professional_first', 'Selecciona fecha, servicio y profesional primero')
     );
     return;
   }
@@ -308,11 +322,11 @@ const loadAvailableAppointmentTimes = async () => {
     });
     const payload = await response.json();
     if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
-      throw new Error(payload?.message || 'No se pudieron consultar los horarios.');
+      throw new Error(payload?.message || t('pac_miscitas.error_load_schedules', 'No se pudieron consultar los horarios.'));
     }
     if (requestId !== availableTimesRequestId) return;
 
-    timeSelect.innerHTML = '<option value="">Selecciona un horario disponible</option>';
+    timeSelect.innerHTML = `<option value="">${t('pac_miscitas.select_schedule', 'Selecciona un horario disponible')}</option>`;
     payload.data.forEach(time => {
       const option = document.createElement('option');
       option.value = String(time).slice(0, 5);
@@ -322,14 +336,14 @@ const loadAvailableAppointmentTimes = async () => {
     timeSelect.disabled = payload.data.length === 0;
     if (help) {
       help.textContent = payload.data.length
-        ? 'Estos horarios están disponibles ahora. La disponibilidad se verificará de nuevo al agendar.'
-        : 'No hay horarios disponibles para esta fecha y profesional. Prueba otra fecha o profesional.';
+        ? t('pac_miscitas.schedules_available_help', 'Estos horarios están disponibles ahora. La disponibilidad se verificará de nuevo al agendar.')
+        : t('pac_miscitas.no_schedules_help', 'No hay horarios disponibles para esta fecha y profesional. Prueba otra fecha o profesional.');
     }
   } catch (error) {
     if (requestId !== availableTimesRequestId) return;
-    timeSelect.innerHTML = '<option value="">No se pudieron cargar horarios</option>';
+    timeSelect.innerHTML = `<option value="">${t('pac_miscitas.error_load_schedules_short', 'No se pudieron cargar horarios')}</option>`;
     timeSelect.disabled = true;
-    if (help) help.textContent = error.message || 'No se pudo consultar la disponibilidad.';
+    if (help) help.textContent = error.message || t('pac_miscitas.error_availability', 'No se pudo consultar la disponibilidad.');
     console.error('[SmileTrack] Error cargando horarios de cita:', error);
   }
 };
@@ -345,7 +359,7 @@ const confirmAppointmentCancellation = async () => {
   const cancelButton = safeGetElement('cancelarSi');
   if (cancellationReason.length < 5) {
     if (errorBox) {
-      errorBox.textContent = 'El motivo de cancelación debe tener al menos 5 caracteres.';
+      errorBox.textContent = t('pac_miscitas.cancel_reason_min', 'El motivo de cancelación debe tener al menos 5 caracteres.');
       errorBox.classList.remove('hidden');
     }
     reasonInput?.focus();
@@ -357,7 +371,7 @@ const confirmAppointmentCancellation = async () => {
   const originalButtonText = cancelButton?.textContent;
   if (cancelButton) {
     cancelButton.disabled = true;
-    cancelButton.textContent = 'Cancelando…';
+    cancelButton.textContent = t('pac_miscitas.cancelling', 'Cancelando…');
   }
 
   try {
@@ -368,11 +382,11 @@ const confirmAppointmentCancellation = async () => {
     });
     const payload = await response.json().catch(() => null);
     operationSuccess = response.ok && payload?.success === true;
-    statusMessage = payload?.message || (response.ok ? 'El servidor no confirmó la cancelación.' : null);
+    statusMessage = payload?.message || (response.ok ? t('pac_miscitas.cancel_not_confirmed', 'El servidor no confirmó la cancelación.') : null);
   } catch (err) {
     console.warn('[SmileTrack] Cancel cita offline paciente:', err);
     operationSuccess = false;
-    statusMessage = 'No fue posible conectar con la API para cancelar la cita.';
+    statusMessage = t('pac_miscitas.error_cancel_connection', 'No fue posible conectar con la API para cancelar la cita.');
   } finally {
     if (cancelButton) {
       cancelButton.disabled = false;
@@ -385,11 +399,11 @@ const confirmAppointmentCancellation = async () => {
     appointmentItem.active = false;
     updateAppointmentStats();
     renderAppointmentsTable();
-    notifyUser('success', 'Éxito', 'Cita cancelada correctamente');
+    notifyUser('success', t('common.success', 'Éxito'), t('pac_miscitas.cancel_success', 'Cita cancelada correctamente'));
     closeCancelAppointmentModal();
   } else {
     if (errorBox) {
-      errorBox.textContent = statusMessage || 'No fue posible cancelar la cita. Intente más tarde o contacte recepción.';
+      errorBox.textContent = statusMessage || t('pac_miscitas.error_cancel', 'No fue posible cancelar la cita. Intente más tarde o contacte recepción.');
       errorBox.classList.remove('hidden');
     }
   }
@@ -407,7 +421,7 @@ const handleNewAppointmentSubmit = async () => {
     const firstInvalidField = [dateInput, serviceSelect, professionalSelect, timeSelect]
       .find(field => !field?.value);
     firstInvalidField?.focus();
-    notifyUser('warning', 'Datos incompletos', 'Selecciona fecha, servicio, profesional y horario disponible.');
+    notifyUser('warning', t('pac_miscitas.data_incomplete_title', 'Datos incompletos'), t('pac_miscitas.data_incomplete_msg', 'Selecciona fecha, servicio, profesional y horario disponible.'));
     return;
   }
 
@@ -422,7 +436,7 @@ const handleNewAppointmentSubmit = async () => {
   // dayOfWeek: 0=Dom, 1=Lun…6=Sáb → convertir a ISO 8601 (1=Lun…7=Dom)
   const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
   if (!openDaysSet.has(isoDay)) {
-    notifyUser('warning', 'Día sin atención', 'La clínica no atiende ese día. Selecciona un día hábil disponible.');
+    notifyUser('warning', t('pac_miscitas.no_service_day_title', 'Día sin atención'), t('pac_miscitas.no_service_day_msg', 'La clínica no atiende ese día. Selecciona un día hábil disponible.'));
     return;
   }
 
@@ -434,7 +448,7 @@ const handleNewAppointmentSubmit = async () => {
     Notas: noteTextarea?.value?.trim() || null
   };
 
-  if (confirmButton) { confirmButton.disabled = true; confirmButton.textContent = 'Agendando…'; }
+  if (confirmButton) { confirmButton.disabled = true; confirmButton.textContent = t('pac_miscitas.scheduling', 'Agendando…'); }
 
   try {
     const headers = buildAuthHeaders();
@@ -454,8 +468,8 @@ const handleNewAppointmentSubmit = async () => {
         modalElement.setAttribute('aria-hidden', 'true');
         modalElement.setAttribute('inert', '');
       }
-      notifyUser('success', '¡Cita agendada!',
-        `Tu cita quedó programada para el ${dateInput.value} a las ${timeSelect.value}.`);
+      notifyUser('success', t('pac_miscitas.scheduled_title', '¡Cita agendada!'),
+        `${t('pac_miscitas.scheduled_msg_prefix', 'Tu cita quedó programada para el')} ${dateInput.value} ${t('pac_miscitas.at_time', 'a las')} ${timeSelect.value}.`);
       professionalOptionsRequestId += 1;
       availableTimesRequestId += 1;
       await fetchPatientAppointments();
@@ -464,10 +478,10 @@ const handleNewAppointmentSubmit = async () => {
       renderAppointmentsTable();
     } else {
       const failureMsg = payload?.message || (response.ok
-        ? 'El servidor no confirmó el agendamiento de la cita.'
-        : 'No fue posible agendar la cita. Inténtalo de nuevo.');
+        ? t('pac_miscitas.server_not_confirmed', 'El servidor no confirmó el agendamiento de la cita.')
+        : t('pac_miscitas.error_schedule', 'No fue posible agendar la cita. Inténtalo de nuevo.'));
       if (Array.isArray(payload?.data)) {
-        timeSelect.innerHTML = '<option value="">El horario elegido se ocupó; selecciona una alternativa</option>';
+        timeSelect.innerHTML = `<option value="">${t('pac_miscitas.schedule_taken_alt', 'El horario elegido se ocupó; selecciona una alternativa')}</option>`;
         payload.data.forEach(time => {
           const option = document.createElement('option');
           option.value = String(time).slice(0, 5);
@@ -477,16 +491,16 @@ const handleNewAppointmentSubmit = async () => {
         timeSelect.disabled = payload.data.length === 0;
         const help = safeGetElement('citaDisponibilidadAyuda');
         if (help) help.textContent = payload.data.length
-          ? 'El horario se ocupó mientras confirmabas. Elige una de estas alternativas.'
-          : 'Ese horario se ocupó y no hay más horarios disponibles para esta fecha. Prueba otra fecha.';
+          ? t('pac_miscitas.schedule_taken_help', 'El horario se ocupó mientras confirmabas. Elige una de estas alternativas.')
+          : t('pac_miscitas.schedule_taken_no_more', 'Ese horario se ocupó y no hay más horarios disponibles para esta fecha. Prueba otra fecha.');
       }
-      notifyUser('error', 'No se pudo agendar', failureMsg);
+      notifyUser('error', t('pac_miscitas.error_schedule_title', 'No se pudo agendar'), failureMsg);
     }
   } catch (err) {
     console.warn('[SmileTrack] Error al solicitar cita:', err);
-    notifyUser('error', 'Sin conexión', 'No fue posible conectar con el servidor. Verifica tu conexión y vuelve a intentarlo.');
+    notifyUser('error', t('pac_miscitas.no_connection_title', 'Sin conexión'), t('pac_miscitas.no_connection_msg', 'No fue posible conectar con el servidor. Verifica tu conexión y vuelve a intentarlo.'));
   } finally {
-    if (confirmButton) { confirmButton.disabled = false; confirmButton.textContent = 'Agendar cita'; }
+    if (confirmButton) { confirmButton.disabled = false; confirmButton.textContent = t('citas.btn_schedule', 'Agendar cita'); }
   }
 };
 
@@ -517,12 +531,12 @@ const mapServerToClient = (srv) => {
     prof?.Nombre ||
     prof?.nombre ||
     null
-  ) || 'Profesional sin asignar';
+  ) || t('pac_miscitas.doctor_unassigned', 'Profesional sin asignar');
 
   const svc = srv.Servicio ?? srv.servicio ?? null;
   const servicioNombre = (
     svc?.Nombre || svc?.nombre || null
-  ) || 'Sin servicio';
+  ) || t('pac_miscitas.no_service', 'Sin servicio');
 
   return {
     id: srv.IdCita ?? srv.idCita,
@@ -584,7 +598,7 @@ const updateAppointmentStats = () => {
     progressBar.style.width = percentage + '%';
     progressBar.closest('[role="progressbar"]')?.setAttribute('aria-valuenow', percentage);
   }
-  if (progressLabel) progressLabel.textContent = `${completedCount} de ${totalCount} citas completadas`;
+  if (progressLabel) progressLabel.textContent = `${completedCount} ${t('pac_miscitas.progress_of', 'de')} ${totalCount} ${t('pac_miscitas.progress_completed', 'citas completadas')}`;
 };
 
 const animateAppointmentCounters = () => {
@@ -612,13 +626,15 @@ const renderAppointmentsTable = () => {
   tableBody.innerHTML = '';
 
   const countLabel = safeGetElement('countLabel');
-  if (countLabel) countLabel.textContent = `${filteredData.length} resultado${filteredData.length !== 1 ? 's' : ''}`;
+  if (countLabel) countLabel.textContent = filteredData.length === 1
+    ? `${filteredData.length} ${t('pac_miscitas.count_result', 'resultado')}`
+    : `${filteredData.length} ${t('pac_miscitas.count_results', 'resultados')}`;
 
   if (!filteredData.length) {
     const emptyRow = document.createElement('tr');
     const emptyCell = document.createElement('td');
     emptyCell.colSpan = 6;
-    emptyCell.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined" aria-hidden="true" style="font-size:2rem;color:var(--text-muted);display:block;margin-bottom:8px;">inbox</span><p>No hay citas que coincidan con los filtros.</p></div>';
+    emptyCell.innerHTML = `<div class="empty-state"><span class="material-symbols-outlined empty-state__icon" aria-hidden="true">inbox</span><p>${t('pac_miscitas.empty_filtered', 'No hay citas que coincidan con los filtros.')}</p></div>`;
     emptyRow.appendChild(emptyCell);
     tableBody.replaceChildren(emptyRow);
     return;
@@ -632,7 +648,7 @@ const renderAppointmentsTable = () => {
     const minutesUntilAppointment = new Date(item.fechaHoraISO).getTime() - Date.now();
     const cancellationBlocked = canCancel &&
       (!Number.isFinite(minutesUntilAppointment) || minutesUntilAppointment < 2 * 60 * 60 * 1000);
-    const cancellationNotice = 'Para cancelaciones con menos de 2 horas de anticipación, por favor comuníquese directamente con recepción.';
+    const cancellationNotice = t('pac_miscitas.cancel_notice', 'Para cancelaciones con menos de 2 horas de anticipación, por favor comuníquese directamente con recepción.');
     tr.innerHTML = `
       <td class="td-fecha">${escapeHtml(item.fecha)}</td>
       <td><span class="pill-hora">${escapeHtml(item.hora)}</span></td>
@@ -642,13 +658,13 @@ const renderAppointmentsTable = () => {
       <td>
         <div class="actions-cell">
           <button class="btn-secondary btn-view" type="button" id="btn-ver-${item.id}"
-                  title="Ver detalle" data-action="ver" data-id="${item.id}" aria-label="Ver detalle de cita">
-            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">visibility</span> <span class="btn-text">Ver</span>
+                  title="${t('pqr.view_details', 'Ver detalle')}" data-action="ver" data-id="${item.id}" aria-label="${t('pac_miscitas.view_detail_aria', 'Ver detalle de cita')}">
+            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">visibility</span> <span class="btn-text">${t('pac_miscitas.btn_view', 'Ver')}</span>
           </button>
           ${canCancel ? `<button class="btn-danger btn-delete" type="button" id="btn-cancelar-${item.id}"
-                  title="${cancellationBlocked ? cancellationNotice : 'Cancelar cita'}" data-action="cancelar" data-id="${item.id}" aria-label="Cancelar cita"
+                  title="${cancellationBlocked ? cancellationNotice : t('citas.cancel', 'Cancelar cita')}" data-action="cancelar" data-id="${item.id}" aria-label="${t('citas.cancel', 'Cancelar cita')}"
                   ${cancellationBlocked ? `disabled aria-describedby="cancelacionAnticipacionAviso-${item.id}"` : ''}>
-            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">cancel</span> <span class="btn-text">Cancelar</span>
+            <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1rem;">cancel</span> <span class="btn-text">${t('common.cancel', 'Cancelar')}</span>
           </button>${cancellationBlocked ? `<small class="cancellation-notice" id="cancelacionAnticipacionAviso-${item.id}">${cancellationNotice}</small>` : ''}` : ''}
         </div>
       </td>`;
@@ -666,11 +682,11 @@ const openAppointmentDetailModal = (appointmentId) => {
   const modalContent = safeGetElement('modalContent');
   if (modalContent) {
     modalContent.innerHTML = `
-      <div class="modal-row"><span class="modal-key">Fecha</span>   <span class="modal-val">${escapeHtml(item.fecha)}</span></div>
-      <div class="modal-row"><span class="modal-key">Hora</span>    <span class="modal-val">${escapeHtml(item.hora)}</span></div>
-      <div class="modal-row"><span class="modal-key">Profesional</span>  <span class="modal-val">${escapeHtml(item.doctor)}</span></div>
-      <div class="modal-row"><span class="modal-key">Servicio</span><span class="modal-val">${escapeHtml(item.servicio)}</span></div>
-      <div class="modal-row"><span class="modal-key">Estado</span>
+      <div class="modal-row"><span class="modal-key">${t('citas.form_date', 'Fecha')}</span>   <span class="modal-val">${escapeHtml(item.fecha)}</span></div>
+      <div class="modal-row"><span class="modal-key">${t('citas.time', 'Hora')}</span>    <span class="modal-val">${escapeHtml(item.hora)}</span></div>
+      <div class="modal-row"><span class="modal-key">${t('citas.form_professional', 'Profesional')}</span>  <span class="modal-val">${escapeHtml(item.doctor)}</span></div>
+      <div class="modal-row"><span class="modal-key">${t('citas.form_service', 'Servicio')}</span><span class="modal-val">${escapeHtml(item.servicio)}</span></div>
+      <div class="modal-row"><span class="modal-key">${t('citas.status', 'Estado')}</span>
         <span class="modal-val"><span class="badge ${escapeHtml(getBadgeClassForStatus(item.estado))}">${escapeHtml(item.estado)}</span></span>
       </div>`;
   }
@@ -712,7 +728,7 @@ const openCancelAppointmentModal = (appointmentId) => {
   if (reasonInput) reasonInput.value = '';
 
   if (hoursRemaining > 0 && hoursRemaining < 24 && item.estado !== 'Cancelada' && item.estado !== 'Completada') {
-    if (warningBox) warningBox.textContent = `Esta cita es en ${Math.round(hoursRemaining)} horas.`;
+    if (warningBox) warningBox.textContent = `${t('pac_miscitas.appointment_in', 'Esta cita es en')} ${Math.round(hoursRemaining)} ${t('pac_miscitas.hours', 'horas')}.`;
     warningBox?.classList.remove('hidden');
   } else {
     warningBox?.classList.add('hidden');
@@ -720,13 +736,13 @@ const openCancelAppointmentModal = (appointmentId) => {
 
   if (item.estado === 'Completada' || item.estado === 'Cancelada' || item.estado === 'No asistió') {
     if (confirmBtn) confirmBtn.disabled = true;
-    if (descriptionText) descriptionText.textContent = `No se puede cancelar: la cita está en estado "${item.estado}".`;
+    if (descriptionText) descriptionText.textContent = `${t('pac_miscitas.cannot_cancel_status', 'No se puede cancelar: la cita está en estado')} "${item.estado}".`;
   } else if (hoursRemaining < 2) {
     if (confirmBtn) confirmBtn.disabled = true;
-    if (descriptionText) descriptionText.textContent = `Cita en menos de 2 horas. Comuníquese con la clínica para cancelar.`;
+    if (descriptionText) descriptionText.textContent = t('pac_miscitas.cancel_less_than_2h', 'Cita en menos de 2 horas. Comuníquese con la clínica para cancelar.');
   } else {
     if (confirmBtn) confirmBtn.disabled = false;
-    if (descriptionText) descriptionText.textContent = `Cita del ${item.fecha} a las ${item.hora} — ${item.servicio} con ${item.doctor}`;
+    if (descriptionText) descriptionText.textContent = `${t('pac_miscitas.appointment_of', 'Cita del')} ${item.fecha} ${t('pac_miscitas.at_time', 'a las')} ${item.hora} — ${item.servicio} ${t('pac_miscitas.with_professional', 'con')} ${item.doctor}`;
   }
 
   pendingCancelAppointmentId = appointmentId;
@@ -777,9 +793,9 @@ const setupNewAppointmentModal = () => {
     setMinimumRequestDate(dateInput);
     if (dateInput) dateInput.value = '';
     if (serviceSelect) serviceSelect.value = '';
-    resetProfessionalAndTimeOptions('Selecciona fecha y servicio primero', 'Selecciona un profesional primero');
+    resetProfessionalAndTimeOptions(t('citas.select_date_service_first', 'Selecciona fecha y servicio primero'), t('citas.select_professional_first', 'Selecciona un profesional primero'));
     const help = safeGetElement('citaDisponibilidadAyuda');
-    if (help) help.textContent = 'Elige una fecha, servicio y profesional para consultar horarios disponibles.';
+    if (help) help.textContent = t('citas.schedule_help', 'Elige una fecha, servicio y profesional para consultar horarios disponibles.');
     newAppointmentModal.classList.add('open');
     newAppointmentModal.setAttribute('aria-hidden', 'false');
     newAppointmentModal.removeAttribute('inert');
@@ -795,13 +811,13 @@ const setupNewAppointmentModal = () => {
     const minimumDate = dateInput.dataset.minDate || getEarliestRequestDate();
     if (dateInput.value < minimumDate) {
       dateInput.value = minimumDate;
-      notifyUser('warning', 'Fecha inválida', 'No puedes agendar una cita en una fecha pasada.');
+      notifyUser('warning', t('pac_miscitas.invalid_date_title', 'Fecha inválida'), t('pac_miscitas.invalid_date_msg', 'No puedes agendar una cita en una fecha pasada.'));
     } else if (dateInput.value) {
       const [year, month, day] = dateInput.value.split('-').map(Number);
       const dayOfWeek = new Date(year, month - 1, day, 12).getDay();
       if (dayOfWeek === 0) {
         dateInput.value = '';
-        notifyUser('warning', 'Día sin atención', 'La clínica no atiende los domingos. Selecciona un día de lunes a sábado.');
+        notifyUser('warning', t('pac_miscitas.no_service_day_title', 'Día sin atención'), t('pac_miscitas.sunday_closed_msg', 'La clínica no atiende los domingos. Selecciona un día de lunes a sábado.'));
       }
     }
     loadAvailableProfessionals();
@@ -812,7 +828,7 @@ const setupNewAppointmentModal = () => {
   timeSelect?.addEventListener('change', () => {
     const help = safeGetElement('citaDisponibilidadAyuda');
     if (help && timeSelect.value) {
-      help.textContent = 'Horario seleccionado. Se verificará nuevamente al agendar.';
+      help.textContent = t('pac_miscitas.schedule_selected_help', 'Horario seleccionado. Se verificará nuevamente al agendar.');
     }
   });
 
@@ -899,11 +915,9 @@ const initializeMisCitasModule = async () => {
     animateAppointmentCounters();
     updateAppointmentStats();
     renderAppointmentsTable();
-
-    window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
   } catch (err) {
     console.error('[SmileTrack] Error init mis-citas.js (paciente):', err);
-    displayUserErrorMessage(err.message || 'Error cargando módulo "Mis Citas". Intente recargar.');
+    displayUserErrorMessage(err.message || t('pac_miscitas.error_init', 'Error cargando módulo "Mis Citas". Intente recargar.'));
   }
 };
 

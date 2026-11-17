@@ -123,6 +123,7 @@ public sealed class ProfesionalesServiciosControllerTests
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("ServiciosAsignados", redirect.ActionName);
         Assert.NotNull(controller.TempData["AsignacionError"]);
+        Assert.Equal("asignados.error_invalid_pair", controller.TempData["AsignacionErrorI18n"]);
         Assert.Equal(0, await db.ProfesionalServicios.CountAsync());
     }
 
@@ -175,6 +176,7 @@ public sealed class ProfesionalesServiciosControllerTests
         Assert.Equal(1, asignacion.IdServicio);
         Assert.Equal(75000.50m, asignacion.PrecioPersonalizado);
         Assert.True(asignacion.Activo);
+        Assert.Equal("asignados.success_saved", controller.TempData["AsignacionExitoI18n"]);
     }
 
     [Fact]

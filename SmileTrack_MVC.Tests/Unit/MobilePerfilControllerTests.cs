@@ -89,4 +89,39 @@ public sealed class MobilePerfilControllerTests
         Assert.Equal("ana@example.test", ok.Value!.GetType().GetProperty("correo")!.GetValue(ok.Value));
         Assert.Equal("activo", ok.Value!.GetType().GetProperty("estado")!.GetValue(ok.Value));
     }
+
+    [Fact]
+    public async Task ObtenerPerfil_ConDosCuentas_DevuelveSoloElUsuarioDelClaim()
+    {
+        await using var db = CrearContexto();
+        db.Usuarios.AddRange(
+            new Usuario
+            {
+                IdUsuario = 10,
+                Nombre = "Ana",
+                Apellidos = "Gómez",
+                Correo = "ana@example.test",
+                Contrasena = "hash",
+                IdRol = 3,
+                Estado = "activo"
+            },
+            new Usuario
+            {
+                IdUsuario = 20,
+                Nombre = "Luis",
+                Apellidos = "Ortiz",
+                Correo = "luis@example.test",
+                Contrasena = "hash",
+                IdRol = 2,
+                Estado = "activo"
+            });
+        await db.SaveChangesAsync();
+
+        var result = await CrearControlador(db, idUsuario: 10)
+            .ObtenerPerfil(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal("Ana Gómez", ok.Value!.GetType().GetProperty("nombre")!.GetValue(ok.Value));
+        Assert.Equal("ana@example.test", ok.Value.GetType().GetProperty("correo")!.GetValue(ok.Value));
+    }
 }

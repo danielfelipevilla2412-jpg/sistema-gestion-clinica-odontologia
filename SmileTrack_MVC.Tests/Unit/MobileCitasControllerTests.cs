@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -150,5 +151,51 @@ public sealed class MobileCitasControllerTests
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(1, Contar((IEnumerable)ok.Value!));
+    }
+
+    [Fact]
+    public async Task MisCitas_ConDosPacientes_DevuelveSoloCitasDelUsuarioAutenticado()
+    {
+        await using var db = CrearContexto();
+        db.Pacientes.AddRange(
+            new Paciente
+            {
+                IdPaciente = 1,
+                IdUsuario = 10,
+                Nombres = "Ana",
+                Apellidos = "Prueba",
+                Estado = "activo"
+            },
+            new Paciente
+            {
+                IdPaciente = 2,
+                IdUsuario = 20,
+                Nombres = "Luis",
+                Apellidos = "Prueba",
+                Estado = "activo"
+            });
+        db.Citas.AddRange(
+            new Cita
+            {
+                IdCita = 31,
+                IdPaciente = 1,
+                Estado = "Programada",
+                FechaHora = DateTime.Today.AddDays(2).AddHours(9)
+            },
+            new Cita
+            {
+                IdCita = 32,
+                IdPaciente = 2,
+                Estado = "Programada",
+                FechaHora = DateTime.Today.AddDays(2).AddHours(10)
+            });
+        await db.SaveChangesAsync();
+
+        var result = await CrearControlador(db, idUsuario: 10)
+            .MisCitas(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var cita = Assert.Single(((IEnumerable)ok.Value!).Cast<object>());
+        Assert.Equal(31, cita.GetType().GetProperty("id")!.GetValue(cita));
     }
 }

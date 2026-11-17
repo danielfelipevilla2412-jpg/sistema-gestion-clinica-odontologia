@@ -107,6 +107,71 @@ public class ServiciosRecursosController : Controller
         return View("~/Views/Servicios_Y_Recursos/st-adm-16-configuracion-general/index.cshtml", configsDb);
     }
 
+    [HttpPut]
+    [Authorize(Roles = "Administrador")]
+    [Route("servicios-y-recursos/api/configuracion-general")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApiActualizarConfiguracionGeneral(
+        [FromBody] ConfiguracionGeneralRequest request,
+        CancellationToken ct = default)
+    {
+        if (request is null)
+            return BadRequest(new { success = false, message = "No se recibieron datos de configuración." });
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
+        if (string.CompareOrdinal(request.Appointment.Open, request.Appointment.Close) >= 0)
+            return BadRequest(new { success = false, message = "La hora de apertura debe ser anterior a la hora de cierre." });
+
+        var valores = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["cita_duracion_default"] = request.Appointment.Duration.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["horario_apertura"] = request.Appointment.Open,
+            ["horario_cierre"] = request.Appointment.Close,
+            ["nombre_clinica"] = request.Center.Name.Trim(),
+            ["nit_clinica"] = request.Center.Nit.Trim(),
+            ["direccion_clinica"] = request.Center.Address.Trim(),
+            ["notif_email"] = request.Notifications.Email ? "true" : "false",
+            ["notif_sms"] = request.Notifications.Sms ? "true" : "false",
+            ["notif_sistema"] = request.Notifications.System ? "true" : "false"
+        };
+
+        try
+        {
+            var existentes = await _context.ConfiguracionesGenerales
+                .Where(configuracion => valores.Keys.Contains(configuracion.Clave))
+                .ToListAsync(ct);
+
+            foreach (var (clave, valor) in valores)
+            {
+                var configuracion = existentes.FirstOrDefault(item => item.Clave == clave);
+                if (configuracion is null)
+                {
+                    _context.ConfiguracionesGenerales.Add(new ConfiguracionGeneral
+                    {
+                        Clave = clave,
+                        Valor = valor,
+                        Modulo = clave.StartsWith("notif_", StringComparison.Ordinal) ? "notificaciones" :
+                            clave.StartsWith("cita_", StringComparison.Ordinal) ||
+                            clave.StartsWith("horario_", StringComparison.Ordinal) ? "citas" : "general"
+                    });
+                }
+                else
+                {
+                    configuracion.Valor = valor;
+                }
+            }
+
+            await _context.SaveChangesAsync(ct);
+            return Ok(new { success = true, message = "Configuración guardada correctamente." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error guardando la configuración general.");
+            return StatusCode(500, new { success = false, message = "No fue posible guardar la configuración." });
+        }
+    }
+
     [HttpGet]
     [Authorize(Roles = "Profesional")]
     [Route("servicios-y-recursos/st-odo-05-servicios")]

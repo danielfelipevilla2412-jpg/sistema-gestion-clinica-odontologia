@@ -37,25 +37,33 @@ const parseCurrency = (str) => {
   return Number.isFinite(amount) ? amount : 0;
 };
 
-// Muestra notificación temporal con auto-cierre y cleanup de timeout
+// Muestra notificación usando el servicio compartido del layout cuando está
+// disponible; si no, cae al contenedor local para mantener compatibilidad.
 const showToast = (message, type = 'success') => {
-  const toastContainer = safeGetElement('toastContainer');
+  const service = window.ToastService;
+  if (service && typeof service[type] === 'function') {
+    const titles = { success: 'Éxito', error: 'Error', info: 'Información' };
+    service[type](titles[type] || 'Aviso', message);
+    return;
+  }
+
+  const toastContainer = safeGetElement('toastContainer') || safeGetElement('toast-container');
   if (!toastContainer) return;
 
   const toast = document.createElement('div');
-  toast.className = `toast ${type === 'error' ? 'error' : type === 'info' ? 'info' : ''}`;
+  toast.className = `toast toast-${type}`;
   toast.setAttribute('role', 'alert');
 
-  const icon = type === 'error' ? '⚠️' : type === 'info' ? 'ℹ️' : '✅';
+  const icon = type === 'error' ? 'error' : type === 'info' ? 'info' : 'check_circle';
   const title = type === 'error' ? 'Error' : type === 'info' ? 'Información' : 'Éxito';
 
   toast.innerHTML = `
-    <span class="toast-icon" aria-hidden="true">${icon}</span>
+    <span class="material-symbols-outlined toast-icon" aria-hidden="true">${icon}</span>
     <div class="toast-content">
       <p class="toast-title">${title}</p>
-      <p class="toast-desc">${message}</p>
+      <p class="toast-message">${message}</p>
     </div>
-    <button class="toast-close" aria-label="Cerrar notificación">×</button>
+    <button class="toast-close" type="button" aria-label="Cerrar notificación">×</button>
   `;
 
   toastContainer.appendChild(toast);
@@ -74,8 +82,16 @@ const showToast = (message, type = 'success') => {
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 250);
   }, 4500);
-  
+
   toast._autoCloseTimeout = autoCloseTimeout;
+};
+
+// Actualiza solo la etiqueta textual del botón de pago, preservando su icono.
+const setBtnPayLabel = (btn, text) => {
+  if (!btn) return;
+  const label = btn.querySelector('.btn-pay-label');
+  if (label) label.textContent = text;
+  else btn.textContent = text;
 };
 
 const setPaymentError = (elementId, message = '') => {
@@ -149,7 +165,7 @@ const updatePaymentCalculation = () => {
   calculation.textContent = `${paymentText} Saldo después del abono: ${formatCurrency(Math.max(pending - amount, 0))}.`;
 
   if (button && !window.isPaid) {
-    button.textContent = `✓ Registrar abono — ${formatCurrency(amount)}`;
+    setBtnPayLabel(button, `Registrar abono — ${formatCurrency(amount)}`);
     button.setAttribute('aria-label', `Registrar abono de ${formatCurrency(amount)}`);
   }
 };
@@ -219,7 +235,7 @@ const createInvoiceRow = (serviceData) => {
     </td>
     <td class="text-right item-total">${formatCurrency(price - discount)}</td>
     <td class="text-center no-print">
-      <button class="btn-delete" title="Eliminar" aria-label="Eliminar ${title} de la factura">✕</button>
+      <button class="btn-delete" type="button" title="Eliminar" aria-label="Eliminar ${title} de la factura"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
     </td>
   `;
   
@@ -410,7 +426,7 @@ const registerPayment = async (payment) => {
   if (!payment || !btnPay || btnPay.disabled) return;
 
   btnPay.disabled = true;
-  btnPay.textContent = 'Registrando abono...';
+  setBtnPayLabel(btnPay, 'Registrando abono...');
 
   try {
     const result = window.currentInvoiceId
@@ -481,7 +497,7 @@ const registerPayment = async (payment) => {
     if (methodSelect) methodSelect.disabled = window.isPaid;
 
     btnPay.className = window.isPaid ? 'btn-secondary' : 'btn-success';
-    btnPay.textContent = window.isPaid ? 'Factura pagada' : `Registrar abono — ${formatCurrency(invoice.pendiente)}`;
+    setBtnPayLabel(btnPay, window.isPaid ? 'Factura pagada' : `Registrar abono — ${formatCurrency(invoice.pendiente)}`);
     btnPay.disabled = window.isPaid;
     btnPay.setAttribute('aria-disabled', String(window.isPaid));
     updatePaymentCalculation();
@@ -736,53 +752,6 @@ const openSavedInvoices = () => {
   loadSavedInvoices();
 };
 
-// Inicializa menú móvil con gestión de foco y atributos ARIA
-const initMobileMenu = () => {
-  const ham = safeGetElement('hamburger');
-  const sb = safeGetElement('sidebar');
-  const ov = safeGetElement('overlay');
-
-  if (!ham || !sb || !ov) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sb.classList.add('open');
-      ov.classList.add('open');
-      ham.setAttribute('aria-expanded', 'true');
-      ov.setAttribute('aria-hidden', 'false');
-      sb.dataset.previousFocus = document.activeElement?.id || '';
-      const firstLink = sb.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sb.classList.remove('open');
-      ov.classList.remove('open');
-      ham.setAttribute('aria-expanded', 'false');
-      ov.setAttribute('aria-hidden', 'true');
-      const prevFocus = sb.dataset.previousFocus;
-      if (prevFocus) safeGetElement(prevFocus)?.focus();
-      else ham.focus();
-    }
-  };
-
-  ham.addEventListener('click', () => toggleMenu(true));
-  ov.addEventListener('click', () => toggleMenu(false));
-
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sb.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
-};
-
-
-
 // Función principal de inicialización
 const init = () => {
   window.isPaid = false;
@@ -790,7 +759,8 @@ const init = () => {
   window.currentInvoicePaid = 0;
   window.currentInvoicePending = 0;
 
-  initMobileMenu();
+  // El sidebar, hamburger, overlay y grupos de navegación los gestiona
+  // el sidebar.js compartido del layout (_Layout.cshtml).
   recalculateInvoice();
   initDeleteHandlers();
   initPatientSelect();

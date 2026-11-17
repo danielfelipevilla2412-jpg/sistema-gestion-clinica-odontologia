@@ -1824,7 +1824,6 @@ const init = async () => {
   initAccionesPaciente();
   initSidebar();
   initScrollToForm();
-  initForm();
   initCamposDinamicosHistoria();
   initFormularioClinico();
   initAdjuntosClinicos();

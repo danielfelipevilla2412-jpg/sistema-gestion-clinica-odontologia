@@ -355,8 +355,10 @@ const renderAppointmentsTable = () => {
 
     const filteredData = getFilteredAppointmentsList();
 
+    // El estado vacío lo renderiza el servidor con _EmptyState como <tr> (bajo SSR
+    // esta función retorna antes). Aquí solo se resetea la paginación; no se inyecta
+    // HTML en el <tbody> para no producir marcado inválido.
     if (!filteredData.length) {
-        tableBody.innerHTML = '<div class="empty-state" role="status">No hay citas para los filtros actuales</div>';
         updatePaginationDisplay(0);
         return;
     }
@@ -368,7 +370,7 @@ const renderAppointmentsTable = () => {
         const status = statusLabelsProxy[appointment.status] || statusLabelsProxy.programada;
         const invoiceButton = ['atendida', 'completada', 'finalizada'].includes(String(status.label).toLowerCase())
             ? `<button class="action-btn btn-secondary btn-invoice" aria-label="Generar factura de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Generar factura">
-                  <span class="material-symbols-outlined action-icon" aria-hidden="true">receipt_long</span><span class="btn-text">Facturar</span>
+                  <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span><span class="btn-text">Facturar</span>
                </button>`
             : '';
 
@@ -405,14 +407,14 @@ const renderAppointmentsTable = () => {
                 <td class="col-acciones text-right" role="cell" data-label="Acciones">
                     <div class="actions-cell">
                         <button class="action-btn btn-secondary btn-view" aria-label="Ver detalle de cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Ver detalle">
-                          <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
+                          <span class="material-symbols-outlined" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
                         </button>
                         <a href="/gestion-de-citas/st-adm-09-citas?editId=${appointment.id}" class="action-btn btn-secondary btn-edit" aria-label="Editar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" title="Editar cita">
-                          <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
+                          <span class="material-symbols-outlined" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
                         </a>
                         ${invoiceButton}
                         <button type="button" class="action-btn btn-danger btn-delete" aria-label="Cancelar cita de ${escapeHtml(appointment.patient)}" data-id="${appointment.id}" data-paciente="${escapeHtml(appointment.patient)}" title="Cancelar cita">
-                          <span class="material-symbols-outlined action-icon" aria-hidden="true">event_busy</span> <span class="btn-text">Cancelar</span>
+                          <span class="material-symbols-outlined" aria-hidden="true">event_busy</span> <span class="btn-text">Cancelar</span>
                         </button>
                     </div>
                 </td>
@@ -680,7 +682,7 @@ const openAppointmentModal = (id, mode) => {
             </p>
             <p>
                 <strong>Estado:</strong> 
-                <select id="editStatus" class="filter-select" style="margin-left:8px">
+                <select id="editStatus" class="filter-select" data-state-select style="margin-left:8px">
                     <option value="programada" ${appointment.status === 'programada' ? 'selected' : ''}>Programada</option>
                     <option value="confirmada" ${appointment.status === 'confirmada' ? 'selected' : ''}>Confirmada</option>
                     <option value="atendida" ${appointment.status === 'atendida' ? 'selected' : ''}>Atendida</option>
@@ -766,37 +768,38 @@ const setupNewAppointmentModalTrigger = () => {
 };
 
 const setupEstadoConfirmationModal = () => {
-    const statusSelects = document.querySelectorAll('.form-estado-inline select[name="Estado"]');
+    const body = safeGetElement('citasBody');
+    if (!body) return;
 
-    statusSelects.forEach(select => {
-        select.addEventListener('focus', function () {
-            this.dataset.previousValue = this.value;
-        });
+    body.addEventListener('focusin', event => {
+        const select = event.target.closest('.form-estado-inline select[name="Estado"]');
+        if (select) select.dataset.previousValue = select.value;
+    });
 
-        select.addEventListener('change', function () {
-            const sel = this;
-            const previousValue = sel.dataset.previousValue ?? sel.value;
-            const newValue = sel.value;
+    body.addEventListener('change', event => {
+        const select = event.target.closest('.form-estado-inline select[name="Estado"]');
+        if (!select) return;
 
-            if (previousValue === newValue) return;
+        const previousValue = select.dataset.previousValue ?? select.value;
+        const newValue = select.value;
+        if (previousValue === newValue) return;
 
-            const capitalize = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+        const capitalize = value => value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : value;
 
-            if (window.ModalService) {
-                window.ModalService.confirm({
-                    title: 'Cambiar estado de cita',
-                    message: `¿Confirmas cambiar el estado de "<strong>${capitalize(previousValue)}</strong>" a "<strong>${capitalize(newValue)}</strong>"?`,
-                    confirmText: 'Sí, cambiar',
-                    cancelText: 'Cancelar',
-                    isDanger: false,
-                    onConfirm: () => {
-                        sel.value = newValue;
-                        sel.form.submit();
-                    }
-                });
-            }
-            sel.value = previousValue;
-        });
+        if (window.ModalService) {
+            window.ModalService.confirm({
+                title: 'Cambiar estado de cita',
+                message: `¿Confirmas cambiar el estado de "<strong>${capitalize(previousValue)}</strong>" a "<strong>${capitalize(newValue)}</strong>"?`,
+                confirmText: 'Sí, cambiar',
+                cancelText: 'Cancelar',
+                isDanger: false,
+                onConfirm: () => {
+                    select.value = newValue;
+                    select.form.submit();
+                }
+            });
+        }
+        select.value = previousValue;
     });
 };
 

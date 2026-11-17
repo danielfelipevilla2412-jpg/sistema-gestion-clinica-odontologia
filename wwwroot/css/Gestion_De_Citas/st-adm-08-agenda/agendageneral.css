@@ -424,6 +424,8 @@ img {
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
     overflow: hidden;
+    min-width: 0;
+    max-width: 100%;
     margin-bottom: 20px;
     position: relative;
     transition: opacity var(--tr);
@@ -449,6 +451,9 @@ img {
 }
 
 .calendar-scroll-wrapper {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
@@ -1006,7 +1011,7 @@ body.modal-open {
     }
 
     .calendar-section {
-        overflow: visible;
+        overflow: hidden;
     }
 
     .calendar-scroll-wrapper {

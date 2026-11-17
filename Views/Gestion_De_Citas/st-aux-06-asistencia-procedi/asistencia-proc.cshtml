@@ -17,26 +17,20 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Asistencia en Procedimiento";
-    var asistenciaProcedDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["AsistenciaProcedData"] ?? new object());
+    ViewData["UseGestionModulesDesignSystem"] = true;
+    var asistenciaData = ViewData["AsistenciaProcedData"] as SmileTrack_MVC.Models.ViewModels.GestionDeCitas.AsistenciaProcedimientoViewModel
+        ?? new SmileTrack_MVC.Models.ViewModels.GestionDeCitas.AsistenciaProcedimientoViewModel();
     var citasSelector = ViewData["CitasAsistenciaSelector"] as List<SmileTrack_MVC.Models.Entities.Cita> ?? new();
-    var asistenciaJson = System.Text.Json.JsonDocument.Parse(asistenciaProcedDataJson).RootElement;
-    var citaSeleccionadaId = asistenciaJson.TryGetProperty("citaId", out var citaIdJson) && citaIdJson.ValueKind == System.Text.Json.JsonValueKind.Number
-      ? citaIdJson.GetInt32()
-      : 0;
-    var estadoCita = asistenciaJson.TryGetProperty("estado", out var estadoJson) && estadoJson.ValueKind == System.Text.Json.JsonValueKind.String
-      ? estadoJson.GetString()
-      : null;
-    var estadoNormalizado = asistenciaJson.TryGetProperty("estadoNormalizado", out var estadoNormalizadoJson) && estadoNormalizadoJson.ValueKind == System.Text.Json.JsonValueKind.String
-      ? estadoNormalizadoJson.GetString()
-      : null;
+    var citaSeleccionadaId = asistenciaData.CitaId ?? 0;
+    var estadoCita = asistenciaData.Estado;
+    var estadoNormalizado = asistenciaData.EstadoNormalizado;
     var procedimientoEnCurso = estadoNormalizado == "en_proceso";
-    var citaSeleccionadaConsultorioId = asistenciaJson.TryGetProperty("consultorioId", out var consultorioIdJson) && consultorioIdJson.ValueKind == System.Text.Json.JsonValueKind.Number
-      ? consultorioIdJson.GetInt32()
-      : 0;
+    var citaSeleccionadaConsultorioId = asistenciaData.ConsultorioId ?? 0;
     var estadoConsultorioUrl = citaSeleccionadaId > 0
       ? $"/gestion-de-citas/st-aux-09-estado-consultorio?citaId={citaSeleccionadaId}" +
         (citaSeleccionadaConsultorioId > 0 ? $"&consultorioId={citaSeleccionadaConsultorioId}" : string.Empty)
       : "/gestion-de-citas/st-aux-09-estado-consultorio";
+    var asistenciaProcedDataJson = System.Text.Json.JsonSerializer.Serialize(asistenciaData);
 }
 
 @section Styles {
@@ -211,14 +205,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Estilos para contenido solo accesible por screen readers -->
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-  </footer>
 
   <script>
     window.smiletrackAsistenciaProcedData = @Html.Raw(asistenciaProcedDataJson);

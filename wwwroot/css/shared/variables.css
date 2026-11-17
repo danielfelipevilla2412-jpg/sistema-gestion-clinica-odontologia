@@ -131,6 +131,26 @@
   --prof-inactivo-bg: #f1f5f9;
   --prof-inactivo-text: #475569;
 
+  /* ── Etiquetas de rol y usuario ─────────────────────────── */
+  --role-admin-bg: #f3e8ff;
+  --role-admin-text: #9333ea;
+  --role-recep-bg: #ffedd5;
+  --role-recep-text: #c2410c;
+  --role-prof-bg: var(--prof-activo-bg);
+  --role-prof-text: var(--prof-activo-text);
+  --role-aux-bg: #fce7f3;
+  --role-aux-text: #be185d;
+  --role-paciente-bg: var(--cita-confirmada-bg);
+  --role-paciente-text: var(--cita-confirmada-text);
+
+  /* ── Estados de usuario ─────────────────────────────────── */
+  --status-activo-bg: var(--prof-activo-bg);
+  --status-activo-text: var(--prof-activo-text);
+  --status-inactivo-bg: var(--prof-inactivo-bg);
+  --status-inactivo-text: var(--prof-inactivo-text);
+  --status-bloqueado-bg: var(--cita-cancelada-bg);
+  --status-bloqueado-text: var(--cita-cancelada-text);
+
   /* ── KPI stat-card — colores del borde izquierdo ─────────── */
   --stat-blue: #3b82f6;
   --stat-green: var(--success);

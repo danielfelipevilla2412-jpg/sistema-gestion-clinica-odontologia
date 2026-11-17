@@ -205,7 +205,6 @@ img { max-width: 100%; height: auto; display: block; }
 .status-option { display: flex; align-items: center; padding: 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all var(--tr); gap: 12px; }
 .status-option:hover { background: var(--bg); }
 .status-option.selected { border-color: var(--primary); background: var(--primary-light); }
-.status-check { font-size: 1.1rem; }
 .status-details strong { display: block; font-size: .9rem; color: var(--text); }
 .status-details span { font-size: .75rem; color: var(--text-muted); }
 .status-option:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }

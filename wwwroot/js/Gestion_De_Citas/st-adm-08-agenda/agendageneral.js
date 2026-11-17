@@ -24,8 +24,6 @@
 // ════════════════════════════════════════════════════════════════════
 
 const API_BASE_URL = (window.APP_CONFIG?.ApiBase) || '/api';
-const activeAnimationsSet = new Set();
-const cleanupHandlersList = [];
 
 // ════════════════════════════════════════════════════════════════════
 // 2. ESTADO DE LA APLICACIÓN
@@ -46,20 +44,6 @@ const safeGetElement = (elementId) =>
 
 const debounce = (callback, delay) =>
     window.CommonUtils?.debounce ? window.CommonUtils.debounce(callback, delay) : callback;
-
-const trackedRequestAnimationFrame = (callback) => {
-    let animationId;
-
-    const wrapper = (timestamp) => {
-        callback(timestamp);
-        activeAnimationsSet.delete(animationId);
-    };
-
-    animationId = requestAnimationFrame(wrapper);
-    activeAnimationsSet.add(animationId);
-
-    return animationId;
-};
 
 const parseIsoDate = (dateString) => {
     const dateParts = dateString.split('-').map(part => parseInt(part, 10));
@@ -338,7 +322,9 @@ const initializeNativeAnimations = () => {
         }
     });
 
-    trackedRequestAnimationFrame(() => {
+    // Se difiere un frame para que las barras de progreso animen su ancho tras el
+    // primer pintado (la transición CSS parte de 0).
+    requestAnimationFrame(() => {
         document.querySelectorAll('[data-width]').forEach(progressBar => {
             progressBar.style.width = `${progressBar.dataset.width}%`;
         });
@@ -634,19 +620,6 @@ const initializeNewAppointmentModal = () => {
         }
     };
     document.addEventListener('keydown', handleEscapeKey);
-
-    cleanupHandlersList.push(() => {
-        fabButton.removeEventListener('click', openNewAppointmentModal);
-        closeButton?.removeEventListener('click', closeNewAppointmentModal);
-        cancelButton?.removeEventListener('click', closeNewAppointmentModal);
-        formElement.removeEventListener('submit', handleNewAppointmentFormSubmit);
-        formElement.querySelector('#newApptStartTime')?.removeEventListener('input', syncEndTimeInputs);
-        formElement.querySelector('#newApptStartTime')?.removeEventListener('change', syncEndTimeInputs);
-        modalOverlay.removeEventListener('click', handleOverlayClick);
-        document.removeEventListener('keydown', handleEscapeKey);
-        document.removeEventListener('smiletrack:edit-appointment', handleEditAppointmentEvent);
-        document.removeEventListener('smiletrack:new-appointment', handleNewAppointmentFromCalendarEvent);
-    });
 };
 
 const initializeAppointmentDetailModal = () => {
@@ -866,18 +839,6 @@ const initializeAppointmentDetailModal = () => {
     };
     modalElement.addEventListener('click', handleOverlayClick);
     document.addEventListener('keydown', handleEscapeKey);
-
-    cleanupHandlersList.push(() => {
-        document.removeEventListener('click', handleCalendarClick);
-        document.removeEventListener('keydown', handleCalendarKeydown);
-        closeButton.removeEventListener('click', closeDetailModal);
-        cancelButton.removeEventListener('click', closeDetailModal);
-        editButton.removeEventListener('click', handleEditButtonClick);
-        cancelAppointmentButton.removeEventListener('click', handleCancelAppointmentClick);
-        modalElement.removeEventListener('click', handleOverlayClick);
-        document.removeEventListener('keydown', handleEscapeKey);
-        document.body.classList.remove('modal-open');
-    });
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -919,12 +880,6 @@ const setupSidebarNavigation = () => {
     overlayElement.addEventListener('click', handleOverlayClick);
     document.addEventListener('keydown', handleKeyDown);
 
-    cleanupHandlersList.push(() => {
-        hamburgerButton.removeEventListener('click', handleHamburgerClick);
-        overlayElement.removeEventListener('click', handleOverlayClick);
-        document.removeEventListener('keydown', handleKeyDown);
-    });
-
     const navigationItems = sidebarElement.querySelectorAll('.nav-item');
     const handleNavigationClick = () => {
         if (window.innerWidth <= 680) {
@@ -934,12 +889,6 @@ const setupSidebarNavigation = () => {
 
     navigationItems.forEach(item => {
         item.addEventListener('click', handleNavigationClick);
-    });
-
-    cleanupHandlersList.push(() => {
-        navigationItems.forEach(item => {
-            item.removeEventListener('click', handleNavigationClick);
-        });
     });
 };
 
@@ -996,16 +945,8 @@ const setupWeekNavigationListeners = () => {
     btnToday.addEventListener('click', handleTodayClick);
     filterProfessional?.addEventListener('change', handleProfessionalFilterChange);
     filterOffice?.addEventListener('change', handleOfficeFilterChange);
+    safeGetElement('btnImprimirAgenda')?.addEventListener('click', () => window.print());
     window.addEventListener('popstate', handlePopstateEvent);
-
-    cleanupHandlersList.push(() => {
-        btnPrev.removeEventListener('click', handlePrevWeekClick);
-        btnNext.removeEventListener('click', handleNextWeekClick);
-        btnToday.removeEventListener('click', handleTodayClick);
-        filterProfessional?.removeEventListener('change', handleProfessionalFilterChange);
-        filterOffice?.removeEventListener('change', handleOfficeFilterChange);
-        window.removeEventListener('popstate', handlePopstateEvent);
-    });
 };
 
 const initializeAgendaGeneralModule = async () => {
@@ -1024,17 +965,9 @@ const initializeAgendaGeneralModule = async () => {
     } catch (error) {
         console.error('[SmileTrack][Init] Falla crítica durante la inicialización:', error);
     }
-
-    window.addEventListener('beforeunload', () => {
-        activeAnimationsSet.forEach(animationId => {
-            cancelAnimationFrame(animationId);
-        });
-        activeAnimationsSet.clear();
-
-        cleanupHandlersList.forEach(cleanupFunction => {
-            cleanupFunction();
-        });
-    });
+    // No se registra limpieza en 'beforeunload': la vista usa navegación de recarga
+    // completa (sin SPA), por lo que el navegador destruye listeners y frames al
+    // descargar la página y no hay estado que liberar manualmente.
 };
 
 document.addEventListener('DOMContentLoaded', initializeAgendaGeneralModule);

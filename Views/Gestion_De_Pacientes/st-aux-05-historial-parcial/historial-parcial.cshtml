@@ -27,6 +27,7 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Historial Clínico Parcial";
+    ViewData["UseGestionModulesDesignSystem"] = true;
     var historialParcialDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["HistorialParcialData"] ?? new object());
     var pacientes = ViewData["Pacientes"] as List<SmileTrack_MVC.Models.Entities.Paciente> ?? new();
     var pacienteSeleccionado = System.Text.Json.JsonDocument.Parse(historialParcialDataJson).RootElement;
@@ -144,13 +145,6 @@
 
   <!-- Estilos para contenido solo accesible por screen readers -->
 
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-  </footer>
   <script>
     window.smiletrackHistorialParcialData = @Html.Raw(historialParcialDataJson);
     document.getElementById('pacienteSelect')?.addEventListener('change', function () {

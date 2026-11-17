@@ -1,17 +1,24 @@
+(function () {
+'use strict';
+
 /**
  * SMILETRACK — GESTIÓN DE FACTURACIÓN (script.js)
- * API-ready + Accesibilidad + Persistencia fallback
- * Filtros funcionales + Drawer accesible + Fechas actualizadas
+ * Facturación, filtros y diálogos de la vista administrativa.
  */
-
-// ═══════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN API
-// ═══════════════════════════════════════════════════════════════════
-const API_BASE = '/api/facturas';
 
 // ═══════════════════════════════════════════════════════════════════
 //  UTILIDADES GLOBALES
 // ═══════════════════════════════════════════════════════════════════
+
+const translate = (key, vars) => window.I18N?.t(key, vars) || key;
+
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+}[character]));
 
 const safeGetElement = (id) => {
   const el = document.getElementById(id);
@@ -28,24 +35,42 @@ const debounce = (fn, delay) => {
 };
 
 const showToast = (message, type = 'success') => {
-  const toast = safeGetElement('toast');
-  if (!toast) return;
-  toast.textContent = message;
-  toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
+  const toastMethod = window.ToastService?.[type];
+  if (typeof toastMethod !== 'function') {
+    console.error('[SmileTrack] El servicio compartido de notificaciones no está disponible.');
+    return;
+  }
+  const titleKey = type === 'error' ? 'billing.toast_error'
+    : type === 'warning' ? 'billing.toast_warning'
+      : type === 'success' ? 'billing.toast_success' : 'billing.toast_info';
+  toastMethod(translate(titleKey), escapeHtml(message));
 };
 
 const fmtCurrency = (amount) => {
   if (typeof amount === 'string') return amount;
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(amount);
+  const locale = window.I18N?.lang === 'en' ? 'en-US' : 'es-CO';
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(amount);
 };
 
 const fmtDate = (iso) => {
   if (!iso) return '—';
-  const [y, m, d] = iso.split('-');
-  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  return `${parseInt(d)} ${meses[parseInt(m)-1]} ${y}`;
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return '—';
+  const locale = window.I18N?.lang === 'en' ? 'en-US' : 'es-CO';
+  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date);
+};
+
+const getColombiaDate = () => {
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date()).reduce((parts, part) => {
+    if (part.type !== 'literal') parts[part.type] = part.value;
+    return parts;
+  }, {});
+  return `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -92,11 +117,48 @@ const avatarColors = {
   purple: 'avatar-purple', orange: 'avatar-orange', red: 'avatar-red'
 };
 
-const statusLabels = {
-  pagada: { label: 'Pagada', class: 'pagada' },
-  pendiente: { label: 'Pendiente', class: 'pendiente' },
-  parcial: { label: 'Parcial', class: 'parcial' },
-  anulada: { label: 'Anulada', class: 'anulada' }
+const statusKeys = {
+  pagada: 'billing.status_paid',
+  pendiente: 'billing.status_pending',
+  parcial: 'billing.status_partial',
+  anulada: 'billing.status_voided'
+};
+
+const getStatus = (value) => {
+  const status = String(value || '').toLowerCase();
+  return {
+    label: translate(statusKeys[status] || 'billing.status_pending'),
+    class: statusKeys[status] ? status : 'pendiente'
+  };
+};
+
+const dialogFocusTargets = new Map();
+const counterTimers = new WeakMap();
+let bodyOverflowBeforeDialog = '';
+
+const openDialog = (dialog, initialFocus) => {
+  if (!dialog) return;
+
+  if (!dialog.classList.contains('open')) {
+    if (dialogFocusTargets.size === 0) bodyOverflowBeforeDialog = document.body.style.overflow;
+    dialogFocusTargets.set(dialog, document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  }
+  dialog.classList.add('open');
+  dialog.setAttribute('aria-hidden', 'false');
+  dialog.removeAttribute('inert');
+  document.body.style.overflow = 'hidden';
+  initialFocus?.focus();
+};
+
+const closeDialog = (dialog) => {
+  if (!dialog?.classList.contains('open')) return;
+  dialog.classList.remove('open');
+  dialog.setAttribute('aria-hidden', 'true');
+  dialog.setAttribute('inert', '');
+  const returnTarget = dialogFocusTargets.get(dialog);
+  dialogFocusTargets.delete(dialog);
+  if (dialogFocusTargets.size === 0) document.body.style.overflow = bodyOverflowBeforeDialog;
+  if (returnTarget?.isConnected) returnTarget.focus();
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -108,17 +170,57 @@ const getFilteredInvoices = () => {
     // Filtro por búsqueda (número o paciente)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!i.number.toLowerCase().includes(query) && !i.patient.toLowerCase().includes(query) && !i.doc.includes(query)) return false;
+      const number = String(i.number || '').toLowerCase();
+      const patient = String(i.patient || '').toLowerCase();
+      const documentNumber = String(i.doc || '').toLowerCase();
+      if (!number.includes(query) && !patient.includes(query) && !documentNumber.includes(query)) return false;
     }
     
     // Filtro por estado
-    if (filterStatus && i.status !== filterStatus) return false;
+    if (filterStatus && String(i.status || '').toLowerCase() !== filterStatus) return false;
     
     // Filtro por mes
-    if (filterMonth && !i.date.startsWith(filterMonth)) return false;
+    if (filterMonth && !String(i.date || '').startsWith(filterMonth)) return false;
     
     return true;
   });
+};
+
+const renderMonthOptions = () => {
+  const select = document.getElementById('filterMonth');
+  if (!select) return;
+
+  const selectedMonth = filterMonth || select.value;
+  const months = [...new Set(invoices
+    .map(invoice => String(invoice.date || '').match(/^\d{4}-\d{2}/)?.[0])
+    .filter(Boolean))].sort().reverse();
+  const locale = window.I18N?.lang === 'en' ? 'en-US' : 'es-CO';
+
+  select.replaceChildren();
+  const allMonthsOption = document.createElement('option');
+  allMonthsOption.value = '';
+  allMonthsOption.textContent = translate('billing.all_months');
+  select.appendChild(allMonthsOption);
+
+  months.forEach(month => {
+    const [year, monthNumber] = month.split('-').map(Number);
+    const date = new Date(Date.UTC(year, monthNumber - 1, 1));
+    const option = document.createElement('option');
+    option.value = month;
+    option.textContent = new Intl.DateTimeFormat(locale, {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC'
+    }).format(date);
+    select.appendChild(option);
+  });
+
+  if (months.includes(selectedMonth)) {
+    select.value = selectedMonth;
+  } else {
+    filterMonth = '';
+    select.value = '';
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -130,9 +232,19 @@ const renderInvoices = () => {
   if (!body) return;
   
   const filtered = getFilteredInvoices();
+  currentPage = filtered.length
+    ? Math.min(currentPage, Math.ceil(filtered.length / itemsPerPage))
+    : 1;
   
   if (!filtered.length) {
-    body.innerHTML = '<div class="empty-state" role="status">No se encontraron facturas con los criterios de búsqueda.</div>';
+    body.innerHTML = `
+      <div class="empty-state" role="status">
+        <span class="material-symbols-outlined empty-icon" aria-hidden="true">receipt_long</span>
+        <h3 class="empty-state-title">${escapeHtml(translate('billing.empty_title'))}</h3>
+        <p class="empty-state-text">${escapeHtml(translate(searchQuery || filterStatus || filterMonth ? 'billing.empty_filtered' : 'billing.empty_initial'))}</p>
+      </div>
+    `;
+    updatePagination(0);
     return;
   }
   
@@ -141,7 +253,7 @@ const renderInvoices = () => {
   const pageData = filtered.slice(start, start + itemsPerPage);
   
   body.innerHTML = pageData.map(i => {
-    const status = statusLabels[i.status] || statusLabels.pendiente;
+    const status = getStatus(i.status);
     const patientInitials = String(i.patient || '')
       .trim()
       .split(/\s+/)
@@ -150,30 +262,34 @@ const renderInvoices = () => {
       .map(namePart => namePart.charAt(0).toUpperCase())
       .join('') || 'P';
     const pendingDisplay = i.pending > 0 ? fmtCurrency(i.pending) : '—';
-    const pendingClass = i.pending > 0 ? 'text-[var(--red)]' : 'text-[var(--green)]';
+    const pendingClass = i.pending > 0 ? 'amount-pending' : 'amount-paid';
     
     return `
-      <div class="table-row" role="row" tabindex="0" aria-label="Factura ${i.number} de ${i.patient}" data-id="${i.id}">
-        <div class="table-col col-numero" role="cell" data-label="N° Factura"><strong class="text-[var(--primary)]">${i.number}</strong></div>
-        <div class="table-col col-paciente" role="cell" data-label="Paciente">
+      <div class="table-row" role="row" tabindex="0" aria-label="${escapeHtml(translate('billing.invoice_for', { number: i.number, patient: i.patient }))}" data-id="${escapeHtml(i.id)}">
+        <div class="table-col col-numero" role="cell" data-label="${escapeHtml(translate('billing.invoice_number'))}"><strong>${escapeHtml(i.number)}</strong></div>
+        <div class="table-col col-paciente" role="cell" data-label="${escapeHtml(translate('citas.patient'))}">
           <div class="patient-info">
-            <div class="patient-avatar ${avatarColors[i.color] || avatarColors.blue}" aria-hidden="true">${patientInitials}</div>
+            <div class="patient-avatar ${avatarColors[i.color] || avatarColors.blue}" aria-hidden="true">${escapeHtml(patientInitials)}</div>
             <div>
-              <span class="patient-name">${i.patient}</span>
-              <span class="patient-id">ID: ${i.doc}</span>
+              <span class="patient-name">${escapeHtml(i.patient)}</span>
+              <span class="patient-id">${escapeHtml(translate('billing.document_short'))}: ${escapeHtml(i.doc)}</span>
             </div>
           </div>
         </div>
-        <div class="table-col col-fecha" role="cell" data-label="Fecha"><time datetime="${i.date}">${fmtDate(i.date)}</time></div>
-        <div class="table-col col-total" role="cell" data-label="Total">${fmtCurrency(i.total)}</div>
-        <div class="table-col col-pendiente" role="cell" data-label="Pendiente"><strong class="${pendingClass}">${pendingDisplay}</strong></div>
-        <div class="table-col col-estado text-center" role="cell" data-label="Estado">
-          <span class="status-badge ${status.class}" role="status" aria-label="Estado: ${status.label}">${status.label}</span>
+        <div class="table-col col-fecha" role="cell" data-label="${escapeHtml(translate('facturacion.date'))}"><time datetime="${escapeHtml(i.date)}">${escapeHtml(fmtDate(i.date))}</time></div>
+        <div class="table-col col-total" role="cell" data-label="${escapeHtml(translate('facturacion.total'))}">${escapeHtml(fmtCurrency(i.total))}</div>
+        <div class="table-col col-pendiente" role="cell" data-label="${escapeHtml(translate('billing.pending_amount'))}"><strong class="${pendingClass}">${escapeHtml(pendingDisplay)}</strong></div>
+        <div class="table-col col-estado text-center" role="cell" data-label="${escapeHtml(translate('facturacion.status'))}">
+          <span class="status-badge ${escapeHtml(status.class)}" role="status" aria-label="${escapeHtml(translate('billing.status_aria', { status: status.label }))}">${escapeHtml(status.label)}</span>
         </div>
-        <div class="table-col col-acciones text-right" role="cell" data-label="Acciones">
-          <div class="actions-cell" style="display:flex;gap:6px;justify-content:flex-end;">
-            <button class="action-btn btn-view" aria-label="Ver detalle de factura ${i.number}" data-id="${i.id}" title="Ver">👁️ <span class="btn-text">Ver</span></button>
-            <button class="action-btn btn-edit" aria-label="Editar factura ${i.number}" data-id="${i.id}" title="Editar">✏️ <span class="btn-text">Editar</span></button>
+        <div class="table-col col-acciones text-right" role="cell" data-label="${escapeHtml(translate('table.actions'))}">
+          <div class="actions-cell">
+            <button type="button" class="action-btn btn-view" aria-label="${escapeHtml(translate('billing.view_invoice', { number: i.number }))}" data-id="${escapeHtml(i.id)}" title="${escapeHtml(translate('billing.view'))}">
+              <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span><span class="btn-text">${escapeHtml(translate('billing.view'))}</span>
+            </button>
+            <button type="button" class="action-btn btn-manage" aria-label="${escapeHtml(translate('billing.manage_invoice', { number: i.number }))}" data-id="${escapeHtml(i.id)}" title="${escapeHtml(translate('billing.manage'))}">
+              <span class="material-symbols-outlined action-icon" aria-hidden="true">tune</span><span class="btn-text">${escapeHtml(translate('billing.manage'))}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -186,26 +302,12 @@ const renderInvoices = () => {
       e.stopPropagation();
       showInvoiceDetails(parseInt(e.currentTarget.dataset.id, 10));
     });
-    btn.addEventListener('keydown', (e) => {
-      if (['Enter',' '].includes(e.key)) {
-        e.preventDefault();
-        e.stopPropagation();
-        showInvoiceDetails(parseInt(e.currentTarget.dataset.id, 10));
-      }
-    });
   });
 
-  body.querySelectorAll('.btn-edit').forEach(btn => {
+  body.querySelectorAll('.btn-manage').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      openEditInvoiceModal(parseInt(e.currentTarget.dataset.id, 10));
-    });
-    btn.addEventListener('keydown', (e) => {
-      if (['Enter',' '].includes(e.key)) {
-        e.preventDefault();
-        e.stopPropagation();
-        openEditInvoiceModal(parseInt(e.currentTarget.dataset.id, 10));
-      }
+      openDrawer(parseInt(e.currentTarget.dataset.id, 10));
     });
   });
 
@@ -214,8 +316,14 @@ const renderInvoices = () => {
     row.addEventListener('click', (e) => {
       if (!e.target.closest('.action-btn')) {
         const id = parseInt(row.dataset.id, 10);
-        showInvoiceDetails(id);
+        row.focus();
+        openDrawer(id);
       }
+    });
+    row.addEventListener('keydown', event => {
+      if (event.target.closest('.action-btn') || !['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      openDrawer(parseInt(row.dataset.id, 10));
     });
   });
   
@@ -239,9 +347,11 @@ const openDrawer = (id) => {
   if (!drawer || !statusLabel) return;
   
   // Actualizar estado
-  const status = statusLabels[invoice.status] || statusLabels.pendiente;
+  const status = getStatus(invoice.status);
   statusLabel.textContent = status.label;
-  statusLabel.className = `status-label ${status.class === 'pagada' ? 'text-[var(--green)]' : status.class === 'pendiente' ? 'text-[var(--red)]' : 'text-[var(--orange)]'}`;
+  statusLabel.className = `status-label ${status.class}`;
+  const statusDot = drawer.querySelector('.status-dot');
+  if (statusDot) statusDot.className = `status-dot ${status.class}`;
   
   // Calcular subtotal e IVA
   const subtotal = invoice.total - (invoice.total * 0.19);
@@ -253,43 +363,19 @@ const openDrawer = (id) => {
   
   // Mostrar drawer
   drawer.dataset.invoiceId = String(id);
-  drawer.classList.add('open');
-  drawer.setAttribute('aria-hidden', 'false');
-  drawer.removeAttribute('inert');
-  document.body.style.overflow = 'hidden';
-  
-  // Enfocar botón de cerrar
   const closeBtn = safeGetElement('drawerClose');
-  if (closeBtn) closeBtn.focus();
+  openDialog(drawer, closeBtn);
 };
 
 const closeDrawer = () => {
-  const drawer = safeGetElement('drawerOverlay');
-  if (drawer) {
-    drawer.classList.remove('open');
-    drawer.setAttribute('aria-hidden', 'true');
-    drawer.setAttribute('inert', '');
-    document.body.style.overflow = '';
-  }
+  closeDialog(safeGetElement('drawerOverlay'));
 };
 const closePaymentSuccess = () => {
-  const modal = safeGetElement('paymentSuccessOverlay');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
-    document.body.style.overflow = '';
-  }
+  closeDialog(safeGetElement('paymentSuccessOverlay'));
 };
 
 const closeInvoiceDetails = () => {
-  const modal = safeGetElement('invoiceDetailsOverlay');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
-    document.body.style.overflow = '';
-  }
+  closeDialog(safeGetElement('invoiceDetailsOverlay'));
 };
 
 const showInvoiceDetails = async (id) => {
@@ -302,11 +388,11 @@ const showInvoiceDetails = async (id) => {
     invoiceDetailsPatient: invoice.patient,
     invoiceDetailsDocument: invoice.doc,
     invoiceDetailsDate: fmtDate(invoice.date),
-    invoiceDetailsService: invoice.service || 'No especificado',
-    invoiceDetailsStatus: (statusLabels[invoice.status] || statusLabels.pendiente).label,
+    invoiceDetailsService: invoice.service || translate('common.not_available'),
+    invoiceDetailsStatus: getStatus(invoice.status).label,
     invoiceDetailsTotal: fmtCurrency(invoice.total),
     invoiceDetailsPaid: fmtCurrency(invoice.paid || 0),
-    invoiceDetailsPending: invoice.pending > 0 ? fmtCurrency(invoice.pending) : 'Pagada'
+    invoiceDetailsPending: invoice.pending > 0 ? fmtCurrency(invoice.pending) : translate('billing.status_paid')
   };
   Object.entries(details).forEach(([elementId, value]) => {
     const element = safeGetElement(elementId);
@@ -314,47 +400,44 @@ const showInvoiceDetails = async (id) => {
   });
 
   closeDrawer();
-  modal.classList.add('open');
-  modal.setAttribute('aria-hidden', 'false');
-  modal.removeAttribute('inert');
-  document.body.style.overflow = 'hidden';
-  safeGetElement('invoiceDetailsConfirm')?.focus();
+  openDialog(modal, safeGetElement('invoiceDetailsConfirm'));
 
   const historyList = safeGetElement('invoicePaymentHistory');
   if (!historyList) return;
   historyList.replaceChildren();
   const loading = document.createElement('li');
-  loading.textContent = 'Cargando transacciones…';
+  loading.textContent = translate('billing.loading_payments');
   historyList.appendChild(loading);
 
   try {
     const response = await window.apiRequest(`/api/facturas/${id}`);
-    if (!response?.success || !response.data) throw new Error('No fue posible cargar el historial.');
+    if (!response?.success || !response.data) throw new Error(translate('billing.payment_history_error'));
 
     const data = response.data;
     const paid = safeGetElement('invoiceDetailsPaid');
     const pending = safeGetElement('invoiceDetailsPending');
     if (paid) paid.textContent = fmtCurrency(data.montoPagado);
-    if (pending) pending.textContent = data.pendiente > 0 ? fmtCurrency(data.pendiente) : 'Pagada';
+    if (pending) pending.textContent = data.pendiente > 0 ? fmtCurrency(data.pendiente) : translate('billing.status_paid');
 
     historyList.replaceChildren();
     if (!data.pagos?.length) {
       const empty = document.createElement('li');
-      empty.textContent = 'Sin transacciones registradas.';
+      empty.textContent = translate('billing.no_payments');
       historyList.appendChild(empty);
       return;
     }
 
     data.pagos.forEach((payment) => {
       const item = document.createElement('li');
-      const date = new Date(payment.fechaUtc).toLocaleString('es-CO');
+      const locale = window.I18N?.lang === 'en' ? 'en-US' : 'es-CO';
+      const date = new Date(payment.fechaUtc).toLocaleString(locale);
       item.textContent = `${date} · ${fmtCurrency(payment.monto)} · ${payment.metodoPago} · ${payment.estado} · ${payment.referencia}`;
       historyList.appendChild(item);
     });
   } catch {
     historyList.replaceChildren();
     const error = document.createElement('li');
-    error.textContent = 'No fue posible cargar el historial de transacciones.';
+    error.textContent = translate('billing.payment_history_error');
     historyList.appendChild(error);
   }
 };
@@ -364,12 +447,13 @@ const showPaymentSuccess = (amount, patient) => {
   const message = safeGetElement('paymentSuccessMessage');
   if (!modal) return;
 
-  if (message) message.textContent = `El pago de ${fmtCurrency(amount)} de ${patient} se registró correctamente.`;
-  modal.classList.add('open');
-  modal.setAttribute('aria-hidden', 'false');
-  modal.removeAttribute('inert');
-  document.body.style.overflow = 'hidden';
-  safeGetElement('paymentSuccessConfirm')?.focus();
+  if (message) {
+    message.textContent = translate('billing.payment_success_with_amount', {
+      amount: fmtCurrency(amount),
+      patient
+    });
+  }
+  openDialog(modal, safeGetElement('paymentSuccessConfirm'));
 };
 
 // Enviar recordatorio de pago
@@ -377,7 +461,7 @@ const sendReminder = (id) => {
   const invoice = invoicesStorage.getInvoice(id);
   if (!invoice) return;
 
-  showToast(`📧 Recordatorio enviado a ${invoice.patient}`, 'success');
+  showToast(translate('billing.reminder_sent', { patient: invoice.patient }), 'success');
   
 };
 
@@ -388,7 +472,7 @@ const registerPayment = async (id) => {
   if (!invoice) return; 
   
   if (invoice.pending <= 0) {
-    showToast('⚠️ Esta factura ya está pagada', 'warning');
+    showToast(translate('billing.already_paid'), 'warning');
     return;
   }
   
@@ -403,7 +487,7 @@ const registerPayment = async (id) => {
       body: { montoPagado: paymentAmount, metodoPago: 'efectivo' }
     });
     if (!result || result.success !== true) {
-      showToast(result?.message || 'No fue posible registrar el pago.', 'error');
+      showToast(result?.message || translate('billing.payment_error'), 'error');
       return;
   }
 
@@ -422,44 +506,58 @@ const registerPayment = async (id) => {
   showPaymentSuccess(paymentAmount, invoice.patient);
 } catch (error) {
     console.error('Error registrando pago:', error);
-    showToast('Error de conexión al registrar el pago.', 'error');
+    showToast(translate('billing.payment_connection_error'), 'error');
   }
 };
 
 // Anular factura — llama a la API real (POST /api/facturas/{id}/anulacion).
-  const cancelInvoice = async (id) => {
+const cancelInvoice = (id) => {
   const invoice = invoicesStorage.getInvoice(id);
   if (!invoice) return;
 
-  if (invoice.status === 'anulada') {
-    showToast('Esta factura ya está anulada.', 'warning');
+  if (String(invoice.status).toLowerCase() === 'anulada') {
+    showToast(translate('billing.already_voided'), 'warning');
     return;
   }
 
-  if (!window.confirm(`¿Anular la factura ${invoice.number} de ${invoice.patient}? Esta acción no se puede deshacer.`)) {
+  if (typeof window.ModalService?.confirm !== 'function') {
+    console.error('[SmileTrack] El servicio compartido de confirmación no está disponible.');
+    showToast(translate('billing.confirmation_unavailable'), 'error');
     return;
   }
 
-  try {
-    const result = await window.apiRequest(`/api/facturas/${id}/anulacion`, {
-      method: 'POST',
-      body: { motivo: 'Anulada desde el panel administrativo' }
-    });
+  window.ModalService.confirm({
+    title: translate('billing.void_confirmation_title'),
+    message: escapeHtml(translate('billing.void_confirmation_message', {
+      number: invoice.number,
+      patient: invoice.patient
+    })),
+    confirmText: translate('billing.void_invoice'),
+    cancelText: translate('common.cancel'),
+    isDanger: true,
+    onConfirm: async () => {
+      try {
+        const result = await window.apiRequest(`/api/facturas/${id}/anulacion`, {
+          method: 'POST',
+          body: { motivo: 'Anulada desde el panel administrativo' }
+        });
 
-    if (!result || result.success !== true) {
-      showToast(result?.message || 'No fue posible anular la factura.', 'error');
-      return;
+        if (!result || result.success !== true) {
+          showToast(result?.message || translate('billing.void_error'), 'error');
+          return;
+        }
+
+        invoicesStorage.updateLocalCache(id, { status: 'anulada' });
+        renderInvoices();
+        updateStats();
+        closeDrawer();
+        showToast(translate('billing.void_success', { number: invoice.number }));
+      } catch (error) {
+        console.error('Error anulando la factura:', error);
+        showToast(translate('billing.void_connection_error'), 'error');
+      }
     }
-
-    invoicesStorage.updateLocalCache(id, { status: 'anulada' });
-    renderInvoices();
-    updateStats();
-    closeDrawer();
-    showToast(`Factura ${invoice.number} anulada correctamente.`);
-  } catch (error) {
-    console.error('Error anulando factura:', error);
-    showToast('Error de conexión al anular la factura.', 'error');
-  }
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -468,39 +566,58 @@ const registerPayment = async (id) => {
 
 const updatePagination = (totalItems) => {
   const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const showing = Math.min(itemsPerPage, totalItems - (currentPage - 1) * itemsPerPage);
-  
+  currentPage = totalPages ? Math.min(currentPage, totalPages) : 1;
+  const showing = Math.max(0, Math.min(itemsPerPage, totalItems - (currentPage - 1) * itemsPerPage));
+
   const pageShowing = safeGetElement('pageShowing');
   const pageTotal = safeGetElement('pageTotal');
-  const btnPrev = safeGetElement('btnPrev');
-  const btnNext = safeGetElement('btnNext');
-  
+  const pagination = safeGetElement('invoicePagination');
+
   if (pageShowing) pageShowing.textContent = showing;
   if (pageTotal) pageTotal.textContent = totalItems;
-  if (btnPrev) btnPrev.disabled = currentPage === 1;
-  if (btnNext) btnNext.disabled = currentPage >= totalPages;
+  if (!pagination) return;
+
+  const pageButtons = Array.from({ length: totalPages }, (_, index) => {
+    const page = index + 1;
+    return `<button type="button" class="pagination-btn${page === currentPage ? ' active' : ''}" data-page="${page}"${page === currentPage ? ' aria-current="page"' : ''} aria-label="${escapeHtml(translate('billing.page_number', { page }))}">${page}</button>`;
+  }).join('');
+
+  pagination.innerHTML = `
+    <button type="button" class="pagination-btn" data-page="${Math.max(1, currentPage - 1)}" aria-label="${escapeHtml(translate('billing.previous_page'))}"${currentPage <= 1 ? ' disabled' : ''}>
+      <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+    </button>
+    ${pageButtons}
+    <button type="button" class="pagination-btn" data-page="${Math.min(totalPages || 1, currentPage + 1)}" aria-label="${escapeHtml(translate('billing.next_page'))}"${!totalPages || currentPage >= totalPages ? ' disabled' : ''}>
+      <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+    </button>
+  `;
 };
 
 const animateCounter = (el, target, isCurrency = false) => {
   if (!el) return;
+  clearInterval(counterTimers.get(el));
   let current = 0;
   const step = Math.max(1, Math.ceil(target / 30));
   const timer = setInterval(() => {
     current = Math.min(current + step, target);
     el.textContent = isCurrency ? fmtCurrency(current) : current;
-    if (current >= target) clearInterval(timer);
+    if (current >= target) {
+      clearInterval(timer);
+      counterTimers.delete(el);
+    }
   }, 30);
+  counterTimers.set(el, timer);
 };
 
 const updateStats = () => {
   const total = invoices.length;
-  const pending = invoices.reduce((sum, i) => sum + i.pending, 0);
+  const pending = invoices.reduce((sum, i) => sum + (Number(i.pending) || 0), 0);
+  const today = getColombiaDate();
   const paidToday = invoices.filter(i => {
-    if (i.status !== 'pagada') return false;
-    const today = new Date().toISOString().split('T')[0];
-    return i.history?.some(h => h.date === today && h.type === 'pago');
+    if (String(i.status).toLowerCase() !== 'pagada') return false;
+    return i.history?.some(h => String(h.date || '').slice(0, 10) === today && h.type === 'pago');
   }).length;
-  const cancelled = invoices.filter(i => i.status === 'anulada').length;
+  const cancelled = invoices.filter(i => String(i.status).toLowerCase() === 'anulada').length;
   
   animateCounter(safeGetElement('statTotal'), total);
   animateCounter(safeGetElement('statPending'), pending, true);
@@ -539,17 +656,12 @@ const initFilters = () => {
 };
 
 const initPagination = () => {
-  const btnPrev = safeGetElement('btnPrev');
-  const btnNext = safeGetElement('btnNext');
-  
-  btnPrev?.addEventListener('click', () => {
-    if (currentPage > 1) { currentPage--; renderInvoices(); }
-  });
-  
-  btnNext?.addEventListener('click', () => {
-    const filtered = getFilteredInvoices();
-    const totalPages = Math.ceil(filtered.length / itemsPerPage);
-    if (currentPage < totalPages) { currentPage++; renderInvoices(); }
+  const pagination = safeGetElement('invoicePagination');
+  pagination?.addEventListener('click', event => {
+    const button = event.target.closest('button[data-page]');
+    if (!button || button.disabled) return;
+    currentPage = Number(button.dataset.page);
+    renderInvoices();
   });
 };
 
@@ -597,21 +709,6 @@ const initDrawer = () => {
     if (e.target === invoiceDetails) closeInvoiceDetails();
   });
   
-  // Escape cierra drawer
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && drawer?.classList.contains('open')) {
-      e.preventDefault();
-      closeDrawer();
-    }
-    if (e.key === 'Escape' && paymentSuccess?.classList.contains('open')) {
-      e.preventDefault();
-      closePaymentSuccess();
-    }
-    if (e.key === 'Escape' && invoiceDetails?.classList.contains('open')) {
-      e.preventDefault();
-      closeInvoiceDetails();
-    }
-  });
 };
 
 const initNewInvoice = () => {
@@ -631,7 +728,7 @@ const initNewInvoice = () => {
     if (!overlay) return;
 
     if (dateInput && !dateInput.value) {
-      dateInput.value = new Date().toISOString().slice(0, 10);
+      dateInput.value = getColombiaDate();
     }
 
     if (patientSelect && patientSelect.options.length <= 1) {
@@ -647,27 +744,22 @@ const initNewInvoice = () => {
             patientSelect.appendChild(opt);
           });
         }
-      } catch (err) {
-        console.warn('No se pudo cargar el catálogo de pacientes en el modal.', err);
+      } catch {
+        showToast(translate('billing.patient_catalog_error'), 'warning');
       }
     }
 
-    overlay.classList.add('open');
-    overlay.removeAttribute('inert');
-    overlay.setAttribute('aria-hidden', 'false');
-
     if (patientSelect && patientSelect.options.length > 1) {
-      patientSelect.focus();
+      openDialog(overlay, patientSelect);
     } else if (patientInput) {
-      patientInput.focus();
+      openDialog(overlay, patientInput);
+    } else {
+      openDialog(overlay);
     }
   };
 
   const closeModal = () => {
-    if (!overlay) return;
-    overlay.classList.remove('open');
-    overlay.setAttribute('inert', '');
-    overlay.setAttribute('aria-hidden', 'true');
+    closeDialog(overlay);
   };
 
   btn?.addEventListener('click', (e) => {
@@ -702,71 +794,58 @@ const initNewInvoice = () => {
 
     const patientName = patientInput?.value.trim();
     const doc = docInput?.value.trim();
-    const invoiceDate = dateInput?.value;
+    const invoiceDate = dateInput?.value || getColombiaDate();
     const serviceName = serviceSelect?.value;
     const totalVal = parseFloat(totalInput?.value || '0');
     let selectedPatientId = parseInt(patientSelect?.value || '0', 10);
     const selectedServiceOpt = serviceSelect?.options[serviceSelect.selectedIndex];
     const selectedServiceId = selectedServiceOpt?.dataset.id ? parseInt(selectedServiceOpt.dataset.id, 10) : null;
 
-    if (!patientName || !doc || !invoiceDate || !serviceName || totalVal <= 0) {
-      showToast('Por favor completa todos los campos requeridos.', 'error');
+    if (!patientName || !doc || !serviceName || totalVal <= 0) {
+      showToast(translate('billing.required_fields_error'), 'error');
       return;
     }
 
-    // Resolver paciente ID si no fue seleccionado explícitamente en el select
-    if (!selectedPatientId && patientSelect && patientSelect.options.length > 1) {
-      for (let i = 1; i < patientSelect.options.length; i++) {
-        const opt = patientSelect.options[i];
-        if (opt.value && (opt.dataset.doc === doc || opt.dataset.nombre?.toLowerCase() === patientName.toLowerCase())) {
-          selectedPatientId = parseInt(opt.value, 10);
-          break;
-        }
-      }
-      if (!selectedPatientId && patientSelect.options[1].value) {
-        selectedPatientId = parseInt(patientSelect.options[1].value, 10);
-      }
+    if (!Number.isInteger(selectedPatientId) || selectedPatientId <= 0) {
+      showToast(translate('billing.patient_selection_required'), 'error');
+      patientSelect?.focus();
+      return;
     }
 
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.disabled = true;
 
     try {
-      let createdData = null;
-      if (selectedPatientId > 0) {
-        const payload = {
-          idPaciente: selectedPatientId,
-          notas: `Servicio: ${serviceName}`,
-          detalles: [
-            {
-              idServicio: selectedServiceId,
-              descripcion: serviceName,
-              cantidad: 1,
-              precioUnitario: totalVal
-            }
-          ]
-        };
-
-        const response = await window.apiRequest('/api/facturas', {
-          method: 'POST',
-          body: payload
-        });
-
-        if (response?.success) {
-          createdData = response.data;
-        }
+      const payload = {
+        idPaciente: selectedPatientId,
+        notas: `Servicio: ${serviceName}`,
+        items: [
+          {
+            idServicio: selectedServiceId,
+            descripcion: serviceName,
+            cantidad: 1,
+            precioUnitario: totalVal
+          }
+        ]
+      };
+      const response = await window.apiRequest('/api/facturas', {
+        method: 'POST',
+        body: payload
+      });
+      if (response?.success !== true || !response.data?.id) {
+        throw new Error(response?.message || translate('billing.invoice_create_error'));
       }
 
-      const nextNumStr = String(invoices.length + 1).padStart(4, '0');
+      const createdData = response.data;
       const newInvoice = {
-        id: createdData?.id || Date.now(),
-        number: createdData?.numero || `FAC-2026-${nextNumStr}`,
+        id: createdData.id,
+        number: createdData.numero,
         patient: createdData?.paciente || patientName,
         doc: createdData?.documento || doc,
         date: createdData?.fecha ? String(createdData.fecha).slice(0, 10) : invoiceDate,
-        total: createdData?.total || totalVal,
-        pending: createdData?.pendiente ?? totalVal,
-        status: createdData?.estado || 'pendiente',
+        total: Number(createdData.total ?? totalVal),
+        pending: Number(createdData.pendiente ?? totalVal),
+        status: createdData.estado || 'pendiente',
         avatar: patientName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
         color: ['blue','green','purple','orange','red'][invoices.length % 5],
         service: serviceName,
@@ -789,24 +868,60 @@ const initNewInvoice = () => {
 
       invoices.unshift(newInvoice);
       currentPage = 1;
+      renderMonthOptions();
       updateStats();
       renderInvoices();
 
-      showToast(`Factura ${newInvoice.number} generada exitosamente.`, 'success');
+      showToast(translate('billing.invoice_created', { number: newInvoice.number }), 'success');
       form.reset();
       closeModal();
     } catch (err) {
       console.error('Error al generar la factura:', err);
-      showToast('Ocurrió un error al generar la factura. Intente nuevamente.', 'error');
+      showToast(err.message || translate('billing.invoice_create_error'), 'error');
     } finally {
       if (submitBtn) submitBtn.disabled = false;
     }
   });
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && overlay?.classList.contains('open')) {
-      e.preventDefault();
-      closeModal();
+};
+
+const initDialogKeyboard = () => {
+  document.addEventListener('keydown', event => {
+    const dialogs = Array.from(document.querySelectorAll(
+      '.drawer-overlay.open, .invoice-details-overlay.open, .payment-success-overlay.open, .new-invoice-overlay.open'
+    ));
+    if (!dialogs.length) return;
+
+    dialogs.sort((first, second) =>
+      Number.parseInt(getComputedStyle(first).zIndex, 10) - Number.parseInt(getComputedStyle(second).zIndex, 10)
+    );
+    const dialog = dialogs[dialogs.length - 1];
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDialog(dialog);
+      return;
+    }
+
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(dialog.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(element => !element.hidden && element.getClientRects().length > 0);
+
+    if (!focusable.length) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   });
 };
@@ -822,6 +937,7 @@ const init = async () => {
   initPagination();
   initNewInvoice();
   initDrawer();
+  initDialogKeyboard();
   
   
   try {
@@ -834,15 +950,22 @@ const init = async () => {
         service: f.notas || 'Servicio Odontológico',
         history: f.fechaPago ? [{ date: String(f.fechaPago).slice(0, 10), type: 'pago' }] : []
       }));
+    } else {
+      showToast(translate('billing.invoice_load_error'), 'warning');
     }
   } catch (error) {
     console.error('No fue posible cargar las facturas desde la API.', error);
-    showToast('No fue posible cargar las facturas.', 'error');
+    showToast(translate('billing.invoice_load_error'), 'error');
   }
+  renderMonthOptions();
   updateStats();
   renderInvoices();
-  
-  window.addEventListener('beforeunload', () => { /* Cleanup en SPA real */ });
+  document.addEventListener('i18n:change', () => {
+    renderMonthOptions();
+    renderInvoices();
+    updateStats();
+  });
 };
 
 document.addEventListener('DOMContentLoaded', init);
+})();

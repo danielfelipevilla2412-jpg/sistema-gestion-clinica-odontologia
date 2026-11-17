@@ -1711,6 +1711,9 @@ public class HistoriaClinicaController(
         [FromQuery] string? alergias = null, [FromQuery] string? cita = null, [FromQuery] string? servicio = null)
     {
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
+        if (idProfesional is null)
+            return Forbid();
+
         var resultado = await BuildPacientesHistorialAsync(idProfesional, page, pageSize, search, estado, alergias, cita, servicio);
         await _auditoria.RegistrarAsync(
             HttpContext,
@@ -2770,10 +2773,16 @@ private static string InferirTipoServicio(string? nombreServicio)
                     (p.Estado.ToLower() == "inactivo" || p.Estado.ToLower() == "retirado"));
             else if (estadoNormalizado == "seguimiento")
                 pacientesQuery = pacientesQuery.Where(p => p.Estado != null && p.Estado.ToLower() == "activo" &&
-                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora && c.Estado != null &&
+                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                        (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                        c.FechaHora <= ahora && c.Estado != null &&
                         estadosAtendidos.Contains(c.Estado.ToLower())) &&
-                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
-                        c.Estado != null && c.Estado.ToLower() != "cancelada" && c.Estado.ToLower() != "cancelado"));
+                    _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                        (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                        c.FechaHora > ahora &&
+                        c.Estado != null && c.Estado.ToLower() != "cancelada" &&
+                        c.Estado.ToLower() != "cancelado" && c.Estado.ToLower() != "no_asistida" &&
+                        c.Estado.ToLower() != "rechazada"));
             else if (estadoNormalizado is "activo" or "inactivo" or "retirado")
                 pacientesQuery = pacientesQuery.Where(p => p.Estado != null && p.Estado.ToLower() == estadoNormalizado);
         }
@@ -2787,13 +2796,16 @@ private static string InferirTipoServicio(string? nombreServicio)
 
         if (string.Equals(cita, "con", StringComparison.OrdinalIgnoreCase))
             pacientesQuery = pacientesQuery.Where(p => _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
                 c.FechaHora > ahora && c.Estado != "Cancelada" && c.Estado != "cancelada"));
         else if (string.Equals(cita, "sin", StringComparison.OrdinalIgnoreCase))
             pacientesQuery = pacientesQuery.Where(p => !_context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
                 c.FechaHora > ahora && c.Estado != "Cancelada" && c.Estado != "cancelada"));
 
         if (!string.IsNullOrWhiteSpace(servicio))
             pacientesQuery = pacientesQuery.Where(p => _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
                 c.Servicio != null && c.Servicio.Nombre == servicio));
 
         if (!string.IsNullOrWhiteSpace(odontologo))
@@ -2875,6 +2887,11 @@ private static string InferirTipoServicio(string? nombreServicio)
             bool tieneCitaFutura = citasPaciente.Any(c => c.FechaHora > ahora &&
                 !new[] { "cancelada", "no_asistida", "rechazada" }.Contains(EstadoCitaHelper.Normalize(c.Estado)));
             var ultima = citasAtendidas.FirstOrDefault();
+            var proxima = citasPaciente
+                .Where(c => c.FechaHora > ahora &&
+                    !new[] { "cancelada", "no_asistida", "rechazada" }.Contains(EstadoCitaHelper.Normalize(c.Estado)))
+                .OrderBy(c => c.FechaHora)
+                .FirstOrDefault();
             string odontologo = ultima?.Profesional is not null
                 ? $"Dr(a). {ultima.Profesional.Nombres} {ultima.Profesional.Apellidos}"
                 : "Sin asignar";
@@ -2896,6 +2913,11 @@ private static string InferirTipoServicio(string? nombreServicio)
                 enSeguimiento = tieneConsultaAtendida && tieneCitaFutura,
                 alerta = tieneAlerta,
                 alertaTexto = tieneAlerta ? p.Alergias : "",
+                proximaCita = proxima is null ? null : new
+                {
+                    fecha = proxima.FechaHora,
+                    servicio = proxima.Servicio?.Nombre
+                },
                 consultas = citasAtendidas.Take(5).Select(c =>
                 {
                     consultaClinicaPorCita.TryGetValue(c.IdCita, out var consultaClinica);
@@ -2940,8 +2962,10 @@ private static string InferirTipoServicio(string? nombreServicio)
         var odontologos = await _context.Profesionales.AsNoTracking()
             .Select(p => new { p.Nombres, p.Apellidos })
             .ToListAsync();
-        var serviciosDisponibles = await _context.Servicios.AsNoTracking()
-            .Select(s => s.Nombre)
+        var serviciosDisponibles = await _context.Citas.AsNoTracking()
+            .Where(c => (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                c.Servicio != null)
+            .Select(c => c.Servicio!.Nombre)
             .Distinct()
             .OrderBy(nombre => nombre)
             .ToListAsync();
@@ -2960,10 +2984,16 @@ private static string InferirTipoServicio(string? nombreServicio)
             citasHoyQuery = citasHoyQuery.Where(c => c.IdProfesional == idProfesionalFiltro);
 
         int pacientesEnSeguimiento = await universoPacientes.CountAsync(p => p.Estado != null && p.Estado.ToLower() == "activo" &&
-            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora <= ahora && c.Estado != null &&
+            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                c.FechaHora <= ahora && c.Estado != null &&
                 estadosAtendidos.Contains(c.Estado.ToLower())) &&
-            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.FechaHora > ahora &&
-                c.Estado != null && c.Estado.ToLower() != "cancelada" && c.Estado.ToLower() != "cancelado"));
+            _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
+                (idProfesionalFiltro == null || c.IdProfesional == idProfesionalFiltro) &&
+                c.FechaHora > ahora &&
+                c.Estado != null && c.Estado.ToLower() != "cancelada" &&
+                c.Estado.ToLower() != "cancelado" && c.Estado.ToLower() != "no_asistida" &&
+                c.Estado.ToLower() != "rechazada"));
         var estadisticas = new
         {
             total = await universoPacientes.CountAsync(),

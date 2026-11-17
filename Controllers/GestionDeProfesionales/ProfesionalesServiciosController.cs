@@ -58,13 +58,13 @@ public partial class GestionProfesionalesController
             .FirstOrDefaultAsync(s => s.IdServicio == servicioId, ct);
         if (profesional is null || profesional.Estado != "activo" || servicio is null || servicio.Estado != "activo")
         {
-            TempData["AsignacionError"] = "El profesional y el servicio deben existir y estar activos.";
+            EstablecerErrorAsignacion("asignados.error_invalid_pair", "El profesional y el servicio deben existir y estar activos.");
             return volver;
         }
         if (!servicio.IdEspecialidad.HasValue || !await _context.ProfesionalEspecialidades.AnyAsync(
             pe => pe.IdProfesional == profesionalId && pe.IdEspecialidad == servicio.IdEspecialidad.Value, ct))
         {
-            TempData["AsignacionError"] = "El profesional no tiene registrada la especialidad de este servicio.";
+            EstablecerErrorAsignacion("asignados.error_specialty", "El profesional no tiene registrada la especialidad de este servicio.");
             return volver;
         }
         decimal? precio = null;
@@ -73,7 +73,7 @@ public partial class GestionProfesionalesController
             if (!decimal.TryParse(precioPersonalizado, NumberStyles.Number, CultureInfo.InvariantCulture, out var valor)
                 || valor <= 0 || valor > 999999999m || decimal.Round(valor, 2) != valor)
             {
-                TempData["AsignacionError"] = "El precio personalizado debe ser mayor que cero, con máximo dos decimales; o déjalo vacío para usar el precio base.";
+                EstablecerErrorAsignacion("asignados.error_invalid_price", "El precio personalizado debe ser mayor que cero, con máximo dos decimales; o déjalo vacío para usar el precio base.");
                 return volver;
             }
             precio = valor;
@@ -95,12 +95,12 @@ public partial class GestionProfesionalesController
                 asignacion.Activo = true;
             }
             await _context.SaveChangesAsync(ct);
-            TempData["AsignacionExito"] = "Asignación guardada correctamente.";
+            EstablecerExitoAsignacion("asignados.success_saved", "Asignación guardada correctamente.");
         }
         catch (DbUpdateException ex)
         {
             _logger.LogError(ex, "Error al guardar asignación de profesional {ProfesionalId} y servicio {ServicioId}", profesionalId, servicioId);
-            TempData["AsignacionError"] = "No se pudo guardar la asignación. Revisa las restricciones de la base de datos.";
+            EstablecerErrorAsignacion("asignados.error_save", "No se pudo guardar la asignación. Revisa las restricciones de la base de datos.");
         }
         return volver;
     }
@@ -114,7 +114,7 @@ public partial class GestionProfesionalesController
         var asignacion = await _context.ProfesionalServicios.FindAsync(new object[] { profesionalId, servicioId }, ct);
         if (asignacion is null)
         {
-            TempData["AsignacionError"] = "La asignación no existe.";
+            EstablecerErrorAsignacion("asignados.error_assignment_missing", "La asignación no existe.");
             return volver;
         }
         if (activo)
@@ -124,7 +124,7 @@ public partial class GestionProfesionalesController
             if (profesional?.Estado != "activo" || servicio?.Estado != "activo" || !servicio.IdEspecialidad.HasValue ||
                 !await _context.ProfesionalEspecialidades.AnyAsync(pe => pe.IdProfesional == profesionalId && pe.IdEspecialidad == servicio.IdEspecialidad.Value, ct))
             {
-                TempData["AsignacionError"] = "No se puede reactivar: profesional, servicio y especialidad deben ser compatibles y estar activos.";
+                EstablecerErrorAsignacion("asignados.error_reactivate", "No se puede reactivar: profesional, servicio y especialidad deben ser compatibles y estar activos.");
                 return volver;
             }
         }
@@ -132,13 +132,27 @@ public partial class GestionProfesionalesController
         try
         {
             await _context.SaveChangesAsync(ct);
-            TempData["AsignacionExito"] = activo ? "Asignación reactivada." : "Asignación desactivada; se conserva su registro.";
+            EstablecerExitoAsignacion(
+                activo ? "asignados.success_reactivated" : "asignados.success_deactivated",
+                activo ? "Asignación reactivada." : "Asignación desactivada; se conserva su registro.");
         }
         catch (DbUpdateException ex)
         {
             _logger.LogError(ex, "Error cambiando estado de asignación");
-            TempData["AsignacionError"] = "No se pudo actualizar el estado.";
+            EstablecerErrorAsignacion("asignados.error_update_status", "No se pudo actualizar el estado.");
         }
         return volver;
+    }
+
+    private void EstablecerErrorAsignacion(string clave, string mensaje)
+    {
+        TempData["AsignacionError"] = mensaje;
+        TempData["AsignacionErrorI18n"] = clave;
+    }
+
+    private void EstablecerExitoAsignacion(string clave, string mensaje)
+    {
+        TempData["AsignacionExito"] = mensaje;
+        TempData["AsignacionExitoI18n"] = clave;
     }
 }

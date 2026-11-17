@@ -1,11 +1,11 @@
 /* ============================================
-SmileTrack — Dashboard Admin (st-adm-01-dashboard)
+SmileTrack — Panel Operativo de Auxiliares (st-aux-01-panel-operativo)
 ============================================
 Autor: Johan Santamaria
 Fecha: 29/07/2026
 
 DESCRIPCIÓN:
-Estilos del dashboard administrador que definen el diseño responsive, el sidebar colapsable, la grilla de métricas (KPIs), tablas y barras de progreso animadas.
+Estilos del panel operativo del auxiliar que definen el diseño responsive, el sidebar colapsable, la grilla de métricas (KPIs), tablas, acciones rápidas y barras de progreso animadas.
 
 FUNCIONALIDADES PRINCIPALES:
 - Diseño fluido con CSS Grid y Flexbox responsive
@@ -14,10 +14,10 @@ FUNCIONALIDADES PRINCIPALES:
 - Adaptación para impresión de reportes y reducción de movimiento (prefers-reduced-motion)
 
 DEPENDENCIAS TÉCNICAS:
-- Controller: GestionCitasController y Stadm01Dashboard
-- CSS: ~/css/Gestion_De_Citas/st-adm-01-dashboard/styles.css
-- JS: ~/js/Gestion_De_Citas/st-adm-01-dashboard/app.js
-- Partial / Otros: index.cshtml
+- Controller: GestionCitasController -> Staux01PanelOperativo
+- CSS: ~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css
+- JS: ~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js
+- Partial / Otros: panel-operativo.cshtml
 
 NOTAS DE MANTENIMIENTO:
 - Los comentarios internos explican el "por qué" de las decisiones de diseño/negocio, no el "qué" hace el código básico.
@@ -45,22 +45,10 @@ NOTAS DE MANTENIMIENTO:
   --font: 'DM Sans', sans-serif;
   --font-display: 'Syne', sans-serif;
   --tr: .18s ease;
+  --danger: #ef4444;
 
-  /* === VARIABLES ESPECÍFICAS DE ADMIN === */
-  --chart-blue: var(--primary);
-  --chart-green: var(--green);
-  --chart-red: var(--danger);
-  --chart-orange: var(--orange);
-  --invoice-warning-bg: #ffedd5;
-  --invoice-warning-text: #92400e;
-  --invoice-danger-bg: #fee2e2;
-  --invoice-danger-text: #991b1b;
-  --invoice-muted-bg: #f1f5f9;
-  --invoice-muted-text: #475569;
-  
   /* Variables para consistencia */
   --input-focus-ring: rgba(26, 86, 204, 0.15);
-  --danger: #ef4444;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -300,33 +288,7 @@ img { max-width: 100%; height: auto; display: block; }
   border-bottom: 1px solid var(--border);
 }
 
-/* ═══ GRÁFICO DE BARRAS ═══ */
-.chart-container { display: flex; flex-direction: column; gap: 14px; }
-.chart-row {
-  display: flex; align-items: center; gap: 12px;
-}
-.chart-label {
-  font-size: .8rem; color: var(--text-muted);
-  width: 60px; flex-shrink: 0;
-}
-.chart-bar-bg {
-  flex: 1; height: 24px;
-  background: var(--border); border-radius: 20px; overflow: hidden;
-}
-.chart-bar-fill {
-  height: 100%; border-radius: 20px;
-  display: flex; align-items: center; justify-content: flex-end;
-  padding-right: 10px;
-  color: #fff; font-size: .7rem; font-weight: 700;
-  transition: width .7s cubic-bezier(.4,0,.2,1);
-  will-change: width;
-}
-.chart-bar-fill.blue { background: linear-gradient(90deg, var(--primary), #60a5fa); }
-.chart-bar-fill.green { background: linear-gradient(90deg, var(--green), #4ade80); }
-.chart-val {
-  font-size: .75rem; font-weight: 700; color: var(--text);
-  min-width: 48px; text-align: right;
-}
+/* Resumen textual bajo el gráfico de estados de cita */
 .chart-summary {
   font-size: .78rem; color: var(--green); font-weight: 600;
   margin-top: 12px;
@@ -348,21 +310,6 @@ img { max-width: 100%; height: auto; display: block; }
 .table-base tbody tr:hover { background: #f8fafc; }
 .table-empty { text-align: center; color: var(--text-muted); padding: 18px; }
 .table-base td:first-child { display: flex; align-items: center; gap: 10px; }
-.td-avatar {
-  width: 32px; height: 32px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .7rem; font-weight: 700; color: #fff; flex-shrink: 0;
-}
-.avatar-blue { background: #3b82f6; }
-.avatar-green { background: var(--green); }
-.avatar-purple { background: var(--purple); }
-.td-name { font-weight: 600; color: var(--text); }
-.badge-spec {
-  font-size: .72rem; font-weight: 600;
-  padding: 2px 8px; border-radius: 4px;
-  background: var(--bg); color: var(--text-muted);
-}
-.td-strong { font-weight: 700; color: var(--text); }
 
 
 /* ═══ ESTADO DE CITAS ═══ */
@@ -424,26 +371,6 @@ img { max-width: 100%; height: auto; display: block; }
 .quick-action-arrow { color: var(--text-muted); font-size: 18px; flex-shrink: 0; transition: transform var(--tr); }
 .quick-action:hover .quick-action-arrow { transform: translateX(2px); color: var(--primary); }
 .notes-text { font-size: .85rem; color: var(--text-muted); line-height: 1.5; }
-
-/* ═══ FACTURAS ═══ */
-.invoices-list { display: flex; flex-direction: column; gap: 10px; }
-.invoice-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px; border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  transition: background var(--tr);
-}
-.invoice-item:hover { background: var(--bg); }
-.invoice-code { font-size: .8rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
-.invoice-desc { font-size: .7rem; color: var(--text-muted); }
-.invoice-amount { font-size: .85rem; font-weight: 700; }
-.invoice-item.warning { background: var(--invoice-warning-bg); border-color: var(--orange); }
-.invoice-item.warning .invoice-amount { color: var(--invoice-warning-text); }
-.invoice-item.danger { background: var(--invoice-danger-bg); border-color: var(--danger); }
-.invoice-item.danger .invoice-amount { color: var(--invoice-danger-text); }
-.invoice-item.muted { background: var(--invoice-muted-bg); border-color: var(--border); }
-.invoice-item.muted .invoice-amount { color: var(--invoice-muted-text); }
-
 
 /* ═══ MOBILE NAV ═══ */
 .mobile-nav {
@@ -537,7 +464,7 @@ img { max-width: 100%; height: auto; display: block; }
     scroll-behavior: auto !important;
   }
   html { scroll-behavior: auto; }
-  .progress-bar, .chart-bar-fill, .status-bar-fill { transition: none; }
+  .progress-bar, .status-bar-fill { transition: none; }
 }
 
 /* ═════ NUEVO: SOLO PARA COMPORTAMIENTO DESPLEGABLE ═════ */

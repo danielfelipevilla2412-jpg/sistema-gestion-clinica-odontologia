@@ -1,50 +1,27 @@
-Ôªø@{ Layout = null; }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Mi Perfil";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
-<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+  <link rel="stylesheet" href="~/css/Perfiles/st-aux-11-perfil-auxiliar/mi-perfil.css" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack ‚Äî Mi Perfil</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Perfiles/st-aux-11-perfil-auxiliar/mi-perfil.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
+<main class="main" id="main-content">
 
-<body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-
-  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
-
-    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
-
-  <!-- Bot√≥n hamburguesa para men√∫ m√ìvil, con atributos ARIA para accesibilidad -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir men√∫" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
-
-    <!-- Header con saludo din√°mico accesible -->
+    <!-- Header con saludo din·mico accesible -->
     <header class="page-header">
-      <nav class="breadcrumb" aria-label="Ruta de navegaci√≥n" data-i18n-aria-label="sidebar_main_nav">
-        <span data-i18n="common_role_auxiliar">Auxiliar</span>
-        <span class="bc-sep" aria-hidden="true">‚Ä∫</span>
-        <span class="bc-active" data-i18n="profile.title">Mi perfil</span>
-      </nav>
-      <p class="greeting" id="greeting" aria-live="polite">Cargando saludo...</p>
-      <h1 class="page-title" data-i18n="profile.title">Mi Perfil</h1>
-      <p class="page-subtitle" data-i18n="profile.subtitle">Gestiona tu informaci&#243;n personal y acceso al sistema.</p>
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegaciÛn" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_auxiliar">Auxiliar</span>
+          <span class="bc-sep" aria-hidden="true">õ</span>
+          <span class="bc-active" aria-current="page" data-i18n="profile.title">Mi perfil</span>
+        </nav>
+        <p class="greeting" id="greeting" aria-live="polite">Cargando saludo...</p>
+        <h1 class="page-title" data-i18n="profile.title">Mi Perfil</h1>
+        <p class="page-subtitle" data-i18n="profile.subtitle">Gestiona tu informaci&#243;n personal y acceso al sistema.</p>
+      </div>
     </header>
 
     <!-- Layout de perfil con dos columnas -->
@@ -53,15 +30,15 @@
       <!-- Columna izquierda: Datos personales -->
       <section class="profile-card" aria-labelledby="personalDataTitle">
         <div class="profile-header">
-          <div class="avatar-large" id="userAvatar" aria-label="Avatar de usuario: Sara Jim√©nez">SJ</div>
+          <div class="avatar-large" id="userAvatar" aria-label="Avatar de usuario: Sara JimÈnez">SJ</div>
           <h2 class="profile-title" id="personalDataTitle" data-i18n="common.personal_data">Datos personales</h2>
-          <button class="btn-edit" id="btnEditProfile" aria-label="Editar informaci√≥n personal">
+          <button class="btn-edit" id="btnEditProfile" aria-label="Editar informaciÛn personal">
             <span>Editar</span><span class="material-symbols-outlined edit-icon" aria-hidden="true">edit</span>
           </button>
         </div>
 
         <div class="profile-content">
-          <!-- Grid de informaci√≥n personal con estructura accesible -->
+          <!-- Grid de informaciÛn personal con estructura accesible -->
           <div class="info-grid" role="list">
             <div class="info-group" role="listitem">
               <label class="info-label" for="nombres">Nombres</label>
@@ -70,15 +47,15 @@
             </div>
             <div class="info-group" role="listitem">
               <label class="info-label" for="apellidos">Apellidos</label>
-              <span class="info-value" id="apellidos">Jim√©nez</span>
+              <span class="info-value" id="apellidos">JimÈnez</span>
             </div>
             <div class="info-group" role="listitem">
               <label class="info-label" for="tipoDoc">Tipo documento</label>
               <span class="info-value" id="tipoDoc">CC</span>
             </div>
             <div class="info-group" role="listitem">
-              <label class="info-label" for="numeroDoc">N√∫mero de documento</label>
-              <span class="info-value" id="numeroDoc" aria-label="N√∫mero de documento: 1234567890">‚Äî</span>
+              <label class="info-label" for="numeroDoc">N˙mero de documento</label>
+              <span class="info-value" id="numeroDoc" aria-label="N˙mero de documento: 1234567890">ó</span>
             </div>
             <div class="info-group" role="listitem">
               <label class="info-label" for="fechaIngreso">Fecha de ingreso</label>
@@ -93,11 +70,11 @@
               </span>
             </div>
             <div class="info-group" role="listitem">
-              <label class="info-label" for="telefono">Tel√âfono</label>
+              <label class="info-label" for="telefono">Tel…fono</label>
               <span class="info-value" id="telefono">312456 7890</span>
             </div>
             <div class="info-group" role="listitem">
-              <label class="info-label" for="email">Correo electr√ìnico</label>
+              <label class="info-label" for="email">Correo electr”nico</label>
               <span class="info-value" id="email">auxiliar@smiletrack.co</span>
             </div>
           </div>
@@ -113,32 +90,32 @@
         </div>
       </section>
 
-      <!-- Columna derecha: Cambio de contrase√±a -->
+      <!-- Columna derecha: Cambio de contraseÒa -->
       <aside class="password-card" aria-labelledby="passwordTitle">
-        <h3 class="password-title" id="passwordTitle">Cambiar contrase√±a</h3>
+        <h3 class="password-title" id="passwordTitle">Cambiar contraseÒa</h3>
 
-        <!-- Formulario con validaci√≥n accesible -->
+        <!-- Formulario con validaciÛn accesible -->
         <form id="passwordForm" novalidate aria-describedby="passwordRequirements">
 
           <div class="form-group">
-            <label class="form-label" for="currentPassword">Contrase√±a actual <span class="required"
+            <label class="form-label" for="currentPassword">ContraseÒa actual <span class="required"
                 aria-hidden="true">*</span></label>
             <div class="input-with-icon">
-              <button type="button" class="toggle-password" id="toggleCurrent" aria-label="Mostrar contrase√±a actual"
+              <button type="button" class="toggle-password" id="toggleCurrent" aria-label="Mostrar contraseÒa actual"
                 aria-pressed="false" aria-controls="currentPassword">
                 <span class="visually-hidden">Mostrar/ocultar</span><span class="material-symbols-outlined" aria-hidden="true">visibility</span>
               </button>
               <input type="password" class="form-input" id="currentPassword" name="currentPassword"
                 placeholder="" required autocomplete="current-password" aria-required="true" />
             </div>
-            <span class="error-message" id="error-currentPassword">Por favor ingresa tu contrase√±a actual</span>
+            <span class="error-message" id="error-currentPassword">Por favor ingresa tu contraseÒa actual</span>
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="newPassword">Nueva contrase√±a <span class="required"
+            <label class="form-label" for="newPassword">Nueva contraseÒa <span class="required"
                 aria-hidden="true">*</span></label>
             <div class="input-with-icon">
-              <button type="button" class="toggle-password" id="toggleNew" aria-label="Mostrar nueva contrase√±a"
+              <button type="button" class="toggle-password" id="toggleNew" aria-label="Mostrar nueva contraseÒa"
                 aria-pressed="false" aria-controls="newPassword">
                 <span class="visually-hidden">Mostrar/ocultar</span><span class="material-symbols-outlined" aria-hidden="true">visibility</span>
               </button>
@@ -146,34 +123,34 @@
                 required autocomplete="new-password" aria-required="true"
                 aria-describedby="passwordStrength passwordRequirements" />
             </div>
-            <!-- Indicador de fuerza de contrase√±a accesible -->
+            <!-- Indicador de fuerza de contraseÒa accesible -->
             <div class="password-strength" id="passwordStrength" role="progressbar" aria-valuenow="0" aria-valuemin="0"
-              aria-valuemax="100" aria-label="Fortaleza de contrase√±a: D√©bil">
-              <span class="visually-hidden" id="strengthText">D√©bil</span>
+              aria-valuemax="100" aria-label="Fortaleza de contraseÒa: DÈbil">
+              <span class="visually-hidden" id="strengthText">DÈbil</span>
             </div>
             <small id="passwordRequirements" class="password-requirements">
-              M√≠nimo 8 caracteres, 1 may√∫scula, 1 n√∫mero y 1 s√çmbolo
+              MÌnimo 8 caracteres, 1 may˙scula, 1 n˙mero y 1 sÕmbolo
             </small>
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="confirmPassword">Confirmar nueva contrase√±a <span class="required"
+            <label class="form-label" for="confirmPassword">Confirmar nueva contraseÒa <span class="required"
                 aria-hidden="true">*</span></label>
             <div class="input-with-icon">
               <button type="button" class="toggle-password" id="toggleConfirm"
-                aria-label="Mostrar confirmaci√≥n de contrase√±a" aria-pressed="false" aria-controls="confirmPassword">
+                aria-label="Mostrar confirmaciÛn de contraseÒa" aria-pressed="false" aria-controls="confirmPassword">
                 <span class="visually-hidden">Mostrar/ocultar</span><span class="material-symbols-outlined" aria-hidden="true">visibility</span>
               </button>
               <input type="password" class="form-input" id="confirmPassword" name="confirmPassword"
                 placeholder="" required autocomplete="new-password" aria-required="true" />
             </div>
-            <span class="error-message" id="error-confirmPassword">Las contrase√±as no coinciden</span>
+            <span class="error-message" id="error-confirmPassword">Las contraseÒas no coinciden</span>
           </div>
 
           <div class="form-divider" aria-hidden="true"></div>
 
           <button type="submit" class="btn-update" id="btnUpdatePassword"
-            aria-label="Actualizar contrase√±a de acceso">Actualizar contrase√±a</button>
+            aria-label="Actualizar contraseÒa de acceso">Actualizar contraseÒa</button>
         </form>
       </aside>
 
@@ -181,8 +158,8 @@
 
   </main>
 
-  <!-- Mobile bottom nav con aria-label para navegaci√≥n m√≥vil -->
-  <nav class="mobile-nav" aria-label="Navegaci√≥n m√≥vil">
+  <!-- Mobile bottom nav con aria-label para navegaciÛn mÛvil -->
+  <nav class="mobile-nav" aria-label="NavegaciÛn mÛvil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
       <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
       <span>Panel</span>
@@ -204,56 +181,8 @@
   <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Estilos para contenido solo accesible por screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-  <script src="@Url.Content("~/js/Perfiles/st-aux-11-perfil-auxiliar/mi-perfil.js")"></script>
-<footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>‚Äî 2025 Smile Track. Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO ‚Äî SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-
-
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-
-</html>
+@section Scripts {
+  <script src="~/js/Perfiles/st-aux-11-perfil-auxiliar/mi-perfil.js" asp-append-version="true"></script>
+}
 
 

@@ -1,104 +1,81 @@
-/**
- * SMILETRACK — BITÁCORA DEL SISTEMA (bitacora.js)
- * API-ready + Accesibilidad + Renderizado inmediato (sin loading)
- * 
- * ✅ SIMPLIFICADO: Sin estado de carga, eventos visibles al instante
- * ✅ MANTENIDO: Filtros, paginación, modales, accesibilidad, live mode
- */
-
-// ═══════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN API
-// ═══════════════════════════════════════════════════════════════════
-const API_BASE = '/api';
-
-// ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
-// ═══════════════════════════════════════════════════════════════════
+(function () {
+  'use strict';
 
 const safeGetElement = (id) => {
   const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
   return el;
 };
+
+const t = (key, vars) => window.I18N.t(key, vars);
 
 const debounce = (fn, delay) => {
   let timeoutId;
   return (...args) => {
     clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
+    timeoutId = setTimeout(() => fn(...args), delay);
   };
 };
 
-const showToast = (message, type = 'success') => {
-  const toast = safeGetElement('toast');
-  if (!toast) return;
-
-  toast.textContent = message;
-  toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
-
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
+const showToast = (messageKey, type = 'success', vars) => {
+  const titleKey = type === 'error' ? 'audit.toast_error_title'
+    : type === 'warning' ? 'audit.toast_warning_title'
+      : type === 'info' ? 'audit.toast_info_title'
+        : 'audit.toast_success_title';
+  window.ToastService[type](t(titleKey), t(messageKey, vars));
 };
 
-const announceToScreenReader = (message) => {
+const announceToScreenReader = (messageKey, vars) => {
   const announcer = safeGetElement('announcer');
   if (announcer) {
-    announcer.textContent = message;
+    announcer.textContent = t(messageKey, vars);
     setTimeout(() => { announcer.textContent = ''; }, 1000);
   }
 };
 
 const fmtTimestamp = (iso) => {
-  if (!iso) return '—';
+  if (!iso) return t('audit.not_available');
   const date = new Date(iso);
-  return date.toLocaleString('es-CO', {
+  if (Number.isNaN(date.getTime())) return t('audit.not_available');
+  return date.toLocaleString(window.I18N.lang === 'en' ? 'en-US' : 'es-CO', {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
     hour12: false
   }).replace(',', '');
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  DATOS DE EJEMPLO
-// ═══════════════════════════════════════════════════════════════════
 const LOG_LEVELS = {
-  critical: { label: 'Crítico', class: 'critical', icon: '🔴' },
-  error: { label: 'Error', class: 'error', icon: '🟠' },
-  warning: { label: 'Warning', class: 'warning', icon: '🟡' },
-  info: { label: 'Info', class: 'info', icon: '🔵' },
-  success: { label: 'Success', class: 'success', icon: '🟢' },
-  debug: { label: 'Debug', class: 'debug', icon: '⚪' },
+  critical: { labelKey: 'audit.level_critical', class: 'critical', icon: 'error' },
+  error: { labelKey: 'audit.level_error', class: 'error', icon: 'warning' },
+  warning: { labelKey: 'audit.level_warning', class: 'warning', icon: 'warning' },
+  info: { labelKey: 'audit.level_info', class: 'info', icon: 'info' },
+  success: { labelKey: 'audit.level_success', class: 'success', icon: 'check_circle' },
+  debug: { labelKey: 'audit.level_debug', class: 'debug', icon: 'bug_report' },
 };
 
-const MODULES = {
-  auth: 'Autenticación',
-  citas: 'Citas',
-  facturacion: 'Facturación',
-  database: 'Base de Datos',
-  servicios: 'Servicios',
-  system: 'Sistema',
+const levelLabel = (level) => t((LOG_LEVELS[level] || LOG_LEVELS.info).labelKey);
+const moduleLabel = (module) => String(module || t('audit.not_available'));
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const mapAuditRecord = (record) => {
+  const action = String(record.accion || '').toUpperCase();
+  return {
+    id: record.id ?? record.idAuditoria,
+    timestamp: record.fecha,
+    level: action === 'DELETE' ? 'critical' : action === 'UPDATE' ? 'warning' : action === 'INSERT' ? 'success' : 'info',
+    module: record.tabla || record.tablaAfectada || 'system',
+    description: record.descripcion || t('audit.not_available'),
+    user: record.usuario || t('audit.not_available'),
+    ip: record.ip || record.ipOrigen || '',
+    metadata: { tabla: record.tabla || record.tablaAfectada, accion: record.accion }
+  };
 };
 
-const SAMPLE_LOGS = [
-  { id: 1, timestamp: '2026-05-23T14:02:11', level: 'critical', module: 'database', description: 'Fallo de conexión al servidor primario. Redireccionando a réplica.', user: 'sistema', ip: '127.0.0.1', metadata: { server: 'primary-db-01', retry: 3 }, stack: 'ConnectionError: ECONNREFUSED\n    at TCP.connectWrap' },
-  { id: 2, timestamp: '2026-05-23T13:58:44', level: 'warning', module: 'auth', description: '5 intentos fallidos de login detectados para el usuario r.mendez@smiletrack.co', user: 'r.mendez', ip: '192.168.1.45', metadata: { attempts: 5, locked: false } },
-  { id: 3, timestamp: '2026-05-23T13:45:01', level: 'info', module: 'citas', description: 'Nueva cita #4821 creada para paciente Julián Restrepo — Dr. Méndez 10:00 AM', user: 'e.sotelo', ip: '192.168.1.32', metadata: { citaId: 4821, paciente: 'Julián Restrepo' } },
-  { id: 4, timestamp: '2026-05-23T13:30:22', level: 'success', module: 'facturacion', description: 'Factura #FAC-2026-004 marcada como pagada — $560,000 COP recibidos', user: 'admin', ip: '192.168.1.10', metadata: { factura: 'FAC-2026-004', monto: 560000 } },
-  { id: 5, timestamp: '2026-05-23T13:15:00', level: 'info', module: 'system', description: 'Respaldo automático completado exitosamente — 182 MB transferidos a nube', user: 'sistema', ip: '127.0.0.1', metadata: { size: '182MB', destination: 'cloud-backup' } },
-  { id: 6, timestamp: '2026-05-23T12:55:37', level: 'warning', module: 'servicios', description: 'Servicio "Extracción Muela Juicio" desactivado — Sin confirmación del supervisor', user: 'c.ruiz', ip: '192.168.1.55', metadata: { servicio: 'extraccion-muela', requiresApproval: true } },
-  { id: 7, timestamp: '2026-05-23T12:00:00', level: 'info', module: 'auth', description: 'Inicio de sesión exitoso — Odontólogo desde 192.168.1.45', user: 'odontologo', ip: '192.168.1.45', metadata: { role: 'odontologo', session: 'abc123' } },
-];
-
-let rawLogs = Array.isArray(window.RAZOR_BITACORA) && window.RAZOR_BITACORA.length > 0 ? window.RAZOR_BITACORA.map(b => ({
-  id: b.id,
-  timestamp: b.fecha,
-  level: b.accion === 'DELETE' ? 'critical' : b.accion === 'UPDATE' ? 'warning' : 'info',
-  module: b.tabla || 'system',
-  description: b.descripcion,
-  user: b.usuario,
-  ip: b.ip,
-  metadata: { tabla: b.tabla, accion: b.accion }
-})) : SAMPLE_LOGS;
+const rawLogs = Array.isArray(window.RAZOR_BITACORA) ? window.RAZOR_BITACORA.map(mapAuditRecord) : [];
 
 let logs = [...rawLogs];
 let searchQuery = '';
@@ -109,6 +86,11 @@ let currentPage = 1;
 let itemsPerPage = 25;
 let selectedIds = new Set();
 let isLiveMode = true;
+let timestampSortDirection = 'descending';
+let modalTrigger = null;
+let previousBodyOverflow = '';
+let liveRefreshTimer = null;
+let refreshInProgress = false;
 
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIONES DE RENDERIZADO
@@ -120,9 +102,27 @@ const animateCounter = (el, target) => {
   const step = Math.max(1, Math.ceil(target / 30));
   const t = setInterval(() => {
     cur = Math.min(cur + step, target);
-    el.textContent = cur.toLocaleString('es-ES');
+    el.textContent = cur.toLocaleString(window.I18N.lang === 'en' ? 'en-US' : 'es-CO');
     if (cur >= target) clearInterval(t);
   }, 30);
+};
+
+const getFilteredLogs = () => logs.filter(log =>
+  (!searchQuery || String(log.description || '').toLowerCase().includes(searchQuery) || String(log.user || '').toLowerCase().includes(searchQuery)) &&
+  (!selectedLevel || log.level === selectedLevel) &&
+  (!selectedModule || log.module === selectedModule) &&
+  (!selectedDate || String(log.timestamp || '').startsWith(selectedDate))
+).sort((a, b) => {
+  const difference = Date.parse(a.timestamp) - Date.parse(b.timestamp);
+  if (!Number.isFinite(difference)) return 0;
+  return timestampSortDirection === 'ascending' ? difference : -difference;
+});
+
+const updateKpis = () => {
+  animateCounter(safeGetElement('kpiTotal'), logs.length);
+  animateCounter(safeGetElement('kpiCritical'), logs.filter(log => log.level === 'critical').length);
+  animateCounter(safeGetElement('kpiWarnings'), logs.filter(log => log.level === 'warning').length);
+  animateCounter(safeGetElement('kpiUsers'), new Set(logs.map(log => log.user).filter(Boolean)).size);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -133,20 +133,14 @@ const renderTable = () => {
   const empty = safeGetElement('tableEmpty');
   
   if (!tbody) {
-    console.error('❌ tbody no encontrado');
+    console.error('[SmileTrack] Audit log table body is missing.');
     return;
   }
   
   // Ocultar empty state por defecto
   if (empty) empty.hidden = true;
   
-  // Filtrar datos
-  const filtered = logs.filter(log =>
-    (!searchQuery || log.description.toLowerCase().includes(searchQuery.toLowerCase()) || log.user.toLowerCase().includes(searchQuery.toLowerCase())) &&
-    (!selectedLevel || log.level === selectedLevel) &&
-    (!selectedModule || log.module === selectedModule) &&
-    (!selectedDate || log.timestamp.startsWith(selectedDate))
-  );
+  const filtered = getFilteredLogs();
   
   // Paginar
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
@@ -158,10 +152,17 @@ const renderTable = () => {
   // ✅ CASO: Sin resultados → mostrar empty state
   if (!paginated.length) {
     tbody.innerHTML = '';
+    const selectAll = safeGetElement('selectAll');
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
     if (empty) {
       empty.hidden = false;
-      announceToScreenReader('No se encontraron eventos con los filtros aplicados');
+      announceToScreenReader('audit.no_results_announcement');
     }
+    updateBulkActions();
+    updateTableCount(0);
     updatePagination(0, 0);
     return;
   }
@@ -172,17 +173,19 @@ const renderTable = () => {
     const isSelected = selectedIds.has(log.id);
     
     return `
-      <tr role="row" tabindex="-1" data-id="${log.id}" data-level="${log.level}" class="${isSelected ? 'selected' : ''}">
+      <tr role="row" tabindex="-1" data-id="${escapeHtml(log.id)}" data-level="${escapeHtml(log.level)}" class="${isSelected ? 'selected' : ''}">
         <td class="checkbox-col">
-          <input type="checkbox" class="log-checkbox" value="${log.id}" aria-label="Seleccionar evento ${log.id}" ${isSelected ? 'checked' : ''}>
+            <input type="checkbox" class="log-checkbox" value="${escapeHtml(log.id)}" aria-label="${escapeHtml(t('audit.select_event_aria', { id: log.id }))}" ${isSelected ? 'checked' : ''}>
         </td>
-        <td><time datetime="${log.timestamp}">${fmtTimestamp(log.timestamp)}</time></td>
-        <td><span class="badge-level ${levelDef.class}" role="status" aria-label="Nivel: ${levelDef.label}">${levelDef.icon} ${levelDef.label}</span></td>
-        <td>${MODULES[log.module] || log.module}</td>
-        <td><span class="log-desc" title="${log.description}">${log.description}</span></td>
-        <td>${log.user}</td>
+          <td><time datetime="${escapeHtml(log.timestamp)}">${escapeHtml(fmtTimestamp(log.timestamp))}</time></td>
+          <td><span class="badge-level ${levelDef.class}" aria-label="${escapeHtml(t('audit.level_named_aria', { level: levelLabel(log.level) }))}"><span class="material-symbols-outlined" aria-hidden="true">${levelDef.icon}</span>${escapeHtml(levelLabel(log.level))}</span></td>
+          <td>${escapeHtml(moduleLabel(log.module))}</td>
+          <td><span class="log-desc" title="${escapeHtml(log.description)}">${escapeHtml(log.description)}</span></td>
+          <td>${escapeHtml(log.user || t('audit.not_available'))}</td>
         <td class="actions-cell">
-          <button class="btn-icon" title="Ver detalle" aria-label="Ver detalle del evento ${log.id}" data-action="view">🔍</button>
+            <button type="button" class="action-btn" title="${escapeHtml(t('audit.view_details'))}" aria-label="${escapeHtml(t('audit.view_details_aria', { id: log.id }))}" data-action="view">
+              <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+            </button>
         </td>
       </tr>
     `;
@@ -191,15 +194,13 @@ const renderTable = () => {
   // Agregar event listeners a las filas renderizadas
   tbody.querySelectorAll('tr[role="row"]').forEach(tr => {
     const logId = parseInt(tr.dataset.id, 10);
-    const log = logs.find(l => l.id === logId);
+    const log = logs.find(l => String(l.id) === tr.dataset.id);
+    if (!log) return;
     
     tr.addEventListener('click', (e) => {
       if (e.target.closest('.log-checkbox')) return;
-      if (e.target.closest('[data-action="view"]')) {
-        openLogModal(log);
-      } else {
-        toggleLogSelection(logId, tr);
-      }
+      if (e.target.closest('[data-action="view"]')) return;
+      toggleLogSelection(logId, tr);
     });
     
     tr.querySelector('.log-checkbox')?.addEventListener('change', (e) => {
@@ -208,7 +209,7 @@ const renderTable = () => {
     
     tr.querySelector('[data-action="view"]')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      openLogModal(log);
+      openLogModal(log, e.currentTarget);
     });
   });
   
@@ -216,14 +217,25 @@ const renderTable = () => {
   updateBulkActions();
   updatePagination(filtered.length, paginated.length);
   updateTableCount(filtered.length);
+  const selectAll = safeGetElement('selectAll');
+  if (selectAll) {
+    const visibleCheckboxes = Array.from(tbody.querySelectorAll('.log-checkbox'));
+    const selectedVisible = visibleCheckboxes.filter(checkbox => checkbox.checked).length;
+    selectAll.checked = visibleCheckboxes.length > 0 && selectedVisible === visibleCheckboxes.length;
+    selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleCheckboxes.length;
+  }
   
   // Anunciar a screen readers
-  announceToScreenReader(`${paginated.length} eventos cargados, página ${currentPage} de ${totalPages}`);
+  announceToScreenReader('audit.events_loaded_announcement', {
+    count: paginated.length,
+    page: currentPage,
+    totalPages
+  });
 };
 
 const updateTableCount = (count) => {
   const el = safeGetElement('tableCount');
-  if (el) el.textContent = count.toLocaleString('es-ES');
+  if (el) el.textContent = count.toLocaleString(window.I18N.lang === 'en' ? 'en-US' : 'es-CO');
 };
 
 const updateFilterBadge = () => {
@@ -241,7 +253,7 @@ const updateFilterBadge = () => {
   if (badge && badgeText) {
     if (activeCount > 0) {
       badge.hidden = false;
-      badgeText.textContent = `${activeCount} filtro${activeCount > 1 ? 's' : ''} activo${activeCount > 1 ? 's' : ''}`;
+      badgeText.textContent = t('audit.active_filter_count', { count: activeCount });
     } else {
       badge.hidden = true;
     }
@@ -252,13 +264,36 @@ const updateFilterBadge = () => {
   }
 };
 
+const updateModuleOptions = () => {
+  const select = safeGetElement('filterModule');
+  if (!select) return;
+
+  const selectedValue = selectedModule || select.value;
+  const allOption = document.createElement('option');
+  allOption.value = '';
+  allOption.textContent = t('audit.all_modules');
+
+  const options = [...new Set(logs.map(log => log.module).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, window.I18N.lang));
+  select.replaceChildren(allOption);
+  options.forEach(module => {
+    const option = document.createElement('option');
+    option.value = module;
+    option.textContent = moduleLabel(module);
+    select.appendChild(option);
+  });
+
+  selectedModule = options.includes(selectedValue) ? selectedValue : '';
+  select.value = selectedModule;
+};
+
 const updateBulkActions = () => {
   const bulkActions = safeGetElement('bulkActions');
   const bulkCount = safeGetElement('bulkCount');
   
   if (selectedIds.size > 0) {
     if (bulkActions) bulkActions.hidden = false;
-    if (bulkCount) bulkCount.textContent = `${selectedIds.size} seleccionado${selectedIds.size > 1 ? 's' : ''}`;
+    if (bulkCount) bulkCount.textContent = t('audit.selected_count', { count: selectedIds.size });
   } else {
     if (bulkActions) bulkActions.hidden = true;
   }
@@ -278,8 +313,12 @@ const updatePagination = (total, count) => {
   const totalPages = Math.ceil(total / itemsPerPage) || 1;
   const start = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const end = Math.min(currentPage * itemsPerPage, total);
-  
-  info.textContent = `Mostrando ${start}-${end} de ${total.toLocaleString('es-ES')} eventos`;
+  const rangeStart = safeGetElement('paginationRangeStart');
+  const rangeEnd = safeGetElement('paginationRangeEnd');
+  const paginationTotal = safeGetElement('paginationTotal');
+  if (rangeStart) rangeStart.textContent = start.toLocaleString(window.I18N.lang === 'en' ? 'en-US' : 'es-CO');
+  if (rangeEnd) rangeEnd.textContent = end.toLocaleString(window.I18N.lang === 'en' ? 'en-US' : 'es-CO');
+  if (paginationTotal) paginationTotal.textContent = total.toLocaleString(window.I18N.lang === 'en' ? 'en-US' : 'es-CO');
   
   if (btnFirst) {
     btnFirst.disabled = currentPage === 1;
@@ -303,6 +342,7 @@ const updatePagination = (total, count) => {
   }
   
   buttons.innerHTML = '';
+  if (total === 0) return;
   
   const maxVisible = 5;
   let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
@@ -313,18 +353,48 @@ const updatePagination = (total, count) => {
     const btn = document.createElement('button');
     btn.className = `pagination-btn ${i === currentPage ? 'active' : ''}`;
     btn.textContent = i;
-    btn.setAttribute('aria-label', `Ir a página ${i}`);
-    btn.setAttribute('aria-current', i === currentPage ? 'page' : 'false');
+    btn.setAttribute('aria-label', t('audit.go_to_page_aria', { page: i }));
+    if (i === currentPage) btn.setAttribute('aria-current', 'page');
     btn.addEventListener('click', () => { currentPage = i; renderTable(); });
     buttons.appendChild(btn);
   }
+};
+
+const openDialog = (modal, trigger) => {
+  if (!modal) return;
+  modalTrigger = trigger || document.activeElement;
+  previousBodyOverflow = document.body.style.overflow;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+  document.body.classList.add('modal-open');
+  document.body.style.overflow = 'hidden';
+
+  const firstFocusable = modal.querySelector('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])');
+  if (firstFocusable) firstFocusable.focus();
+};
+
+const closeDialog = (modal) => {
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  modal.setAttribute('inert', '');
+
+  if (!document.querySelector('.modal-overlay.open')) {
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = previousBodyOverflow;
+  }
+
+  const trigger = modalTrigger;
+  modalTrigger = null;
+  if (trigger && trigger.isConnected) trigger.focus();
 };
 
 // ═══════════════════════════════════════════════════════════════════
 //  MODAL: DETALLE DE EVENTO
 // ═══════════════════════════════════════════════════════════════════
 
-const openLogModal = (log) => {
+const openLogModal = (log, trigger) => {
   const levelDef = LOG_LEVELS[log.level] || LOG_LEVELS.info;
   
   const levelBadge = safeGetElement('modalLevelBadge');
@@ -336,15 +406,15 @@ const openLogModal = (log) => {
     const icon = levelBadge.querySelector('.level-icon');
     if (icon) icon.textContent = levelDef.icon;
   }
-  if (levelText) levelText.textContent = levelDef.label;
-  if (title) title.textContent = `Evento #${log.id}`;
+  if (levelText) levelText.textContent = levelLabel(log.level);
+  if (title) title.textContent = t('audit.event_detail_title', { id: log.id });
   
   safeGetElement('modalTimestamp').textContent = fmtTimestamp(log.timestamp);
   safeGetElement('modalTimestamp').setAttribute('datetime', log.timestamp);
-  safeGetElement('modalModule').textContent = MODULES[log.module] || log.module;
-  safeGetElement('modalUser').textContent = log.user;
-  safeGetElement('modalIp').textContent = log.ip || '—';
-  safeGetElement('modalDescription').textContent = log.description;
+  safeGetElement('modalModule').textContent = moduleLabel(log.module);
+  safeGetElement('modalUser').textContent = log.user || t('audit.not_available');
+  safeGetElement('modalIp').textContent = log.ip || t('audit.not_available');
+  safeGetElement('modalDescription').textContent = log.description || t('audit.not_available');
   
   const stackWrap = safeGetElement('modalStackTraceWrap');
   const stackPre = safeGetElement('modalStackTrace');
@@ -374,50 +444,39 @@ const openLogModal = (log) => {
   if (copyBtn) {
     copyBtn.onclick = async () => {
       try {
-        const text = `Evento #${log.id}\nNivel: ${levelDef.label}\nMódulo: ${MODULES[log.module]}\nUsuario: ${log.user}\nFecha: ${fmtTimestamp(log.timestamp)}\n\n${log.description}`;
+        const text = [
+          t('audit.event_detail_title', { id: log.id }),
+          `${t('audit.level')}: ${levelLabel(log.level)}`,
+          `${t('audit.module')}: ${moduleLabel(log.module)}`,
+          `${t('audit.user')}: ${log.user || t('audit.not_available')}`,
+          `${t('audit.timestamp')}: ${fmtTimestamp(log.timestamp)}`,
+          '',
+          log.description || t('audit.not_available')
+        ].join('\n');
         await navigator.clipboard.writeText(text);
-        showToast('📋 Detalles copiados al portapapeles');
+        showToast('audit.copy_success');
       } catch {
-        showToast('❌ Error al copiar', 'error');
+        showToast('audit.copy_error', 'error');
       }
     };
   }
   
   if (reportBtn) {
     reportBtn.onclick = () => {
-      showToast('🚨 Reporte enviado al equipo de soporte');
+      showToast('audit.report_sent');
       closeLogModal();
     };
   }
   
   const modal = safeGetElement('modalLog');
   if (modal) {
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    modal.removeAttribute('inert');
-    
-    const firstFocusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-    if (firstFocusable) firstFocusable.focus();
-    
-    document.body.style.overflow = 'hidden';
-    announceToScreenReader(`Detalle del evento ${log.id} cargado`);
+    openDialog(modal, trigger);
+    announceToScreenReader('audit.detail_loaded_announcement', { id: log.id });
   }
 };
 
 const closeLogModal = () => {
-  const modal = safeGetElement('modalLog');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
-    document.body.style.overflow = '';
-    
-    const lastTrigger = document.querySelector('[data-last-trigger]');
-    if (lastTrigger) {
-      lastTrigger.focus();
-      lastTrigger.removeAttribute('data-last-trigger');
-    }
-  }
+  closeDialog(safeGetElement('modalLog'));
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -437,8 +496,10 @@ const toggleLogSelection = (id, row, forceState) => {
   
   const selectAll = safeGetElement('selectAll');
   if (selectAll) {
-    selectAll.checked = selectedIds.size === logs.length;
-    selectAll.indeterminate = selectedIds.size > 0 && selectedIds.size < logs.length;
+    const visibleCheckboxes = Array.from(safeGetElement('logsTbody')?.querySelectorAll('.log-checkbox') || []);
+    const selectedVisible = visibleCheckboxes.filter(checkbox => checkbox.checked).length;
+    selectAll.checked = visibleCheckboxes.length > 0 && selectedVisible === visibleCheckboxes.length;
+    selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleCheckboxes.length;
   }
   
   updateBulkActions();
@@ -478,13 +539,13 @@ const initBulkActions = () => {
   });
   
   btnMarkRead?.addEventListener('click', () => {
-    showToast(`👁️ ${selectedIds.size} evento${selectedIds.size > 1 ? 's' : ''} marcado${selectedIds.size > 1 ? 's' : ''} como leído${selectedIds.size > 1 ? 's' : ''}`);
+    showToast('audit.mark_read_success', 'success', { count: selectedIds.size });
     selectedIds.clear();
     renderTable();
   });
   
   btnArchive?.addEventListener('click', () => {
-    showToast(`📦 ${selectedIds.size} evento${selectedIds.size > 1 ? 's' : ''} archivado${selectedIds.size > 1 ? 's' : ''}`);
+    showToast('audit.archive_success', 'success', { count: selectedIds.size });
     selectedIds.clear();
     renderTable();
   });
@@ -529,73 +590,25 @@ const resetFilters = () => {
   
   renderTable();
   updateFilterBadge();
-  showToast('🔄 Filtros reseteados');
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  LIVE MODE & CLOCK
-// ═══════════════════════════════════════════════════════════════════
-
-const updateClock = () => {
-  const el = safeGetElement('liveClock');
-  if (el) {
-    el.textContent = new Date().toLocaleTimeString('es-CO', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    });
-  }
-};
-
-const simulateLiveLogs = () => {
-  if (!isLiveMode) return;
-  
-  if (Math.random() < 0.1) {
-    const newLog = {
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-      level: ['info', 'success', 'warning'][Math.floor(Math.random() * 3)],
-      module: Object.keys(MODULES)[Math.floor(Math.random() * Object.keys(MODULES).length)],
-      description: 'Evento automático generado en modo live',
-      user: 'sistema',
-      ip: '127.0.0.1',
-    };
-    
-    logs.unshift(newLog);
-    if (currentPage === 1) {
-      renderTable();
-      showToast('🔄 Nuevo evento en bitácora', 'info');
-    }
-  }
+  showToast('audit.filters_reset');
 };
 
 // ═══════════════════════════════════════════════════════════════════
 //  EXPORTACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
-const openExportModal = () => {
+const openExportModal = (trigger) => {
   const modal = safeGetElement('modalExport');
-  if (modal) {
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    modal.removeAttribute('inert');
-    const closeBtn = safeGetElement('modalExportClose');
-    if (closeBtn) closeBtn.focus();
-    document.body.style.overflow = 'hidden';
-  }
+  openDialog(modal, trigger);
 };
 
 const closeExportModal = () => {
   const modal = safeGetElement('modalExport');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('inert', '');
-    document.body.style.overflow = '';
-    
-    const progress = safeGetElement('exportProgress');
-    const progressBar = safeGetElement('exportProgressBar');
-    if (progress) progress.hidden = true;
-    if (progressBar) progressBar.style.width = '0%';
-  }
+  closeDialog(modal);
+  const progress = safeGetElement('exportProgress');
+  const progressBar = safeGetElement('exportProgressBar');
+  if (progress) progress.hidden = true;
+  if (progressBar) progressBar.style.width = '0%';
 };
 
 const executeExport = async () => {
@@ -608,7 +621,7 @@ const executeExport = async () => {
   const confirmBtn = safeGetElement('modalExportConfirm');
   
   if (progress) progress.hidden = false;
-  if (progressText) progressText.textContent = 'Generando archivo...';
+  if (progressText) progressText.textContent = t('audit.export_generating');
   if (confirmBtn) confirmBtn.disabled = true;
   
   let pct = 0;
@@ -620,8 +633,14 @@ const executeExport = async () => {
     }
     if (progressBar) progressBar.style.width = `${pct}%`;
     if (progressText && pct < 100) {
-      const steps = ['Preparando datos...', 'Filtrando eventos...', 'Generando archivo...', 'Comprimiendo...', '¡Listo!'];
-      progressText.textContent = steps[Math.min(Math.floor(pct / 20), steps.length - 1)];
+      const steps = [
+        'audit.export_preparing',
+        'audit.export_filtering',
+        'audit.export_generating',
+        'audit.export_compressing',
+        'audit.export_ready'
+      ];
+      progressText.textContent = t(steps[Math.min(Math.floor(pct / 20), steps.length - 1)]);
     }
   }, 250);
   
@@ -632,13 +651,13 @@ const executeExport = async () => {
     if (progressBar) progressBar.style.width = '100%';
     
     const fileName = `bitacora-${new Date().toISOString().split('T')[0]}.${format}`;
-    showToast(`✅ ${fileName} descargado exitosamente`);
+    showToast('audit.export_downloaded', 'success', { fileName, range: t(range === 'all' ? 'audit.export_all' : 'audit.export_filtered') });
     
     setTimeout(closeExportModal, 1000);
     
   } catch (error) {
-    console.warn('Error exportando:', error);
-    showToast('❌ Error al generar el archivo', 'error');
+    console.error('[SmileTrack] Audit export failed.', error);
+    showToast('audit.export_error', 'error');
   } finally {
     setTimeout(() => {
       if (confirmBtn) confirmBtn.disabled = false;
@@ -647,71 +666,63 @@ const executeExport = async () => {
   }
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  API CALLS
-// ═══════════════════════════════════════════════════════════════════
-
-async function fetchLogs(filters = {}) {
+const refreshLogs = async (notifySuccess = false) => {
+  if (refreshInProgress) return;
+  refreshInProgress = true;
   try {
-    return { logs: SAMPLE_LOGS, total: 3842, kpis: { total: 3842, critical: 7, warnings: 23 } };
+    const response = await fetch('/api/v1/reportes/bitacora?page=1&pageSize=100', {
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin'
+    });
+    if (!response.ok) throw new Error(`Audit log request failed (${response.status}).`);
+
+    const result = await response.json();
+    if (result.success !== true || !Array.isArray(result.data)) {
+      throw new Error('The audit log response has an invalid shape.');
+    }
+
+    logs = result.data.map(mapAuditRecord);
+    selectedIds = new Set([...selectedIds].filter(id => logs.some(log => log.id === id)));
+    updateModuleOptions();
+    updateKpis();
+    renderTable();
+    updateFilterBadge();
+    if (notifySuccess) showToast('audit.refreshed', 'info');
   } catch (error) {
-    console.warn('Fallback a datos locales:', error);
-    return { logs: SAMPLE_LOGS, total: 3842, kpis: { total: 3842, critical: 7, warnings: 23 } };
+    console.error('[SmileTrack] Audit log refresh failed.', error);
+    isLiveMode = false;
+    const toggleLive = safeGetElement('toggleLive');
+    if (toggleLive) toggleLive.checked = false;
+    if (liveRefreshTimer) clearInterval(liveRefreshTimer);
+    liveRefreshTimer = null;
+    showToast('audit.refresh_error', 'error');
+  } finally {
+    refreshInProgress = false;
   }
-}
+};
 
 // ═══════════════════════════════════════════════════════════════════
 //  INICIALIZACIÓN DE COMPONENTES
 // ═══════════════════════════════════════════════════════════════════
-
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-
-  if (!hamburger || !sidebar || !overlay) return;
-
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
-    
-    if (show) {
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      hamburger.focus();
-    }
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
-};
 
 const initFilters = () => {
   const searchInput = safeGetElement('searchLog');
   const searchClear = safeGetElement('searchClear');
   const filterReset = safeGetElement('filterReset');
   const emptyResetBtn = safeGetElement('emptyResetBtn');
+  const sortTimestamp = safeGetElement('sortTimestamp');
+  const timestampHeader = safeGetElement('timestampHeader');
+  updateModuleOptions();
   
   searchInput?.addEventListener('input', debounce(applyFilters, 250));
   safeGetElement('filterLevel')?.addEventListener('change', applyFilters);
   safeGetElement('filterModule')?.addEventListener('change', applyFilters);
   safeGetElement('filterDate')?.addEventListener('change', applyFilters);
+  sortTimestamp?.addEventListener('click', () => {
+    timestampSortDirection = timestampSortDirection === 'descending' ? 'ascending' : 'descending';
+    timestampHeader?.setAttribute('aria-sort', timestampSortDirection);
+    renderTable();
+  });
   
   searchClear?.addEventListener('click', () => {
     if (searchInput) {
@@ -746,13 +757,13 @@ const initPagination = () => {
   
   const jumpToPage = () => {
     const page = parseInt(jumpInput?.value, 10);
-    const totalPages = Math.ceil(logs.length / itemsPerPage);
+    const totalPages = Math.ceil(getFilteredLogs().length / itemsPerPage);
     if (page && page >= 1 && page <= totalPages) {
       currentPage = page;
       renderTable();
       jumpInput.value = '';
     } else {
-      showToast(`⚠️ Página entre 1 y ${totalPages}`, 'warning');
+      showToast('audit.page_out_of_range', 'warning', { totalPages });
     }
   };
   
@@ -763,12 +774,12 @@ const initPagination = () => {
   
   btnFirst?.addEventListener('click', () => { if (currentPage > 1) { currentPage = 1; renderTable(); } });
   btnLast?.addEventListener('click', () => {
-    const totalPages = Math.ceil(logs.length / itemsPerPage);
+    const totalPages = Math.ceil(getFilteredLogs().length / itemsPerPage);
     if (currentPage < totalPages) { currentPage = totalPages; renderTable(); }
   });
   btnPrev?.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderTable(); } });
   btnNext?.addEventListener('click', () => {
-    const totalPages = Math.ceil(logs.length / itemsPerPage);
+    const totalPages = Math.ceil(getFilteredLogs().length / itemsPerPage);
     if (currentPage < totalPages) { currentPage++; renderTable(); }
   });
 };
@@ -788,37 +799,58 @@ const initModals = () => {
   const modalExportCancel = safeGetElement('modalExportCancel');
   const modalExportConfirm = safeGetElement('modalExportConfirm');
   
-  btnExport?.addEventListener('click', openExportModal);
+  btnExport?.addEventListener('click', (event) => openExportModal(event.currentTarget));
   modalExportClose?.addEventListener('click', closeExportModal);
   modalExportCancel?.addEventListener('click', closeExportModal);
   modalExport?.addEventListener('click', (e) => { if (e.target === modalExport) closeExportModal(); });
   modalExportConfirm?.addEventListener('click', executeExport);
   
   document.addEventListener('keydown', (e) => {
+    const activeModal = document.querySelector('.modal-overlay.open');
+    if (!activeModal) return;
+
     if (e.key === 'Escape') {
-      if (modalLog?.classList.contains('open')) { e.preventDefault(); closeLogModal(); }
-      if (modalExport?.classList.contains('open')) { e.preventDefault(); closeExportModal(); }
+      e.preventDefault();
+      if (activeModal === modalLog) closeLogModal();
+      else if (activeModal === modalExport) closeExportModal();
+    } else if (e.key === 'Tab') {
+      const focusable = Array.from(activeModal.querySelectorAll(
+        'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'
+      )).filter((element) => !element.hasAttribute('hidden'));
+      if (focusable.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   });
 };
 
 const initLiveFeatures = () => {
-  updateClock();
-  setInterval(updateClock, 1000);
-  
   const toggleLive = safeGetElement('toggleLive');
+  const setLiveRefresh = (enabled) => {
+    isLiveMode = enabled;
+    if (liveRefreshTimer) clearInterval(liveRefreshTimer);
+    liveRefreshTimer = enabled ? setInterval(() => refreshLogs(), 30000) : null;
+  };
+
+  if (toggleLive) setLiveRefresh(toggleLive.checked);
   toggleLive?.addEventListener('change', (e) => {
-    isLiveMode = e.target.checked;
-    showToast(isLiveMode ? '🔄 Actualización en vivo activada' : '⏸️ Actualización en vivo pausada');
+    setLiveRefresh(e.target.checked);
+    showToast(isLiveMode ? 'audit.live_enabled' : 'audit.live_paused');
   });
-  
-  setInterval(simulateLiveLogs, 10000);
-  
+
   const btnRefresh = safeGetElement('btnRefresh');
-  btnRefresh?.addEventListener('click', () => {
-    renderTable();
-    showToast('🔄 Bitácora actualizada');
-  });
+  btnRefresh?.addEventListener('click', () => refreshLogs(true));
 };
 
 const initTableKeyboardNav = () => {
@@ -854,9 +886,8 @@ const initTableKeyboardNav = () => {
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
-const init = async () => {
+const init = () => {
   // Inicializar componentes de UI
-  initSidebar();
   initFilters();
   initPagination();
   initModals();
@@ -864,14 +895,7 @@ const init = async () => {
   initBulkActions();
   initTableKeyboardNav();
   
-  // Cargar datos
-  const data = await fetchLogs();
-  logs = data.logs;
-  
-  // Actualizar KPIs
-  animateCounter(safeGetElement('kpiTotal'), data.kpis?.total || 3842);
-  animateCounter(safeGetElement('kpiCritical'), data.kpis?.critical || 7);
-  animateCounter(safeGetElement('kpiWarnings'), data.kpis?.warnings || 23);
+  updateKpis();
   
   // ✅ Renderizar tabla INMEDIATAMENTE (sin delay, sin loading)
   renderTable();
@@ -879,14 +903,16 @@ const init = async () => {
   
   // Toast de bienvenida
   setTimeout(() => {
-    showToast('✅ Bitácora cargada - Modo live activo');
+    showToast('audit.loaded');
   }, 500);
   
-  // Cleanup
-  window.addEventListener('beforeunload', () => {
-    // Remover listeners en SPA real
-  });
 };
 
-// ✅ Ejecutar al cargar DOM
 document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('i18n:change', () => {
+  updateKpis();
+  updateModuleOptions();
+  renderTable();
+  updateFilterBadge();
+});
+})();

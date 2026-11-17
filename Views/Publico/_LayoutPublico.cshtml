@@ -1,0 +1,164 @@
+@*
+    SmileTrack — Layout Público (_LayoutPublico.cshtml)
+    Layout optimizado para visitantes externos, páginas legales y landing pages públicas.
+    Incluye:
+      1. Metadatos SEO, OpenGraph y Twitter Cards.
+      2. Carga optimizada de tipografía (DM Sans + Syne / Montserrat).
+      3. Header institucional con navegación pública y acceso a Login.
+      4. Conmutador de idioma internacional.
+      5. Footer completo con enlaces legales (Términos, Privacidad, PQRS).
+*@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index, follow" />
+    <meta name="description" content="@(ViewData["Description"] ?? "SmileTrack es la plataforma de gestión odontológica para agendar citas, consultar tratamientos y contactar especialistas.")" />
+    <meta name="keywords" content="odontología, citas dentales, clínica dental, odontograma, historial clínico, SmileTrack" />
+    <link rel="canonical" href="https://smiletrack.co@(Context.Request.Path)" />
+
+    <!-- Open Graph / Redes Sociales -->
+    <meta property="og:title" content="@(ViewData["Title"] != null ? ViewData["Title"] + " — SmileTrack" : "SmileTrack | Agenda tu cita dental en línea")" />
+    <meta property="og:description" content="@(ViewData["Description"] ?? "Reserva tu cita, consulta especialistas y gestiona tu salud bucal con seguridad y soporte profesional.")" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://smiletrack.co@(Context.Request.Path)" />
+    <meta property="og:image" content="https://smiletrack.co/images/Imagenes/Logos/logo.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <title>@(ViewData["Title"] != null ? ViewData["Title"] + " — SmileTrack" : "SmileTrack | Agenda cita dental, gestiona tu salud bucal")</title>
+
+    <!-- Fuentes institucionales e iconos -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+    <!-- Estilos base y scrollbars -->
+    <link rel="stylesheet" href="~/css/generated/tailwind.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/shared/accessibility.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/shared/variables.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/shared/scrollbars.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/Publico/public-layout.css" asp-append-version="true" />
+
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body class="public-site bg-[#f9f9ff] text-[#021c3a] font-['DM_Sans',sans-serif] overflow-x-hidden antialiased">
+
+    <a class="skip-link" href="#main-content" data-i18n="layout_skip_to_content">Saltar al contenido principal</a>
+
+    <!-- Navbar Público Principal -->
+    <header id="site-header" class="fixed top-0 w-full z-50 transition-all duration-300 h-[72px] bg-white/90 backdrop-blur-xl border-b border-[#c0c7d4]/30 shadow-sm">
+        <nav class="flex justify-between items-center px-6 md:px-10 h-full max-w-[1280px] mx-auto gap-6">
+            <!-- Logo -->
+            <a href="/" class="flex items-center gap-3 group" aria-label="Ir a la página principal de SmileTrack">
+                <div class="h-10 w-10 rounded-xl overflow-hidden flex items-center justify-center bg-[#005ea4]/10 shadow-sm">
+                    <img alt="Logo SmileTrack" class="h-10 w-auto object-contain" width="40" height="40"
+                         src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" />
+                </div>
+                <span class="text-xl font-bold tracking-tight text-[#002a58] font-['Syne',sans-serif]">SmileTrack</span>
+            </a>
+
+            <!-- Enlaces de navegación -->
+            <div class="hidden md:flex public-nav-links items-center gap-8 font-medium text-sm text-[#424750]">
+                <a href="/#servicios" class="hover:text-[#005ea4] transition-colors" data-i18n="home.nav_services">Especialidades</a>
+                <a href="/#beneficios" class="hover:text-[#005ea4] transition-colors" data-i18n="home.nav_benefits">Por qué elegirnos</a>
+                <a href="/#contacto" class="hover:text-[#005ea4] transition-colors" data-i18n="home.nav_contact">Contacto</a>
+                <a href="/centro-de-ayuda/guias-tutoriales" class="hover:text-[#005ea4] transition-colors" data-i18n="home.nav_help">Centro de Ayuda</a>
+            </div>
+
+            <details class="relative md:hidden public-mobile-menu">
+                <summary class="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full text-[#002a58] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#005ea4]"
+                         aria-label="Abrir navegación">
+                    <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+                </summary>
+                <div class="absolute right-0 top-full mt-2 grid min-w-56 gap-1 rounded-xl border border-slate-200 bg-white p-3 text-sm font-medium text-[#424750] shadow-xl">
+                    <a class="rounded-lg px-3 py-2 hover:bg-slate-100" href="/#servicios" data-i18n="home.nav_services">Especialidades</a>
+                    <a class="rounded-lg px-3 py-2 hover:bg-slate-100" href="/#beneficios" data-i18n="home.nav_benefits">Por qué elegirnos</a>
+                    <a class="rounded-lg px-3 py-2 hover:bg-slate-100" href="/#contacto" data-i18n="home.nav_contact">Contacto</a>
+                    <a class="rounded-lg px-3 py-2 hover:bg-slate-100" href="/centro-de-ayuda/guias-tutoriales" data-i18n="home.nav_help">Centro de Ayuda</a>
+                </div>
+            </details>
+
+            <!-- Acciones -->
+            <div class="public-header-actions flex items-center gap-3">
+                @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+                <a href="/acceso-y-seguridad/login"
+                   class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#005ea4] text-white text-sm font-semibold hover:bg-[#004881] shadow-md shadow-[#005ea4]/20 transition-all active:scale-95">
+                    <span data-i18n="home.cta_login">Iniciar sesión</span>
+                </a>
+            </div>
+        </nav>
+    </header>
+
+    @if (ViewData["HideHeaderSpacer"] as bool? != true)
+    {
+        <div class="h-[72px]" aria-hidden="true"></div>
+    }
+
+    <!-- Contenido de la vista pública -->
+    @RenderBody()
+
+    <!-- Footer Institucional -->
+    <footer class="bg-[#0f172a] text-[#94a3b8] py-14 border-t border-slate-800">
+        <div class="max-w-[1280px] mx-auto px-6 md:px-10 grid grid-cols-1 md:grid-cols-4 gap-10">
+            <div class="space-y-4 md:col-span-1">
+                <div class="flex items-center gap-3">
+                    <img alt="SmileTrack" class="h-8 w-auto rounded-lg bg-white/10 p-1" width="32" height="32"
+                         src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" />
+                    <span class="text-white font-bold text-lg font-['Syne',sans-serif]">SmileTrack</span>
+                </div>
+                <p class="text-xs leading-relaxed">
+                    Consulta los servicios publicados y accede a las funciones de gestión odontológica de SmileTrack.
+                </p>
+            </div>
+
+            <div>
+                <h4 class="text-white font-semibold text-sm mb-4">Catálogo</h4>
+                <ul class="space-y-2 text-xs">
+                    <li><a href="/#servicios" class="hover:text-white transition">Servicios activos</a></li>
+                    <li><a href="/#beneficios" class="hover:text-white transition">Funciones de la plataforma</a></li>
+                    <li><a href="/#contacto" class="hover:text-white transition">Crear una cuenta</a></li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="text-white font-semibold text-sm mb-4">Plataforma</h4>
+                <ul class="space-y-2 text-xs">
+                    <li><a href="/acceso-y-seguridad/login" class="hover:text-white transition">Portal de Usuarios</a></li>
+                    <li><a href="/acceso-y-seguridad/register" class="hover:text-white transition">Registro de Pacientes</a></li>
+                    <li><a href="/centro-de-ayuda/guias-tutoriales" class="hover:text-white transition">Guías y Tutoriales</a></li>
+                    <li><a href="/centro-de-ayuda/soporte" class="hover:text-white transition">Soporte Técnico</a></li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="text-white font-semibold text-sm mb-4">Legal y Contacto</h4>
+                <ul class="space-y-2 text-xs">
+                    <li><a href="/terminos" class="hover:text-white transition" data-i18n="common.terms">Términos y Condiciones</a></li>
+                    <li><a href="/privacidad" class="hover:text-white transition" data-i18n="common.privacy">Política de Privacidad</a></li>
+                    <li><a href="/politica-tratamiento" class="hover:text-white transition">Política de Tratamiento (borrador)</a></li>
+                    <li><a href="/gestion-de-pqr/st-pac-04-nueva-pqr" class="hover:text-white transition">PQR y Solicitudes</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="max-w-[1280px] mx-auto px-6 md:px-10 mt-8">
+            @await Html.PartialAsync("~/Views/Publico/_AvisoDatosDemo.cshtml")
+        </div>
+
+        <div class="max-w-[1280px] mx-auto px-6 md:px-10 mt-12 pt-6 border-t border-slate-800 text-xs flex flex-col md:flex-row items-center justify-between gap-4">
+            <p>&copy; @DateTime.Now.Year SmileTrack. Todos los derechos reservados.</p>
+            <p class="text-slate-500">Plataforma de gestión odontológica SmileTrack.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts compartidos para el sitio público -->
+    <script src="~/js/shared/common.js" asp-append-version="true" defer></script>
+    <script src="~/js/i18n-core.js" asp-append-version="true"></script>
+    <script src="~/js/i18n.config.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

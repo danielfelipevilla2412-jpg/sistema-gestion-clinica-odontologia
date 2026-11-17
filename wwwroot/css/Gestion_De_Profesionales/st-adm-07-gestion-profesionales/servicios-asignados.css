@@ -1,0 +1,105 @@
+.assigned-services-page {
+  max-width: 1100px;
+  margin-inline: auto;
+}
+
+.assigned-services-page .assigned-card {
+  min-width: 0;
+  margin: 0 0 var(--space-4);
+  padding: clamp(var(--space-4), 2vw, var(--space-6));
+}
+
+.assigned-services-page .assigned-professional-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.assigned-services-page .assigned-service-form {
+  display: grid;
+  gap: var(--space-3);
+  width: min(100%, 680px);
+  margin-top: var(--space-4);
+}
+
+.assigned-services-page .assigned-field {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.assigned-services-page .assigned-field > label {
+  color: var(--text);
+  font-size: var(--text-sm, .8125rem);
+  font-weight: 600;
+}
+
+.assigned-services-page .filter-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+}
+
+.assigned-services-page .assigned-feedback,
+.assigned-services-page .assigned-notice {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+}
+
+.assigned-services-page .assigned-feedback-error {
+  border-color: var(--danger);
+  color: #b91c1c;
+}
+
+.assigned-services-page .assigned-feedback-success {
+  border-color: var(--success);
+  color: #166534;
+}
+
+.assigned-services-page .assigned-intro,
+.assigned-services-page .assigned-specialties {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+}
+
+.assigned-services-page .assigned-selection-status {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.assigned-services-page .assigned-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.assigned-services-page .assigned-table {
+  min-width: 760px;
+}
+
+.assigned-services-page .assigned-action-form {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.assigned-services-page .assigned-action-form .btn-secondary {
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .assigned-services-page .assigned-professional-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assigned-services-page .assigned-professional-form .btn-primary {
+    width: 100%;
+  }
+}

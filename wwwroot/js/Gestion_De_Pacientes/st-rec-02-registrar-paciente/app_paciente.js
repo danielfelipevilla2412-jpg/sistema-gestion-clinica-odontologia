@@ -18,56 +18,21 @@ const safeGetElement = (id) => {
 };
 
 /**
- * [MEJORA]: Toast con cleanup de timeout para evitar solapamientos
- * Consistente con módulos anteriores - mejora robustez en notificaciones rápidas
+ * [MEJORA]: Notificación delegada al sistema compartido (window.ToastService).
+ * El contenedor de toasts lo provee el shell compartido (_Toasts.cshtml),
+ * por lo que esta vista ya no administra un #toastContainer propio.
  * @param {string} message - Mensaje a mostrar
  * @param {'success'|'error'} type - Tipo de toast
  */
 const showToast = (message, type = 'success') => {
-  const toastContainer = safeGetElement('toastContainer');
-  if (!toastContainer) return;
-
-  const toast = document.createElement('div');
-  toast.className = `toast ${type === 'error' ? 'error' : ''}`;
-  toast.setAttribute('role', 'alert');
-  toast.setAttribute('aria-live', 'assertive');
-
-  const icon = type === 'error' ? '⚠️' : '✅';
-  const title = type === 'error' ? 'Error' : 'Éxito';
-
-  toast.innerHTML = `
-    <span class="toast-icon" aria-hidden="true">${icon}</span>
-    <div class="toast-content">
-      <p class="toast-title">${title}</p>
-      <p class="toast-desc">${message}</p>
-    </div>
-    <button class="toast-close" aria-label="Cerrar notificación">×</button>
-  `;
-
-  toastContainer.appendChild(toast);
-
-  // [MEJORA]: Usar requestAnimationFrame para animación sincronizada
-  requestAnimationFrame(() => {
-    toast.classList.add('show');
-  });
-
-  // Cerrar manualmente
-  const closeBtn = toast.querySelector('.toast-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 250);
-    });
+  const service = window.ToastService;
+  if (!service || typeof service[type] !== 'function') {
+    console.warn('[SmileTrack][Paciente] ToastService no está disponible.');
+    return;
   }
 
-  // [MEJORA]: Auto-cerrar con cleanup de timeout para evitar memory leaks
-  const autoCloseTimeout = setTimeout(() => {
-    toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 250);
-  }, 4500);
-
-  // Guardar referencia para cleanup si se cierra manualmente antes
-  toast._autoCloseTimeout = autoCloseTimeout;
+  const title = type === 'error' ? 'Error' : 'Éxito';
+  service[type](title, message);
 };
 
 // ═══ CONFIGURACIÓN DEL FORMULARIO ═══
@@ -337,7 +302,7 @@ const init = () => {
       // Estado de carga con deshabilitación
       saveBtn.disabled = true;
       saveBtn.setAttribute('aria-busy', 'true');
-      saveBtn.innerHTML = '<span aria-hidden="true">⏳</span> Guardando...';
+      saveBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">progress_activity</span> Guardando...';
 
       try {
         const formData = new FormData(patientForm);
@@ -365,7 +330,7 @@ const init = () => {
           throw new Error(result.message || 'No fue posible registrar el paciente.');
         }
 
-        showToast(`✓ ${result.message}`, 'success');
+        showToast(result.message, 'success');
         if (autoHC && result.codigoHistoria) autoHC.textContent = result.codigoHistoria;
 
         saveBtn.disabled = false;

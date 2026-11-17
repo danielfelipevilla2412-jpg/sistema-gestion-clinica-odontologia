@@ -115,4 +115,32 @@ public static class EstadoCitaHelper
             _ => false
         };
     }
+
+    /// <summary>
+    /// Construye un mensaje legible para el usuario cuando una transición de estado
+    /// no está permitida. Fuente canónica única para toda la aplicación.
+    /// </summary>
+    public static string ConstruirMensajeTransicionNoPermitida(string estadoActual, string nuevoEstado)
+    {
+        return estadoActual switch
+        {
+            "solicitada" => "Una solicitud solo puede pasar a Programada o Confirmada. Para cancelar o rechazar la solicitud use la acción correspondiente.",
+            "programada" => "Una cita programada solo puede pasar a Confirmada o En sala de espera. Para cancelar la cita use la función de cancelación.",
+            "confirmada" => "Una cita confirmada solo puede pasar a En sala de espera o En consulta. Para cancelar la cita use la función de cancelación.",
+            "en_sala_de_espera" => "Una cita en sala de espera solo puede pasar a En consulta. Para cancelar la cita use la función de cancelación.",
+            "en_proceso" => "Una cita en consulta solo puede pasar a Atendida.",
+            "atendida" or "finalizada" => "Una cita atendida ya está finalizada y no puede regresar a otro estado.",
+            "cancelada" => "Una cita cancelada es definitiva y no puede reactivarse desde la agenda del profesional.",
+            "no_asistida" => "Una cita marcada como No asistió es definitiva y no puede reactivarse desde la agenda del profesional.",
+            _ => $"No está permitido cambiar una cita de '{estadoActual}' a '{nuevoEstado}'."
+        };
+    }
+
+    /// <summary>
+    /// Evalúa si un texto de estado corresponde a alguna variante de "cancelada".
+    /// </summary>
+    public static bool EsEstadoCancelado(string? estado)
+    {
+        return Normalize(estado) is "cancelada" or "cancelado";
+    }
 }

@@ -26,9 +26,9 @@ namespace SmileTrack_MVC.Models.ViewModels
 
         // KPIs principales
         public int TotalCitas { get; set; }
-        public double TendenciaCitas { get; set; }
+        public double? TendenciaCitas { get; set; }
         public decimal Ingresos { get; set; }
-        public double TendenciaIngresos { get; set; }
+        public double? TendenciaIngresos { get; set; }
         public int PacientesUnicos { get; set; }
         public int Cancelaciones { get; set; }
         public double TasaCancelacion { get; set; }
@@ -69,6 +69,7 @@ namespace SmileTrack_MVC.Models.ViewModels
     public class ProximoDiaViewModel
     {
         public string DiaNombre { get; set; } = string.Empty;
+        public string ClaveDia { get; set; } = string.Empty;
         public string Fecha { get; set; } = string.Empty;
         public int CantidadCitas { get; set; }
         public bool EsHoy { get; set; }
@@ -82,6 +83,7 @@ namespace SmileTrack_MVC.Models.ViewModels
         public string Servicio { get; set; } = string.Empty;
         public string Hora { get; set; } = string.Empty;
         public string Estado { get; set; } = "Completada";
-        public string EstadoClase { get; set; } = "status--completed";
+        public string EstadoClase { get; set; } = "neutral";
+        public string ClaveEstado { get; set; } = "reportesadmin_state_other";
     }
 }

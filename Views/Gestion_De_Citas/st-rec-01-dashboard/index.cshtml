@@ -17,6 +17,7 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Dashboard Recepción";
+    ViewData["UseGestionModulesDesignSystem"] = true;
     var dashboardRecDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["DashboardRecData"] ?? new object());
 }
 
@@ -33,7 +34,7 @@
         <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
           <span data-i18n="common_role_recepcionista">Recepción</span>
           <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active" data-i18n="rec01_title">Panel de Recepción</span>
+          <span class="bc-active" aria-current="page" data-i18n="rec01_title">Panel de Recepción</span>
         </nav>
         <h1 class="page-title" data-i18n="rec01_title">Panel de Recepción</h1>
         <!-- [MEJORA]: time datetime para accesibilidad de fecha/hora -->
@@ -167,10 +168,13 @@
   <!-- Toast -->
   <!-- [MEJORA]: aria-atomic="true" para que lectores anuncien mensaje completo -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+@section Scripts {
   <script>
     window.smiletrackDashboardRecData = @Html.Raw(dashboardRecDataJson);
   </script>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-rec-01-dashboard/app.js")" defer></script>
+  <script src="~/js/Gestion_De_Citas/st-rec-01-dashboard/app.js" asp-append-version="true" defer></script>
+}
 
   <!-- Mobile bottom nav — Recepcionista -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
@@ -187,11 +191,3 @@
       <span>Perfil</span>
     </a>
   </nav>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
-    </div>
-    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
-  </footer>

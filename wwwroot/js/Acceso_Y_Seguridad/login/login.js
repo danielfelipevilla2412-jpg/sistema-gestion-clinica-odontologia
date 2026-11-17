@@ -5,19 +5,16 @@
    Fecha: 29/07/2026 (Actualizado 2026-09-12)
 
    DESCRIPCIÓN Y POR QUÉ DE ARQUITECTURA Y SEGURIDAD:
-   Controla la experiencia cliente del inicio de sesión. Garantiza que el usuario seleccione un rol válido
-   antes de enviar el formulario, valida el formato del correo electrónico en tiempo real y ofrece feedback
-   inmediato ante errores de autenticación devueltos por el servidor C#.
+   Controla la experiencia cliente del inicio de sesión, valida el formato del correo electrónico en tiempo
+   real y ofrece feedback ante errores de autenticación devueltos por el servidor C#.
 
    FUNCIONALIDADES PRINCIPALES:
-   - Selección de Rol: Maneja el estado activo de los botones de rol (`data-role`) e inyecta el valor en un input hidden.
    - Visibilidad de Contraseña: Toggle seguro del tipo de input (`password` ↔ `text`) con actualización de icono ARIA.
    - Validación Formato Email: Verifica sintaxis mediante utilidades de validación compartidas (`ValidationUtils`).
    - Gestión de Modal de Error: Captura respuestas de fallo del servidor y despliega el modal interactivo `#authErrorModal`.
 
    NOTAS DE SEGURIDAD Y MANTENIMIENTO:
-   - El backend siempre valida que el rol seleccionado en cliente coincida con los Claims asignados al usuario en SQL Server.
-   - Se utiliza `sessionStorage` para almacenar temporalmente tokens de sesión cuando se requiera fallback JWT.
+   - El rol y la redirección se determinan exclusivamente con la cuenta autenticada en el servidor.
 ============================================ */
 
 // Esperamos a que el DOM esté listo antes de manipular elementos.
@@ -29,12 +26,12 @@ document.addEventListener('DOMContentLoaded', function () {
   // Esto es más eficiente que llamar a getElementById() múltiples veces en cada evento.
   const emailInput = document.getElementById('email');               // Campo de correo electrónico
   const passInput = document.getElementById('password');             // Campo de contraseña
+  const roleInput = document.getElementById('rol');                  // Rol solicitado para el inicio de sesión
   const loginForm = document.getElementById('loginForm');            // Formulario completo de login
   const loginBtn = document.getElementById('loginBtn');              // Botón de envío del formulario
+  const defaultLoginButtonMarkup = loginBtn?.innerHTML || '<span id="btnText">Iniciar Sesión</span>';
   const toggleBtn = document.getElementById('togglePassword');       // Botón ojo para ver/ocultar contraseña
   const toggleIcon = document.getElementById('toggleIcon');          // Ícono de Material Symbols dentro del botón
-  const roleButtons = document.querySelectorAll('.role-btn');        // Todos los botones de selección de rol
-  const selectedRoleInput = document.getElementById('selectedRole'); // Input hidden que almacena el rol elegido
   const authModal = document.getElementById('authErrorModal');       // Modal de error de autenticación (cuenta bloqueada)
   const authErrorClose = document.getElementById('authErrorClose');  // Botón X para cerrar el modal
   const authErrorCloseBtn = document.getElementById('authErrorCloseBtn'); // Botón secundario de cierre
@@ -122,50 +119,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // SECCIÓN 3: SELECTOR INTERACTIVO DE ROLES (RADIO GROUP SEMÁNTICO)
-  // ═══════════════════════════════════════════════════════════════════
-  // POR QUÉ: El sistema tiene múltiples roles (Paciente, Profesional, Administrador) con
-  // diferentes pantallas de destino tras el login. El rol seleccionado en cliente se inyecta
-  // en el input hidden `#selectedRole` para que el backend C# lo valide contra los Claims
-  // del usuario en la base de datos SQL Server.
-  // Nota: aunque el cliente envíe un rol equivocado, el backend siempre verifica la consistencia.
-  const activateRole = (btn) => {
-    // Primero desactivamos TODOS los botones de rol (limpieza de estado previo)
-    roleButtons.forEach((b) => {
-      b.classList.remove('active');          // Quita estilos visuales de activo
-      b.setAttribute('aria-checked', 'false'); // Anuncia a lectores de pantalla que está inactivo
-    });
-    // Luego activamos únicamente el botón clickeado
-    btn.classList.add('active');
-    btn.setAttribute('aria-checked', 'true');
-
-    // Sincronizamos el valor del input hidden con el rol elegido.
-    // Preferimos `data-role-label` (texto legible) sobre `data-role` (clave técnica) para el POST.
-    if (selectedRoleInput) {
-      selectedRoleInput.value = btn.dataset.roleLabel || btn.dataset.role || 'Profesional';
-    }
-  };
-
-  // Soporte dual: clic del ratón Y navegación por teclado (Enter / Espacio).
-  // POR QUÉ: Los botones con role="radio" deben activarse también con teclado según WCAG 2.1.
-  roleButtons.forEach((btn) => {
-    btn.addEventListener('click', () => activateRole(btn));
-    btn.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault(); // Previene scroll de página al presionar Espacio
-        activateRole(btn);
-      }
-    });
-  });
-
-  // Activación del rol por defecto al cargar la página.
-  // POR QUÉ: El formulario no debe quedar sin un rol seleccionado, ya que el backend
-  // rechazaría el POST si selectedRole está vacío. Se prioriza 'profesional' como rol más común.
-  const defaultBtn = Array.from(roleButtons).find((b) => b.dataset.role === 'profesional') || roleButtons[0];
-  if (defaultBtn) activateRole(defaultBtn);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // SECCIÓN 4: VALIDACIÓN DE CAMPOS EN TIEMPO REAL (INLINE FEEDBACK)
+  // SECCIÓN 3: VALIDACIÓN DE CAMPOS EN TIEMPO REAL (INLINE FEEDBACK)
   // ═══════════════════════════════════════════════════════════════════
   // POR QUÉ: La validación en tiempo real (en cada tecla) permite al usuario corregir
   // errores mientras escribe, en lugar de descubrirlos solo al hacer Submit.
@@ -175,6 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Delega en ValidationUtils si está disponible (centraliza los estilos de error),
   // o usa una clase CSS simple como fallback.
   const setFieldError = (input, message) => {
+    if (!input) return;
     if (ValUtils) {
       // ValidationUtils.showError/clearError aplica estilos, iconos y ARIA de forma consistente
       const errEl = document.getElementById(`${input.id}Error`); // Elemento <span> de error asociado al campo
@@ -207,8 +162,12 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  roleInput?.addEventListener('change', () => {
+    setFieldError(roleInput, roleInput.value ? '' : 'Selecciona tu rol');
+  });
+
   // ═══════════════════════════════════════════════════════════════════
-  // SECCIÓN 5: ENVÍO ASÍNCRONO DEL FORMULARIO (FETCH / AJAX)
+  // SECCIÓN 4: ENVÍO ASÍNCRONO DEL FORMULARIO (FETCH / AJAX)
   // ═══════════════════════════════════════════════════════════════════
   // POR QUÉ: Usamos fetch() en lugar de un submit() nativo para:
   //   1. Mostrar feedback visual (spinner) sin recargar la página.
@@ -222,6 +181,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // Capturamos los valores actuales de los campos (sin espacios en los extremos)
       const email = emailInput?.value.trim();
       const pass = passInput?.value.trim();
+      const role = roleInput?.value.trim();
 
       // ── VALIDACIÓN CLIENT-SIDE PREVIA AL SERVIDOR ──
       // POR QUÉ: No queremos gastar un round-trip HTTP si hay errores obvios en el cliente.
@@ -231,6 +191,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!pass) setFieldError(passInput, 'Completa tu contraseña');
         Toast.error('Datos incompletos', 'Completa tu correo y contraseña para ingresar.');
         return; // Detenemos la ejecución sin llamar al servidor
+      }
+
+      if (!role) {
+        setFieldError(roleInput, 'Selecciona tu rol');
+        Toast.error('Datos incompletos', 'Selecciona tu rol para ingresar.');
+        return;
       }
 
       // Validamos el formato del email antes de enviarlo (regex de RFC 5322 simplificada)
@@ -284,11 +250,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           // POR QUÉ: El Administrador siempre va al dashboard central, independientemente del
           // `ReturnUrl` del server. Esto evita que un admin quede atrapado en una ruta de paciente.
-          const rolActivo = selectedRoleInput?.value?.trim().toLowerCase();
-          const destino = rolActivo === 'administrador'
-            ? '/gestion-de-citas/st-adm-01-dashboard'
-            : (data.redirectUrl || '/');
-          window.location.href = destino;
+          window.location.href = data.redirectUrl || '/';
 
         } else {
           // ── LOGIN FALLIDO: Restaurar estado del botón ──
@@ -297,7 +259,7 @@ document.addEventListener('DOMContentLoaded', function () {
           if (loginBtn) {
             loginBtn.disabled = false;
             loginBtn.setAttribute('aria-busy', 'false');
-            loginBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">login</span> <span id="btnText">Iniciar Sesión</span>';
+            loginBtn.innerHTML = defaultLoginButtonMarkup;
           }
 
           const errorMsg = data?.message || 'Credenciales incorrectas. Verifica tus datos e intenta de nuevo.';
@@ -325,7 +287,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (loginBtn) {
           loginBtn.disabled = false;
           loginBtn.setAttribute('aria-busy', 'false');
-          loginBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">login</span> <span id="btnText">Iniciar Sesión</span>';
+          loginBtn.innerHTML = defaultLoginButtonMarkup;
         }
       }
     });

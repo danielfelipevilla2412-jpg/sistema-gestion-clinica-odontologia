@@ -26,10 +26,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Exceptions;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api;
 using SmileTrack_MVC.Models.DTOs;
@@ -296,9 +298,13 @@ public sealed class CitasApiController : ControllerBase
             await RegistrarAuditoriaAsync(updating ? "UPDATE" : "INSERT", cita.IdCita, "Cita guardada desde Agenda.", ct);
             return Ok(new { success = true, message = updating ? "Cita actualizada exitosamente." : "Cita agendada exitosamente.", id = cita.IdCita, idEstado = cita.IdEstado, estado = cita.Estado, updated = updating, duracionMinutos = duracion });
         }
+        catch (CitaConflictException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
-            return EsConflicto(ex.Message) ? Conflict(new { success = false, message = ex.Message }) : BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
@@ -331,12 +337,17 @@ public sealed class CitasApiController : ControllerBase
             await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita actualizada mediante API.", ct);
             return Ok(new { success = true, message = "Cita actualizada exitosamente.", id = actualizada.IdCita, idEstado = actualizada.IdEstado, estado = actualizada.Estado, duracionMinutos = duracion });
         }
+        catch (CitaConflictException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
-            return EsConflicto(ex.Message) ? Conflict(new { success = false, message = ex.Message }) : BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
+    [EnableRateLimiting("CitaSolicitud")]
     [HttpPost]
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
@@ -592,9 +603,13 @@ public sealed class CitasApiController : ControllerBase
                 fechaHora = cita.FechaHora
             });
         }
+        catch (CitaConflictException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
-            return EsConflicto(ex.Message) ? Conflict(new { success = false, message = ex.Message }) : BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
@@ -640,6 +655,7 @@ public sealed class CitasApiController : ControllerBase
         }
     }
 
+    [EnableRateLimiting("RecordatoriosEnvio")]
     [HttpPost]
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
@@ -779,11 +795,13 @@ public sealed class CitasApiController : ControllerBase
             await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita reagendada desde la agenda.", ct);
             return Ok(new { success = true, message = "Cita reagendada correctamente.", id = actualizada.IdCita, fechaHora = actualizada.FechaHora });
         }
+        catch (CitaConflictException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
-            return EsConflicto(ex.Message)
-                ? Conflict(new { success = false, message = ex.Message })
-                : BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
@@ -1009,7 +1027,6 @@ public sealed class CitasApiController : ControllerBase
             ct);
     }
     private bool EsProfesionalPropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdProfesional"), out int id) && id == cita.IdProfesional;
-    private static bool EsConflicto(string? message) => message?.Contains("horario", StringComparison.OrdinalIgnoreCase) == true;
     private static string NormalizarEstado(string? estado) => EstadoCitaHelper.Normalize(estado);
 
     private async Task RegistrarAuditoriaAsync(string accion, int idRegistro, string descripcion, CancellationToken ct)

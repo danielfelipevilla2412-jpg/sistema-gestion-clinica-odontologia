@@ -8,6 +8,7 @@ using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 
 namespace SmileTrack_MVC.Controllers;
 
@@ -355,6 +356,9 @@ public class GestionPacientesController : Controller
     [Route("gestion-de-pacientes/{id:int}")]
     public async Task<IActionResult> DetallePaciente(int id)
     {
+        if (User.IsInRole("Profesional") && !await ProfesionalPuedeAccederPacienteAsync(id))
+            return Forbid();
+
         var p = await _context.Pacientes
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.IdPaciente == id);
@@ -428,6 +432,25 @@ public class GestionPacientesController : Controller
         };
 
         return View("~/Views/Gestion_De_Pacientes/detalle-paciente/index.cshtml", vm);
+    }
+
+    private async Task<bool> ProfesionalPuedeAccederPacienteAsync(int pacienteId)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario))
+            return false;
+
+        int? idProfesional = await _context.Profesionales
+            .AsNoTracking()
+            .Where(p => p.IdUsuario == idUsuario)
+            .Select(p => (int?)p.IdProfesional)
+            .FirstOrDefaultAsync();
+        if (idProfesional is null)
+            return false;
+
+        return await _context.Pacientes.AnyAsync(p =>
+            p.IdPaciente == pacienteId &&
+            (p.IdProfesionalAsignado == idProfesional ||
+             _context.Citas.Any(c => c.IdPaciente == p.IdPaciente && c.IdProfesional == idProfesional)));
     }
 
     // Yeray: Limita la fusión a administración y exige antifalsificación para evitar cambios clínicos accidentales.

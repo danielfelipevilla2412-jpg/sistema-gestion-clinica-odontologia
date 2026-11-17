@@ -1,0 +1,203 @@
+@{
+    Layout = "~/Views/Publico/_LayoutPublico.cshtml";
+    ViewData["Title"] = "Política de Tratamiento de Datos Personales — SmileTrack";
+    ViewData["Description"] = "Política de tratamiento de datos personales de SmileTrack conforme a la Ley 1581 de 2012 (HABEAS DATA) de Colombia.";
+}
+
+<main class="max-w-3xl mx-auto px-4 py-16 space-y-10 text-gray-800" id="main-content">
+
+    <!-- Encabezado -->
+    <header class="border-b border-gray-200 pb-6">
+        <p class="text-sm font-medium text-amber-700 uppercase tracking-widest mb-2">Borrador de demostración — no usar en producción</p>
+        <h1 class="font-title text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
+            Política de Tratamiento de Datos Personales
+        </h1>
+        <p class="mt-3 text-sm text-gray-500">
+            <strong>Versión:</strong> DEMO 0.1 &nbsp;·&nbsp;
+            <strong>Vigencia:</strong> No vigente &nbsp;·&nbsp;
+            <strong>Responsable:</strong> Datos ficticios
+        </p>
+    </header>
+
+    <aside class="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="note">
+        Este contenido es ilustrativo. No representa una política aprobada ni asesoría legal. Antes de usar el sistema
+        con datos reales, la organización debe verificar su identidad, canales de atención, finalidades, plazos de
+        conservación y obligaciones aplicables con asesoría competente.
+    </aside>
+
+    <!-- 1. Identificación del Responsable -->
+    <section aria-labelledby="s1">
+        <h2 id="s1" class="text-xl font-bold text-gray-900 mb-3">1. Identificación del Responsable del Tratamiento</h2>
+        <p>
+            <strong>SmileTrack</strong> es un sistema de gestión clínica odontológica. La entidad que lo opere debe
+            ser identificada como responsable del tratamiento. Para esta demostración se usan datos ficticios:
+            Clínica Odontológica Ejemplo S.A.S., NIT DEMO-NIT-NO-VALIDO, Calle 00 #00-00, Bogotá D.C.
+            Contacto ficticio: <a href="mailto:privacidad@smiletrack.example"
+            class="text-blue-600 underline hover:text-blue-800">privacidad@smiletrack.example</a>.
+        </p>
+    </section>
+
+    <!-- 2. Marco legal -->
+    <section aria-labelledby="s2">
+        <h2 id="s2" class="text-xl font-bold text-gray-900 mb-3">2. Marco Legal</h2>
+        <ul class="list-disc list-inside space-y-1 text-gray-700">
+            <li>Ley 1581 de 2012 — Protección de Datos Personales (Colombia)</li>
+            <li>Decreto 1377 de 2013 — Reglamentario de la Ley 1581</li>
+            <li>Resolución 001 de 2014 — Superintendencia de Industria y Comercio (SIC)</li>
+        </ul>
+    </section>
+
+    <!-- 3. Tipos de datos -->
+    <section aria-labelledby="s3">
+        <h2 id="s3" class="text-xl font-bold text-gray-900 mb-3">3. Datos Personales Tratados</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm border border-gray-200 rounded-xl overflow-hidden">
+                <thead class="bg-blue-50 text-left">
+                    <tr>
+                        <th class="px-4 py-3 font-semibold text-gray-700">Categoría</th>
+                        <th class="px-4 py-3 font-semibold text-gray-700">Datos</th>
+                        <th class="px-4 py-3 font-semibold text-gray-700">Finalidad</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">Identificación</td>
+                        <td class="px-4 py-3">Nombre, apellidos, tipo y número de documento</td>
+                        <td class="px-4 py-3">Crear y gestionar la cuenta del usuario</td>
+                    </tr>
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">Contacto</td>
+                        <td class="px-4 py-3">Correo electrónico, teléfono</td>
+                        <td class="px-4 py-3">Recordatorios de citas, notificaciones, recuperación de cuenta</td>
+                    </tr>
+                    <tr class="hover:bg-gray-50 font-medium text-red-700">
+                        <td class="px-4 py-3">Datos de Salud <span class="text-xs font-normal text-red-500">(sensibles)</span></td>
+                        <td class="px-4 py-3">Historia clínica, odontograma, alergias, antecedentes, diagnósticos, procedimientos</td>
+                        <td class="px-4 py-3">Prestación del servicio odontológico</td>
+                    </tr>
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">Acceso y seguridad</td>
+                        <td class="px-4 py-3">Dirección IP, fecha/hora de acceso, rol</td>
+                        <td class="px-4 py-3">Seguridad de la plataforma y auditoría</td>
+                    </tr>
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">Consentimiento</td>
+                        <td class="px-4 py-3">Versión de política aceptada, fecha e IP de aceptación</td>
+                        <td class="px-4 py-3">Cumplimiento legal Ley 1581/2012</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="mt-3 text-xs text-gray-500">
+            ⚠️ Los datos de salud son datos sensibles en los términos del artículo 5 de la Ley 1581 de 2012
+            y requieren autorización expresa del titular para su tratamiento.
+        </p>
+    </section>
+
+    <!-- 4. Finalidades -->
+    <section aria-labelledby="s4">
+        <h2 id="s4" class="text-xl font-bold text-gray-900 mb-3">4. Finalidades del Tratamiento</h2>
+        <ol class="list-decimal list-inside space-y-2 text-gray-700">
+            <li>Gestionar el registro, autenticación y perfil de usuarios del sistema.</li>
+            <li>Programar, confirmar, recordar y gestionar citas odontológicas.</li>
+            <li>Crear y mantener la historia clínica del paciente.</li>
+            <li>Emitir facturas y gestionar los pagos de servicios.</li>
+            <li>Enviar notificaciones relacionadas con la atención médica.</li>
+            <li>Garantizar la seguridad e integridad de la plataforma mediante auditorías.</li>
+            <li>Cumplir con obligaciones legales aplicables al sistema de salud.</li>
+        </ol>
+    </section>
+
+    <!-- 5. Derechos del titular -->
+    <section aria-labelledby="s5">
+        <h2 id="s5" class="text-xl font-bold text-gray-900 mb-3">5. Derechos del Titular</h2>
+        <p class="text-gray-700 mb-3">Conforme al artículo 8 de la Ley 1581 de 2012, usted tiene derecho a:</p>
+        <ul class="list-disc list-inside space-y-1 text-gray-700">
+            <li><strong>Conocer</strong> los datos personales que SmileTrack tiene sobre usted.</li>
+            <li><strong>Actualizar</strong> sus datos cuando sean inexactos o incompletos.</li>
+            <li><strong>Rectificar</strong> información incorrecta.</li>
+            <li><strong>Suprimir</strong> sus datos cuando no se respeten los principios, derechos y garantías constitucionales.</li>
+            <li><strong>Revocar</strong> la autorización otorgada para el tratamiento de sus datos.</li>
+            <li><strong>Presentar quejas</strong> ante la Superintendencia de Industria y Comercio (SIC).</li>
+        </ul>
+        <p class="mt-3 text-sm text-gray-600">
+            Para ejercer sus derechos, use el canal de PQR de la organización operadora. El correo
+            <a href="mailto:privacidad@smiletrack.example" class="text-blue-600 underline">privacidad@smiletrack.example</a>
+            es ficticio y no recibe mensajes.
+        </p>
+    </section>
+
+    <!-- 6. Retención y transferencia -->
+    <section aria-labelledby="s6">
+        <h2 id="s6" class="text-xl font-bold text-gray-900 mb-3">6. Retención de Datos</h2>
+        <p class="mb-3 text-sm text-amber-900">
+            Los plazos de la tabla son ejemplos pendientes de validación por la organización; no deben interpretarse
+            como plazos aprobados para una operación real.
+        </p>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm border border-gray-200 rounded-xl overflow-hidden">
+                <thead class="bg-gray-50 text-left">
+                    <tr>
+                        <th class="px-4 py-3 font-semibold text-gray-700">Tipo de dato</th>
+                        <th class="px-4 py-3 font-semibold text-gray-700">Retención</th>
+                        <th class="px-4 py-3 font-semibold text-gray-700">Base legal</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">Historia clínica</td>
+                        <td class="px-4 py-3">15 años mínimo tras última atención</td>
+                        <td class="px-4 py-3">Resolución 1995/1999 Ministerio de Salud</td>
+                    </tr>
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">Datos de cuenta</td>
+                        <td class="px-4 py-3">Mientras la cuenta esté activa + 5 años</td>
+                        <td class="px-4 py-3">Ley 1581/2012</td>
+                    </tr>
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">Registros de auditoría</td>
+                        <td class="px-4 py-3">3 años</td>
+                        <td class="px-4 py-3">Decreto 1377/2013</td>
+                    </tr>
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">Registros de consentimiento</td>
+                        <td class="px-4 py-3">Indefinido (prueba de cumplimiento legal)</td>
+                        <td class="px-4 py-3">Ley 1581/2012 art. 9</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 7. Seguridad -->
+    <section aria-labelledby="s7">
+        <h2 id="s7" class="text-xl font-bold text-gray-900 mb-3">7. Medidas de Seguridad</h2>
+        <ul class="list-disc list-inside space-y-1 text-gray-700">
+            <li>Contraseñas almacenadas con hash BCrypt (factor 12).</li>
+            <li>Comunicaciones cifradas con TLS 1.2+ (HTTPS).</li>
+            <li>Bitácora de auditoría para todas las operaciones críticas.</li>
+            <li>Bloqueo automático tras intentos fallidos de acceso.</li>
+            <li>Tokens CSRF en todos los formularios.</li>
+        </ul>
+    </section>
+
+    <!-- 8. Vigencia y cambios -->
+    <section aria-labelledby="s8">
+        <h2 id="s8" class="text-xl font-bold text-gray-900 mb-3">8. Vigencia y Actualizaciones</h2>
+        <p class="text-gray-700">
+            Este borrador no tiene vigencia. La organización responsable debe definir el proceso de actualización y
+            notificación antes de adoptarlo. La versión de demostración no debe usarse como evidencia de cumplimiento.
+        </p>
+    </section>
+
+    <!-- Footer de la política -->
+    <footer class="border-t border-gray-200 pt-6 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between text-sm text-gray-500">
+        <p>Versión DEMO 0.1 · SmileTrack · Documento no vigente</p>
+        <div class="flex gap-4">
+            <a href="/terminos" class="text-blue-600 hover:underline">Términos de Uso</a>
+            <a href="/privacidad" class="text-blue-600 hover:underline">Privacidad</a>
+            <a href="/" class="text-blue-600 hover:underline">Inicio</a>
+        </div>
+    </footer>
+
+</main>

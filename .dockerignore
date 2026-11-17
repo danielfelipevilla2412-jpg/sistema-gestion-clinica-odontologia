@@ -1,4 +1,9 @@
-.env
+/.git
+/.env
+/.env.*
+/appsettings.Local.json
+/appsettings.*.Local.json
+/appsettings.Testing.json
 bin/
 obj/
 .vs/

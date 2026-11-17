@@ -172,7 +172,6 @@ const mapServerToClient = (srv) => {
   const service = servicioRaw?.Nombre || servicioRaw?.nombre || '—';
   const dateISO = fmtFechaISO(fechaHora);
   const hoy = fmtFechaLocalISO(new Date());
-  const manana = (() => { const t = new Date(); t.setDate(t.getDate()+1); return fmtFechaLocalISO(t); })();
 
   return {
     id: get('IdCita'),
@@ -194,10 +193,7 @@ const mapServerToClient = (srv) => {
     highlight: dateISO === hoy && info.label === 'En consulta',
     noShow: info.label === 'No asistió',
     notes: get('Notas') || '',
-    // Helper para filtros predefinidos ('today' / 'tomorrow')
-    _dateMatchPreset: { today: dateISO === hoy, tomorrow: dateISO === manana },
-    _raw: srv,
-    _durationMinutes: get('DuracionMinutos') || null
+    _raw: srv
   };
 };
 
@@ -221,10 +217,23 @@ const appointmentStorage = {
 //  MODAL MANAGER
 // ═══════════════════════════════════════════════════════════════════
 
+// Guarda el control que tenía el foco antes de abrir cada modal para devolvérselo
+// al cerrarlo (accesibilidad de teclado). Los modales Nueva/Editar se cierran
+// desde shared/appointment-utils.js, por eso la restauración también se dispara
+// observando la clase .open (ver initModalHandlers).
+const _modalFocusOrigin = {};
+const restoreModalFocus = (id) => {
+  const origin = _modalFocusOrigin[id];
+  delete _modalFocusOrigin[id];
+  if (origin?.isConnected) origin.focus();
+};
+
 const modalManager = {
   open: (id) => {
     const m = safeGetElement(id);
     if (!m) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) _modalFocusOrigin[id] = active;
     m.classList.add('open');
     m.setAttribute('aria-hidden', 'false');
     m.removeAttribute('inert');
@@ -239,6 +248,7 @@ const modalManager = {
     m.setAttribute('aria-hidden', 'true');
     m.setAttribute('inert', '');
     document.body.style.overflow = '';
+    restoreModalFocus(id);
   }
 };
 
@@ -320,14 +330,14 @@ const createAppointmentRow = (appt) => {
                 data-action="view" data-id="${appt.id}"
                 aria-label="Ver detalles de ${escapeHtml(appt.patient)}"
                 title="Ver detalles de ${escapeHtml(appt.patient)}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
+          <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
           <span class="btn-text">Ver</span>
         </button>
         <button class="action-btn btn-secondary btn-edit edit" type="button"
                 data-action="edit" data-id="${appt.id}"
                 aria-label="Editar cita de ${escapeHtml(appt.patient)}"
                 title="Editar cita de ${escapeHtml(appt.patient)}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
+          <span class="material-symbols-outlined" aria-hidden="true">edit</span>
           <span class="btn-text">Editar</span>
         </button>
         ${canCancel ? `
@@ -335,7 +345,7 @@ const createAppointmentRow = (appt) => {
                   data-action="cancel" data-id="${appt.id}"
                   aria-label="Cancelar cita de ${escapeHtml(appt.patient)}"
                   title="Cancelar cita de ${escapeHtml(appt.patient)}">
-            <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span>
+            <span class="material-symbols-outlined" aria-hidden="true">delete</span>
             <span class="btn-text">Cancelar</span>
           </button>` : ''}
       </div>
@@ -360,30 +370,6 @@ const renderAppointments = (data) => {
   const start = data.length ? ((currentApiPage - 1) * API_PAGE_SIZE) + 1 : 0;
   const end = Math.min(start + data.length - 1, totalApiRecords);
   updatePaginationInfo(start, end, totalApiRecords);
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  FILTROS
-// ═══════════════════════════════════════════════════════════════════
-
-const filterAppointments = () => {
-  if (shouldUseServerRenderedList()) return;
-  const q = safeGetElement('searchPatient')?.value.toLowerCase().trim() || '';
-  const prof = safeGetElement('filterProfessional')?.value || '';
-  const datePreset = safeGetElement('filterDate')?.value || '';
-  const st = safeGetElement('filterStatus')?.value || '';
-
-  const filtered = appointmentStorage.getAll().filter(a => {
-    const matchQ = !q || a.patient.toLowerCase().includes(q)
-      || a.doctor.toLowerCase().includes(q)
-      || a.service.toLowerCase().includes(q);
-    const matchProf = !prof || String(a.professionalId) === String(prof);
-    const matchDate = !datePreset || a.dateISO === datePreset;
-    const matchSt = !st || String(a._raw?.Estado || '').toLowerCase() === st.toLowerCase();
-    return matchQ && matchProf && matchDate && matchSt;
-  });
-
-  renderAppointments(filtered);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -414,29 +400,7 @@ const updatePaginationInfo = (start, end, total) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-//  ACCIONES TABLA (VER / EDITAR / SINCRONIZAR / CANCELAR)
-// ═══════════════════════════════════════════════════════════════════
-
-const buildServerBody = (appt, overrides = {}) => {
-  const raw = appt._raw || {};
-  const fh = (overrides.dateISO || appt.dateISO) && (overrides.timeISO || appt.timeISO)
-    ? `${overrides.dateISO || appt.dateISO}T${overrides.timeISO || appt.timeISO}:00`
-    : raw.FechaHora || new Date().toISOString();
-  const estadoUI = overrides.status || appt.status;
-  const estadoServidor = CommonUtils.mapEstadoClienteToServer(estadoUI);
-  return {
-    IdCita: appt.id,
-    IdPaciente: raw.IdPaciente ?? raw.idPaciente ?? appt.patientId ?? 0,
-    IdProfesional: raw.IdProfesional ?? raw.idProfesional ?? appt.professionalId ?? null,
-    IdServicio: raw.IdServicio ?? raw.idServicio ?? appt.serviceId ?? 0,
-    FechaHora: fh,
-    Estado: estadoServidor,
-    Notas: overrides.notes !== undefined ? overrides.notes : (appt.notes || '')
-  };
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  MODAL CONFIRMACIÓN CANCELAR CITA (recepción)
+//  ACCIONES TABLA (VER / EDITAR / CANCELAR)
 // ═══════════════════════════════════════════════════════════════════
 
 const openCancelModal = (id) => {
@@ -570,23 +534,37 @@ const submitEditAppointment = (e) => {
 // ═══════════════════════════════════════════════════════════════════
 
 const initModalHandlers = () => {
-  const map = {
-    modalNewClose: 'modalNewAppointment', modalViewClose: 'modalViewAppointment',
-    modalEditClose: 'modalEditAppointment',
-    modalNewCancel: 'modalNewAppointment', modalViewCancel: 'modalViewAppointment',
-    modalEditCancel: 'modalEditAppointment'
+  // El cierre de los modales Nueva/Editar cita (botones y backdrop) lo gestiona
+  // shared/appointment-utils.js vía watchFormDirty, con guard de "cambios sin
+  // guardar". Aquí solo se enlaza el modal de Ver detalles para no duplicar el
+  // cierre y evitar que se cierre sin aplicar dicho guard.
+  const viewModalMap = {
+    modalViewClose: 'modalViewAppointment',
+    modalViewCancel: 'modalViewAppointment'
   };
-  Object.entries(map).forEach(([btnId, mid]) => {
+  Object.entries(viewModalMap).forEach(([btnId, mid]) => {
     safeGetElement(btnId)?.addEventListener('click', () => modalManager.close(mid));
   });
-  document.querySelectorAll('.modal-overlay').forEach(o =>
+  document.querySelectorAll('.modal-overlay').forEach(o => {
+    if (o.id === 'modalNewAppointment' || o.id === 'modalEditAppointment') return;
     o.addEventListener('click', (e) => {
       if (e.target === o) modalManager.close(o.id);
-    })
-  );
+    });
+  });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     document.querySelectorAll('.modal-overlay.open').forEach(m => modalManager.close(m.id));
+  });
+
+  // Nueva/Editar cita se cierran desde appointment-utils.js (no pasan por
+  // modalManager.close), así que observamos la clase .open para devolver el
+  // foco al control que abrió el modal.
+  ['modalNewAppointment', 'modalEditAppointment'].forEach(id => {
+    const overlay = safeGetElement(id);
+    if (!overlay) return;
+    new MutationObserver(() => {
+      if (!overlay.classList.contains('open')) restoreModalFocus(id);
+    }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
   });
 };
 
@@ -594,19 +572,6 @@ const initMobileMenu = () => {
   // El menú móvil, overlay y acordeón del sidebar son gestionados centralizadamente por ~/js/shared/sidebar.js
 };
 
-const handleViewToggle = (btn) => {
-  document.querySelectorAll('.view-toggle').forEach(t => {
-    t.classList.remove('active');
-    t.setAttribute('aria-selected', 'false');
-    t.setAttribute('tabindex', '-1');
-  });
-  btn.classList.add('active');
-  btn.setAttribute('aria-selected', 'true');
-  btn.setAttribute('tabindex', '0');
-  const view = btn.dataset.view;
-  if (view === 'calendar') showToast('Vista de calendario próximamente disponible', 'info');
-  if (view === 'paused')   showToast('Mostrando citas pausadas', 'info');
-};
 
 // ═══════════════════════════════════════════════════════════════════
 //  FILTRADO DINÁMICO PROFESIONALES DISPONIBLES
@@ -1018,12 +983,6 @@ const init = async () => {
       renderAppointments(appointmentStorage.getAll());
 
       // Filtros y tabs (solo en modo client-side; en SSR los filtros son GET al servidor)
-      document.querySelectorAll('.view-toggle').forEach(btn => {
-        btn.addEventListener('click', () => handleViewToggle(btn));
-        btn.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewToggle(btn); }
-        });
-      });
       const refreshFromApi = async () => {
         const citas = await fetchAppointments(1);
         await fetchSolicitudesPendientes();
@@ -1059,10 +1018,6 @@ const init = async () => {
       ['filterProfessional','filterDate','filterStatus'].forEach(id =>
         safeGetElement(id)?.addEventListener('change', refreshFromApi)
       );
-      document.querySelector('.filter-bar')?.addEventListener('submit', (event) => {
-        event.preventDefault();
-        refreshFromApi();
-      });
       document.querySelectorAll('.pagination-number, #prevPage, #nextPage').forEach(control => {
         control.addEventListener('click', async (event) => {
           event.preventDefault();

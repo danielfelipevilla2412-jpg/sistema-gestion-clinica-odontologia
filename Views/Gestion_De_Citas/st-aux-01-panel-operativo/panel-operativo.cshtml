@@ -14,7 +14,11 @@
    - CSS: ~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css
    - JS: ~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js
    ============================================ *@
-@{ Layout = "_Layout"; ViewData["Title"] = "Dashboard General"; }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Dashboard General";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css" asp-append-version="true" />
@@ -38,7 +42,7 @@
     </header>
 
     <!-- KPIs principales: la primera tarjeta lleva más peso visual (jerarquía) -->
-    <section class="stats-grid" aria-label="Métricas principales" data-i18n-aria-label="facturacion.title">
+    <section class="stats-grid" aria-label="Métricas principales">
         <div class="stat-card stat-card--primary" data-color="blue">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">group</span>
             <span class="stat-number" id="statTotal" data-target="@(ViewData["TotalPacientes"] ?? 0)">0</span>
@@ -207,14 +211,6 @@
 </nav>
 
 <!-- Footer -->
-<footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-        <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-</footer>
-
 @section Scripts {
     <script src="~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js" asp-append-version="true" defer></script>
 }

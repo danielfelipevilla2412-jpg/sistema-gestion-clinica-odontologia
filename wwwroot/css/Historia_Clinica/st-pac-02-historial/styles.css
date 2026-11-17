@@ -336,3 +336,38 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+/* ═════ NUEVO: ESTILOS MIGRADOS DEL <style> INLINE DE LA VISTA (st-pac-02) ═════ */
+/* NOTA: `@keyframes scan` ya está definido arriba (sección odontograma); no se duplica. */
+.hw button { transform: none !important; }
+.tb {
+  font-size: 10px;
+  padding: 4px 13px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  background: transparent;
+  color: rgba(0, 212, 255, 0.5);
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+.tb.active {
+  border-color: rgba(0, 212, 255, 0.7);
+  background: rgba(0, 212, 255, 0.15);
+  color: #00d4ff;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.2);
+}
+
+/* ── Impresión: reglas de layout propias de la vista ──
+   Los elementos de navegación/UI globales (.sidebar, .hamburger, .overlay,
+   .clinical-topbar, .modal-overlay, .toast, .site-footer, .mobile-nav) ya se
+   ocultan desde css/shared/print.css, por eso no se repiten aquí. */
+@media print {
+  body { display: block; background: #fff; }
+  .patient-history-header .page-header-actions { display: none !important; }
+  .patient-history-main, .clinical-content-shell { width: 100%; max-width: none; margin: 0; padding: 0; }
+  .patient-history-header { padding: 0 0 12px; box-shadow: none; border: 0; }
+  .patient-summary-card, .form-card, .history-workspace, .record-card { box-shadow: none; break-inside: avoid; }
+  .clinical-section-tabs { display: none; }
+  .readonly-fields textarea { overflow: visible; resize: none; }
+  a { color: inherit; text-decoration: none; }
+}

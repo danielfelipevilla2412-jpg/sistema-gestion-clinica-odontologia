@@ -681,18 +681,6 @@ img {
 
 /* Botones de acción estandarizados */
 .actions-cell { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
-.btn-icon {
-    background: var(--white); border: 1.5px solid var(--border);
-    border-radius: var(--radius-sm); padding: 5px 8px;
-    cursor: pointer; font-size: 14px; color: var(--text-muted);
-    transition: background var(--tr), border-color var(--tr), color var(--tr), transform var(--tr);
-    line-height: 1; box-shadow: 0 4px 10px rgba(15, 32, 87, 0.05);
-    text-decoration: none;
-}
-.btn-icon:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
-.btn-icon:active { transform: translateY(1px); background: #e0e7ff; }
-.btn-icon:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.btn-icon.btn-delete:hover { background: #fee2e2; border-color: #fecaca; color: var(--danger); }
 
 /* Reglas base para botones con texto */
 .action-btn .btn-text {
@@ -771,65 +759,38 @@ img {
     background: #b91c1c;
 }
 
-/* Cabecera de tabla */
-.table-header {
-    display: flex;
-    align-items: center;
-    background: linear-gradient(90deg, #f8fbff, #f3f7ff);
-    border-bottom: 2px solid var(--border);
-    padding: 12px 16px;
-    font-size: 0.69rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-}
-
-.table-col {
-    flex: 1;
-    min-width: 0;
-    padding: 0 8px;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-}
-
+/* Columnas de la tabla */
 .col-fecha {
-    flex: 1;
     min-width: 100px;
     width: 105px;
 }
 
 .col-hora {
-    flex: 0.8;
     min-width: 80px;
     width: 88px;
 }
 
 .col-paciente {
-    flex: 1.5;
     min-width: 150px;
     max-width: 260px;
 }
 
 .col-profesional {
-    flex: 1.2;
     min-width: 150px;
     max-width: 240px;
 }
 
 .col-servicio {
-    flex: 1;
-    min-width: 120px;
+    min-width: 160px;
+    max-width: 300px;
 }
 
 .col-estado {
-    flex: 0.9;
     min-width: 120px;
     width: 130px;
 }
 
 .col-acciones {
-    flex: 1.2;
     min-width: 230px;
     width: 230px;
     text-align: right;
@@ -842,13 +803,6 @@ img {
 
 .text-right {
     text-align: right;
-}
-
-/* Cuerpo de tabla */
-.table-body {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
 }
 
 .table-row {
@@ -869,37 +823,12 @@ img {
     border-bottom: none;
 }
 
-.table-col {
-    min-width: 120px;
-    padding: 0 8px;
-    vertical-align: middle;
-}
-
-.col-servicio {
-    flex: 1.4;
-    min-width: 160px;
-    max-width: 300px;
-}
-
-.col-acciones {
-    flex: 1.2;
-    min-width: 230px;
-    width: 230px;
-    text-align: right;
-    white-space: nowrap;
-}
-
 .actions-cell {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 10px;
     justify-content: flex-end;
-}
-
-.btn-icon {
-    min-width: 44px;
-    justify-content: center;
 }
 
 /* Info de paciente */
@@ -1452,9 +1381,6 @@ select.status-select-inline option {
     .main {
         padding: 20px 20px 32px;
     }
-    .table-col {
-        padding: 0 4px;
-    }
 }
 
 @media (max-width: 680px) {
@@ -1485,38 +1411,7 @@ select.status-select-inline option {
         gap: 10px;
     }
 
-    /* Tabla responsive */
-    .table-header {
-        display: none;
-    }
-
-    .table-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 16px;
-    }
-
-    .table-col {
-        width: 100%;
-        display: flex;
-        justify-content: space-between;
-        padding: 4px 0;
-        font-size: 0.8rem;
-    }
-
-    .table-col::before {
-        content: attr(data-label);
-        font-weight: 600;
-        color: var(--text);
-        margin-right: 12px;
-    }
-
-    .col-acciones {
-        justify-content: flex-start;
-        margin-top: 8px;
-    }
-
+    /* Tabla: el responsive real es el desplazamiento horizontal de .table-wrap. */
     .actions-cell {
         justify-content: flex-start;
         gap: 12px;
@@ -1629,4 +1524,63 @@ select.status-select-inline option {
     .table-row {
         transition: none !important;
     }
+}
+
+/* Modal de detalle de citas y modal de confirmación */
+.appointment-detail-grid {
+    display: grid;
+    gap: 12px;
+    font-size: 0.95rem;
+}
+.appointment-detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+.appointment-detail-label {
+    color: var(--text-muted);
+    min-width: 120px;
+}
+.appointment-detail-notes {
+    margin-top: 8px;
+    padding: 12px;
+    background: var(--bg-soft);
+    border-radius: 8px;
+}
+.appointment-detail-notes strong {
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 4px;
+}
+.modal-delete-text {
+    margin: 16px 0 24px;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+.form-group-cancel-reason {
+    margin-bottom: 16px;
+}
+.form-label-cancel-reason {
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.textarea-cancel-reason {
+    resize: vertical;
+}
+.patient-info-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+.badge-spec-sub {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    margin-top: 2px;
+}
+.form-estado-inline {
+    display: inline-block;
+    margin: 0;
+}
+.required-star {
+    color: var(--danger);
 }
