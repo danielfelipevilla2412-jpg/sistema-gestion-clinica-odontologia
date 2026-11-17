@@ -1,3 +1,4 @@
 {
-    "csharp-dev-tools.build.configuration": "Debug"
+    "csharp-dev-tools.build.configuration": "Debug",
+    "liveServer.settings.multiRootWorkspaceName": "sistema-gestion-clinica-odontologia"
 }

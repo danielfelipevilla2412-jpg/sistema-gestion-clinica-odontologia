@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Controllers.Api;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 using Xunit;
 
 namespace SmileTrack_MVC.Tests.Unit;
@@ -25,7 +27,9 @@ public sealed class MobilePerfilControllerTests
 
     private static MobilePerfilController CrearControlador(AppDbContext db, int? idUsuario = 10)
     {
-        var controller = new MobilePerfilController(db);
+        var auditoria = new AuditoriaHistoriaClinicaService(db);
+        var actualizacionPerfil = new ActualizacionPerfilPacienteService(db, auditoria);
+        var controller = new MobilePerfilController(db, actualizacionPerfil);
 
         var claims = new List<Claim>();
         if (idUsuario.HasValue)
