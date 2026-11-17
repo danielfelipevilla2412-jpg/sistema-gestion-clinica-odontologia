@@ -39,13 +39,14 @@
         <h1 class="page-title" data-i18n="notifications.page_title">Notificaciones</h1>
         <p class="page-subtitle" data-i18n="notifications.subtitle">Recordatorios, confirmaciones, facturas y mensajes de la clínica</p>
       </div>
-      <div class="header-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <button class="btn-secondary" id="btnToggleUnread" aria-label="Mostrar solo notificaciones no leídas" aria-pressed="false">
+      <div class="header-actions">
+        <button class="btn-secondary" id="btnToggleUnread" aria-label="Mostrar solo notificaciones no leídas" data-i18n-aria-label="notifications.only_unread_aria" aria-pressed="false">
           <span class="material-symbols-outlined" aria-hidden="true">mark_chat_unread</span>
-          <span id="lblToggleUnread">Solo no leídas</span>
+          <span id="lblToggleUnread" data-i18n="notifications.only_unread">Solo no leídas</span>
         </button>
-        <button class="btn-primary" id="btnMarkAllRead" aria-label="Marcar todas las notificaciones como leídas" data-i18n-aria-label="notifications.mark_all_aria" data-i18n="notifications.mark_all">
-          <span class="material-symbols-outlined" aria-hidden="true">done_all</span> Marcar todas como leídas
+        <button class="btn-primary" id="btnMarkAllRead" aria-label="Marcar todas las notificaciones como leídas" data-i18n-aria-label="notifications.mark_all_aria">
+          <span class="material-symbols-outlined" aria-hidden="true">done_all</span>
+          <span data-i18n="notifications.mark_all">Marcar todas como leídas</span>
         </button>
       </div>
     </header>
@@ -63,7 +64,7 @@
         <button class="chip" data-filter="reminder" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">notifications</span> <span data-i18n="notifications.filter_reminders">Recordatorios</span></button>
         <button class="chip" data-filter="confirmed" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">check_circle</span> <span data-i18n="notifications.filter_confirmed">Confirmaciones</span></button>
         <button class="chip" data-filter="cancelled" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">cancel</span> <span data-i18n="notifications.filter_cancelled">Cancelaciones</span></button>
-        <button class="chip" data-filter="rejected" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">block</span> Solicitudes rechazadas</button>
+        <button class="chip" data-filter="rejected" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">block</span> <span data-i18n="notifications.filter_rejected">Solicitudes rechazadas</span></button>
         <button class="chip" data-filter="waitlist" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">hourglass_top</span> <span data-i18n="notifications.filter_waitlist">Lista de Espera</span></button>
         <button class="chip" data-filter="invoice" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">payments</span> <span data-i18n="notifications.filter_invoices">Facturación</span></button>
         <button class="chip" data-filter="message" aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">message</span> <span data-i18n="notifications.filter_messages">Mensajes</span></button>
@@ -78,7 +79,7 @@
     </ul>
 
     <!-- Empty state -->
-    <div class="empty-state" id="emptyState" aria-live="polite" aria-hidden="true" style="display:none;">
+    <div class="empty-state" id="emptyState" aria-live="polite" aria-hidden="true" hidden>
       <span class="empty-icon material-symbols-outlined" aria-hidden="true">notifications_off</span>
       <p class="empty-state-text" data-i18n="common.no_notifications">No hay notificaciones en esta categoría.</p>
     </div>
@@ -88,40 +89,31 @@
   <!-- Modal: Detalle de Notificación -->
   <div class="modal-overlay" id="modalNotifDetail" role="dialog" aria-modal="true" aria-labelledby="modalNotifTitle" aria-hidden="true" inert>
     <div class="modal modal--sm">
-      <button class="modal-close" id="modalNotifClose" aria-label="Cerrar detalles">×</button>
-      <div class="modal-header-icon" style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-        <span class="modal-icon-badge material-symbols-outlined" id="modalNotifIcon" style="font-size:2rem; color:var(--primary);">notifications</span>
+      <button class="modal-close" id="modalNotifClose" aria-label="Cerrar detalles" data-i18n-aria-label="notifications.modal_close_aria">×</button>
+      <div class="modal-header-icon">
+        <span class="modal-icon-badge material-symbols-outlined" id="modalNotifIcon" aria-hidden="true">notifications</span>
         <div>
-          <h2 class="modal-title" id="modalNotifTitle">Detalle de Notificación</h2>
-          <span class="badge" id="modalNotifBadge">Nueva</span>
+          <h2 class="modal-title" id="modalNotifTitle" data-i18n="notifications.modal_detail_title">Detalle de Notificación</h2>
+          <span class="badge" id="modalNotifBadge" data-i18n="status.new">Nueva</span>
         </div>
       </div>
-      <div class="modal-body" style="margin-bottom:20px;">
-        <p class="modal-desc" id="modalNotifDesc" style="font-size:0.95rem; line-height:1.6; color:var(--text); margin-bottom:12px;"></p>
-        <div style="font-size:0.8rem; color:var(--text-muted); display:flex; flex-direction:column; gap:4px;">
-          <div><strong>Fecha / Hora:</strong> <span id="modalNotifTime">—</span></div>
-          <div><strong>Canal:</strong> <span id="modalNotifCanal">Interno (In-App)</span></div>
+      <div class="modal-body">
+        <p class="modal-desc" id="modalNotifDesc"></p>
+        <div class="modal-meta">
+          <div><strong data-i18n="notifications.meta_date">Fecha / Hora:</strong> <span id="modalNotifTime">—</span></div>
+          <div><strong data-i18n="notifications.meta_channel">Canal:</strong> <span id="modalNotifCanal" data-i18n="notifications.channel_inapp">Interno (In-App)</span></div>
         </div>
       </div>
-      <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
-        <a href="#" class="btn-primary" id="btnModalAction" style="display:none; text-decoration:none;">
-          <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span> Ir a la sección
+      <div class="modal-footer">
+        <a href="#" class="btn-primary btn-modal-action" id="btnModalAction">
+          <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span> <span data-i18n="notifications.go_to_section">Ir a la sección</span>
         </a>
-        <button type="button" class="btn-secondary" id="btnModalClose">Cerrar</button>
+        <button type="button" class="btn-secondary" id="btnModalClose" data-i18n="common.close">Cerrar</button>
       </div>
     </div>
   </div>
 
-  <!-- Toast -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
-    </div>
-    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
-  </footer>
+  <!-- El toast y el footer son provistos por el shell compartido (_Layout + footer.js). -->
 
   <script>
     window.smiletrackNotificacionesData = @Html.Raw(notificacionesDataJson);

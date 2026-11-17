@@ -40,7 +40,8 @@ public sealed class GestionCitasControllerTests
             new FakeAntiforgery(),
             new FakeCitasDashboardService(),
             new FakeAgendaService(),
-            new MemoryCache(new MemoryCacheOptions()));
+            new MemoryCache(new MemoryCacheOptions()),
+            new SmileTrack_MVC.Services.Perfiles.PerfilPacienteService(db));
 
         var claims = new List<Claim>();
         if (idUsuario.HasValue)

@@ -40,6 +40,25 @@
 
 
 /* ═══════════════════════════════════════════
+   LAYOUT BASE DEL CONTENIDO (.main)
+   ═══════════════════════════════════════════ */
+@media (min-width: 681px) {
+  .main {
+    margin-left: var(--sidebar-w, 220px);
+    transition: margin-left var(--tr, .18s ease);
+  }
+  .main.sidebar-mini-offset {
+    margin-left: 56px !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .main {
+    margin-left: 0 !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
    SIDEBAR PRINCIPAL
    ═══════════════════════════════════════════ */
 
@@ -502,17 +521,22 @@
     display: none;
   }
 
-  /* Centrar el ícono en el ancho reducido */
+  /* Centrar el ícono en el ancho reducido y ocultar texto de forma robusta */
   .sidebar.mini .nav-item {
     padding: 10px 0;
     justify-content: center;
     gap: 0;
     position: relative;
+    font-size: 0 !important;
+  }
+
+  .sidebar.mini .nav-item::before {
+    font-size: 16px !important;
   }
 
   /* Ocultar texto del nav-item dejando solo el ::before (ícono emoji) */
   .sidebar.mini .nav-item .nav-text {
-    display: none;
+    display: none !important;
   }
 
   /* Tooltip nativo al hover: muestra el texto del ítem en modo mini */
@@ -685,29 +709,4 @@
 .lang-btn:focus-visible {
   outline: 2px solid var(--primary, #005ea4);
   outline-offset: 2px;
-}
-
-/* Keep the admin page header aligned with the admin sidebar across modules. */
-body:has(#sidebar[data-sidebar-role="admin"]) .page-header {
-  background: linear-gradient(180deg, #18284f 0%, #263d73 100%);
-  border-color: rgba(255, 255, 255, .1);
-  color: #c8d3e8;
-}
-
-body:has(#sidebar[data-sidebar-role="admin"]) .page-header h1,
-body:has(#sidebar[data-sidebar-role="admin"]) .page-header .page-title {
-  color: #fff;
-}
-
-body:has(#sidebar[data-sidebar-role="admin"]) .page-header .breadcrumb,
-body:has(#sidebar[data-sidebar-role="admin"]) .page-header .page-subtitle {
-  color: #c8d3e8;
-}
-
-body:has(#sidebar[data-sidebar-role="admin"]) .page-header .bc-active {
-  color: #93c5fd;
-}
-
-body:has(#sidebar[data-sidebar-role="admin"]) .page-header .bc-sep {
-  color: #aab9d4;
 }

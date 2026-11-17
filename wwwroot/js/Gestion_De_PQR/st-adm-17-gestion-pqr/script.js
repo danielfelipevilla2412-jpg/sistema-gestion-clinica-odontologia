@@ -1,31 +1,25 @@
-// ===== CHROME COMPARTIDO (sidebar / hamburger / toast) =====
+(() => {
+// ===== CHROME COMPARTIDO =====
 const safeGetElement = (id) => document.getElementById(id);
 
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+}[character]));
+
 const showToast = (message, type = 'success') => {
-  const toast = safeGetElement('toast');
-  if (!toast) return;
-  toast.textContent = message;
-  toast.className = `toast${type === 'error' ? ' error' : type === 'warning' ? ' warning' : ''} show`;
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
+  const toast = window.ToastService?.[type];
+  if (typeof toast !== 'function') {
+    console.error('[SmileTrack][PQR] El servicio compartido de notificaciones no está disponible.');
+    return;
+  }
+  toast(window.I18N?.t('pqr.title') || 'PQR', escapeHtml(message));
 };
 
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  if (!hamburger || !sidebar || !overlay) return;
-
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', String(show));
-    overlay.setAttribute('aria-hidden', String(!show));
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(!sidebar.classList.contains('open')));
-  overlay.addEventListener('click', () => toggleMenu(false));
-};
+const translate = (key, fallback) => window.I18N?.t(key) || fallback;
 
 // ===== CLIENTE API LOCAL (autocontenido, sin depender de wwwroot/js/lib/apiRequest.js) =====
 function getPqrAntiforgeryToken() {
@@ -48,7 +42,10 @@ async function pqrApiRequest(path, options = {}) {
   const method = opts.method.toUpperCase();
   if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method)) {
     const csrfToken = getPqrAntiforgeryToken();
-    if (csrfToken) opts.headers = { ...opts.headers, 'X-CSRF-TOKEN': csrfToken };
+    if (!csrfToken) {
+      throw new Error('No se pudo validar la solicitud. Recarga la página e inténtalo de nuevo.');
+    }
+    opts.headers = { ...opts.headers, 'X-CSRF-TOKEN': csrfToken };
   }
 
   if (opts.body && typeof opts.body === 'object') {
@@ -75,18 +72,18 @@ async function pqrApiRequest(path, options = {}) {
 // ===== DATOS REALES (SQL Server, vía PqrController) =====
 
 const ESTADO_BADGE = {
-  recibida: { label: 'Recibida', cls: 'badge-recibido' },
-  en_proceso: { label: 'En proceso', cls: 'badge-proceso' },
-  resuelta: { label: 'Resuelta', cls: 'badge-resuelto' },
-  cerrada: { label: 'Cerrada', cls: 'badge-cerrado' },
-  rechazada: { label: 'Rechazada', cls: 'badge-cerrado' }
+  recibida: { key: 'pqr.received', label: 'Recibida', cls: 'badge-recibido' },
+  en_proceso: { key: 'pqr.status_in_progress', label: 'En proceso', cls: 'badge-proceso' },
+  resuelta: { key: 'pqr.resolved', label: 'Resuelta', cls: 'badge-resuelto' },
+  cerrada: { key: 'pqr.status_closed', label: 'Cerrada', cls: 'badge-cerrado' },
+  rechazada: { key: 'pqr.rejected', label: 'Rechazada', cls: 'badge-rechazado' }
 };
 
 const TIPO_BADGE = {
-  queja: { label: 'Queja', cls: 'badge-queja' },
-  reclamo: { label: 'Reclamo', cls: 'badge-reclamo' },
-  peticion: { label: 'Petición', cls: 'badge-peticion' },
-  sugerencia: { label: 'Sugerencia', cls: 'badge-peticion' }
+  queja: { key: 'pqr.type_complaint', label: 'Queja', cls: 'badge-queja' },
+  reclamo: { key: 'pqr.type_claim', label: 'Reclamo', cls: 'badge-reclamo' },
+  peticion: { key: 'pqr.type_petition', label: 'Petición', cls: 'badge-peticion' },
+  sugerencia: { key: 'pqr.type_suggestion', label: 'Sugerencia', cls: 'badge-peticion' }
 };
 
 const PRIORIDAD_BADGE = {
@@ -102,7 +99,7 @@ const ESTADO_FILTRO = {
   en_proceso: 'proceso',
   resuelta: 'resuelto',
   cerrada: 'cerrado',
-  rechazada: 'cerrado'
+  rechazada: 'rechazado'
 };
 
 let pqrsData = {};
@@ -122,7 +119,10 @@ const renderTable = () => {
 
   const ids = Object.keys(pqrsData);
   if (ids.length === 0) {
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 24px;">No hay PQR registradas.</td></tr>';
+    body.innerHTML = `<tr class="pqr-empty-row"><td colspan="8"><div class="empty-state">
+      <span class="material-symbols-outlined" aria-hidden="true">folder_off</span>
+      <h3>${escapeHtml(window.I18N?.t('pqr.no_requests') || 'No hay PQR registradas.')}</h3>
+    </div></td></tr>`;
     return;
   }
 
@@ -135,20 +135,22 @@ const renderTable = () => {
       && (Date.now() - new Date(p.fechaCreacionIso).getTime()) / (1000 * 60 * 60 * 24) > 15;
 
     return `
-      <tr data-id="${id}" data-tipo="${p.tipo}" data-estado="${ESTADO_FILTRO[p.estado] || 'recibido'}">
-        <td class="radicado">${p.radicado}</td>
+      <tr data-id="${escapeHtml(id)}" data-tipo="${escapeHtml(p.tipo)}" data-estado="${ESTADO_FILTRO[p.estado] || 'recibido'}">
+        <td class="radicado">${escapeHtml(p.radicado)}</td>
         <td class="paciente-info">
-          <strong>${p.paciente}</strong>
-          <span>${p.documento}</span>
+          <strong>${escapeHtml(p.paciente)}</strong>
+          <span>${escapeHtml(p.documento)}</span>
         </td>
-        <td><span class="badge ${tipoBadge.cls}">${tipoBadge.label}</span></td>
-        <td>${p.titulo}</td>
-        <td><span class="badge ${estadoBadge.cls}">${estadoBadge.label}</span></td>
+        <td><span class="badge ${tipoBadge.cls}">${escapeHtml(translate(tipoBadge.key, tipoBadge.label))}</span></td>
+        <td>${escapeHtml(p.titulo)}</td>
+        <td><span class="badge ${estadoBadge.cls}">${escapeHtml(translate(estadoBadge.key, estadoBadge.label))}</span></td>
         <td><span class="badge ${prioridadBadge.cls}">${prioridadBadge.label}</span></td>
-        <td class="${vencida ? 'tiempo-vencido' : ''}">${formatTiempoAbierto(p.fechaCreacionIso)}${vencida ? ' <i class="fas fa-exclamation-triangle"></i>' : ''}</td>
-        <td>
-          <button class="action-btn" onclick="showDetail(${id})" title="Ver detalle">
-            <i class="fas fa-eye"></i>
+        <td class="${vencida ? 'tiempo-vencido' : ''}">${escapeHtml(formatTiempoAbierto(p.fechaCreacionIso))}${vencida ? ' <span class="material-symbols-outlined" aria-hidden="true" style="font-size:16px;vertical-align:middle;color:var(--danger)">warning</span>' : ''}</td>
+        <td class="actions-cell">
+          <button class="action-btn" type="button" data-action="view" data-id="${escapeHtml(id)}"
+                      title="${escapeHtml(translate('pqr.view_details', 'Ver detalle'))}"
+                      aria-label="${escapeHtml(translate('pqr.view_details_aria', 'Ver detalle de la solicitud {id}').replace('{id}', String(p.radicado)))}">
+            <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
           </button>
         </td>
       </tr>`;
@@ -166,8 +168,6 @@ const renderStats = () => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  initSidebar();
-
   if (Array.isArray(window.RAZOR_PQRS)) {
     window.RAZOR_PQRS.forEach(p => {
       pqrsData[p.id] = {
@@ -194,6 +194,22 @@ document.addEventListener('DOMContentLoaded', () => {
   renderStats();
   initResponseForm();
   initPqrNotifications();
+
+  safeGetElement('searchInput')?.addEventListener('input', filterTable);
+  safeGetElement('filterTipo')?.addEventListener('change', filterTable);
+  safeGetElement('filterEstado')?.addEventListener('change', filterTable);
+  safeGetElement('closeDetailButton')?.addEventListener('click', closeDetail);
+  safeGetElement('detailOverlay')?.addEventListener('click', closeDetail);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && currentId !== null) closeDetail();
+  });
+  safeGetElement('pqrsTableBody')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-action="view"]');
+    if (button) showDetail(button.dataset.id);
+  });
+  document.querySelectorAll('.status-btn[data-state]').forEach(button => {
+    button.addEventListener('click', () => changeStatus(button, button.dataset.state));
+  });
 });
 
 // ===== NOTIFICACIONES Y ACTUALIZACIÓN AUTOMÁTICA =====
@@ -210,8 +226,8 @@ function updateNotificationBadge(stats) {
   const button = safeGetElement('pqrNotificationBtn');
   if (button) {
     const label = count > 0
-      ? `Nuevas solicitudes PQR: ${count}`
-      : 'No hay nuevas solicitudes PQR';
+      ? `${translate('pqr.notifications_aria', 'Nuevas solicitudes PQR')}: ${count}`
+      : translate('pqr.no_notifications', 'No hay nuevas solicitudes PQR');
     button.title = label;
     button.setAttribute('aria-label', label);
   }
@@ -335,11 +351,12 @@ function showDetail(id) {
   if (!data) return;
 
   document.querySelectorAll('tbody tr').forEach(row => row.classList.remove('selected'));
-  const selectedRow = document.querySelector(`tr[data-id="${id}"]`);
+  const selectedRow = Array.from(document.querySelectorAll('tr[data-id]'))
+    .find(row => row.dataset.id === String(id));
   if (selectedRow) selectedRow.classList.add('selected');
 
-  document.getElementById('emptyState').style.display = 'none';
-  document.getElementById('detailContent').style.display = 'block';
+  safeGetElement('emptyState').hidden = true;
+  safeGetElement('detailContent').hidden = false;
 
   document.getElementById('detailTitle').textContent = data.titulo;
   document.getElementById('detailRadicado').textContent = data.radicado;
@@ -353,10 +370,16 @@ function showDetail(id) {
   const evidenciaSection = document.getElementById('evidenciaSection');
   const evidenciaLink = document.getElementById('evidenciaLink');
   if (data.evidenciaAdjunto) {
-    evidenciaLink.href = `/${data.evidenciaAdjunto}`;
-    evidenciaSection.style.display = 'block';
+    const attachmentPath = String(data.evidenciaAdjunto);
+    if (/^(?:https?:)?\/\//i.test(attachmentPath) || attachmentPath.includes('..')) {
+      showToast('El archivo adjunto no tiene una ruta válida.', 'error');
+      evidenciaSection.hidden = true;
+    } else {
+      evidenciaLink.href = `/${attachmentPath.replace(/^\/+/, '')}`;
+      evidenciaSection.hidden = false;
+    }
   } else {
-    evidenciaSection.style.display = 'none';
+    evidenciaSection.hidden = true;
   }
 
   renderResponseThread(data);
@@ -367,7 +390,9 @@ function showDetail(id) {
 
   if (window.innerWidth <= 1200) {
     document.getElementById('detailPanel').classList.add('show');
-    document.querySelector('.overlay').classList.add('show');
+    safeGetElement('detailOverlay').classList.add('show');
+    safeGetElement('detailOverlay').setAttribute('aria-hidden', 'false');
+    safeGetElement('closeDetailButton').focus();
   }
 
   updateStatusButtons(data.estado);
@@ -383,14 +408,14 @@ function renderResponseThread(data) {
     thread.innerHTML = `
       <div class="timeline-item">
         <div class="timeline-header">
-          <span class="timeline-author">${data.atendidaPor || 'Administrador'}</span>
-          <span class="timeline-date">${data.fechaRespuesta || ''}</span>
+          <span class="timeline-author">${escapeHtml(data.atendidaPor || 'Administrador')}</span>
+          <span class="timeline-date">${escapeHtml(data.fechaRespuesta || '')}</span>
         </div>
-        <div class="timeline-content">${data.respuesta}</div>
+        <div class="timeline-content">${escapeHtml(data.respuesta)}</div>
       </div>`;
   } else {
     title.textContent = 'Hilo de Respuestas (0)';
-    thread.innerHTML = '<p style="color: var(--text-light, #888); font-size: 14px;">Aún no se ha respondido esta solicitud.</p>';
+    thread.innerHTML = '<p class="pqr-no-response">Aún no se ha respondido esta solicitud.</p>';
   }
 }
 
@@ -401,11 +426,11 @@ function updateBadgeColors(data) {
 
   const tipoEl = document.getElementById('detailTipo');
   tipoEl.className = `badge ${tipoBadge.cls}`;
-  tipoEl.textContent = tipoBadge.label;
+  tipoEl.textContent = translate(tipoBadge.key, tipoBadge.label);
 
   const estadoEl = document.getElementById('detailEstado');
   estadoEl.className = `badge ${estadoBadge.cls}`;
-  estadoEl.textContent = estadoBadge.label;
+  estadoEl.textContent = translate(estadoBadge.key, estadoBadge.label);
 
   const prioridadEl = document.getElementById('detailPrioridad');
   prioridadEl.className = `badge ${prioridadBadge.cls}`;
@@ -414,7 +439,7 @@ function updateBadgeColors(data) {
 
 function updateStatusButtons(estado) {
   document.querySelectorAll('.status-btn').forEach(btn => btn.classList.remove('active'));
-  const map = { recibida: 'recibido', en_proceso: 'proceso', resuelta: 'resuelto', cerrada: 'cerrado', rechazada: 'cerrado' };
+  const map = { recibida: 'recibido', en_proceso: 'proceso', resuelta: 'resuelto', cerrada: 'cerrado', rechazada: 'rechazado' };
   const btnClass = map[estado];
   if (btnClass) {
     const btn = document.querySelector(`.status-btn.${btnClass}`);
@@ -423,12 +448,16 @@ function updateStatusButtons(estado) {
 }
 
 function closeDetail() {
-  document.getElementById('detailContent').style.display = 'none';
-  document.getElementById('emptyState').style.display = 'flex';
+  const previousId = currentId;
+  safeGetElement('detailContent').hidden = true;
+  safeGetElement('emptyState').hidden = false;
   document.getElementById('detailPanel').classList.remove('show');
-  document.querySelector('.overlay').classList.remove('show');
+  safeGetElement('detailOverlay').classList.remove('show');
+  safeGetElement('detailOverlay').setAttribute('aria-hidden', 'true');
   document.querySelectorAll('tbody tr').forEach(row => row.classList.remove('selected'));
   currentId = null;
+  Array.from(document.querySelectorAll('button[data-action="view"]'))
+    .find(button => button.dataset.id === String(previousId))?.focus();
 }
 
 // Change Status — persiste en SQL Server vía PUT /gestion-de-pqr/api/pqr/{id}/estado
@@ -451,11 +480,12 @@ async function changeStatus(btn, estado) {
     btn.classList.add('active');
     updateBadgeColors(pqrsData[currentId]);
     renderTable();
+    filterTable();
     renderStats();
     showToast('Estado actualizado correctamente.');
   } catch (error) {
     console.error('Error cambiando estado:', error);
-    showToast('Error de conexión al actualizar el estado.', 'error');
+    showToast(error instanceof Error ? error.message : 'Error de conexión al actualizar el estado.', 'error');
   }
 }
 
@@ -495,13 +525,14 @@ function initResponseForm() {
       updateBadgeColors(data);
       updateStatusButtons(data.estado);
       renderTable();
+      filterTable();
       renderStats();
       textarea.value = '';
       showToast('Respuesta enviada correctamente.');
       await refreshPqrsFromServer();
     } catch (error) {
       console.error('Error enviando respuesta:', error);
-      showToast('Error de conexión al enviar la respuesta.', 'error');
+      showToast(error instanceof Error ? error.message : 'Error de conexión al enviar la respuesta.', 'error');
     } finally {
       btn.disabled = false;
     }
@@ -510,9 +541,9 @@ function initResponseForm() {
 
 // Filter Table
 function filterTable() {
-  const searchInput = document.getElementById('searchInput').value.toLowerCase();
-  const filterTipo = document.getElementById('filterTipo').value;
-  const filterEstado = document.getElementById('filterEstado').value;
+  const searchInput = safeGetElement('searchInput')?.value.toLowerCase() || '';
+  const filterTipo = safeGetElement('filterTipo')?.value || 'todos';
+  const filterEstado = safeGetElement('filterEstado')?.value || 'todos';
 
   const rows = document.querySelectorAll('#pqrsTableBody tr[data-id]');
 
@@ -521,8 +552,7 @@ function filterTable() {
     const radicado = row.querySelector('.radicado')?.textContent.toLowerCase() || '';
     const asunto = row.cells[3]?.textContent.toLowerCase() || '';
     const tipo = row.getAttribute('data-tipo');
-    const id = row.getAttribute('data-id');
-    const estadoReal = pqrsData[id]?.estado;
+    const estadoReal = row.getAttribute('data-estado');
 
     const matchesSearch = paciente.includes(searchInput) || radicado.includes(searchInput) || asunto.includes(searchInput);
     const matchesTipo = filterTipo === 'todos' || tipo === filterTipo;
@@ -536,6 +566,12 @@ function filterTable() {
 window.addEventListener('resize', function () {
   if (window.innerWidth > 1200) {
     document.getElementById('detailPanel').classList.remove('show');
-    document.querySelector('.overlay').classList.remove('show');
+    safeGetElement('detailOverlay').classList.remove('show');
+    safeGetElement('detailOverlay').setAttribute('aria-hidden', 'true');
+  } else if (currentId !== null) {
+    document.getElementById('detailPanel').classList.add('show');
+    safeGetElement('detailOverlay').classList.add('show');
+    safeGetElement('detailOverlay').setAttribute('aria-hidden', 'false');
   }
 });
+})();

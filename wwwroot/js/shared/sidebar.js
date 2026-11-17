@@ -49,6 +49,50 @@
   'use strict';
 
   // ════════════════════════════════════════════════════════════════════
+  //  HIGHLIGHT LINK ACTIVO SEGÚN LA RUTA ACTUAL
+  // ════════════════════════════════════════════════════════════════════
+  /**
+   * Asegura que el enlace correspondiente a la vista actual tenga la clase
+   * .active y el atributo aria-current="page".
+   */
+  function highlightCurrentLink() {
+    var sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+
+    var rawPath = window.location.pathname || '/';
+    var currentPath = rawPath.replace(/\/+$/, '') || '/';
+    var links = sidebar.querySelectorAll('a.nav-item:not(.nav-item--logout)');
+    var foundExact = false;
+
+    // 1. Coincidencia exacta
+    links.forEach(function (link) {
+      var href = (link.getAttribute('href') || '').split('?')[0].replace(/\/+$/, '') || '/';
+      if (href.toLowerCase() === currentPath.toLowerCase()) {
+        link.classList.add('active');
+        link.setAttribute('aria-current', 'page');
+        foundExact = true;
+      }
+    });
+
+    // 2. Coincidencia por prefijo jerárquico si no hubo exacta
+    if (!foundExact && currentPath !== '/') {
+      var bestMatch = null;
+      var bestLen = 0;
+      links.forEach(function (link) {
+        var href = (link.getAttribute('href') || '').split('?')[0].replace(/\/+$/, '');
+        if (href && href !== '/' && currentPath.toLowerCase().indexOf(href.toLowerCase()) === 0 && href.length > bestLen) {
+          bestMatch = link;
+          bestLen = href.length;
+        }
+      });
+      if (bestMatch) {
+        bestMatch.classList.add('active');
+        bestMatch.setAttribute('aria-current', 'page');
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
   //  ACCORDION — GRUPOS DE NAVEGACIÓN COLAPSABLES
   // ════════════════════════════════════════════════════════════════════
 
@@ -68,6 +112,8 @@
    * el grupo completo sin overflow oculto.
    */
   function initAccordion() {
+    highlightCurrentLink();
+
     /** @type {NodeListOf<HTMLElement>} */
     var headers = document.querySelectorAll('.nav-group-header');
 
@@ -78,7 +124,7 @@
       var arrow = header.querySelector('.nav-arrow');
 
       // Saltar grupos sin estructura válida (robustez ante HTML incompleto)
-      if (!items || !arrow) return;
+      if (!items) return;
 
       /**
        * Expande o colapsa el grupo modificando maxHeight para la transición CSS.
@@ -96,10 +142,10 @@
           // Setting Math.max(items.scrollHeight, 500) guarantees the group is never clipped or hidden.
           var realHeight = items.scrollHeight || 0;
           items.style.maxHeight = Math.max(realHeight, 500) + 'px';
-          arrow.style.transform = 'rotate(0deg)';
+          if (arrow) arrow.style.transform = 'rotate(0deg)';
         } else {
           items.style.maxHeight = '0px';
-          arrow.style.transform = 'rotate(-90deg)';
+          if (arrow) arrow.style.transform = 'rotate(-90deg)';
         }
         // Actualiza aria-expanded para lectores de pantalla (WCAG 4.1.2)
         header.setAttribute('aria-expanded', String(expand));
@@ -125,11 +171,11 @@
             if (otherHeader === header) return;
             var otherItems = otherHeader.nextElementSibling;
             var otherArrow = otherHeader.querySelector('.nav-arrow');
-            if (!otherItems || !otherArrow) return;
+            if (!otherItems) return;
             otherItems.style.maxHeight = '0px';
             otherItems.style.visibility = 'hidden';
             otherItems.style.pointerEvents = 'none';
-            otherArrow.style.transform = 'rotate(-90deg)';
+            if (otherArrow) otherArrow.style.transform = 'rotate(-90deg)';
             otherHeader.setAttribute('aria-expanded', 'false');
           });
         }
@@ -325,37 +371,50 @@
     // Solo habilitar en desktop
     if (window.innerWidth <= 680) return;
 
-    // ── Crear botón de colapso ────────────────────────────────────────
-    var btn = document.createElement('button');
-    btn.className = 'sidebar-collapse-btn';
-    btn.setAttribute('aria-label', 'Contraer menú lateral');
-    btn.setAttribute('title', 'Contraer menú lateral');
-    btn.innerHTML = '&#8249;'; // ‹
-    sidebar.appendChild(btn);
+    // ── Crear botón de colapso si no existe ───────────────────────────
+    var btn = sidebar.querySelector('.sidebar-collapse-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.className = 'sidebar-collapse-btn';
+      btn.setAttribute('aria-label', 'Contraer menú lateral');
+      btn.setAttribute('title', 'Contraer menú lateral');
+      btn.innerHTML = '&#8249;'; // ‹
+      sidebar.appendChild(btn);
 
-    // ── Agregar titles a los nav-items para tooltips en modo mini ─────
-    var navItems = sidebar.querySelectorAll('.nav-item');
-    navItems.forEach(function (item) {
-      // Extraer el texto del ítem (sin el ícono del ::before que viene de data-icon)
-      var text = (item.textContent || '').trim();
-      if (text && !item.getAttribute('title')) {
-        item.setAttribute('title', text);
-        // Envolver el texto en un span para poder ocultarlo en modo mini
-        var childNodes = Array.from(item.childNodes);
-        childNodes.forEach(function (node) {
-          if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-            var span = document.createElement('span');
-            span.className = 'nav-text';
-            span.textContent = node.textContent;
-            item.replaceChild(span, node);
-          }
-        });
-      }
-    });
+      // Toggle al hacer clic en el botón
+      btn.addEventListener('click', function () {
+        var nowMini = !sidebar.classList.contains('mini');
+        applyMiniState(sidebar, btn, nowMini);
+        localStorage.setItem('sidebar-mini', String(nowMini));
+      });
+    }
 
-    // Envolver texto de nav-group-header en .nav-group-label
+    function refreshNavTitles() {
+      var navItems = sidebar.querySelectorAll('.nav-item');
+      navItems.forEach(function (item) {
+        var text = (item.textContent || '').trim();
+        if (text) {
+          item.setAttribute('title', text);
+          var childNodes = Array.from(item.childNodes);
+          childNodes.forEach(function (node) {
+            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+              var span = document.createElement('span');
+              span.className = 'nav-text';
+              span.textContent = node.textContent;
+              item.replaceChild(span, node);
+            }
+          });
+        }
+      });
+    }
+
+    refreshNavTitles();
+    document.addEventListener('i18n:change', refreshNavTitles);
+
+    // Envolver texto de nav-group-header en .nav-group-label si aún no lo está
     var groupHeaders = sidebar.querySelectorAll('.nav-group-header');
     groupHeaders.forEach(function (header) {
+      if (header.querySelector('.nav-group-label')) return;
       var childNodes = Array.from(header.childNodes);
       childNodes.forEach(function (node) {
         if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
@@ -370,13 +429,6 @@
     // ── Aplicar estado guardado en localStorage ───────────────────────
     var isMini = localStorage.getItem('sidebar-mini') === 'true';
     applyMiniState(sidebar, btn, isMini);
-
-    // ── Toggle al hacer clic en el botón ─────────────────────────────
-    btn.addEventListener('click', function () {
-      var nowMini = !sidebar.classList.contains('mini');
-      applyMiniState(sidebar, btn, nowMini);
-      localStorage.setItem('sidebar-mini', String(nowMini));
-    });
 
     // Reaccionar a cambios de tamaño de ventana: desactivar mini en móvil
     window.addEventListener('resize', function () {

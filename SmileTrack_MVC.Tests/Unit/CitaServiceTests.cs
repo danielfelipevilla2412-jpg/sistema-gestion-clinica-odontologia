@@ -408,7 +408,7 @@ public class CitaServiceTests
             Estado = "Programada"
         });
 
-        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(accion);
+        var excepcion = await Assert.ThrowsAnyAsync<InvalidOperationException>(accion);
         Assert.Contains("bloqueo", excepcion.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -440,7 +440,7 @@ public class CitaServiceTests
             Estado = "Programada"
         });
 
-        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(accion);
+        var excepcion = await Assert.ThrowsAnyAsync<InvalidOperationException>(accion);
         Assert.Contains("especialidades", excepcion.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -470,7 +470,7 @@ public class CitaServiceTests
             Estado = "Programada"
         });
 
-        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(accion);
+        var excepcion = await Assert.ThrowsAnyAsync<InvalidOperationException>(accion);
         Assert.Contains("ausencia", excepcion.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -864,7 +864,7 @@ public class CitaServiceTests
         await db.SaveChangesAsync();
 
         var fecha = ProximaFecha(DayOfWeek.Monday).AddHours(9);
-        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var excepcion = await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
             CrearServicio(db).CrearAsync(new CitaApiRequest
             {
                 IdPaciente = datos.Paciente.IdPaciente,
@@ -887,7 +887,7 @@ public class CitaServiceTests
         await db.SaveChangesAsync();
 
         var fecha = ProximaFecha(DayOfWeek.Monday).AddHours(9);
-        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var excepcion = await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
             CrearServicio(db).CrearAsync(new CitaApiRequest
             {
                 IdPaciente = datos.Paciente.IdPaciente,

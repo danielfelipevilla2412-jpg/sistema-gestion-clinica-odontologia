@@ -496,3 +496,11 @@ img { max-width: 100%; height: auto; display: block; }
   overflow: hidden; transition: max-height 0.3s ease;
 }
 .nav-group-items .nav-item { padding-left: 24px; }
+
+
+/* ═══ Colores semánticos de leyenda FDI (sin inline styles) ═══ */
+.li-dot--caries { background: #ff4d6d; }
+.li-bar--endodoncia { background: #378ADD; }
+.li-dot--sellante { background: #f4a62a; }
+.li-bar--placa { background: #1D9E75; }
+.li-dot--sano { background: #00d4ff; }

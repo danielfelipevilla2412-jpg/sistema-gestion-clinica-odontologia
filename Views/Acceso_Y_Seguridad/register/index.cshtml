@@ -1,8 +1,10 @@
+@addTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.LinkTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.ScriptTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
 @* ============================================
    SmileTrack — Registro de Pacientes y Usuarios (register/index.cshtml)
    ============================================
    Autor: Johan Santamaria / SmileTrack Team
-   Fecha: 29/07/2026 (Actualizado 2026-09-12)
+   Fecha: 29/07/2026 (Actualizado 2026-09-12 / Estandarizado 2026-11-15)
 
    DESCRIPCIÓN Y POR QUÉ DE NEGOCIO Y SEGURIDAD:
    Esta vista permite el autorregistro público de pacientes en la plataforma SmileTrack. Su objetivo es
@@ -18,224 +20,148 @@
    SEGURIDAD Y ACCESIBILIDAD:
    - Antiforgery Token inyectado para prevenir registros maliciosos CSRF.
    - Atributos `aria-required`, `aria-describedby` y etiquetas explícitas para WCAG 2.1 AA.
-
-   DEPENDENCIAS TÉCNICAS:
-   - Controller: AccesoSeguridadController -> Register (GET / POST)
-   - CSS: ~/css/Acceso_Y_Seguridad/register/register.css
-   - JS: ~/js/Acceso_Y_Seguridad/register/register.js
+   - LayoutAuth unificado con fondo institucional y control de idioma.
 ============================================ *@
-@removeTagHelper "Microsoft.AspNetCore.Mvc.TagHelpers.BodyTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers"
-@{ Layout = null; }
+@{
+    Layout = "~/Views/Acceso_Y_Seguridad/_LayoutAuth.cshtml";
+    ViewData["Title"] = "Crear cuenta";
+    ViewData["Description"] = "Crear cuenta en SmileTrack - Sistema de Gestión Clínica Odontológica";
+    ViewData["SubtitleI18n"] = "register.tagline";
+    ViewData["Subtitle"] = "Únete a la red dental profesional";
+    ViewData["MainClass"] = "login-main--wide";
+}
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" data-i18n="register.meta_description" content="Crear cuenta en SmileTrack - Sistema de Gestión Clínica Odontológica" />
-    <title data-i18n="register.page_title">Crear cuenta — SmileTrack</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@400;500;700,FILL@0..1&display=swap" rel="stylesheet" />
-    <link href="@Url.Content("~/css/Acceso_Y_Seguridad/register/register.css")" rel="stylesheet" />
-    <link href="@Url.Content("~/css/shared/scrollbars.css")" rel="stylesheet" asp-append-version="true" />
+@section Styles {
+    <link href="@Url.Content("~/css/Acceso_Y_Seguridad/register/register.css")" rel="stylesheet" asp-append-version="true" />
+}
 
-    <script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#1E88E5',
-                        accent: '#43A047',
-                        background: '#FFFFFF',
-                        surface: '#F5F7FA',
-                        'text-primary': '#212121',
-                        'text-secondary': '#1E88E5',
-                        success: '#43A047',
-                        error: '#E53935',
-                        warning: '#FBC02D',
-                        info: '#42A5F5'
-                    },
-                    fontFamily: {
-                        title: ['Montserrat', 'sans-serif'],
-                        body: ['Roboto', 'sans-serif']
-                    }
-                }
-            }
-        };
-    </script>
-</head>
-<body class="min-h-screen bg-background font-body text-text-primary antialiased flex items-center justify-center p-6">
-    @* Conmutador de idioma con banderas — partial reutilizable *@
-    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-    <div class="fixed inset-0 z-0">
-        <img alt="Clínica Dental" class="h-full w-full object-cover" src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1600&q=80" />
-        <div class="absolute inset-0" style="background: linear-gradient(135deg, rgba(0, 53, 95, 0.85) 0%, rgba(25, 28, 30, 0.7) 100%);"></div>
+<form id="registerForm" class="space-y-6 px-6 pb-8 md:px-10" action="/acceso-y-seguridad/register" method="post">
+    @Html.AntiForgeryToken()
+
+    <fieldset class="space-y-3 rounded-2xl border border-white/10 p-4 md:p-5">
+        <legend class="mb-2 block px-2 font-title text-lg font-semibold text-white" data-i18n="register.fieldset_personal">Datos Personales</legend>
+        <div class="grid gap-4 md:grid-cols-2">
+            <div class="space-y-2">
+                <label for="first-name" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.firstname_label">Nombres</label>
+                <input id="first-name" name="Nombre" type="text" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.firstname_placeholder" placeholder="Ej: Juan Carlos" />
+            </div>
+            <div class="space-y-2">
+                <label for="last-name" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.lastname_label">Apellidos</label>
+                <input id="last-name" name="Apellidos" type="text" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.lastname_placeholder" placeholder="Ej: Pérez García" />
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset class="space-y-3 rounded-2xl border border-white/10 p-4 md:p-5">
+        <legend class="mb-2 block px-2 font-title text-lg font-semibold text-white" data-i18n="register.fieldset_docs">Documentación</legend>
+        <div class="grid gap-4 md:grid-cols-2">
+            <div class="space-y-2">
+                <label for="doc-type" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.doctype_label">Tipo Documento</label>
+                <select id="doc-type" name="TipoDocumento" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none focus:border-white focus:ring-2 focus:ring-white/30">
+                    <option value="" class="text-gray-500" data-i18n="register.doctype_select">Seleccionar tipo...</option>
+                    <option value="CC" class="text-black" data-i18n="register.doctype_cc">Cédula de ciudadanía</option>
+                    <option value="TI" class="text-black" data-i18n="register.doctype_ti">Tarjeta de identidad</option>
+                    <option value="CE" class="text-black" data-i18n="register.doctype_ce">Cédula de extranjería</option>
+                    <option value="PAS" class="text-black" data-i18n="register.doctype_pas">Pasaporte</option>
+                </select>
+            </div>
+            <div class="space-y-2">
+                <label for="doc-num" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.docnum_label">Número Documento</label>
+                <input id="doc-num" name="NumeroDocumento" type="text" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.docnum_placeholder" placeholder="Ej: 12345678" />
+            </div>
+        </div>
+    </fieldset>
+
+    <div class="space-y-2">
+        <label for="birth-date" class="block text-sm font-medium uppercase tracking-wide text-white/80">Fecha de nacimiento</label>
+        <input id="birth-date" name="FechaNacimiento" type="date" required max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none focus:border-white focus:ring-2 focus:ring-white/30" />
     </div>
 
-    <main class="relative z-10 w-full max-w-2xl">
-        <div class="overflow-hidden rounded-3xl border border-white/20 bg-[#1a3150]/95 shadow-2xl backdrop-blur-md">
-            <div class="space-y-4 p-6 text-center">
-                <div class="mb-4 flex justify-center">
-                    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="Logo SmileTrack" class="h-24 w-auto object-contain drop-shadow-md" />
-                </div>
-                <h1 class="font-title text-3xl font-bold tracking-tight text-white" data-i18n="common.smiletrack">SmileTrack</h1>
-                <p class="font-body text-sm text-white/80" data-i18n="register.tagline">Únete a la red dental profesional</p>
+    <fieldset class="space-y-3 rounded-2xl border border-white/10 p-4 md:p-5">
+        <legend class="mb-2 block px-2 font-title text-lg font-semibold text-white" data-i18n="register.fieldset_contact">Contacto</legend>
+        <div class="grid gap-4 md:grid-cols-2">
+            <div class="space-y-2">
+                <label for="email" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.email_label">Correo Electrónico</label>
+                <input id="email" name="Correo" type="email" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.email_placeholder" placeholder="odontologo@clinicadental.com" />
             </div>
-
-            <form id="registerForm" class="space-y-6 px-6 pb-8 md:px-10" action="/acceso-y-seguridad/register" method="post">
-                @Html.AntiForgeryToken()
-
-                <fieldset class="space-y-3 rounded-2xl border border-white/10 p-4 md:p-5">
-                    <legend class="mb-2 block px-2 font-title text-lg font-semibold text-white" data-i18n="register.fieldset_personal">Datos Personales</legend>
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <label for="first-name" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.firstname_label">Nombres</label>
-                            <input id="first-name" name="Nombre" type="text" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.firstname_placeholder" placeholder="Ej: Juan Carlos" />
-                        </div>
-                        <div class="space-y-2">
-                            <label for="last-name" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.lastname_label">Apellidos</label>
-                            <input id="last-name" name="Apellidos" type="text" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.lastname_placeholder" placeholder="Ej: Pérez García" />
-                        </div>
-                    </div>
-                </fieldset>
-
-                <fieldset class="space-y-3 rounded-2xl border border-white/10 p-4 md:p-5">
-                    <legend class="mb-2 block px-2 font-title text-lg font-semibold text-white" data-i18n="register.fieldset_docs">Documentación</legend>
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <label for="doc-type" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.doctype_label">Tipo Documento</label>
-                            <select id="doc-type" name="TipoDocumento" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none focus:border-white focus:ring-2 focus:ring-white/30">
-                                <option value="" class="text-gray-500" data-i18n="register.doctype_select">Seleccionar tipo...</option>
-                                <option value="CC" class="text-black" data-i18n="register.doctype_cc">Cédula de ciudadanía</option>
-                                <option value="TI" class="text-black" data-i18n="register.doctype_ti">Tarjeta de identidad</option>
-                                <option value="CE" class="text-black" data-i18n="register.doctype_ce">Cédula de extranjería</option>
-                                <option value="PAS" class="text-black" data-i18n="register.doctype_pas">Pasaporte</option>
-                            </select>
-                        </div>
-                        <div class="space-y-2">
-                            <label for="doc-num" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.docnum_label">Número Documento</label>
-                            <input id="doc-num" name="NumeroDocumento" type="text" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.docnum_placeholder" placeholder="Ej: 12345678" />
-                        </div>
-                    </div>
-                </fieldset>
-
-                <div class="space-y-2">
-                    <label for="birth-date" class="block text-sm font-medium uppercase tracking-wide text-white/80">Fecha de nacimiento</label>
-                    <input id="birth-date" name="FechaNacimiento" type="date" required max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none focus:border-white focus:ring-2 focus:ring-white/30" />
-                </div>
-                
-                <fieldset class="space-y-3 rounded-2xl border border-white/10 p-4 md:p-5">
-                    <legend class="mb-2 block px-2 font-title text-lg font-semibold text-white" data-i18n="register.fieldset_contact">Contacto</legend>
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <label for="email" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.email_label">Correo Electrónico</label>
-                            <input id="email" name="Correo" type="email" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.email_placeholder" placeholder="odontologo@clinicadental.com" />
-                        </div>
-                        <div class="space-y-2">
-                            <label for="phone" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.phone_label">Teléfono</label>
-                            <input id="phone" name="Telefono" type="tel" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.phone_placeholder" placeholder="+57 300 123 456" />
-                        </div>
-                    </div>
-                </fieldset>
-
-                <fieldset class="space-y-3 rounded-2xl border border-white/10 p-4 md:p-5">
-                    <legend class="mb-2 block px-2 font-title text-lg font-semibold text-white" data-i18n="register.fieldset_security">Seguridad</legend>
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <label for="password" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.password_label">Contraseña</label>
-                            <div class="relative">
-                                <input id="password" name="Contrasena" type="password" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 pr-12 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.password_placeholder" placeholder="Mínimo 8 caracteres" />
-                                <button type="button" id="togglePassword" class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/60 transition hover:text-white" data-i18n-aria-label="register.show_password" aria-label="Mostrar contraseña" aria-pressed="false">
-                                    <span class="material-symbols-outlined">visibility</span>
-                                </button>
-                            </div>
-                            <div id="passwordStrength" class="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10 hidden"></div>
-                            <div class="mt-3 grid gap-2 text-sm text-white/70">
-                                <p id="passwordCriterionLength" data-i18n="register.pwd_criterion_length">• Mínimo 8 caracteres</p>
-                                <p id="passwordCriterionUpper" data-i18n="register.pwd_criterion_upper">• Al menos una letra mayúscula</p>
-                                <p id="passwordCriterionNumber" data-i18n="register.pwd_criterion_number">• Al menos un número</p>
-                                <p id="passwordCriterionSymbol" data-i18n="register.pwd_criterion_symbol">• Al menos un símbolo especial</p>
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <label for="confirm-password" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.confirm_password_label">Confirmar Contraseña</label>
-                            <input id="confirm-password" name="ConfirmarContrasena" type="password" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.confirm_password_placeholder" placeholder="Repite tu contraseña" />
-                        </div>
-                    </div>
-                </fieldset>
-
-                @* Yeray: Explica por qué el consentimiento de salud es obligatorio y registra la aceptación antes de crear la cuenta. *@
-                <section class="space-y-3 rounded-xl border border-white/20 bg-[#0f1f33]/50 p-4 text-sm leading-relaxed text-white/80" aria-labelledby="consentTitle">
-                    <div>
-                        <h2 id="consentTitle" class="font-semibold text-white">Autorización para el tratamiento de datos personales</h2>
-                        <p>Versión 1.0 · Noviembre de 2026</p>
-                    </div>
-                    <p>SmileTrack es un sistema de gestión clínica desarrollado con fines académicos (SENA). Al continuar, autorizo el tratamiento de mis datos personales, incluidos los datos sensibles relacionados con mi salud (historia clínica, odontograma, alergias, antecedentes y diagnósticos), con las siguientes finalidades: gestionar mi registro como paciente, programar y atender citas, y mantener mi historia clínica.</p>
-                    <p>Sé que puedo conocer, actualizar, rectificar y solicitar la supresión de mis datos, y revocar esta autorización, conforme a la Ley 1581 de 2012.</p>
-                    <p>Para registrarme y recibir atención en SmileTrack es necesario que autorice el tratamiento de mis datos de salud, porque son indispensables para crear y mantener mi historia clínica. Si no acepto, no podré completar mi registro.</p>
-                    <p>Contacto del responsable: <a class="font-semibold underline" href="mailto:yeraygarzon6@gmail.com">yeraygarzon6@gmail.com</a></p>
-                    <label for="terms" class="flex items-start gap-3 cursor-pointer">
-                        <input id="terms" name="AceptaTratamientoDatos" value="true" type="checkbox" required class="mt-1 h-4 w-4 accent-[#a0c9ff]" />
-                        <span>Autorizo el tratamiento de mis datos personales y de salud para mi atención en SmileTrack.</span>
-                    </label>
-                </section>
-
-                <button id="registerBtn" type="submit" class="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#a0c9ff] py-4 text-lg font-bold text-[#00355f] shadow-xl transition hover:bg-white hover:shadow-2xl" aria-disabled="false">
-                    <span data-i18n="register.button_submit">Crear cuenta</span>
-                </button>
-
-                <noscript>
-                    <div class="mt-4 rounded-2xl border border-yellow-400/30 bg-yellow-500/10 p-4 text-sm text-yellow-700" role="alert" data-i18n="register.noscript_warning">
-                        JavaScript está deshabilitado en tu navegador. El formulario puede enviarse, pero algunas validaciones y la experiencia mejorada no estarán disponibles.
-                    </div>
-                </noscript>
-
-                <div id="registerGlobalError" class="hidden mt-4 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-700" role="alert"></div>
-
-                <div class="border-t border-white/20 pt-6 text-center">
-                    <p class="text-sm text-white/80">
-                        <span data-i18n="register.have_account">¿Ya tienes cuenta?</span>
-                        <a href="/acceso-y-seguridad/login" class="ml-1 font-semibold text-[#a0c9ff] hover:underline" data-i18n="register.login_here">Inicia sesión aquí</a>
-                    </p>
-                </div>
-            </form>
+            <div class="space-y-2">
+                <label for="phone" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.phone_label">Teléfono</label>
+                <input id="phone" name="Telefono" type="tel" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.phone_placeholder" placeholder="+57 300 123 456" />
+            </div>
         </div>
+    </fieldset>
 
-        <footer class="mt-6 text-center">
-            <p class="text-sm uppercase tracking-wider text-white/70" data-i18n="register.footer_badge">Portal Clínico Seguro • v2.4.0</p>
-        </footer>
-    </main>
+    <fieldset class="space-y-3 rounded-2xl border border-white/10 p-4 md:p-5">
+        <legend class="mb-2 block px-2 font-title text-lg font-semibold text-white" data-i18n="register.fieldset_security">Seguridad</legend>
+        <div class="grid gap-4 md:grid-cols-2">
+            <div class="space-y-2">
+                <label for="password" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.password_label">Contraseña</label>
+                <div class="relative">
+                    <input id="password" name="Contrasena" type="password" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 pr-12 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.password_placeholder" placeholder="Mínimo 8 caracteres" />
+                    <button type="button" id="togglePassword" class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/60 transition hover:text-white" data-i18n-aria-label="register.show_password" aria-label="Mostrar contraseña" aria-pressed="false">
+                        <span class="material-symbols-outlined">visibility</span>
+                    </button>
+                </div>
+                <div id="passwordStrength" class="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10 hidden"></div>
+                <div class="mt-3 grid gap-2 text-sm text-white/70">
+                    <p id="passwordCriterionLength" data-i18n="register.pwd_criterion_length">• Mínimo 8 caracteres</p>
+                    <p id="passwordCriterionUpper" data-i18n="register.pwd_criterion_upper">• Al menos una letra mayúscula</p>
+                    <p id="passwordCriterionNumber" data-i18n="register.pwd_criterion_number">• Al menos un número</p>
+                    <p id="passwordCriterionSymbol" data-i18n="register.pwd_criterion_symbol">• Al menos un símbolo especial</p>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <label for="confirm-password" class="block text-sm font-medium uppercase tracking-wide text-white/80" data-i18n="register.confirm_password_label">Confirmar Contraseña</label>
+                <input id="confirm-password" name="ConfirmarContrasena" type="password" required class="w-full rounded-xl border border-white/20 bg-[#0f1f33]/80 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white focus:ring-2 focus:ring-white/30" data-i18n-ph="register.confirm_password_placeholder" placeholder="Repite tu contraseña" />
+            </div>
+        </div>
+    </fieldset>
 
-    <script src="@Url.Content("~/js/i18n-core.js")"></script>
-    <script src="@Url.Content("~/js/i18n.config.js")"></script>
-    <script src="@Url.Content("~/js/shared/validation-utils.js")"></script>
-    <script src="@Url.Content("~/js/Acceso_Y_Seguridad/register/register.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  <style>
-    .lang-switch-btn {
-      padding: 6px 14px;
-      border-radius: 999px;
-      border: 1.5px solid #005ea4;
-      background: #ffffff;
-      color: #021c3a;
-      font-weight: 700;
-      font-size: 12px;
-      letter-spacing: 0.5px;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-      transition: all 0.2s ease;
-    }
-    .lang-switch-btn:hover { background: #f0f7ff; color: #005ea4; }
-    .lang-switch-btn.is-active {
-      background: #005ea4 !important;
-      border-color: #004881 !important;
-      color: #ffffff !important;
-      box-shadow: 0 4px 12px rgba(0, 94, 164, 0.35) !important;
-    }
-  </style>
-</body>
-</html>
+    <div class="mb-4">
+        @await Html.PartialAsync("~/Views/Publico/_AvisoDatosDemo.cshtml")
+    </div>
 
+    @* Consentimiento de demostración; debe revisarse antes del uso real. *@
+    <section class="space-y-3 rounded-xl border border-white/20 bg-[#0f1f33]/50 p-4 text-sm leading-relaxed text-white/80" aria-labelledby="consentTitle">
+        <div>
+            <h2 id="consentTitle" class="font-semibold text-white">Autorización para el tratamiento de datos personales</h2>
+            <p>Versión de demostración 0.1 · No vigente</p>
+        </div>
+        <p>SmileTrack es un sistema de gestión clínica odontológica. Al continuar, autorizo el tratamiento de mis datos personales, incluidos los datos sensibles relacionados con mi salud (historia clínica, odontograma, alergias, antecedentes y diagnósticos), con las siguientes finalidades: gestionar mi registro como paciente, programar y atender citas, y mantener mi historia clínica.</p>
+        <p>Sé que puedo conocer, actualizar, rectificar y solicitar la supresión de mis datos, y revocar esta autorización, conforme a la Ley 1581 de 2012.</p>
+        <p>Para registrarme y recibir atención en SmileTrack es necesario que autorice el tratamiento de mis datos de salud, porque son indispensables para crear y mantener mi historia clínica. Si no acepto, no podré completar mi registro.</p>
+        <p>Contacto ficticio: <a class="font-semibold underline" href="mailto:privacidad@smiletrack.example">privacidad@smiletrack.example</a>. Consulta el <a class="font-semibold underline" href="/politica-tratamiento">borrador de política de tratamiento</a>.</p>
+        <label for="terms" class="flex items-start gap-3 cursor-pointer">
+            <input id="terms" name="AceptaTratamientoDatos" value="true" type="checkbox" required class="mt-1 h-4 w-4 accent-[#a0c9ff]" />
+            <span>Autorizo el tratamiento de mis datos personales y de salud para mi atención en SmileTrack.</span>
+        </label>
+    </section>
+
+    <button id="registerBtn" type="submit" class="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#a0c9ff] py-4 text-lg font-bold text-[#00355f] shadow-xl transition hover:bg-white hover:shadow-2xl" aria-disabled="false">
+        <span data-i18n="register.button_submit">Crear cuenta</span>
+    </button>
+
+    <noscript>
+        <div class="mt-4 rounded-2xl border border-yellow-400/30 bg-yellow-500/10 p-4 text-sm text-yellow-700" role="alert" data-i18n="register.noscript_warning">
+            JavaScript está deshabilitado en tu navegador. El formulario puede enviarse, pero algunas validaciones y la experiencia mejorada no estarán disponibles.
+        </div>
+    </noscript>
+
+    <div id="registerGlobalError" class="hidden mt-4 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-700" role="alert"></div>
+
+    <div class="border-t border-white/20 pt-6 text-center">
+        <p class="text-sm text-white/80">
+            <span data-i18n="register.have_account">¿Ya tienes cuenta?</span>
+            <a href="/acceso-y-seguridad/login" class="ml-1 font-semibold text-[#a0c9ff] hover:underline" data-i18n="register.login_here">Inicia sesión aquí</a>
+        </p>
+    </div>
+</form>
+
+<footer class="p-4 text-center">
+    <p class="text-sm uppercase tracking-wider text-white/70" data-i18n="register.footer_badge">Portal Clínico Seguro • v2.4.0</p>
+</footer>
+
+@section Scripts {
+    <script src="@Url.Content("~/js/shared/validation-utils.js")" asp-append-version="true"></script>
+    <script src="@Url.Content("~/js/Acceso_Y_Seguridad/register/register.js")" asp-append-version="true"></script>
+}

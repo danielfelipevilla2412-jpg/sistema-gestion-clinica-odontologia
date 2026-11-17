@@ -83,3 +83,19 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
 .hidden { display: none !important; }
 [aria-hidden="true"] { pointer-events: none; }
 .flex-2 { flex: 2; }
+@keyframes otp-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.otp-digit:focus {
+  border-color: #a0c9ff !important;
+  box-shadow: 0 0 0 3px rgba(160, 201, 255, 0.25);
+}
+
+.otp-digit.filled { border-color: rgba(255, 255, 255, 0.5) !important; }
+.otp-digit.error {
+  border-color: #f87171 !important;
+  animation: otp-shake 0.35s ease;
+}

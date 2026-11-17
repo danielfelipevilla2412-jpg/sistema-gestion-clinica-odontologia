@@ -60,8 +60,26 @@ namespace SmileTrack_MVC.Models.Entities
         [Column("intentos_fallidos")]
         public int IntentosFallidos { get; set; } = 0;
 
+        [Column("bloqueado_hasta")]
+        public DateTime? BloqueadoHasta { get; set; }
+
         [Column("ultimo_logout")]
         public DateTime? UltimoLogout { get; set; }
+
+        // ── Consentimiento de datos (Ley 1581/2012) ────────────────────────────
+        /// <summary>Versión de demostración de la política aceptada (e.g. "DEMO 0.1").</summary>
+        [Column("version_consentimiento")]
+        [StringLength(10)]
+        public string? VersionConsentimiento { get; set; }
+
+        /// <summary>Fecha UTC en que se otorgó el consentimiento.</summary>
+        [Column("fecha_consentimiento")]
+        public DateTime? FechaConsentimiento { get; set; }
+
+        /// <summary>IP desde la que se aceptó el consentimiento.</summary>
+        [Column("ip_consentimiento")]
+        [StringLength(45)]
+        public string? IpConsentimiento { get; set; }
 
         [ForeignKey("IdRol")]
         public Rol Rol { get; set; } = null!;

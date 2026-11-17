@@ -1,0 +1,14 @@
+@{
+    Layout = "~/Views/Acceso_Y_Seguridad/_LayoutAuth.cshtml";
+    ViewData["Title"] = "Acceso denegado";
+    ViewData["Subtitle"] = "Tu cuenta no tiene permiso para ver esta página.";
+    ViewData["SubtitleI18n"] = "access_denied.subtitle";
+}
+
+<section class="login-section text-center" aria-labelledby="access-denied-title">
+    <h2 id="access-denied-title" class="section-label" data-i18n="access_denied.title">Acceso denegado</h2>
+    <p class="login-subtitle" data-i18n="access_denied.message">
+        Iniciaste sesión correctamente, pero tu rol no tiene acceso a este recurso.
+    </p>
+    <a class="btn-login" href="/" data-i18n="access_denied.home">Volver al inicio</a>
+</section>

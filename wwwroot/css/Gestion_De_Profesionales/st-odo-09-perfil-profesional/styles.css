@@ -729,3 +729,9 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+
+/* ═══ Iconos de etiquetas, títulos y horarios (sin inline styles) ═══ */
+.icon-tag { font-size: .85rem; vertical-align: middle; margin-right: 2px; }
+.icon-card-title { font-size: 1.05rem; vertical-align: middle; margin-right: 4px; }
+.icon-time-label { font-size: .95rem; vertical-align: middle; margin-right: 3px; }

@@ -333,8 +333,6 @@ const initializeRemindersModule = () => {
   setupSendSelectedButtonListener();
   setupSendAllMobileButtonListener();
   setupAlertButtonsListeners();
-
-  window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
 };
 
 document.addEventListener('DOMContentLoaded', initializeRemindersModule);

@@ -17,7 +17,13 @@
    - JS: ~/js/Gestion_De_Citas/st-adm-08-agenda/agendageneral.js
    ============================================ *@
 @model SmileTrack_MVC.Models.ViewModels.AgendaViewModel
-@{ Layout = "_Layout"; ViewData["Title"] = "Agenda General"; }
+@addTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.LinkTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.ScriptTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Agenda General";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-adm-08-agenda/agendageneral.css" asp-append-version="true" />
@@ -41,9 +47,9 @@
                 <span class="material-symbols-outlined" aria-hidden="true">add</span>
                 <span data-i18n="adm09_btn_nueva_cita">Nueva Cita</span>
             </button>
-            <a class="btn-secondary" href="/gestion-de-citas/st-adm-09-citas" aria-label="Abrir tabla integral de citas">
+            <a class="btn-secondary" href="/gestion-de-citas/st-adm-09-citas" aria-label="Abrir tabla integral de citas" data-i18n-aria-label="adm08_tabla_integral_aria">
                 <span class="material-symbols-outlined" aria-hidden="true">table_view</span>
-                <span>Tabla integral</span>
+                <span data-i18n="adm08_tabla_integral_btn">Tabla integral</span>
             </a>
         </div>
     </header>
@@ -143,7 +149,7 @@
     </section>
 
     <div class="agenda-print-actions no-print">
-        <button type="button" class="btn-secondary" onclick="window.print()" aria-label="Imprimir agenda semanal" data-i18n-aria-label="adm08_print_aria">
+        <button type="button" class="btn-secondary" id="btnImprimirAgenda" aria-label="Imprimir agenda semanal" data-i18n-aria-label="adm08_print_aria">
             <span class="material-symbols-outlined" aria-hidden="true">print</span>
             <span data-i18n="adm08_print_btn">Imprimir Agenda</span>
         </button>
@@ -201,7 +207,7 @@
                     </div>
                     <div class="form-group">
                         <label for="newApptStatus" data-i18n="citas.status">Estado</label>
-                        <select id="newApptStatus" name="Estado" required aria-required="true">
+                        <select id="newApptStatus" name="Estado" data-state-select required aria-required="true">
                             <option value="Programada" selected data-i18n="status.scheduled">Agendada</option>
                             <option value="Confirmada" data-i18n="status.confirmed">Confirmada</option>
                         </select>
@@ -269,31 +275,6 @@
         </div>
     </div>
 </div>
-
-<!-- Navegación móvil -->
-<nav class="mobile-nav" aria-label="Navegación móvil" data-i18n-aria-label="adm08_mobile_nav_aria">
-    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
-        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span></span>
-        <span data-i18n="adm08_mobile_dashboard">Dashboard</span>
-    </a>
-    <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item active" aria-current="page">
-        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
-        <span data-i18n="adm08_mobile_agenda">Agenda</span>
-    </a>
-    <a href="/gestion-de-citas/st-adm-09-citas" class="mobile-nav-item">
-        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event</span></span>
-        <span data-i18n="adm08_mobile_citas">Citas</span>
-    </a>
-</nav>
-
-<!-- Footer -->
-<footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div class="agenda-footer-content">
-        <span class="material-symbols-outlined" aria-hidden="true">copyright</span>
-        <p data-i18n="footer.copyright">© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
-</footer>
 
 @await Html.PartialAsync("~/Views/Shared/_ReagendarCitaModal.cshtml")
 

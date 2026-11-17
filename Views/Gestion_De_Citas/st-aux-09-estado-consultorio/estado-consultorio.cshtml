@@ -41,9 +41,9 @@
       </div>
       
       <!-- Selector de consultorio -->
-      <div class="header-right" style="display:flex;align-items:center;gap:12px;">
-        <label for="selectConsultorio" class="form-label" style="margin:0;font-weight:500;">Consultorio:</label>
-        <select id="selectConsultorio" class="form-select" style="min-width:200px;" aria-label="Seleccionar consultorio">
+      <div class="header-right">
+        <label for="selectConsultorio" class="form-label">Consultorio:</label>
+        <select id="selectConsultorio" class="form-select" aria-label="Seleccionar consultorio">
           <option value="">Cargando...</option>
         </select>
       </div>
@@ -65,7 +65,7 @@
           @Html.AntiForgeryToken()
           <div class="checklist-header">
             <h3 class="card-title" id="checklistTitle">
-              <span class="material-symbols-outlined action-icon" aria-hidden="true" style="vertical-align: middle; color: var(--green);">task_alt</span>
+              <span class="material-symbols-outlined" aria-hidden="true" style="vertical-align: middle; color: var(--green);">task_alt</span>
               <span data-i18n="citas.checklist">Checklist post-atención</span>
             </h3>
             <span class="progress-info" id="progressInfo" aria-live="polite">0/0 - 0%</span>
@@ -184,14 +184,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-  </footer>
 
   <script>
     window.smiletrackEstadoConsultorioData = @Html.Raw(estadoConsultorioJson ?? "null");

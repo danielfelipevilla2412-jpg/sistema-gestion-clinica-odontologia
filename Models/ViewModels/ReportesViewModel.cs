@@ -9,17 +9,17 @@ namespace SmileTrack_MVC.Models.ViewModels
 
         // KPIs
         public decimal IngresosTotales { get; set; }
-        public double VariacionIngresos { get; set; }
+        public double? VariacionIngresos { get; set; }
         public int NuevosPacientes { get; set; }
-        public double VariacionPacientes { get; set; }
+        public double? VariacionPacientes { get; set; }
         public int CitasCompletadas { get; set; }
-        public double VariacionCitas { get; set; }
+        public double? VariacionCitas { get; set; }
         public double TasaRetencion { get; set; }
-        public double VariacionRetencion { get; set; }
+        public double? VariacionRetencion { get; set; }
         public double TasaInasistencia { get; set; }
-        public double VariacionInasistencia { get; set; }
-        public double OcupacionAgenda { get; set; }
-        public double VariacionOcupacion { get; set; }
+        public double? VariacionInasistencia { get; set; }
+        public int CitasDelPeriodo { get; set; }
+        public double? VariacionCitasPeriodo { get; set; }
 
         // Gráficos y Tablas
         public List<CrecimientoItemViewModel> CrecimientoClinica { get; set; } = new();

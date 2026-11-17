@@ -2,11 +2,12 @@
   SmileTrack — Toasts Compartidos (_Toasts.cshtml)
   Debe incluirse en los layouts (o al final del body en vistas sin layout)
 *@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="@Url.Content("~/css/shared/toasts.css")" />
-<script src="@Url.Content("~/js/shared/toasts.js")" defer></script>
+<link rel="stylesheet" href="~/css/shared/toasts.css" asp-append-version="true" />
+<script src="~/js/shared/toasts.js" asp-append-version="true" defer></script>
 
 @* Script para inicializar automáticamente Toasts si vienen mensajes desde TempData *@
 @if (TempData["SuccessMessage"] != null || TempData["ErrorMessage"] != null || TempData["InfoMessage"] != null)

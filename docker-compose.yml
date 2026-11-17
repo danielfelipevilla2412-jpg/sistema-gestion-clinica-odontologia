@@ -1,49 +1,113 @@
+# ================================================================
+# SmileTrack — Docker Compose
+# Sistema de Gestión de Clínica Odontológica
+# ================================================================
+#
+# USO RÁPIDO:
+#   1. Copiar .env.example → .env  y ajustar contraseñas
+#   2. docker compose up -d
+#   3. Abrir http://127.0.0.1:5259
+#
+# Credenciales de prueba (contraseña: 123456):
+#   admin@smiletrack.co   → Administrador
+#   prof@smiletrack.co    → Profesional
+#   recep@smiletrack.co   → Recepcionista
+#   aux@smiletrack.co     → Auxiliar
+#   pac@smiletrack.co     → Paciente
+# ================================================================
+
 services:
+
+  # ─── Base de datos SQL Server 2022 ──────────────────────────────────────────
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: smiletrack-sqlserver
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Debes configurar MSSQL_SA_PASSWORD en .env}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Configura MSSQL_SA_PASSWORD en el archivo .env}"
       MSSQL_PID: "Express"
     ports:
-      - "1435:1433"
+      # Expuesto solo en localhost para no abrir el puerto SQL al exterior
+      - "127.0.0.1:1435:1433"
     volumes:
       - smiletrack-sqldata:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -b -Q \"SELECT 1\""]
       interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
     restart: unless-stopped
+    networks:
+      - smiletrack-net
 
+  # ─── Inicialización de esquema y catálogos (ejecución única) ────────────────
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    entrypoint: ["/bin/bash", "/init-db.sh"]
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Configura MSSQL_SA_PASSWORD en el archivo .env}"
+      SQL_SERVER_HOST: "sqlserver"
+    volumes:
+      - ./Database/SCRIPT_SQL_UNICO_SMILETRACK.sql:/docker-entrypoint-initdb.d/SCRIPT_SQL_UNICO_SMILETRACK.sql:ro
+      - ./Database/init-db.sh:/init-db.sh:ro
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - smiletrack-net
+
+  # ─── Aplicación Web ASP.NET Core 9 ──────────────────────────────────────────
   web:
+    image: smiletrack-web:local
     build:
       context: .
       dockerfile: Dockerfile
-    image: smiletrack-web:actualizacion
+    pull_policy: build
     container_name: smiletrack-web
     depends_on:
       sqlserver:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     ports:
-      - "5259:80"
+      - "127.0.0.1:5259:80"
     environment:
       ASPNETCORE_URLS: "http://+:80"
-      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_ENVIRONMENT: "Production"
+      # Permite HTTP local; con HTTPS los cookies se marcan Secure según la petición.
+      Security__RedirectHttpToHttps: "false"
       Storage__ClinicalDocumentsPath: "/app/App_Data/clinical-documents"
-      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SmileTrackDB;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Debes configurar MSSQL_SA_PASSWORD en .env};TrustServerCertificate=True;"
+      # La app se conecta al contenedor SQL por nombre de servicio (smiletrack-net)
+      ConnectionStrings__DefaultConnection: >-
+        Server=sqlserver;Database=SmileTrackDB;User Id=sa;
+        Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Connect Timeout=30;
+      Jwt__Key: "${JWT_KEY:?Configura JWT_KEY en el archivo .env}"
+      Jwt__Issuer: "SmileTrack"
+      Jwt__Audience: "SmileTrackClient"
+      Jwt__ExpiryMinutes: "60"
+      Smtp__Host: "${SMTP_HOST:-smtp.gmail.com}"
+      Smtp__Port: "${SMTP_PORT:-587}"
+      Smtp__Username: "${SMTP_USERNAME:-}"
+      Smtp__Password: "${SMTP_PASSWORD:-}"
+      Smtp__EnableSsl: "true"
     volumes:
       - smiletrack-dataprotection:/root/.aspnet/DataProtection-Keys
       - smiletrack-clinical-files:/app/App_Data/clinical-documents
     restart: unless-stopped
+    networks:
+      - smiletrack-net
 
+# ─── Volúmenes persistentes ──────────────────────────────────────────────────
 volumes:
-  smiletrack-sqldata:
-    external: true
-    name: sistema-gestion-clinica-odontologia_smiletrack-sqldata
-  smiletrack-dataprotection:
-    external: true
-    name: sistema-gestion-clinica-odontologia_smiletrack-dataprotection
-  smiletrack-clinical-files:
+  smiletrack-sqldata:          # Datos de SQL Server (BD persistente)
+  smiletrack-dataprotection:   # Claves de protección de datos ASP.NET
+  smiletrack-clinical-files:   # Documentos clínicos subidos
+
+# ─── Red interna Docker ───────────────────────────────────────────────────────
+networks:
+  smiletrack-net:
+    driver: bridge
+    # Red compartida: 'web' resuelve 'sqlserver' por nombre de servicio
+    # sin exponer el puerto SQL al host ni a internet

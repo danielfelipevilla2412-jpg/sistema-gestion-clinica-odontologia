@@ -246,40 +246,6 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ═══ COMPONENTES ESPECÍFICOS DE GESTIÓN DE CITAS ═══ */
 
-/* View toggles */
-.view-toggles {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  background: var(--white);
-  padding: 4px;
-  border-radius: var(--radius);
-  width: fit-content;
-  border: 1px solid var(--border);
-}
-.view-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  font-size: .83rem;
-  cursor: pointer;
-  transition: background var(--tr), color var(--tr);
-  border: none;
-  background: none;
-  color: var(--text-muted);
-}
-.view-toggle.active {
-  background: var(--primary);
-  color: #fff;
-}
-.view-toggle:hover:not(.active) {
-  background: var(--primary-light);
-  color: var(--primary);
-}
-
 /* Filter bar — OBSOLETO: reemplazado por shared/ui-components.css
    (.filters-section / .filters-row / .search-wrap / .filter-wrap / .filter-select) */
 
@@ -675,7 +641,6 @@ button { font-family: inherit; cursor: pointer; }
   .filters-row .btn-secondary { width: 100%; }
   .btn-text { display: none; }
   .action-btn { padding: 6px 8px; }
-  .view-toggles { width: 100%; overflow-x: auto; padding-bottom: 4px; }
   .mobile-nav { display: flex; }
   .fab { display: flex; }
   .modal { max-width: 100%; margin: 0 12px; }

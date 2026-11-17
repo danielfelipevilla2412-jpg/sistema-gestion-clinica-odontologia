@@ -241,6 +241,8 @@ public partial class GestionProfesionalesController(
                             return new
                             {
                                 mes = monthStart.ToString("MMMM", new System.Globalization.CultureInfo("es-CO")),
+                                mesNumero = monthStart.Month,
+                                anio = monthStart.Year,
                                 valor = amount
                             };
                         })
@@ -1028,7 +1030,7 @@ public partial class GestionProfesionalesController(
         }
         catch (SqlException sqlex)
         {
-            _logger.LogCritical(sqlex, "SqlException en CargarDatosProfesionales. Number={Number}", sqlex.Number);
+            _logger.LogError(sqlex, "SqlException en CargarDatosProfesionales. Number={Number}", sqlex.Number);
             InicializarViewDataProfesionalesVacio(returnUrl);
             TempData["ErrorValidacion"] = MensajeErrorFallback;
         }

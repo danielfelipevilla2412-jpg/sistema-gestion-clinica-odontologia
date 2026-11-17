@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Antiforgery.Internal;
 using Microsoft.AspNetCore.RateLimiting;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
@@ -24,20 +25,8 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
 
     [HttpGet]
     [Route("acceso-y-seguridad/login")]
-    public async Task<IActionResult> Login(string? returnUrl = null)
+    public IActionResult Login(string? returnUrl = null)
     {
-        // Limpiar cualquier estado de autenticación previo antes de mostrar la página de login.
-        // Esto evita que cookies de sesión antiguas puedan contaminar la siguiente petición POST,
-        // especialmente en contextos donde el cliente mantiene un .AspNetCore.Cookies / SmileTrack-JWT
-        // viejo que podría provocar rechazos de solicitud por encabezados demasiado grandes o
-        // sesiones inconsistentes.
-        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        Response.Cookies.Delete("SmileTrack-JWT");
-
-        // Vacía el usuario de ESTA petición, para que el token antiforgery se emita
-        // como anónimo y coincida con el POST posterior.
-        HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
-
         ViewData["ReturnUrl"] = returnUrl;
         return View("~/Views/Acceso_Y_Seguridad/login/index.cshtml");
     }
@@ -46,10 +35,13 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
     [ValidateAntiForgeryToken]
     [EnableRateLimiting("LoginByIp")]
     [Route("acceso-y-seguridad/login")]
-    public async Task<IActionResult> LoginPost(string email, string password, string? rol, string? returnUrl)
+    public async Task<IActionResult> LoginPost(
+        string? email,
+        string? password,
+        string? rol,
+        string? returnUrl,
+        bool remember = false)
     {
-        static bool IsLocalUrl(string? url) => !string.IsNullOrEmpty(url) && url.StartsWith('/') && !url.StartsWith("//");
-
         var redirecciones = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { "Administrador", "/gestion-de-citas/st-adm-01-dashboard" },
@@ -66,7 +58,7 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
             return valor.Trim().ToLowerInvariant() switch
             {
                 "administrador" or "admin" => "Administrador",
-                "profesional" or "odontologo" or "doctor" => "Profesional",
+                "profesional" or "odontologo" or "odontólogo" or "doctor" => "Profesional",
                 "recepcionista" => "Recepcionista",
                 "auxiliar" => "Auxiliar",
                 "paciente" => "Paciente",
@@ -75,23 +67,41 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         }
 
         ViewData["ReturnUrl"] = returnUrl;
+        string rolSeleccionado = NormalizarRol(rol);
+        ViewData["RolSeleccionado"] = rolSeleccionado;
         string accept = HttpContext.Request.Headers["Accept"].ToString();
         bool wantsJson = accept?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true;
 
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        if (!redirecciones.ContainsKey(rolSeleccionado))
         {
-            ModelState.AddModelError("", "Correo y contraseña son obligatorios.");
+            const string mensajeRolInvalido = "Selecciona un rol válido.";
+            ModelState.AddModelError("rol", mensajeRolInvalido);
             if (wantsJson)
             {
-                return BadRequest(new { success = false, message = "Correo y contraseña son obligatorios." });
+                return BadRequest(new { success = false, message = mensajeRolInvalido });
+            }
+
+            return View("~/Views/Acceso_Y_Seguridad/login/index.cshtml");
+        }
+
+        string correo = email?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(correo) ||
+            string.IsNullOrWhiteSpace(password) ||
+            correo.Length > 150 ||
+            password.Length > 100 ||
+            !new EmailAddressAttribute().IsValid(correo))
+        {
+            ModelState.AddModelError("", "Verifica el correo y la contraseña.");
+            if (wantsJson)
+            {
+                return BadRequest(new { success = false, message = "Verifica el correo y la contraseña." });
             }
             return View("~/Views/Acceso_Y_Seguridad/login/index.cshtml");
         }
 
-        string correo = email.Trim();
         var usuario = await _context.Usuarios
             .Include(u => u.Rol)
-            .FirstOrDefaultAsync(u => u.Correo == correo);
+            .FirstOrDefaultAsync(u => u.Correo.ToLower() == correo);
 
         if (usuario == null)
         {
@@ -130,12 +140,7 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
             return View("~/Views/Acceso_Y_Seguridad/login/index.cshtml");
         }
 
-        // El rol siempre se toma de la base de datos (fuente de verdad), nunca del botón que el
-        // usuario haya presionado en pantalla. Si el usuario selecciona un rol distinto en el
-        // formulario, se IGNORA la selección de la UI, se usa el rol real asignado en BD y se
-        // le deja ingresar sin bloqueos. Así, incluso sin hacer clic en el selector de roles,
-        // el login funciona automáticamente.
-        string rolSeleccionado = NormalizarRol(rol);
+        // El rol y el destino proceden de la cuenta en la base de datos, no del formulario.
         string rolNombre = NormalizarRol(usuario.Rol?.NombreRol);
 
         if (!redirecciones.TryGetValue(rolNombre, out string? redirectUrl))
@@ -148,12 +153,6 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
             return View("~/Views/Acceso_Y_Seguridad/login/index.cshtml");
         }
 
-        if (!string.IsNullOrWhiteSpace(rolSeleccionado) &&
-            !string.Equals(rolSeleccionado, rolNombre, StringComparison.OrdinalIgnoreCase))
-        {
-            TempData["InfoMessage"] = $"Se detectó que seleccionaste el rol '{rolSeleccionado}', pero tu cuenta corresponde a '{rolNombre}'. Has iniciado sesión con tu rol real.";
-        }
-
         // La contraseña, el estado de la cuenta (activo/inactivo) y el registro de auditoría del
         // intento de inicio de sesión quedan a cargo de AuthService, que ya centraliza ese manejo
         // (incluye manejo de errores de BD y logging) en vez de duplicarlo aquí.
@@ -161,23 +160,26 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         {
             Correo = correo,
             Contrasena = password,
-            Rol = rolNombre,
+            Rol = rolSeleccionado,
         });
 
         if (!authResult.Success)
         {
-            int status = authResult.Message.Contains("bloqueada", StringComparison.OrdinalIgnoreCase)
-                ? StatusCodes.Status403Forbidden
-                : StatusCodes.Status401Unauthorized;
+            const string mensajeCredencialesInvalidas =
+                "Correo o contraseña incorrectos.";
 
             if (wantsJson)
             {
-                return StatusCode(status, new { success = false, message = authResult.Message });
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = mensajeCredencialesInvalidas
+                });
             }
 
-            Response.StatusCode = status;
-            ViewData["ErrorStatus"] = status;
-            ModelState.AddModelError("", authResult.Message);
+            Response.StatusCode = StatusCodes.Status401Unauthorized;
+            ViewData["ErrorStatus"] = StatusCodes.Status401Unauthorized;
+            ModelState.AddModelError("", mensajeCredencialesInvalidas);
             return View("~/Views/Acceso_Y_Seguridad/login/index.cshtml");
         }
 
@@ -217,7 +219,11 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         var principal = new ClaimsPrincipal(identity);
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
-            new AuthenticationProperties { IsPersistent = true });
+            new AuthenticationProperties
+            {
+                IsPersistent = remember,
+                AllowRefresh = true
+            });
 
 
 
@@ -239,7 +245,7 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
             string.Equals(rolNombre, "Administrador", StringComparison.OrdinalIgnoreCase);
 
         if (!administradorDebeAbrirDashboard &&
-            IsLocalUrl(rr) &&
+            Url.IsLocalUrl(rr) &&
             !rr.StartsWith("/acceso-y-seguridad/login", StringComparison.OrdinalIgnoreCase))
         {
             destino = rr;
@@ -314,6 +320,7 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
     public IActionResult Recover() => View("~/Views/Acceso_Y_Seguridad/recover/index.cshtml");
 
     [HttpPost]
+    [EnableRateLimiting("AccountRecoveryByIp")]
     [Route("acceso-y-seguridad/recover/send-code")]
     public async Task<IActionResult> RecoverSendCode([FromBody] Models.ViewModels.RecoverPasswordRequest request)
     {
@@ -321,9 +328,13 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         {
             await _antiforgery.ValidateRequestAsync(HttpContext);
         }
-        catch (AntiforgeryValidationException ex)
+        catch (AntiforgeryValidationException)
         {
-            return BadRequest(new { Success = false, Message = "Antiforgery validation failed.", Details = ex.Message });
+            return BadRequest(new
+            {
+                Success = false,
+                Message = "No fue posible validar la solicitud. Recarga la página e inténtalo de nuevo."
+            });
         }
 
         if (request == null)
@@ -346,6 +357,7 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
     }
 
     [HttpPost]
+    [EnableRateLimiting("AccountRecoveryByIp")]
     [Route("acceso-y-seguridad/recover/verify-code")]
     public async Task<IActionResult> RecoverVerifyCode([FromBody] VerifyRecoveryCodeRequest request)
     {
@@ -353,9 +365,13 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         {
             await _antiforgery.ValidateRequestAsync(HttpContext);
         }
-        catch (AntiforgeryValidationException ex)
+        catch (AntiforgeryValidationException)
         {
-            return BadRequest(new { Success = false, Message = "Antiforgery validation failed.", Details = ex.Message });
+            return BadRequest(new
+            {
+                Success = false,
+                Message = "No fue posible validar la solicitud. Recarga la página e inténtalo de nuevo."
+            });
         }
 
         if (request == null)
@@ -378,6 +394,7 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
     }
 
     [HttpPost]
+    [EnableRateLimiting("AccountRecoveryByIp")]
     [Route("acceso-y-seguridad/recover/reset-password")]
     public async Task<IActionResult> RecoverResetPassword([FromBody] ResetPasswordRequest request)
     {
@@ -385,9 +402,13 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
         {
             await _antiforgery.ValidateRequestAsync(HttpContext);
         }
-        catch (AntiforgeryValidationException ex)
+        catch (AntiforgeryValidationException)
         {
-            return BadRequest(new { Success = false, Message = "Antiforgery validation failed.", Details = ex.Message });
+            return BadRequest(new
+            {
+                Success = false,
+                Message = "No fue posible validar la solicitud. Recarga la página e inténtalo de nuevo."
+            });
         }
 
         if (request == null)
@@ -441,6 +462,16 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
     [Authorize]
     [Route("acceso-y-seguridad/cambiar-contrasena")]
     public IActionResult ChangePassword() => View("~/Views/Acceso_Y_Seguridad/change-password/index.cshtml");
+
+    [HttpGet]
+    [AllowAnonymous]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [Route("acceso-y-seguridad/acceso-denegado")]
+    public IActionResult AccessDenied()
+    {
+        Response.StatusCode = StatusCodes.Status403Forbidden;
+        return View("~/Views/Acceso_Y_Seguridad/access-denied/index.cshtml");
+    }
 
     [HttpPost]
     [Authorize]
@@ -498,6 +529,7 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [EnableRateLimiting("RegisterByIp")]
     [Route("acceso-y-seguridad/register")]
     public async Task<IActionResult> RegisterPost([FromForm] RegisterRequest request)
     {

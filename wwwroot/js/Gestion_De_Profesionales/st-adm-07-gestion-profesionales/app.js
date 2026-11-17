@@ -89,11 +89,11 @@ const getSpecialtyBadgeClass = (specialtyName) => SPECIALTY_COLOR_MAP[specialtyN
  */
 const getStatusBadgeClass = (statusValue) => {
   const statusClassMap = {
-    'activo': 'activo', 'Activo': 'activo',
-    'vacaciones': 'vacaciones', 'Vacaciones': 'vacaciones',
-    'inactivo': 'inactivo', 'Inactivo': 'inactivo',
+    'activo': 'badge-activo', 'Activo': 'badge-activo',
+    'vacaciones': 'badge-vacaciones', 'Vacaciones': 'badge-vacaciones',
+    'inactivo': 'badge-inactivo', 'Inactivo': 'badge-inactivo',
   };
-  return statusClassMap[statusValue] || 'inactivo';
+  return statusClassMap[statusValue] || 'badge-inactivo';
 };
 
 /**
@@ -428,14 +428,14 @@ const createProfessionalTableRow = (professionalRecord) => {
                 data-status-class="${statusBadgeClass}"
                 aria-label="Ver detalles del profesional ${fullName}"
                 title="Ver detalles del profesional ${fullName}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
+          <span class="material-symbols-outlined" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
         </button>
         <button class="btn-secondary action-btn edit"
                 type="button"
                 data-id="${professionalIdAttribute}"
                 aria-label="Editar el profesional ${fullName}"
                 title="Editar profesional ${fullName}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
+          <span class="material-symbols-outlined" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
         </button>
         <button class="${isProfessionalActive ? 'btn-danger' : 'btn-success'} action-btn btn-delete toggle"
                 type="button"
@@ -444,7 +444,7 @@ const createProfessionalTableRow = (professionalRecord) => {
                 data-estado="${statusText || 'inactivo'}"
                 aria-label="${isProfessionalActive ? 'Desactivar' : 'Reactivar'} el profesional ${fullName}"
                 title="${isProfessionalActive ? 'Desactivar' : 'Reactivar'} profesional ${fullName}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">${isProfessionalActive ? 'block' : 'check_circle'}</span> <span class="btn-text">${isProfessionalActive ? 'Desactivar' : 'Reactivar'}</span>
+          <span class="material-symbols-outlined" aria-hidden="true">${isProfessionalActive ? 'block' : 'check_circle'}</span> <span class="btn-text">${isProfessionalActive ? 'Desactivar' : 'Reactivar'}</span>
         </button>
       </div>
     </td>
@@ -460,6 +460,7 @@ const createProfessionalTableRow = (professionalRecord) => {
  * @param {string} defaultStatusClass
  */
 const openProfessionalDetailView = (viewButton, defaultAvatarBg, defaultStatusClass) => {
+  lastFocusedElement = viewButton instanceof HTMLElement ? viewButton : document.activeElement;
   const avatarEl = getElementByIdSafe('detailAvatar');
   const nameEl = getElementByIdSafe('detailName');
   const specialtyEl = getElementByIdSafe('detailSpecialty');
@@ -1138,10 +1139,6 @@ const saveProfessional = async (event) => {
     estado:         isEditingMode ? (getElementByIdSafe('formStatus')?.value || getElementByIdSafe('formEstado')?.value || '').trim().toLowerCase() || null : null,
   };
 
-  if (!isEditingMode) {
-    delete requestPayload.contrasenaAcceso;
-  }
-
   try {
     let apiResult;
     if (isEditingMode) {
@@ -1384,48 +1381,10 @@ window.goToPage = async (pageNumber) => {
   await loadProfessionalsList();
 };
 
-/**
- * Inicializa el comportamiento del sidebar responsive en dispositivos móviles.
- */
-const initSidebar = () => {
-  const hamburgerButton = getElementByIdSafe('hamburger');
-  const sidebarElement = getElementByIdSafe('sidebar');
-  const overlayElement = getElementByIdSafe('overlay');
-
-  if (!hamburgerButton || !sidebarElement || !overlayElement) return;
-
-  const toggleMobileMenu = (showMenu) => {
-    sidebarElement.classList.toggle('open', showMenu);
-    overlayElement.classList.toggle('open', showMenu);
-    hamburgerButton.setAttribute('aria-expanded', showMenu);
-    overlayElement.setAttribute('aria-hidden', !showMenu);
-
-    if (showMenu) {
-      const firstNavigationLink = sidebarElement.querySelector('.nav-item');
-      if (firstNavigationLink) firstNavigationLink.focus();
-    } else {
-      hamburgerButton.focus();
-    }
-  };
-
-  hamburgerButton.addEventListener('click', () => toggleMobileMenu(true));
-  overlayElement.addEventListener('click', () => toggleMobileMenu(false));
-
-  sidebarElement.querySelectorAll('.nav-item').forEach(navItem => {
-    navItem.addEventListener('click', () => {
-      if (window.innerWidth <= 680) {
-        toggleMobileMenu(false);
-      }
-    });
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && sidebarElement.classList.contains('open')) {
-      event.preventDefault();
-      toggleMobileMenu(false);
-    }
-  });
-};
+// NOTA: la apertura/cierre del sidebar móvil (hamburger + overlay + foco) y el
+// accordion los gestiona shared/sidebar.js (cargado por _Layout). No duplicar
+// esa lógica aquí: al enlazar dos veces los mismos elementos, el botón abre y
+// no vuelve a cerrar correctamente el menú.
 
 /**
  * Inicializa la lógica de filtrado reactivo debounced y el formulario de búsqueda.
@@ -1575,10 +1534,8 @@ const initModals = () => {
     if (viewButton) {
       openProfessionalDetailView(viewButton, getAvatarColorBySpecialty(viewButton.dataset.specialty || ''), getStatusBadgeClass(viewButton.dataset.status || ''));
       resetModalTabs();
-      resetAbsenceForm();
       const professionalId = Number(viewButton.dataset.id);
       loadProfessionalSchedule(professionalId);
-      loadProfessionalAbsences(professionalId);
     }
   });
 
@@ -1647,7 +1604,6 @@ const initModals = () => {
  * Función de inicialización principal.
  */
 const init = async () => {
-  initSidebar();
   initModals();
   initModalTabs();
   bindProfessionalFieldValidation();

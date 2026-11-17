@@ -83,6 +83,8 @@
         assignments = data;
       } catch (error) {
         console.error('[SmileTrack][Agenda] No se pudieron cargar asignaciones:', error);
+        // Notifica al usuario además del aviso textual del hint (refresh()).
+        window.ToastService?.error?.('No se pudieron cargar las asignaciones de profesionales. Verifica la conexión e inténtalo de nuevo.');
       } finally {
         loading = false;
         refresh();

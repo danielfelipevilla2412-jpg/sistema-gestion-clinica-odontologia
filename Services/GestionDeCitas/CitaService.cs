@@ -24,6 +24,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Exceptions;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
@@ -85,7 +86,7 @@ public class CitaService : ICitaService
             .ToListAsync(ct);
 
         int programadas = citas.Count(c => NormalizarEstado(c.Estado) is "programada" or "agendada" or "confirmada");
-        int canceladas = citas.Count(c => EsEstadoCancelado(c.Estado));
+        int canceladas = citas.Count(c => EstadoCitaHelper.EsEstadoCancelado(c.Estado));
         int atendidas = citas.Count(c => NormalizarEstado(c.Estado) == "atendida");
         int actual = citas.Count(c => c.FechaHora >= inicioSemana && c.FechaHora < finSemana && NormalizarEstado(c.Estado) is "programada" or "agendada" or "confirmada");
         int anterior = citas.Count(c => c.FechaHora >= inicioSemanaAnterior && c.FechaHora < inicioSemana && NormalizarEstado(c.Estado) is "programada" or "agendada" or "confirmada");
@@ -506,7 +507,8 @@ public class CitaService : ICitaService
     // CREAR CITA (C-01, C-04)
     // =========================================================================
 
-    public async Task<Cita> CrearAsync(CitaApiRequest request, CancellationToken ct = default)
+    public async Task<Cita> CrearAsync(CitaApiRequest request, CancellationToken ct = default,
+        int? operadorId = null, string? ipOrigen = null)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -548,7 +550,7 @@ public class CitaService : ICitaService
         int duracion = await ObtenerDuracionServicioAsync(request.IdServicio!.Value, ct);
         var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, duracion, ct);
         if (!horarioValido)
-            throw new InvalidOperationException(mensajeHorario!);
+            throw new CitaConflictException(mensajeHorario!);
 
         var disponibilidad = await ValidarDisponibilidadProfesionalAsync(
             request.IdProfesional!.Value,
@@ -557,7 +559,7 @@ public class CitaService : ICitaService
             duracion,
             ct);
         if (!disponibilidad.EsValida)
-            throw new InvalidOperationException(disponibilidad.Mensaje!);
+            throw new CitaConflictException(disponibilidad.Mensaje!);
 
         var citaCreada = await ExecuteWithSerializableTransactionAsync(async () =>
         {
@@ -571,7 +573,7 @@ public class CitaService : ICitaService
                 ct);
 
             if (conflicto.HayConflicto)
-                throw new InvalidOperationException(conflicto.Mensaje);
+                throw new CitaConflictException(conflicto.Mensaje);
 
             string estadoSolicitud = string.IsNullOrWhiteSpace(request.Estado) ? "programada" : request.Estado.Trim();
             var estadoEntidad = await ResolverEstadoCatalogoAsync(estadoSolicitud, ct);
@@ -637,6 +639,31 @@ public class CitaService : ICitaService
             _logger.LogWarning(ex, "No se pudo crear la notificación de la cita {IdCita}.", citaCreada.IdCita);
         }
 
+        // ── Auditoría (best-effort, fuera de la tx serializable) ─────────────
+        try
+        {
+            _context.Auditorias.Add(new Auditoria
+            {
+                Accion = "INSERT",
+                TablaAfectada = "Cita",
+                IdRegistro = citaCreada.IdCita,
+                Descripcion = $"Cita creada. IdPaciente={citaCreada.IdPaciente}, IdProfesional={citaCreada.IdProfesional}, Fecha={citaCreada.FechaHora:yyyy-MM-dd HH:mm}",
+                DatosNuevos = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    citaCreada.IdPaciente, citaCreada.IdProfesional, citaCreada.IdServicio,
+                    citaCreada.IdConsultorio, citaCreada.Estado, citaCreada.FechaHora
+                }),
+                IdUsuario = operadorId,
+                IpOrigen = ipOrigen ?? "CitaService",
+                Fecha = ColombiaClock.Now
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo registrar auditoría de creación. IdCita={IdCita}.", citaCreada.IdCita);
+        }
+
         return citaCreada;
     }
 
@@ -644,7 +671,8 @@ public class CitaService : ICitaService
     // ACTUALIZAR CITA (C-01, C-04)
     // =========================================================================
 
-    public async Task<Cita?> ActualizarAsync(int id, CitaApiUpdateDto request, CancellationToken ct = default)
+    public async Task<Cita?> ActualizarAsync(int id, CitaApiUpdateDto request, CancellationToken ct = default,
+        int? operadorId = null, string? ipOrigen = null)
     {
         if (request is null)
             throw new ArgumentNullException(nameof(request));
@@ -682,8 +710,8 @@ public class CitaService : ICitaService
         {
             string estadoActual = NormalizarEstado(cita.Estado);
             string estadoNuevo = NormalizarEstado(estadoSolicitado.NombreEstado);
-            if (estadoActual != estadoNuevo && !EsTransicionEstadoPermitida(estadoActual, estadoNuevo))
-                throw new InvalidOperationException(ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
+            if (estadoActual != estadoNuevo && !EstadoCitaHelper.IsTransitionAllowed(estadoActual, estadoNuevo))
+                throw new InvalidOperationException(EstadoCitaHelper.ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
         }
 
         if (request.IdProfesional is <= 0 ||
@@ -713,7 +741,7 @@ public class CitaService : ICitaService
         int duracion = await ObtenerDuracionServicioAsync(request.IdServicio!.Value, ct);
         var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(request.FechaHora, duracion, ct);
         if (!horarioValido)
-            throw new InvalidOperationException(mensajeHorario!);
+            throw new CitaConflictException(mensajeHorario!);
 
         var disponibilidad = await ValidarDisponibilidadProfesionalAsync(
             request.IdProfesional!.Value,
@@ -722,9 +750,9 @@ public class CitaService : ICitaService
             duracion,
             ct);
         if (!disponibilidad.EsValida)
-            throw new InvalidOperationException(disponibilidad.Mensaje!);
+            throw new CitaConflictException(disponibilidad.Mensaje!);
 
-        return await ExecuteWithSerializableTransactionAsync(async () =>
+        var citaActualizada = await ExecuteWithSerializableTransactionAsync(async () =>
         {
             var conflicto = await VerificarConflictoCompletoAsync(
                 request.IdProfesional!.Value,
@@ -736,7 +764,7 @@ public class CitaService : ICitaService
                 ct);
 
             if (conflicto.HayConflicto)
-                throw new InvalidOperationException(conflicto.Mensaje);
+                throw new CitaConflictException(conflicto.Mensaje);
 
             if (cita.IdConsultorio != request.IdConsultorio)
             {
@@ -768,13 +796,36 @@ public class CitaService : ICitaService
             await _context.SaveChangesAsync(ct);
             return cita;
         }, ct);
+
+        // ── Auditoría actualización (best-effort) ─────────────────────────────
+        try
+        {
+            _context.Auditorias.Add(new Auditoria
+            {
+                Accion = "UPDATE",
+                TablaAfectada = "Cita",
+                IdRegistro = id,
+                Descripcion = $"Cita actualizada. IdPaciente={request.IdPaciente}, Fecha={request.FechaHora:yyyy-MM-dd HH:mm}",
+                IdUsuario = operadorId ?? request.IdUsuarioModificacion,
+                IpOrigen = ipOrigen ?? "CitaService",
+                Fecha = ColombiaClock.Now
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo registrar auditoría de actualización. IdCita={Id}.", id);
+        }
+
+        return citaActualizada;
     }
 
     // =========================================================================
     // CAMBIAR ESTADO
     // =========================================================================
 
-    public async Task<Cita?> CambiarEstadoAsync(int id, string nuevoEstado, int? idUsuarioActor = null, CancellationToken ct = default)
+    public async Task<Cita?> CambiarEstadoAsync(int id, string nuevoEstado, int? idUsuarioActor = null, CancellationToken ct = default,
+        string? ipOrigen = null)
     {
         var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == id, ct);
         if (cita is null)
@@ -783,8 +834,8 @@ public class CitaService : ICitaService
         string estadoActual = NormalizarEstado(cita.Estado);
         string estadoNuevo = NormalizarEstado(nuevoEstado);
 
-        if (string.IsNullOrWhiteSpace(estadoNuevo) || !EsTransicionEstadoPermitida(estadoActual, estadoNuevo))
-            throw new InvalidOperationException(ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
+        if (string.IsNullOrWhiteSpace(estadoNuevo) || !EstadoCitaHelper.IsTransitionAllowed(estadoActual, estadoNuevo))
+            throw new InvalidOperationException(EstadoCitaHelper.ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
 
         if (estadoNuevo is "confirmada" or "en_sala_de_espera" or "en_proceso")
         {
@@ -873,6 +924,26 @@ public class CitaService : ICitaService
                 ct: ct);
         }
 
+        // ── Auditoría cambio estado (best-effort) ─────────────────────────────
+        try
+        {
+            _context.Auditorias.Add(new Auditoria
+            {
+                Accion = "UPDATE",
+                TablaAfectada = "Cita",
+                IdRegistro = cita.IdCita,
+                Descripcion = $"Estado cambiado a '{cita.Estado}'. Actor={idUsuarioActor}.",
+                IdUsuario = idUsuarioActor,
+                IpOrigen = ipOrigen ?? "CitaService",
+                Fecha = ColombiaClock.Now
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo registrar auditoría de cambio de estado. IdCita={Id}.", cita.IdCita);
+        }
+
         return cita;
     }
 
@@ -903,13 +974,15 @@ public class CitaService : ICitaService
         int id,
         string? motivo,
         TimeSpan? anticipacionMinima = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? operadorId = null,
+        string? ipOrigen = null)
     {
         var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == id, ct);
         if (cita is null)
             return false;
 
-        if (EsEstadoCancelado(cita.Estado))
+        if (EstadoCitaHelper.EsEstadoCancelado(cita.Estado))
             throw new InvalidOperationException("La cita ya está cancelada.");
 
         if (cita.FechaHora <= ColombiaClock.Now)
@@ -978,6 +1051,27 @@ public class CitaService : ICitaService
         // M3 (RN-29): Intentar envío de correo al paciente al cancelar.
         // Una falla de correo NO revierte la cancelación — solo se registra como advertencia.
         await EnviarCorreoCancelacionAsync(cita.IdCita, fechaHoraCancelar, motivoCancelacion!, ct);
+
+        // ── Auditoría cancelación (best-effort) ───────────────────────────────
+        try
+        {
+            _context.Auditorias.Add(new Auditoria
+            {
+                Accion = "UPDATE",
+                TablaAfectada = "Cita",
+                IdRegistro = cita.IdCita,
+                Descripcion = $"Cita cancelada. Motivo: {motivoCancelacion}",
+                DatosNuevos = System.Text.Json.JsonSerializer.Serialize(new { Estado = "Cancelada", Motivo = motivoCancelacion }),
+                IdUsuario = operadorId,
+                IpOrigen = ipOrigen ?? "CitaService",
+                Fecha = ColombiaClock.Now
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo registrar auditoría de cancelación. IdCita={Id}.", cita.IdCita);
+        }
 
         return true;
     }
@@ -1498,12 +1592,12 @@ public class CitaService : ICitaService
         // Validar horario clínica
         var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(fechaHora, duracion, ct);
         if (!horarioValido)
-            throw new InvalidOperationException(mensajeHorario!);
+            throw new CitaConflictException(mensajeHorario!);
 
         // Validar disponibilidad del profesional
         var disp = await ValidarDisponibilidadProfesionalAsync(dto.IdProfesional, cita.IdServicio ?? 0, fechaHora, duracion, ct);
         if (!disp.EsValida)
-            throw new InvalidOperationException(disp.Mensaje!);
+            throw new CitaConflictException(disp.Mensaje!);
 
         // Validar conflicto de recursos excluyendo la cita actual
         var conflicto = await VerificarConflictoCompletoAsync(
@@ -1516,7 +1610,7 @@ public class CitaService : ICitaService
             ct: ct);
 
         if (conflicto.HayConflicto)
-            throw new InvalidOperationException(conflicto.Mensaje);
+            throw new CitaConflictException(conflicto.Mensaje);
 
         // Obtener estado 'Confirmada'
         var estadoConfirmada = await _context.EstadosCita
@@ -1828,36 +1922,6 @@ public class CitaService : ICitaService
     private static string NormalizarEstado(string? estado)
     {
         return EstadoCitaHelper.Normalize(estado);
-    }
-
-    private static bool EsTransicionEstadoPermitida(string estadoActual, string nuevoEstado)
-    {
-        return EstadoCitaHelper.IsTransitionAllowed(estadoActual, nuevoEstado);
-    }
-
-    private static string ConstruirMensajeTransicionNoPermitida(string estadoActual, string nuevoEstado)
-    {
-        return estadoActual switch
-        {
-            "solicitada" => "Una solicitud solo puede pasar a Programada o Confirmada. Para cancelar o rechazar la solicitud use la acción correspondiente.",
-            "programada" => "Una cita programada solo puede pasar a Confirmada o En sala de espera. Para cancelar la cita use la función de cancelación.",
-            "confirmada" => "Una cita confirmada solo puede pasar a En sala de espera o En consulta. Para cancelar la cita use la función de cancelación.",
-            "en_sala_de_espera" => "Una cita en sala de espera solo puede pasar a En consulta. Para cancelar la cita use la función de cancelación.",
-            "en_proceso" => "Una cita en consulta solo puede pasar a Atendida.",
-            "atendida" or "finalizada" => "Una cita atendida ya está finalizada y no puede regresar a otro estado.",
-            "cancelada" => "Una cita cancelada es definitiva y no puede reactivarse desde la agenda del profesional.",
-            "no_asistida" => "Una cita marcada como No asistió es definitiva y no puede reactivarse desde la agenda del profesional.",
-            _ => $"No está permitido cambiar una cita de '{estadoActual}' a '{nuevoEstado}'."
-        };
-    }
-
-    /// <summary>
-    /// Evalúa si un texto de estado corresponde a alguna variante de "cancelada".
-    /// Centralizado aquí para no repetir lógica en controladores.
-    /// </summary>
-    internal static bool EsEstadoCancelado(string? estado)
-    {
-        return NormalizarEstado(estado) is "cancelada" or "cancelado";
     }
 
     // =========================================================================

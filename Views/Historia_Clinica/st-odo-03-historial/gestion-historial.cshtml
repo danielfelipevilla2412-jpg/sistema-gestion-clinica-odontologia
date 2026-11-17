@@ -7,8 +7,8 @@
     // la lógica real del historial clínico del proyecto. Además, se deja en estado vacío
     // cuando no existe paciente seleccionado para permitir crear el registro desde cero.
     Layout = "_Layout";
-    ViewData["SidebarPartial"] = "_SidebarProfesional";
     ViewData["Title"] = "Formulario de Historia Clínica";
+    ViewData["UseGestionModulesDesignSystem"] = true;
 
     var odonto = Model.Odontograma ?? new OdontogramaViewModel();
     var pacienteResumen = Model.Paciente ?? new PacienteResumenClinicoViewModel();
@@ -122,25 +122,27 @@
        tipografía y proporciones del resto del sistema; también se elimina la información
        predefinida para dejar el formulario listo para editar cuando no hay paciente activo. *@
     <div class="clinical-content-shell">
-        <section class="page-hero">
-            <div class="page-hero-copy">
-                <div class="eyebrow-row">
-                    <span class="hero-kicker">Sistema de atención</span>
-                </div>
-                <h1>Historial Clínico</h1>
-                <p>Consulta y registra la información clínica del paciente</p>
+        <header class="page-header">
+            <div class="header-left">
+                <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="odo01.breadcrumb_aria">
+                    <span data-i18n="odo01.breadcrumb_professional">Profesional</span>
+                    <span class="bc-sep" aria-hidden="true">›</span>
+                    <span class="bc-active" aria-current="page" data-i18n="nav.historial_clinico">Historial Clínico</span>
+                </nav>
+                <h1 class="page-title" data-i18n="nav.historial_clinico">Historial Clínico</h1>
+                <p class="page-subtitle">Consulta y registra la información clínica del paciente</p>
             </div>
-            <div class="page-hero-actions">
+            <div class="page-header-actions">
                 @if (odonto.PacienteId is int exportPatientId)
                 {
-                    <a class="soft-btn" href="@Url.Content($"~/historia-clinica/st-odo-03-historial/exportar-pdf?pacienteId={exportPatientId}")">Descargar PDF</a>
+                    <a class="btn-secondary" href="@Url.Content($"~/historia-clinica/st-odo-03-historial/exportar-pdf?pacienteId={exportPatientId}")">Descargar PDF</a>
                 }
                 else
                 {
-                    <button type="button" class="soft-btn" disabled>Descargar PDF</button>
+                    <button type="button" class="btn-secondary" disabled>Descargar PDF</button>
                 }
             </div>
-        </section>
+        </header>
 
         <section class="patient-summary-card @(pacienteSeleccionado ? "" : "empty-patient-card")">
             <div class="patient-summary-inner">
@@ -232,7 +234,7 @@
             <section class="form-card" id="sec-antecedentes">
                 <div class="card-header">
                     <div class="card-head-left">
-                        <span class="card-step" style="background:#0ea5e9;">2</span>
+                        <span class="card-step card-step--step2">2</span>
                         <div>
                             <h2>Antecedentes Sistémicos</h2>
                             <p>Antecedentes médicos, hábitos y condiciones relevantes del paciente</p>
@@ -262,7 +264,7 @@
             <section class="form-card" id="sec-examen">
                 <div class="card-header">
                     <div class="card-head-left">
-                        <span class="card-step" style="background:#8b5cf6;">3</span>
+                        <span class="card-step card-step--step3">3</span>
                         <div>
                             <h2>Examen Clínico y Hallazgos Odontológicos</h2>
                             <p>Odontograma, observaciones, piezas afectadas y exámenes complementarios</p>
@@ -296,7 +298,7 @@
             <section class="form-card" id="sec-diagnostico">
                 <div class="card-header">
                     <div class="card-head-left">
-                        <span class="card-step" style="background:#4f46e5;">4</span>
+                        <span class="card-step card-step--step4">4</span>
                         <div>
                             <h2>Diagnósticos Codificados (CIE-10) y Evolución Clínica</h2>
                             <p>Diagnóstico clínico, evolución y prescripción farmacológica</p>
@@ -356,7 +358,7 @@
             <section class="form-card" id="sec-adjuntos">
                 <div class="card-header">
                     <div class="card-head-left">
-                        <span class="card-step" style="background:#10b981;">5</span>
+                        <span class="card-step card-step--step5">5</span>
                         <div>
                             <h2>Documentación Diagnóstica y Consentimiento Informado</h2>
                             <p>Estudios imagenológicos, fotografías clínicas y validación legal</p>

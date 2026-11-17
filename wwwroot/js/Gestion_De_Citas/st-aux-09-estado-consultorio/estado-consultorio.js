@@ -38,7 +38,6 @@ const DEFAULT_CHECKLIST = Object.freeze([
 // ═══════════════════════════════════════════════════════════════════
 
 let consultorioSyncTimerRef = null;
-let consultorioServerStateRef = null;
 
 // ═══════════════════════════════════════════════════════════════════
 // 3. UTILIDADES Y HELPERS
@@ -403,8 +402,6 @@ const initAddItem = () => {
       addItemHandler();
     }
   });
-  
-  window.addItem = addItemHandler;
 };
 
 const initStatusSelector = () => {
@@ -463,21 +460,6 @@ const initStatusSelector = () => {
       }
     });
   });
-  
-  window.selectStatus = (element) => {
-    optionsList.forEach(opt => {
-      opt.classList.remove('selected');
-      opt.setAttribute('aria-checked', 'false');
-      opt.setAttribute('tabindex', '-1');
-    });
-    
-    element.classList.add('selected');
-    element.setAttribute('aria-checked', 'true');
-    element.setAttribute('tabindex', '0');
-    
-    const value = element.dataset.value;
-    if (value) consultorioStorage.updateStatus(value);
-  };
 };
 
 const initObservations = () => {
@@ -735,9 +717,6 @@ const initConfirmButtons = () => {
       }
     });
   }
-  
-  window.confirmPreparation = () => btnPreparation?.click();
-  window.confirmStatus = () => btnStatus?.click();
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -770,7 +749,6 @@ const initializeEstadoConsultorioModule = async () => {
         }
     }
     
-    window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
 };
 
 document.addEventListener('DOMContentLoaded', initializeEstadoConsultorioModule);

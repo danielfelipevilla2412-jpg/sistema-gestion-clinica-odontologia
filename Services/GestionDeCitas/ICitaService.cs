@@ -53,18 +53,23 @@ public interface ICitaService
 
     Task<Cita> CrearAsync(
         CitaApiRequest request,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? operadorId = null,
+        string? ipOrigen = null);
 
     Task<Cita?> ActualizarAsync(
         int id,
         CitaApiUpdateDto request,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? operadorId = null,
+        string? ipOrigen = null);
 
     Task<Cita?> CambiarEstadoAsync(
         int id,
         string nuevoEstado,
         int? idUsuarioActor = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        string? ipOrigen = null);
 
     Task<Cita?> ActualizarNotasAsync(
         int id,
@@ -75,7 +80,9 @@ public interface ICitaService
         int id,
         string? motivo,
         TimeSpan? anticipacionMinima = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? operadorId = null,
+        string? ipOrigen = null);
 
     /// <summary>Reserva una cita programada a partir del horario y profesional elegidos por el paciente.</summary>
     Task<Cita> AgendarCitaPacienteAsync(

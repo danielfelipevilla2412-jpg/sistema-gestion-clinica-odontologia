@@ -97,6 +97,53 @@ public sealed class ServiciosRecursosControllerTests
     }
 
     [Fact]
+    public async Task ApiActualizarConfiguracionGeneral_ActualizaYOInsertaValoresConfigurados()
+    {
+        await using var db = CrearContext();
+        db.ConfiguracionesGenerales.Add(new ConfiguracionGeneral
+        {
+            IdConfiguracion = 1,
+            Clave = "cita_duracion_default",
+            Valor = "30",
+            Modulo = "citas"
+        });
+        await db.SaveChangesAsync();
+        var controller = CrearControlador(db);
+        var request = new ConfiguracionGeneralRequest
+        {
+            Appointment = new ConfiguracionCitasRequest { Duration = 45, Open = "08:00", Close = "17:00" },
+            Center = new ConfiguracionCentroRequest { Name = "Clínica de prueba", Nit = "901.482.350-4", Address = "Calle de prueba 123" },
+            Notifications = new ConfiguracionNotificacionesRequest { Email = false, Sms = true, System = true }
+        };
+
+        var result = await controller.ApiActualizarConfiguracionGeneral(request, CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(45, int.Parse((await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "cita_duracion_default")).Valor));
+        Assert.Equal("Clínica de prueba", (await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "nombre_clinica")).Valor);
+        Assert.Equal("false", (await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "notif_email")).Valor);
+        Assert.Equal(9, await db.ConfiguracionesGenerales.CountAsync());
+    }
+
+    [Fact]
+    public async Task ApiActualizarConfiguracionGeneral_HorarioInvertido_RechazaSinPersistir()
+    {
+        await using var db = CrearContext();
+        var controller = CrearControlador(db);
+        var request = new ConfiguracionGeneralRequest
+        {
+            Appointment = new ConfiguracionCitasRequest { Duration = 30, Open = "18:00", Close = "08:00" },
+            Center = new ConfiguracionCentroRequest { Name = "Clínica de prueba", Nit = "901.482.350-4", Address = "Calle de prueba 123" },
+            Notifications = new ConfiguracionNotificacionesRequest()
+        };
+
+        var result = await controller.ApiActualizarConfiguracionGeneral(request, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Empty(await db.ConfiguracionesGenerales.ToListAsync());
+    }
+
+    [Fact]
     public async Task Stodo05Servicios_SinProfesionalAsociado_RetornaListaVacia()
     {
         await using var db = CrearContext();

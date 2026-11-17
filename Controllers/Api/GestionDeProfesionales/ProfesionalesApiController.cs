@@ -23,6 +23,7 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
@@ -587,6 +588,7 @@ public sealed class ProfesionalesApiController : ControllerBase
     // Registra ausencia y ejecuta el motor de reasignación/cancelación de citas
     // ─────────────────────────────────────────────────────────────────────────
 
+    [EnableRateLimiting("AusenciaReasignacion")]
     [HttpPost("{id:int}/ausencias-reasignar")]
     [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [CookieAwareValidateAntiforgeryToken]

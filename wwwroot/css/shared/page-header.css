@@ -1,0 +1,134 @@
+@media screen {
+  body:has(.page-header) .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    min-width: 0;
+    margin: 0 0 18px;
+    padding: 16px 22px;
+    color: #c8d3e8;
+    background: linear-gradient(180deg, #18284f 0%, #263d73 100%);
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: var(--radius, 12px);
+    box-shadow: var(--shadow-sm, 0 1px 4px rgba(0, 0, 0, .06));
+  }
+
+  body:has(.page-header) .page-header > :first-child,
+  body:has(.page-header) .page-header .header-left,
+  body:has(.page-header) .page-header .page-header-content,
+  body:has(.page-header) .page-header .page-header-identity {
+    min-width: 0;
+  }
+
+  body:has(.page-header) .page-header .breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0 0 4px;
+    color: #c8d3e8;
+    font-size: .72rem;
+  }
+
+  body:has(.page-header) .page-header .breadcrumb a {
+    color: inherit;
+  }
+
+  body:has(.page-header) .page-header .breadcrumb a:hover {
+    color: #fff;
+  }
+
+  body:has(.page-header) .page-header .bc-active,
+  body:has(.page-header) .page-header .current,
+  body:has(.page-header) .page-header .breadcrumb-current,
+  body:has(.page-header) .page-header .breadcrumb [aria-current="page"] {
+    color: #93c5fd;
+  }
+
+  body:has(.page-header) .page-header .bc-sep,
+  body:has(.page-header) .page-header .sep {
+    color: #aab9d4;
+  }
+
+  body:has(.page-header) .page-header h1,
+  body:has(.page-header) .page-header .page-title {
+    margin: 0;
+    color: #fff;
+    font-family: var(--font-display, sans-serif);
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  body:has(.page-header) .page-header .page-subtitle {
+    margin: 2px 0 0;
+    color: #c8d3e8;
+    font-size: .82rem;
+    line-height: 1.5;
+  }
+
+  body:has(.page-header) .page-header .page-header-actions,
+  body:has(.page-header) .page-header .header-actions,
+  body:has(.page-header) .page-header .header-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  body:has(.page-header) .page-header .form-label {
+    margin: 0;
+    color: #c8d3e8;
+  }
+
+  body:has(.page-header) .page-header select {
+    max-width: 100%;
+    padding: 8px 12px;
+    color: #fff;
+    background-color: rgba(255, 255, 255, .1);
+    border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: var(--radius-sm, 8px);
+  }
+
+  body:has(.page-header) .page-header select option {
+    color: #1e293b;
+    background: #fff;
+  }
+
+  body:has(.page-header) .page-header .btn-secondary {
+    color: #fff;
+    background: rgba(255, 255, 255, .1);
+    border-color: rgba(255, 255, 255, .35);
+  }
+
+  body:has(.page-header) .page-header .btn-secondary:hover {
+    background: rgba(255, 255, 255, .18);
+  }
+
+  body:has(.page-header) .page-header a:focus-visible,
+  body:has(.page-header) .page-header button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+
+  @media (max-width: 640px) {
+    body:has(.page-header) .page-header {
+      align-items: flex-start;
+    }
+
+    body:has(.page-header) .page-header > :first-child,
+    body:has(.page-header) .page-header .header-left,
+    body:has(.page-header) .page-header .page-header-content,
+    body:has(.page-header) .page-header .page-header-identity {
+      flex-basis: 100%;
+    }
+
+    body:has(.page-header) .page-header .page-header-actions,
+    body:has(.page-header) .page-header .header-actions,
+    body:has(.page-header) .page-header .header-right {
+      width: 100%;
+    }
+  }
+}

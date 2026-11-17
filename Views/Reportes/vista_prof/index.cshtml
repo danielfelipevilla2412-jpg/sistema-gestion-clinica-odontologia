@@ -1,345 +1,274 @@
 ﻿@model SmileTrack_MVC.Models.ViewModels.ReportesProfesionalViewModel
 @{
-    Layout = null;
+    Layout = "_Layout";
     ViewData["Title"] = "Reportes Profesional";
+    ViewData["Description"] = "Indicadores de actividad del profesional autenticado.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
 }
 
-<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+  <link rel="stylesheet" href="~/css/Reportes/vista_prof/styles.css" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Reportes y estadísticas del profesional SmileTrack." />
-  <meta name="robots" content="noindex, nofollow" />
-  <title>SmileTrack — @ViewData["Title"]</title>
+<main class="main professional-reports" id="main-content">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Reportes/vista_prof/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-
-  <!-- Skip link accesibilidad -->
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-  <!-- ═════ SIDEBAR (partial compartido) ═════ -->
-  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
-
-  <!-- ═════ HAMBURGER (móvil) ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ═════ MAIN ═════ -->
-  <main class="main" id="main-content">
-
-    <!-- Header -->
-    <header class="page-header">
-      <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación">
-          <span>Profesional</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Reportes y Estadísticas</span>
-        </nav>
-        <h1 class="page-title" data-i18n="nav.group_reportes_analitica">Reportes y Estadísticas</h1>
-        <p class="page-subtitle">
-          Resumen de desempeño clínico, métricas de atención y citas del profesional
-        </p>
+  <header class="page-header">
+    <nav class="breadcrumb" aria-label="Navegación de ruta" data-i18n-aria-label="common.breadcrumb_nav">
+      <a href="/gestion-de-profesionales/st-odo-01-dashboard" data-i18n="reportesprof.breadcrumb_professional">Profesional</a>
+      <span class="bc-sep" aria-hidden="true">→</span>
+      <span class="bc-active" aria-current="page" data-i18n="reportesprof.breadcrumb_current">Reportes y estadísticas</span>
+    </nav>
+    <div class="page-header-content">
+      <div class="page-header-title">
+        <h1 class="page-title" data-i18n="reportesprof.title">Reportes y estadísticas</h1>
+        <p class="page-subtitle" data-i18n="reportesprof.subtitle">Actividad clínica del mes actual y citas recientes.</p>
       </div>
-      <div class="header-actions">
-  <button class="btn-primary" id="btnNuevaCita">+ Nueva Cita</button>
-  <button class="btn-secondary" id="btnDescargarPdf">📄 Descargar PDF</button>
-</div>
-    </header>
+      <div class="page-header-actions">
+        <a class="btn-primary" href="/gestion-de-citas/st-odo-02-agenda" data-i18n="reportesprof.open_schedule">Ir a mi agenda</a>
+        <button type="button" class="btn-secondary" id="btnDescargarPdf" data-i18n="reportesprof.download_pdf">Imprimir / guardar PDF</button>
+      </div>
+    </div>
+  </header>
 
-    <!-- KPIs Grid Principal -->
-    <section class="stats-grid" aria-label="Indicadores clave">
+  <section class="stats-grid" aria-label="Indicadores clave" data-i18n-aria-label="reportesprof.stats_aria">
       <div class="stat-card" data-color="blue">
-        <span class="stat-number">@Model.TotalCitas</span>
-        <span class="stat-label">Citas Totales</span>
-        <span class="stat-sub">↑ @Model.TendenciaCitas% vs mes anterior</span>
+        <span class="stat-number" data-target="@Model.TotalCitas">@Model.TotalCitas</span>
+        <span class="stat-label" data-i18n="reportesprof.appointments_month">Citas del mes</span>
+        <span class="stat-sub">
+          @if (Model.TendenciaCitas.HasValue)
+          {
+            <span>@(Model.TendenciaCitas.Value.ToString("+0.0;-0.0;0.0"))%</span>
+            <span data-i18n="reportesprof.vs_previous_month">vs. mes anterior</span>
+          }
+          else
+          {
+            <span data-i18n="reportesprof.no_previous_period">Sin periodo anterior comparable</span>
+          }
+        </span>
       </div>
 
       <div class="stat-card" data-color="green">
-        <span class="stat-number">$@Model.Ingresos.ToString("N0")</span>
-        <span class="stat-label">Ingresos Generados</span>
-        <span class="stat-sub">↑ @Model.TendenciaIngresos% vs mes anterior</span>
+        <span class="stat-number">@Model.Ingresos.ToString("C0", System.Globalization.CultureInfo.CurrentCulture)</span>
+        <span class="stat-label" data-i18n="reportesprof.paid_income_month">Ingresos pagados del mes</span>
+        <span class="stat-sub">
+          @if (Model.TendenciaIngresos.HasValue)
+          {
+            <span>@(Model.TendenciaIngresos.Value.ToString("+0.0;-0.0;0.0"))%</span>
+            <span data-i18n="reportesprof.vs_previous_month">vs. mes anterior</span>
+          }
+          else
+          {
+            <span data-i18n="reportesprof.no_previous_period">Sin periodo anterior comparable</span>
+          }
+        </span>
       </div>
 
       <div class="stat-card" data-color="purple">
-        <span class="stat-number">@Model.PacientesUnicos</span>
-        <span class="stat-label">Pacientes Únicos</span>
-        <span class="stat-sub">Atendidos este periodo</span>
+        <span class="stat-number" data-target="@Model.PacientesUnicos">@Model.PacientesUnicos</span>
+        <span class="stat-label" data-i18n="reportesprof.patients_month">Pacientes del mes</span>
+        <span class="stat-sub" data-i18n="reportesprof.unique_patients_month">Pacientes únicos con cita</span>
       </div>
 
       <div class="stat-card" data-color="red">
-        <span class="stat-number">@Model.Cancelaciones</span>
-        <span class="stat-label">Cancelaciones</span>
-        <span class="stat-sub stat-sub--down">@Model.TasaCancelacion.ToString("0.0")% tasa de cancelación</span>
+        <span class="stat-number" data-target="@Model.Cancelaciones">@Model.Cancelaciones</span>
+        <span class="stat-label" data-i18n="reportesprof.cancellations_month">Cancelaciones del mes</span>
+        <span class="stat-sub">@Model.TasaCancelacion.ToString("0.0")% <span data-i18n="reportesprof.cancellation_rate">de las citas del mes</span></span>
       </div>
+  </section>
 
-      <div class="stat-card" data-color="orange">
-        <span class="stat-number">@Model.SatisfaccionPaciente</span>
-        <span class="stat-label">Satisfacción Paciente</span>
-        <span class="stat-sub">⭐ @Model.ResenasTotales reseñas</span>
-      </div>
-
-      <div class="stat-card" data-color="teal">
-        <span class="stat-number">@Model.TasaPuntualidad%</span>
-        <span class="stat-label">Tasa de Puntualidad</span>
-        <span class="stat-sub">↑ 3% vs mes anterior</span>
-      </div>
-    </section>
-
-    <!-- Secciones de Gráficos y Tablas en Grid de 2 columnas -->
-    <section class="charts-grid">
-
-      <!-- Tratamientos Más Realizados -->
-      <div class="table-section" style="margin-bottom: 0;">
-        <div class="section-header">
-          <h2 class="section-title">Tratamientos Más Realizados</h2>
+  <div class="professional-reports__panels">
+    <section class="professional-reports__panel" aria-labelledby="treatmentsTitle">
+      <header class="professional-reports__panel-header">
+        <h2 id="treatmentsTitle" data-i18n="reportesprof.treatments_title">Tratamientos atendidos este mes</h2>
+      </header>
+      @if (Model.Tratamientos.Count == 0)
+      {
+        <div class="empty-state" role="status">
+          <span class="material-symbols-outlined" aria-hidden="true">clinical_notes</span>
+          <h3 data-i18n="reportesprof.no_treatments_title">Sin tratamientos registrados</h3>
+          <p data-i18n="reportesprof.no_treatments_desc">No hay citas atendidas este mes.</p>
         </div>
-        <div class="prof-revenue-list">
-          @foreach (var t in Model.Tratamientos)
+      }
+      else
+      {
+        <div class="professional-reports__treatments">
+          @foreach (var tratamiento in Model.Tratamientos)
           {
-              <div class="prof-revenue-row" style="cursor:pointer" data-nombre="@t.Nombre" data-cantidad="@t.Cantidad" data-porcentaje="@t.Porcentaje">
-              <div class="prof-revenue-info">
-                <span class="prof-revenue-name">@t.Nombre</span>
-                <span class="prof-revenue-value">@t.Cantidad citas <small>(@t.Porcentaje%)</small></span>
-              </div>
-              <div class="progress-track">
-                <div class="progress-fill" style="width:@t.Porcentaje.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div>
-              </div>
-            </div>
+            <button type="button" class="professional-reports__treatment"
+                    data-treatment-name="@tratamiento.Nombre"
+                    data-treatment-count="@tratamiento.Cantidad"
+                    data-treatment-percent="@tratamiento.Porcentaje.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)">
+              <span class="professional-reports__treatment-heading">
+                <span class="professional-reports__treatment-name">@tratamiento.Nombre</span>
+                <span class="professional-reports__treatment-count">
+                  @tratamiento.Cantidad <span data-i18n="reportesprof.appointments">citas</span>
+                  (@tratamiento.Porcentaje.ToString("0.#")%)
+                </span>
+              </span>
+              <span class="professional-reports__progress-track" aria-hidden="true">
+                <span class="professional-reports__progress-fill" style="width:@tratamiento.Porcentaje.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></span>
+              </span>
+            </button>
           }
         </div>
-      </div>
+      }
+    </section>
 
-      <!-- Pacientes Frecuentes -->
-      <div class="table-section" style="margin-bottom: 0;">
-        <div class="section-header">
-          <h2 class="section-title">Pacientes Frecuentes</h2>
+    <section class="professional-reports__panel" aria-labelledby="frequentPatientsTitle">
+      <header class="professional-reports__panel-header">
+        <h2 id="frequentPatientsTitle" data-i18n="reportesprof.frequent_patients_title">Pacientes con más citas (6 meses)</h2>
+      </header>
+      @if (Model.PacientesFrecuentes.Count == 0)
+      {
+        <div class="empty-state" role="status">
+          <span class="material-symbols-outlined" aria-hidden="true">groups</span>
+          <h3 data-i18n="reportesprof.no_patients_title">Sin actividad reciente</h3>
+          <p data-i18n="reportesprof.no_patients_desc">No hay citas de pacientes en los últimos seis meses.</p>
         </div>
-        <div class="status-list">
-          @foreach (var p in Model.PacientesFrecuentes)
+      }
+      else
+      {
+        <ul class="professional-reports__patients">
+          @foreach (var paciente in Model.PacientesFrecuentes)
           {
-            <div class="cell-icon-name" style="padding: 10px 0; border-bottom: 1px solid var(--border);">
-              <span class="cell-icon" data-color="@(p.Color == "purple" ? "purple" : "blue")">@p.Iniciales</span>
-              <div style="flex:1;">
-                <div class="td-name">@p.Nombre</div>
-                <span class="badge">@p.Tipo</span>
-              </div>
-              <div style="text-align:right;">
-                <div class="td-strong">@p.Citas citas</div>
-                <small style="color:var(--text-muted);">@p.Periodo</small>
-              </div>
-            </div>
+            <li class="professional-reports__patient">
+              <span class="patient-avatar" data-color="@paciente.Color" aria-hidden="true">@paciente.Iniciales</span>
+              <span class="professional-reports__patient-name">@paciente.Nombre</span>
+              <span class="professional-reports__patient-count">
+                @paciente.Citas <span data-i18n="reportesprof.appointments">citas</span>
+              </span>
+            </li>
           }
-        </div>
-      </div>
-
+        </ul>
+      }
     </section>
+  </div>
 
-    <!-- Próximos Días de Citas -->
-    <section class="table-section">
-      <div class="section-header">
-        <h2 class="section-title">Próximos Días de Citas</h2>
-        <span class="section-badge">Resumen semanal</span>
-      </div>
-      <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom: 0;">
-        @foreach (var dia in Model.ProximosDias)
-        {
-          <div class="stat-card" data-color="@(dia.EsHoy ? "blue" : dia.EsPico ? "orange" : "teal")" style="text-align:center; padding: 14px 10px;">
-            <span class="stat-label" style="text-transform:uppercase; font-weight:700; font-size:.7rem;">@dia.DiaNombre</span>
-            <span class="stat-number" style="font-size:1.6rem; margin: 4px 0;">@dia.CantidadCitas</span>
-            <span class="stat-label" style="font-size:.7rem;">@dia.Fecha</span>
-          </div>
-        }
-      </div>
-    </section>
+  <section class="professional-reports__panel" aria-labelledby="upcomingTitle">
+    <header class="professional-reports__panel-header">
+      <h2 id="upcomingTitle" data-i18n="reportesprof.upcoming_title">Próximos días</h2>
+      <span class="professional-reports__panel-subtitle" data-i18n="reportesprof.upcoming_subtitle">Citas de los próximos tres días</span>
+    </header>
+    <div class="professional-reports__days">
+      @foreach (var dia in Model.ProximosDias)
+      {
+        <article class="professional-reports__day" data-color="@(dia.EsHoy ? "blue" : "teal")">
+          <span class="professional-reports__day-name" data-i18n="@dia.ClaveDia">@dia.DiaNombre</span>
+          <span class="professional-reports__day-count">@dia.CantidadCitas</span>
+          <span class="professional-reports__day-date">@dia.Fecha</span>
+        </article>
+      }
+    </div>
+  </section>
 
-    <!-- Últimas Citas -->
-    <section class="table-section">
-      <div class="section-header">
-        <h2 class="section-title">Últimas Citas</h2>
-        <a href="/historia-clinica/st-odo-03-historial" class="btn-link">Ver todo el historial →</a>
-      </div>
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
+  <section class="professional-reports__panel" aria-labelledby="recentTitle">
+    <header class="professional-reports__panel-header">
+      <h2 id="recentTitle" data-i18n="reportesprof.recent_title">Citas recientes</h2>
+      <a href="/historia-clinica/st-odo-03-historial" class="btn-link" data-i18n="reportesprof.history_link">Ir al historial clínico</a>
+    </header>
+    <div class="table-wrap">
+      <table class="professional-reports__table">
+        <thead>
+          <tr>
+            <th scope="col" data-i18n="reportesprof.patient">Paciente</th>
+            <th scope="col" data-i18n="reportesprof.service">Servicio</th>
+            <th scope="col" data-i18n="reportesprof.time">Hora</th>
+            <th scope="col" data-i18n="reportesprof.status">Estado</th>
+            <th scope="col" data-i18n="reportesprof.action">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (Model.UltimasCitas.Count == 0)
+          {
             <tr>
-              <th>Paciente</th>
-              <th>Servicio</th>
-              <th>Hora</th>
-              <th>Estado</th>
-              <th class="text-right">Acción</th>
+              <td colspan="5">
+                <div class="empty-state" role="status">
+                  <span class="material-symbols-outlined" aria-hidden="true">event_busy</span>
+                  <h3 data-i18n="reportesprof.no_recent_title">Sin citas recientes</h3>
+                  <p data-i18n="reportesprof.no_recent_desc">Cuando tengas citas registradas, aparecerán aquí.</p>
+                </div>
+              </td>
             </tr>
-          </thead>
-          <tbody>
+          }
+          else
+          {
             @foreach (var cita in Model.UltimasCitas)
             {
+              var iniciales = string.Concat(cita.NombrePaciente.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                  .Take(2).Select(parte => parte[0])).ToUpperInvariant();
               <tr>
                 <td>
-                  <div class="cell-icon-name">
-                    <span class="cell-icon" data-color="blue">
-                      @{
-                        var initials = string.Concat(cita.NombrePaciente.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(s => s[0])).ToUpperInvariant();
-                      }
-                      @(string.IsNullOrWhiteSpace(initials) ? "P" : initials)
-                    </span>
-                    <div>
-                      <div class="td-name">@cita.NombrePaciente</div>
-                      <small style="color:var(--text-muted)">ID: #@cita.IdPaciente</small>
-                    </div>
+                  <div class="professional-reports__patient-cell">
+                    <span class="patient-avatar" data-color="blue" aria-hidden="true">@(string.IsNullOrWhiteSpace(iniciales) ? "P" : iniciales)</span>
+                    <span>@cita.NombrePaciente</span>
                   </div>
                 </td>
                 <td>@cita.Servicio</td>
                 <td>@cita.Hora</td>
                 <td>
-                  <span class="status @(cita.EstadoClase == "status--completed" ? "status--ready" : "status--pending")">
-                    <span class="status__dot"></span> @cita.Estado
-                  </span>
+                  <span class="badge-estado status-badge @cita.EstadoClase" data-i18n="@cita.ClaveEstado">@cita.Estado</span>
                 </td>
-                <td class="text-right">
-                  <button class="btn-icon" title="Ver detalle"
-                          data-paciente="@cita.NombrePaciente"
-                          data-id="@cita.IdPaciente"
-                          data-servicio="@cita.Servicio"
-                          data-hora="@cita.Hora"
-                          data-estado="@cita.Estado">⋮</button>
+                <td>
+                  <button type="button" class="action-btn"
+                          aria-label="Ver detalle de la cita"
+                          data-i18n-aria-label="reportesprof.view_appointment"
+                          title="Ver detalle de la cita"
+                          data-i18n-title="reportesprof.view_appointment"
+                          data-appointment-name="@cita.NombrePaciente"
+                          data-appointment-service="@cita.Servicio"
+                          data-appointment-time="@cita.Hora"
+                          data-appointment-status="@cita.Estado"
+                          data-dialog-open="modalDetalleCita">
+                    <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                  </button>
                 </td>
               </tr>
             }
-          </tbody>
-        </table>
-      </div>
-    </section>
-        <!-- Modal: Detalle de cita -->
-<div class="modal-overlay" id="modalDetalleCita" hidden aria-hidden="true">
-  <div class="modal">
-    <button class="modal-close" data-modal-close="modalDetalleCita" aria-label="Cerrar">&times;</button>
-    <h3 class="modal-title">Detalle de la cita</h3>
-    <p class="modal-desc">Información registrada para esta cita.</p>
-    <div class="modal-body">
-      <div class="form-group">
-        <label>Paciente</label>
-        <div class="form-input" id="detalleCitaPaciente" style="background:var(--bg);"></div>
-      </div>
-      <div class="grid-2">
-        <div class="form-group">
-          <label>Servicio</label>
-          <div class="form-input" id="detalleCitaServicio" style="background:var(--bg);"></div>
-        </div>
-        <div class="form-group">
-          <label>Hora</label>
-          <div class="form-input" id="detalleCitaHora" style="background:var(--bg);"></div>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Estado</label>
-        <div class="form-input" id="detalleCitaEstado" style="background:var(--bg);"></div>
-      </div>
+          }
+        </tbody>
+      </table>
     </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" data-modal-close="modalDetalleCita">Cerrar</button>
-      <a class="btn-primary" href="/historia-clinica/st-odo-03-historial">Ver historial completo</a>
-    </div>
-  </div>
-</div>
+  </section>
 
-<!-- Modal: Nueva cita rápida -->
-<div class="modal-overlay" id="modalNuevaCita" hidden aria-hidden="true">
-  <div class="modal">
-    <button class="modal-close" data-modal-close="modalNuevaCita" aria-label="Cerrar">&times;</button>
-    <h3 class="modal-title">Nueva cita rápida</h3>
-    <p class="modal-desc">Registra los datos básicos. Un recepcionista confirmará el horario en la agenda.</p>
-    <form id="formNuevaCita">
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="ncPaciente">Paciente</label>
-          <input class="form-input" id="ncPaciente" name="paciente" type="text" placeholder="Nombre del paciente" required>
-        </div>
-        <div class="grid-2">
-          <div class="form-group">
-            <label for="ncServicio">Servicio</label>
-            <select class="form-input" id="ncServicio" name="servicio" required>
-              <option value="">Selecciona...</option>
-              <option>Ortodoncia</option>
-              <option>Limpieza dental</option>
-              <option>Endodoncia</option>
-              <option>Blanqueamiento</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="ncFecha">Fecha y hora</label>
-            <input class="form-input" id="ncFecha" name="fecha" type="datetime-local" required>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="ncNotas">Notas (opcional)</label>
-          <input class="form-input" id="ncNotas" name="notas" type="text" placeholder="Ej. paciente nuevo, requiere rayos X">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary" data-modal-close="modalNuevaCita">Cancelar</button>
-        <button type="submit" class="btn-primary">Guardar solicitud</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Modal: Confirmar exportar PDF -->
-<div class="modal-overlay" id="modalExportarPdf" hidden aria-hidden="true">
-  <div class="modal">
-    <button class="modal-close" data-modal-close="modalExportarPdf" aria-label="Cerrar">&times;</button>
-    <h3 class="modal-title">Exportar reporte a PDF</h3>
-    <p class="modal-desc">Se generará un PDF con los indicadores y tablas visibles en esta página usando el diálogo de impresión de tu navegador.</p>
-    <div class="modal-footer">
-      <button class="btn-secondary" data-modal-close="modalExportarPdf">Cancelar</button>
-      <button class="btn-primary" id="btnConfirmarExportar">Exportar</button>
+  <dialog class="professional-reports__dialog" id="modalDetalleCita" aria-labelledby="detalleCitaTitle">
+    <div class="professional-reports__dialog-header">
+      <h2 id="detalleCitaTitle" data-i18n="reportesprof.appointment_detail">Detalle de la cita</h2>
+      <button type="button" class="action-btn" data-dialog-close aria-label="Cerrar"
+              data-i18n-aria-label="common.close" title="Cerrar" data-i18n-title="common.close">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
     </div>
-  </div>
-</div>
-
-<!-- Modal: Detalle de tratamiento -->
-<div class="modal-overlay" id="modalDetalleTratamiento" hidden aria-hidden="true">
-  <div class="modal">
-    <button class="modal-close" data-modal-close="modalDetalleTratamiento" aria-label="Cerrar">&times;</button>
-    <h3 class="modal-title" id="detalleTratNombre">Tratamiento</h3>
-    <p class="modal-desc">Resumen de este tratamiento en el periodo seleccionado.</p>
-    <div class="modal-body">
-      <div class="grid-2">
-        <div class="form-group">
-          <label>Citas realizadas</label>
-          <div class="form-input" id="detalleTratCantidad" style="background:var(--bg);"></div>
-        </div>
-        <div class="form-group">
-          <label>% del total</label>
-          <div class="form-input" id="detalleTratPorcentaje" style="background:var(--bg);"></div>
-        </div>
-      </div>
+    <dl class="professional-reports__details">
+      <div><dt data-i18n="reportesprof.patient">Paciente</dt><dd id="detalleCitaPaciente"></dd></div>
+      <div><dt data-i18n="reportesprof.service">Servicio</dt><dd id="detalleCitaServicio"></dd></div>
+      <div><dt data-i18n="reportesprof.time">Hora</dt><dd id="detalleCitaHora"></dd></div>
+      <div><dt data-i18n="reportesprof.status">Estado</dt><dd id="detalleCitaEstado"></dd></div>
+    </dl>
+    <div class="professional-reports__dialog-actions">
+      <button type="button" class="btn-secondary" data-dialog-close data-i18n="common.close">Cerrar</button>
     </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" data-modal-close="modalDetalleTratamiento">Cerrar</button>
-    </div>
-  </div>
-</div>
-  </main>
+  </dialog>
 
-  <script src="@Url.Content("~/js/Reportes/vista_prof/main.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-</html>
+  <dialog class="professional-reports__dialog" id="modalDetalleTratamiento" aria-labelledby="detalleTratamientoTitle">
+    <div class="professional-reports__dialog-header">
+      <h2 id="detalleTratamientoTitle" data-i18n="reportesprof.treatment_detail">Detalle del tratamiento</h2>
+      <button type="button" class="action-btn" data-dialog-close aria-label="Cerrar"
+              data-i18n-aria-label="common.close" title="Cerrar" data-i18n-title="common.close">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+    <dl class="professional-reports__details">
+      <div><dt data-i18n="reportesprof.service">Servicio</dt><dd id="detalleTratNombre"></dd></div>
+      <div><dt data-i18n="reportesprof.appointments">Citas</dt><dd id="detalleTratCantidad"></dd></div>
+      <div><dt data-i18n="reportesprof.share_of_treatments">% de tratamientos atendidos</dt><dd id="detalleTratPorcentaje"></dd></div>
+    </dl>
+    <div class="professional-reports__dialog-actions">
+      <button type="button" class="btn-secondary" data-dialog-close data-i18n="common.close">Cerrar</button>
+    </div>
+  </dialog>
+</main>
+
+@section Scripts {
+  <script src="~/js/Reportes/vista_prof/main.js" asp-append-version="true"></script>
+}
 

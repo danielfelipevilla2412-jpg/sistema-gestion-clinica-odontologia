@@ -182,6 +182,25 @@
     color: #3b82f6;
 }
 
+.main .patient-avatar {
+    display: inline-flex;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #fff;
+    font-size: var(--text-xs, .75rem);
+    font-weight: 700;
+}
+
+.main .patient-avatar[data-color="blue"] { background: #2563eb; }
+.main .patient-avatar[data-color="green"] { background: #16a34a; }
+.main .patient-avatar[data-color="yellow"] { background: #d97706; }
+.main .patient-avatar[data-color="purple"] { background: #9333ea; }
+.main .patient-avatar[data-color="slate"] { background: #475569; }
+
 .main .card,
 .main .table-card,
 .main .table-section {
