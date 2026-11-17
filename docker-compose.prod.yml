@@ -31,6 +31,9 @@ services:
       SQL_SERVER_HOST: "sqlserver"
     volumes:
       - ./Database/SCRIPT_SQL_DEPLOYMENT_SMILETRACK.sql:/docker-entrypoint-initdb.d/SCRIPT_SQL_UNICO_SMILETRACK.sql:ro
+      - ./Database/MIGRATION_Consentimiento.sql:/docker-entrypoint-initdb.d/MIGRATION_Consentimiento.sql:ro
+      - ./Database/MIGRATION_Reporte_Generado.sql:/docker-entrypoint-initdb.d/MIGRATION_Reporte_Generado.sql:ro
+      - ./Database/upgrade-auth-identifiers.sql:/docker-entrypoint-initdb.d/upgrade-auth-identifiers.sql:ro
       - ./Database/init-db.sh:/init-db.sh:ro
     depends_on:
       sqlserver:

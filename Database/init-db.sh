@@ -11,6 +11,7 @@ SQL_SERVER=${SQL_SERVER_HOST:-localhost}
 DATABASE=SmileTrackDB
 BOOTSTRAP_TABLE=dbo.SmileTrackBootstrap
 BOOTSTRAP_ID=1
+MIGRATION_DIRECTORY=/docker-entrypoint-initdb.d
 
 if [ -z "${MSSQL_SA_PASSWORD:-}" ]; then
   echo "❌ MSSQL_SA_PASSWORD no está configurada."
@@ -44,29 +45,83 @@ fi
 DB_EXISTS=$(printf '%s' "$DB_EXISTS" | tr -d '[:space:]')
 
 if [ "$DB_EXISTS" = "1" ]; then
-  if "$SQLCMD" \
+  if ! "$SQLCMD" \
     -S "$SQL_SERVER" -U sa -P "$MSSQL_SA_PASSWORD" \
     -C -b -d "$DATABASE" \
-    -Q "IF NOT EXISTS (SELECT 1 FROM $BOOTSTRAP_TABLE WHERE id = $BOOTSTRAP_ID) THROW 51000, 'Database exists but bootstrap is incomplete', 1;" \
-    >/dev/null 2>&1; then
-    echo "✅ La base de datos ya estaba inicializada."
-    exit 0
+    -Q "IF OBJECT_ID(N'dbo.Usuario', N'U') IS NULL OR OBJECT_ID(N'dbo.Profesional', N'U') IS NULL OR OBJECT_ID(N'dbo.Diagnostico_CIE10', N'U') IS NULL OR OBJECT_ID(N'dbo.Paciente', N'U') IS NULL THROW 51000, 'Database has no complete SmileTrack base schema; refusing to migrate it', 1;"; then
+    echo "❌ La base existente no tiene el esquema base de SmileTrack; no se modificará."
+    exit 1
   fi
 
-  echo "❌ La base de datos existe, pero no tiene una inicialización completa. No se modificará."
-  exit 1
+  echo "🔄 Aplicando migraciones compatibles a la base existente..."
+else
+  if [ "$DB_EXISTS" != "0" ]; then
+    echo "❌ SQL Server devolvió un estado inesperado para la base de datos."
+    exit 1
+  fi
+
+  echo "🚀 Creando la base de datos desde el script SQL..."
+  if ! "$SQLCMD" \
+    -S "$SQL_SERVER" -U sa -P "$MSSQL_SA_PASSWORD" \
+    -C -b -i "$MIGRATION_DIRECTORY/SCRIPT_SQL_UNICO_SMILETRACK.sql"; then
+    echo "❌ Error al ejecutar el script SQL."
+    exit 1
+  fi
 fi
 
-if [ "$DB_EXISTS" != "0" ]; then
-  echo "❌ SQL Server devolvió un estado inesperado para la base de datos."
-  exit 1
-fi
+for migration in MIGRATION_Consentimiento.sql MIGRATION_Reporte_Generado.sql upgrade-auth-identifiers.sql; do
+  if ! "$SQLCMD" \
+    -S "$SQL_SERVER" -U sa -P "$MSSQL_SA_PASSWORD" \
+    -C -b -d "$DATABASE" \
+    -i "$MIGRATION_DIRECTORY/$migration"; then
+    echo "❌ Error al ejecutar $migration."
+    exit 1
+  fi
+  echo "✅ Migración aplicada: $migration"
+done
 
-echo "🚀 Creando la base de datos desde el script SQL..."
-if ! "$SQLCMD" \
+if ! SCHEMA_READY=$("$SQLCMD" \
   -S "$SQL_SERVER" -U sa -P "$MSSQL_SA_PASSWORD" \
-  -C -b -i /docker-entrypoint-initdb.d/SCRIPT_SQL_UNICO_SMILETRACK.sql; then
-  echo "❌ Error al ejecutar el script SQL."
+  -C -b -d "$DATABASE" -h -1 -W \
+  -Q "
+    SET NOCOUNT ON;
+    SELECT CASE
+      WHEN OBJECT_ID(N'dbo.Usuario', N'U') IS NOT NULL
+       AND OBJECT_ID(N'dbo.Profesional', N'U') IS NOT NULL
+       AND OBJECT_ID(N'dbo.Diagnostico_CIE10', N'U') IS NOT NULL
+       AND OBJECT_ID(N'dbo.Paciente', N'U') IS NOT NULL
+       AND OBJECT_ID(N'dbo.RegistroConsentimiento', N'U') IS NOT NULL
+       AND OBJECT_ID(N'dbo.Reporte_Generado', N'U') IS NOT NULL
+       AND COL_LENGTH(N'dbo.Usuario', N'version_consentimiento') IS NOT NULL
+       AND COL_LENGTH(N'dbo.Usuario', N'fecha_consentimiento') IS NOT NULL
+       AND COL_LENGTH(N'dbo.Usuario', N'ip_consentimiento') IS NOT NULL
+       AND COL_LENGTH(N'dbo.Usuario', N'bloqueado_hasta') IS NOT NULL
+       AND EXISTS (
+           SELECT 1
+           FROM sys.indexes
+           WHERE object_id = OBJECT_ID(N'dbo.Usuario')
+             AND name = N'UX_Usuario_Correo'
+             AND is_unique = 1
+             AND is_disabled = 0
+       )
+       AND EXISTS (
+           SELECT 1
+           FROM sys.indexes
+           WHERE object_id = OBJECT_ID(N'dbo.Paciente')
+             AND name = N'UX_Paciente_TipoDocumento_Documento'
+             AND is_unique = 1
+             AND is_disabled = 0
+       )
+      THEN 1
+      ELSE 0
+    END"
+  ); then
+  echo "❌ No se pudo validar el esquema de SmileTrack."
+  exit 1
+fi
+SCHEMA_READY=$(printf '%s' "$SCHEMA_READY" | tr -d '[:space:]')
+if [ "$SCHEMA_READY" != "1" ]; then
+  echo "❌ El esquema de SmileTrack sigue incompleto después de las migraciones."
   exit 1
 fi
 
@@ -79,4 +134,4 @@ if ! "$SQLCMD" \
   exit 1
 fi
 
-echo "✅ Base de datos inicializada correctamente."
+echo "✅ Base de datos inicializada o actualizada correctamente."

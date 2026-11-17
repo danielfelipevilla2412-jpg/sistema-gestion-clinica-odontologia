@@ -496,6 +496,14 @@ public sealed class AccesoSeguridadControllerTests
             "recep@smiletrack.co",
             "aux@smiletrack.co"
         };
+        var rolesEsperados = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["admin@smiletrack.co"] = 1,
+            ["prof@smiletrack.co"] = 2,
+            ["pac@smiletrack.co"] = 3,
+            ["recep@smiletrack.co"] = 4,
+            ["aux@smiletrack.co"] = 5
+        };
 
         foreach (string archivoSeed in archivosSeed)
         {
@@ -544,6 +552,17 @@ public sealed class AccesoSeguridadControllerTests
             Assert.True(
                     BCrypt.Net.BCrypt.Verify("123456", hashPrincipal.Value),
                     $"El usuario {correo} del script principal no puede ingresar con la contraseña de prueba.");
+
+            Match rolActivoPrincipal = Regex.Match(
+                insercionUsuario!,
+                @"N'\$2[ab]\$\d{2}\$[./A-Za-z0-9]{53}',\s*(\d+),\s*N'activo'",
+                RegexOptions.IgnoreCase);
+            Assert.True(
+                rolActivoPrincipal.Success,
+                $"El usuario {correo} debe estar activo y tener su rol asignado en el script principal.");
+            Assert.Equal(
+                rolesEsperados[correo],
+                int.Parse(rolActivoPrincipal.Groups[1].Value));
         }
     }
 

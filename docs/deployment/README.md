@@ -43,6 +43,8 @@ docker compose ps
 curl.exe -fsS http://127.0.0.1:5259/health
 ```
 
+`db-init` aplica las migraciones idempotentes de consentimiento, reportes e identificadores también a una base existente que ya tenga las tablas base de SmileTrack. No ejecuta el script completo sobre una base existente ni inicializa una base vacía/parcial; si falta el esquema base, se detiene sin modificarla. La migración de identificadores aborta sin cambios si detecta correos o documentos duplicados tras normalizarlos. En ejecución directa con `dotnet run`, el entorno `Development` aplica estas migraciones automáticamente cuando detecta las tablas base. Una base nueva todavía requiere su inicialización con el script unificado o Docker Compose.
+
 Espera a que `sqlserver` esté `healthy`, `db-init` termine con código 0 y `web` esté `Up`. Si alguno falla:
 
 ```sh
@@ -51,7 +53,7 @@ docker compose logs --tail=100 sqlserver db-init web
 
 Si la compilacion muestra `Read-only file system` o el daemon no puede leer/escribir su cache, revisa el espacio libre del disco del host (`Get-PSDrive C` en PowerShell y `docker system df`). Libera espacio desde Windows y reinicia Docker Desktop antes de reconstruir. No borres el disco virtual de Docker ni uses `docker compose down -v`: los volumenes contienen la base de datos, las claves de proteccion y los archivos clinicos. `docker system df` tambien puede fallar mientras el almacenamiento de Docker esta en modo de solo lectura.
 
-El SQL de autenticación añade `bloqueado_hasta` y los índices únicos. En bases preexistentes, el inicializador no vuelve a ejecutar el esquema semilla; tras respaldar, aplica `Database/upgrade-auth-identifiers.sql` una sola vez:
+El SQL de autenticación añade `bloqueado_hasta` y los índices únicos. Antes de actualizar una base existente, realiza y verifica una copia de seguridad. Compose ejecuta la migración automáticamente y aborta si detecta duplicados; para SQL Server administrado fuera de Compose, ejecútala manualmente una sola vez después de revisar los duplicados:
 
 ```sh
 docker exec -i smiletrack-sqlserver bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -d SmileTrackDB -i /dev/stdin' < Database/upgrade-auth-identifiers.sql
@@ -64,7 +66,7 @@ Get-Content .\Database\upgrade-auth-identifiers.sql -Raw |
   docker exec -i smiletrack-sqlserver bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -d SmileTrackDB -i /dev/stdin'
 ```
 
-Antes de desplegar una versión que use el consentimiento o los reportes, respalda la base existente y aplica también las migraciones idempotentes correspondientes desde la raíz del repositorio:
+Antes de desplegar, respalda la base existente. `db-init` aplica automáticamente las migraciones idempotentes en Docker Compose; si administras SQL Server fuera de Compose, ejecútalas manualmente desde la raíz del repositorio:
 
 ```powershell
 Get-Content .\Database\MIGRATION_Consentimiento.sql -Raw |

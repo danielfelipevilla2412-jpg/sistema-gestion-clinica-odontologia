@@ -75,7 +75,7 @@ Las pruebas automatizadas verifican los cinco accesos en EF InMemory, la coincid
 
 ## Actualización de bases existentes
 
-Para instalaciones existentes, realizar una copia de seguridad y ejecutar las migraciones requeridas antes de desplegar. `Database/MIGRATION_Consentimiento.sql` agrega idempotentemente las columnas que requiere `Usuario` y la tabla de auditoría de consentimiento; `Database/MIGRATION_Reporte_Generado.sql` crea la tabla de reportes y su índice. También revisar y ejecutar `Database/upgrade-auth-identifiers.sql` antes de desplegar la versión que depende de sus nuevos campos e índices.
+Para instalaciones existentes, realizar y verificar una copia de seguridad antes de desplegar. `Database/MIGRATION_Consentimiento.sql` agrega idempotentemente las columnas que requiere `Usuario` y la tabla de auditoría de consentimiento; `Database/MIGRATION_Reporte_Generado.sql` crea la tabla de reportes y su índice. `Database/upgrade-auth-identifiers.sql` normaliza correos/documentos, agrega el campo de bloqueo y los índices únicos. Los inicializadores de Development y Docker ejecutan las migraciones; la migración de identificadores cancela la transacción si detecta duplicados normalizados.
 
 El script:
 

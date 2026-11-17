@@ -733,6 +733,14 @@ await WaitForSqlServerAsync(
     connectionString,
     app.Logger);
 
+if (app.Environment.IsDevelopment())
+{
+    await ApplyDevelopmentSchemaMigrationsAsync(
+        connectionString,
+        app.Environment.ContentRootPath,
+        app.Logger);
+}
+
 await ValidateDatabaseSchemaAsync(
     connectionString,
     app.Logger);
@@ -1089,7 +1097,24 @@ static async Task ValidateDatabaseSchemaAsync(
                 OBJECT_ID(N'dbo.Reporte_Generado', N'U') IS NOT NULL AND
                 COL_LENGTH(N'dbo.Usuario', N'version_consentimiento') IS NOT NULL AND
                 COL_LENGTH(N'dbo.Usuario', N'fecha_consentimiento') IS NOT NULL AND
-                COL_LENGTH(N'dbo.Usuario', N'ip_consentimiento') IS NOT NULL
+                COL_LENGTH(N'dbo.Usuario', N'ip_consentimiento') IS NOT NULL AND
+                COL_LENGTH(N'dbo.Usuario', N'bloqueado_hasta') IS NOT NULL AND
+                EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE object_id = OBJECT_ID(N'dbo.Usuario')
+                      AND name = N'UX_Usuario_Correo'
+                      AND is_unique = 1
+                      AND is_disabled = 0
+                ) AND
+                EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE object_id = OBJECT_ID(N'dbo.Paciente')
+                      AND name = N'UX_Paciente_TipoDocumento_Documento'
+                      AND is_unique = 1
+                      AND is_disabled = 0
+                )
             THEN 1 ELSE 0 END;
             """;
 
@@ -1098,7 +1123,7 @@ static async Task ValidateDatabaseSchemaAsync(
         {
             logger.LogCritical("La base de datos no contiene el esquema requerido de SmileTrack.");
             throw new InvalidOperationException(
-                "El esquema de la base de datos está incompleto. Ejecute el script de inicialización o las migraciones SQL pendientes antes de iniciar la aplicación.");
+                "El esquema de la base de datos está incompleto. Ejecute el script de inicialización y las migraciones SQL pendientes, incluida Database/upgrade-auth-identifiers.sql, antes de iniciar la aplicación.");
         }
 
         logger.LogInformation("El esquema requerido de SmileTrack está disponible.");
@@ -1115,6 +1140,115 @@ static async Task ValidateDatabaseSchemaAsync(
             ex);
     }
 }
+
+static async Task ApplyDevelopmentSchemaMigrationsAsync(
+    string connectionString,
+    string contentRootPath,
+    ILogger logger)
+{
+    await using var connection = new SqlConnection(connectionString);
+    await connection.OpenAsync();
+
+    await using var schemaCommand = connection.CreateCommand();
+    schemaCommand.CommandText = """
+        SELECT CASE
+            WHEN OBJECT_ID(N'dbo.Usuario', N'U') IS NULL
+              OR OBJECT_ID(N'dbo.Profesional', N'U') IS NULL
+              OR OBJECT_ID(N'dbo.Diagnostico_CIE10', N'U') IS NULL
+              OR OBJECT_ID(N'dbo.Paciente', N'U') IS NULL
+                THEN -1
+            WHEN OBJECT_ID(N'dbo.RegistroConsentimiento', N'U') IS NOT NULL
+             AND OBJECT_ID(N'dbo.Reporte_Generado', N'U') IS NOT NULL
+             AND COL_LENGTH(N'dbo.Usuario', N'version_consentimiento') IS NOT NULL
+             AND COL_LENGTH(N'dbo.Usuario', N'fecha_consentimiento') IS NOT NULL
+             AND COL_LENGTH(N'dbo.Usuario', N'ip_consentimiento') IS NOT NULL
+             AND COL_LENGTH(N'dbo.Usuario', N'bloqueado_hasta') IS NOT NULL
+             AND EXISTS (
+                 SELECT 1
+                 FROM sys.indexes
+                 WHERE object_id = OBJECT_ID(N'dbo.Usuario')
+                   AND name = N'UX_Usuario_Correo'
+                   AND is_unique = 1
+                   AND is_disabled = 0
+             )
+             AND EXISTS (
+                 SELECT 1
+                 FROM sys.indexes
+                 WHERE object_id = OBJECT_ID(N'dbo.Paciente')
+                   AND name = N'UX_Paciente_TipoDocumento_Documento'
+                   AND is_unique = 1
+                   AND is_disabled = 0
+             )
+                THEN 1
+            ELSE 0
+        END;
+        """;
+
+    var schemaState = Convert.ToInt32(await schemaCommand.ExecuteScalarAsync());
+    if (schemaState == 1)
+    {
+        return;
+    }
+
+    if (schemaState == -1)
+    {
+        logger.LogInformation(
+            "Se omiten las migraciones automáticas: inicialice primero el esquema base de SmileTrack.");
+        return;
+    }
+
+    string[] migrationFiles =
+    [
+        "MIGRATION_Consentimiento.sql",
+        "MIGRATION_Reporte_Generado.sql",
+        "upgrade-auth-identifiers.sql"
+    ];
+
+    foreach (string migrationFile in migrationFiles)
+    {
+        string migrationPath = Path.Combine(
+            contentRootPath,
+            "Database",
+            migrationFile);
+        string migrationSql = await File.ReadAllTextAsync(migrationPath);
+        // Keep migrations scoped to the database selected by the app connection string.
+        migrationSql = Regex.Replace(
+            migrationSql,
+            @"(?im)^[ \t]*USE[ \t]+(?:\[[^\]]+\]|[A-Za-z0-9_]+)[ \t]*;[ \t]*\r?$",
+            string.Empty);
+        string[] batches = Regex.Split(
+            migrationSql,
+            @"(?im)^\s*GO\s*$");
+
+        foreach (string batch in batches)
+        {
+            if (string.IsNullOrWhiteSpace(batch))
+            {
+                continue;
+            }
+
+            await using var migrationCommand = connection.CreateCommand();
+            migrationCommand.CommandTimeout = 60;
+            migrationCommand.CommandText = batch;
+
+            try
+            {
+                await migrationCommand.ExecuteNonQueryAsync();
+            }
+            catch (SqlException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Falló la migración de desarrollo {migrationFile}.",
+                    ex);
+            }
+        }
+
+        logger.LogInformation(
+            "Migración de desarrollo aplicada: {MigrationFile}",
+            migrationFile);
+    }
+}
+
 // -----------------------------------------------------------------------------
 // URL HELPERS
 // -----------------------------------------------------------------------------
