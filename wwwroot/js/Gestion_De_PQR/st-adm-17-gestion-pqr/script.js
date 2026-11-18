@@ -104,6 +104,21 @@ const ESTADO_FILTRO = {
 
 let pqrsData = {};
 let currentId = null;
+let paginaActual = 1;
+let totalPaginas = 1;
+let totalFiltrado = 0;
+let busquedaTimer = null;
+let solicitudBandeja = 0;
+
+function renderPaginacion() {
+  const panel = safeGetElement('pqrPaginacion');
+  if (!panel) return;
+  panel.hidden = false;
+  safeGetElement('pqrPaginaInfo').textContent = `Página ${paginaActual} de ${totalPaginas} · ${totalFiltrado} resultados`;
+  safeGetElement('pqrAnterior').disabled = paginaActual <= 1;
+  safeGetElement('pqrSiguiente').disabled = paginaActual >= totalPaginas;
+}
+
 
 const formatTiempoAbierto = (fechaIso) => {
   if (!fechaIso) return '—';
@@ -195,9 +210,12 @@ document.addEventListener('DOMContentLoaded', () => {
   initResponseForm();
   initPqrNotifications();
 
-  safeGetElement('searchInput')?.addEventListener('input', filterTable);
-  safeGetElement('filterTipo')?.addEventListener('change', filterTable);
-  safeGetElement('filterEstado')?.addEventListener('change', filterTable);
+  safeGetElement('searchInput')?.addEventListener('input', () => { clearTimeout(busquedaTimer); busquedaTimer = setTimeout(() => cambiarFiltros(), 350); });
+  safeGetElement('filterTipo')?.addEventListener('change', cambiarFiltros);
+  safeGetElement('filterEstado')?.addEventListener('change', cambiarFiltros);
+  safeGetElement('pqrAnterior')?.addEventListener('click', () => { if (paginaActual > 1) { paginaActual--; refreshPqrsFromServer(); } });
+  safeGetElement('pqrSiguiente')?.addEventListener('click', () => { if (paginaActual < totalPaginas) { paginaActual++; refreshPqrsFromServer(); } });
+  refreshPqrsFromServer();
   safeGetElement('closeDetailButton')?.addEventListener('click', closeDetail);
   safeGetElement('detailOverlay')?.addEventListener('click', closeDetail);
   document.addEventListener('keydown', event => {
@@ -263,7 +281,12 @@ function applyPqrPayload(payload, { showNewToast = false } = {}) {
   renderTable();
   renderStats();
   updateNotificationBadge(payload.stats);
-  filterTable();
+  if (payload.paginacion) {
+    paginaActual = payload.paginacion.pagina;
+    totalPaginas = payload.paginacion.totalPaginas;
+    totalFiltrado = payload.paginacion.totalFiltrado;
+    renderPaginacion();
+  }
 
   // Si el detalle ya está abierto, actualizamos únicamente la información
   // visible de la PQR. No reconstruimos el panel ni tocamos el textarea.
@@ -301,7 +324,9 @@ function applyPqrPayload(payload, { showNewToast = false } = {}) {
 
 async function refreshPqrsFromServer() {
   try {
-    const response = await fetch('/gestion-de-pqr/api/pqr', {
+    const solicitud = ++solicitudBandeja;
+    const params = new URLSearchParams({ pagina: String(paginaActual), buscar: safeGetElement('searchInput')?.value || '', tipo: safeGetElement('filterTipo')?.value || 'todos', estado: safeGetElement('filterEstado')?.value || 'todos' });
+    const response = await fetch(`/gestion-de-pqr/api/pqr?${params}`, {
       method: 'GET',
       credentials: 'same-origin',
       headers: { 'Accept': 'application/json' }
@@ -315,7 +340,8 @@ async function refreshPqrsFromServer() {
     if (!response.ok) return;
 
     const payload = await response.json();
-    applyPqrPayload(payload, { showNewToast: !pqrFirstRefresh });
+    if (solicitud !== solicitudBandeja) return;
+    applyPqrPayload(payload, { showNewToast: false });
     pqrFirstRefresh = false;
   } catch (error) {
     console.error('Error actualizando la bandeja de PQR:', error);
@@ -328,7 +354,7 @@ function initPqrNotifications() {
     const select = safeGetElement('filterEstado');
     if (select) {
       select.value = 'recibido';
-      filterTable();
+      cambiarFiltros();
     }
 
     safeGetElement('pqrsTable')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -345,7 +371,11 @@ function initPqrNotifications() {
 function showManagement() {}
 
 // Show Detail Panel
+let pendingPqrStatus = null;
+let sendingPqrResponse = false;
+
 function showDetail(id) {
+  pendingPqrStatus = null;
   currentId = id;
   const data = pqrsData[id];
   if (!data) return;
@@ -396,6 +426,7 @@ function showDetail(id) {
   }
 
   updateStatusButtons(data.estado);
+  cargarHistorialPqr(data.id);
 }
 
 function renderResponseThread(data) {
@@ -419,6 +450,36 @@ function renderResponseThread(data) {
   }
 }
 
+async function cargarHistorialPqr(id) {
+  const thread = safeGetElement('responsesThread');
+  const title = safeGetElement('responsesTitle');
+  if (!thread || !title) return;
+  try {
+    const response = await fetch(`/gestion-de-pqr/api/pqr/${encodeURIComponent(id)}/historial`, {
+      credentials: 'same-origin', headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) return;
+    const result = await response.json();
+    if (String(currentId) !== String(id) || !result.success) return;
+    const eventos = result.eventos || [];
+    if (!eventos.length) return; // Los registros anteriores conservan la vista de respuesta existente.
+    title.textContent = `Historial de seguimiento (${eventos.length})`;
+    thread.innerHTML = eventos.map(e => `
+      <div class="timeline-item">
+        <div class="timeline-header">
+          <span class="timeline-author">${escapeHtml(e.tipoEvento === 'respuesta' ? 'Respuesta administrativa' : 'Cambio de estado')}</span>
+          <span class="timeline-date">${escapeHtml(new Date(e.fechaEvento).toLocaleString('es-CO'))}</span>
+        </div>
+        <div class="timeline-content">
+          <div>${escapeHtml(e.estadoAnterior || '—')} → ${escapeHtml(e.estadoNuevo)}</div>
+          ${e.respuesta ? `<p>${escapeHtml(e.respuesta)}</p>` : ''}
+        </div>
+      </div>`).join('');
+  } catch (error) {
+    console.error('[PQR] No fue posible consultar el historial:', error);
+  }
+}
+
 function updateBadgeColors(data) {
   const tipoBadge = TIPO_BADGE[data.tipo] || TIPO_BADGE.peticion;
   const estadoBadge = ESTADO_BADGE[data.estado] || ESTADO_BADGE.recibida;
@@ -438,9 +499,18 @@ function updateBadgeColors(data) {
 }
 
 function updateStatusButtons(estado) {
-  document.querySelectorAll('.status-btn').forEach(btn => btn.classList.remove('active'));
+  const finalizada = ['resuelta', 'cerrada', 'rechazada'].includes(estado);
+  document.querySelectorAll('.status-btn').forEach(btn => {
+    btn.classList.remove('active');
+    btn.disabled = finalizada;
+  });
+  const respuesta = document.getElementById('responseTextarea');
+  const btnRespuesta = document.getElementById('btnSendResponse');
+  const yaRespondida = Boolean(currentId && pqrsData[currentId]?.respuesta);
+  if (respuesta) respuesta.disabled = finalizada || yaRespondida;
+  if (btnRespuesta) btnRespuesta.disabled = finalizada || yaRespondida;
   const map = { recibida: 'recibido', en_proceso: 'proceso', resuelta: 'resuelto', cerrada: 'cerrado', rechazada: 'rechazado' };
-  const btnClass = map[estado];
+  const btnClass = map[pendingPqrStatus || estado];
   if (btnClass) {
     const btn = document.querySelector(`.status-btn.${btnClass}`);
     if (btn) btn.classList.add('active');
@@ -456,37 +526,30 @@ function closeDetail() {
   safeGetElement('detailOverlay').setAttribute('aria-hidden', 'true');
   document.querySelectorAll('tbody tr').forEach(row => row.classList.remove('selected'));
   currentId = null;
+  pendingPqrStatus = null;
   Array.from(document.querySelectorAll('button[data-action="view"]'))
     .find(button => button.dataset.id === String(previousId))?.focus();
 }
 
-// Change Status — persiste en SQL Server vía PUT /gestion-de-pqr/api/pqr/{id}/estado
-async function changeStatus(btn, estado) {
-  if (!currentId) return;
-
-  try {
-    const result = await pqrApiRequest(`/gestion-de-pqr/api/pqr/${currentId}/estado`, {
-      method: 'PUT',
-      body: { estado }
-    });
-
-    if (!result || result.success !== true) {
-      showToast(result?.message || 'No fue posible actualizar el estado.', 'error');
-      return;
-    }
-
-    pqrsData[currentId].estado = result.data?.estado || estado;
-    document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    updateBadgeColors(pqrsData[currentId]);
-    renderTable();
-    filterTable();
-    renderStats();
-    showToast('Estado actualizado correctamente.');
-  } catch (error) {
-    console.error('Error cambiando estado:', error);
-    showToast(error instanceof Error ? error.message : 'Error de conexión al actualizar el estado.', 'error');
+// Selección provisional: no guardar estado ni bloquear la respuesta hasta enviar.
+function changeStatus(btn, estado) {
+  if (!currentId || sendingPqrResponse) return;
+  const data = pqrsData[currentId];
+  if (!data || ['resuelta', 'cerrada', 'rechazada'].includes(data.estado) || data.respuesta) {
+    showToast('Esta PQR ya está finalizada o respondida y no admite cambios.', 'warning');
+    return;
   }
+  const permitted = data.estado === 'recibida'
+    ? ['en_proceso', 'resuelta', 'cerrada', 'rechazada']
+    : data.estado === 'en_proceso'
+      ? ['resuelta', 'cerrada', 'rechazada'] : [];
+  if (estado !== data.estado && !permitted.includes(estado)) {
+    showToast('La transición seleccionada no está permitida.', 'warning');
+    return;
+  }
+  pendingPqrStatus = estado === data.estado ? null : estado;
+  updateStatusButtons(data.estado);
+  showToast('Estado seleccionado. Se guardará al enviar la respuesta.');
 }
 
 // Enviar respuesta — persiste en SQL Server vía POST /gestion-de-pqr/api/pqr/{id}/responder
@@ -494,6 +557,10 @@ function initResponseForm() {
   const btn = safeGetElement('btnSendResponse');
   btn?.addEventListener('click', async () => {
     if (!currentId) return;
+    if (['resuelta', 'cerrada', 'rechazada'].includes(pqrsData[currentId]?.estado) || pqrsData[currentId]?.respuesta) {
+      showToast('Esta PQR no admite nuevas respuestas.', 'warning');
+      return;
+    }
 
     const textarea = safeGetElement('responseTextarea');
     const respuesta = textarea?.value?.trim();
@@ -503,11 +570,12 @@ function initResponseForm() {
       return;
     }
 
+    sendingPqrResponse = true;
     btn.disabled = true;
     try {
       const result = await pqrApiRequest(`/gestion-de-pqr/api/pqr/${currentId}/responder`, {
         method: 'POST',
-        body: { respuesta }
+        body: { respuesta, nuevoEstado: pendingPqrStatus }
       });
 
       if (!result || result.success !== true) {
@@ -520,12 +588,12 @@ function initResponseForm() {
       data.fechaRespuesta = result.data.fechaRespuesta;
       data.atendidaPor = result.data.atendidaPor;
       data.estado = result.data.estado;
+      pendingPqrStatus = null;
 
       renderResponseThread(data);
       updateBadgeColors(data);
       updateStatusButtons(data.estado);
       renderTable();
-      filterTable();
       renderStats();
       textarea.value = '';
       showToast('Respuesta enviada correctamente.');
@@ -534,33 +602,18 @@ function initResponseForm() {
       console.error('Error enviando respuesta:', error);
       showToast(error instanceof Error ? error.message : 'Error de conexión al enviar la respuesta.', 'error');
     } finally {
-      btn.disabled = false;
+      sendingPqrResponse = false;
+      if (currentId) updateStatusButtons(pqrsData[currentId].estado);
     }
   });
 }
 
-// Filter Table
-function filterTable() {
-  const searchInput = safeGetElement('searchInput')?.value.toLowerCase() || '';
-  const filterTipo = safeGetElement('filterTipo')?.value || 'todos';
-  const filterEstado = safeGetElement('filterEstado')?.value || 'todos';
-
-  const rows = document.querySelectorAll('#pqrsTableBody tr[data-id]');
-
-  rows.forEach(row => {
-    const paciente = row.querySelector('.paciente-info strong')?.textContent.toLowerCase() || '';
-    const radicado = row.querySelector('.radicado')?.textContent.toLowerCase() || '';
-    const asunto = row.cells[3]?.textContent.toLowerCase() || '';
-    const tipo = row.getAttribute('data-tipo');
-    const estadoReal = row.getAttribute('data-estado');
-
-    const matchesSearch = paciente.includes(searchInput) || radicado.includes(searchInput) || asunto.includes(searchInput);
-    const matchesTipo = filterTipo === 'todos' || tipo === filterTipo;
-    const matchesEstado = filterEstado === 'todos' || estadoReal === filterEstado;
-
-    row.style.display = (matchesSearch && matchesTipo && matchesEstado) ? '' : 'none';
-  });
+// Los filtros se aplican en SQL Server; nunca filtrar únicamente la página visible.
+function cambiarFiltros() {
+  paginaActual = 1;
+  refreshPqrsFromServer();
 }
+function filterTable() { cambiarFiltros(); }
 
 // Handle window resize
 window.addEventListener('resize', function () {

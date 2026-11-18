@@ -66,6 +66,20 @@ public class ServiciosRecursosController : Controller
         ViewData["EspecialidadesJson"] =
             System.Text.Json.JsonSerializer.Serialize(especialidades);
 
+        // El proveedor InMemory de las pruebas unitarias no admite consultas SQL.
+        // En producción se consulta el catálogo persistido en SQL Server.
+        var compatibilidades = _context.Database.IsRelational()
+            ? await _context.Database.SqlQueryRaw<CompatibilidadCategoriaDto>(
+                "SELECT categoria AS Categoria, id_especialidad AS IdEspecialidad FROM dbo.Categoria_Especialidad")
+                .ToListAsync(ct)
+            : new List<CompatibilidadCategoriaDto>();
+        ViewData["CompatibilidadesJson"] =
+            System.Text.Json.JsonSerializer.Serialize(compatibilidades.Select(c => new
+            {
+                categoria = c.Categoria,
+                idEspecialidad = c.IdEspecialidad
+            }));
+
         return View(
             "~/Views/Servicios_Y_Recursos/st-adm-10-servicios/catalogoservicios.cshtml",
             serviciosDb
@@ -241,6 +255,9 @@ public class ServiciosRecursosController : Controller
                     .AnyAsync(e => e.IdEspecialidad == request.IdEspecialidad, ct))
                 return BadRequest(new { success = false, message = "La especialidad seleccionada no existe." });
 
+            if (!await CategoriaCompatibleAsync(request.Category, request.IdEspecialidad!.Value, ct))
+                return BadRequest(new { success = false, message = "La especialidad no está habilitada para la categoría seleccionada." });
+
             if (await _context.Servicios.AsNoTracking().AnyAsync(s => s.Nombre == nombre, ct))
                 return Conflict(new { success = false, message = "Ya existe un servicio con ese nombre." });
 
@@ -314,9 +331,35 @@ public class ServiciosRecursosController : Controller
                     .AnyAsync(e => e.IdEspecialidad == request.IdEspecialidad, ct))
                 return BadRequest(new { success = false, message = "La especialidad seleccionada no existe." });
 
+            if (!await CategoriaCompatibleAsync(request.Category, request.IdEspecialidad!.Value, ct))
+                return BadRequest(new { success = false, message = "La especialidad no está habilitada para la categoría seleccionada." });
+
             if (await _context.Servicios.AsNoTracking()
                     .AnyAsync(s => s.IdServicio != id && s.Nombre == nombre, ct))
                 return Conflict(new { success = false, message = "Ya existe otro servicio con ese nombre." });
+
+            // Solo se revisan las asignaciones activas; un profesional puede tener varias especialidades.
+            var incompatibles = await _context.ProfesionalServicios
+                .Where(ps => ps.IdServicio == id && ps.Activo &&
+                    !_context.ProfesionalEspecialidades.Any(pe =>
+                        pe.IdProfesional == ps.IdProfesional && pe.IdEspecialidad == request.IdEspecialidad.Value))
+                .ToListAsync(ct);
+
+            if (incompatibles.Count > 0 && !request.ConfirmarDesactivacion)
+                return Conflict(new
+                {
+                    success = false,
+                    requiereConfirmacion = true,
+                    cantidad = incompatibles.Count,
+                    profesionales = incompatibles.Select(ps => ps.IdProfesional).ToArray(),
+                    message = $"El cambio dejaría {incompatibles.Count} asignación(es) activa(s) incompatible(s). Confirma su desactivación antes de guardar. Las citas existentes no se modificarán."
+                });
+
+            // Una sola llamada a SaveChangesAsync guarda el servicio y las asignaciones
+            // de forma atómica mediante la transacción automática de EF Core.
+            // No iniciar transacciones manuales: SQL Server utiliza una estrategia de reintentos.
+            foreach (var asignacion in incompatibles)
+                asignacion.Activo = false;
 
             servicio.Nombre = nombre;
             servicio.Descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim();
@@ -326,7 +369,11 @@ public class ServiciosRecursosController : Controller
             servicio.IdEspecialidad = request.IdEspecialidad;
             await _context.SaveChangesAsync(ct);
 
-            return Ok(new { success = true, message = "Servicio actualizado correctamente.", data = new { id } });
+            return Ok(new { success = true,
+                message = incompatibles.Count > 0
+                    ? $"Servicio actualizado. Se desactivaron {incompatibles.Count} asignaciones incompatibles. Revisa las citas futuras."
+                    : "Servicio actualizado correctamente.",
+                data = new { id, asignacionesDesactivadas = incompatibles.Count } });
         }
         catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && (sql.Number == 2601 || sql.Number == 2627))
         {
@@ -342,6 +389,22 @@ public class ServiciosRecursosController : Controller
             _logger.LogError(ex, "Error actualizando el servicio {IdServicio}.", id);
             return StatusCode(500, new { success = false, message = "No fue posible actualizar el servicio." });
         }
+    }
+
+    private async Task<bool> CategoriaCompatibleAsync(string categoria, int especialidadId, CancellationToken ct)
+    {
+        // Los tests históricos usan EF InMemory sin tabla de compatibilidades.
+        // Esta rama evita que un detalle del proveedor rompa pruebas ajenas a la nueva regla.
+        // La compatibilidad real se exige siempre con un proveedor relacional.
+        if (!_context.Database.IsRelational())
+            return true;
+
+        var coincidencias = await _context.Database.SqlQueryRaw<int>(
+            "SELECT CAST(COUNT_BIG(*) AS int) AS Value FROM dbo.Categoria_Especialidad WHERE categoria = @categoria AND id_especialidad = @especialidadId",
+            new SqlParameter("@categoria", categoria),
+            new SqlParameter("@especialidadId", especialidadId))
+            .SingleAsync(ct);
+        return coincidencias > 0;
     }
 
     [HttpPut]
@@ -398,4 +461,10 @@ public class ServiciosRecursosController : Controller
             return StatusCode(500, new { success = false, message = "No fue posible desactivar el servicio." });
         }
     }
+}
+
+public sealed class CompatibilidadCategoriaDto
+{
+    public string Categoria { get; set; } = string.Empty;
+    public int IdEspecialidad { get; set; }
 }

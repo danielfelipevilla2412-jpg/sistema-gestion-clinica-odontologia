@@ -539,6 +539,23 @@ public sealed class ProfesionalesApiController : ControllerBase
             : NotFound(new { success = false, message = result.Message });
     }
 
+    [HttpPut("{id:int}/servicios")]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Administrador", Policy = "ApiOrCookie")]
+    public async Task<IActionResult> ActualizarServicios(
+        int id,
+        [FromBody] List<ServicioProfesionalAsignacionApiRequest>? servicios,
+        CancellationToken ct = default)
+    {
+        if (id <= 0 || servicios is null)
+            return BadRequest(new { success = false, message = "Los datos de servicios no son válidos." });
+
+        var result = await _service.ActualizarServiciosAsync(id, servicios, ct);
+        return result.Success
+            ? Ok(new { success = true, message = result.Message })
+            : StatusCode(result.ErrorStatusCode ?? 400, new { success = false, message = result.Message });
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // GET /api/profesionales/{id}/comisiones
     // Calcula la liquidación de honorarios y comisiones por citas atendidas
@@ -616,7 +633,7 @@ public sealed class ProfesionalesApiController : ControllerBase
                 id,
                 inicio,
                 fin,
-                request.Tipo,
+                request.Tipo ?? "incapacidad",
                 GetCurrentUserId(),
                 request.Observaciones,
                 ct);

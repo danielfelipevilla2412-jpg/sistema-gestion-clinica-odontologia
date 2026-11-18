@@ -4681,6 +4681,49 @@ BEGIN
         ON [dbo].[Reporte_Generado]([categoria], [fecha_generacion_utc]);
 END;
 GO
+USE [SmileTrackDB]
+GO
+IF OBJECT_ID(N'dbo.Lista_Espera_Cita', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Lista_Espera_Cita (
+        id_lista_espera INT IDENTITY(1,1) PRIMARY KEY,
+        id_paciente INT NOT NULL,
+        id_servicio INT NULL,
+        id_profesional_preferido INT NULL,
+        fecha_deseada_inicio DATETIME2 NOT NULL,
+        fecha_deseada_fin DATETIME2 NOT NULL,
+        estado VARCHAR(20) NOT NULL CONSTRAINT DF_ListaEspera_Estado DEFAULT ('pendiente'),
+        fecha_registro DATETIME2 NOT NULL CONSTRAINT DF_ListaEspera_Fecha DEFAULT (SYSUTCDATETIME()),
+        notas VARCHAR(500) NULL,
+        CONSTRAINT CK_ListaEspera_Rango CHECK (fecha_deseada_fin > fecha_deseada_inicio),
+        CONSTRAINT CK_ListaEspera_Estado CHECK (estado IN ('pendiente', 'notificado', 'agendado', 'cancelado')),
+        CONSTRAINT FK_ListaEspera_Paciente FOREIGN KEY (id_paciente) REFERENCES dbo.Paciente(id_paciente) ON DELETE CASCADE,
+        CONSTRAINT FK_ListaEspera_Servicio FOREIGN KEY (id_servicio) REFERENCES dbo.Servicio(id_servicio) ON DELETE SET NULL,
+        CONSTRAINT FK_ListaEspera_Profesional FOREIGN KEY (id_profesional_preferido) REFERENCES dbo.Profesional(id_profesional) ON DELETE SET NULL
+    );
+END;
+GO
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_ListaEspera_Estado_Rango'
+      AND object_id = OBJECT_ID(N'dbo.Lista_Espera_Cita')
+)
+    CREATE INDEX IX_ListaEspera_Estado_Rango
+        ON dbo.Lista_Espera_Cita(estado, fecha_deseada_inicio, fecha_deseada_fin);
+GO
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_ListaEspera_Paciente_Estado'
+      AND object_id = OBJECT_ID(N'dbo.Lista_Espera_Cita')
+)
+    CREATE INDEX IX_ListaEspera_Paciente_Estado
+        ON dbo.Lista_Espera_Cita(id_paciente, estado, fecha_registro DESC);
+GO
+IF OBJECT_ID(N'dbo.TR_Cita_Historial_Estado', N'TR') IS NOT NULL
+    DROP TRIGGER dbo.TR_Cita_Historial_Estado;
+GO
 USE [master]
 GO
 ALTER DATABASE [SmileTrackDB] SET  READ_WRITE

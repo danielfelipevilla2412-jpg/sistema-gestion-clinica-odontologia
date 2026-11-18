@@ -1420,6 +1420,74 @@ public partial class ProfesionalService : IProfesionalService
     /// con el rango de ausencia indicado. No modifica ningún dato; solo consulta para
     /// que la capa de presentación pueda mostrar una advertencia accionable.
     /// </summary>
+    private async Task<List<Cita>> DetectarCitasEnRangoAusenciaAsync(
+        int idProfesional,
+        DateOnly fechaInicio,
+        DateOnly fechaFin,
+        CancellationToken ct)
+    {
+        try
+        {
+            DateTime inicio = fechaInicio.ToDateTime(TimeOnly.MinValue);
+            DateTime fin    = fechaFin.ToDateTime(TimeOnly.MaxValue);
+
+            var estadosCancelados = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                { "cancelada", "cancelado", "no asistio", "no asistió", "no_asistida" };
+
+            return await _context.Citas
+                .AsNoTracking()
+                .Where(c =>
+                    c.IdProfesional == idProfesional &&
+                    c.FechaHora >= inicio &&
+                    c.FechaHora <= fin &&
+                    !estadosCancelados.Contains(c.Estado ?? string.Empty))
+                .OrderBy(c => c.FechaHora)
+                .ToListAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "No se pudo consultar citas afectadas para ausencia del profesional {Id}", idProfesional);
+            return [];
+        }
+    }
+
+    public async Task<ProfesionalApiOperationResult> ActualizarServiciosAsync(
+        int id,
+        IReadOnlyCollection<ServicioProfesionalAsignacionApiRequest> servicios,
+        CancellationToken ct = default)
+    {
+        bool profesionalExiste = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id, ct);
+        if (!profesionalExiste)
+            return ProfesionalApiOperationResult.NotFound();
+
+        if (servicios.Any(s => s.IdServicio <= 0 || s.PrecioPersonalizado < 0) ||
+            servicios.Select(s => s.IdServicio).Distinct().Count() != servicios.Count)
+            return ProfesionalApiOperationResult.Fail("La lista de servicios contiene datos inválidos.", 422);
+
+        var idsServicio = servicios.Select(s => s.IdServicio).ToArray();
+        int serviciosActivosEncontrados = await _context.Servicios.AsNoTracking()
+            .CountAsync(s => idsServicio.Contains(s.IdServicio) && s.Estado == "activo", ct);
+        if (serviciosActivosEncontrados != idsServicio.Length)
+            return ProfesionalApiOperationResult.Fail("Uno o más servicios no existen o están inactivos.", 422);
+
+        var existentes = await _context.ProfesionalServicios
+            .Where(ps => ps.IdProfesional == id)
+            .ToListAsync(ct);
+        _context.ProfesionalServicios.RemoveRange(existentes);
+        await _context.ProfesionalServicios.AddRangeAsync(servicios.Select(s => new ProfesionalServicio
+        {
+            IdProfesional = id,
+            IdServicio = s.IdServicio,
+            PrecioPersonalizado = s.PrecioPersonalizado,
+            Activo = s.Activo
+        }), ct);
+        await _context.SaveChangesAsync(ct);
+
+        return ProfesionalApiOperationResult.Ok("Servicios del profesional actualizados correctamente.");
+    }
+
     public async Task<ProfesionalApiCollectionResult<ServicioProfesionalApiDto>> ObtenerServiciosAsync(
         int id,
         CancellationToken ct = default)
@@ -1741,7 +1809,7 @@ public partial class ProfesionalService : IProfesionalService
         DateTime fechaInicio,
         DateTime fechaFin,
         string motivo,
-        int? operadorId = null,
+        int? idUsuarioActor = null,
         string? observaciones = null,
         CancellationToken ct = default)
     {
@@ -1778,7 +1846,7 @@ public partial class ProfesionalService : IProfesionalService
             Observaciones = string.IsNullOrWhiteSpace(observaciones)
                 ? "Registrado con reasignación automática de citas."
                 : observaciones.Trim(),
-            AprobadoPor = operadorId
+            AprobadoPor = idUsuarioActor
         };
         _context.AusenciasProfesional.Add(ausencia);
 
@@ -1904,6 +1972,7 @@ public partial class ProfesionalService : IProfesionalService
                     IdCita = cita.IdCita,
                     IdEstado = cita.IdEstado,
                     EstadoTexto = cita.Estado,
+                    IdUsuario = idUsuarioActor,
                     Motivo = $"Reasignada automáticamente por ausencia del profesional #{idAnterior} a #{candidatoElegido.IdProfesional}",
                     FechaCambio = ColombiaClock.Now
                 });
@@ -1916,6 +1985,10 @@ public partial class ProfesionalService : IProfesionalService
                     Tipo = "cambio_profesional",
                     Titulo = "Reasignación de profesional",
                     Contenido = $"Tu cita del {cita.FechaHora:dd/MM/yyyy HH:mm} ha sido asignada a {candidatoElegido.Nombres} {candidatoElegido.Apellidos} por ausencia médica.",
+                    Canal = "interno",
+                    Estado = "enviada",
+                    FechaProgramada = ColombiaClock.Now,
+                    FechaEnvio = ColombiaClock.Now,
                     CreadaEn = ColombiaClock.Now
                 });
 
@@ -1952,6 +2025,7 @@ public partial class ProfesionalService : IProfesionalService
                     IdCita = cita.IdCita,
                     IdEstado = cita.IdEstado,
                     EstadoTexto = cita.Estado,
+                    IdUsuario = idUsuarioActor,
                     Motivo = "Cancelación automática por ausencia médica del profesional sin disponibilidad de reemplazo.",
                     FechaCambio = ColombiaClock.Now
                 });
@@ -1964,6 +2038,10 @@ public partial class ProfesionalService : IProfesionalService
                     Tipo = "cancelacion_emergencia",
                     Titulo = "Cita cancelada por fuerza mayor",
                     Contenido = $"Tu cita del {cita.FechaHora:dd/MM/yyyy HH:mm} fue cancelada por incapacidad del profesional. Por favor contacta a recepción para reprogramar.",
+                    Canal = "interno",
+                    Estado = "enviada",
+                    FechaProgramada = ColombiaClock.Now,
+                    FechaEnvio = ColombiaClock.Now,
                     CreadaEn = ColombiaClock.Now
                 });
 
