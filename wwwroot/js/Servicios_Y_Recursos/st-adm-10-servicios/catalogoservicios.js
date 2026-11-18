@@ -100,14 +100,29 @@
     }
   };
 
+  const updateSaveButtonState = () => {
+    const button = document.getElementById('serviceSaveButton');
+    const category = document.getElementById('serviceCategory')?.value;
+    const specialty = document.getElementById('serviceSpecialty')?.value;
+    if (!button) return;
+    const compatible = Array.isArray(window.RAZOR_COMPATIBILIDADES) &&
+      window.RAZOR_COMPATIBILIDADES.some(item =>
+        item.categoria === category && Number(item.idEspecialidad) === Number(specialty));
+    button.disabled = !category || !specialty || !compatible;
+  };
+
   const loadSpecialties = () => {
     const select = document.getElementById('serviceSpecialty');
     if (!select) return;
 
     const previousValue = select.value;
-    const specialties = Array.isArray(window.RAZOR_ESPECIALIDADES)
-      ? window.RAZOR_ESPECIALIDADES
-      : [];
+    const category = document.getElementById('serviceCategory')?.value;
+    const allowedIds = new Set((window.RAZOR_COMPATIBILIDADES || [])
+      .filter(item => item.categoria === category)
+      .map(item => Number(item.idEspecialidad)));
+    const specialties = (Array.isArray(window.RAZOR_ESPECIALIDADES)
+      ? window.RAZOR_ESPECIALIDADES : [])
+      .filter(item => allowedIds.has(Number(item.id)));
     const placeholder = document.createElement('option');
     placeholder.value = '';
     placeholder.textContent = translate('servicios.select_specialty');
@@ -124,6 +139,8 @@
 
     if (specialties.some(specialty => String(specialty.id) === previousValue)) {
       select.value = previousValue;
+    } else {
+      select.value = '';
     }
     select.disabled = specialties.length === 0;
     const hint = document.getElementById('serviceSpecialtyHint');
@@ -132,10 +149,7 @@
         ? 'servicios.specialty_required_hint'
         : 'servicios.no_specialties');
     }
-    const saveButton = document.getElementById('serviceSaveButton');
-    if (saveButton && !document.getElementById('drawerOverlay')?.classList.contains('open')) {
-      saveButton.disabled = specialties.length === 0;
-    }
+    updateSaveButtonState();
   };
 
   const getFilteredServices = () => {
@@ -304,11 +318,14 @@
       document.getElementById('serviceName').value = service.name || '';
       document.getElementById('serviceDescription').value = service.description || '';
       document.getElementById('serviceCategory').value = normalizeCategory(service.category) || '';
+      loadSpecialties();
       document.getElementById('serviceSpecialty').value = service.specialtyId ? String(service.specialtyId) : '';
+      updateSaveButtonState();
       document.getElementById('serviceCost').value = service.cost;
       document.getElementById('serviceDuration').value = service.duration;
       setDrawerStatus(service.active);
     } else {
+      loadSpecialties();
       document.getElementById('serviceDuration').value = '60';
       setDrawerStatus(true);
     }
@@ -374,10 +391,28 @@
 
       if (serviceId !== null) {
         const existing = servicesStorage.getService(serviceId);
-        const result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${serviceId}`, {
-          method: 'PUT',
-          body: payload
-        });
+        let result;
+        try {
+          result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${serviceId}`, {
+            method: 'PUT',
+            body: payload
+          });
+        } catch (error) {
+          if (error?.status === 409 && error?.response?.requiereConfirmacion) {
+            result = error.response;
+          } else {
+            throw error;
+          }
+        }
+        if (result?.requiereConfirmacion) {
+          const ids = (result.profesionales || []).join(', ');
+          const accepted = window.confirm(`${result.message}\nProfesionales afectados (ID): ${ids}\n\n¿Desactivar estas asignaciones y guardar el servicio?`);
+          if (!accepted) return;
+          result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${serviceId}`, {
+            method: 'PUT',
+            body: { ...payload, confirmarDesactivacion: true }
+          });
+        }
         if (result?.success !== true) {
           showToast(result?.message || translate('servicios.update_error'), 'error');
           return;
@@ -417,7 +452,7 @@
       console.error('Error guardando el servicio.', error);
       showToast(translate(serviceId === null ? 'servicios.create_error' : 'servicios.update_error'), 'error');
     } finally {
-      if (saveButton) saveButton.disabled = false;
+      updateSaveButtonState();
     }
   };
 
@@ -508,6 +543,8 @@
     document.getElementById('drawerCancel')?.addEventListener('click', closeDrawer);
     document.getElementById('btnNewService')?.addEventListener('click', () => openDrawer());
     document.getElementById('serviceForm')?.addEventListener('submit', saveService);
+    document.getElementById('serviceCategory')?.addEventListener('change', loadSpecialties);
+    document.getElementById('serviceSpecialty')?.addEventListener('change', updateSaveButtonState);
     drawer?.addEventListener('click', event => {
       if (event.target === drawer) closeDrawer();
     });
