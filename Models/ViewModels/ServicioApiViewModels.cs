@@ -31,6 +31,8 @@ public sealed class ServicioRequest
 
     [Range(5, 480, ErrorMessage = "La duración debe estar entre 5 y 480 minutos.")]
     public int Duration { get; set; } = 60;
+
+    public bool ConfirmarDesactivacion { get; set; } = false;
 }
 
 public sealed class ServicioEstadoRequest

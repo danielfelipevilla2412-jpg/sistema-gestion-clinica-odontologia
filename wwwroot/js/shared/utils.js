@@ -25,7 +25,7 @@ window.SmileTrack.utils = {
    * @param {string} id - ID del elemento a buscar
    * @returns {HTMLElement|null} Elemento encontrado o null
    */
-  safeGetElement: function(id) {
+  safeGetElement: function (id) {
     const element = document.getElementById(id);
     if (!element) {
       console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
@@ -40,7 +40,7 @@ window.SmileTrack.utils = {
    * @param {number} delay - Milisegundos de espera (default: 250)
    * @returns {Function} Función debounced
    */
-  debounce: function(callback, delay = 250) {
+  debounce: function (callback, delay = 250) {
     let timeoutId;
     return (...args) => {
       clearTimeout(timeoutId);
@@ -53,7 +53,7 @@ window.SmileTrack.utils = {
    * @param {*} value - Valor a escapar (convierte a string)
    * @returns {string} HTML escapado
    */
-  escapeHtml: function(value) {
+  escapeHtml: function (value) {
     return String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -69,7 +69,7 @@ window.SmileTrack.utils = {
    * @param {number} timeoutMs
    * @returns {Promise<Response>}
    */
-  fetchWithTimeout: async function(url, options = {}, timeoutMs = options.timeoutMs ?? 15000) {
+  fetchWithTimeout: async function (url, options = {}, timeoutMs = options.timeoutMs ?? 15000) {
     const externalSignal = options.signal;
     const controller = new AbortController();
     const timeout = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
@@ -109,7 +109,7 @@ window.SmileTrack.utils = {
    * @returns {Promise} Datos parseados o null si falla
    * @throws {Error} Si la respuesta no es ok (status >= 400)
    */
-  apiRequest: async function(url, options = {}) {
+  apiRequest: async function (url, options = {}) {
     const headers = new Headers(options.headers || {});
     const externalSignal = options.signal;
     const controller = new AbortController();
@@ -149,11 +149,22 @@ window.SmileTrack.utils = {
     }
 
     try {
+      const body = options.body;
+
       const requestOptions = {
         ...options,
         headers,
         credentials: 'same-origin',
-        signal: controller.signal
+        signal: controller.signal,
+        body:
+          body !== null &&
+            body !== undefined &&
+            typeof body === 'object' &&
+            !(body instanceof FormData) &&
+            !(body instanceof Blob) &&
+            !(body instanceof URLSearchParams)
+            ? JSON.stringify(body)
+            : body
       };
       delete requestOptions.timeoutMs;
       const response = await fetch(url, requestOptions);
@@ -196,7 +207,7 @@ window.SmileTrack.utils = {
    * @param {number} duration - Duración en milisegundos (default: 800)
    */
   _counterIntervals: new WeakMap(),
-  animateCounter: function(el, target, duration) {
+  animateCounter: function (el, target, duration) {
     if (!el || typeof target !== 'number' || target < 0) {
       return;
     }
@@ -248,13 +259,13 @@ window.SmileTrack.utils = {
    * @param {number} duration - Duración en ms antes de cerrar (0 = no cierra, default: 3000)
    * @returns {HTMLElement} Elemento del toast
    */
-  showToast: function(message, type = 'info', duration = 3000) {
+  showToast: function (message, type = 'info', duration = 3000) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.setAttribute('role', 'alert');
     toast.setAttribute('aria-live', 'polite');
     toast.setAttribute('aria-atomic', 'true');
-    
+
     const messageEl = document.createElement('span');
     messageEl.textContent = message;
     toast.appendChild(messageEl);
@@ -292,7 +303,7 @@ window.SmileTrack.utils = {
    * @param {string} modalId - ID del elemento modal
    * @param {string} focusId - ID del elemento que recibe focus al cerrar (opcional)
    */
-  openModal: function(modalId, focusId = null) {
+  openModal: function (modalId, focusId = null) {
     const modal = document.getElementById(modalId);
     if (!modal) {
       console.warn(`[SmileTrack] Modal no encontrado: #${modalId}`);
@@ -327,7 +338,7 @@ window.SmileTrack.utils = {
    * Cierra un modal de forma accesible
    * @param {string} modalId - ID del elemento modal
    */
-  closeModal: function(modalId) {
+  closeModal: function (modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
 
@@ -347,7 +358,7 @@ window.SmileTrack.utils = {
    * @param {HTMLFormElement} form - Formulario a validar
    * @returns {boolean} True si es válido, false si tiene errores
    */
-  validateForm: function(form) {
+  validateForm: function (form) {
     if (!form) return false;
 
     let isValid = true;
@@ -401,7 +412,7 @@ window.SmileTrack.utils = {
    * @param {number} value - Valor a formatear
    * @returns {string} Valor formateado
    */
-  formatCurrency: function(value) {
+  formatCurrency: function (value) {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
@@ -416,7 +427,7 @@ window.SmileTrack.utils = {
    * @param {string} format - Formato 'short', 'long', 'datetime' (default: 'short')
    * @returns {string} Fecha formateada
    */
-  formatDate: function(date, format = 'short') {
+  formatDate: function (date, format = 'short') {
     if (typeof date === 'string') {
       date = new Date(date);
     }
