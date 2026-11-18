@@ -77,6 +77,8 @@ public sealed class PanelOperativoServiceTests
     [Fact]
     public async Task ObtenerAsync_SeleccionaLaProximaCitaPendienteDelDia()
     {
+        // Hora fija para que la prueba sea reproducible incluso después de las 23:30.
+        var ahoraFijo = new DateTime(2026, 11, 17, 10, 0, 0);
         await using var context = CrearContext();
         context.Pacientes.Add(new Paciente
         {
@@ -100,17 +102,17 @@ public sealed class PanelOperativoServiceTests
             IdCita = 1,
             IdPaciente = 1,
             IdProfesional = 1,
-            FechaHora = DateTime.Today.AddHours(23).AddMinutes(30),
+            FechaHora = ahoraFijo.AddMinutes(30),
             Estado = "programada"
         });
         await context.SaveChangesAsync();
 
-        var result = await new PanelOperativoService(context).ObtenerAsync();
+        var result = await new PanelOperativoService(context, () => ahoraFijo).ObtenerAsync();
 
         Assert.NotNull(result.ProximaCita);
         Assert.Equal("María Gómez", result.ProximaCita!.Paciente);
         Assert.Equal("Dr(a). Luis Ortiz", result.ProximaCita.Profesional);
-        Assert.True(result.ProximaCita.MinutosRestantes >= 0);
+        Assert.InRange(result.ProximaCita.MinutosRestantes, 29, 30);
     }
 
     [Fact]

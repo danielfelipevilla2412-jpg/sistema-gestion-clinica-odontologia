@@ -104,6 +104,21 @@ const ESTADO_FILTRO = {
 
 let pqrsData = {};
 let currentId = null;
+let paginaActual = 1;
+let totalPaginas = 1;
+let totalFiltrado = 0;
+let busquedaTimer = null;
+let solicitudBandeja = 0;
+
+function renderPaginacion() {
+  const panel = safeGetElement('pqrPaginacion');
+  if (!panel) return;
+  panel.hidden = false;
+  safeGetElement('pqrPaginaInfo').textContent = `Página ${paginaActual} de ${totalPaginas} · ${totalFiltrado} resultados`;
+  safeGetElement('pqrAnterior').disabled = paginaActual <= 1;
+  safeGetElement('pqrSiguiente').disabled = paginaActual >= totalPaginas;
+}
+
 
 const formatTiempoAbierto = (fechaIso) => {
   if (!fechaIso) return '—';
@@ -195,9 +210,12 @@ document.addEventListener('DOMContentLoaded', () => {
   initResponseForm();
   initPqrNotifications();
 
-  safeGetElement('searchInput')?.addEventListener('input', filterTable);
-  safeGetElement('filterTipo')?.addEventListener('change', filterTable);
-  safeGetElement('filterEstado')?.addEventListener('change', filterTable);
+  safeGetElement('searchInput')?.addEventListener('input', () => { clearTimeout(busquedaTimer); busquedaTimer = setTimeout(() => cambiarFiltros(), 350); });
+  safeGetElement('filterTipo')?.addEventListener('change', cambiarFiltros);
+  safeGetElement('filterEstado')?.addEventListener('change', cambiarFiltros);
+  safeGetElement('pqrAnterior')?.addEventListener('click', () => { if (paginaActual > 1) { paginaActual--; refreshPqrsFromServer(); } });
+  safeGetElement('pqrSiguiente')?.addEventListener('click', () => { if (paginaActual < totalPaginas) { paginaActual++; refreshPqrsFromServer(); } });
+  refreshPqrsFromServer();
   safeGetElement('closeDetailButton')?.addEventListener('click', closeDetail);
   safeGetElement('detailOverlay')?.addEventListener('click', closeDetail);
   document.addEventListener('keydown', event => {
@@ -263,7 +281,12 @@ function applyPqrPayload(payload, { showNewToast = false } = {}) {
   renderTable();
   renderStats();
   updateNotificationBadge(payload.stats);
-  filterTable();
+  if (payload.paginacion) {
+    paginaActual = payload.paginacion.pagina;
+    totalPaginas = payload.paginacion.totalPaginas;
+    totalFiltrado = payload.paginacion.totalFiltrado;
+    renderPaginacion();
+  }
 
   // Si el detalle ya está abierto, actualizamos únicamente la información
   // visible de la PQR. No reconstruimos el panel ni tocamos el textarea.
@@ -301,7 +324,9 @@ function applyPqrPayload(payload, { showNewToast = false } = {}) {
 
 async function refreshPqrsFromServer() {
   try {
-    const response = await fetch('/gestion-de-pqr/api/pqr', {
+    const solicitud = ++solicitudBandeja;
+    const params = new URLSearchParams({ pagina: String(paginaActual), buscar: safeGetElement('searchInput')?.value || '', tipo: safeGetElement('filterTipo')?.value || 'todos', estado: safeGetElement('filterEstado')?.value || 'todos' });
+    const response = await fetch(`/gestion-de-pqr/api/pqr?${params}`, {
       method: 'GET',
       credentials: 'same-origin',
       headers: { 'Accept': 'application/json' }
@@ -315,7 +340,8 @@ async function refreshPqrsFromServer() {
     if (!response.ok) return;
 
     const payload = await response.json();
-    applyPqrPayload(payload, { showNewToast: !pqrFirstRefresh });
+    if (solicitud !== solicitudBandeja) return;
+    applyPqrPayload(payload, { showNewToast: false });
     pqrFirstRefresh = false;
   } catch (error) {
     console.error('Error actualizando la bandeja de PQR:', error);
@@ -328,7 +354,7 @@ function initPqrNotifications() {
     const select = safeGetElement('filterEstado');
     if (select) {
       select.value = 'recibido';
-      filterTable();
+      cambiarFiltros();
     }
 
     safeGetElement('pqrsTable')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -568,7 +594,6 @@ function initResponseForm() {
       updateBadgeColors(data);
       updateStatusButtons(data.estado);
       renderTable();
-      filterTable();
       renderStats();
       textarea.value = '';
       showToast('Respuesta enviada correctamente.');
@@ -583,28 +608,12 @@ function initResponseForm() {
   });
 }
 
-// Filter Table
-function filterTable() {
-  const searchInput = safeGetElement('searchInput')?.value.toLowerCase() || '';
-  const filterTipo = safeGetElement('filterTipo')?.value || 'todos';
-  const filterEstado = safeGetElement('filterEstado')?.value || 'todos';
-
-  const rows = document.querySelectorAll('#pqrsTableBody tr[data-id]');
-
-  rows.forEach(row => {
-    const paciente = row.querySelector('.paciente-info strong')?.textContent.toLowerCase() || '';
-    const radicado = row.querySelector('.radicado')?.textContent.toLowerCase() || '';
-    const asunto = row.cells[3]?.textContent.toLowerCase() || '';
-    const tipo = row.getAttribute('data-tipo');
-    const estadoReal = row.getAttribute('data-estado');
-
-    const matchesSearch = paciente.includes(searchInput) || radicado.includes(searchInput) || asunto.includes(searchInput);
-    const matchesTipo = filterTipo === 'todos' || tipo === filterTipo;
-    const matchesEstado = filterEstado === 'todos' || estadoReal === filterEstado;
-
-    row.style.display = (matchesSearch && matchesTipo && matchesEstado) ? '' : 'none';
-  });
+// Los filtros se aplican en SQL Server; nunca filtrar únicamente la página visible.
+function cambiarFiltros() {
+  paginaActual = 1;
+  refreshPqrsFromServer();
 }
+function filterTable() { cambiarFiltros(); }
 
 // Handle window resize
 window.addEventListener('resize', function () {

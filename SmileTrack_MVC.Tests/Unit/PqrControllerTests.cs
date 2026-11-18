@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -206,7 +207,7 @@ public sealed class PqrControllerTests
 
         var controller = CrearControlador(db);
 
-        var result = await controller.ApiListarPqrs(CancellationToken.None);
+        var result = await controller.ApiListarPqrs(ct: CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.True((bool)ok.Value!.GetType().GetProperty("success")!.GetValue(ok.Value)!);
@@ -214,6 +215,95 @@ public sealed class PqrControllerTests
         Assert.Equal(2, Contar(pqrs));
         var stats = ok.Value!.GetType().GetProperty("stats")!.GetValue(ok.Value)!;
         Assert.Equal(2, (int)stats.GetType().GetProperty("total")!.GetValue(stats)!);
+    }
+
+    [Fact]
+    public async Task ApiListarPqrs_TreintaRegistros_PaginaEnBloquesDe25SinDuplicados()
+    {
+        await using var db = CrearContext();
+        db.Pacientes.Add(CrearPaciente(1, 10));
+        for (var id = 1; id <= 30; id++)
+        {
+            db.PQRs.Add(new PqrEntity
+            {
+                IdPqr = id,
+                IdPaciente = 1,
+                Tipo = "peticion",
+                Asunto = $"Solicitud {id}",
+                Descripcion = "Descripción de prueba",
+                Estado = "recibida",
+                FechaCreacion = new DateTime(2026, 11, 1).AddMinutes(id)
+            });
+        }
+        await db.SaveChangesAsync();
+        var controller = CrearControlador(db);
+
+        var primera = Assert.IsType<OkObjectResult>(await controller.ApiListarPqrs(pagina: 1));
+        var segunda = Assert.IsType<OkObjectResult>(await controller.ApiListarPqrs(pagina: 2));
+        var idsPrimera = ObtenerIdsPqr(primera);
+        var idsSegunda = ObtenerIdsPqr(segunda);
+
+        Assert.Equal(25, idsPrimera.Count);
+        Assert.Equal(5, idsSegunda.Count);
+        Assert.Empty(idsPrimera.Intersect(idsSegunda));
+        Assert.Equal(30, idsPrimera.Concat(idsSegunda).Distinct().Count());
+        Assert.Equal(30, LeerEnteroPaginacion(primera, "totalFiltrado"));
+        Assert.Equal(2, LeerEnteroPaginacion(primera, "totalPaginas"));
+        Assert.Equal(25, LeerEnteroPaginacion(primera, "tamanoPagina"));
+        Assert.Equal(1, LeerEnteroPaginacion(primera, "pagina"));
+        Assert.Equal(2, LeerEnteroPaginacion(segunda, "pagina"));
+        Assert.Equal(30, LeerEnteroEstadistica(segunda, "total"));
+    }
+
+    [Fact]
+    public async Task ApiListarPqrs_Filtros_RecalculanTotalYPaginaSinModificarEstadisticasGlobales()
+    {
+        await using var db = CrearContext();
+        db.Pacientes.Add(CrearPaciente(1, 10));
+        for (var id = 1; id <= 30; id++)
+        {
+            db.PQRs.Add(new PqrEntity
+            {
+                IdPqr = id,
+                IdPaciente = 1,
+                Tipo = id <= 12 ? "queja" : "peticion",
+                Asunto = id == 3 ? "Consulta especial" : $"Solicitud {id}",
+                Descripcion = "Descripción de prueba",
+                Estado = id <= 8 ? "en_proceso" : "recibida",
+                FechaCreacion = new DateTime(2026, 11, 1).AddMinutes(id)
+            });
+        }
+        await db.SaveChangesAsync();
+        var controller = CrearControlador(db);
+
+        var filtrada = Assert.IsType<OkObjectResult>(await controller.ApiListarPqrs(
+            pagina: 2, tipo: "queja", estado: "en_proceso"));
+        Assert.Equal(8, ObtenerIdsPqr(filtrada).Count);
+        Assert.Equal(8, LeerEnteroPaginacion(filtrada, "totalFiltrado"));
+        Assert.Equal(1, LeerEnteroPaginacion(filtrada, "totalPaginas"));
+        Assert.Equal(1, LeerEnteroPaginacion(filtrada, "pagina"));
+        Assert.Equal(30, LeerEnteroEstadistica(filtrada, "total"));
+
+        var buscada = Assert.IsType<OkObjectResult>(await controller.ApiListarPqrs(
+            buscar: "PQR-0003"));
+        Assert.Equal(new[] { 3 }, ObtenerIdsPqr(buscada));
+        Assert.Equal(1, LeerEnteroPaginacion(buscada, "totalFiltrado"));
+    }
+
+    private static object LeerPropiedad(object objeto, string nombre) =>
+        objeto.GetType().GetProperty(nombre)?.GetValue(objeto)
+        ?? throw new InvalidOperationException($"No existe la propiedad '{nombre}'.");
+
+    private static int LeerEnteroPaginacion(OkObjectResult resultado, string propiedad) =>
+        (int)LeerPropiedad(LeerPropiedad(resultado.Value!, "paginacion"), propiedad);
+
+    private static int LeerEnteroEstadistica(OkObjectResult resultado, string propiedad) =>
+        (int)LeerPropiedad(LeerPropiedad(resultado.Value!, "stats"), propiedad);
+
+    private static System.Collections.Generic.List<int> ObtenerIdsPqr(OkObjectResult resultado)
+    {
+        var registros = (IEnumerable)LeerPropiedad(resultado.Value!, "pqrs");
+        return registros.Cast<object>().Select(p => (int)LeerPropiedad(p, "id")).ToList();
     }
 
     [Fact]
@@ -331,15 +421,23 @@ public sealed class PqrControllerTests
     }
 
     [Fact]
-    public async Task ApiResponderPqr_NoSobrescribeRespuestaExistente()
+    public async Task ApiResponderPqr_PermiteRespuestaAdicionalYRegistraHistorial()
     {
         await using var db = CrearContext();
         db.Pacientes.Add(CrearPaciente(1, 10));
         db.PQRs.Add(new PqrEntity { IdPqr = 1, IdPaciente = 1, Asunto = "Uno", Descripcion = "Descripción válida", Estado = "en_proceso", Respuesta = "Respuesta original", FechaCreacion = DateTime.Now });
         await db.SaveChangesAsync();
+
         var result = await CrearControlador(db).ApiResponderPqr(1, new ResponderPqrRequest { Respuesta = "Respuesta nueva" });
-        Assert.IsType<ConflictObjectResult>(result);
-        Assert.Equal("Respuesta original", (await db.PQRs.FindAsync(1))!.Respuesta);
+
+        Assert.IsType<OkObjectResult>(result);
+        Assert.Equal("Respuesta nueva", (await db.PQRs.FindAsync(1))!.Respuesta);
+        var evento = Assert.Single(await db.PqrHistorial.ToListAsync());
+        Assert.Equal(1, evento.IdPqr);
+        Assert.Equal("respuesta", evento.TipoEvento);
+        Assert.Equal("en_proceso", evento.EstadoAnterior);
+        Assert.Equal("en_proceso", evento.EstadoNuevo);
+        Assert.Equal("Respuesta nueva", evento.Respuesta);
     }
 
     private static IFormFile CrearArchivo(long longitud, string contentType, string nombre)
