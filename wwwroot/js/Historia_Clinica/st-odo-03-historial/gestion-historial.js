@@ -877,6 +877,22 @@ const renderOdontogramaMini = () => {
       api.start();
       api.addEventListener('viewerready', () => {
         ocultarCargaOdontograma3D();
+        api.getNodeMap((error, nodes) => {
+          if (error) {
+            console.error('No se pudo obtener el mapa de nodos del mini odontograma:', error);
+            return;
+          }
+
+          Object.values(nodes || {}).forEach(node => {
+            const nombre = (node?.name || '').toLowerCase();
+            if (
+              node?.instanceID != null &&
+              (nombre.includes('screw') || nombre.includes('implant') || nombre.includes('metal'))
+            ) {
+              api.hide(node.instanceID);
+            }
+          });
+        });
         api.addEventListener('click', info => {
           if (info?.instanceID == null) return;
           const numeroFdi = odontogramaMapeoFDI[info.instanceID];
