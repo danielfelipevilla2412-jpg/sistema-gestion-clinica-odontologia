@@ -40,6 +40,8 @@ public interface IProfesionalService
         string? estado,
         CancellationToken ct = default);
 
+    Task<ProfesionalesStats> ObtenerEstadisticasAsync(CancellationToken ct = default);
+
     Task<(List<Profesional> Items, PagedResult<Profesional> Paginacion, ProfesionalesStats Stats)>
         ObtenerVistaMVCAsync(
             PaginationQuery q,
@@ -95,6 +97,12 @@ public interface IProfesionalService
         int id,
         CancellationToken ct = default);
 
+    Task<ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>> ObtenerCitasAfectadasPorAusenciaAsync(
+        int id,
+        DateOnly fechaInicio,
+        DateOnly fechaFin,
+        CancellationToken ct = default);
+
     Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> CrearAusenciaAsync(
         int id,
         AusenciaProfesionalApiRequest request,
@@ -135,6 +143,7 @@ public interface IProfesionalService
         DateTime fechaInicio,
         DateTime fechaFin,
         string motivo,
-        CancellationToken ct = default,
-        int? idUsuarioActor = null);
+        int? idUsuarioActor = null,
+        string? observaciones = null,
+        CancellationToken ct = default);
 }

@@ -1,459 +1,387 @@
-﻿@{
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
     ViewData["Title"] = "Bitácora del Sistema";
+    ViewData["Description"] = "Bitácora de auditoría del sistema SmileTrack";
+    ViewData["UseGestionModulesDesignSystem"] = true;
 }
 
-<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+  <link rel="stylesheet" href="~/css/Acceso_Y_Seguridad/st-adm-15-bitacora/bitacora.css" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Bitácora de auditoría del sistema SmileTrack" />
-  <title>SmileTrack — Bitácora del Sistema</title>
+<main class="main" id="main-content">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/st-adm-15-bitacora/bitacora.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-
-  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link" data-i18n="nav.skip_link">Saltar al contenido principal</a>
-
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
-
-
-  <!-- ═════ HAMBURGER (móvil) ═════ -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ═════ MAIN ═════ -->
-  <main class="main" id="main-content">
-
-    <!-- Header -->
     <header class="page-header">
-      <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
-          <span data-i18n="nav.group_acceso">Administración</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active" data-i18n="nav.bitacora">Bitácora del Sistema</span>
-        </nav>
-        <h1 class="page-title" data-i18n="nav.bitacora">Bitácora del Sistema</h1>
-        <p class="page-subtitle" data-i18n="audit.subtitle">Auditoría y registro de operaciones</p>
-      </div>
-      <div class="header-actions">
-        <label class="toggle-live" aria-label="Actualizar en tiempo real" data-i18n-aria-label="common.loading">
+      <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
+        <span data-i18n="nav.group_acceso">Administración</span>
+        <span class="bc-sep" aria-hidden="true">/</span>
+        <span class="bc-active" data-i18n="nav.bitacora">Bitácora del Sistema</span>
+      </nav>
+      <div class="page-header-content">
+        <div class="page-header-title">
+          <h1 class="page-title" data-i18n="nav.bitacora">Bitácora del Sistema</h1>
+          <p class="page-subtitle" data-i18n="audit.subtitle">Auditoría y registro de operaciones</p>
+        </div>
+        <div class="page-header-actions">
+        <label class="toggle-live" aria-label="Activar o pausar la actualización en vivo" data-i18n-aria-label="audit.live_aria">
           <input type="checkbox" id="toggleLive" checked>
           <span class="toggle-slider" aria-hidden="true"></span>
-          <span class="toggle-label" data-i18n="common.loading">🔄 Live</span>
+          <span class="toggle-label" data-i18n="audit.live_label">Actualización en vivo</span>
         </label>
-        <button class="btn-primary" id="btnExport" aria-label="Exportar bitácora" data-i18n-aria-label="table.export" data-i18n="table.export">
-          📥 Exportar
+        <button type="button" class="btn-secondary" id="btnExport" aria-label="Exportar bitácora" data-i18n-aria-label="audit.export_aria">
+          <span class="material-symbols-outlined" aria-hidden="true">download</span>
+          <span data-i18n="table.export">Exportar</span>
         </button>
+        </div>
       </div>
     </header>
 
-    <!-- KPI Cards -->
-    <section class="stats-grid" aria-label="Indicadores de bitácora" data-i18n-aria-label="table.filter">
+    <section class="stats-grid" aria-label="Indicadores de bitácora" data-i18n-aria-label="audit.stats_aria">
       <div class="stat-card" data-color="blue">
-        <span class="stat-number" id="kpiTotal" data-target="3842" aria-live="polite">0</span>
-        <span class="stat-label" data-i18n="table.total_records">Total Eventos</span>
-        <span class="stat-sub" data-i18n="common.today">Hoy</span>
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">receipt_long</span>
+        <span class="stat-number" id="kpiTotal" aria-live="polite">0</span>
+        <span class="stat-label" data-i18n="audit.total_events">Total de eventos</span>
+        <span class="stat-sub" data-i18n="audit.latest_records">Registros recientes</span>
       </div>
       <div class="stat-card" data-color="red">
-        <span class="stat-number" id="kpiCritical" data-target="7" aria-live="polite">0</span>
-        <span class="stat-label">Alertas Críticas</span>
-        <span class="stat-sub error">Requieren atención</span>
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">report</span>
+        <span class="stat-number" id="kpiCritical" aria-live="polite">0</span>
+        <span class="stat-label" data-i18n="audit.critical_alerts">Alertas críticas</span>
+        <span class="stat-sub error" data-i18n="audit.latest_records">Registros recientes</span>
       </div>
       <div class="stat-card" data-color="orange">
-        <span class="stat-number" id="kpiWarnings" data-target="23" aria-live="polite">0</span>
-        <span class="stat-label">Advertencias</span>
-        <span class="stat-sub">Últimas 24 h</span>
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">warning</span>
+        <span class="stat-number" id="kpiWarnings" aria-live="polite">0</span>
+        <span class="stat-label" data-i18n="audit.warnings">Advertencias</span>
+        <span class="stat-sub" data-i18n="audit.latest_records">Registros recientes</span>
       </div>
       <div class="stat-card" data-color="green">
-        <div class="stat-live">
-          <span class="pulse-dot" aria-hidden="true"></span>
-          <span class="stat-number" id="liveClock" aria-live="polite">--:--:--</span>
-        </div>
-        <span class="stat-label">Sistema Activo</span>
-        <span class="stat-sub">Uptime: 99.97%</span>
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">person</span>
+        <span class="stat-number" id="kpiUsers" aria-live="polite">0</span>
+        <span class="stat-label" data-i18n="audit.unique_users">Usuarios en registros</span>
+        <span class="stat-sub" data-i18n="audit.latest_records">Registros recientes</span>
       </div>
     </section>
 
-    <!-- Filtros -->
-    <section class="filters-section" aria-label="Filtros de bitácora">
+    <section class="filters-section" aria-label="Filtros de bitácora" data-i18n-aria-label="audit.filters_aria">
       <div class="filters-row">
         <div class="search-wrap">
-          <span class="search-icon" aria-hidden="true">🔍</span>
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
           <input type="search" id="searchLog" class="search-input" placeholder="Buscar en bitácora..."
-            aria-label="Buscar evento">
-          <button class="search-clear" id="searchClear" aria-label="Limpiar búsqueda" hidden>×</button>
+            aria-label="Buscar evento" data-i18n-ph="audit.search_ph" data-i18n-aria-label="audit.search_aria">
+          <button type="button" class="search-clear" id="searchClear" aria-label="Limpiar búsqueda" data-i18n-aria-label="audit.clear_search" hidden>
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
         </div>
         <div class="filter-wrap">
-          <label for="filterLevel" class="visually-hidden">Filtrar por nivel</label>
-          <select id="filterLevel" class="status-select" aria-label="Filtrar por nivel de evento">
-            <option value="">Todos los niveles</option>
-            <option value="critical">🔴 Crítico</option>
-            <option value="error">🟠 Error</option>
-            <option value="warning">🟡 Advertencia</option>
-            <option value="info">🔵 Info</option>
-            <option value="success">🟢 Éxito</option>
-            <option value="debug">⚪ Debug</option>
+          <label for="filterLevel" class="visually-hidden" data-i18n="audit.level">Nivel</label>
+          <select id="filterLevel" class="filter-select" aria-label="Filtrar por nivel de evento" data-i18n-aria-label="audit.level_filter">
+            <option value="" data-i18n="audit.all_levels">Todos los niveles</option>
+            <option value="critical" data-i18n="audit.level_critical">Crítico</option>
+            <option value="error" data-i18n="audit.level_error">Error</option>
+            <option value="warning" data-i18n="audit.level_warning">Advertencia</option>
+            <option value="info" data-i18n="audit.level_info">Información</option>
+            <option value="success" data-i18n="audit.level_success">Éxito</option>
+            <option value="debug" data-i18n="audit.level_debug">Depuración</option>
           </select>
         </div>
         <div class="filter-wrap">
-          <label for="filterModule" class="visually-hidden">Filtrar por módulo</label>
-          <select id="filterModule" class="status-select" aria-label="Filtrar por módulo">
-            <option value="">Todos los módulos</option>
-            <option value="auth">Autenticación</option>
-            <option value="citas">Citas</option>
-            <option value="facturacion">Facturación</option>
-            <option value="database">Base de Datos</option>
-            <option value="servicios">Servicios</option>
-            <option value="system">Sistema</option>
+          <label for="filterModule" class="visually-hidden" data-i18n="audit.module">Módulo</label>
+          <select id="filterModule" class="filter-select" aria-label="Filtrar por módulo" data-i18n-aria-label="audit.module_filter">
+            <option value="" data-i18n="audit.all_modules">Todos los módulos</option>
           </select>
         </div>
         <div class="filter-wrap">
-          <label for="filterDate" class="visually-hidden">Filtrar por fecha</label>
-          <input type="date" id="filterDate" class="status-select" aria-label="Filtrar por fecha">
+          <label for="filterDate" class="visually-hidden" data-i18n="audit.date">Fecha</label>
+          <input type="date" id="filterDate" class="filter-date" aria-label="Filtrar por fecha" data-i18n-aria-label="audit.date_filter">
         </div>
-        <!-- Badge de filtros activos -->
         <span class="filter-badge" id="filterBadge" aria-live="polite" hidden>
-          <span aria-hidden="true">🎯</span> <span id="filterBadgeText">0 filtros</span>
-          <button class="filter-reset" id="filterReset" aria-label="Resetear filtros">×</button>
+          <span class="material-symbols-outlined" aria-hidden="true">filter_alt</span>
+          <span id="filterBadgeText">0 filtros</span>
+          <button type="button" class="filter-reset" id="filterReset" aria-label="Restablecer filtros" data-i18n-aria-label="audit.reset_filters">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
         </span>
       </div>
-      <!-- Acciones masivas -->
-      <div class="bulk-actions" id="bulkActions" hidden role="group" aria-label="Acciones masivas">
+      <div class="bulk-actions" id="bulkActions" hidden role="group" aria-label="Acciones masivas" data-i18n-aria-label="audit.bulk_actions">
         <span class="bulk-count" id="bulkCount">0 seleccionados</span>
-        <button class="btn-secondary btn-sm" id="btnMarkRead" aria-label="Marcar seleccionados como leídos">👁️ Marcar
-          leídos</button>
-        <button class="btn-secondary btn-sm btn-danger" id="btnArchive" aria-label="Archivar seleccionados">📦
-          Archivar</button>
-        <button class="btn-secondary btn-sm" id="btnClearSelection" aria-label="Limpiar selección">✕ Limpiar</button>
+        <button type="button" class="btn-secondary btn-sm" id="btnMarkRead" aria-label="Marcar seleccionados como leídos" data-i18n-aria-label="audit.mark_read_aria">
+          <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+          <span data-i18n="audit.mark_read">Marcar leídos</span>
+        </button>
+        <button type="button" class="btn-danger btn-sm" id="btnArchive" aria-label="Archivar seleccionados" data-i18n-aria-label="audit.archive_aria">
+          <span class="material-symbols-outlined" aria-hidden="true">archive</span>
+          <span data-i18n="audit.archive">Archivar</span>
+        </button>
+        <button type="button" class="btn-secondary btn-sm" id="btnClearSelection" aria-label="Limpiar selección" data-i18n-aria-label="audit.clear_selection">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          <span data-i18n="audit.clear">Limpiar</span>
+        </button>
       </div>
     </section>
 
-    <!-- Tabla de logs -->
     <section class="table-card" aria-labelledby="logsTitle">
-      <h2 class="visually-hidden" id="logsTitle">Registro de eventos del sistema</h2>
+      <h2 class="visually-hidden" id="logsTitle" data-i18n="audit.table_title">Registro de eventos del sistema</h2>
 
-      <!-- Controles de tabla -->
       <div class="table-controls">
         <span class="table-info" aria-live="polite">
-          <strong id="tableCount">3,842</strong> eventos registrados
+          <strong id="tableCount">0</strong>
+          <span data-i18n="audit.events_registered">eventos registrados</span>
         </span>
         <div class="table-actions">
-          <label for="itemsPerPage" class="visually-hidden">Elementos por página</label>
-          <select id="itemsPerPage" class="status-select status-select-sm" aria-label="Elementos por página">
-            <option value="10">10 por página</option>
-            <option value="25" selected>25 por página</option>
-            <option value="50">50 por página</option>
-            <option value="100">100 por página</option>
+          <label for="itemsPerPage" class="visually-hidden" data-i18n="audit.items_per_page">Elementos por página</label>
+          <select id="itemsPerPage" class="filter-select status-select-sm" aria-label="Elementos por página" data-i18n-aria-label="audit.items_per_page">
+            <option value="10" data-i18n="audit.per_page_10">10 por página</option>
+            <option value="25" selected data-i18n="audit.per_page_25">25 por página</option>
+            <option value="50" data-i18n="audit.per_page_50">50 por página</option>
+            <option value="100" data-i18n="audit.per_page_100">100 por página</option>
           </select>
-          <button class="btn-icon" id="btnRefresh" aria-label="Actualizar bitácora">🔄</button>
+          <button type="button" class="btn-icon" id="btnRefresh" aria-label="Actualizar bitácora" data-i18n-aria-label="audit.refresh">
+            <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+          </button>
         </div>
       </div>
 
-      <div class="table-wrap">
-        <table id="logsTable" class="table-base" aria-label="Tabla de eventos de bitácora" role="grid">
+      <div class="table-wrap" role="region" aria-label="Tabla de eventos de bitácora" data-i18n-aria-label="audit.table_aria" tabindex="0">
+        <table id="logsTable" class="table-base" aria-labelledby="logsTitle" role="grid">
           <thead>
             <tr role="row">
               <th scope="col" role="columnheader" class="checkbox-col">
-                <input type="checkbox" id="selectAll" aria-label="Seleccionar todos los eventos" data-i18n-aria-label="table.select_all">
+                <input type="checkbox" id="selectAll" aria-label="Seleccionar todos los eventos" data-i18n-aria-label="audit.select_all">
               </th>
-              <th scope="col" role="columnheader">
-                <button class="sort-btn" aria-label="Ordenar por fecha" data-i18n-aria-label="citas.date" aria-sort="descending">
-                  <span data-i18n="citas.date">TIMESTAMP</span> <span aria-hidden="true">↕</span>
+              <th id="timestampHeader" scope="col" role="columnheader" aria-sort="descending">
+                <button type="button" class="sort-btn" id="sortTimestamp" aria-label="Ordenar por fecha y hora" data-i18n-aria-label="audit.sort_timestamp">
+                  <span data-i18n="audit.timestamp">Fecha y hora</span>
+                  <span class="material-symbols-outlined" aria-hidden="true">swap_vert</span>
                 </button>
               </th>
               <th scope="col" role="columnheader" data-i18n="audit.level">NIVEL</th>
-              <th scope="col" role="columnheader" data-i18n="nav.gestion_roles">MÓDULO</th>
-              <th scope="col" role="columnheader" data-i18n="pqr.description">DESCRIPCIÓN</th>
-              <th scope="col" role="columnheader" data-i18n="common.name">USUARIO</th>
+              <th scope="col" role="columnheader" data-i18n="audit.module">MÓDULO</th>
+              <th scope="col" role="columnheader" data-i18n="audit.description">DESCRIPCIÓN</th>
+              <th scope="col" role="columnheader" data-i18n="audit.user">USUARIO</th>
               <th scope="col" role="columnheader" class="text-right" data-i18n="table.actions">ACCIÓN</th>
             </tr>
           </thead>
           <tbody id="logsTbody" aria-live="polite" role="rowgroup">
-            <!-- Filas inyectadas por JS con mejoras de accesibilidad -->
           </tbody>
         </table>
 
-        <!-- Empty state mejorado -->
-        <div class="table-empty" id="tableEmpty" role="status" aria-live="polite" hidden>
-          <div class="empty-icon" aria-hidden="true">📋</div>
-          <h3 class="empty-title">No se encontraron eventos</h3>
-          <p class="empty-desc">Intenta ajustar los filtros o cambiar el rango de fechas</p>
-          <button class="btn-secondary" id="emptyResetBtn">Resetear filtros</button>
+        <div class="table-empty empty-state" id="tableEmpty" role="status" aria-live="polite" hidden>
+          <span class="material-symbols-outlined empty-icon" aria-hidden="true">folder_off</span>
+          <h3 class="empty-title" data-i18n="audit.empty_title">No se encontraron eventos</h3>
+          <p class="empty-desc" data-i18n="audit.empty_description">Intenta ajustar los filtros o cambiar la fecha.</p>
+          <button type="button" class="btn-secondary" id="emptyResetBtn" data-i18n="audit.reset_filters">Restablecer filtros</button>
         </div>
 
-        <!-- Loading state -->
         <div class="table-loading" id="tableLoading" hidden aria-live="polite">
           <div class="loading-spinner" aria-hidden="true"></div>
-          <span>Cargando eventos...</span>
+          <span data-i18n="audit.loading">Cargando eventos...</span>
         </div>
       </div>
 
-      <!-- Paginación mejorada -->
-      <div class="pagination" role="navigation" aria-label="Paginación de eventos">
-        <span id="paginationInfo" aria-live="polite">Mostrando 1-25 de 3,842 eventos</span>
+      <div class="pagination" role="navigation" aria-label="Paginación de eventos" data-i18n-aria-label="audit.pagination_aria">
+        <span id="paginationInfo" aria-live="polite">
+          <span data-i18n="audit.showing">Mostrando</span>
+          <strong id="paginationRangeStart">0</strong>-<strong id="paginationRangeEnd">0</strong>
+          <span data-i18n="audit.of">de</span>
+          <strong id="paginationTotal">0</strong>
+          <span data-i18n="audit.records">eventos</span>
+        </span>
         <div class="pagination-controls">
-          <button class="pagination-btn" id="btnFirst" aria-label="Primera página" disabled>««</button>
-          <button class="pagination-btn" id="btnPrev" aria-label="Página anterior" disabled>«</button>
+          <button type="button" class="pagination-btn" id="btnFirst" aria-label="Primera página" data-i18n-aria-label="audit.first_page" disabled>
+            <span class="material-symbols-outlined" aria-hidden="true">first_page</span>
+          </button>
+          <button type="button" class="pagination-btn" id="btnPrev" aria-label="Página anterior" data-i18n-aria-label="audit.previous_page" disabled>
+            <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+          </button>
 
-          <div class="pagination-pages" id="paginationButtons" role="tablist" aria-label="Navegación de páginas">
-            <!-- Botones generados por JS con aria-current -->
+          <div class="pagination-pages" id="paginationButtons" role="group" aria-label="Navegación de páginas" data-i18n-aria-label="audit.page_navigation">
           </div>
 
-          <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">»</button>
-          <button class="pagination-btn" id="btnLast" aria-label="Última página">»»</button>
+          <button type="button" class="pagination-btn" id="btnNext" aria-label="Página siguiente" data-i18n-aria-label="audit.next_page">
+            <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+          </button>
+          <button type="button" class="pagination-btn" id="btnLast" aria-label="Última página" data-i18n-aria-label="audit.last_page">
+            <span class="material-symbols-outlined" aria-hidden="true">last_page</span>
+          </button>
 
-          <!-- Jump to page -->
           <div class="pagination-jump">
-            <label for="jumpPage" class="visually-hidden">Ir a página</label>
-            <input type="number" id="jumpPage" class="jump-input" min="1" aria-label="Número de página">
-            <button class="jump-btn" id="jumpBtn" aria-label="Ir">↵</button>
+            <label for="jumpPage" class="visually-hidden" data-i18n="audit.jump_page">Ir a página</label>
+            <input type="number" id="jumpPage" class="jump-input" min="1" aria-label="Número de página" data-i18n-aria-label="audit.page_number">
+            <button type="button" class="btn-secondary jump-btn" id="jumpBtn" aria-label="Ir a página" data-i18n-aria-label="audit.jump_page">
+              <span class="material-symbols-outlined" aria-hidden="true">keyboard_return</span>
+            </button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Leyenda de niveles -->
     <section class="legend-section" aria-labelledby="legendTitle">
-      <h2 class="section-title" id="legendTitle">Niveles de evento</h2>
+      <h2 class="section-title" id="legendTitle" data-i18n="audit.levels_title">Niveles de evento</h2>
       <div class="legend-grid">
         <div class="legend-item">
           <span class="legend-dot critical" aria-hidden="true"></span>
-          <span>Crítico - Requiere atención inmediata</span>
+          <span data-i18n="audit.legend_critical">Crítico - Requiere atención inmediata</span>
         </div>
         <div class="legend-item">
           <span class="legend-dot error" aria-hidden="true"></span>
-          <span>Error - Fallo en operación</span>
+          <span data-i18n="audit.legend_error">Error - Fallo en operación</span>
         </div>
         <div class="legend-item">
           <span class="legend-dot warning" aria-hidden="true"></span>
-          <span>Advertencia - Situación inusual</span>
+          <span data-i18n="audit.legend_warning">Advertencia - Situación inusual</span>
         </div>
         <div class="legend-item">
           <span class="legend-dot info" aria-hidden="true"></span>
-          <span>Info - Evento informativo</span>
+          <span data-i18n="audit.legend_info">Información - Evento informativo</span>
         </div>
         <div class="legend-item">
           <span class="legend-dot success" aria-hidden="true"></span>
-          <span>Éxito - Operación completada</span>
+          <span data-i18n="audit.legend_success">Éxito - Operación completada</span>
         </div>
       </div>
     </section>
 
   </main>
 
-  <!-- ═════ MODAL: DETALLE DE EVENTO ═════ -->
   <div class="modal-overlay" id="modalLog" role="dialog" aria-modal="true" aria-labelledby="modalLogTitle"
     aria-hidden="true" inert>
-    <div class="modal modal-lg">
-      <button class="modal-close" id="modalLogClose" aria-label="Cerrar ventana de detalle">×</button>
-
-      <!-- Header del modal -->
+    <div class="modal-content modal-lg">
       <div class="modal-header">
         <div class="modal-level-badge" id="modalLevelBadge">
-          <span class="level-icon" aria-hidden="true">🔴</span>
+          <span class="material-symbols-outlined level-icon" aria-hidden="true">error</span>
           <span class="level-text" id="modalLevelText">Crítico</span>
         </div>
-        <h2 class="modal-title" id="modalLogTitle">Detalle de Evento</h2>
+        <h2 class="modal-title" id="modalLogTitle" data-i18n="audit.detail_title">Detalle de evento</h2>
+        <button type="button" class="modal-close-btn" id="modalLogClose" aria-label="Cerrar ventana de detalle" data-i18n-aria-label="common.close">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
       </div>
 
-      <!-- Body del modal -->
       <div class="modal-body">
         <div class="log-detail-grid">
           <div class="detail-item">
-            <span class="detail-key">🕐 Timestamp</span>
+            <span class="detail-key" data-i18n="audit.timestamp">Fecha y hora</span>
             <span class="detail-value"><time datetime="" id="modalTimestamp">--</time></span>
           </div>
           <div class="detail-item">
-            <span class="detail-key">🔧 Módulo</span>
+            <span class="detail-key" data-i18n="audit.module">Módulo</span>
             <span class="detail-value" id="modalModule">--</span>
           </div>
           <div class="detail-item">
-            <span class="detail-key">👤 Usuario</span>
+            <span class="detail-key" data-i18n="audit.user">Usuario</span>
             <span class="detail-value" id="modalUser">--</span>
           </div>
           <div class="detail-item">
-            <span class="detail-key">🌐 IP</span>
+            <span class="detail-key" data-i18n="audit.ip_address">Dirección IP</span>
             <span class="detail-value" id="modalIp">--</span>
           </div>
           <div class="detail-item full-width">
-            <span class="detail-key">📝 Descripción</span>
+            <span class="detail-key" data-i18n="audit.description">Descripción</span>
             <p class="detail-desc" id="modalDescription">--</p>
           </div>
           <div class="detail-item full-width" id="modalStackTraceWrap" hidden>
-            <span class="detail-key">🔍 Stack Trace</span>
+            <span class="detail-key" data-i18n="audit.stack_trace">Traza de ejecución</span>
             <pre class="detail-stack" id="modalStackTrace">--</pre>
           </div>
           <div class="detail-item full-width" id="modalMetadataWrap" hidden>
-            <span class="detail-key">📦 Metadata</span>
+            <span class="detail-key" data-i18n="audit.metadata">Metadatos</span>
             <pre class="detail-metadata" id="modalMetadata">--</pre>
           </div>
         </div>
       </div>
 
-      <!-- Footer del modal -->
       <div class="modal-footer">
-        <button type="button" class="btn-secondary" id="modalLogCancel">Cerrar</button>
-        <button type="button" class="btn-outline" id="modalLogCopy" aria-label="Copiar detalles del evento">📋
-          Copiar</button>
-        <button type="button" class="btn-primary" id="modalLogReport" aria-label="Reportar este evento">🚨
-          Reportar</button>
+        <button type="button" class="btn-secondary" id="modalLogCancel" data-i18n="common.close">Cerrar</button>
+        <button type="button" class="btn-secondary" id="modalLogCopy" aria-label="Copiar detalles del evento" data-i18n-aria-label="audit.copy_aria">
+          <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
+          <span data-i18n="audit.copy">Copiar</span>
+        </button>
+        <button type="button" class="btn-primary" id="modalLogReport" aria-label="Reportar este evento" data-i18n-aria-label="audit.report_aria">
+          <span class="material-symbols-outlined" aria-hidden="true">campaign</span>
+          <span data-i18n="audit.report">Reportar</span>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- ═════ MODAL: EXPORTAR ═════ -->
   <div class="modal-overlay" id="modalExport" role="dialog" aria-modal="true" aria-labelledby="modalExportTitle"
     aria-hidden="true" inert>
-    <div class="modal">
-      <button class="modal-close" id="modalExportClose" aria-label="Cerrar">×</button>
-      <h2 class="modal-title" id="modalExportTitle">Exportar Bitácora</h2>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalExportTitle" data-i18n="audit.export_title">Exportar bitácora</h2>
+        <button type="button" class="modal-close-btn" id="modalExportClose" aria-label="Cerrar" data-i18n-aria-label="common.close">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
 
-      <div class="export-options">
+      <div class="modal-body">
+      <fieldset class="export-options">
+        <legend class="visually-hidden" data-i18n="audit.export_format">Formato de exportación</legend>
         <label class="export-option">
           <input type="radio" name="exportFormat" value="pdf" checked>
-          <span class="export-icon">📄</span>
+          <span class="material-symbols-outlined export-icon" aria-hidden="true">picture_as_pdf</span>
           <div>
             <strong>PDF</strong>
-            <span class="export-desc">Documento para imprimir o archivar</span>
+            <span class="export-desc" data-i18n="audit.export_pdf_description">Documento para imprimir o archivar</span>
           </div>
         </label>
         <label class="export-option">
           <input type="radio" name="exportFormat" value="csv">
-          <span class="export-icon">📊</span>
+          <span class="material-symbols-outlined export-icon" aria-hidden="true">table_view</span>
           <div>
             <strong>CSV</strong>
-            <span class="export-desc">Datos para Excel o análisis</span>
+            <span class="export-desc" data-i18n="audit.export_csv_description">Datos para hojas de cálculo o análisis</span>
           </div>
         </label>
         <label class="export-option">
           <input type="radio" name="exportFormat" value="json">
-          <span class="export-icon">🔧</span>
+          <span class="material-symbols-outlined export-icon" aria-hidden="true">data_object</span>
           <div>
             <strong>JSON</strong>
-            <span class="export-desc">Formato técnico para desarrolladores</span>
+            <span class="export-desc" data-i18n="audit.export_json_description">Formato técnico para desarrolladores</span>
           </div>
         </label>
-      </div>
+      </fieldset>
 
-      <div class="export-range">
-        <span class="export-range-label">Rango de eventos:</span>
+      <fieldset class="export-range">
+        <legend class="export-range-label" data-i18n="audit.export_range">Rango de eventos</legend>
         <label class="export-range-option">
           <input type="radio" name="exportRange" value="filtered" checked>
-          <span>Solo eventos filtrados</span>
+          <span data-i18n="audit.export_filtered">Solo eventos filtrados</span>
         </label>
         <label class="export-range-option">
           <input type="radio" name="exportRange" value="all">
-          <span>Todos los eventos</span>
+          <span data-i18n="audit.export_all">Todos los eventos</span>
         </label>
-      </div>
+      </fieldset>
 
       <div class="export-progress" id="exportProgress" hidden>
         <div class="progress-bar-bg">
-          <div class="progress-bar-fill" id="exportProgressBar" style="width:0%"></div>
+          <div class="progress-bar-fill" id="exportProgressBar"></div>
         </div>
-        <span class="progress-text" id="exportProgressText">Preparando archivo...</span>
+        <span class="progress-text" id="exportProgressText" data-i18n="audit.export_preparing">Preparando archivo...</span>
+      </div>
       </div>
 
       <div class="modal-footer">
-        <button type="button" class="btn-secondary" id="modalExportCancel">Cancelar</button>
-        <button type="button" class="btn-primary" id="modalExportConfirm">📥 Descargar</button>
+        <button type="button" class="btn-secondary" id="modalExportCancel" data-i18n="common.cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="modalExportConfirm">
+          <span class="material-symbols-outlined" aria-hidden="true">download</span>
+          <span data-i18n="audit.download">Descargar</span>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Mobile bottom nav -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📊</span>
-      <span>Dashboard</span>
-    </a>
-<a href="#" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon" aria-hidden="true">📜</span>
-      <span>Bitácora</span>
-    </a>
-    <a href="/servicios-y-recursos/st-adm-16-configuracion-general" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">⚙️</span>
-      <span>Config</span>
-    </a>
-    <a href="/acceso-y-seguridad/login" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">🚪</span>
-      <span>Salir</span>
-    </a>
-  </nav>
-
-  <!-- Toast -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Announcer for screen readers -->
   <div id="announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Estilos para screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span style="font-size:1rem;">🦷</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-<script>
-  window.RAZOR_BITACORA = @Html.Raw(ViewData["BitacoraJson"] ?? "[]");
-</script>
-<script src="@Url.Content("~/js/Acceso_Y_Seguridad/st-adm-15-bitacora/bitacora.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-</body>
-
-</html>
+@section Scripts {
+  <script>
+    window.RAZOR_BITACORA = @Html.Raw(ViewData["BitacoraJson"] ?? "[]");
+  </script>
+  <script src="~/js/Acceso_Y_Seguridad/st-adm-15-bitacora/bitacora.js" asp-append-version="true" defer></script>
+}
 
 

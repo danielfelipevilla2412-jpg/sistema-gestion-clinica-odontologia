@@ -25,7 +25,7 @@ window.SmileTrack.utils = {
    * @param {string} id - ID del elemento a buscar
    * @returns {HTMLElement|null} Elemento encontrado o null
    */
-  safeGetElement: function(id) {
+  safeGetElement: function (id) {
     const element = document.getElementById(id);
     if (!element) {
       console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
@@ -40,7 +40,7 @@ window.SmileTrack.utils = {
    * @param {number} delay - Milisegundos de espera (default: 250)
    * @returns {Function} Función debounced
    */
-  debounce: function(callback, delay = 250) {
+  debounce: function (callback, delay = 250) {
     let timeoutId;
     return (...args) => {
       clearTimeout(timeoutId);
@@ -53,13 +53,52 @@ window.SmileTrack.utils = {
    * @param {*} value - Valor a escapar (convierte a string)
    * @returns {string} HTML escapado
    */
-  escapeHtml: function(value) {
+  escapeHtml: function (value) {
     return String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  },
+
+  /**
+   * Ejecuta una petición fetch con tiempo máximo de espera.
+   * @param {string} url
+   * @param {Object} options
+   * @param {number} timeoutMs
+   * @returns {Promise<Response>}
+   */
+  fetchWithTimeout: async function (url, options = {}, timeoutMs = options.timeoutMs ?? 15000) {
+    const externalSignal = options.signal;
+    const controller = new AbortController();
+    const timeout = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
+      ? Number(timeoutMs)
+      : 15000;
+    const timeoutId = window.setTimeout(() => controller.abort(), timeout);
+    const abortFromCaller = () => controller.abort();
+    const fetchOptions = { ...options, signal: controller.signal };
+    delete fetchOptions.timeoutMs;
+
+    if (externalSignal?.aborted) {
+      abortFromCaller();
+    } else {
+      externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
+    }
+
+    try {
+      return await fetch(url, fetchOptions);
+    } catch (error) {
+      if (controller.signal.aborted && !externalSignal?.aborted) {
+        const timeoutError = new Error(`La solicitud tardó más de ${Math.ceil(timeout / 1000)} segundos.`);
+        timeoutError.name = 'TimeoutError';
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+      externalSignal?.removeEventListener('abort', abortFromCaller);
+    }
   },
 
   /**
@@ -70,8 +109,16 @@ window.SmileTrack.utils = {
    * @returns {Promise} Datos parseados o null si falla
    * @throws {Error} Si la respuesta no es ok (status >= 400)
    */
-  apiRequest: async function(url, options = {}) {
+  apiRequest: async function (url, options = {}) {
     const headers = new Headers(options.headers || {});
+    const externalSignal = options.signal;
+    const controller = new AbortController();
+    const requestedTimeout = Number(options.timeoutMs);
+    const timeoutMs = Number.isFinite(requestedTimeout) && requestedTimeout > 0
+      ? requestedTimeout
+      : 15000;
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    const abortFromCaller = () => controller.abort();
 
     // Headers por defecto
     headers.set('Accept', 'application/json');
@@ -85,6 +132,12 @@ window.SmileTrack.utils = {
       headers.set('X-CSRF-TOKEN', csrfToken);
     }
 
+    if (externalSignal?.aborted) {
+      abortFromCaller();
+    } else {
+      externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
+    }
+
     // JWT Token (Legacy API - si está disponible en sessionStorage)
     try {
       const jwt = sessionStorage.getItem('st_jwt');
@@ -96,11 +149,25 @@ window.SmileTrack.utils = {
     }
 
     try {
-      const response = await fetch(url, {
+      const body = options.body;
+
+      const requestOptions = {
         ...options,
         headers,
-        credentials: 'same-origin'
-      });
+        credentials: 'same-origin',
+        signal: controller.signal,
+        body:
+          body !== null &&
+            body !== undefined &&
+            typeof body === 'object' &&
+            !(body instanceof FormData) &&
+            !(body instanceof Blob) &&
+            !(body instanceof URLSearchParams)
+            ? JSON.stringify(body)
+            : body
+      };
+      delete requestOptions.timeoutMs;
+      const response = await fetch(url, requestOptions);
 
       let data;
       try {
@@ -120,7 +187,15 @@ window.SmileTrack.utils = {
       return data;
     } catch (error) {
       console.error('[SmileTrack API] Error en', url, ':', error);
+      if (controller.signal.aborted && !externalSignal?.aborted) {
+        const timeoutError = new Error(`La solicitud tardó más de ${Math.ceil(timeoutMs / 1000)} segundos.`);
+        timeoutError.name = 'TimeoutError';
+        throw timeoutError;
+      }
       throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+      externalSignal?.removeEventListener('abort', abortFromCaller);
     }
   },
 
@@ -132,7 +207,7 @@ window.SmileTrack.utils = {
    * @param {number} duration - Duración en milisegundos (default: 800)
    */
   _counterIntervals: new WeakMap(),
-  animateCounter: function(el, target, duration) {
+  animateCounter: function (el, target, duration) {
     if (!el || typeof target !== 'number' || target < 0) {
       return;
     }
@@ -142,8 +217,10 @@ window.SmileTrack.utils = {
     }
     el.dataset.animated = '1';
 
-    if (this._counterIntervals.has(el)) {
-      clearInterval(this._counterIntervals.get(el));
+    const counterIntervals = window.SmileTrack.utils._counterIntervals;
+
+    if (counterIntervals.has(el)) {
+      clearInterval(counterIntervals.get(el));
     }
 
     const dur = duration ?? Number(el?.dataset?.duration) ?? 800;
@@ -171,7 +248,7 @@ window.SmileTrack.utils = {
       }
     }, stepDuration);
 
-    this._counterIntervals.set(el, interval);
+    counterIntervals.set(el, interval);
   },
 
   /**
@@ -182,13 +259,13 @@ window.SmileTrack.utils = {
    * @param {number} duration - Duración en ms antes de cerrar (0 = no cierra, default: 3000)
    * @returns {HTMLElement} Elemento del toast
    */
-  showToast: function(message, type = 'info', duration = 3000) {
+  showToast: function (message, type = 'info', duration = 3000) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.setAttribute('role', 'alert');
     toast.setAttribute('aria-live', 'polite');
     toast.setAttribute('aria-atomic', 'true');
-    
+
     const messageEl = document.createElement('span');
     messageEl.textContent = message;
     toast.appendChild(messageEl);
@@ -226,7 +303,7 @@ window.SmileTrack.utils = {
    * @param {string} modalId - ID del elemento modal
    * @param {string} focusId - ID del elemento que recibe focus al cerrar (opcional)
    */
-  openModal: function(modalId, focusId = null) {
+  openModal: function (modalId, focusId = null) {
     const modal = document.getElementById(modalId);
     if (!modal) {
       console.warn(`[SmileTrack] Modal no encontrado: #${modalId}`);
@@ -261,7 +338,7 @@ window.SmileTrack.utils = {
    * Cierra un modal de forma accesible
    * @param {string} modalId - ID del elemento modal
    */
-  closeModal: function(modalId) {
+  closeModal: function (modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
 
@@ -281,7 +358,7 @@ window.SmileTrack.utils = {
    * @param {HTMLFormElement} form - Formulario a validar
    * @returns {boolean} True si es válido, false si tiene errores
    */
-  validateForm: function(form) {
+  validateForm: function (form) {
     if (!form) return false;
 
     let isValid = true;
@@ -335,7 +412,7 @@ window.SmileTrack.utils = {
    * @param {number} value - Valor a formatear
    * @returns {string} Valor formateado
    */
-  formatCurrency: function(value) {
+  formatCurrency: function (value) {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
@@ -350,7 +427,7 @@ window.SmileTrack.utils = {
    * @param {string} format - Formato 'short', 'long', 'datetime' (default: 'short')
    * @returns {string} Fecha formateada
    */
-  formatDate: function(date, format = 'short') {
+  formatDate: function (date, format = 'short') {
     if (typeof date === 'string') {
       date = new Date(date);
     }

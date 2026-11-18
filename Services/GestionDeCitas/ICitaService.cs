@@ -55,19 +55,22 @@ public interface ICitaService
     Task<Cita> CrearAsync(
         CitaApiRequest request,
         CancellationToken ct = default,
-        int? idUsuarioActor = null);
+        int? idUsuarioActor = null,
+        string? ipOrigen = null);
 
     Task<Cita?> ActualizarAsync(
         int id,
         CitaApiUpdateDto request,
         CancellationToken ct = default,
-        int? idUsuarioActor = null);
+        int? idUsuarioActor = null,
+        string? ipOrigen = null);
 
     Task<Cita?> CambiarEstadoAsync(
         int id,
         string nuevoEstado,
         int? idUsuarioActor = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        string? ipOrigen = null);
 
     Task<Cita?> ActualizarNotasAsync(
         int id,
@@ -78,30 +81,46 @@ public interface ICitaService
         int id,
         TimeSpan? anticipacionMinima = null,
         CancellationToken ct = default,
-        int? idUsuarioActor = null);
+        int? idUsuarioActor = null,
+        string? ipOrigen = null);
 
     Task<bool> CancelarAsync(
         int id,
         string? motivo,
         TimeSpan? anticipacionMinima = null,
         CancellationToken ct = default,
-        int? idUsuarioActor = null);
+        int? idUsuarioActor = null,
+        string? ipOrigen = null);
 
-    /// <summary>
-    /// Registra una nueva solicitud de cita enviada directamente por un paciente.
-    /// Queda en estado 'Solicitada' y no requiere profesional ni consultorio inmediato,
-    /// para que el recepcionista pueda revisarla, asignarle profesional disponible y confirmarla.
-    /// </summary>
-    Task<Cita> SolicitarCitaPacienteAsync(
+    /// <summary>Reserva una cita programada a partir del horario y profesional elegidos por el paciente.</summary>
+    Task<Cita> AgendarCitaPacienteAsync(
         int idPaciente,
         CitaSolicitudPacienteDto dto,
         CancellationToken ct = default,
         int? idUsuarioActor = null);
 
     /// <summary>
-    /// Devuelve las solicitudes pendientes de confirmación por parte de la recepción.
+    /// Devuelve horas disponibles para el paciente, profesional, servicio y fecha seleccionados.
     /// </summary>
+    Task<List<TimeSpan>> ObtenerHorariosDisponiblesPacienteAsync(
+        int idPaciente,
+        int idServicio,
+        int idProfesional,
+        DateTime fecha,
+        CancellationToken ct = default);
+
+    Task<List<ProfesionalDisponibleDto>> ObtenerProfesionalesPorServicioAsync(
+        int idServicio,
+        CancellationToken ct = default);
+
+    /// <summary>Devuelve solicitudes antiguas que aún requieren resolución durante la transición.</summary>
     Task<List<Cita>> ObtenerSolicitudesPendientesAsync(
+        CancellationToken ct = default);
+
+    Task<Cita?> RechazarSolicitudAsync(
+        int idCita,
+        string motivo,
+        int? idUsuarioActor = null,
         CancellationToken ct = default);
 
     /// <summary>
@@ -129,7 +148,7 @@ public interface ICitaService
     /// <summary>
     /// Envía recordatorios de cita por correo electrónico a los pacientes seleccionados.
     /// </summary>
-    Task<(int Enviados, int Fallidos)> EnviarRecordatoriosAsync(
+    Task<(int Enviados, int Fallidos, List<int> IdsEnviados)> EnviarRecordatoriosAsync(
         List<int> idsCitas,
         string? mensajePersonalizado = null,
         CancellationToken ct = default);

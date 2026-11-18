@@ -41,6 +41,8 @@ public class EstadoCitaHelperTests
     }
 
     [Theory]
+    [InlineData("solicitada", "confirmada", true)]
+    [InlineData("solicitada", "programada", true)]
     [InlineData("programada", "cancelada", false)]
     [InlineData("confirmada", "en_sala_espera", true)]
     [InlineData("en_sala_espera", "en_proceso", true)]

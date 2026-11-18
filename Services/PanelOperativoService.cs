@@ -8,16 +8,23 @@ namespace SmileTrack_MVC.Services;
 public sealed class PanelOperativoService : IPanelOperativoService
 {
     private readonly AppDbContext _context;
+    private readonly Func<DateTime> _obtenerAhora;
 
     public PanelOperativoService(AppDbContext context)
+        : this(context, () => ColombiaClock.Now)
     {
-        _context = context;
+    }
+
+    public PanelOperativoService(AppDbContext context, Func<DateTime> obtenerAhora)
+    {
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _obtenerAhora = obtenerAhora ?? throw new ArgumentNullException(nameof(obtenerAhora));
     }
 
     public async Task<PanelOperativoViewModel> ObtenerAsync(
         CancellationToken ct = default)
     {
-        var ahora = DateTime.Now;
+        var ahora = _obtenerAhora();
         var inicio = ahora.Date;
         var fin = inicio.AddDays(1);
         var cultura = new System.Globalization.CultureInfo("es-CO");
@@ -50,7 +57,7 @@ public sealed class PanelOperativoService : IPanelOperativoService
             .AsNoTracking()
             .CountAsync(c => c.Estado == "disponible" || c.Estado == "activo", ct);
 
-        var inicioMes = new DateTime(ahora.Year, ahora.Month, 1);
+        var inicioMes = new System.DateTime(ahora.Year, ahora.Month, 1);
         var finMes = inicioMes.AddMonths(1);
         var topProfesionales = await _context.Citas
             .AsNoTracking()

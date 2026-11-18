@@ -126,7 +126,10 @@ public partial class GestionProfesionalesController(
 
         try
         {
-            await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
+            if (User.IsInRole("Profesional"))
+                ViewData["ProfesionalesReportes"] = new List<string>();
+            else
+                await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
             await CargarDatosReportesClinicos(page, pageSize, search, profesional, mes, idProfesionalForzado, ct);
             return View("~/Views/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/index.cshtml");
         }
@@ -145,20 +148,21 @@ public partial class GestionProfesionalesController(
     {
         try
         {
-            await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
-
             string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (int.TryParse(userIdStr, out int userId))
             {
                 var profesional = await _context.Profesionales.FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
                 if (profesional != null)
                 {
-                    var hoy = DateTime.Today;
+                    var hoy = ColombiaClock.Today;
+                    var ahora = ColombiaClock.Now;
                     var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
                     var finMes = inicioMes.AddMonths(1);
 
                     var citasDelMes = await _context.Citas
+                        .Include(c => c.Paciente)
                         .Include(c => c.Servicio)
+                        .Include(c => c.Consultorio)
                         .Where(c => c.IdProfesional == profesional.IdProfesional && c.FechaHora >= inicioMes && c.FechaHora < finMes)
                         .AsNoTracking()
                         .ToListAsync(ct);
@@ -166,44 +170,45 @@ public partial class GestionProfesionalesController(
                     ViewData["OdoPacientesActivos"] = citasDelMes.Select(c => c.IdPaciente).Distinct().Count();
                     ViewData["OdoCitasHoy"] = citasDelMes.Count(c => c.FechaHora.Date == hoy);
 
+                    // Atendidas SOLO de hoy: alimenta la tarjeta "Citas atendidas" y la barra de
+                    // progreso del día (evita que el progreso supere 100%). El valor mensual
+                    // OdoCitasAtendidas se reserva para el panel "Tus citas del mes".
+                    ViewData["OdoCitasAtendidasHoy"] = citasDelMes.Count(c =>
+                        c.FechaHora.Date == hoy && EstadoCitaHelper.Normalize(c.Estado) == "atendida");
+
                     decimal ingresosMes = citasDelMes
-                        .Where(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase) && c.Servicio != null)
+                        .Where(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida" && c.Servicio != null)
                         .Sum(c => c.Servicio!.Precio);
                     ViewData["OdoIngresosMes"] = ingresosMes;
 
-                    ViewData["OdoCitasAtendidas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase));
-                    ViewData["OdoCitasProgramadas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase));
-                    ViewData["OdoCitasCanceladas"] = citasDelMes.Count(c => string.Equals(c.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase));
-                    ViewData["OdoCitasNoAsistio"] = citasDelMes.Count(c => string.Equals(c.Estado, "No asistio", StringComparison.OrdinalIgnoreCase) || string.Equals(c.Estado, "no asistió", StringComparison.OrdinalIgnoreCase));
+                    ViewData["OdoCitasAtendidas"] = citasDelMes.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida");
+                    // Solo cuentan como "programadas" las citas que todavía no han pasado; las
+                    // vencidas que siguen en espera ya no deben inflar el KPI.
+                    ViewData["OdoCitasProgramadas"] = citasDelMes.Count(c =>
+                        c.FechaHora >= ahora &&
+                        EstadoCitaHelper.Normalize(c.Estado) == "programada");
+                    ViewData["OdoCitasCanceladas"] = citasDelMes.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "cancelada");
+                    ViewData["OdoCitasNoAsistio"] = citasDelMes.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "no_asistida");
                     ViewData["OdoTotalCitasMes"] = citasDelMes.Count;
 
+                    // "Próximas citas de hoy": se excluyen las que ya pasaron de hora.
                     ViewData["OdoProximasCitas"] = citasDelMes
                         .Where(c =>
                             c.FechaHora.Date == hoy &&
-                            (
-                                string.Equals(c.Estado, "Agendada", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(c.Estado, "programada", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(c.Estado, "Confirmada", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(c.Estado, "confirmada", StringComparison.OrdinalIgnoreCase)
-                            ))
+                            c.FechaHora >= ahora &&
+                            EstadoCitaHelper.Normalize(c.Estado) is "programada" or "confirmada")
                         .OrderBy(c => c.FechaHora)
                         .Take(4)
                         .ToList();
 
                     ViewData["OdoUltimosPacientes"] = citasDelMes
-                        .Where(c =>
-                            string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(c.Estado, "atendida", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(c.Estado, "finalizada", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(c.Estado, "completada", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(c.Estado, "realizada", StringComparison.OrdinalIgnoreCase))
+                        .Where(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida")
                         .OrderByDescending(c => c.FechaHora)
                         .Take(3)
                         .ToList();
 
                     // Ingresos reales de los últimos 3 meses del profesional autenticado.
                     var inicioPeriodo = new DateTime(hoy.Year, hoy.Month, 1).AddMonths(-2);
-                    var finPeriodo = inicioMes;
 
                     var citasPeriodo = await _context.Citas
                         .AsNoTracking()
@@ -231,10 +236,14 @@ public partial class GestionProfesionalesController(
                                     ))
                                 .Sum(c => c.Servicio?.Precio ?? 0m);
 
+                            // Se serializan en minúscula para que coincidan con las claves
+                            // que consume renderRevenueChart() en el cliente (item.mes / item.valor).
                             return new
                             {
-                                Mes = monthStart.ToString("MMMM", new System.Globalization.CultureInfo("es-CO")),
-                                Valor = amount
+                                mes = monthStart.ToString("MMMM", new System.Globalization.CultureInfo("es-CO")),
+                                mesNumero = monthStart.Month,
+                                anio = monthStart.Year,
+                                valor = amount
                             };
                         })
                         .ToList();
@@ -249,59 +258,44 @@ public partial class GestionProfesionalesController(
                     // ═══════════════════════════════════════════════════════════════
 
                     // 1. PRÓXIMA CITA URGENTE (con datos del paciente incluidos)
-                    var proximaCitaUrgente = await _context.Citas
-                        .Include(c => c.Paciente)
-                        .Include(c => c.Servicio)
-                        .Include(c => c.Consultorio)
-                        .AsNoTracking()
+                    var proximaCitaUrgente = citasDelMes
                         .Where(c =>
-                            c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora >= DateTime.Now &&
-                            (c.Estado == "Agendada" || c.Estado == "programada" || 
-                             c.Estado == "Confirmada" || c.Estado == "confirmada"))
+                            c.FechaHora >= ahora &&
+                            EstadoCitaHelper.Normalize(c.Estado) is "programada" or "confirmada")
                         .OrderBy(c => c.FechaHora)
-                        .FirstOrDefaultAsync(ct);
+                        .FirstOrDefault();
 
                     ViewData["OdoProximaCitaUrgente"] = proximaCitaUrgente;
 
                     // 2. CITAS PENDIENTES DE CONFIRMAR (estado "Agendada" o "programada")
-                    var citasPendientesConfirmar = await _context.Citas
-                        .AsNoTracking()
-                        .CountAsync(c =>
-                            c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora >= hoy &&
-                            (c.Estado == "Agendada" || c.Estado == "programada"), ct);
+                    //    Solo las que aún no han pasado: una cita vencida ya no está pendiente.
+                    var citasPendientesConfirmar = citasDelMes.Count(c =>
+                        c.FechaHora >= ahora &&
+                        EstadoCitaHelper.Normalize(c.Estado) == "programada");
 
                     ViewData["CitasPendientesConfirmar"] = citasPendientesConfirmar;
 
                     // 3. PACIENTES EN ESPERA (citas de hoy en estado "Confirmada" y hora ya pasada)
-                    var ahora = DateTime.Now;
-                    var pacientesEnEspera = await _context.Citas
-                        .AsNoTracking()
-                        .CountAsync(c =>
-                            c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora.Date == hoy &&
-                            c.FechaHora <= ahora &&
-                            (c.Estado == "Confirmada" || c.Estado == "confirmada"), ct);
+                    var pacientesEnEspera = citasDelMes.Count(c =>
+                        c.FechaHora.Date == hoy &&
+                        c.FechaHora <= ahora &&
+                        EstadoCitaHelper.Normalize(c.Estado) == "confirmada");
 
                     ViewData["PacientesEnEspera"] = pacientesEnEspera;
 
                     // 4. HISTORIAS CLÍNICAS PENDIENTES (citas atendidas hoy sin notas)
-                    var historiasPendientes = await _context.Citas
-                        .AsNoTracking()
-                        .CountAsync(c =>
-                            c.IdProfesional == profesional.IdProfesional &&
-                            c.FechaHora.Date == hoy &&
-                            (c.Estado == "Atendida" || c.Estado == "atendida") &&
-                            string.IsNullOrWhiteSpace(c.Notas), ct);
+                    var historiasPendientes = citasDelMes.Count(c =>
+                        c.FechaHora.Date == hoy &&
+                        EstadoCitaHelper.Normalize(c.Estado) == "atendida" &&
+                        string.IsNullOrWhiteSpace(c.Notas));
 
                     ViewData["HistoriasPendientes"] = historiasPendientes;
 
                     // 5. RENDIMIENTO DEL DÍA (cálculo de tasa de asistencia)
                     var citasHoyTotal = citasDelMes.Count(c => c.FechaHora.Date == hoy);
-                    var citasHoyAtendidas = citasDelMes.Count(c => 
-                        c.FechaHora.Date == hoy && 
-                        (c.Estado == "Atendida" || c.Estado == "atendida"));
+                    var citasHoyAtendidas = citasDelMes.Count(c =>
+                        c.FechaHora.Date == hoy &&
+                        EstadoCitaHelper.Normalize(c.Estado) == "atendida");
                     
                     var tasaAsistencia = citasHoyTotal > 0 
                         ? (int)Math.Round((double)citasHoyAtendidas / citasHoyTotal * 100) 
@@ -312,18 +306,20 @@ public partial class GestionProfesionalesController(
                     // 6. ÚLTIMA ATENCIÓN DEL PACIENTE DE LA PRÓXIMA CITA (para contexto)
                     if (proximaCitaUrgente != null)
                     {
-                        var ultimaAtencion = await _context.Citas
+                        var atencionesPrevias = await _context.Citas
                             .Include(c => c.Servicio)
                             .AsNoTracking()
                             .Where(c =>
                                 c.IdPaciente == proximaCitaUrgente.IdPaciente &&
                                 c.IdProfesional == profesional.IdProfesional &&
-                                c.FechaHora < proximaCitaUrgente.FechaHora &&
-                                (c.Estado == "Atendida" || c.Estado == "atendida"))
+                                c.FechaHora < proximaCitaUrgente.FechaHora)
+                            .ToListAsync(ct);
+                        var ultimaAtencionPaciente = atencionesPrevias
+                            .Where(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida")
                             .OrderByDescending(c => c.FechaHora)
-                            .FirstOrDefaultAsync(ct);
+                            .FirstOrDefault();
 
-                        ViewData["UltimaAtencionProximaCita"] = ultimaAtencion;
+                        ViewData["UltimaAtencionProximaCita"] = ultimaAtencionPaciente;
                     }
                 }
             }
@@ -340,13 +336,41 @@ public partial class GestionProfesionalesController(
 
     [HttpGet]
     [Authorize(Roles = "Profesional,Administrador")]
+    [Route("api/profesionales/dashboard-stats")]
+    public async Task<IActionResult> DashboardStats(CancellationToken ct = default)
+    {
+        // Endpoint de auto-refresco del dashboard (st-odo-01). Devuelve, en minúscula,
+        // los dos contadores que el cliente actualiza cada 5 minutos.
+        if (!int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int userId))
+            return Unauthorized();
+
+        var profesional = await _context.Profesionales.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdUsuario == userId, ct);
+        if (profesional is null)
+            return Ok(new { citasHoy = 0, citasAtendidas = 0 });
+
+        var hoy = ColombiaClock.Today;
+        var manana = hoy.AddDays(1);
+
+        var citasHoy = await _context.Citas.AsNoTracking()
+            .Where(c => c.IdProfesional == profesional.IdProfesional &&
+                        c.FechaHora >= hoy && c.FechaHora < manana)
+            .ToListAsync(ct);
+
+        return Ok(new
+        {
+            citasHoy = citasHoy.Count,
+            citasAtendidas = citasHoy.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida")
+        });
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Profesional,Administrador")]
     [Route("gestion-de-profesionales/st-odo-09-perfil-profesional")]
     public async Task<IActionResult> Stodo09PerfilProfesional(CancellationToken ct = default)
     {
         try
         {
-            await CargarDatosProfesionales(BuildReturnUrl(), null, ct);
-
             string? userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (int.TryParse(userIdStr, out int userId))
             {
@@ -453,7 +477,7 @@ public partial class GestionProfesionalesController(
                 ContentType = contentType,
                 TamanoBytes = archivo.Length,
                 EstadoRevision = "pendiente",
-                FechaSubida = DateTime.UtcNow
+                FechaSubida = ColombiaClock.Now
             });
             profesional.CredencialesAprobadas = false;
             profesional.Estado = "inactivo";
@@ -467,6 +491,102 @@ public partial class GestionProfesionalesController(
             throw;
         }
 
+        return RedirectToAction(nameof(Stodo09PerfilProfesional));
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Profesional")]
+    [ValidateAntiForgeryToken]
+    [Route("gestion-de-profesionales/credenciales/{id:int}/eliminar")]
+    public async Task<IActionResult> EliminarCredencialProfesional(int id, CancellationToken ct = default)
+    {
+        if (!int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int userId))
+            return Forbid();
+
+        var documento = await _context.CredencialesProfesionales
+            .Include(d => d.Profesional)
+            .FirstOrDefaultAsync(d => d.IdCredencial == id, ct);
+        if (documento is null)
+            return NotFound();
+        if (documento.Profesional?.IdUsuario != userId)
+            return Forbid();
+        string estadoRevision = documento.EstadoRevision?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (estadoRevision is not ("pendiente" or "rechazado"))
+        {
+            TempData["ErrorValidacion"] = "Solo puedes eliminar credenciales pendientes o rechazadas. Las aprobadas deben ser retiradas por un administrador.";
+            return RedirectToAction(nameof(Stodo09PerfilProfesional));
+        }
+
+        string credentialsRoot = Path.GetFullPath(
+            Path.Combine(_environment.ContentRootPath, "private_uploads", "credenciales-profesionales", documento.IdProfesional.ToString())) +
+            Path.DirectorySeparatorChar;
+        string fullPath = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, documento.RutaPrivada));
+        if (!fullPath.StartsWith(credentialsRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogError("La ruta privada de la credencial {IdCredencial} salió de su directorio permitido.", id);
+            return BadRequest();
+        }
+
+        string? quarantinePath = null;
+        try
+        {
+            if (System.IO.File.Exists(fullPath))
+            {
+                quarantinePath = $"{fullPath}.{Guid.NewGuid():N}.deleting";
+                System.IO.File.Move(fullPath, quarantinePath);
+            }
+            else
+            {
+                _logger.LogWarning("No se encontró el archivo de la credencial {IdCredencial}; se eliminará su registro huérfano.", id);
+            }
+
+            _context.CredencialesProfesionales.Remove(documento);
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            if (quarantinePath is not null && System.IO.File.Exists(quarantinePath))
+            {
+                try
+                {
+                    System.IO.File.Move(quarantinePath, fullPath);
+                }
+                catch (IOException restoreError)
+                {
+                    _logger.LogError(restoreError, "No se pudo restaurar el archivo de credencial {IdCredencial} después de fallar la eliminación.", id);
+                }
+                catch (UnauthorizedAccessException restoreError)
+                {
+                    _logger.LogError(restoreError, "No se pudo restaurar el archivo de credencial {IdCredencial} después de fallar la eliminación.", id);
+                }
+            }
+
+            _logger.LogError(ex, "No se pudo eliminar la credencial profesional {IdCredencial}.", id);
+            TempData["ErrorValidacion"] = "No se pudo eliminar la credencial. Intenta nuevamente o contacta al administrador.";
+            return RedirectToAction(nameof(Stodo09PerfilProfesional));
+        }
+
+        if (quarantinePath is not null)
+        {
+            try
+            {
+                System.IO.File.Delete(quarantinePath);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "La credencial {IdCredencial} se retiró, pero el archivo privado en cuarentena no pudo eliminarse.", id);
+                TempData["Mensaje"] = "Credencial retirada de tu perfil. El archivo interno quedó pendiente de limpieza y fue reportado al administrador.";
+                return RedirectToAction(nameof(Stodo09PerfilProfesional));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogError(ex, "La credencial {IdCredencial} se retiró, pero no se pudo limpiar el archivo privado en cuarentena.", id);
+                TempData["Mensaje"] = "Credencial retirada de tu perfil. El archivo interno quedó pendiente de limpieza y fue reportado al administrador.";
+                return RedirectToAction(nameof(Stodo09PerfilProfesional));
+            }
+        }
+
+        TempData["Mensaje"] = "Credencial eliminada correctamente.";
         return RedirectToAction(nameof(Stodo09PerfilProfesional));
     }
 
@@ -520,38 +640,39 @@ public partial class GestionProfesionalesController(
         documento.RevisadoPor = int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int reviewerId)
             ? reviewerId
             : null;
-        documento.FechaRevision = DateTime.UtcNow;
+        documento.FechaRevision = ColombiaClock.Now;
 
         var profesional = documento.Profesional;
-        if (estado == "rechazado")
-        {
-            profesional.CredencialesAprobadas = false;
-            profesional.Estado = "inactivo";
-        }
-        else
-        {
-            bool tieneDocumentosSinAprobar = await _context.CredencialesProfesionales.AnyAsync(d =>
-                d.IdProfesional == profesional.IdProfesional &&
-                d.IdCredencial != documento.IdCredencial &&
-                d.EstadoRevision == "pendiente", ct);
-            if (!tieneDocumentosSinAprobar)
-            {
-                profesional.CredencialesAprobadas = true;
-                profesional.Estado = "activo";
-                if (profesional.Usuario is not null)
-                    profesional.Usuario.Estado = "activo";
+        var credenciales = await _context.CredencialesProfesionales
+            .Where(d => d.IdProfesional == profesional.IdProfesional)
+            .ToListAsync(ct);
+        bool tieneCredencialesPendientes = credenciales.Any(d =>
+            string.Equals(d.EstadoRevision?.Trim(), "pendiente", StringComparison.OrdinalIgnoreCase));
+        bool tieneCredencialesAprobadas = credenciales.Any(d =>
+            string.Equals(d.EstadoRevision?.Trim(), "aprobado", StringComparison.OrdinalIgnoreCase));
+        bool puedeActivarse = tieneCredencialesAprobadas && !tieneCredencialesPendientes;
 
-                var bloqueos = await _context.BloqueosProfesional
-                    .Where(b => b.IdProfesional == profesional.IdProfesional && b.Motivo == "Profesional inactivo / desactivado")
-                    .ToListAsync(ct);
-                _context.BloqueosProfesional.RemoveRange(bloqueos);
-            }
+        profesional.CredencialesAprobadas = puedeActivarse;
+        profesional.Estado = puedeActivarse ? "activo" : "inactivo";
+        if (puedeActivarse)
+        {
+            if (profesional.Usuario is not null)
+                profesional.Usuario.Estado = "activo";
+
+            var bloqueos = await _context.BloqueosProfesional
+                .Where(b => b.IdProfesional == profesional.IdProfesional && b.Motivo == "Profesional inactivo / desactivado")
+                .ToListAsync(ct);
+            _context.BloqueosProfesional.RemoveRange(bloqueos);
         }
 
         await _context.SaveChangesAsync(ct);
-        TempData["Mensaje"] = estado == "aprobado"
-            ? "Credencial aprobada."
-            : "Credencial rechazada; el perfil permanece inactivo.";
+        TempData["Mensaje"] = puedeActivarse
+            ? estado == "aprobado"
+                ? "Credencial aprobada. Hay una credencial aprobada y no quedan revisiones pendientes; el profesional puede activarse."
+                : "Credencial rechazada. Se conserva otra credencial aprobada y no quedan revisiones pendientes."
+            : tieneCredencialesPendientes
+                ? "La credencial fue revisada, pero quedan credenciales pendientes. Aprueba o rechaza todas antes de reactivar el perfil."
+                : "No hay credenciales aprobadas. El profesional debe cargar una nueva credencial y esperar su aprobación para poder reactivarse.";
         return RedirectToAction(nameof(Stadm07GestionProfesionales));
     }
 
@@ -564,15 +685,14 @@ public partial class GestionProfesionalesController(
     {
         try
         {
-            var hoy = DateTime.Today;
+            var hoy = ColombiaClock.Today;
+            var ahora = ColombiaClock.Now;
             var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
             var finMes = inicioMes.AddMonths(1);
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 500);
 
             var citasQuery = _context.Citas
-                .Include(c => c.Paciente)
-                .Include(c => c.Profesional)
-                .ThenInclude(p => p!.Usuario)
-                .Include(c => c.Servicio)
                 .Where(c => c.Paciente != null)
                 .AsNoTracking()
                 .AsQueryable();
@@ -618,30 +738,91 @@ public partial class GestionProfesionalesController(
                 citasQuery = citasQuery.Where(c => c.FechaHora >= filterStart && c.FechaHora < filterEnd);
             }
 
-            var todasCitasPacientes = await citasQuery
-                .OrderByDescending(c => c.FechaHora)
-                .AsNoTracking()
+            var totalReales = await citasQuery
+                .Select(c => c.IdPaciente)
+                .Distinct()
+                .CountAsync(ct);
+
+            var totalPages = (int)Math.Ceiling(totalReales / (double)pageSize);
+            page = totalPages == 0 ? 1 : Math.Min(page, totalPages);
+
+            var pagePacienteIds = await citasQuery
+                .GroupBy(c => c.IdPaciente)
+                .Select(g => new
+                {
+                    IdPaciente = g.Key,
+                    UltimaFecha = g.Max(c => c.FechaHora)
+                })
+                .OrderByDescending(g => g.UltimaFecha)
+                .ThenByDescending(g => g.IdPaciente)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(g => g.IdPaciente)
                 .ToListAsync(ct);
 
-            var citasUnicasPorPaciente = todasCitasPacientes
+            var citasDeLaPagina = pagePacienteIds.Count == 0
+                ? new List<Cita>()
+                : await citasQuery
+                    .Where(c => pagePacienteIds.Contains(c.IdPaciente))
+                    .Include(c => c.Paciente)
+                    .Include(c => c.Profesional)
+                        .ThenInclude(p => p!.Usuario)
+                    .Include(c => c.Servicio)
+                    .OrderBy(c => c.IdPaciente)
+                    .ThenByDescending(c => c.FechaHora)
+                    .ThenByDescending(c => c.IdCita)
+                    .ToListAsync(ct);
+
+            var ultimaCitaPorPaciente = citasDeLaPagina
                 .GroupBy(c => c.IdPaciente)
-                .Select(g => g.OrderByDescending(c => c.FechaHora).First())
-                .OrderByDescending(c => c.FechaHora)
+                .ToDictionary(g => g.Key, g => g.First());
+            var citasUnicasPorPaciente = pagePacienteIds
+                .Where(ultimaCitaPorPaciente.ContainsKey)
+                .Select(idPaciente => ultimaCitaPorPaciente[idPaciente])
                 .ToList();
 
             // ── Cargar últimas notas clínicas por paciente (fuente real: tabla Nota_Clinica) ──
-            var idsPacientes = citasUnicasPorPaciente.Select(c => c.IdPaciente).Distinct().ToList();
+            var idsPacientes = citasUnicasPorPaciente.Select(c => c.IdPaciente).ToList();
             Dictionary<int, (string? Diagnostico, string? Procedimiento, string? ProfesionalNombre)> ultimasNotas = new();
+            Dictionary<int, int> citasPorPaciente = new();
+            Dictionary<int, DateTime> proximasCitasPorPaciente = new();
 
             if (idsPacientes.Count > 0)
             {
-                var notasQuery = await _context.NotasClinicas
+                citasPorPaciente = await citasQuery
+                    .Where(c => idsPacientes.Contains(c.IdPaciente))
+                    .GroupBy(c => c.IdPaciente)
+                    .Select(g => new { IdPaciente = g.Key, Total = g.Count() })
+                    .ToDictionaryAsync(g => g.IdPaciente, g => g.Total, ct);
+
+                var citasFuturasQuery = _context.Citas
                     .AsNoTracking()
+                    .Where(c => idsPacientes.Contains(c.IdPaciente)
+                        && c.FechaHora >= ahora
+                        && (c.Estado == null || !new[] { "cancelada", "cancelado" }.Contains(c.Estado.ToLower()))
+                        && (c.EstadoCita == null || !new[] { "cancelada", "cancelado" }.Contains(c.EstadoCita.NombreEstado.ToLower())));
+                if (idProfesionalForzado.HasValue)
+                    citasFuturasQuery = citasFuturasQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
+
+                var citasFuturas = await citasFuturasQuery
+                    .GroupBy(c => c.IdPaciente)
+                    .Select(g => new { IdPaciente = g.Key, FechaHora = g.Min(c => c.FechaHora) })
+                    .ToDictionaryAsync(g => g.IdPaciente, g => g.FechaHora, ct);
+                proximasCitasPorPaciente = citasFuturas;
+
+                IQueryable<NotaClinica> notasClinicasQuery = _context.NotasClinicas
+                    .AsNoTracking()
+                    .Where(n => idsPacientes.Contains(n.HistoriaClinica!.IdPaciente) &&
+                                n.Estado != "Preparación");
+                if (idProfesionalForzado.HasValue)
+                    notasClinicasQuery = notasClinicasQuery.Where(n => n.IdProfesional == idProfesionalForzado.Value);
+
+                var notasQuery = await notasClinicasQuery
                     .Include(n => n.HistoriaClinica)
                     .Include(n => n.Profesional)
-                    .ThenInclude(p => p!.Usuario)
-                    .Where(n => idsPacientes.Contains(n.HistoriaClinica!.IdPaciente))
+                        .ThenInclude(p => p!.Usuario)
                     .OrderByDescending(n => n.Fecha)
+                    .ThenByDescending(n => n.IdNota)
                     .ToListAsync(ct);
 
                 ultimasNotas = notasQuery
@@ -664,42 +845,35 @@ public partial class GestionProfesionalesController(
                     );
             }
 
-            var totalReales = citasUnicasPorPaciente.Count;
             var pagedCitas = new PagedResult<Cita>
             {
-                Page = page < 1 ? 1 : page,
-                PageSize = pageSize < 1 ? 10 : pageSize,
-                TotalCount = totalReales,
-                Items = citasUnicasPorPaciente
-                    .Skip((Math.Max(1, page) - 1) * Math.Clamp(pageSize, 1, 500))
-                    .Take(Math.Clamp(pageSize, 1, 500))
-                    .ToList()
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalCount = totalReales,
+                    Items = citasUnicasPorPaciente
             };
 
-            var profesionalesOptions = await _context.Profesionales
-                .Where(p => p.Estado == "activo")
-                .Select(p => (p.Nombres ?? "") + " " + (p.Apellidos ?? ""))
-                .Select(n => n.Trim())
-                .Where(n => n.Length > 0)
-                .Distinct()
-                .OrderBy(name => name)
-                .ToListAsync(ct);
+            var profesionalesOptions = idProfesionalForzado.HasValue
+                ? new List<string>()
+                : await _context.Profesionales
+                    .Where(p => p.Estado == "activo")
+                    .Select(p => (p.Nombres ?? "") + " " + (p.Apellidos ?? ""))
+                    .Select(n => n.Trim())
+                    .Where(n => n.Length > 0)
+                    .Distinct()
+                    .OrderBy(name => name)
+                    .ToListAsync(ct);
 
             var reportes = pagedCitas.Items.Select(cita =>
             {
-                var pacienteCitas = todasCitasPacientes.Where(c => c.IdPaciente == cita.IdPaciente).ToList();
-
                 var nacimiento = cita.Paciente?.FechaNacimiento;
                 int edad = nacimiento.HasValue
                     ? hoy.Year - nacimiento.Value.Year - (hoy < nacimiento.Value.AddYears(hoy.Year - nacimiento.Value.Year) ? 1 : 0)
                     : 0;
 
-                var proximaCita = pacienteCitas
-                    .Where(c => c.FechaHora.Date >= hoy)
-                    .OrderBy(c => c.FechaHora)
-                    .FirstOrDefault();
-
                 ultimasNotas.TryGetValue(cita.IdPaciente, out var nota);
+                citasPorPaciente.TryGetValue(cita.IdPaciente, out var totalCitasPaciente);
+                proximasCitasPorPaciente.TryGetValue(cita.IdPaciente, out var proximaCita);
 
                 var profesionalCitaNombre = cita.Profesional is null
                     ? null
@@ -743,10 +917,10 @@ public partial class GestionProfesionalesController(
                         : !string.IsNullOrWhiteSpace(profesionalCitaNombre)
                             ? profesionalCitaNombre
                             : "Sin profesional",
-                    ProximaCita = proximaCita?.FechaHora,
+                    ProximaCita = proximaCita == default ? null : proximaCita,
                     Alerta = alerta,
                     Avatar = string.Concat((cita.Paciente?.Nombres ?? "P").Take(2).Select(ch => char.ToUpperInvariant(ch))),
-                    Color = pacienteCitas.Count % 2 == 0 ? "green" : "blue"
+                    Color = totalCitasPaciente % 2 == 0 ? "green" : "blue"
                 };
             }).ToList();
 
@@ -761,7 +935,14 @@ public partial class GestionProfesionalesController(
             ViewData["ReportesClinicos"] = reportes;
             ViewData["ReportesClinicosPage"] = pagedReportes;
             ViewData["ProfesionalesReportes"] = profesionalesOptions;
-            ViewData["TotalPacientesReportes"] = await _context.Pacientes.CountAsync(ct);
+            var pacientesReportesQuery = _context.Citas
+                .AsNoTracking()
+                .Where(c => c.Paciente != null);
+            if (idProfesionalForzado.HasValue)
+                pacientesReportesQuery = pacientesReportesQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
+            ViewData["TotalPacientesReportes"] = idProfesionalForzado.HasValue
+                ? await pacientesReportesQuery.Select(c => c.IdPaciente).Distinct().CountAsync(ct)
+                : await _context.Pacientes.CountAsync(ct);
 
             var consultasQuery = _context.Citas.AsNoTracking();
             if (idProfesionalForzado.HasValue)
@@ -773,14 +954,16 @@ public partial class GestionProfesionalesController(
                 consultasQuery = consultasQuery.Where(c => c.IdProfesional == 0);
             }
 
-            ViewData["ConsultasMes"] = await consultasQuery.CountAsync(c => c.FechaHora >= inicioMes && c.FechaHora < finMes, ct);
-
-            // Tasa de asistencia = % citas atendidas sobre total del mes
-            // (antes llamado SatisfaccionPromedio, renombrado por alineación funcional)
             int totalCitasMes = await consultasQuery.CountAsync(c => c.FechaHora >= inicioMes && c.FechaHora < finMes, ct);
+            ViewData["ConsultasMes"] = totalCitasMes;
+
+            // Tasa de asistencia = citas atendidas sobre el total mensual.
             int citasAtendidasMes = await consultasQuery.CountAsync(
                 c => c.FechaHora >= inicioMes && c.FechaHora < finMes
-                  && (c.Estado == "Atendida" || c.Estado == "atendida"), ct);
+                  && (
+                      (c.Estado != null && new[] { "atendida", "completada", "realizada", "finalizada" }.Contains(c.Estado.ToLower()))
+                      || (c.EstadoCita != null && new[] { "atendida", "completada", "realizada", "finalizada" }.Contains(c.EstadoCita.NombreEstado.ToLower()))
+                  ), ct);
             int tasaAsistencia = totalCitasMes > 0
                 ? (int)Math.Round(citasAtendidasMes * 100.0 / totalCitasMes, 0)
                 : 0;
@@ -800,6 +983,7 @@ public partial class GestionProfesionalesController(
         {
             _logger.LogError(ex, "Error general en CargarDatosReportesClinicos. Se devuelven datos vacios.");
             InicializarViewDataReportesVacios();
+            TempData["ErrorValidacion"] = MensajeErrorFallback;
         }
     }
 
@@ -846,7 +1030,7 @@ public partial class GestionProfesionalesController(
         }
         catch (SqlException sqlex)
         {
-            _logger.LogCritical(sqlex, "SqlException en CargarDatosProfesionales. Number={Number}", sqlex.Number);
+            _logger.LogError(sqlex, "SqlException en CargarDatosProfesionales. Number={Number}", sqlex.Number);
             InicializarViewDataProfesionalesVacio(returnUrl);
             TempData["ErrorValidacion"] = MensajeErrorFallback;
         }

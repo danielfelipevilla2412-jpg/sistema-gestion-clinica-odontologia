@@ -1,247 +1,237 @@
-@{ Layout = null; }
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Seguimiento de Tratamientos";
+    ViewData["Description"] = "Seguimiento de tratamientos dentales en curso, completados y pausados.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
-<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+    <link rel="stylesheet" href="~/css/Historia_Clinica/st-odo-07-seguimiento-tratamiento/tratamientos.css" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Seguimiento de Tratamientos</title>
-  <meta name="description" content="Seguimiento de tratamientos dentales en curso, completados y pausados." />
+<main class="main professional-treatments professional-treatment" id="main-content">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-07-seguimiento-tratamiento/tratamientos.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-
-  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
-
-  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
-
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <main class="main" id="main-content">
-
-    <!-- Header -->
-    <header class="page-header">
-      <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
-          <span data-i18n="common_role_profesional">Odontólogo</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active" data-i18n="historia.treatment_followup">Seguimiento de Tratamientos</span>
-        </nav>
-        <h1 class="page-title" data-i18n="historia.treatment_followup">Seguimiento de Tratamientos</h1>
-        <p class="page-subtitle" id="pageSub">
-          Tratamientos en curso, pausados y completados de tus pacientes
-        </p>
-      </div>
-    </header>
-
-    <!-- ═════ TARJETAS DE ESTADÍSTICAS ═════ -->
-    <section class="stats-grid" aria-label="Estadísticas de tratamientos" data-i18n-aria-label="historia.treatment">
-      <div class="stat-card stat-total">
-        <div class="stat-icon">📊</div>
-        <div class="stat-content">
-          <span class="stat-number" id="statTotal">0</span>
-          <span class="stat-label" data-i18n="historia.treatment_total">Total de tratamientos</span>
-        </div>
-      </div>
-      
-      <div class="stat-card stat-en-curso">
-        <div class="stat-icon">🔄</div>
-        <div class="stat-content">
-          <span class="stat-number" id="statEnCurso">0</span>
-          <span class="stat-label" data-i18n="status.in_progress">En curso</span>
-        </div>
-      </div>
-      
-      <div class="stat-card stat-completado">
-        <div class="stat-icon">✅</div>
-        <div class="stat-content">
-          <span class="stat-number" id="statCompletado">0</span>
-          <span class="stat-label">Completados</span>
-        </div>
-      </div>
-      
-      <div class="stat-card stat-pausado">
-        <div class="stat-icon">⏸️</div>
-        <div class="stat-content">
-          <span class="stat-number" id="statPausado">0</span>
-          <span class="stat-label">Pausados</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═════ FILTROS Y BUSCADOR ═════ -->
-    <section class="filters-section" aria-label="Filtros de búsqueda">
-      <div class="search-box">
-        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle>
-          <path d="m21 21-4.35-4.35"></path>
-        </svg>
-        <input type="text" id="searchInput" class="search-input" placeholder="Buscar por nombre de paciente..." data-i18n-ph="table.search" aria-label="Buscar paciente" />
-      </div>
-      
-      <div class="filters-grid">
-        <div class="filter-group">
-          <label for="filterPaciente" class="filter-label">Paciente</label>
-          <select id="filterPaciente" class="filter-select">
-            <option value="">Todos los pacientes</option>
-          </select>
-        </div>
-        
-        <div class="filter-group">
-          <label for="filterEstado" class="filter-label">Estado</label>
-          <select id="filterEstado" class="filter-select">
-            <option value="">Todos los estados</option>
-            <option value="en-curso">En curso</option>
-            <option value="completado">Completado</option>
-            <option value="pausado">Pausado</option>
-          </select>
-        </div>
-        
-        <div class="filter-group">
-          <label for="filterTipo" class="filter-label">Tipo de tratamiento</label>
-          <select id="filterTipo" class="filter-select">
-            <option value="">Todos los tipos</option>
-          </select>
-        </div>
-        
-        <div class="filter-group">
-          <label for="filterOdontologo" class="filter-label">Odontólogo</label>
-          <select id="filterOdontologo" class="filter-select">
-            <option value="">Todos los odontólogos</option>
-          </select>
-        </div>
-        
-        <div class="filter-group">
-          <label for="filterPorPagina" class="filter-label">Por página</label>
-          <select id="filterPorPagina" class="filter-select">
-            <option value="5">5 por página</option>
-            <option value="10" selected>10 por página</option>
-            <option value="15">15 por página</option>
-            <option value="20">20 por página</option>
-          </select>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═════ LISTA DE TRATAMIENTOS ═════ -->
-    <section class="section" aria-labelledby="tratamientosTitle">
-      <div class="section-header">
-        <h2 class="section-title" id="tratamientosTitle">Tratamientos registrados</h2>
-        <span class="results-count" id="resultsCount" aria-live="polite">Mostrando 0 de 0 tratamientos</span>
-      </div>
-
-      <div id="tratamientosList" aria-live="polite" role="list" aria-label="Lista de tratamientos">
-        <!-- JS renderiza aquí -->
-      </div>
-
-      <div class="empty-state" id="emptyState" style="display:none" role="status" aria-live="polite" aria-hidden="true">
-        <div class="empty-icon"></div>
-        <p>No se encontraron tratamientos con los filtros seleccionados.</p>
-        <button class="btn-clear-filters" id="btnClearFilters">Limpiar filtros</button>
-      </div>
-
-      <!-- ═════ PAGINACIÓN ════ -->
-      <nav class="pagination" id="pagination" aria-label="Paginación de tratamientos" style="display:none">
-        <button class="pagination-btn" id="btnFirst" aria-label="Primera página">««</button>
-        <button class="pagination-btn" id="btnPrev" aria-label="Página anterior">«</button>
-        
-        <div class="pagination-numbers" id="paginationNumbers">
-          <!-- Números de página generados por JS -->
-        </div>
-        
-        <button class="pagination-btn" id="btnNext" aria-label="Página siguiente">»</button>
-        <button class="pagination-btn" id="btnLast" aria-label="Última página">»»</button>
+  <!-- Header -->
+  <header class="page-header">
+    <div class="header-left">
+      <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="odo07.breadcrumb_aria">
+        <span data-i18n="common_role_profesional">Odontólogo</span>
+        <span class="bc-sep" aria-hidden="true">›</span>
+        <span class="bc-active" data-i18n="historia.treatment_followup">Seguimiento de Tratamientos</span>
       </nav>
-    </section>
-
-  </main>
-
-  <!-- Mobile bottom nav -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true"></span>
-      <span>Dashboard</span>
-    </a>
-    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true"></span>
-      <span>Agenda</span>
-    </a>
-    <a href="/historia-clinica/st-odo-06-pacientes" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">👥</span>
-      <span>Pacientes</span>
-    </a>
-    <a href="/historia-clinica/st-odo-03-historial" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
-      <span>Historial</span>
-    </a>
-    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item">
-      <span class="mobile-nav-icon" aria-hidden="true"></span>
-      <span>Perfil</span>
-    </a>
-  </nav>
-
-  <!-- Toast -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-    .skip-link:focus {
-      top: 0;
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-  
-  <script src="@Url.Content("~/js/Historia_Clinica/st-odo-07-seguimiento-tratamiento/tratamientos.js")"></script>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span style="font-size:1rem;"></span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+      <h1 class="page-title" data-i18n="historia.treatment_followup">Seguimiento de Tratamientos</h1>
+      <p class="page-subtitle" data-i18n="odo07.subtitle">Consulta y actualiza los planes de tratamiento de tus pacientes.</p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
+  </header>
 
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-</html>
+  <section class="plan-editor" aria-labelledby="planEditorTitle">
+    <h2 id="planEditorTitle" data-i18n="odo07.add_plan">Agregar tratamiento al plan</h2>
+    <form id="planTratamientoForm">
+      @Html.AntiForgeryToken()
+      <div class="form-field">
+        <label for="planPaciente" data-i18n="odo07.patient">Paciente</label>
+        <select id="planPaciente" required><option value="" data-i18n="odo07.select_patient">Selecciona un paciente</option></select>
+      </div>
+      <div class="form-field">
+        <label for="planServicio" data-i18n="odo07.service">Servicio</label>
+        <select id="planServicio" required><option value="" data-i18n="odo07.select_service">Selecciona un servicio</option></select>
+      </div>
+      <div class="form-field">
+        <label for="planSesionesEstimadas" data-i18n="odo07.estimated_sessions">Sesiones estimadas</label>
+        <input id="planSesionesEstimadas" type="number" min="0" step="1" value="0" required />
+      </div>
+      <div class="form-field">
+        <label for="planNumeroFdi" data-i18n="odo07.fdi_optional">Pieza dental permanente FDI (opcional)</label>
+        <input id="planNumeroFdi" inputmode="numeric" maxlength="2" placeholder="Ej. 16" data-i18n-ph="odo07.fdi_placeholder" />
+      </div>
+      <div class="form-field">
+        <label for="planEstado" data-i18n="odo07.status">Estado</label>
+        <select id="planEstado" required>
+          <option value="propuesto" data-i18n="odo07.status_proposed">Propuesto</option>
+          <option value="aprobado" data-i18n="odo07.status_approved">Aprobado</option>
+          <option value="en-curso" data-i18n="odo07.status_in_progress">En curso</option>
+          <option value="pausado" data-i18n="odo07.status_paused">Pausado</option>
+          <option value="completado" data-i18n="odo07.status_completed">Completado</option>
+          <option value="cancelado" data-i18n="odo07.status_cancelled">Cancelado</option>
+        </select>
+      </div>
+      <div class="form-field form-field--wide">
+        <label for="planObservacion" data-i18n="odo07.clinical_note_optional">Observación clínica (opcional)</label>
+        <textarea id="planObservacion" maxlength="1000" rows="2"></textarea>
+      </div>
+      <div class="form-field form-field--wide">
+        <button type="submit" id="guardarPlanTratamiento" class="btn-primary" data-i18n="odo07.save_to_plan">Guardar en el plan</button>
+      </div>
+    </form>
+  </section>
+
+  @* Yeray: Registra fechas y vínculos opcionales de sesiones, y pide motivo antes de anular un evento. *@
+  <dialog id="sessionDialog" class="workflow-dialog" aria-labelledby="sessionDialogTitle">
+    <form id="sessionForm" method="dialog">
+      @Html.AntiForgeryToken()
+      <input id="sessionPlanId" type="hidden" />
+      <h2 id="sessionDialogTitle" data-i18n="odo07.register_session">Registrar sesión realizada</h2>
+      <label for="sessionDate" data-i18n="odo07.session_date">Fecha de sesión</label>
+      <input id="sessionDate" type="date" required />
+      <label for="sessionCita" data-i18n="odo07.related_appointment">Cita relacionada (opcional)</label>
+      <select id="sessionCita"><option value="" data-i18n="odo07.no_appointment">Sin cita</option></select>
+      <label for="sessionNota" data-i18n="odo07.related_note">Nota clínica relacionada (opcional)</label>
+      <select id="sessionNota"><option value="" data-i18n="odo07.no_note">Sin nota</option></select>
+      <div class="workflow-actions">
+        <button type="submit" class="btn-primary" data-i18n="odo07.register">Registrar sesión</button>
+        <button type="button" class="btn-secondary" data-close-dialog="sessionDialog" data-i18n="odo07.cancel">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="annulSessionDialog" class="workflow-dialog" aria-labelledby="annulSessionDialogTitle">
+    <form id="annulSessionForm" method="dialog">
+      @Html.AntiForgeryToken()
+      <input id="annulSessionId" type="hidden" />
+      <h2 id="annulSessionDialogTitle" data-i18n="odo07.annul_session">Anular sesión</h2>
+      <label for="annulSessionReason" data-i18n="odo07.annul_reason">Motivo de anulación</label>
+      <textarea id="annulSessionReason" minlength="3" maxlength="500" rows="3" required></textarea>
+      <div class="workflow-actions">
+        <button type="submit" class="btn-danger" data-i18n="odo07.annul">Anular sesión</button>
+        <button type="button" class="btn-secondary" data-close-dialog="annulSessionDialog" data-i18n="odo07.cancel">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ═════ TARJETAS DE ESTADÍSTICAS ═════ -->
+  <section class="stats-grid" aria-label="Estadísticas de tratamientos" data-i18n-aria-label="odo07.stats_aria">
+    <div class="stat-card stat-total" data-color="blue">
+      <div class="stat-icon">
+        <span class="material-symbols-outlined" aria-hidden="true">analytics</span>
+      </div>
+      <div class="stat-content">
+        <span class="stat-number" id="statTotal">0</span>
+        <span class="stat-label" data-i18n="historia.treatment_total">Total de tratamientos</span>
+      </div>
+    </div>
+
+    <div class="stat-card stat-en-curso" data-color="purple">
+      <div class="stat-icon">
+        <span class="material-symbols-outlined" aria-hidden="true">sync</span>
+      </div>
+      <div class="stat-content">
+        <span class="stat-number" id="statEnCurso">0</span>
+        <span class="stat-label" data-i18n="odo07.active">Activos</span>
+      </div>
+    </div>
+
+    <div class="stat-card stat-completado" data-color="green">
+      <div class="stat-icon">
+        <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+      </div>
+      <div class="stat-content">
+        <span class="stat-number" id="statCompletado">0</span>
+        <span class="stat-label" data-i18n="odo07.completed">Completados</span>
+      </div>
+    </div>
+
+    <div class="stat-card stat-pausado" data-color="orange">
+      <div class="stat-icon">
+        <span class="material-symbols-outlined" aria-hidden="true">pause_circle</span>
+      </div>
+      <div class="stat-content">
+        <span class="stat-number" id="statPausado">0</span>
+        <span class="stat-label" data-i18n="odo07.paused">Pausados</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════ FILTROS Y BUSCADOR ═════ -->
+  <section class="filters-section" aria-label="Filtros de tratamientos" data-i18n-aria-label="odo07.filters_aria">
+    <div class="search-box">
+      <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+      <input type="search" id="searchInput" class="search-input" placeholder="Buscar por paciente, documento o tratamiento..." data-i18n-ph="odo07.search_placeholder" aria-label="Buscar tratamientos" data-i18n-aria-label="odo07.search_aria" />
+    </div>
+
+    <div class="filters-grid">
+      <div class="filter-group">
+        <label for="filterPaciente" class="filter-label" data-i18n="odo07.patient">Paciente</label>
+        <select id="filterPaciente" class="filter-select" aria-label="Filtrar por paciente" data-i18n-aria-label="odo07.filter_patient_aria">
+          <option value="" data-i18n="odo07.all_patients">Todos los pacientes</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="filterEstado" class="filter-label" data-i18n="odo07.status">Estado</label>
+        <select id="filterEstado" class="filter-select" aria-label="Filtrar por estado" data-i18n-aria-label="odo07.filter_status_aria">
+          <option value="" data-i18n="odo07.all_statuses">Todos los estados</option>
+          <option value="en-curso" data-i18n="odo07.status_in_progress">En curso</option>
+          <option value="propuesto" data-i18n="odo07.status_proposed">Propuesto</option>
+          <option value="aprobado" data-i18n="odo07.status_approved">Aprobado</option>
+          <option value="completado" data-i18n="odo07.status_completed">Completado</option>
+          <option value="pausado" data-i18n="odo07.status_paused">Pausado</option>
+          <option value="cancelado" data-i18n="odo07.status_cancelled">Cancelado</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filterTipo" class="filter-label" data-i18n="odo07.treatment_type">Tipo de tratamiento</label>
+        <select id="filterTipo" class="filter-select" aria-label="Filtrar por tipo" data-i18n-aria-label="odo07.filter_type_aria">
+          <option value="" data-i18n="odo07.all_types">Todos los tipos</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filterOdontologo" class="filter-label" data-i18n="odo07.professional">Profesional</label>
+        <select id="filterOdontologo" class="filter-select" aria-label="Filtrar por profesional" data-i18n-aria-label="odo07.filter_professional_aria">
+          <option value="" data-i18n="odo07.all_professionals">Todos los profesionales</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filterPorPagina" class="filter-label" data-i18n="odo07.page_size">Por página</label>
+        <select id="filterPorPagina" class="filter-select" aria-label="Tratamientos por página" data-i18n-aria-label="odo07.page_size_aria">
+          <option value="5" data-i18n="odo07.per_page_5">5 por página</option>
+          <option value="10" selected data-i18n="odo07.per_page_10">10 por página</option>
+          <option value="15" data-i18n="odo07.per_page_15">15 por página</option>
+          <option value="20" data-i18n="odo07.per_page_20">20 por página</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════ LISTA DE TRATAMIENTOS ═════ -->
+  <section class="section" aria-labelledby="tratamientosTitle">
+    <div class="section-header">
+      <h2 class="section-title" id="tratamientosTitle" data-i18n="odo07.registered_treatments">Tratamientos registrados</h2>
+      <span class="results-count" id="resultsCount" aria-live="polite" data-i18n="odo07.showing_none">Mostrando 0 tratamientos</span>
+    </div>
+
+    <div id="tratamientosList" aria-live="polite" role="list" aria-label="Lista de tratamientos" data-i18n-aria-label="odo07.list_aria">
+      <!-- JS renderiza aquí -->
+    </div>
+
+    <div class="empty-state" id="emptyState" hidden role="status" aria-live="polite">
+      <div class="empty-icon">
+        <span class="material-symbols-outlined" aria-hidden="true">medical_services</span>
+      </div>
+      <h3 data-i18n="odo07.no_results">No se encontraron tratamientos</h3>
+      <p data-i18n="odo07.no_results_help">Ajusta los filtros o la búsqueda e inténtalo de nuevo.</p>
+      <button class="btn-secondary" id="btnClearFilters" type="button" data-i18n="odo07.clear_filters">Limpiar filtros</button>
+    </div>
+
+    <!-- ═════ PAGINACIÓN ════ -->
+    <nav class="pagination" id="pagination" aria-label="Paginación de tratamientos" data-i18n-aria-label="odo07.pagination_aria" hidden>
+      <button class="pagination-btn" id="btnFirst" type="button" aria-label="Primera página" data-i18n-aria-label="odo07.first_page">««</button>
+      <button class="pagination-btn" id="btnPrev" type="button" aria-label="Página anterior" data-i18n-aria-label="odo07.previous_page">«</button>
+
+      <div class="pagination-numbers" id="paginationNumbers">
+        <!-- Números de página generados por JS -->
+      </div>
+
+      <button class="pagination-btn" id="btnNext" type="button" aria-label="Página siguiente" data-i18n-aria-label="odo07.next_page">»</button>
+      <button class="pagination-btn" id="btnLast" type="button" aria-label="Última página" data-i18n-aria-label="odo07.last_page">»»</button>
+    </nav>
+  </section>
+
+</main>
+
+@section Scripts {
+  <script src="~/js/Historia_Clinica/st-odo-07-seguimiento-tratamiento/tratamientos.js" asp-append-version="true" defer></script>
+}

@@ -13,7 +13,7 @@
  * REGLAS DE NEGOCIO PRINCIPALES:
  * - Calcula automáticamente el inicio de semana fijando Lunes como primer día de la semana laboral.
  * - Integra duraciones de citas dinámicas obtenidas desde ICitaService.
- * - Filtra eventos excluyendo registros soft-deleted ("cancelada" / "eliminada").
+ * - Excluye solicitudes rechazadas del calendario operativo y conserva estados históricos.
  *
  * DEPENDENCIAS TÉCNICAS:
  * - AppDbContext, ICitaService, AgendaViewModel, CitaAgendaDto
@@ -22,6 +22,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 
@@ -31,6 +32,7 @@ public sealed class AgendaService(
     AppDbContext context,
     ICitaService citaService) : IAgendaService
 {
+    private static readonly string[] EstadosSolicitudRechazada = ["rechazada", "rechazado"];
     private readonly AppDbContext _context = context;
     private readonly ICitaService _citaService = citaService;
 
@@ -38,18 +40,23 @@ public sealed class AgendaService(
         DateTime? weekStart,
         int? professionalId,
         int? officeId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool includeCatalogs = true)
     {
-        var inicioSemana = ObtenerLunes(weekStart?.Date ?? DateTime.Today);
+        var inicioSemana = ObtenerLunes(weekStart?.Date ?? ColombiaClock.Today);
         var finSemana = inicioSemana.AddDays(7);
         var duracion = await _citaService
             .ObtenerDuracionCitaMinutosAsync(cancellationToken);
         var diasAtencion = await ObtenerDiasAtencionAsync(cancellationToken);
-        var horario = await ObtenerHorarioClinicaAsync(cancellationToken);
+        (string Apertura, string Cierre) horario = includeCatalogs
+            ? await ObtenerHorarioClinicaAsync(cancellationToken)
+            : ("07:00", "18:00");
 
         var query = _context.Citas
             .AsNoTracking()
-            .Where(c => c.FechaHora >= inicioSemana && c.FechaHora < finSemana);
+            .Where(c => c.FechaHora >= inicioSemana && c.FechaHora < finSemana)
+            .Where(c => !EstadosSolicitudRechazada.Contains(
+                ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()));
 
         if (professionalId is > 0)
             query = query.Where(c => c.IdProfesional == professionalId.Value);
@@ -76,10 +83,10 @@ public sealed class AgendaService(
             WeekStart = inicioSemana,
             SemanaLabel = $"{inicioSemana:dd/MM} - {finSemana.AddDays(-1):dd/MM}",
             Dias = dias,
-            Pacientes = await ObtenerPacientesAsync(cancellationToken),
-            Profesionales = await ObtenerProfesionalesAsync(cancellationToken),
-            Consultorios = await ObtenerConsultoriosAsync(cancellationToken),
-            Servicios = await ObtenerServiciosAsync(cancellationToken),
+            Pacientes = includeCatalogs ? await ObtenerPacientesAsync(cancellationToken) : [],
+            Profesionales = includeCatalogs ? await ObtenerProfesionalesAsync(cancellationToken) : [],
+            Consultorios = includeCatalogs ? await ObtenerConsultoriosAsync(cancellationToken) : [],
+            Servicios = includeCatalogs ? await ObtenerServiciosAsync(cancellationToken) : [],
             ProfessionalId = professionalId,
             OfficeId = officeId,
             DuracionCitaMinutos = duracion,
@@ -101,7 +108,7 @@ public sealed class AgendaService(
             Fecha = fecha,
             NombreDia = fecha.ToString("ddd", new System.Globalization.CultureInfo("es-CO")),
             NumeroDia = fecha.Day.ToString(),
-            EsHoy = fecha.Date == DateTime.Today,
+            EsHoy = fecha.Date == ColombiaClock.Today,
             Cerrado = !diasAtencion.Contains(fecha.DayOfWeek),
             Citas = citas
                 .Where(c => c.FechaHora >= fecha.Date && c.FechaHora < fecha.Date.AddDays(1))
@@ -112,6 +119,7 @@ public sealed class AgendaService(
 
     private static AgendaCitaViewModel MapearCita(Cita cita, int duracion)
     {
+        var duracionCita = cita.DuracionMinutos > 0 ? cita.DuracionMinutos : duracion;
         var nombrePaciente = $"{cita.Paciente?.Nombres} {cita.Paciente?.Apellidos}".Trim();
 
         var nombresProf = cita.Profesional?.Usuario?.Nombre?.Trim();
@@ -138,7 +146,7 @@ public sealed class AgendaService(
             Fecha = cita.FechaHora.Date,
             Hora = cita.FechaHora.ToString("HH:mm"),
             HoraInicio = cita.FechaHora.ToString("HH:mm"),
-            HoraFin = cita.FechaHora.AddMinutes(duracion).ToString("HH:mm"),
+            HoraFin = cita.FechaHora.AddMinutes(duracionCita).ToString("HH:mm"),
             Paciente = string.IsNullOrWhiteSpace(nombrePaciente) ? "Paciente sin datos" : nombrePaciente,
             NombreProfesional = string.IsNullOrWhiteSpace(nombreProfesional) ? "Sin profesional" : nombreProfesional,
             CorreoProfesional = correoProfesional,
@@ -210,8 +218,8 @@ public sealed class AgendaService(
         var dias = new HashSet<DayOfWeek>();
         foreach (var token in (valor ?? "1,2,3,4,5,6").Split(','))
         {
-            if (int.TryParse(token.Trim(), out var dia) && dia is >= 1 and <= 7)
-                dias.Add(dia == 7 ? DayOfWeek.Sunday : (DayOfWeek)dia);
+            if (int.TryParse(token.Trim(), out var dia) && dia is >= 1 and <= 6)
+                dias.Add((DayOfWeek)dia);
         }
 
         return dias;
@@ -244,12 +252,11 @@ public sealed class AgendaService(
     }
 
     private static string ObtenerClaseEstado(string? estado) =>
-        (estado ?? string.Empty).Trim().ToLowerInvariant() switch
+        EstadoCitaHelper.Normalize(estado) switch
         {
-            "atendida" or "completada" or "realizada" => "attended",
-            "cancelada" or "cancelado" or "no_asistida" or "no asistio" or "no asistió" or "no-show" => "cancelled",
+            "atendida" => "attended",
+            "cancelada" or "no_asistida" or "rechazada" => "cancelled",
             "confirmada" => "confirmed",
-            "programada" or "agendada" or "pendiente" => "reserved",
             _ => "reserved"
         };
 }

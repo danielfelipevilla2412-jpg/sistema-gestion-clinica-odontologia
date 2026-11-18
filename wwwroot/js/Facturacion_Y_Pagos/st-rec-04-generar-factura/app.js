@@ -11,37 +11,59 @@ const safeGetElement = (id) => {
 
 // Formatea número como moneda colombiana (COP)
 const formatCurrency = (num) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0
-  }).format(num).replace('COP', '$').trim();
+  const formattedAmount = new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(Number(num) || 0);
+  return `$${formattedAmount} COP`;
+};
+
+const getApiErrorMessage = (response, fallback) => {
+  if (response?.message) return response.message;
+  if (response?.detail) return response.detail;
+  if (response?.errors && typeof response.errors === 'object') {
+    const errors = Object.values(response.errors).flat().filter(Boolean);
+    if (errors.length) return errors.join(' ');
+  }
+  return fallback;
 };
 
 // Extrae valor numérico de string con formato de moneda
 const parseCurrency = (str) => {
-  return parseInt(str.replace(/[^0-9]/g, ''), 10) || 0;
+  const normalized = String(str).trim().replace(/[^0-9,.-]/g, '');
+  const amount = normalized.includes(',')
+    ? Number(normalized.replace(/\./g, '').replace(',', '.'))
+    : Number(normalized.replace(/\./g, ''));
+  return Number.isFinite(amount) ? amount : 0;
 };
 
-// Muestra notificación temporal con auto-cierre y cleanup de timeout
+// Muestra notificación usando el servicio compartido del layout cuando está
+// disponible; si no, cae al contenedor local para mantener compatibilidad.
 const showToast = (message, type = 'success') => {
-  const toastContainer = safeGetElement('toastContainer');
+  const service = window.ToastService;
+  if (service && typeof service[type] === 'function') {
+    const titles = { success: 'Éxito', error: 'Error', info: 'Información' };
+    service[type](titles[type] || 'Aviso', message);
+    return;
+  }
+
+  const toastContainer = safeGetElement('toastContainer') || safeGetElement('toast-container');
   if (!toastContainer) return;
 
   const toast = document.createElement('div');
-  toast.className = `toast ${type === 'error' ? 'error' : type === 'info' ? 'info' : ''}`;
+  toast.className = `toast toast-${type}`;
   toast.setAttribute('role', 'alert');
 
-  const icon = type === 'error' ? '⚠️' : type === 'info' ? 'ℹ️' : '✅';
+  const icon = type === 'error' ? 'error' : type === 'info' ? 'info' : 'check_circle';
   const title = type === 'error' ? 'Error' : type === 'info' ? 'Información' : 'Éxito';
 
   toast.innerHTML = `
-    <span class="toast-icon" aria-hidden="true">${icon}</span>
+    <span class="material-symbols-outlined toast-icon" aria-hidden="true">${icon}</span>
     <div class="toast-content">
       <p class="toast-title">${title}</p>
-      <p class="toast-desc">${message}</p>
+      <p class="toast-message">${message}</p>
     </div>
-    <button class="toast-close" aria-label="Cerrar notificación">×</button>
+    <button class="toast-close" type="button" aria-label="Cerrar notificación">×</button>
   `;
 
   toastContainer.appendChild(toast);
@@ -60,8 +82,92 @@ const showToast = (message, type = 'success') => {
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 250);
   }, 4500);
-  
+
   toast._autoCloseTimeout = autoCloseTimeout;
+};
+
+// Actualiza solo la etiqueta textual del botón de pago, preservando su icono.
+const setBtnPayLabel = (btn, text) => {
+  if (!btn) return;
+  const label = btn.querySelector('.btn-pay-label');
+  if (label) label.textContent = text;
+  else btn.textContent = text;
+};
+
+const setPaymentError = (elementId, message = '') => {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  element.textContent = message;
+  element.hidden = !message;
+};
+
+const getPaymentPendingAmount = () => {
+  const totalEl = safeGetElement('invoiceTotal');
+  const total = totalEl ? parseCurrency(totalEl.textContent) : 0;
+  return window.currentInvoiceId ? window.currentInvoicePending : total;
+};
+
+const getPaymentPercentage = () => {
+  const percentageInput = document.getElementById('paymentPercentage');
+  if (!percentageInput || !percentageInput.value.trim()) return null;
+  const percentage = Number(percentageInput.value);
+  return Number.isFinite(percentage) && percentage > 0 && percentage <= 100
+    ? percentage
+    : null;
+};
+
+const validatePaymentPercentage = () => {
+  const input = document.getElementById('paymentPercentage');
+  if (!input || !input.value.trim()) {
+    setPaymentError('paymentPercentageError');
+    input?.setAttribute('aria-invalid', 'false');
+    return true;
+  }
+
+  const percentage = Number(input.value);
+  const message = !Number.isFinite(percentage) || percentage <= 0 || percentage > 100
+    ? 'Ingrese un porcentaje mayor que 0 y hasta 100.'
+    : '';
+  setPaymentError('paymentPercentageError', message);
+  input.setAttribute('aria-invalid', String(Boolean(message)));
+  return !message;
+};
+
+const validatePaymentAmount = (amount) => {
+  const input = safeGetElement('amountReceived');
+  let message = '';
+  if (amount <= 0) {
+    message = 'El monto del abono debe ser mayor que cero.';
+  } else {
+    const pending = getPaymentPendingAmount();
+    if (amount > pending) {
+      message = `El abono ingresado (${formatCurrency(amount)}) supera el saldo pendiente (${formatCurrency(pending)}). Ajusta el valor e inténtalo de nuevo.`;
+    }
+  }
+
+  setPaymentError('paymentAmountError', message);
+  input?.setAttribute('aria-invalid', String(Boolean(message)));
+  return !message;
+};
+
+const updatePaymentCalculation = () => {
+  const amountInput = document.getElementById('amountReceived');
+  const calculation = document.getElementById('paymentCalculation');
+  const button = document.getElementById('btnPay');
+  if (!amountInput || !calculation) return;
+
+  const pending = getPaymentPendingAmount();
+  const amount = parseCurrency(amountInput.value);
+  const percentage = getPaymentPercentage();
+  const paymentText = percentage === null
+    ? `Abono: ${formatCurrency(amount)}.`
+    : `Abono (${percentage}% del saldo): ${formatCurrency(amount)}.`;
+  calculation.textContent = `${paymentText} Saldo después del abono: ${formatCurrency(Math.max(pending - amount, 0))}.`;
+
+  if (button && !window.isPaid) {
+    setBtnPayLabel(button, `Registrar abono — ${formatCurrency(amount)}`);
+    button.setAttribute('aria-label', `Registrar abono de ${formatCurrency(amount)}`);
+  }
 };
 
 // Recalcula subtotal, descuentos y total de la factura
@@ -89,14 +195,17 @@ const recalculateInvoice = () => {
   const btnPay = safeGetElement('btnPay');
 
   if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
-  if (discountEl) discountEl.textContent = totalDiscount > 0 ? `- ${formatCurrency(totalDiscount)}` : '$0';
-  if (ivaEl) ivaEl.textContent = '$0';
+  if (discountEl) discountEl.textContent = totalDiscount > 0 ? `- ${formatCurrency(totalDiscount)}` : '$0 COP';
+  if (ivaEl) ivaEl.textContent = '$0 COP';
   if (totalEl) totalEl.textContent = formatCurrency(total);
 
   if (amountReceived && btnPay && !window.isPaid) {
-    amountReceived.value = formatCurrency(total);
-    btnPay.innerHTML = `✓ Registrar pago — ${formatCurrency(total)}`;
-    btnPay.setAttribute('aria-label', `Registrar pago de ${formatCurrency(total)}`);
+    const pending = window.currentInvoiceId ? window.currentInvoicePending : total;
+    const percentage = getPaymentPercentage();
+    amountReceived.value = formatCurrency(
+      percentage === null ? pending : Math.round(pending * percentage / 100)
+    );
+    updatePaymentCalculation();
   }
 };
 
@@ -126,7 +235,7 @@ const createInvoiceRow = (serviceData) => {
     </td>
     <td class="text-right item-total">${formatCurrency(price - discount)}</td>
     <td class="text-center no-print">
-      <button class="btn-delete" title="Eliminar" aria-label="Eliminar ${title} de la factura">✕</button>
+      <button class="btn-delete" type="button" title="Eliminar" aria-label="Eliminar ${title} de la factura"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
     </td>
   `;
   
@@ -208,7 +317,7 @@ const initPatientSelect = () => {
         return;
       }
       patientNameEl.textContent = option.text;
-      patientDocEl.textContent = option.dataset.doc || '—';
+      patientDocEl.textContent = '—';
     };
 
     pacienteSelect.addEventListener('change', updatePatient);
@@ -222,30 +331,39 @@ const initProfessionalSelect = () => {
   const invoiceProfessional = safeGetElement('invoiceProfessional');
 
   if (profesionalSelect && invoiceProfessional) {
-    profesionalSelect.addEventListener('change', (e) => {
-      invoiceProfessional.textContent = e.target.value;
-      showToast(`Profesional: ${e.target.value}`, 'info');
-    });
+    const updateProfessional = () => {
+      const option = profesionalSelect.options[profesionalSelect.selectedIndex];
+      invoiceProfessional.textContent = option.value ? option.textContent.trim() : 'Seleccione un profesional';
+    };
+    profesionalSelect.addEventListener('change', updateProfessional);
+    updateProfessional();
   }
 };
 
-// Valida que monto recibido cubra el total al perder foco
+// Normaliza el abono y valida que esté dentro del saldo pendiente.
 const initAmountValidation = () => {
   const amountReceived = safeGetElement('amountReceived');
-  if (!amountReceived) return;
+  const percentageInput = safeGetElement('paymentPercentage');
 
-  amountReceived.addEventListener('blur', (e) => {
+  amountReceived?.addEventListener('blur', (e) => {
     const val = parseCurrency(e.target.value);
     e.target.value = formatCurrency(val);
 
     if (!window.isPaid) {
-      const totalEl = safeGetElement('invoiceTotal');
-      const total = totalEl ? parseCurrency(totalEl.textContent) : 0;
-      
-      if (val < total) {
-        showToast('Monto insuficiente para cubrir el total', 'error');
-      }
+      validatePaymentAmount(val);
+      updatePaymentCalculation();
     }
+  });
+
+  percentageInput?.addEventListener('input', () => {
+    if (!validatePaymentPercentage()) return;
+
+    const percentage = getPaymentPercentage();
+    if (percentage !== null && amountReceived) {
+      amountReceived.value = formatCurrency(Math.round(getPaymentPendingAmount() * percentage / 100));
+      validatePaymentAmount(parseCurrency(amountReceived.value));
+    }
+    updatePaymentCalculation();
   });
 };
 
@@ -277,20 +395,144 @@ const initPrint = () => {
       idServicio,
       descripcion,
       cantidad: 1,
-      precioUnitario: Math.max(price - discount, 0)
+      precioUnitario: price,
+      descuento: discount
     };
   });
 };
 
-// Crea la factura en SQL Server (POST) y de inmediato registra el pago (POST)
-// contra la API real de FacturacionPagosController — reemplaza la simulación
-// que antes solo marcaba una bandera window.isPaid sin persistir nada.
+const showPaymentSuccess = (invoice, amount) => {
+  const overlay = safeGetElement('paymentSuccessOverlay');
+  if (!overlay) return;
+
+  safeGetElement('paymentSuccessMessage').textContent =
+    `El abono de ${formatCurrency(amount)} se registró correctamente en la factura ${invoice.numero}. ` +
+    `Saldo pendiente: ${formatCurrency(invoice.pendiente)}.`;
+  overlay.hidden = false;
+  overlay.setAttribute('aria-hidden', 'false');
+  safeGetElement('paymentSuccessSavedInvoices').focus();
+};
+
+const closePaymentSuccess = () => {
+  const overlay = safeGetElement('paymentSuccessOverlay');
+  if (!overlay) return;
+  overlay.hidden = true;
+  overlay.setAttribute('aria-hidden', 'true');
+  safeGetElement('btnSavedInvoices')?.focus();
+};
+
+const registerPayment = async (payment) => {
+  const btnPay = safeGetElement('btnPay');
+  if (!payment || !btnPay || btnPay.disabled) return;
+
+  btnPay.disabled = true;
+  setBtnPayLabel(btnPay, 'Registrando abono...');
+
+  try {
+    const result = window.currentInvoiceId
+      ? await window.apiRequest(`/api/facturas/${window.currentInvoiceId}/pagos`, {
+        method: 'POST',
+        body: { montoPagado: payment.amount, metodoPago: payment.metodoPago }
+      })
+      : await window.apiRequest('/api/facturas/registrar-con-pago', {
+        method: 'POST',
+        body: {
+          idPaciente: payment.idPaciente,
+          idProfesional: payment.idProfesional,
+          notas: null,
+          detalles: payment.items,
+          montoPagado: payment.amount,
+          metodoPago: payment.metodoPago
+        }
+      });
+
+    if (!result || result.success !== true) {
+      throw new Error(getApiErrorMessage(result, 'No fue posible guardar la factura y el abono.'));
+    }
+
+    const invoice = result.data;
+    const patientSelect = safeGetElement('pacienteSelect');
+    const patientOption = patientSelect?.options[patientSelect.selectedIndex];
+    const patientDocEl = safeGetElement('invoicePatientDoc');
+    if (patientDocEl) patientDocEl.textContent = patientOption?.dataset.doc || '—';
+    window.currentInvoiceId = invoice.id;
+    window.currentInvoicePaid = invoice.montoPagado;
+    window.currentInvoicePending = invoice.pendiente;
+    window.isPaid = invoice.estado === 'pagada';
+    const invoiceNumberEl = document.querySelector('.invoice-number');
+    if (invoiceNumberEl) invoiceNumberEl.textContent = invoice.numero;
+
+    const statusBadge = safeGetElement('statusBadge');
+    if (statusBadge) {
+      const statusText = window.isPaid ? 'Factura Pagada' : 'Pago parcial';
+      statusBadge.className = `status-badge status-${invoice.estado}`;
+      statusBadge.innerHTML = `<span aria-hidden="true"></span> ${statusText}`;
+      statusBadge.setAttribute('aria-label', `Estado: ${statusText}`);
+    }
+
+    ['pacienteSelect', 'profesionalSelect', 'servicioSelect', 'btnAddService'].forEach((id) => {
+      const element = safeGetElement(id);
+      if (element) element.disabled = true;
+    });
+    safeGetElement('invoiceItemsBody')?.querySelectorAll('.btn-delete').forEach((button) => {
+      button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
+    });
+
+    safeGetElement('invoicePaidSummary').hidden = false;
+    safeGetElement('invoiceBalanceSummary').hidden = false;
+    safeGetElement('invoicePaidAmount').textContent = formatCurrency(invoice.montoPagado);
+    safeGetElement('invoiceBalanceAmount').textContent = formatCurrency(invoice.pendiente);
+    const amountInput = safeGetElement('amountReceived');
+    const percentageInput = safeGetElement('paymentPercentage');
+    const methodSelect = safeGetElement('paymentMethod');
+    if (amountInput) {
+      amountInput.disabled = window.isPaid;
+      if (!window.isPaid) amountInput.value = formatCurrency(invoice.pendiente);
+    }
+    if (percentageInput) {
+      percentageInput.value = '';
+      percentageInput.disabled = window.isPaid;
+    }
+    if (methodSelect) methodSelect.disabled = window.isPaid;
+
+    btnPay.className = window.isPaid ? 'btn-secondary' : 'btn-success';
+    setBtnPayLabel(btnPay, window.isPaid ? 'Factura pagada' : `Registrar abono — ${formatCurrency(invoice.pendiente)}`);
+    btnPay.disabled = window.isPaid;
+    btnPay.setAttribute('aria-disabled', String(window.isPaid));
+    updatePaymentCalculation();
+
+    showPaymentSuccess(invoice, payment.amount);
+  } catch (error) {
+    const message = error.message || 'No fue posible registrar el pago. Verifica los datos e inténtalo de nuevo.';
+    showToast(message, 'error');
+  } finally {
+    btnPay.disabled = Boolean(window.isPaid);
+    btnPay.setAttribute('aria-disabled', String(Boolean(window.isPaid)));
+    if (!window.isPaid) updatePaymentCalculation();
+  }
+};
+
 const initPayment = () => { 
   const btnPay = safeGetElement('btnPay');
   if (!btnPay) return;
 
-  
-    btnPay.addEventListener('click', async () => {
+  const successOverlay = safeGetElement('paymentSuccessOverlay');
+
+  const amountInput = safeGetElement('amountReceived');
+  const percentageInput = safeGetElement('paymentPercentage');
+  amountInput?.addEventListener('input', () => {
+    setPaymentError('paymentAmountError');
+    amountInput.setAttribute('aria-invalid', 'false');
+    if (percentageInput) {
+      percentageInput.value = '';
+      setPaymentError('paymentPercentageError');
+      percentageInput.setAttribute('aria-invalid', 'false');
+    }
+    updatePaymentCalculation();
+  });
+
+  btnPay.addEventListener('click', () => {
     if (window.isPaid) {
       showToast('Esta factura ya ha sido pagada', 'info');
       return;
@@ -299,14 +541,22 @@ const initPayment = () => {
     const profesionalSelect = safeGetElement('profesionalSelect');
     const totalEl = safeGetElement('invoiceTotal');
     const amountReceived = safeGetElement('amountReceived');
-    
-    
+
     if (!totalEl || !amountReceived || !pacienteSelect) return;
+    if (!validatePaymentPercentage()) {
+      percentageInput.focus();
+      return;
+    }
     const idPaciente = parseInt(pacienteSelect.value, 10);
-    const idProfesional = profesionalSelect?.value ? parseInt(profesionalSelect.value, 10) : null;
+    const idProfesional = parseInt(profesionalSelect?.value || '', 10);
     if (!idPaciente) {
       showToast('Seleccione un paciente antes de registrar el pago.', 'error');
       pacienteSelect.focus();
+      return;
+    }
+    if (!Number.isInteger(idProfesional) || idProfesional <= 0) {
+      showToast('Seleccione un profesional antes de registrar el pago.', 'error');
+      profesionalSelect?.focus();
       return;
     }
 
@@ -316,159 +566,201 @@ const initPayment = () => {
       return;
     }
     const total = parseCurrency(totalEl.textContent);
-    const received = parseCurrency(amountReceived.value);
+    const amount = parseCurrency(amountReceived.value);
+    const pendingBefore = window.currentInvoiceId ? window.currentInvoicePending : total;
 
-    if (received < total) {
-      showToast(`Pago insuficiente. Total: ${formatCurrency(total)}`, 'error');
+    if (!validatePaymentAmount(amount)) {
+      amountReceived.focus();
       return;
     }
 
-    
-    btnPay.disabled = true;
-    btnPay.setAttribute('aria-disabled', 'true');
-
-    try {
-      // 1) Crear la factura real en SQL Server.
-      const creado = await window.apiRequest('/api/facturas', {
-        method: 'POST',
-        body: { idPaciente, idProfesional, notas: null, detalles: items }
-      });
-
-      if (!creado || creado.success !== true) {
-        showToast(creado?.message || 'No fue posible registrar la factura.', 'error');
-        btnPay.disabled = false;
-        btnPay.removeAttribute('aria-disabled');
-        return;
-      }
-
-      const idFactura = creado.data.id;
-
-      // 2) Registrar el pago recibido sobre esa factura.
-      const pago = await window.apiRequest(`/api/facturas/${idFactura}/pagos`, {
-        method: 'POST',
-        body: { montoPagado: total }
-      });
-
-      if (!pago || pago.success !== true) {
-        showToast(pago?.message || 'La factura se creó pero no fue posible registrar el pago.', 'error');
-        btnPay.disabled = false;
-        btnPay.removeAttribute('aria-disabled');
-        return;
-      }
-    window.isPaid = true;
-
-    // Actualiza número de factura visible con el generado por el servidor.
-      const invoiceNumberEl = document.querySelector('.invoice-number');
-      if (invoiceNumberEl) invoiceNumberEl.textContent = creado.data.numero;
-
-    // Actualiza badge de estado visual y ARIA
-    const statusBadge = safeGetElement('statusBadge');
-    if (statusBadge) {
-      statusBadge.className = 'status-badge status-pagada';
-      statusBadge.innerHTML = '<span aria-hidden="true"></span> Factura Pagada';
-      statusBadge.setAttribute('aria-label', 'Estado: Factura pagada');
-    }
-
-    // Deshabilita controles de edición
-    const profesionalSelect = safeGetElement('profesionalSelect');
-    const servicioSelect = safeGetElement('servicioSelect');
-    const btnAddService = safeGetElement('btnAddService');
-    const paymentMethod = safeGetElement('paymentMethod');
-
-    if (pacienteSelect) pacienteSelect.disabled = true;
-    if (profesionalSelect) profesionalSelect.disabled = true;
-    if (servicioSelect) servicioSelect.disabled = true;
-    if (btnAddService) {
-      btnAddService.disabled = true;
-      btnAddService.style.opacity = '.6';
-      btnAddService.setAttribute('aria-disabled', 'true');
-    }
-    if (amountReceived) amountReceived.disabled = true;
-    if (paymentMethod) paymentMethod.disabled = true;
-
-    // Deshabilita botones de eliminar en items
-    const itemsBody = safeGetElement('invoiceItemsBody');
-    if (itemsBody) {
-      itemsBody.querySelectorAll('.btn-delete').forEach(btn => {
-        btn.disabled = true;
-        btn.style.opacity = '.4';
-        btn.setAttribute('aria-disabled', 'true');
-      });
-    }
-
-    // Actualiza botón de pago
-    btnPay.className = 'btn-secondary';
-    btnPay.innerHTML = '✓ Factura Pagada';
-    btnPay.disabled = true;
-    btnPay.setAttribute('aria-disabled', 'true');
-
-    // Calcula y muestra cambio si aplica
-    const change = received - total;
-    if (change > 0) {
-      showToast(`✓ Factura ${creado.data.numero} registrada. Cambio: ${formatCurrency(change)}`, 'success');
-    } else {
-       showToast(`✓ Factura ${creado.data.numero} registrada y pagada exitosamente`, 'success');
-      }
-    } catch (error) {
-      console.error('Error al registrar la factura/pago:', error);
-      showToast('Error de conexión al registrar la factura.', 'error');
-      btnPay.disabled = false;
-      btnPay.removeAttribute('aria-disabled');
-    }
-  });
-};
-
-// Inicializa menú móvil con gestión de foco y atributos ARIA
-const initMobileMenu = () => {
-  const ham = safeGetElement('hamburger');
-  const sb = safeGetElement('sidebar');
-  const ov = safeGetElement('overlay');
-
-  if (!ham || !sb || !ov) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sb.classList.add('open');
-      ov.classList.add('open');
-      ham.setAttribute('aria-expanded', 'true');
-      ov.setAttribute('aria-hidden', 'false');
-      sb.dataset.previousFocus = document.activeElement?.id || '';
-      const firstLink = sb.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sb.classList.remove('open');
-      ov.classList.remove('open');
-      ham.setAttribute('aria-expanded', 'false');
-      ov.setAttribute('aria-hidden', 'true');
-      const prevFocus = sb.dataset.previousFocus;
-      if (prevFocus) safeGetElement(prevFocus)?.focus();
-      else ham.focus();
-    }
-  };
-
-  ham.addEventListener('click', () => toggleMenu(true));
-  ov.addEventListener('click', () => toggleMenu(false));
-
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
+    registerPayment({
+      idPaciente,
+      idProfesional,
+      items,
+      total,
+      amount,
+      previousPaid: window.currentInvoicePaid || 0,
+      pendingBefore,
+      percentage: getPaymentPercentage(),
+      metodoPago: safeGetElement('paymentMethod')?.value || 'efectivo'
     });
   });
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sb.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
+  safeGetElement('paymentSuccessClose')?.addEventListener('click', closePaymentSuccess);
+  safeGetElement('paymentSuccessCloseFooter')?.addEventListener('click', closePaymentSuccess);
+  safeGetElement('paymentSuccessSavedInvoices')?.addEventListener('click', () => {
+    closePaymentSuccess();
+    openSavedInvoices();
+  });
+  successOverlay?.addEventListener('click', (event) => {
+    if (event.target === successOverlay) closePaymentSuccess();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && successOverlay && !successOverlay.hidden) closePaymentSuccess();
   });
 };
 
+const formatInvoiceDate = (value, includeTime = false) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('es-CO', includeTime
+    ? { dateStyle: 'medium', timeStyle: 'short' }
+    : { dateStyle: 'medium' }).format(date);
+};
+
+const addInvoiceCell = (row, value) => {
+  const cell = document.createElement('td');
+  cell.textContent = value;
+  row.appendChild(cell);
+};
+
+const renderSavedInvoiceDetail = (invoice) => {
+  const detail = safeGetElement('savedInvoiceDetail');
+  const fields = {
+    savedInvoicePatient: invoice.paciente,
+    savedInvoiceDocument: invoice.documento,
+    savedInvoiceDate: formatInvoiceDate(invoice.fecha),
+    savedInvoiceSubtotal: formatCurrency(invoice.subtotal),
+    savedInvoiceTotal: formatCurrency(invoice.total),
+    savedInvoicePaid: formatCurrency(invoice.montoPagado),
+    savedInvoicePending: formatCurrency(invoice.pendiente),
+    savedInvoiceStatus: invoice.estado
+  };
+  Object.entries(fields).forEach(([id, value]) => {
+    safeGetElement(id).textContent = value || '—';
+  });
+
+  const services = safeGetElement('savedInvoiceServices');
+  services.replaceChildren();
+  (invoice.detalles || []).forEach((service) => {
+    const item = document.createElement('li');
+    item.textContent = `${service.descripcion} · ${service.cantidad} × ${formatCurrency(service.precioUnitario)} · Descuento ${formatCurrency(service.descuento)} · Subtotal neto ${formatCurrency(service.subtotal)}`;
+    services.appendChild(item);
+  });
+  if (!invoice.detalles?.length) {
+    const item = document.createElement('li');
+    item.textContent = 'La factura no tiene servicios detallados.';
+    services.appendChild(item);
+  }
+
+  const payments = safeGetElement('savedInvoicePayments');
+  payments.replaceChildren();
+  (invoice.pagos || []).forEach((payment) => {
+    const item = document.createElement('li');
+    item.textContent = `${formatInvoiceDate(payment.fechaPago, true)} · ${formatCurrency(payment.monto)} · ${payment.metodoPago} · ${payment.estado} · Ref. ${payment.referencia}`;
+    payments.appendChild(item);
+  });
+  if (!invoice.pagos?.length) {
+    const item = document.createElement('li');
+    item.textContent = 'No hay abonos registrados.';
+    payments.appendChild(item);
+  }
+  detail.hidden = false;
+};
+
+const loadSavedInvoiceDetail = async (invoiceId, button) => {
+  const message = safeGetElement('savedInvoicesMessage');
+  button.disabled = true;
+  message.textContent = 'Cargando detalle de la factura...';
+  try {
+    const response = await window.apiRequest(`/api/facturas/${invoiceId}`);
+    if (!response?.success || !response.data) throw new Error(getApiErrorMessage(response, 'No fue posible consultar el detalle.'));
+    renderSavedInvoiceDetail(response.data);
+    message.textContent = `Detalle de la factura ${response.data.numero}.`;
+  } catch (error) {
+    message.textContent = error.message || 'No fue posible consultar el detalle de la factura.';
+  } finally {
+    button.disabled = false;
+  }
+};
+
+const loadSavedInvoices = async () => {
+  const rows = safeGetElement('savedInvoicesRows');
+  const message = safeGetElement('savedInvoicesMessage');
+  const detail = safeGetElement('savedInvoiceDetail');
+  rows.replaceChildren();
+  detail.hidden = true;
+  message.textContent = 'Consultando facturas guardadas...';
+
+  try {
+    const response = await window.apiRequest('/api/facturas');
+    if (!response?.success || !Array.isArray(response.data)) throw new Error(getApiErrorMessage(response, 'No fue posible consultar las facturas.'));
+
+    if (response.data.length === 0) {
+      message.textContent = 'No hay facturas guardadas.';
+      return;
+    }
+
+    response.data.forEach((invoice) => {
+      const row = document.createElement('tr');
+      addInvoiceCell(row, invoice.numero);
+      addInvoiceCell(row, formatInvoiceDate(invoice.fecha));
+      addInvoiceCell(row, `${invoice.paciente} · ${invoice.documento}`);
+      addInvoiceCell(row, invoice.servicios || '—');
+      addInvoiceCell(row, formatCurrency(invoice.subtotal));
+      addInvoiceCell(row, formatCurrency(invoice.total));
+      addInvoiceCell(row, formatCurrency(invoice.montoPagado));
+      addInvoiceCell(row, formatCurrency(invoice.pendiente));
+      addInvoiceCell(row, invoice.estado);
+
+      const actionCell = document.createElement('td');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'saved-invoice-select';
+      button.textContent = 'Consultar';
+      button.setAttribute('aria-label', `Consultar factura ${invoice.numero}`);
+      button.addEventListener('click', () => loadSavedInvoiceDetail(invoice.id, button));
+      actionCell.appendChild(button);
+      row.appendChild(actionCell);
+      rows.appendChild(row);
+    });
+    message.textContent = `${response.data.length} factura(s) consultada(s) desde la base de datos.`;
+  } catch (error) {
+    message.textContent = error.message || 'No fue posible consultar las facturas guardadas.';
+  }
+};
+
+const initSavedInvoiceLookup = () => {
+  const overlay = safeGetElement('savedInvoicesOverlay');
+  const openButton = safeGetElement('btnSavedInvoices');
+  const closeButtons = [safeGetElement('savedInvoicesClose'), safeGetElement('savedInvoicesDone')];
+  if (!overlay || !openButton) return;
+
+  const close = () => {
+    overlay.hidden = true;
+    overlay.setAttribute('aria-hidden', 'true');
+    openButton.focus();
+  };
+  openButton.addEventListener('click', openSavedInvoices);
+  closeButtons.forEach((button) => button.addEventListener('click', close));
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) close();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !overlay.hidden) close();
+  });
+};
+
+const openSavedInvoices = () => {
+  const overlay = safeGetElement('savedInvoicesOverlay');
+  if (!overlay) return;
+  overlay.hidden = false;
+  overlay.setAttribute('aria-hidden', 'false');
+  safeGetElement('savedInvoicesClose')?.focus();
+  loadSavedInvoices();
+};
 
 // Función principal de inicialización
 const init = () => {
   window.isPaid = false;
+  window.currentInvoiceId = null;
+  window.currentInvoicePaid = 0;
+  window.currentInvoicePending = 0;
 
-  initMobileMenu();
+  // El sidebar, hamburger, overlay y grupos de navegación los gestiona
+  // el sidebar.js compartido del layout (_Layout.cshtml).
   recalculateInvoice();
   initDeleteHandlers();
   initPatientSelect();
@@ -476,6 +768,7 @@ const init = () => {
   initAmountValidation();
   initPrint();
   initPayment();
+  initSavedInvoiceLookup();
 
   const btnAddService = safeGetElement('btnAddService');
   if (btnAddService) {

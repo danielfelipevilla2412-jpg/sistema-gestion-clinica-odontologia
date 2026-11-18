@@ -24,7 +24,15 @@ public class CitaHistorialYNotificacionesTests
         // Seed data
         db.Pacientes.Add(new Paciente { IdPaciente = 1, Nombres = "Juan", Apellidos = "Pérez", Estado = "activo" });
         db.Profesionales.Add(new Profesional { IdProfesional = 1, Nombres = "Ana", Apellidos = "Gómez", Estado = "activo" });
-        db.Servicios.Add(new Servicio { IdServicio = 1, Nombre = "Limpieza", DuracionMinutos = 30, Estado = "activo" });
+        db.Especialidades.Add(new Especialidad { IdEspecialidad = 1, Nombre = "Odontología General" });
+        db.Servicios.Add(new Servicio
+        {
+            IdServicio = 1,
+            Nombre = "Limpieza",
+            DuracionMinutos = 30,
+            Estado = "activo",
+            IdEspecialidad = 1
+        });
         db.Consultorios.Add(new Consultorio { IdConsultorio = 1, Nombre = "Consultorio 101", Estado = "disponible" });
 
         db.EstadosCita.Add(new EstadoCita { IdEstado = 1, NombreEstado = "Programada" });
@@ -46,6 +54,22 @@ public class CitaHistorialYNotificacionesTests
         }
 
         db.SaveChanges();
+
+        // La prueba debe preparar las mismas relaciones requeridas en producción.
+        db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+        {
+            IdProfesional = 1,
+            IdEspecialidad = 1,
+            Principal = true
+        });
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = 1,
+            IdServicio = 1,
+            Activo = true
+        });
+
+        db.SaveChanges();
         return db;
     }
 
@@ -55,7 +79,10 @@ public class CitaHistorialYNotificacionesTests
         var db = CreateInMemoryDb($"db_crear_{Guid.NewGuid()}");
         var service = new CitaService(db, NullLogger<CitaService>.Instance);
 
-        var fecha = DateTime.Today.AddDays(2).AddHours(10);
+        var fecha = DateTime.Today.AddDays(2);
+        if (fecha.DayOfWeek == DayOfWeek.Sunday)
+            fecha = fecha.AddDays(1);
+        fecha = fecha.AddHours(10);
 
         var request = new CitaApiRequest
         {
@@ -89,7 +116,10 @@ public class CitaHistorialYNotificacionesTests
         var db = CreateInMemoryDb($"db_cambiar_{Guid.NewGuid()}");
         var service = new CitaService(db, NullLogger<CitaService>.Instance);
 
-        var fecha = DateTime.Today.AddDays(2).AddHours(10);
+        var fecha = DateTime.Today.AddDays(2);
+        if (fecha.DayOfWeek == DayOfWeek.Sunday)
+            fecha = fecha.AddDays(1);
+        fecha = fecha.AddHours(10);
         var request = new CitaApiRequest
         {
             IdPaciente = 1,
@@ -121,7 +151,10 @@ public class CitaHistorialYNotificacionesTests
         var db = CreateInMemoryDb($"db_cancelar_{Guid.NewGuid()}");
         var service = new CitaService(db, NullLogger<CitaService>.Instance);
 
-        var fecha = DateTime.Today.AddDays(2).AddHours(10);
+        var fecha = DateTime.Today.AddDays(2);
+        if (fecha.DayOfWeek == DayOfWeek.Sunday)
+            fecha = fecha.AddDays(1);
+        fecha = fecha.AddHours(10);
         var request = new CitaApiRequest
         {
             IdPaciente = 1,
@@ -133,7 +166,7 @@ public class CitaHistorialYNotificacionesTests
         };
         var cita = await service.CrearAsync(request);
 
-        bool cancelado = await service.CancelarAsync(cita.IdCita);
+        bool cancelado = await service.CancelarAsync(cita.IdCita, "Cancelación solicitada");
 
         Assert.True(cancelado);
 

@@ -36,4 +36,6 @@ public sealed class CitaApiUpdateDto
 
     [Range(1, int.MaxValue, ErrorMessage = "El identificador de estado no es válido.")]
     public int? IdEstado { get; set; }
+
+    public int? IdUsuarioModificacion { get; set; }
 }

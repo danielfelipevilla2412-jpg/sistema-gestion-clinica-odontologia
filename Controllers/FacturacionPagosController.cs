@@ -27,6 +27,7 @@
         {
             var facturasDb = await _context.Facturas
                 .Include(f => f.Paciente)
+                .Include(f => f.Pagos)
                 .OrderByDescending(f => f.FechaFactura)
                 .ToListAsync();
 
@@ -39,18 +40,17 @@
             var facturas = facturasDb.Select((f, idx) => new
             {
                 id = f.IdFactura,
-                idCita = f.IdCita,
-                idProfesional = f.IdProfesional,
                 number = f.NumeroFactura,
                 patient = f.Paciente != null ? $"{f.Paciente.Nombres} {f.Paciente.Apellidos}" : "Paciente",
                 doc = f.Paciente != null ? f.Paciente.Documento : "N/A",
                 date = f.FechaFactura.ToString("yyyy-MM-dd"),
                 total = f.Total,
-                pending = Math.Max(f.Total - f.MontoPagado, 0),
+                paid = f.MontoPagado,
+                fechaPago = f.FechaPago,
                 status = f.Estado,
                 avatar = f.Paciente != null ? $"{f.Paciente.Nombres.FirstOrDefault()}{f.Paciente.Apellidos.FirstOrDefault()}".ToUpper() : "PA",
                 color = colores[idx % colores.Length],
-                history = new object[] { }
+                history = f.Pagos.Select(p => new { date = p.FechaUtc.ToString("yyyy-MM-dd"), type = "pago" }).ToList()
             }).ToList();
 
             ViewData["FacturasJson"] = System.Text.Json.JsonSerializer.Serialize(facturas);
@@ -62,10 +62,48 @@
         [Route("facturacion-y-pagos/st-rec-04-generar-factura")]
         public async Task<IActionResult> Strec04GenerarFactura()
         {
-            var pacientes = await _context.Pacientes.Where(p => p.Estado == "activo").ToListAsync();
-            var servicios = await _context.Servicios.Where(s => s.Estado == "activo").ToListAsync();
+            var pacientes = await _context.Pacientes
+                .AsNoTracking()
+                .Where(p => p.Estado == "activo")
+                .OrderBy(p => p.Nombres)
+                .ThenBy(p => p.Apellidos)
+                .Select(p => new Paciente
+                {
+                    IdPaciente = p.IdPaciente,
+                    TipoDocumento = p.TipoDocumento,
+                    Documento = p.Documento,
+                    Nombres = p.Nombres,
+                    Apellidos = p.Apellidos
+                })
+                .ToListAsync();
+            var servicios = await _context.Servicios
+                .AsNoTracking()
+                .Where(s => s.Estado == "activo")
+                .OrderBy(s => s.Nombre)
+                .Select(s => new Servicio
+                {
+                    IdServicio = s.IdServicio,
+                    Nombre = s.Nombre,
+                    Descripcion = s.Descripcion,
+                    Precio = s.Precio
+                })
+                .ToListAsync();
+            var profesionales = await _context.Profesionales
+                .AsNoTracking()
+                .Where(p => p.Estado == "activo")
+                .OrderBy(p => p.Nombres)
+                .ThenBy(p => p.Apellidos)
+                .Select(p => new Profesional
+                {
+                    IdProfesional = p.IdProfesional,
+                    Nombres = p.Nombres,
+                    Apellidos = p.Apellidos
+                })
+                .ToListAsync();
+
             ViewData["Pacientes"] = pacientes;
             ViewData["Servicios"] = servicios;
+            ViewData["Profesionales"] = profesionales;
             return View("~/Views/Facturacion_Y_Pagos/st-rec-04-generar-factura/index.cshtml");
         }
     } 

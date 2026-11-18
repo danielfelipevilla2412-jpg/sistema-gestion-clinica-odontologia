@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 
 namespace SmileTrack_MVC.Controllers.Api;
 
@@ -13,10 +15,17 @@ namespace SmileTrack_MVC.Controllers.Api;
 public class MobileHistoriaClinicaController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly AuditoriaHistoriaClinicaService _auditoria;
+    private readonly IPerfilPacienteService _perfilPacienteService;
 
-    public MobileHistoriaClinicaController(AppDbContext context)
+    public MobileHistoriaClinicaController(
+        AppDbContext context,
+        AuditoriaHistoriaClinicaService auditoria,
+        IPerfilPacienteService perfilPacienteService)
     {
         _context = context;
+        _auditoria = auditoria;
+        _perfilPacienteService = perfilPacienteService;
     }
 
     [HttpGet]
@@ -29,6 +38,16 @@ public class MobileHistoriaClinicaController : ControllerBase
         if (!int.TryParse(idUsuarioTexto, out int idUsuario))
         {
             return Unauthorized();
+        }
+
+        if (!await _perfilPacienteService.PerfilCompletoAsync(idUsuario, cancellationToken))
+        {
+            return Conflict(new
+            {
+                code = "PROFILE_INCOMPLETE",
+                message = "Confirma tus datos personales antes de consultar tu historia clínica.",
+                profileUrl = "/perfiles/st-pac-perfil-paciente"
+            });
         }
 
         var paciente = await _context.Pacientes
@@ -58,6 +77,21 @@ public class MobileHistoriaClinicaController : ControllerBase
                 activa = h.Activa
             })
             .ToListAsync(cancellationToken);
+
+        if (historias.Count > 0)
+        {
+            foreach (var historia in historias)
+            {
+                _auditoria.Agregar(
+                    HttpContext,
+                    "SELECT",
+                    "Historia_Clinica",
+                    historia.id,
+                    "Consulta de historia clínica desde la API móvil.");
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
 
         return Ok(historias);
     }

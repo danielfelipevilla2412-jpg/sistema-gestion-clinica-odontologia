@@ -1,69 +1,64 @@
-/**
- * SMILETRACK — SEGUIMIENTO TRATAMIENTOS (seguimiento.js)
- * Versión con filtros avanzados, búsqueda y paginación
- */
-
-// ═══════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN API
-// ═══════════════════════════════════════════════════════════════════
-const API_BASE = '/api';
-
-// ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES GLOBALES
-// ═══════════════════════════════════════════════════════════════════
+(() => {
+'use strict';
 
 const safeGetElement = (id) => {
   const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
   return el;
+};
+
+const t = (key, values) => {
+  if (!window.I18N || typeof window.I18N.t !== 'function') {
+    throw new Error('El servicio de traducción no está disponible.');
+  }
+  return window.I18N.t(key, values);
 };
 
 const debounce = (fn, delay) => {
   let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
+  return function (...args) {
+    window.clearTimeout(timeoutId);
+    timeoutId = window.setTimeout(() => fn(...args), delay);
   };
 };
 
 const showToast = (message, type = 'success') => {
-  const toast = safeGetElement('toast');
-  if (!toast) return;
-
-  toast.textContent = message;
-  toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
-
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
+  const service = window.ToastService;
+  if (!service || typeof service[type] !== 'function') {
+    console.error('[SmileTrack] El servicio de notificaciones no está disponible.');
+    return;
+  }
+  const titleKey = type === 'warning' ? 'toast.warning_title'
+    : type === 'error' ? 'toast.error_title' : 'toast.success_title';
+  service[type](t(titleKey), message);
 };
+
+const escapeHtml = (value) => String(value ?? '')
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#39;');
 
 // ═══════════════════════════════════════════════════════════════════
 //  DATOS Y CONFIGURACIÓN GLOBAL
 // ═══════════════════════════════════════════════════════════════════
 
-const AVATAR_COLORS = ['#3b82f6','#22c55e','#f59e0b','#9333ea','#ef4444','#0ea5e9','#ec4899'];
-
-const avatarColor = (n) => {
-  let h = 0;
-  for (let i = 0; i < n.length; i++) h = n.charCodeAt(i) + ((h << 5) - h);
-  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
-};
-
-const getInitials = (n) => {
-  const p = n.trim().split(' ');
-  return (p[0]?.[0] || '') + (p[1]?.[0] || '');
-};
-
 const fmtFecha = (iso) => {
   if (!iso) return null;
-  const [y, m, d] = iso.split('-');
-  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  return `${parseInt(d)} ${meses[parseInt(m)-1]} ${y}`;
+  const date = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? null
+    : new Intl.DateTimeFormat(t('odo07.date_locale'), { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
 };
 
 // Estado global de la aplicación
 let allTratamientos = [];
 let tratamientosFiltrados = [];
+// Yeray: Mantiene sesiones y referencias cargadas para mostrar el conteo real y sus vínculos en cada plan.
+let allSesiones = [];
+let opcionesCitasSesion = [];
+let opcionesNotasSesion = [];
+let datosOpcionesPlan = {};
 let paginaActual = 1;
 let tratamientosPorPagina = 10;
 
@@ -73,7 +68,7 @@ let tratamientosPorPagina = 10;
 
 const updateStats = (data) => {
   const total = data.length;
-  const enCurso = data.filter(t => t.estado === 'en-curso').length;
+  const enCurso = data.filter(t => ['aprobado', 'en-curso'].includes(t.estado)).length;
   const completado = data.filter(t => t.estado === 'completado').length;
   const pausado = data.filter(t => t.estado === 'pausado').length;
   
@@ -100,7 +95,7 @@ const populateFilters = (data) => {
   const filterPaciente = safeGetElement('filterPaciente');
   if (filterPaciente) {
     const currentValue = filterPaciente.value;
-    filterPaciente.innerHTML = '<option value="">Todos los pacientes</option>';
+    filterPaciente.replaceChildren(new Option(t('odo07.all_patients'), ''));
     pacientes.forEach(p => {
       const option = document.createElement('option');
       option.value = p;
@@ -113,7 +108,7 @@ const populateFilters = (data) => {
   const filterTipo = safeGetElement('filterTipo');
   if (filterTipo) {
     const currentValue = filterTipo.value;
-    filterTipo.innerHTML = '<option value="">Todos los tipos</option>';
+    filterTipo.replaceChildren(new Option(t('odo07.all_types'), ''));
     tipos.forEach(t => {
       const option = document.createElement('option');
       option.value = t;
@@ -126,7 +121,7 @@ const populateFilters = (data) => {
   const filterOdontologo = safeGetElement('filterOdontologo');
   if (filterOdontologo) {
     const currentValue = filterOdontologo.value;
-    filterOdontologo.innerHTML = '<option value="">Todos los odontólogos</option>';
+    filterOdontologo.replaceChildren(new Option(t('odo07.all_professionals'), ''));
     odontologos.forEach(o => {
       const option = document.createElement('option');
       option.value = o;
@@ -199,11 +194,11 @@ const renderizarPaginacion = () => {
   const totalPaginas = getTotalPaginas();
   
   if (totalPaginas <= 1) {
-    pagination.style.display = 'none';
+    pagination.hidden = true;
     return;
   }
   
-  pagination.style.display = 'flex';
+  pagination.hidden = false;
   
   if (btnFirst) btnFirst.disabled = paginaActual === 1;
   if (btnPrev) btnPrev.disabled = paginaActual === 1;
@@ -222,9 +217,10 @@ const renderizarPaginacion = () => {
   for (let i = startPage; i <= endPage; i++) {
     const btn = document.createElement('button');
     btn.className = `pagination-btn ${i === paginaActual ? 'active' : ''}`;
+    btn.type = 'button';
     btn.textContent = i;
-    btn.setAttribute('aria-label', `Página ${i}`);
-    btn.setAttribute('aria-current', i === paginaActual ? 'page' : 'false');
+    btn.setAttribute('aria-label', t('odo07.page_number', { number: i }));
+    if (i === paginaActual) btn.setAttribute('aria-current', 'page');
     btn.addEventListener('click', () => {
       paginaActual = i;
       renderizarTodo();
@@ -248,83 +244,94 @@ const renderLista = () => {
   if (!tratamientosPagina.length) {
     list.innerHTML = '';
     if (empty) {
-      empty.style.display = 'block';
-      empty.setAttribute('aria-hidden', 'false');
+      empty.hidden = false;
     }
     return;
   }
   
   if (empty) {
-    empty.style.display = 'none';
-    empty.setAttribute('aria-hidden', 'true');
+    empty.hidden = true;
   }
 
   list.innerHTML = tratamientosPagina.map(t => buildCard(t)).join('');
 
-  requestAnimationFrame(() => {
-    document.querySelectorAll('.prog-bar[data-width]').forEach(bar => {
-      bar.style.width = bar.dataset.width + '%';
-    });
-  });
 };
 
-const buildCard = (t) => {
-  const color = avatarColor(t.paciente);
-  const inits = getInitials(t.paciente);
-
+const buildCard = (treatment) => {
   const badgeMap = {
-    'en-curso':   { cls: 'badge-en-curso', label: 'En curso' },
-    'completado': { cls: 'badge-completado', label: 'Completado' },
-    'pausado':    { cls: 'badge-pausado', label: 'Pausado' },
+    propuesto: { cls: 'pendiente', label: 'odo07.status_proposed' },
+    aprobado: { cls: 'en-curso', label: 'odo07.status_approved' },
+    'en-curso': { cls: 'en-curso', label: 'odo07.status_in_progress' },
+    completado: { cls: 'completada', label: 'odo07.status_completed' },
+    pausado: { cls: 'pendiente', label: 'odo07.status_paused' },
+    cancelado: { cls: 'cancelado', label: 'odo07.status_cancelled' }
   };
-  const badge = badgeMap[t.estado] || badgeMap['pausado'];
-
-  let barClass = 'bar-orange', pctClass = 'pct-orange';
-  if (t.estado === 'completado') { barClass = 'bar-green'; pctClass = 'pct-green'; }
-  if (t.estado === 'pausado')    { barClass = 'bar-red'; pctClass = 'pct-red'; }
-
-  let footer = '';
-  if (t.estado === 'en-curso') {
-    footer = `
-      <span class="trat-meta">Inicio: <strong><time datetime="${t.inicio}">${fmtFecha(t.inicio) || '—'}</time></strong></span>
-      <span class="trat-meta">Estimado: <strong><time datetime="${t.estimado}">${fmtFecha(t.estimado) || '—'}</time></strong></span>
-      <span class="trat-meta">Sesiones: <strong>${t.sesiones} de ${t.totalSesiones}</strong></span>
-    `;
-  } else if (t.estado === 'completado') {
-    footer = `
-      <span class="trat-meta">Finalizado: <strong><time datetime="${t.finalizado}">${fmtFecha(t.finalizado) || '—'}</time></strong></span>
-      <span class="trat-meta">Sesiones: <strong>${t.sesiones} de ${t.totalSesiones}</strong></span>
-    `;
-  } else if (t.estado === 'pausado') {
-    footer = `
-      <span class="trat-meta pausado-note">${t.nota || 'Pausado'}</span>
-      <span class="trat-meta" style="margin-left:auto">Sesiones: <strong>${t.sesiones} de ${t.totalSesiones}</strong></span>
-    `;
-  }
-
+  const badge = badgeMap[treatment.estado] || badgeMap.propuesto;
+  const estadoClase = badgeMap[treatment.estado] ? treatment.estado : 'propuesto';
+  const id = Number(treatment.id);
+  const estados = [
+    ['propuesto', 'odo07.status_proposed'], ['aprobado', 'odo07.status_approved'],
+    ['en-curso', 'odo07.status_in_progress'], ['pausado', 'odo07.status_paused'],
+    ['completado', 'odo07.status_completed'], ['cancelado', 'odo07.status_cancelled']
+  ];
+  const options = estados.map(([value, label]) =>
+    `<option value="${value}"${treatment.estado === value ? ' selected' : ''}>${escapeHtml(t(label))}</option>`
+  ).join('');
+  const fecha = treatment.inicio ? String(treatment.inicio).slice(0, 10) : '';
+  const sesionesEstimadas = Number(treatment.sesionesEstimadas || 0);
+  const sesionesRealizadas = Number(treatment.sesionesRealizadas || 0);
+  const progreso = sesionesEstimadas > 0 ? Math.min(100, Math.round(sesionesRealizadas * 100 / sesionesEstimadas)) : 0;
+  const superaEstimacion = sesionesRealizadas > sesionesEstimadas;
+  const sesionesPlan = allSesiones.filter(s => Number(s.planId) === id);
+  const sesionesHtml = sesionesPlan.length
+    ? sesionesPlan.map(s => `
+        <div class="session-row ${s.anulada ? 'is-annulled' : ''}">
+          <span>${escapeHtml(fmtFecha(String(s.fecha).slice(0, 10)) || '—')} · ${escapeHtml(s.profesional || t('odo07.professional'))}</span>
+          <span>${s.citaId ? `${escapeHtml(t('odo07.appointment_number', { number: Number(s.citaId) }))}` : ''}${s.notaId ? ` ${escapeHtml(t('odo07.note_number', { number: Number(s.notaId) }))}` : ''}</span>
+          ${s.anulada
+            ? `<span>${escapeHtml(t('odo07.annulled_by', { name: s.profesionalAnula || t('odo07.professional'), reason: s.motivoAnulacion || '' }))}</span>`
+            : `<button type="button" class="btn-danger btn-anular-sesion" data-session-id="${Number(s.id)}">${escapeHtml(t('odo07.annul'))}</button>`}
+        </div>`).join('')
+    : `<p>${escapeHtml(t('odo07.no_sessions'))}</p>`;
+  const badgeLabel = t(badge.label);
   return `
-    <div class="trat-card estado-${t.estado}" role="listitem" aria-labelledby="trat-title-${t.id}" tabindex="0">
+    <div class="trat-card estado-${estadoClase}" role="listitem" aria-labelledby="trat-title-${id}"
+      data-plan-id="${id}" data-paciente-id="${Number(treatment.pacienteId)}"
+      data-servicio-id="${Number(treatment.servicioId)}" data-historia-id="${Number(treatment.historiaId)}"
+      data-sesiones-estimadas="${sesionesEstimadas}" data-numero-fdi="${escapeHtml(treatment.numeroFdi || '')}"
+      data-observacion="${escapeHtml(treatment.nota || '')}">
       <div class="trat-header">
         <div>
-          <span class="trat-nombre" id="trat-title-${t.id}">${t.nombre}</span>
-          <span class="trat-tipo">${t.tipo}</span>
+          <span class="trat-nombre" id="trat-title-${id}">${escapeHtml(treatment.nombre)}</span>
+          <span class="trat-tipo">${escapeHtml(treatment.tipo || t('odo07.service'))}</span>
         </div>
-        <span class="badge-estado ${badge.cls}" role="status" aria-label="Estado: ${badge.label}">${badge.label}</span>
+        <span class="badge-estado status-badge ${badge.cls}" role="status" aria-label="${escapeHtml(t('odo07.status_named', { status: badgeLabel }))}">${escapeHtml(badgeLabel)}</span>
       </div>
       <div class="trat-paciente">
-        <div class="p-chip" style="background:${color}" aria-hidden="true">${inits}</div>
         <div class="p-info">
-          <span class="p-chip-name">${t.paciente}</span>
-          <span class="p-odontologo">${t.odontologo}</span>
+          <span class="p-chip-name">${escapeHtml(treatment.paciente)}</span>
+          <span class="p-odontologo">${escapeHtml(treatment.odontologo || t('odo07.unassigned'))} · ${escapeHtml(t('odo07.document_label', { document: treatment.cedula || t('odo07.document_unknown') }))}</span>
         </div>
       </div>
-      <div class="trat-progress-row">
-        <span class="prog-pct ${pctClass}" aria-label="Progreso: ${t.progreso}%">${t.progreso}%</span>
-        <div class="prog-bar-bg" role="progressbar" aria-valuenow="${t.progreso}" aria-valuemin="0" aria-valuemax="100" aria-label="Progreso del tratamiento ${t.nombre}: ${t.progreso}% completado">
-          <div class="prog-bar ${barClass}" data-width="${t.progreso}" style="width:0"></div>
+      <div class="trat-footer">
+        <span class="trat-meta">${escapeHtml(t('odo07.registered_on'))}: <strong><time datetime="${escapeHtml(fecha)}">${escapeHtml(fmtFecha(fecha) || '—')}</time></strong></span>
+        <span class="trat-meta">${escapeHtml(t('odo07.tooth_fdi'))}: <strong>${escapeHtml(treatment.numeroFdi || t('odo07.general'))}</strong></span>
+        ${treatment.nota ? `<span class="trat-meta">${escapeHtml(treatment.nota)}</span>` : ''}
+        <div class="trat-status-controls">
+          <label for="planEstado-${id}">${escapeHtml(t('odo07.update_status'))}</label>
+          <select class="plan-estado-select" id="planEstado-${id}">${options}</select>
+          <label for="sesionesEstimadas-${id}">${escapeHtml(t('odo07.estimated'))}</label>
+          <input class="plan-sesiones-estimadas" id="sesionesEstimadas-${id}" type="number" min="0" step="1" value="${sesionesEstimadas}" />
+          <button type="button" class="btn-primary btn-actualizar-plan">${escapeHtml(t('odo07.save'))}</button>
         </div>
+        <section class="session-summary" aria-label="${escapeHtml(t('odo07.session_followup_aria'))}">
+          <p>${escapeHtml(t('odo07.sessions_completed_count', { completed: sesionesRealizadas, estimated: sesionesEstimadas }))}</p>
+          <progress max="100" value="${progreso}" aria-label="${escapeHtml(t('odo07.session_progress_aria', { progress }))}">${progreso}%</progress>
+          ${superaEstimacion ? `<p class="session-warning">${escapeHtml(t('odo07.over_estimate'))}</p>` : ''}
+          <button type="button" class="btn-secondary btn-registrar-sesion" data-plan-id="${id}">${escapeHtml(t('odo07.register_session'))}</button>
+          <details><summary>${escapeHtml(t('odo07.view_sessions', { count: sesionesPlan.length }))}</summary><div class="session-list">${sesionesHtml}</div></details>
+        </section>
       </div>
-      <div class="trat-footer">${footer}</div>
     </div>
   `;
 };
@@ -339,11 +346,11 @@ const actualizarContador = () => {
   
   const total = tratamientosFiltrados.length;
   if (total === 0) {
-    resultsCount.textContent = 'Mostrando 0 tratamientos';
+    resultsCount.textContent = t('odo07.showing_none');
   } else {
     const inicio = (paginaActual - 1) * tratamientosPorPagina + 1;
     const fin = Math.min(paginaActual * tratamientosPorPagina, total);
-    resultsCount.textContent = `Mostrando ${inicio}-${fin} de ${total} tratamientos`;
+    resultsCount.textContent = t('odo07.showing_range', { start: inicio, end: fin, total });
   }
 };
 
@@ -382,6 +389,65 @@ const initEventos = () => {
       renderizarTodo();
     });
   }
+
+  const planForm = safeGetElement('planTratamientoForm');
+  planForm?.addEventListener('submit', event => {
+    event.preventDefault();
+    const button = safeGetElement('guardarPlanTratamiento');
+    const pacienteId = Number(safeGetElement('planPaciente')?.value);
+    const servicioId = Number(safeGetElement('planServicio')?.value);
+    if (!pacienteId || !servicioId || !button) {
+      showToast(t('odo07.select_patient_service_error'), 'warning');
+      return;
+    }
+
+    guardarPlan({
+      pacienteId,
+      servicioId,
+      sesionesEstimadas: Number(safeGetElement('planSesionesEstimadas')?.value || 0),
+      numeroFdi: safeGetElement('planNumeroFdi')?.value.trim() || null,
+      estado: safeGetElement('planEstado')?.value || 'propuesto',
+      observacion: safeGetElement('planObservacion')?.value.trim() || null
+    }, button);
+  });
+
+  safeGetElement('tratamientosList')?.addEventListener('click', event => {
+    const registrarSesion = event.target.closest('.btn-registrar-sesion');
+    if (registrarSesion) {
+      const card = registrarSesion.closest('[data-plan-id]');
+      if (card) abrirDialogoSesion(card);
+      return;
+    }
+
+    const anularSesion = event.target.closest('.btn-anular-sesion');
+    if (anularSesion) {
+      abrirDialogoAnulacion(Number(anularSesion.dataset.sessionId));
+      return;
+    }
+
+    const button = event.target.closest('.btn-actualizar-plan');
+    if (!button) return;
+    const card = button.closest('[data-plan-id]');
+    const estado = card?.querySelector('.plan-estado-select')?.value;
+    if (!card || !estado) return;
+
+    guardarPlan({
+      idPlan: Number(card.dataset.planId),
+      pacienteId: Number(card.dataset.pacienteId),
+      servicioId: Number(card.dataset.servicioId),
+      sesionesEstimadas: Number(card.querySelector('.plan-sesiones-estimadas')?.value || 0),
+      numeroFdi: card.dataset.numeroFdi || null,
+      observacion: card.dataset.observacion || null,
+      estado
+    }, button);
+  });
+
+  document.querySelectorAll('[data-close-dialog]').forEach(button => {
+    button.addEventListener('click', () => document.getElementById(button.dataset.closeDialog)?.close());
+  });
+
+  safeGetElement('sessionForm')?.addEventListener('submit', registrarSesionPlan);
+  safeGetElement('annulSessionForm')?.addEventListener('submit', anularSesionPlan);
   
   const btnFirst = safeGetElement('btnFirst');
   const btnPrev = safeGetElement('btnPrev');
@@ -410,74 +476,185 @@ const initEventos = () => {
 //  SIDEBAR MÓVIL
 // ═══════════════════════════════════════════════════════════════════
 
-const initSidebar = () => {
-  const ham = safeGetElement('hamburger');
-  const sb = safeGetElement('sidebar');
-  const ov = safeGetElement('overlay');
-  
-  if (!ham || !sb || !ov) return;
+async function fetchTratamientos() {
+  const resp = await fetch('/historia-clinica/st-odo-07-seguimiento-tratamiento/data', { headers: { 'Accept': 'application/json' } });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return await resp.json();
+}
 
-  const toggleMenu = (show) => {
-    sb.classList.toggle('open', show);
-    ov.classList.toggle('open', show);
-    ham.setAttribute('aria-expanded', show);
-    ov.setAttribute('aria-hidden', !show);
-    
-    if (show) {
-      const firstLink = sb.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      ham.focus();
-    }
-  };
+const poblarOpcionesPlan = (data) => {
+  const pacienteSelect = safeGetElement('planPaciente');
+  const servicioSelect = safeGetElement('planServicio');
+  if (!pacienteSelect || !servicioSelect) return;
 
-  ham.addEventListener('click', () => toggleMenu(true));
-  ov.addEventListener('click', () => toggleMenu(false));
-
-  sb.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
+  pacienteSelect.replaceChildren(new Option(t('odo07.select_patient'), ''));
+  (data.pacientes || []).forEach(paciente => {
+    pacienteSelect.add(new Option(`${paciente.nombre} · ${paciente.documento}`, paciente.id));
   });
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sb.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
+  servicioSelect.replaceChildren(new Option(t('odo07.select_service'), ''));
+  (data.servicios || []).forEach(servicio => {
+    servicioSelect.add(new Option(`${servicio.nombre} · ${servicio.categoria}`, servicio.id));
   });
 };
 
-// ═══════════════════════════════════════════════════════════════════
-//  API CALLS
-// ═══════════════════════════════════════════════════════════════════
+const cargarPlanes = async () => {
+  const data = await fetchTratamientos();
+  datosOpcionesPlan = data;
+  allTratamientos = Array.isArray(data.tratamientos) ? data.tratamientos : [];
+  allSesiones = Array.isArray(data.sesiones) ? data.sesiones : [];
+  opcionesCitasSesion = Array.isArray(data.citas) ? data.citas : [];
+  opcionesNotasSesion = Array.isArray(data.notas) ? data.notas : [];
+  tratamientosFiltrados = [...allTratamientos];
+  poblarOpcionesPlan(data);
+  populateFilters(allTratamientos);
+  updateStats(allTratamientos);
+  renderizarTodo();
+};
 
-async function fetchTratamientos() {
-  try {
-    const resp = await fetch('/historia-clinica/st-odo-07-seguimiento-tratamiento/data', { headers: { 'Accept': 'application/json' } });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return await resp.json();
-  } catch (error) {
-    console.error('No se pudo cargar el seguimiento de tratamientos:', error);
-    showToast('No se pudo cargar el seguimiento de tratamientos', 'error');
-    return [];
+const guardarPlan = async (payload, button) => {
+  const token = document.querySelector('#planTratamientoForm input[name="__RequestVerificationToken"]')?.value;
+  if (!token) {
+    showToast(t('odo07.antiforgery_missing'), 'error');
+    return;
   }
-}
+  button.disabled = true;
+  try {
+    const response = await fetch('/historia-clinica/st-odo-07-seguimiento-tratamiento/guardar', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        RequestVerificationToken: token
+      },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.message || t('odo07.save_plan_error'));
+    showToast(result.advertencia ? t('odo07.over_estimate') : t('odo07.plan_saved'), result.advertencia ? 'warning' : 'success');
+    await cargarPlanes();
+  } catch (error) {
+    console.error('No se pudo guardar el plan de tratamiento:', error);
+    showToast(error.message || t('odo07.save_plan_error'), 'error');
+  } finally {
+    button.disabled = false;
+  }
+};
+
+// Yeray: Filtra vínculos opcionales por paciente e historia para asociar cada sesión sin depender de que exista una cita.
+const abrirDialogoSesion = (card) => {
+  const dialog = safeGetElement('sessionDialog');
+  const planId = Number(card.dataset.planId);
+  const patientId = Number(card.dataset.pacienteId);
+  const historyId = Number(card.dataset.historiaId);
+  const citaSelect = safeGetElement('sessionCita');
+  const notaSelect = safeGetElement('sessionNota');
+  const fechaInput = safeGetElement('sessionDate');
+  safeGetElement('sessionPlanId').value = String(planId);
+  const hoy = new Date();
+  fechaInput.value = new Date(hoy.getTime() - hoy.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  citaSelect.replaceChildren(new Option(t('odo07.no_appointment'), ''));
+  opcionesCitasSesion.filter(cita => Number(cita.pacienteId) === patientId).forEach(cita => {
+    citaSelect.add(new Option(t('odo07.appointment_date', {
+      number: cita.id,
+      date: fmtFecha(String(cita.fecha).slice(0, 10))
+    }), cita.id));
+  });
+  notaSelect.replaceChildren(new Option(t('odo07.no_note'), ''));
+  opcionesNotasSesion.filter(nota => Number(nota.historiaId) === historyId).forEach(nota => {
+    notaSelect.add(new Option(t('odo07.note_date', {
+      number: nota.id,
+      date: fmtFecha(String(nota.fecha).slice(0, 10))
+    }), nota.id));
+  });
+  dialog.showModal();
+};
+
+const abrirDialogoAnulacion = (idSesion) => {
+  safeGetElement('annulSessionId').value = String(idSesion);
+  safeGetElement('annulSessionReason').value = '';
+  safeGetElement('annulSessionDialog').showModal();
+};
+
+const enviarSesion = async (url, payload, dialog, button, successKey) => {
+  const token = document.querySelector('#planTratamientoForm input[name="__RequestVerificationToken"]')?.value;
+  if (!token) {
+    showToast(t('odo07.antiforgery_missing'), 'error');
+    return;
+  }
+  button.disabled = true;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        RequestVerificationToken: token
+      },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.message || t('odo07.session_update_error'));
+    dialog.close();
+    showToast(result.superaEstimacion ? t('odo07.over_estimate') : t(successKey),
+      result.superaEstimacion ? 'warning' : 'success');
+    await cargarPlanes();
+  } catch (error) {
+    showToast(error.message || t('odo07.session_update_error'), 'error');
+  } finally {
+    button.disabled = false;
+  }
+};
+
+const registrarSesionPlan = (event) => {
+  event.preventDefault();
+  const dialog = safeGetElement('sessionDialog');
+  const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
+  if (!button) {
+    showToast(t('odo07.submit_button_missing'), 'error');
+    return;
+  }
+  enviarSesion(`/historia-clinica/st-odo-07-seguimiento-tratamiento/${safeGetElement('sessionPlanId').value}/sesiones`, {
+    fechaSesion: safeGetElement('sessionDate').value,
+    citaId: Number(safeGetElement('sessionCita').value) || null,
+    notaId: Number(safeGetElement('sessionNota').value) || null
+  }, dialog, button, 'odo07.session_registered');
+};
+
+const anularSesionPlan = (event) => {
+  event.preventDefault();
+  const dialog = safeGetElement('annulSessionDialog');
+  const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
+  if (!button) {
+    showToast(t('odo07.submit_button_missing'), 'error');
+    return;
+  }
+  enviarSesion(`/historia-clinica/st-odo-07-seguimiento-tratamiento/sesiones/${safeGetElement('annulSessionId').value}/anular`, {
+    motivo: safeGetElement('annulSessionReason').value.trim()
+  }, dialog, button, 'odo07.session_annulled');
+};
 
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIÓN PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════
 
 const init = async () => {
-  initSidebar();
   initEventos();
-  
-  allTratamientos = await fetchTratamientos();
-  tratamientosFiltrados = [...allTratamientos];
-  
-  populateFilters(allTratamientos);
-  updateStats(allTratamientos);
-  renderizarTodo();
+  try {
+    await cargarPlanes();
+  } catch (error) {
+    console.error('No se pudo cargar el seguimiento de tratamientos:', error);
+    showToast(t('odo07.load_error'), 'error');
+  }
 };
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('i18n:change', () => {
+  poblarOpcionesPlan(datosOpcionesPlan);
+  populateFilters(allTratamientos);
+  renderizarTodo();
+});
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init, { once: true });
+} else {
+  init();
+}
+})();

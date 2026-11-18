@@ -1,8 +1,10 @@
+@addTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.LinkTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.ScriptTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
 @* ============================================
    SmileTrack — Recuperación de Contraseña (recover/index.cshtml)
    ============================================
    Autor: Johan Santamaria / SmileTrack Team
-   Fecha: 29/07/2026 (Actualizado 2026-09-12)
+   Fecha: 29/07/2026 (Actualizado 2026-09-12 / Estandarizado 2026-11-15)
 
    DESCRIPCIÓN Y POR QUÉ DE NEGOCIO Y SEGURIDAD:
    Esta vista guía al usuario a través de un flujo seguro de restablecimiento de contraseña en 3 pasos.
@@ -10,262 +12,167 @@
    de 6 dígitos enviado por correo electrónico, limitación de intentos por Rate Limit y auditoría inmutable
    en la base de datos SQL Server (`dbo.AuditoriaRecuperacion`).
 
-   FLUSO DE 3 PASOS:
+   FLUJO DE 3 PASOS:
    - Paso 1 (Solicitud): Ingreso del correo electrónico asociado a la cuenta.
    - Paso 2 (Verificación OTP): Entrada del código enviado por correo con contador regresivo de expiración.
    - Paso 3 (Restablecimiento): Definición de la nueva contraseña con validación de fortaleza y confirmación.
    - Paso 4 (Éxito): Pantalla de confirmación con acceso directo al Login.
 
    SEGURIDAD Y ACCESIBILIDAD:
-   - Inyección de Token Antiforgery en el metatag `csrf-request-token` para consumo por `recover.js`.
+   - Inyección de Token Antiforgery centralizado en `_LayoutAuth.cshtml` (metatag `csrf-request-token`).
    - Indicadores de progreso por pasos (`.step-indicator`) con atributos ARIA y soporte i18n.
-
-   DEPENDENCIAS TÉCNICAS:
-   - Controller: AccesoSeguridadController / AuthService -> ApiSolicitarCodigo, ApiVerificarCodigo, ApiRestablecerPassword
-   - CSS: ~/css/Acceso_Y_Seguridad/recover/recover.css
-   - JS: ~/js/Acceso_Y_Seguridad/recover/recover.js
 ============================================ *@
-@removeTagHelper "Microsoft.AspNetCore.Mvc.TagHelpers.BodyTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers"
-@{ Layout = null; }
+@{
+    Layout = "~/Views/Acceso_Y_Seguridad/_LayoutAuth.cshtml";
+    ViewData["Title"] = "Recuperar Contraseña";
+    ViewData["Description"] = "Recuperar contraseña de SmileTrack - Sistema de Gestión Clínica Odontológica";
+    ViewData["SubtitleI18n"] = "recover.header_title";
+    ViewData["Subtitle"] = "Recuperar Contraseña";
+    ViewData["MainClass"] = "login-main--compact";
+}
 
-<!DOCTYPE html>
-<html class="light" lang="es">
-<head>
-    @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
-    @{ var requestToken = Context.Items["AntiforgeryRequestToken"] as string ?? Antiforgery.GetAndStoreTokens(Context).RequestToken; }
-    <meta name="csrf-request-token" content="@requestToken" />
-    <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <meta name="description" data-i18n="recover.meta_description" content="Recuperar contraseña de SmileTrack - Sistema de Gestión Clínica Odontológica" />
-    <title data-i18n="recover.page_title">Recuperar Contraseña - Smile Track</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    <link href="@Url.Content("~/css/Acceso_Y_Seguridad/recover/recover.css")" rel="stylesheet" />
-    <script>
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        'primary': '#1E88E5', 'accent': '#43A047', 'background': '#FFFFFF',
-                        'surface': '#F5F7FA', 'text-primary': '#212121', 'success': '#43A047',
-                        'error': '#E53935', 'warning': '#FBC02D', 'info': '#42A5F5'
-                    },
-                    fontFamily: { 'title': ['Montserrat', 'sans-serif'], 'body': ['Roboto', 'sans-serif'] },
-                    fontSize: {
-                        'h1': ['32px', { lineHeight: '1.2', fontWeight: '700' }],
-                        'h2': ['24px', { lineHeight: '1.3', fontWeight: '600' }],
-                        'body': ['16px', { lineHeight: '1.5', fontWeight: '400' }],
-                        'label': ['14px', { lineHeight: '1.4', fontWeight: '500' }],
-                        'button': ['16px', { lineHeight: '1.5', fontWeight: '700' }]
-                    }
-                }
-            }
-        }
-    </script>
-    <style>.dental-gradient-overlay { background: linear-gradient(135deg, rgba(0,53,95,0.85) 0%, rgba(25,28,30,0.7) 100%); }
-    .otp-digit:focus { border-color: #a0c9ff !important; box-shadow: 0 0 0 3px rgba(160,201,255,.25); }
-    .otp-digit.filled { border-color: rgba(255,255,255,.5) !important; }
-    .otp-digit.error  { border-color: #f87171 !important; animation: otp-shake .35s ease; }
-    @@keyframes otp-shake {
-        0%,100% { transform: translateX(0); }
-        25%      { transform: translateX(-4px); }
-        75%      { transform: translateX(4px); }
-    }
-    </style>
-</head>
-<body class="bg-background font-body text-text-primary antialiased min-h-screen flex items-center justify-center p-6">
-    @* Conmutador de idioma con banderas — partial reutilizable *@
-    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+@section Styles {
+    <link href="@Url.Content("~/css/Acceso_Y_Seguridad/recover/recover.css")" rel="stylesheet" asp-append-version="true" />
+}
 
+<!-- Subtítulo dinámico y descripción de pasos -->
+<div class="px-6 pb-2 text-center">
+    <p id="stepDescription" class="font-body text-sm text-white/80 max-w-[340px] mx-auto leading-relaxed transition-all duration-300" data-i18n="recover.step1_description">
+        Ingresa tu correo electrónico y te enviaremos un código de verificación.
+    </p>
+</div>
 
-    <!-- Background -->
-    <div class="fixed inset-0 z-0">
-        <img alt="Clínica Dental" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNvm84fO25nT6Fr-OiDad7iFRSETdrOn4tHsUL8JKUgudSDvYRNPtrG9uEEUFrie9rqPDEDmAUFlIdyUAH6ZP9Ym_KEkAIc_hgv3UJpzaNU5prUsdX4Ov9pPSqdM0xz9duoLLLTsefcV6XRqc8niA4YIeMAG3MMalq26KtHT9ml0kug6lLffddb75SJ3iTz6LpRWDSXz1Hqe1tjYmDSsE6nWDBRLDIcEbyygv-dzhsaCU3OlCKmEuZ1EVVMrd2C1RrXEo1dHKiaw" />
-        <div class="absolute inset-0 dental-gradient-overlay backdrop-blur-sm"></div>
+<!-- Indicador de pasos -->
+<div class="px-10 pb-4 pt-2">
+    <div class="flex items-center justify-center gap-2">
+        <div class="step-indicator active" data-step="1"></div>
+        <div class="step-indicator" data-step="2"></div>
+        <div class="step-indicator" data-step="3"></div>
     </div>
+</div>
 
-    <!-- Contenedor Principal -->
-    <main class="relative z-10 w-full max-w-md">
-        <div class="bg-[#1a3150]/95 backdrop-blur-md shadow-2xl rounded-3xl border border-white/20 overflow-hidden">
-            
-            <!-- Header -->
-            <div class="p-6 text-center space-y-4">
-                <div class="flex justify-center mb-4">
-                    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="Logo" class="h-24 w-auto object-contain drop-shadow-md">
-                </div>
-                <div class="space-y-3">
-                    <h1 class="font-title text-h1 text-white font-bold tracking-tight" data-i18n="recover.header_title">Recuperar Contraseña</h1>
-                    <p id="stepDescription" class="font-body text-body text-white/80 max-w-[300px] mx-auto leading-relaxed transition-all duration-300" data-i18n="recover.step1_description">
-                        Ingresa tu correo electrónico y te enviaremos un código de verificación.
-                    </p>
-                </div>
-            </div>
+<!-- FORMULARIO PASO 1: Email -->
+<form id="step1" class="step-form px-8 pb-8 space-y-6" novalidate>
+    <div class="space-y-3">
+        <label class="font-body text-xs font-semibold text-white/80 block uppercase tracking-wide" for="email" data-i18n="recover.step1_email_label">Correo Electrónico</label>
+        <div class="relative">
+            <input class="w-full pl-4 pr-5 py-3.5 bg-[#0f1f33]/80 border border-white/20 rounded-xl focus:ring-2 focus:ring-white/30 focus:border-white transition-all font-body text-white placeholder:text-white/40 outline-none" id="email" name="email" type="email" data-i18n-ph="recover.step1_email_placeholder" placeholder="odontologo@clinicadental.com" required autocomplete="email" />
+        </div>
+        <p id="emailError" class="text-error text-xs hidden" role="alert"></p>
+    </div>
+    <button type="submit" class="w-full bg-[#a0c9ff] text-[#00355f] py-4 rounded-xl font-title hover:bg-white active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-xl font-bold text-base group">
+        <span data-i18n="recover.step1_button">Enviar Código</span>
+    </button>
+</form>
 
-            <!-- Indicador de pasos -->
-            <div class="px-10 pb-4">
-                <div class="flex items-center justify-center gap-2">
-                    <div class="step-indicator active" data-step="1"></div>
-                    <div class="step-indicator" data-step="2"></div>
-                    <div class="step-indicator" data-step="3"></div>
-                </div>
-            </div>
+<!-- FORMULARIO PASO 2: Código de verificación OTP -->
+<form id="step2" class="step-form px-8 pb-8 space-y-6 hidden" novalidate>
+    <div class="text-center mb-4">
+        <p class="text-white/80 text-sm" data-i18n="recover.step2_code_sent_to">Hemos enviado un código de 6 dígitos a:</p>
+        <p id="maskedEmail" class="text-white font-semibold"></p>
+        <button type="button" id="resendCode" class="text-[#a0c9ff] text-sm hover:underline mt-2" data-i18n="recover.step2_resend">¿No recibiste el código? Reenviar</button>
+    </div>
+    <div class="space-y-3">
+        <label class="font-body text-xs font-semibold text-white/80 block uppercase tracking-wide text-center" id="otpLabel" data-i18n="recover.step2_otp_label">
+            Código de Verificación
+        </label>
+        <div class="otp-inputs" role="group" aria-labelledby="otpLabel"
+             style="display:flex;gap:10px;justify-content:center;">
+            @for (int i = 0; i < 6; i++)
+            {
+                <input class="otp-digit"
+                       type="text"
+                       inputmode="numeric"
+                       pattern="[0-9]"
+                       maxlength="1"
+                       autocomplete="@(i == 0 ? "one-time-code" : "off")"
+                       data-i18n-aria-label="recover.step2_otp_digit"
+                       aria-label="Dígito @(i+1) de 6"
+                       style="width:46px;height:54px;text-align:center;font-size:1.5rem;font-weight:700;
+                              background:rgba(15,31,51,.8);border:2px solid rgba(255,255,255,.2);
+                              border-radius:12px;color:#fff;outline:none;
+                              transition:border-color .2s,box-shadow .2s;" />
+            }
+        </div>
+        <input type="hidden" id="code" name="code" value="" />
+        <p id="codeError" class="text-error text-xs hidden text-center" role="alert"></p>
+    </div>
+    <div class="flex gap-3">
+        <button type="button" id="backToStep1" class="flex-1 bg-white/10 text-white py-3.5 rounded-xl font-title hover:bg-white/20 transition-all flex items-center justify-center gap-2 font-semibold">
+            <span data-i18n="recover.step2_back_button">Atrás</span>
+        </button>
+        <button type="submit" class="flex-2 bg-[#a0c9ff] text-[#00355f] py-3.5 rounded-xl font-title hover:bg-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xl font-bold">
+            <span data-i18n="recover.step2_verify_button">Verificar Código</span>
+        </button>
+    </div>
+</form>
 
-            <!-- FORMULARIO PASO 1: Email -->
-            <form id="step1" class="step-form px-10 pb-10 space-y-6" novalidate>
-                <div class="space-y-3">
-                    <label class="font-body text-label text-white/80 block font-medium uppercase tracking-wide" for="email" data-i18n="recover.step1_email_label">Correo Electrónico</label>
-                    <div class="relative">
-                        <input class="w-full pl-14 pr-5 py-4 bg-[#0f1f33]/80 border border-white/20 rounded-2xl focus:ring-3 focus:ring-white/30 focus:border-white transition-all duration-400 font-body text-white placeholder:text-white/40 outline-none" id="email" name="email" type="email" data-i18n-ph="recover.step1_email_placeholder" placeholder="odontologo@clinicadental.com" required autocomplete="email" />
-                    </div>
-                    <p id="emailError" class="text-error text-sm hidden" role="alert"></p>
-                </div>
-                <button type="submit" class="w-full bg-[#a0c9ff] text-[#00355f] py-5 rounded-2xl font-title text-button hover:bg-white active:scale-[0.97] transition-all duration-300 flex items-center justify-center gap-3 shadow-xl font-bold text-lg group">
-                    <span data-i18n="recover.step1_button">Enviar Código</span>
+<!-- FORMULARIO PASO 3: Nueva contraseña -->
+<form id="step3" class="step-form px-8 pb-8 space-y-6 hidden" novalidate>
+    <div class="space-y-4">
+        <div>
+            <label class="font-body text-xs font-semibold text-white/80 block uppercase tracking-wide mb-2" for="newPassword" data-i18n="recover.step3_new_password_label">Nueva Contraseña</label>
+            <div class="relative">
+                <input class="w-full pl-4 pr-12 py-3.5 bg-[#0f1f33]/80 border border-white/20 rounded-xl focus:ring-2 focus:ring-white/30 focus:border-white transition-all font-body text-white placeholder:text-white/40 outline-none" id="newPassword" name="newPassword" type="password" data-i18n-ph="recover.step3_new_password_placeholder" placeholder="Mínimo 8 caracteres" required minlength="8" />
+                <button type="button" class="toggle-password absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors" data-i18n-aria-label="recover.toggle_show" aria-label="Mostrar contraseña" aria-pressed="false">
+                    <span class="visibility-icon material-symbols-outlined">visibility_off</span>
                 </button>
-            </form>
-
-            <!-- FORMULARIO PASO 2: Código de verificación OTP (6 recuadros con auto-avance) -->
-            <form id="step2" class="step-form px-10 pb-10 space-y-6 hidden" novalidate>
-                <div class="text-center mb-4">
-                    <p class="text-white/80 text-sm" data-i18n="recover.step2_code_sent_to">Hemos enviado un código de 6 dígitos a:</p>
-                    <p id="maskedEmail" class="text-white font-semibold"></p>
-                    <button type="button" id="resendCode" class="text-[#a0c9ff] text-sm hover:underline mt-2" data-i18n="recover.step2_resend">¿No recibiste el código? Reenviar</button>
-                </div>
-                <div class="space-y-3">
-                    <label class="font-body text-label text-white/80 block font-medium uppercase tracking-wide text-center" id="otpLabel" data-i18n="recover.step2_otp_label">
-                        Código de Verificación
-                    </label>
-                    <div class="otp-inputs" role="group" aria-labelledby="otpLabel"
-                         style="display:flex;gap:10px;justify-content:center;">
-                        @for (int i = 0; i < 6; i++)
-                        {
-                            <input class="otp-digit"
-                                   type="text"
-                                   inputmode="numeric"
-                                   pattern="[0-9]"
-                                   maxlength="1"
-                                   autocomplete="@(i == 0 ? "one-time-code" : "off")"
-                                   data-i18n-aria-label="recover.step2_otp_digit"
-                                   aria-label="Dígito @(i+1) de 6"
-                                   style="width:46px;height:56px;text-align:center;font-size:1.5rem;font-weight:700;
-                                          background:rgba(15,31,51,.8);border:2px solid rgba(255,255,255,.2);
-                                          border-radius:12px;color:#fff;outline:none;
-                                          transition:border-color .2s,box-shadow .2s;" />
-                        }
-                    </div>
-                    <input type="hidden" id="code" name="code" value="" />
-                    <p id="codeError" class="text-error text-sm hidden text-center" role="alert"></p>
-                </div>
-                <div class="flex gap-3">
-                    <button type="button" id="backToStep1" class="flex-1 bg-white/10 text-white py-4 rounded-2xl font-title text-button hover:bg-white/20 transition-all duration-300 flex items-center justify-center gap-2 font-semibold">
-                        <span data-i18n="recover.step2_back_button">Atrás</span>
-                    </button>
-                    <button type="submit" class="flex-2 bg-[#a0c9ff] text-[#00355f] py-4 rounded-2xl font-title text-button hover:bg-white active:scale-[0.97] transition-all duration-300 flex items-center justify-center gap-2 shadow-xl font-bold">
-                        <span data-i18n="recover.step2_verify_button">Verificar Código</span>
-                    </button>
-                </div>
-            </form>
-
-            <!-- FORMULARIO PASO 3: Nueva contraseña -->
-            <form id="step3" class="step-form px-10 pb-10 space-y-6 hidden" novalidate>
-                <div class="space-y-4">
-                    <div>
-                        <label class="font-body text-label text-white/80 block font-medium uppercase tracking-wide mb-2" for="newPassword" data-i18n="recover.step3_new_password_label">Nueva Contraseña</label>
-                        <div class="relative">
-                            <input class="w-full pl-4 pr-12 py-4 bg-[#0f1f33]/80 border border-white/20 rounded-2xl focus:ring-3 focus:ring-white/30 focus:border-white transition-all duration-400 font-body text-white placeholder:text-white/40 outline-none" id="newPassword" name="newPassword" type="password" data-i18n-ph="recover.step3_new_password_placeholder" placeholder="Mínimo 8 caracteres" required minlength="8" />
-                            <button type="button" class="toggle-password absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors" data-i18n-aria-label="recover.toggle_show" aria-label="Mostrar contraseña" aria-pressed="false">
-                                <span class="visibility-icon material-symbols-outlined">visibility_off</span>
-                            </button>
-                        </div>
-                        <div class="mt-2 space-y-1">
-                            <p id="passLength" class="text-xs text-white/60 flex items-center gap-1" data-i18n="recover.step3_criteria_length">• Mínimo 8 caracteres</p>
-                            <p id="passUpper" class="text-xs text-white/60 flex items-center gap-1" data-i18n="recover.step3_criteria_upper">• Al menos una mayúscula</p>
-                            <p id="passNumber" class="text-xs text-white/60 flex items-center gap-1" data-i18n="recover.step3_criteria_number">• Al menos un número</p>
-                            <p id="passSymbol" class="text-xs text-white/60 flex items-center gap-1" data-i18n="recover.step3_criteria_symbol">• Al menos un símbolo (ej. !#$%)</p>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="font-body text-label text-white/80 block font-medium uppercase tracking-wide mb-2" for="confirmPassword" data-i18n="recover.step3_confirm_password_label">Confirmar Contraseña</label>
-                        <div class="relative">
-                            <input class="w-full pl-4 pr-12 py-4 bg-[#0f1f33]/80 border border-white/20 rounded-2xl focus:ring-3 focus:ring-white/30 focus:border-white transition-all duration-400 font-body text-white placeholder:text-white/40 outline-none" id="confirmPassword" name="confirmPassword" type="password" data-i18n-ph="recover.step3_confirm_password_placeholder" placeholder="Repite tu contraseña" required />
-                            <button type="button" class="toggle-password absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors" data-i18n-aria-label="recover.toggle_show" aria-label="Mostrar contraseña" aria-pressed="false">
-                                <span class="visibility-icon material-symbols-outlined">visibility_off</span>
-                            </button>
-                        </div>
-                        <p id="passMatch" class="text-xs mt-2 hidden" role="alert"></p>
-                    </div>
-                </div>
-                <div class="flex gap-3">
-                    <button type="button" id="backToStep2" class="flex-1 bg-white/10 text-white py-4 rounded-2xl font-title text-button hover:bg-white/20 transition-all duration-300 flex items-center justify-center gap-2 font-semibold">
-                        <span data-i18n="recover.step3_back_button">Atrás</span>
-                    </button>
-                    <button type="submit" id="resetBtn" class="flex-2 bg-[#43A047] text-white py-4 rounded-2xl font-title text-button hover:bg-[#388E3C] active:scale-[0.97] transition-all duration-300 flex items-center justify-center gap-2 shadow-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span data-i18n="recover.step3_reset_button">Restablecer Contraseña</span>
-                    </button>
-                </div>
-            </form>
-
-            <!-- Éxito -->
-            <div id="successStep" class="px-10 pb-10 text-center space-y-6 hidden">
-                <div class="w-20 h-20 mx-auto bg-[#43A047]/20 rounded-full flex items-center justify-center">
-                    <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1; font-size:2.5rem; color:#43A047;">check_circle</span>
-                </div>
-                <div class="space-y-3">
-                    <h2 class="font-title text-h2 text-white font-bold" data-i18n="recover.success_title">¡Contraseña restablecida!</h2>
-                    <p class="text-white/80" data-i18n="recover.success_message">Tu contraseña ha sido actualizada exitosamente. Ahora puedes iniciar sesión con tu nueva contraseña.</p>
-                </div>
-                <a href="/acceso-y-seguridad/login" class="inline-flex items-center justify-center gap-2 w-full bg-[#a0c9ff] text-[#00355f] py-5 rounded-2xl font-title text-button hover:bg-white active:scale-[0.97] transition-all duration-300 shadow-xl font-bold">
-                    <span data-i18n="recover.success_goto_login">Iniciar Sesión</span>
-                </a>
             </div>
-
-            <!-- Footer Link -->
-            <div class="px-10 pb-8 border-t border-white/20 text-center">
-                <a href="/acceso-y-seguridad/login" class="inline-flex items-center gap-2 font-body text-button text-[#a0c9ff] hover:text-white font-semibold hover:underline transition-all group">
-                    <span class="material-symbols-outlined">arrow_back</span>
-                    <span data-i18n="recover.back_to_login">Volver al inicio de sesión</span>
-                </a>
+            <div class="mt-2 space-y-1">
+                <p id="passLength" class="text-xs text-white/60 flex items-center gap-1" data-i18n="recover.step3_criteria_length">• Mínimo 8 caracteres</p>
+                <p id="passUpper" class="text-xs text-white/60 flex items-center gap-1" data-i18n="recover.step3_criteria_upper">• Al menos una mayúscula</p>
+                <p id="passNumber" class="text-xs text-white/60 flex items-center gap-1" data-i18n="recover.step3_criteria_number">• Al menos un número</p>
+                <p id="passSymbol" class="text-xs text-white/60 flex items-center gap-1" data-i18n="recover.step3_criteria_symbol">• Al menos un símbolo (ej. !#$%)</p>
             </div>
         </div>
+        <div>
+            <label class="font-body text-xs font-semibold text-white/80 block uppercase tracking-wide mb-2" for="confirmPassword" data-i18n="recover.step3_confirm_password_label">Confirmar Contraseña</label>
+            <div class="relative">
+                <input class="w-full pl-4 pr-12 py-3.5 bg-[#0f1f33]/80 border border-white/20 rounded-xl focus:ring-2 focus:ring-white/30 focus:border-white transition-all font-body text-white placeholder:text-white/40 outline-none" id="confirmPassword" name="confirmPassword" type="password" data-i18n-ph="recover.step3_confirm_password_placeholder" placeholder="Repite tu contraseña" required />
+                <button type="button" class="toggle-password absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors" data-i18n-aria-label="recover.toggle_show" aria-label="Mostrar contraseña" aria-pressed="false">
+                    <span class="visibility-icon material-symbols-outlined">visibility_off</span>
+                </button>
+            </div>
+            <p id="passMatch" class="text-xs mt-2 hidden" role="alert"></p>
+        </div>
+    </div>
+    <div class="flex gap-3">
+        <button type="button" id="backToStep2" class="flex-1 bg-white/10 text-white py-3.5 rounded-xl font-title hover:bg-white/20 transition-all flex items-center justify-center gap-2 font-semibold">
+            <span data-i18n="recover.step3_back_button">Atrás</span>
+        </button>
+        <button type="submit" id="resetBtn" class="flex-2 bg-[#43A047] text-white py-3.5 rounded-xl font-title hover:bg-[#388E3C] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+            <span data-i18n="recover.step3_reset_button">Restablecer Contraseña</span>
+        </button>
+    </div>
+</form>
 
-        <!-- Footer Branding -->
-        <footer class="mt-10 text-center">
-            <p class="font-mono text-sm text-white/80 flex items-center justify-center gap-2 uppercase tracking-wider bg-black/20 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20">
-                <span data-i18n="recover.footer_badge">Portal Clínico Seguro • v2.4.0</span>
-            </p>
-        </footer>
-    </main>
+<!-- Éxito -->
+<div id="successStep" class="px-8 pb-8 text-center space-y-6 hidden">
+    <div class="w-16 h-16 mx-auto bg-[#43A047]/20 rounded-full flex items-center justify-center">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1; font-size:2.5rem; color:#43A047;">check_circle</span>
+    </div>
+    <div class="space-y-2">
+        <h2 class="font-title text-xl text-white font-bold" data-i18n="recover.success_title">¡Contraseña restablecida!</h2>
+        <p class="text-sm text-white/80" data-i18n="recover.success_message">Tu contraseña ha sido actualizada exitosamente. Ahora puedes iniciar sesión con tu nueva contraseña.</p>
+    </div>
+    <a href="/acceso-y-seguridad/login" class="inline-flex items-center justify-center gap-2 w-full bg-[#a0c9ff] text-[#00355f] py-4 rounded-xl font-title hover:bg-white active:scale-[0.98] transition-all shadow-xl font-bold">
+        <span data-i18n="recover.success_goto_login">Iniciar Sesión</span>
+    </a>
+</div>
 
-    <script src="@Url.Content("~/js/i18n-core.js")"></script>
-    <script src="@Url.Content("~/js/i18n.config.js")"></script>
-    <script src="@Url.Content("~/js/shared/validation-utils.js")" defer></script>
-    <script src="@Url.Content("~/js/Acceso_Y_Seguridad/recover/recover.js")" defer></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  <style>
-    .lang-switch-btn {
-      padding: 6px 14px;
-      border-radius: 999px;
-      border: 1.5px solid #005ea4;
-      background: #ffffff;
-      color: #021c3a;
-      font-weight: 700;
-      font-size: 12px;
-      letter-spacing: 0.5px;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-      transition: all 0.2s ease;
-    }
-    .lang-switch-btn:hover { background: #f0f7ff; color: #005ea4; }
-    .lang-switch-btn.is-active {
-      background: #005ea4 !important;
-      border-color: #004881 !important;
-      color: #ffffff !important;
-      box-shadow: 0 4px 12px rgba(0, 94, 164, 0.35) !important;
-    }
-  </style>
-</body>
-</html>
+<!-- Footer Link -->
+<div class="px-8 pb-6 border-t border-white/20 text-center pt-4">
+    <a href="/acceso-y-seguridad/login" class="inline-flex items-center gap-2 text-sm text-[#a0c9ff] hover:text-white font-semibold hover:underline transition-all group">
+        <span class="material-symbols-outlined text-base">arrow_back</span>
+        <span data-i18n="recover.back_to_login">Volver al inicio de sesión</span>
+    </a>
+</div>
 
+<footer class="p-3 text-center border-t border-white/10">
+    <p class="text-xs uppercase tracking-wider text-white/70" data-i18n="recover.footer_badge">Portal Clínico Seguro • v2.4.0</p>
+</footer>
+
+@section Scripts {
+    <script src="@Url.Content("~/js/shared/validation-utils.js")" asp-append-version="true" defer></script>
+    <script src="@Url.Content("~/js/Acceso_Y_Seguridad/recover/recover.js")" asp-append-version="true" defer></script>
+}

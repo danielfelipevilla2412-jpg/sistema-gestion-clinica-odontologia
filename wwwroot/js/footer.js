@@ -4,12 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const footerHTML = `
     <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
-      <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
+      <p data-i18n="footer.copyright">© 2025 SmileTrack. Todos los derechos reservados.</p>
+      <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
     </footer>
   `;
 
     document.body.insertAdjacentHTML('beforeend', footerHTML);
+    window.I18N?.apply(document.getElementById('dynamic-footer'));
 
     const clearAuthStorage = () => {
       try {

@@ -1,9 +1,8 @@
+﻿@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @*
   SmileTrack — Layout Master (_Layout.cshtml)
   ═══════════════════════════════════════════
-  Layout base compartido por los módulos:
-    · Gestión de Citas (15 vistas)
-    · Gestión de Profesionales (4 vistas)
+  Layout compartido por las vistas internas que adoptan el shell autenticado.
 
   Qué carga este layout UNA SOLA VEZ:
     1. Meta tags, charset, viewport, robots
@@ -32,6 +31,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
+    @if (ViewData["Description"] is string description)
+    {
+        <meta name="description" content="@description" />
+    }
     <title>@(ViewData["Title"] != null ? ViewData["Title"] + " — SmileTrack" : "SmileTrack")</title>
 
     @* Fuentes: preconnect + DM Sans + Syne — una sola carga para todas las vistas *@
@@ -51,11 +54,21 @@
     @* CSS propio de la vista (nombre del módulo + vista) *@
     @await RenderSectionAsync("Styles", required: false)
 
+    @if (ViewData["UseGestionModulesDesignSystem"] is true)
+    {
+        <link rel="stylesheet" href="~/css/shared/gestion-modules.css" asp-append-version="true" />
+    }
+
+    <link rel="stylesheet" href="~/css/shared/status-colors.css" asp-append-version="true" />
+
     @* Sidebar y layout compartidos *@
     <link rel="stylesheet" href="~/css/shared/sidebar.css" asp-append-version="true" />
 
     @* Footer con compensación de sidebar *@
     <link rel="stylesheet" href="~/css/footer.css" asp-append-version="true" />
+
+    @* Encabezado compartido para todas las vistas internas *@
+    <link rel="stylesheet" href="~/css/shared/page-header.css" asp-append-version="true" />
 
     @* Estilos de impresión: solo se aplican al imprimir *@
     <link rel="stylesheet" href="~/css/shared/print.css" media="print" asp-append-version="true" />
@@ -86,10 +99,11 @@
     @*
       Orden canónico de scripts al final del body:
         1. _Toasts.cshtml     → toasts.css + toasts.js + Material Symbols Outlined
-        2. _ConfirmModal      → modals.css + modals.js
-        3. @section Scripts   → JS propio de la vista (app.js, utils, etc.)
-        4. sidebar.js         → accordion + hamburger + mini-sidebar
-        5. footer.js          → año dinámico + ajuste de margin-left
+        2. _ConfirmModal y _Chatbot → modales y asistencia compartidos
+        3. Utilidades e i18n        → dependencias globales de las vistas
+        4. @section Scripts         → JS propio de la vista
+        5. sidebar.js               → accordion + hamburger + mini-sidebar
+        6. footer.js                → footer y ajuste de margin-left
     *@
     @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
     @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
@@ -128,11 +142,11 @@
       })();
     </script>
 
-    @await RenderSectionAsync("Scripts", required: false)
-
     @* ── i18n ── Motor primero, configuración después ─────────────────────── *@
     <script src="~/js/i18n-core.js" asp-append-version="true"></script>
     <script src="~/js/i18n.config.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false)
 
     <script src="~/js/shared/sidebar.js" asp-append-version="true" defer></script>
     <script src="~/js/footer.js" asp-append-version="true" defer></script>

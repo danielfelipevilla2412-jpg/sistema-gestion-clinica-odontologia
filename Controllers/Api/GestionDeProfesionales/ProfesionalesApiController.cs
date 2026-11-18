@@ -23,8 +23,11 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SmileTrack_MVC.Api.Controllers;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
+using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Services;
 using System.Security.Claims;
 
@@ -119,6 +122,25 @@ public sealed class ProfesionalesApiController : ControllerBase
                 result.PageSize,
                 result.TotalCount,
                 result.TotalPages
+            }
+        });
+    }
+
+    [HttpGet("stats")]
+    [Authorize(Roles = "Administrador", Policy = "ApiOrCookie")]
+    public async Task<IActionResult> GetStats(CancellationToken ct = default)
+    {
+        var stats = await _service.ObtenerEstadisticasAsync(ct);
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                total = stats.StatTotal,
+                activos = stats.StatActivos,
+                vacaciones = stats.StatVacaciones,
+                inactivos = stats.StatInactivos
             }
         });
     }
@@ -426,6 +448,26 @@ public sealed class ProfesionalesApiController : ControllerBase
             : NotFound(new { success = false, message = result.Message });
     }
 
+    [HttpGet("{id:int}/ausencias/preview")]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    public async Task<IActionResult> PreviewAusencia(
+        int id,
+        [FromQuery] DateOnly fechaInicio,
+        [FromQuery] DateOnly fechaFin,
+        CancellationToken ct = default)
+    {
+        var result = await _service.ObtenerCitasAfectadasPorAusenciaAsync(id, fechaInicio, fechaFin, ct);
+        if (!result.Success)
+            return StatusCode(result.ErrorStatusCode ?? 400, new { success = false, message = result.Message });
+
+        return Ok(new
+        {
+            success = true,
+            count = result.Data.Count,
+            data = result.Data
+        });
+    }
+
     [HttpPost("{id:int}/ausencias")]
     [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [CookieAwareValidateAntiforgeryToken]
@@ -531,8 +573,19 @@ public sealed class ProfesionalesApiController : ControllerBase
         if (id <= 0)
             return BadRequest(new { success = false, message = "Identificador inválido." });
 
-        var inicio = fechaInicio ?? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
-        var fin = fechaFin ?? DateTime.UtcNow;
+        if (porcentajeComision is < 0 or > 100)
+            return BadRequest(new { success = false, message = "El porcentaje de comisión debe estar entre 0 y 100." });
+
+        if (fechaInicio.HasValue && fechaFin.HasValue && fechaFin.Value < fechaInicio.Value)
+            return BadRequest(new { success = false, message = "La fecha de fin no puede ser anterior a la fecha de inicio." });
+
+        var profesional = await _service.ObtenerPorIdAsync(id, ct);
+        if (profesional is null)
+            return NotFound(new { success = false, message = "Profesional no encontrado." });
+
+        var ahora = ColombiaClock.Now;
+        var inicio = fechaInicio ?? new DateTime(ahora.Year, ahora.Month, 1);
+        var fin = fechaFin ?? ahora;
 
         try
         {
@@ -542,7 +595,8 @@ public sealed class ProfesionalesApiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al calcular comisiones para el profesional {Id}", id);
-            return BadRequest(new { success = false, message = ex.Message });
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { success = false, message = "No se pudieron calcular las comisiones." });
         }
     }
 
@@ -551,6 +605,7 @@ public sealed class ProfesionalesApiController : ControllerBase
     // Registra ausencia y ejecuta el motor de reasignación/cancelación de citas
     // ─────────────────────────────────────────────────────────────────────────
 
+    [EnableRateLimiting("AusenciaReasignacion")]
     [HttpPost("{id:int}/ausencias-reasignar")]
     [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
     [CookieAwareValidateAntiforgeryToken]
@@ -559,8 +614,15 @@ public sealed class ProfesionalesApiController : ControllerBase
         [FromBody] AusenciaProfesionalApiRequest request,
         CancellationToken ct = default)
     {
-        if (id <= 0 || request is null)
+        if (id <= 0 || request is null || !ModelState.IsValid)
             return BadRequest(new { success = false, message = "Datos de ausencia inválidos." });
+
+        if (request.FechaInicio == default || request.FechaFin == default || request.FechaFin < request.FechaInicio)
+            return BadRequest(new { success = false, message = "El rango de fechas de ausencia no es válido." });
+
+        var profesional = await _service.ObtenerPorIdAsync(id, ct);
+        if (profesional is null)
+            return NotFound(new { success = false, message = "Profesional no encontrado." });
 
         var inicio = request.FechaInicio.ToDateTime(TimeOnly.MinValue);
         var fin = request.FechaFin.ToDateTime(TimeOnly.MaxValue);
@@ -568,13 +630,32 @@ public sealed class ProfesionalesApiController : ControllerBase
         try
         {
             var resultado = await _service.RegistrarAusenciaConReasignacionAsync(
-                id, inicio, fin, request.Tipo ?? "incapacidad", ct, GetCurrentUserId());
-            return Ok(new { success = true, message = "Ausencia registrada y citas procesadas exitosamente.", data = resultado });
+                id,
+                inicio,
+                fin,
+                request.Tipo ?? "incapacidad",
+                GetCurrentUserId(),
+                request.Observaciones,
+                ct);
+            return Ok(new
+            {
+                success = true,
+                message = $"Ausencia registrada: {resultado.TotalReasignadas} cita(s) reasignada(s) y {resultado.TotalCanceladas} cancelada(s).",
+                data = resultado
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message.Contains("solapa", StringComparison.OrdinalIgnoreCase))
+                return Conflict(new { success = false, message = ex.Message });
+
+            return BadRequest(new { success = false, message = ex.Message });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al procesar ausencia con reasignación para profesional {Id}", id);
-            return BadRequest(new { success = false, message = ex.Message });
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { success = false, message = "No se pudo registrar la ausencia ni procesar las citas afectadas." });
         }
     }
 }

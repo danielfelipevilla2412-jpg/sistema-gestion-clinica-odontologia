@@ -21,6 +21,14 @@ public interface IEmailService
         string profesional,
         string servicio,
         string nuevoEstado,
+        CancellationToken cancellationToken = default,
+        string? motivoCancelacion = null,
+        string? mensajePersonalizado = null);
+
+    Task SendFacturaRecordatorioAsync(
+        string recipientEmail,
+        string nombrePaciente,
+        IReadOnlyList<FacturaRecordatorioEmail> facturas,
         CancellationToken cancellationToken = default);
 
     Task<(bool Exito, string Detalle)> ProbarConfiguracionSmtpAsync(string correoDestino, CancellationToken cancellationToken = default);

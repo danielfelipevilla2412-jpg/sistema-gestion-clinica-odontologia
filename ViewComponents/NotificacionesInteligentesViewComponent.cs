@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.ViewModels.Components;
 
 namespace SmileTrack_MVC.ViewComponents;
@@ -66,7 +67,7 @@ public class NotificacionesInteligentesViewComponent : ViewComponent
         if (!idProfesional.HasValue) return new List<NotificacionItem>();
 
         var notificaciones = new List<NotificacionItem>();
-        var ahora = DateTime.Now;
+        var ahora = ColombiaClock.Now;
 
         // Citas sin confirmar (próximas 24h)
         var citasSinConfirmar = await _context.Citas
@@ -139,7 +140,7 @@ public class NotificacionesInteligentesViewComponent : ViewComponent
     private async Task<List<NotificacionItem>> GenerarNotificacionesRecepcion()
     {
         var notificaciones = new List<NotificacionItem>();
-        var ahora = DateTime.Now;
+        var ahora = ColombiaClock.Now;
 
         // Pacientes en espera (todos los profesionales)
         var pacientesEspera = await _context.Citas
@@ -191,7 +192,7 @@ public class NotificacionesInteligentesViewComponent : ViewComponent
         if (!idPaciente.HasValue) return new List<NotificacionItem>();
 
         var notificaciones = new List<NotificacionItem>();
-        var ahora = DateTime.Now;
+        var ahora = ColombiaClock.Now;
 
         // Próximas citas (próximas 48h)
         var proximasCitas = await _context.Citas

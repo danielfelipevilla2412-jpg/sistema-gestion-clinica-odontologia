@@ -24,8 +24,6 @@
 // ════════════════════════════════════════════════════════════════════
 
 const API_BASE_URL = (window.APP_CONFIG?.ApiBase) || '/api';
-const activeAnimationsSet = new Set();
-const cleanupHandlersList = [];
 
 // ════════════════════════════════════════════════════════════════════
 // 2. ESTADO DE LA APLICACIÓN
@@ -33,6 +31,9 @@ const cleanupHandlersList = [];
 
 let agendaEditRequestHandlerRef = null;
 let agendaNewAppointmentHandlerRef = null;
+let agendaLoadRequestSequence = 0;
+let availabilityRequestSequence = 0;
+let availabilityAbortController = null;
 
 // ════════════════════════════════════════════════════════════════════
 // 3. UTILIDADES Y HELPERS
@@ -44,26 +45,16 @@ const safeGetElement = (elementId) =>
 const debounce = (callback, delay) =>
     window.CommonUtils?.debounce ? window.CommonUtils.debounce(callback, delay) : callback;
 
-const trackedRequestAnimationFrame = (callback) => {
-    let animationId;
-
-    const wrapper = (timestamp) => {
-        callback(timestamp);
-        activeAnimationsSet.delete(animationId);
-    };
-
-    animationId = requestAnimationFrame(wrapper);
-    activeAnimationsSet.add(animationId);
-
-    return animationId;
-};
-
 const parseIsoDate = (dateString) => {
     const dateParts = dateString.split('-').map(part => parseInt(part, 10));
     return new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
 };
 
-const formatIsoDate = (dateObject) => dateObject.toISOString().slice(0, 10);
+const formatIsoDate = (dateObject) => [
+    dateObject.getFullYear(),
+    String(dateObject.getMonth() + 1).padStart(2, '0'),
+    String(dateObject.getDate()).padStart(2, '0')
+].join('-');
 
 const getMondayOfWeek = (targetDate) => {
     const dateObj = new Date(targetDate);
@@ -81,63 +72,57 @@ const calculateAppointmentEndTime = (startTime, durationMinutes = 60) => {
     return `${String(Math.floor((totalMinutes % 1440) / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
 };
 
-const getStatusCssClass = (statusString) => {
-    const normalizedStatus = String(statusString ?? '').trim().toLowerCase();
-    if (normalizedStatus === 'disponible') return 'available';
-    if (normalizedStatus === 'pendiente') return 'reserved';
-
-    return {
-        programada: 'reserved',
-        confirmada: 'confirmed',
-        en_proceso: 'confirmed',
-        atendida: 'attended',
-        cancelada: 'cancelled',
-        no_asistida: 'cancelled'
-    }[CommonUtils.normalizeAppointmentStatus(statusString)] || 'reserved';
-};
-
-const getSelectedSelectOptionText = (selectElement) => {
-    return selectElement.options[selectElement.selectedIndex]?.text || '';
-};
-
-const findCalendarDayContainer = (dateString) => {
-    const dateId = `day-${dateString.replace(/-/g, '')}`;
-    return document.getElementById(dateId)?.closest('.calendar-day');
-};
-
 // ════════════════════════════════════════════════════════════════════
 // 4. SERVICIOS Y API
 // ════════════════════════════════════════════════════════════════════
 
 const loadWeekData = async (weekStartIso, pushHistory = true) => {
+    const requestSequence = ++agendaLoadRequestSequence;
     const calendarSection = document.querySelector('.calendar-section');
     const filterProfessional = safeGetElement('filterProfessional');
     const filterOffice = safeGetElement('filterOffice');
+    const abortController = new AbortController();
+    const timeoutId = window.setTimeout(() => abortController.abort(), 15000);
 
     calendarSection?.classList.add('is-loading');
     try {
         const searchParams = new URLSearchParams(window.location.search);
         searchParams.set('weekStart', weekStartIso);
         if (filterProfessional?.value) searchParams.set('professionalId', filterProfessional.value);
-        else searchParams.set('professionalId', '0');
+        else searchParams.delete('professionalId');
         if (filterOffice?.value) searchParams.set('officeId', filterOffice.value);
         else searchParams.delete('officeId');
 
-        const requestUrl = `/gestion-de-citas/st-adm-08-agenda?${searchParams.toString()}`;
-        const response = await fetch(requestUrl, { credentials: 'same-origin' });
+        const requestParams = new URLSearchParams(searchParams);
+        requestParams.set('calendarOnly', 'true');
+        const requestUrl = `/gestion-de-citas/st-adm-08-agenda?${requestParams.toString()}`;
+        const response = await fetch(requestUrl, {
+            credentials: 'same-origin',
+            signal: abortController.signal
+        });
         if (!response.ok) throw new Error('No se pudo cargar la semana');
         const responseHtml = await response.text();
-        replaceCalendarSectionHtml(responseHtml);
+        if (requestSequence !== agendaLoadRequestSequence) return false;
+        replaceCalendarSectionHtml(responseHtml, weekStartIso);
 
         if (pushHistory) {
             const newUrl = `${window.location.pathname}?${searchParams.toString()}`;
             history.pushState({ weekStart: weekStartIso }, '', newUrl);
         }
+        return true;
     } catch (err) {
+        if (requestSequence !== agendaLoadRequestSequence) return false;
         console.error('[SmileTrack][Agenda] Error cargando semana:', err);
-        if (window.ToastService) window.ToastService.error('❌ No fue posible cargar la semana seleccionada');
+        const message = err.name === 'AbortError'
+            ? 'La agenda tardó demasiado en actualizarse. Intenta recargar la semana.'
+            : '❌ No fue posible cargar la semana seleccionada';
+        if (window.ToastService) window.ToastService.error(message);
+        return false;
     } finally {
-        calendarSection?.classList.remove('is-loading');
+        window.clearTimeout(timeoutId);
+        if (requestSequence === agendaLoadRequestSequence) {
+            document.querySelector('.calendar-section')?.classList.remove('is-loading');
+        }
     }
 };
 
@@ -169,7 +154,9 @@ const submitAppointmentData = async (formData, formElement) => {
     } catch (error) {
         console.error('[SmileTrack][API] Error al crear cita:', error);
         if (error.name === 'AbortError') {
-            throw new Error('La solicitud tardó demasiado. Verifica tu conexión e inténtalo de nuevo.');
+            const timeoutError = new Error('No se recibió confirmación del servidor. Actualiza la agenda para verificar si la cita se guardó antes de volver a intentarlo.');
+            timeoutError.name = 'RequestTimeoutError';
+            throw timeoutError;
         }
         throw error;
     } finally {
@@ -178,26 +165,49 @@ const submitAppointmentData = async (formData, formElement) => {
 };
 
 const checkAgendaAvailability = async () => {
+    const requestSequence = ++availabilityRequestSequence;
+    availabilityAbortController?.abort();
+    availabilityAbortController = null;
+    const button = safeGetElement('checkAvailabilityButton');
     const date = safeGetElement('availabilityDate')?.value;
     const time = safeGetElement('availabilityTime')?.value;
     const serviceId = safeGetElement('availabilityService')?.value;
     const results = safeGetElement('agendaAvailabilityResults');
-    if (!results) return;
+    if (!results) {
+        if (button) {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+        }
+        return;
+    }
     if (!date || !time || !serviceId) {
         results.textContent = 'Selecciona fecha, hora y servicio para consultar profesionales.';
+        button?.removeAttribute('aria-busy');
+        if (button) button.disabled = false;
         return;
     }
 
+    const abortController = new AbortController();
+    availabilityAbortController = abortController;
+    if (button) {
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+    }
     results.textContent = 'Consultando disponibilidad...';
     const query = new URLSearchParams({ fecha: date, horaInicio: time, idServicio: serviceId });
     try {
-        const response = await fetch(`${API_BASE_URL}/citas/profesionales-disponibles?${query}`, {
+        const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE_URL}/citas/profesionales-disponibles?${query}`, {
             credentials: 'same-origin',
-            headers: { Accept: 'application/json' }
+            headers: { Accept: 'application/json' },
+            signal: abortController.signal
         });
         if (!response.ok) throw new Error('No fue posible consultar la disponibilidad.');
         const payload = await response.json();
-        const professionals = payload.data ?? [];
+        if (requestSequence !== availabilityRequestSequence) return;
+        if (!payload.success || !Array.isArray(payload.data)) {
+            throw new Error(payload.message || 'El servidor devolvió una respuesta de disponibilidad inválida.');
+        }
+        const professionals = payload.data;
         results.replaceChildren();
 
         if (professionals.length === 0) {
@@ -227,7 +237,18 @@ const checkAgendaAvailability = async () => {
         });
         results.appendChild(list);
     } catch (error) {
-        results.textContent = error.message || 'No fue posible consultar la disponibilidad.';
+        if (requestSequence !== availabilityRequestSequence) return;
+        results.textContent = error.name === 'TimeoutError'
+            ? 'La consulta de disponibilidad tardó demasiado. Intenta nuevamente.'
+            : error.message || 'No fue posible consultar la disponibilidad.';
+    } finally {
+        if (availabilityAbortController === abortController) {
+            availabilityAbortController = null;
+            if (button) {
+                button.disabled = false;
+                button.removeAttribute('aria-busy');
+            }
+        }
     }
 };
 
@@ -250,10 +271,19 @@ const initializeAgendaAvailability = () => {
         const serviceId = safeGetElement('availabilityService')?.value;
         const form = safeGetElement('formNewAppointment');
         if (!form) return;
+        const professionalId = assignButton.dataset.assignProfessional;
+        if (!professionalId) {
+            if (window.ToastService) window.ToastService.error('No se pudo identificar al profesional seleccionado.');
+            return;
+        }
+        const serviceSelect = form.querySelector('#newApptService');
+        const professionalSelect = form.querySelector('#newApptProfessional');
         form.querySelector('#newApptDate').value = date;
         form.querySelector('#newApptStartTime').value = time;
-        form.querySelector('#newApptProfessional').value = assignButton.dataset.assignProfessional;
-        form.querySelector('#newApptService').value = serviceId;
+        serviceSelect.value = serviceId;
+        serviceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        professionalSelect.value = professionalId;
+        professionalSelect.dispatchEvent(new Event('change', { bubbles: true }));
         document.dispatchEvent(new CustomEvent('smiletrack:new-appointment', { detail: { date } }));
     });
 };
@@ -262,30 +292,27 @@ const initializeAgendaAvailability = () => {
 // 5. RENDERIZADO Y DOM
 // ════════════════════════════════════════════════════════════════════
 
-const replaceCalendarSectionHtml = (htmlText) => {
-    try {
-        const parser = new DOMParser();
-        const parsedDoc = parser.parseFromString(htmlText, 'text/html');
-        const newCalendarSection = parsedDoc.querySelector('.calendar-section');
-        const newWeekLabel = parsedDoc.querySelector('#weekLabel');
-        const currentWeekLabelEl = safeGetElement('weekLabel');
+const replaceCalendarSectionHtml = (htmlText, weekStartIso) => {
+    const parsedDoc = new DOMParser().parseFromString(htmlText, 'text/html');
+    const newCalendarSection = parsedDoc.querySelector('.calendar-section');
+    const currentCalendarSection = document.querySelector('.calendar-section');
+    const currentWeekLabel = safeGetElement('weekLabel');
 
-        if (newCalendarSection) {
-            const existingSection = document.querySelector('.calendar-section');
-            if (existingSection) existingSection.replaceWith(newCalendarSection.cloneNode(true));
-            initializeNewAppointmentModal();
-            initializeNativeAnimations();
-        }
-        if (newWeekLabel && currentWeekLabelEl) {
-            currentWeekLabelEl.textContent = newWeekLabel.textContent || currentWeekLabelEl.textContent;
-            const weekStartData = newWeekLabel.getAttribute('data-week-start');
-            if (weekStartData) currentWeekLabelEl.dataset.weekStart = weekStartData;
-            const durationData = newWeekLabel.getAttribute('data-duration-minutes');
-            if (durationData) currentWeekLabelEl.dataset.durationMinutes = durationData;
-        }
-    } catch (err) {
-        console.error('[SmileTrack][Agenda] Error reemplazando sección de calendario:', err);
+    if (!newCalendarSection || !currentCalendarSection || !currentWeekLabel) {
+        throw new Error('La respuesta del servidor no contiene el calendario semanal esperado.');
     }
+
+    currentCalendarSection.replaceWith(newCalendarSection.cloneNode(true));
+    const weekStartDate = parseIsoDate(weekStartIso);
+    const weekEndDate = new Date(weekStartDate);
+    weekEndDate.setDate(weekEndDate.getDate() + 6);
+    const formatDayMonth = date => `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+    currentWeekLabel.textContent = `${formatDayMonth(weekStartDate)} - ${formatDayMonth(weekEndDate)}`;
+    currentWeekLabel.dataset.weekStart = weekStartIso;
+    currentWeekLabel.dataset.durationMinutes = newCalendarSection.dataset.durationMinutes
+        || currentWeekLabel.dataset.durationMinutes;
+    initializeNewAppointmentModal();
+    initializeNativeAnimations();
 };
 
 const initializeNativeAnimations = () => {
@@ -295,99 +322,13 @@ const initializeNativeAnimations = () => {
         }
     });
 
-    trackedRequestAnimationFrame(() => {
+    // Se difiere un frame para que las barras de progreso animen su ancho tras el
+    // primer pintado (la transición CSS parte de 0).
+    requestAnimationFrame(() => {
         document.querySelectorAll('[data-width]').forEach(progressBar => {
             progressBar.style.width = `${progressBar.dataset.width}%`;
         });
     });
-};
-
-const createAppointmentCardElement = (appointmentData) => {
-    const appointmentDiv = document.createElement('div');
-    appointmentDiv.className = `appointment ${appointmentData.statusClass}`;
-    appointmentDiv.setAttribute('tabindex', '0');
-    appointmentDiv.setAttribute('role', 'button');
-
-    Object.entries({
-        id: appointmentData.id,
-        date: appointmentData.date,
-        startTime: appointmentData.startTime,
-        endTime: appointmentData.endTime,
-        status: appointmentData.status,
-        patientId: appointmentData.patientId,
-        professionalId: appointmentData.professionalId,
-        officeId: appointmentData.officeId,
-        serviceId: appointmentData.serviceId,
-        notes: appointmentData.notes,
-        patientName: appointmentData.patientName,
-        professionalName: appointmentData.professionalName,
-        officeName: appointmentData.officeName,
-        serviceName: appointmentData.serviceName
-    }).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-            appointmentDiv.dataset[key] = String(value);
-        }
-    });
-
-    const ariaLabelText = `Cita ${appointmentData.status}: ${appointmentData.patientName}, ${appointmentData.startTime}, ${appointmentData.serviceName}, ${appointmentData.officeName}`;
-    appointmentDiv.setAttribute('aria-label', ariaLabelText);
-
-    const timeElement = document.createElement('time');
-    timeElement.className = 'appt-time';
-    timeElement.setAttribute('datetime', `${appointmentData.date}T${appointmentData.startTime}:00`);
-    timeElement.textContent = appointmentData.startTime;
-
-    const patientElement = document.createElement('span');
-    patientElement.className = 'appt-patient';
-    patientElement.textContent = appointmentData.patientName;
-
-    const detailElement = document.createElement('span');
-    detailElement.className = 'appt-detail';
-    detailElement.textContent = `${appointmentData.serviceName} · ${appointmentData.officeName}`;
-
-    appointmentDiv.appendChild(timeElement);
-    appointmentDiv.appendChild(patientElement);
-    appointmentDiv.appendChild(detailElement);
-
-    return appointmentDiv;
-};
-
-const addAppointmentToCalendarView = (appointmentData) => {
-    const dayContainer = findCalendarDayContainer(appointmentData.date);
-
-    if (!dayContainer) {
-        console.warn(`[SmileTrack][Agenda] No se encontró el contenedor del día: ${appointmentData.date}`);
-        if (window.ToastService) window.ToastService.warning('⚠️ La fecha seleccionada no está en la vista actual del calendario');
-        return false;
-    }
-
-    const noAppointmentsPlaceholder = dayContainer.querySelector('.appointment.available');
-    if (noAppointmentsPlaceholder && noAppointmentsPlaceholder.querySelector('.appt-patient')?.textContent === 'Sin citas') {
-        noAppointmentsPlaceholder.remove();
-    }
-
-    const appointmentElement = createAppointmentCardElement(appointmentData);
-    const existingAppointments = Array.from(dayContainer.querySelectorAll('.appointment:not(.available)'));
-    const insertPosition = existingAppointments.findIndex(existing => {
-        const existingTime = existing.querySelector('.appt-time')?.textContent;
-        return existingTime && existingTime > appointmentData.startTime;
-    });
-
-    if (insertPosition === -1) {
-        dayContainer.appendChild(appointmentElement);
-    } else {
-        dayContainer.insertBefore(appointmentElement, existingAppointments[insertPosition]);
-    }
-
-    appointmentElement.style.opacity = '0';
-    appointmentElement.style.transform = 'translateY(-10px)';
-    setTimeout(() => {
-        appointmentElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-        appointmentElement.style.opacity = '1';
-        appointmentElement.style.transform = 'translateY(0)';
-    }, 10);
-
-    return true;
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -401,8 +342,10 @@ const initializeNewAppointmentModal = () => {
     const cancelButton = safeGetElement('modalNewApptCancel');
     const saveButton = safeGetElement('modalNewApptSave');
     const formElement = safeGetElement('formNewAppointment');
+    const statusSelect = formElement?.querySelector('#newApptStatus');
+    const formStatusElement = formElement?.querySelector('#modalNewApptStatus');
 
-    if (!fabButton || !modalOverlay || !formElement) {
+    if (!fabButton || !modalOverlay || !formElement || !saveButton) {
         console.warn('[SmileTrack][Agenda] No se pudieron encontrar elementos del modal de nueva cita');
         return;
     }
@@ -416,6 +359,13 @@ const initializeNewAppointmentModal = () => {
         return Number.isFinite(duration) && duration > 0 ? duration : 60;
     };
 
+    const setFormStatus = (message, isError = false) => {
+        if (!formStatusElement) return;
+        formStatusElement.textContent = message;
+        formStatusElement.hidden = !message;
+        formStatusElement.classList.toggle('form-error', Boolean(message) && isError);
+    };
+
     const syncEndTimeInputs = () => {
         const endInput = formElement.querySelector('#newApptEndTime');
         const startInput = formElement.querySelector('#newApptStartTime');
@@ -423,6 +373,7 @@ const initializeNewAppointmentModal = () => {
     };
 
     const openNewAppointmentModal = () => {
+        setFormStatus('');
         const detailModal = safeGetElement('modalAppointment');
         if (detailModal?.classList.contains('open')) {
             detailModal.classList.remove('open');
@@ -435,7 +386,7 @@ const initializeNewAppointmentModal = () => {
         modalOverlay.removeAttribute('inert');
         document.body.classList.add('modal-open');
 
-        const todayIsoString = new Date().toISOString().split('T')[0];
+        const todayIsoString = formatIsoDate(new Date());
         const dateInput = formElement.querySelector('#newApptDate');
         if (dateInput) {
             dateInput.setAttribute('min', todayIsoString);
@@ -456,7 +407,9 @@ const initializeNewAppointmentModal = () => {
         modalOverlay.setAttribute('aria-hidden', 'true');
         modalOverlay.setAttribute('inert', '');
         document.body.classList.remove('modal-open');
+        statusSelect?.querySelectorAll('[data-transient-status]').forEach(option => option.remove());
         formElement.reset();
+        setFormStatus('');
         if (lastFocusedElement instanceof HTMLElement) {
             lastFocusedElement.focus();
         } else {
@@ -469,10 +422,25 @@ const initializeNewAppointmentModal = () => {
         const data = event.detail;
         if (!data) return;
 
+        const normalizedStatus = window.CommonUtils?.normalizeAppointmentStatus(data.status)
+            || String(data.status || '').trim().toLowerCase();
+        const statusValue = normalizedStatus === 'programada'
+            ? 'Programada'
+            : normalizedStatus === 'confirmada'
+                ? 'Confirmada'
+                : data.status;
+        if (statusSelect && statusValue && !Array.from(statusSelect.options).some(option => option.value === statusValue)) {
+            const currentStatusOption = document.createElement('option');
+            currentStatusOption.value = statusValue;
+            currentStatusOption.textContent = data.status;
+            currentStatusOption.dataset.transientStatus = 'true';
+            statusSelect.appendChild(currentStatusOption);
+        }
+
         const valuesMap = {
             appointmentId: data.id,
             newApptDate: data.date,
-            newApptStatus: data.status,
+            newApptStatus: statusValue,
             newApptStartTime: data.startTime,
             newApptEndTime: data.endTime,
             newApptPatient: data.patientId,
@@ -516,6 +484,8 @@ const initializeNewAppointmentModal = () => {
         saveButton.disabled = true;
         const originalButtonText = saveButton.textContent;
         saveButton.textContent = 'Guardando...';
+        formElement.setAttribute('aria-busy', 'true');
+        setFormStatus('Enviando la cita al servidor...');
 
         try {
             const parseIntOrNull = (val) => {
@@ -538,9 +508,9 @@ const initializeNewAppointmentModal = () => {
             const derivedEndTime = calculateAppointmentEndTime(formDataPayload.HoraInicio, getConfiguredDuration());
 
             if (!formDataPayload.Fecha || !formDataPayload.HoraInicio || !formDataPayload.IdPaciente || !formDataPayload.IdProfesional || !formDataPayload.IdConsultorio || !formDataPayload.IdServicio) {
-                if (window.ToastService) window.ToastService.warning('⚠️ Completa todos los campos obligatorios antes de guardar la cita.');
-                saveButton.disabled = false;
-                saveButton.textContent = originalButtonText;
+                const message = 'Completa todos los campos obligatorios antes de guardar la cita.';
+                setFormStatus(message, true);
+                if (window.ToastService) window.ToastService.warning(`⚠️ ${message}`);
                 return;
             }
 
@@ -570,28 +540,10 @@ const initializeNewAppointmentModal = () => {
                     if (!validationErrors.some(e => e.field === 'general')) {
                         if (window.ToastService) window.ToastService.warning('⚠️ Verifique los campos resaltados en rojo');
                     }
-                    saveButton.disabled = false;
-                    saveButton.textContent = originalButtonText;
+                    setFormStatus('Corrige los campos indicados antes de enviar.', true);
                     return;
                 }
             }
-
-            const appointmentCardData = {
-                date: formDataPayload.Fecha,
-                startTime: formDataPayload.HoraInicio,
-                endTime: derivedEndTime,
-                status: formDataPayload.Estado,
-                statusClass: getStatusCssClass(formDataPayload.Estado),
-                patientName: getSelectedSelectOptionText(formElement.querySelector('#newApptPatient')),
-                professionalName: getSelectedSelectOptionText(formElement.querySelector('#newApptProfessional')),
-                officeName: getSelectedSelectOptionText(formElement.querySelector('#newApptOffice')),
-                serviceName: getSelectedSelectOptionText(formElement.querySelector('#newApptService')),
-                notes: formDataPayload.Notas,
-                patientId: formDataPayload.IdPaciente,
-                professionalId: formDataPayload.IdProfesional,
-                officeId: formDataPayload.IdConsultorio,
-                serviceId: formDataPayload.IdServicio
-            };
 
             const result = await submitAppointmentData(formDataPayload, formElement);
 
@@ -600,27 +552,35 @@ const initializeNewAppointmentModal = () => {
             }
 
             const isUpdateOperation = Boolean(formDataPayload.IdCita);
-            const addedToCalendar = !isUpdateOperation && addAppointmentToCalendarView(appointmentCardData);
-
+            const currentWeekStart = safeGetElement('weekLabel')?.dataset.weekStart;
+            const targetWeekStart = formatIsoDate(getMondayOfWeek(parseIsoDate(formDataPayload.Fecha)));
+            closeNewAppointmentModal();
+            if (!isUpdateOperation) {
+                const professionalFilter = safeGetElement('filterProfessional');
+                const officeFilter = safeGetElement('filterOffice');
+                if (professionalFilter?.value && professionalFilter.value !== String(formDataPayload.IdProfesional)) {
+                    professionalFilter.value = '';
+                }
+                if (officeFilter?.value && officeFilter.value !== String(formDataPayload.IdConsultorio)) {
+                    officeFilter.value = '';
+                }
+            }
             if (window.ToastService) {
                 window.ToastService.success(
-                    isUpdateOperation
-                        ? '✅ Cita actualizada exitosamente'
-                        : addedToCalendar
-                            ? '✅ Cita creada exitosamente'
-                            : '✅ Cita guardada. Cambia a la semana seleccionada para verla.'
+                    isUpdateOperation ? '✅ Cita actualizada exitosamente' : '✅ Cita creada exitosamente'
                 );
             }
-            closeNewAppointmentModal();
-            if (isUpdateOperation) {
-                window.setTimeout(() => window.location.reload(), 250);
-            }
+            setFormStatus('');
+            await loadWeekData(targetWeekStart, targetWeekStart !== currentWeekStart);
         } catch (error) {
             console.error('[SmileTrack][Agenda] Error al guardar cita:', error);
-            if (window.ToastService) window.ToastService.error(`❌ ${error.message || 'No fue posible guardar la cita. Intente nuevamente.'}`);
+            const message = error.message || 'No fue posible guardar la cita. Intenta nuevamente.';
+            setFormStatus(message, true);
+            if (window.ToastService) window.ToastService.error(`❌ ${message}`);
         } finally {
             saveButton.disabled = false;
             saveButton.textContent = originalButtonText;
+            formElement.removeAttribute('aria-busy');
         }
     };
 
@@ -660,19 +620,6 @@ const initializeNewAppointmentModal = () => {
         }
     };
     document.addEventListener('keydown', handleEscapeKey);
-
-    cleanupHandlersList.push(() => {
-        fabButton.removeEventListener('click', openNewAppointmentModal);
-        closeButton?.removeEventListener('click', closeNewAppointmentModal);
-        cancelButton?.removeEventListener('click', closeNewAppointmentModal);
-        formElement.removeEventListener('submit', handleNewAppointmentFormSubmit);
-        formElement.querySelector('#newApptStartTime')?.removeEventListener('input', syncEndTimeInputs);
-        formElement.querySelector('#newApptStartTime')?.removeEventListener('change', syncEndTimeInputs);
-        modalOverlay.removeEventListener('click', handleOverlayClick);
-        document.removeEventListener('keydown', handleEscapeKey);
-        document.removeEventListener('smiletrack:edit-appointment', handleEditAppointmentEvent);
-        document.removeEventListener('smiletrack:new-appointment', handleNewAppointmentFromCalendarEvent);
-    });
 };
 
 const initializeAppointmentDetailModal = () => {
@@ -680,8 +627,9 @@ const initializeAppointmentDetailModal = () => {
     const contentElement = safeGetElement('modalApptContent');
     const closeButton = safeGetElement('modalApptClose');
     const cancelButton = safeGetElement('modalApptCancel');
+    const cancelAppointmentButton = safeGetElement('modalApptCancelar');
     const editButton = safeGetElement('modalApptEdit');
-    if (!modalElement || !contentElement || !closeButton || !cancelButton || !editButton) return;
+    if (!modalElement || !contentElement || !closeButton || !cancelButton || !cancelAppointmentButton || !editButton) return;
     if (modalElement.dataset.initialized === 'true') return;
     modalElement.dataset.initialized = 'true';
 
@@ -747,6 +695,21 @@ const initializeAppointmentDetailModal = () => {
             rowParagraph.append(strongTag, document.createTextNode(value));
             contentElement.appendChild(rowParagraph);
         });
+        const rescheduleButton = safeGetElement('modalApptReagendar');
+        if (rescheduleButton) {
+            rescheduleButton.hidden = targetElement.dataset.reschedulable !== 'true';
+            Object.assign(rescheduleButton.dataset, {
+                id: selectedAppointmentData.id,
+                date: selectedAppointmentData.date,
+                startTime: selectedAppointmentData.startTime,
+                patientName: selectedAppointmentData.patientName,
+                serviceName: selectedAppointmentData.serviceName,
+                reschedulable: targetElement.dataset.reschedulable || 'false'
+            });
+        }
+        const isTerminal = targetElement.classList.contains('attended') || targetElement.classList.contains('cancelled');
+        cancelAppointmentButton.hidden = isTerminal;
+        editButton.hidden = isTerminal;
         lastFocusedElement = document.activeElement;
         modalElement.classList.add('open');
         modalElement.setAttribute('aria-hidden', 'false');
@@ -790,6 +753,58 @@ const initializeAppointmentDetailModal = () => {
         document.dispatchEvent(new CustomEvent('smiletrack:edit-appointment', { detail: appointmentToEdit }));
     };
 
+    const handleCancelAppointmentClick = async () => {
+        if (!selectedAppointmentData || cancelAppointmentButton.disabled) return;
+
+        const reason = window.prompt('Indica el motivo de cancelación (entre 5 y 500 caracteres):');
+        if (reason === null) return;
+        const trimmedReason = reason.trim();
+        if (trimmedReason.length < 5 || trimmedReason.length > 500) {
+            if (window.ToastService) window.ToastService.warning('El motivo debe tener entre 5 y 500 caracteres.');
+            return;
+        }
+
+        const token = document.querySelector('#formNewAppointment input[name="__RequestVerificationToken"]')?.value;
+        if (!token) {
+            if (window.ToastService) window.ToastService.error('No se pudo validar la solicitud. Recarga la página e inténtalo de nuevo.');
+            return;
+        }
+
+        cancelAppointmentButton.disabled = true;
+        try {
+            const response = await window.SmileTrack.utils.fetchWithTimeout(`${API_BASE_URL}/citas/${encodeURIComponent(selectedAppointmentData.id)}`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token
+                },
+                body: JSON.stringify({ Motivo: trimmedReason })
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) {
+                throw new Error(payload?.message || `No fue posible cancelar la cita (HTTP ${response.status}).`);
+            }
+
+            const currentWeekStart = safeGetElement('weekLabel')?.dataset.weekStart;
+            closeDetailModal();
+            const calendarUpdated = await loadWeekData(currentWeekStart || formatIsoDate(getMondayOfWeek(new Date())), false);
+            if (window.ToastService) {
+                window.ToastService.success(
+                    calendarUpdated
+                        ? payload.message || 'Cita cancelada exitosamente.'
+                        : 'Cita cancelada. Actualiza la página para ver los cambios.'
+                );
+            }
+        } catch (error) {
+            console.error('[SmileTrack][Agenda] Error al cancelar cita:', error);
+            if (window.ToastService) window.ToastService.error(error.message || 'No fue posible cancelar la cita.');
+        } finally {
+            cancelAppointmentButton.disabled = false;
+        }
+    };
+
     const handleEscapeKey = (event) => {
         if (!modalElement.classList.contains('open')) return;
         if (event.key === 'Escape') {
@@ -818,22 +833,12 @@ const initializeAppointmentDetailModal = () => {
     closeButton.addEventListener('click', closeDetailModal);
     cancelButton.addEventListener('click', closeDetailModal);
     editButton.addEventListener('click', handleEditButtonClick);
+    cancelAppointmentButton.addEventListener('click', handleCancelAppointmentClick);
     const handleOverlayClick = (event) => {
         if (event.target === modalElement) closeDetailModal();
     };
     modalElement.addEventListener('click', handleOverlayClick);
     document.addEventListener('keydown', handleEscapeKey);
-
-    cleanupHandlersList.push(() => {
-        document.removeEventListener('click', handleCalendarClick);
-        document.removeEventListener('keydown', handleCalendarKeydown);
-        closeButton.removeEventListener('click', closeDetailModal);
-        cancelButton.removeEventListener('click', closeDetailModal);
-        editButton.removeEventListener('click', handleEditButtonClick);
-        modalElement.removeEventListener('click', handleOverlayClick);
-        document.removeEventListener('keydown', handleEscapeKey);
-        document.body.classList.remove('modal-open');
-    });
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -875,12 +880,6 @@ const setupSidebarNavigation = () => {
     overlayElement.addEventListener('click', handleOverlayClick);
     document.addEventListener('keydown', handleKeyDown);
 
-    cleanupHandlersList.push(() => {
-        hamburgerButton.removeEventListener('click', handleHamburgerClick);
-        overlayElement.removeEventListener('click', handleOverlayClick);
-        document.removeEventListener('keydown', handleKeyDown);
-    });
-
     const navigationItems = sidebarElement.querySelectorAll('.nav-item');
     const handleNavigationClick = () => {
         if (window.innerWidth <= 680) {
@@ -891,12 +890,6 @@ const setupSidebarNavigation = () => {
     navigationItems.forEach(item => {
         item.addEventListener('click', handleNavigationClick);
     });
-
-    cleanupHandlersList.push(() => {
-        navigationItems.forEach(item => {
-            item.removeEventListener('click', handleNavigationClick);
-        });
-    });
 };
 
 const setupWeekNavigationListeners = () => {
@@ -906,6 +899,7 @@ const setupWeekNavigationListeners = () => {
     const btnToday = safeGetElement('btnToday');
     const filterProfessional = safeGetElement('filterProfessional');
     const filterOffice = safeGetElement('filterOffice');
+    const initialWeekStart = weekLabelEl?.dataset.weekStart;
 
     if (!weekLabelEl || !btnPrev || !btnNext || !btnToday) return;
 
@@ -933,11 +927,14 @@ const setupWeekNavigationListeners = () => {
     };
 
     const handlePopstateEvent = (event) => {
-        const stateWeek = (event.state && event.state.weekStart) || (new URLSearchParams(window.location.search)).get('weekStart');
         const searchParams = new URLSearchParams(window.location.search);
+        const stateWeek = (event.state && event.state.weekStart)
+            || searchParams.get('weekStart')
+            || initialWeekStart
+            || formatIsoDate(getMondayOfWeek(new Date()));
         if (filterProfessional) filterProfessional.value = searchParams.get('professionalId') || '';
         if (filterOffice) filterOffice.value = searchParams.get('officeId') || '';
-        if (stateWeek) loadWeekData(stateWeek, false);
+        loadWeekData(stateWeek, false);
     };
 
     const handleProfessionalFilterChange = () => loadWeekData(formatIsoDate(getCurrentWeekMonday()));
@@ -948,16 +945,8 @@ const setupWeekNavigationListeners = () => {
     btnToday.addEventListener('click', handleTodayClick);
     filterProfessional?.addEventListener('change', handleProfessionalFilterChange);
     filterOffice?.addEventListener('change', handleOfficeFilterChange);
+    safeGetElement('btnImprimirAgenda')?.addEventListener('click', () => window.print());
     window.addEventListener('popstate', handlePopstateEvent);
-
-    cleanupHandlersList.push(() => {
-        btnPrev.removeEventListener('click', handlePrevWeekClick);
-        btnNext.removeEventListener('click', handleNextWeekClick);
-        btnToday.removeEventListener('click', handleTodayClick);
-        filterProfessional?.removeEventListener('change', handleProfessionalFilterChange);
-        filterOffice?.removeEventListener('change', handleOfficeFilterChange);
-        window.removeEventListener('popstate', handlePopstateEvent);
-    });
 };
 
 const initializeAgendaGeneralModule = async () => {
@@ -976,17 +965,9 @@ const initializeAgendaGeneralModule = async () => {
     } catch (error) {
         console.error('[SmileTrack][Init] Falla crítica durante la inicialización:', error);
     }
-
-    window.addEventListener('beforeunload', () => {
-        activeAnimationsSet.forEach(animationId => {
-            cancelAnimationFrame(animationId);
-        });
-        activeAnimationsSet.clear();
-
-        cleanupHandlersList.forEach(cleanupFunction => {
-            cleanupFunction();
-        });
-    });
+    // No se registra limpieza en 'beforeunload': la vista usa navegación de recarga
+    // completa (sin SPA), por lo que el navegador destruye listeners y frames al
+    // descargar la página y no hay estado que liberar manualmente.
 };
 
 document.addEventListener('DOMContentLoaded', initializeAgendaGeneralModule);

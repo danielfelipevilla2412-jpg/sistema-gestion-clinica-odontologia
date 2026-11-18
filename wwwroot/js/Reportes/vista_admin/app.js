@@ -1,4 +1,5 @@
 /* =============================================
+/* ============================================
    SmileTrack — Reportes app.js
    (Misma estructura de interacción que otros módulos)
    ============================================= */
@@ -6,53 +7,30 @@
 (function () {
   'use strict';
 
-  /* ---------- Sidebar toggle (mobile) ---------- */
-  const sidebar   = document.getElementById('sidebar');
-  const hamburger = document.getElementById('hamburger');
-  const overlay   = document.getElementById('overlay');
+  const translate = key => window.I18N?.t(key) || key;
 
-  function openSidebar() {
-    sidebar.classList.add('open');
-    overlay.classList.add('open');
-    hamburger.setAttribute('aria-expanded', 'true');
-    document.body.style.overflow = 'hidden';
-  }
+  function updateLocalizedContent(lang) {
+    const locale = lang === 'en' ? 'en-US' : 'es-CO';
+    document.querySelectorAll('[data-report-date]').forEach(dateElement => {
+      const timestamp = Date.parse(dateElement.dateTime);
+      if (Number.isNaN(timestamp)) return;
 
-  function closeSidebar() {
-    sidebar.classList.remove('open');
-    overlay.classList.remove('open');
-    hamburger.setAttribute('aria-expanded', 'false');
-    document.body.style.overflow = '';
-  }
-
-  if (hamburger) {
-    hamburger.addEventListener('click', () => {
-      sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+      dateElement.textContent = new Intl.DateTimeFormat(locale, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      }).format(timestamp);
     });
+
+    document.title = `${translate('nav.group_reportes_analitica')} — SmileTrack`;
   }
-  if (overlay) overlay.addEventListener('click', closeSidebar);
 
-// Collapse nav groups
-  document.querySelectorAll('.nav-group').forEach(group => {
-    const header = group.querySelector('.nav-group-header');
-    const items  = group.querySelector('.nav-group-items');
-    const arrow  = header?.querySelector('.nav-arrow');
-    if (!header || !items) return;
-
-    // Estado inicial: solo el grupo que contiene el link activo queda abierto
-    const hasActiveLink = items.querySelector('.nav-item.active');
-    if (!hasActiveLink) {
-      items.style.display = 'none';
-      if (arrow) arrow.style.transform = 'rotate(-90deg)';
-    }
-
-    header.addEventListener('click', () => {
-      const isHidden = items.style.display === 'none';
-      items.style.display = isHidden ? '' : 'none';
-      if (arrow) arrow.style.transform = isHidden ? '' : 'rotate(-90deg)';
-    });
-  });
-
+  function initializeLocalizedContent() {
+    updateLocalizedContent(window.I18N.lang);
+    window.I18N.on('change', ({ lang }) => updateLocalizedContent(lang));
+  }
+  if (window.I18N) initializeLocalizedContent();
+  else window.addEventListener('load', initializeLocalizedContent, { once: true });
   /* ---------- Bar chart hover tooltip ---------- */
   const tooltip = document.createElement('div');
   tooltip.style.cssText = 'position:fixed;background:#1e293b;color:#fff;padding:6px 12px;border-radius:6px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:999;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.2)';
@@ -61,10 +39,10 @@
   document.querySelectorAll('.bar-group').forEach(group => {
     const curr = group.dataset.curr;
     const prev = group.dataset.prev;
-    const label = group.querySelector('.bar-group__label')?.textContent || '';
 
     group.addEventListener('mouseenter', () => {
-      tooltip.innerHTML = `<strong>${label}</strong><br>Este año: ${curr}% · Anterior: ${prev}%`;
+      const label = group.querySelector('.bar-group__label')?.textContent || '';
+      tooltip.textContent = `${label} · ${translate('reportesadmin_this_year')}: ${curr} ${translate('reportesadmin_appointments')} · ${translate('reportesadmin_last_year')}: ${prev} ${translate('reportesadmin_appointments')}`;
       tooltip.style.opacity = '1';
     });
     group.addEventListener('mousemove', e => {
@@ -80,8 +58,6 @@
   const filterChips = document.querySelectorAll('.chip-btn');
   const tableWrap   = document.getElementById('tableWrap');
   const emptyState  = document.getElementById('tableEmptyState');
-  const pagination  = document.getElementById('reportsPagination');
-  const reportsBody = document.getElementById('reportsTableBody');
 
   function getReportRows() {
     return document.querySelectorAll('#reportsTableBody tr');
@@ -97,8 +73,7 @@
 
     const isEmpty = visible === 0;
     if (tableWrap) tableWrap.style.display = isEmpty ? 'none' : '';
-    if (pagination) pagination.style.display = isEmpty ? 'none' : '';
-    if (emptyState) emptyState.style.display = isEmpty ? '' : 'none';
+    if (emptyState) emptyState.hidden = !isEmpty;
   }
 
   filterChips.forEach(chip => {
@@ -108,41 +83,7 @@
       applyFilter(this.dataset.category);
     });
   });
-
-  /* ---------- New report button ---------- */
-  function wireNewReportBtn(btn) {
-    if (!btn) return;
-    const originalText = btn.textContent;
-    btn.addEventListener('click', () => {
-      btn.textContent = '⏳ Generando…';
-      btn.disabled = true;
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.disabled = false;
-      }, 1800);
-    });
-  }
-  wireNewReportBtn(document.getElementById('newReportBtn'));
-  wireNewReportBtn(document.getElementById('emptyStateNewReportBtn'));
-
-  /* ---------- Pagination ---------- */
-  document.querySelectorAll('.pg-btn:not(:disabled)').forEach(btn => {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.pg-btn').forEach(b => b.classList.remove('pg-btn--active'));
-      this.classList.add('pg-btn--active');
-    });
-  });
-
-  /* ---------- Download button feedback ---------- */
-  if (reportsBody) {
-    reportsBody.addEventListener('click', event => {
-      const btn = event.target.closest('button.btn-icon');
-      if (!btn) return;
-      const original = btn.textContent;
-      btn.textContent = '✅';
-      setTimeout(() => { btn.textContent = original; }, 1500);
-    });
-  }
+  applyFilter(document.querySelector('.chip-btn--active')?.dataset.category || 'todos');
 
   /* ---------- Button press micro-interaction ---------- */
   document.querySelectorAll('.btn-primary, .btn-secondary').forEach(btn => {
@@ -158,14 +99,20 @@
     btnPDF: 'modalDownloadPDF',
     btnCSV: 'modalExportCSV'
   };
+  const modalTriggers = new Map();
+  let previousBodyOverflow = '';
 
   function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
+    modalTriggers.set(modalId, document.activeElement);
+    if (!document.querySelector('.modal-overlay.open')) {
+      previousBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
     modal.removeAttribute('hidden');
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
     const focusable = modal.querySelector('button, [href], input, select, textarea');
     if (focusable) focusable.focus();
   }
@@ -176,7 +123,12 @@
     modal.classList.remove('open');
     modal.setAttribute('aria-hidden', 'true');
     modal.setAttribute('hidden', '');
-    document.body.style.overflow = '';
+    if (!document.querySelector('.modal-overlay.open')) {
+      document.body.style.overflow = previousBodyOverflow;
+    }
+    const trigger = modalTriggers.get(modalId);
+    modalTriggers.delete(modalId);
+    if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
   }
 
   Object.entries(modalMap).forEach(([buttonId, modalId]) => {
@@ -200,73 +152,40 @@
     });
   });
 
-  function createRecentReportRow(report) {
-    const row = document.createElement('tr');
-    row.dataset.category = report.category.toLowerCase();
-    row.innerHTML = `
-      <td>
-        <div class="cell-icon-name">
-          <span class="cell-icon" data-color="${report.color}">${report.icon}</span>
-          ${report.name}
-        </div>
-      </td>
-      <td>${report.date}</td>
-      <td><span class="badge">${report.category}</span></td>
-      <td>
-        <span class="status status--ready">
-          <span class="status__dot"></span> ${report.status}
-        </span>
-      </td>
-      <td>
-        <form action="/reportes/descargar/${report.id}" method="post" style="display:inline">
-          <button type="submit" class="btn-icon" title="Descargar">📥</button>
-        </form>
-      </td>
-    `;
-    return row;
-  }
-
-  document.getElementById('formNewReport')?.addEventListener('submit', event => {
+  document.getElementById('formNewReport')?.addEventListener('submit', async event => {
     event.preventDefault();
-    const form = event.target;
-    const reportName = form.reportName.value.trim() || 'Reporte sin título';
-    const reportCategory = form.reportCategory.value || 'Financiero';
-    const reportPeriod = form.reportPeriod.value;
-    const submitBtn = form.querySelector('button[type="submit"]');
-    const generatedDate = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-    const iconLetter = reportCategory.charAt(0).toUpperCase();
-    const categoryLower = reportCategory.toLowerCase();
-    const color = categoryLower === 'financiero' ? 'blue' :
-                  categoryLower === 'pacientes' ? 'green' :
-                  (categoryLower === 'logística' || categoryLower === 'logistica') ? 'red' : 'purple';
-    const newReport = {
-      id: Date.now(),
-      name: reportName,
-      category: reportCategory,
-      date: generatedDate,
-      status: 'Listo',
-      icon: iconLetter,
-      color: color
-    };
+    const form = event.currentTarget;
+    if (!(form instanceof HTMLFormElement) || !form.reportValidity()) return;
 
-    if (submitBtn) {
-      submitBtn.textContent = 'Generando…';
-      submitBtn.disabled = true;
-    }
+    const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+    const headers = { Accept: 'application/json' };
+    if (token) headers['X-CSRF-TOKEN'] = token;
 
-    setTimeout(() => {
-      if (reportsBody) {
-        reportsBody.appendChild(createRecentReportRow(newReport));
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        headers,
+        body: new FormData(form),
+        credentials: 'same-origin'
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        const detail = payload.detail || Object.values(payload.errors || {}).flat().join(' ') || 'No se pudo generar el reporte.';
+        throw new Error(detail);
       }
+
       closeModal('modalNewReport');
-      applyFilter(document.querySelector('.chip-btn.chip-btn--active')?.dataset.category || 'todos');
-      if (submitBtn) {
-        submitBtn.textContent = 'Crear Reporte';
-        submitBtn.disabled = false;
-      }
-      form.reset();
-      form.reportCategory.value = 'Financiero';
-    }, 1200);
+      window.ToastService?.success(
+        translate('reportesadmin_toast_success_title'),
+        translate('reportesadmin_toast_success')
+      );
+      window.location.reload();
+    } catch (error) {
+      window.ToastService?.error(
+        translate('reportesadmin_toast_error_title'),
+        error instanceof Error ? error.message : translate('reportesadmin_toast_error')
+      );
+    }
   });
 
   document.getElementById('emptyStateNewReportBtn')?.addEventListener('click', () => openModal('modalNewReport'));
@@ -274,13 +193,50 @@
   document.getElementById('btnViewAllProcedures')?.addEventListener('click', () => openModal('modalProcedimientos'));
 
   document.getElementById('confirmPdfDownload')?.addEventListener('click', () => {
+    const query = new URLSearchParams({
+      formato: 'pdf',
+      incluirGraficos: String(document.getElementById('includeCharts')?.checked ?? true),
+      incluirResumen: String(document.getElementById('includeSummary')?.checked ?? true)
+    });
     closeModal('modalDownloadPDF');
-    alert('PDF generado correctamente.');
+    window.location.href = `/reportes/exportar?${query.toString()}`;
   });
 
   document.getElementById('confirmCsvExport')?.addEventListener('click', () => {
+    const query = new URLSearchParams({
+      formato: 'csv',
+      todos: String(document.getElementById('csvIncludeAll')?.checked ?? true),
+      encabezados: String(document.getElementById('csvIncludeHeaders')?.checked ?? true)
+    });
     closeModal('modalExportCSV');
-    alert('CSV exportado correctamente.');
+    window.location.href = `/reportes/exportar?${query.toString()}`;
+  });
+
+  document.addEventListener('keydown', event => {
+    const openModal = document.querySelector('.modal-overlay.open');
+    if (!openModal) return;
+
+    if (event.key === 'Escape') {
+      closeModal(openModal.id);
+      return;
+    }
+
+    if (event.key === 'Tab') {
+      const focusable = Array.from(openModal.querySelectorAll(
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+      )).filter(element => element.getAttribute('aria-hidden') !== 'true');
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
   });
 
 })();

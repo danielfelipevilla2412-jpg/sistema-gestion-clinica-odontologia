@@ -1,6 +1,8 @@
 /**
- * SMILETRACK — MI PERFIL (app.js)
- * Lógica con formularios, persistencia localStorage y validaciones
+ * SMILETRACK — MI PERFIL (recepcionista)
+ * Lógica con formularios, persistencia localStorage y validaciones.
+ * Las notificaciones usan window.ToastService (shared/toasts.js) que el
+ * layout _Layout carga mediante _Toasts.cshtml.
  */
 
 // Obtiene elemento del DOM con manejo seguro de null
@@ -19,22 +21,24 @@ const debounce = (fn, delay) => {
   };
 };
 
-// Muestra notificación temporal con auto-cierre y cleanup de timeout
+// Muestra notificación temporal mediante el servicio compartido de toasts
 const showToast = (message, type = 'success') => {
-  const toast = safeGetElement('toast');
-  if (!toast) return;
-
-  toast.textContent = message;
-  toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
-
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
+  const titulos = {
+    success: 'Éxito',
+    error: 'Error',
+    warning: 'Advertencia',
+    info: 'Información'
+  };
+  const servicio = window.ToastService && window.ToastService[type];
+  if (typeof servicio === 'function') {
+    servicio.call(window.ToastService, titulos[type] || 'Información', message);
+  }
 };
 
 // Gestiona persistencia de perfil con localStorage
 const profileStorage = {
   key: 'smiletrack_profile',
-  
+
   // Carga perfil desde localStorage o usa valores por defecto
   load: () => {
     const stored = localStorage.getItem(profileStorage.key);
@@ -58,7 +62,7 @@ const profileStorage = {
       }
     };
   },
-  
+
   // Guarda perfil en localStorage
   save: (profile) => {
     try {
@@ -75,10 +79,10 @@ const profileStorage = {
 const validateField = (input) => {
   const group = input.closest('.form-group');
   if (!group) return true;
-  
+
   const errorSpan = group.querySelector('.error-message');
   let valid = true;
-  
+
   if (input.required && !input.value.trim()) {
     valid = false;
   } else if (input.type === 'email' && input.value.trim()) {
@@ -86,7 +90,7 @@ const validateField = (input) => {
   } else if (input.minLength && input.value.length < input.minLength) {
     valid = false;
   }
-  
+
   if (!valid) {
     input.classList.add('error');
     if (errorSpan) errorSpan.classList.add('visible');
@@ -96,7 +100,7 @@ const validateField = (input) => {
     if (errorSpan) errorSpan.classList.remove('visible');
     input.removeAttribute('aria-invalid');
   }
-  
+
   return valid;
 };
 
@@ -104,55 +108,12 @@ const validateField = (input) => {
 const validateForm = (form) => {
   const inputs = form.querySelectorAll('input[required], select[required], textarea[required]');
   let allValid = true;
-  
+
   inputs.forEach(input => {
     if (!validateField(input)) allValid = false;
   });
-  
+
   return allValid;
-};
-
-// Inicializa menú móvil con gestión de foco y atributos ARIA
-const initMobileMenu = () => {
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  const hamburger = safeGetElement('hamburger');
-
-  if (!sidebar || !overlay || !hamburger) return;
-
-  const toggleMenu = (show) => {
-    if (show) {
-      sidebar.classList.add('open');
-      overlay.classList.add('open');
-      hamburger.setAttribute('aria-expanded', 'true');
-      overlay.setAttribute('aria-hidden', 'false');
-      
-      const firstLink = sidebar.querySelector('.nav-item');
-      if (firstLink) firstLink.focus();
-    } else {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
-      overlay.setAttribute('aria-hidden', 'true');
-      hamburger.focus();
-    }
-  };
-
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 680) toggleMenu(false);
-    });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
-    }
-  });
 };
 
 // Inicializa carga y preview de foto de perfil
@@ -160,11 +121,11 @@ const initPhotoUpload = () => {
   const btnUpload = safeGetElement('btnUploadPhoto');
   const fileInput = safeGetElement('fileInput');
   const profileAvatar = safeGetElement('profileAvatar');
-  
+
   if (!btnUpload || !fileInput || !profileAvatar) return;
-  
+
   btnUpload.addEventListener('click', () => fileInput.click());
-  
+
   fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -190,11 +151,10 @@ const initPhotoUpload = () => {
 // Inicializa formulario de datos personales con persistencia
 const initProfileForm = () => {
   const form = safeGetElement('profileForm');
-  const btnSave = safeGetElement('btnSaveProfile');
   const btnCancel = safeGetElement('btnCancel');
-  
+
   if (!form) return;
-  
+
   // Carga datos guardados en el formulario
   const profile = profileStorage.load();
   const fields = ['nombre', 'cargo', 'email', 'telefono', 'bio'];
@@ -202,7 +162,7 @@ const initProfileForm = () => {
     const input = safeGetElement(field);
     if (input && profile[field]) input.value = profile[field];
   });
-  
+
   // Validación en tiempo real
   form.querySelectorAll('input[required], textarea[required]').forEach(input => {
     input.addEventListener('blur', () => validateField(input));
@@ -210,34 +170,34 @@ const initProfileForm = () => {
       if (input.classList.contains('error')) validateField(input);
     });
   });
-  
+
   // Manejo de envío del formulario
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    
+
     if (!validateForm(form)) {
       showToast('Por favor completa los campos requeridos', 'error');
       return;
     }
-    
+
     // Recoge y guarda datos del perfil
     const updatedProfile = { ...profile };
     fields.forEach(field => {
       const input = safeGetElement(field);
       if (input) updatedProfile[field] = input.value;
     });
-    
+
     profileStorage.save(updatedProfile);
-    
+
     // Actualiza UI con nuevos valores
     const profileName = safeGetElement('profileName');
     const profileEmail = safeGetElement('profileEmail');
     if (profileName) profileName.textContent = updatedProfile.nombre;
     if (profileEmail) profileEmail.textContent = updatedProfile.email;
-    
+
     showToast('Perfil actualizado correctamente', 'success');
   });
-  
+
   // Manejo de cancelación
   if (btnCancel) {
     btnCancel.addEventListener('click', () => {
@@ -255,7 +215,7 @@ const initProfileForm = () => {
 const initPasswordForm = () => {
   const form = safeGetElement('passwordForm');
   if (!form) return;
-  
+
   // Validación en tiempo real
   form.querySelectorAll('input').forEach(input => {
     input.addEventListener('blur', () => validateField(input));
@@ -263,14 +223,14 @@ const initPasswordForm = () => {
       if (input.classList.contains('error')) validateField(input);
     });
   });
-  
+
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    
+
     const current = safeGetElement('currentPassword');
     const newPass = safeGetElement('newPassword');
     const confirm = safeGetElement('confirmPassword');
-    
+
     if (!current?.value || !newPass?.value || !confirm?.value) {
       showToast('Completa todos los campos', 'warning');
       return;
@@ -289,12 +249,12 @@ const initPasswordForm = () => {
       showToast('Las contraseñas no coinciden', 'error');
       return;
     }
-    
+
     // Limpia campos después de éxito
     [current, newPass, confirm].forEach(input => {
       if (input) input.value = '';
     });
-    
+
     showToast('Contraseña actualizada correctamente', 'success');
   });
 };
@@ -306,33 +266,33 @@ const initToggles = () => {
     toggleSMS: 'sms',
     toggleDark: 'dark'
   };
-  
+
   const profile = profileStorage.load();
-  
+
   Object.entries(toggles).forEach(([toggleId, prefKey]) => {
     const toggle = safeGetElement(toggleId);
     if (!toggle) return;
-    
+
     // Establece estado inicial desde localStorage
     if (profile.preferences?.[prefKey]) {
       toggle.classList.add('active');
       toggle.setAttribute('aria-checked', 'true');
     }
-    
+
     // Maneja cambio de estado
     toggle.addEventListener('click', () => {
       const isActive = !toggle.classList.contains('active');
       toggle.classList.toggle('active');
       toggle.setAttribute('aria-checked', isActive);
-      
+
       // Actualiza y guarda preferencia
       profile.preferences[prefKey] = isActive;
       profileStorage.save(profile);
-      
+
       const label = toggleId.replace('toggle', '');
       showToast(`${label} ${isActive ? 'activada' : 'desactivada'}`, 'info');
     });
-    
+
     // Soporte para teclado en toggle
     toggle.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -347,7 +307,7 @@ const initToggles = () => {
 const initDangerActions = () => {
   const btnLogoutAll = safeGetElement('btnLogoutAll');
   const btnDeleteAccount = safeGetElement('btnDeleteAccount');
-  
+
   if (btnLogoutAll) {
     btnLogoutAll.addEventListener('click', () => {
       if (confirm('¿Estás seguro de cerrar sesión en todos tus dispositivos?')) {
@@ -357,10 +317,10 @@ const initDangerActions = () => {
       }
     });
   }
-  
+
   if (btnDeleteAccount) {
     btnDeleteAccount.addEventListener('click', () => {
-      if (confirm('⚠️ Esta acción es irreversible. ¿Realmente deseas eliminar tu cuenta?')) {
+      if (confirm('Esta acción es irreversible. ¿Realmente deseas eliminar tu cuenta?')) {
         const confirmText = prompt('Escribe "ELIMINAR" para confirmar:');
         if (confirmText === 'ELIMINAR') {
           // En producción: llamar a API para eliminar cuenta
@@ -377,18 +337,12 @@ const initDangerActions = () => {
 
 // Función principal de inicialización
 const init = () => {
-  // Inicializar componentes de UI
-  initMobileMenu();
+  // El menú móvil (hamburger/overlay/sidebar) lo inicializa shared/sidebar.js del layout.
   initPhotoUpload();
   initProfileForm();
   initPasswordForm();
   initToggles();
   initDangerActions();
-  
-  // Limpieza de listeners al unload para evitar memory leaks
-  window.addEventListener('beforeunload', () => {
-    // Remover listeners en implementación SPA real
-  });
 };
 
 // Ejecutar al cargar DOM

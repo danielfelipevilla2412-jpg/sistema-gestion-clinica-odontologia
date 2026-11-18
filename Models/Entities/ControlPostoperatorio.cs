@@ -12,9 +12,8 @@ namespace SmileTrack_MVC.Models.Entities;
 // instrucciones se queda en JSON (columna instrucciones_json) porque es una lista
 // corta de forma fija por tratamiento; no amerita una tabla hija propia.
 //
-// Igual que con Nota_Clinica: mientras la vista st-aux-07-control-postoperato siga
-// leyendo el JSON de Historia_Clinica, GuardarControlPostoperatorio sigue
-// escribiendo ahí también. Esta tabla es la fuente real para la API nueva.
+// La vista st-aux-07-control-postoperato y la API leen esta tabla como fuente
+// única del control asociado a la cita.
 [Table("Control_Postoperatorio")]
 public class ControlPostoperatorio
 {

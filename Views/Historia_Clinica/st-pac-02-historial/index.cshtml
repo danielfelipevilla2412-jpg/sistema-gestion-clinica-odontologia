@@ -1,8 +1,12 @@
-﻿﻿@using System.Text.Json
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using System.Text.Json
 @using SmileTrack_MVC.Models.ViewModels
 @model HistorialPacienteViewModel
 @{
-    Layout = null;
+    Layout = "_Layout";
+    ViewData["Title"] = "Mi Historial Clínico";
+    ViewData["Description"] = "Consulta la información registrada por tus profesionales de salud.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
     var pacienteAsignado = Model.Odontograma.PacienteId.HasValue;
     var ultimaNota = pacienteAsignado ? Model.NotasClinicas.FirstOrDefault() : null;
     var formulario = pacienteAsignado ? Model.Formulario : new HistoriaFormularioViewModel();
@@ -18,193 +22,237 @@
       : "";
 }
 
-<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+  <link rel="stylesheet" href="~/css/Historia_Clinica/st-pac-02-historial/styles.css" asp-append-version="true" />
+  <link rel="stylesheet" href="~/css/Historia_Clinica/st-odo-03-historial/gestion-historial.css" asp-append-version="true" />
+  <link rel="stylesheet" href="~/css/shared/perfil-paciente-ui.css" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Mi Historial Clínico</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/variables.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-pac-02-historial/styles.css")" />
-  <style>
-    @@keyframes scan {
-      0% {
-        transform: translateY(0);
-      }
-
-      100% {
-        transform: translateY(900px);
-      }
-    }
-
-    .hw button {
-      transform: none !important;
-    }
-
-    .tb {
-      font-size: 10px;
-      padding: 4px 13px;
-      border-radius: 20px;
-      border: 1px solid rgba(0, 212, 255, 0.25);
-      background: transparent;
-      color: rgba(0, 212, 255, 0.5);
-      cursor: pointer;
-      letter-spacing: 0.03em;
-    }
-
-    .tb.active {
-      border-color: rgba(0, 212, 255, 0.7);
-      background: rgba(0, 212, 255, 0.15);
-      color: #00d4ff;
-      box-shadow: 0 0 8px rgba(0, 212, 255, 0.2);
-    }
-  </style>
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/perfil-paciente-ui.css")" />
-</head>
-
-<body>
-  <!-- El selector de idioma ya se renderiza desde el layout compartido del sistema. -->
-
-  <!-- [MEJORA]: Skip link para accesibilidad keyboard-first (consistente con st-pac-01) -->
-  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
-
-  <!-- ----- SIDEBAR UNIFICADO (Activo: Historial) ----- -->
-  @{ await Html.RenderPartialAsync("_SidebarPaciente"); }
-
-  <!-- ----- HAMBURGER (mÓvil) ----- -->
-  <!-- [MEJORA]: aria-expanded y aria-controls para accesibilidad de menú mÓvil -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
-  </button>
-  <!-- [MEJORA]: aria-hidden inicial para overlay -->
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
-    <div data-perfil-paciente-header></div>
-
-    <!-- Page header -->
-    <header class="page-header">
+<!-- ----- MAIN ----- -->
+<main class="main clinical-main patient-history-main" id="main-content">
+  <div class="clinical-content-shell">
+    <header class="page-header patient-history-header">
       <div class="header-left">
-        <div class="breadcrumb"><span data-i18n="common_role_patient">Paciente</span> › <span data-i18n="historia.title">Mi historial</span></div>
-        <h1 class="page-title" data-i18n="historia.title">Mi Historial Clínico</h1>
-        <p class="page-subtitle" data-i18n="historia.evolution">Consulta la información registrada por tus profesionales de salud</p>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="pac_hist.breadcrumb_aria">
+          <span data-i18n="common_role_patient">Paciente</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" aria-current="page" data-i18n="pac_hist.breadcrumb_current">Mi historial</span>
+        </nav>
+        <h1 data-i18n="pac_hist.page_title">Mi Historial Clínico</h1>
+        <p class="page-subtitle" data-i18n="pac_hist.page_subtitle">Consulta la información registrada por tus profesionales de salud</p>
       </div>
-      <!-- [MEJORA]: aria-label para botón de acción principal -->
-      <button class="btn-primary" id="btnDescargar" aria-label="Descargar informe clínico completo" data-i18n-aria-label="table.export"><span class="material-symbols-outlined" aria-hidden="true">download</span> Descargar
-        informe</button>
+      <div class="page-header-actions">
+        <a class="btn-secondary" id="btnDescargar" href="~/historia-clinica/st-odo-03-historial/exportar-pdf" aria-label="Descargar informe clínico completo" data-i18n-aria-label="pac_hist.btn_download_aria">
+          <span class="material-symbols-outlined" aria-hidden="true">download</span> <span data-i18n="pac_hist.btn_download">Descargar informe</span>
+        </a>
+      </div>
     </header>
 
+    <div data-perfil-paciente-header></div>
+
     <!-- Sección principal -->
-    <section class="agenda-section" aria-label="Contenido de historial">
+    <section class="agenda-section" aria-label="Contenido de historial" data-i18n-aria-label="pac_hist.agenda_aria">
 
       <!-- Formulario clínico profesional en modo estrictamente informativo -->
-      <section class="clinical-form-readonly" aria-labelledby="formularioClinicoTitle">
-        <div class="readonly-form-heading">
-          <div>
-            <span class="readonly-eyebrow">Historia clínica</span>
-            <h2 id="formularioClinicoTitle">Formulario de historia clínica</h2>
-          </div>
-          <span class="readonly-badge">Solo lectura</span>
-        </div>
+      <nav class="clinical-section-tabs" aria-label="Secciones de la historia clínica" data-i18n-aria-label="pac_hist.sections_aria">
+        <span class="tabs-label" data-i18n="pac_hist.tabs_label">Secciones:</span>
+        <a href="#sec-anamnesis-paciente" class="tab-item active" data-i18n="pac_hist.tab_anamnesis">1. Anamnesis</a>
+        <a href="#sec-antecedentes-paciente" class="tab-item" data-i18n="pac_hist.tab_antecedentes">2. Antecedentes</a>
+        <a href="#sec-examen-paciente" class="tab-item" data-i18n="pac_hist.tab_examen">3. Examen clínico</a>
+        <a href="#sec-diagnostico-paciente" class="tab-item" data-i18n="pac_hist.tab_diagnostico">4. Diagnósticos</a>
+        <a href="#sec-adjuntos-paciente" class="tab-item" data-i18n="pac_hist.tab_adjuntos">5. Documentos</a>
+        <a href="#recordsList" class="tab-item" data-i18n="pac_hist.tab_evolucion">Evolución clínica</a>
+      </nav>
+
+      <section class="clinical-form clinical-form-readonly" aria-label="Formulario clínico en solo lectura" data-i18n-aria-label="pac_hist.form_aria">
 
         <section class="readonly-form-card" id="sec-anamnesis-paciente">
-          <div class="readonly-card-header"><span class="readonly-step">1</span><div><h3>Anamnesis y motivo de consulta</h3><p>Información registrada por el profesional</p></div></div>
+          <div class="readonly-card-header"><span class="readonly-step">1</span><div><h3 data-i18n="pac_hist.card_anamnesis_title">Anamnesis y motivo de consulta</h3><p data-i18n="pac_hist.card_anamnesis_sub">Información registrada por el profesional</p></div></div>
           <div class="readonly-fields">
-            <div><label>Motivo de la consulta</label><textarea readonly rows="2">@formulario.MotivoConsulta</textarea></div>
-            <div><label>Enfermedad o padecimiento actual</label><textarea readonly rows="3">@formulario.EnfermedadActual</textarea></div>
+            <div><label data-i18n="pac_hist.field_reason">Motivo de la consulta</label><textarea readonly rows="2">@formulario.MotivoConsulta</textarea></div>
+            <div><label data-i18n="pac_hist.field_current_illness">Enfermedad o padecimiento actual</label><textarea readonly rows="3">@formulario.EnfermedadActual</textarea></div>
           </div>
         </section>
 
         <section class="readonly-form-card" id="sec-antecedentes-paciente">
-          <div class="readonly-card-header"><span class="readonly-step step-blue">2</span><div><h3>Antecedentes sistémicos</h3><p>Antecedentes médicos y alertas registrados</p></div></div>
+          <div class="readonly-card-header"><span class="readonly-step step-blue">2</span><div><h3 data-i18n="pac_hist.card_history_title">Antecedentes sistémicos</h3><p data-i18n="pac_hist.card_history_sub">Antecedentes médicos y alertas registrados</p></div></div>
           <div class="readonly-fields">
-            <div><label>Antecedentes médicos</label><textarea readonly rows="3">@(pacienteAsignado ? Model.AntecedentesMedicos : "")</textarea></div>
-            <div><label>Hábitos y estilo de vida</label><textarea readonly rows="2">@formulario.Habitos</textarea></div>
-            <div><label>Alergias / medicamentos</label><textarea readonly rows="2">@(pacienteAsignado ? string.Join(", ", Model.Alergias) : "")</textarea></div>
+            <div><label data-i18n="pac_hist.field_medical_history">Antecedentes médicos</label><textarea readonly rows="3">@(pacienteAsignado ? Model.AntecedentesMedicos : "")</textarea></div>
+            <div><label data-i18n="pac_hist.field_habits">Hábitos y estilo de vida</label><textarea readonly rows="2">@formulario.Habitos</textarea></div>
+            <div><label data-i18n="pac_hist.field_allergies">Alergias / medicamentos</label><textarea readonly rows="2">@(pacienteAsignado ? string.Join(", ", Model.Alergias) : "")</textarea></div>
           </div>
         </section>
 
         <section class="readonly-form-card" id="sec-examen-paciente">
-          <div class="readonly-card-header"><span class="readonly-step step-purple">3</span><div><h3>Examen clínico y hallazgos odontológicos</h3><p>Hallazgos registrados durante la atención</p></div></div>
+          <div class="readonly-card-header"><span class="readonly-step step-purple">3</span><div><h3 data-i18n="pac_hist.card_exam_title">Examen clínico y hallazgos odontológicos</h3><p data-i18n="pac_hist.card_exam_sub">Hallazgos registrados durante la atención</p></div></div>
           <div class="readonly-fields">
-            <div><label>Hallazgos de examen</label><textarea readonly rows="3">@formulario.Hallazgos</textarea></div>
-            <div><label>Observaciones clínicas</label><textarea readonly rows="3">@formulario.OdontogramaObservaciones</textarea></div>
-            <div><label>Exámenes complementarios</label><textarea readonly rows="3">@formulario.ExamenesComplementarios@(string.IsNullOrWhiteSpace(formulario.ExamenesComplementarios) ? documentosRegistrados : "")</textarea></div>
+            <div><label data-i18n="pac_hist.field_findings">Hallazgos de examen</label><textarea readonly rows="3">@formulario.Hallazgos</textarea></div>
+            <div><label data-i18n="pac_hist.field_observations">Observaciones clínicas</label><textarea readonly rows="3">@formulario.OdontogramaObservaciones</textarea></div>
+            <div><label data-i18n="pac_hist.field_complementary">Exámenes complementarios</label><textarea readonly rows="3">@formulario.ExamenesComplementarios@(string.IsNullOrWhiteSpace(formulario.ExamenesComplementarios) ? documentosRegistrados : "")</textarea></div>
           </div>
         </section>
 
         <section class="readonly-form-card" id="sec-diagnostico-paciente">
-          <div class="readonly-card-header"><span class="readonly-step step-indigo">4</span><div><h3>Diagnósticos y evolución clínica</h3><p>Notas clínicas y procedimientos registrados</p></div></div>
+          <div class="readonly-card-header"><span class="readonly-step step-indigo">4</span><div><h3 data-i18n="pac_hist.card_diagnosis_title">Diagnósticos y evolución clínica</h3><p data-i18n="pac_hist.card_diagnosis_sub">Notas clínicas y procedimientos registrados</p></div></div>
           <div class="readonly-fields">
-            <div><label>Diagnóstico principal</label><textarea readonly rows="2">@formulario.DiagnosticoPrincipal@(string.IsNullOrWhiteSpace(formulario.DiagnosticoPrincipal) ? (ultimaNota?.Diagnostico ?? "") : "")</textarea></div>
-            <div><label>Diagnósticos secundarios</label><textarea readonly rows="2">@formulario.DiagnosticoSecundario</textarea></div>
-            <div><label>Procedimiento realizado</label><textarea readonly rows="2">@(string.IsNullOrWhiteSpace(formulario.EvolucionClinica) ? (ultimaNota?.Procedimiento ?? "") : formulario.EvolucionClinica)</textarea></div>
-            <div class="readonly-field-wide"><label>Nota de evolución clínica</label><textarea readonly rows="3">@formulario.EvolucionClinica</textarea></div>
-            <div class="readonly-field-wide"><label>Prescripción e instrucciones</label><textarea readonly rows="2">@formulario.Prescripcion</textarea></div>
+            <div><label data-i18n="pac_hist.field_main_diagnosis">Diagnóstico principal</label><textarea readonly rows="2">@formulario.DiagnosticoPrincipal@(string.IsNullOrWhiteSpace(formulario.DiagnosticoPrincipal) ? (ultimaNota?.Diagnostico ?? "") : "")</textarea></div>
+            <div><label data-i18n="pac_hist.field_secondary_diagnosis">Diagnósticos secundarios</label><textarea readonly rows="2">@formulario.DiagnosticoSecundario</textarea></div>
+            <div><label data-i18n="pac_hist.field_procedure">Procedimiento realizado</label><textarea readonly rows="2">@(string.IsNullOrWhiteSpace(formulario.EvolucionClinica) ? (ultimaNota?.Procedimiento ?? "") : formulario.EvolucionClinica)</textarea></div>
+            <div class="readonly-field-wide"><label data-i18n="pac_hist.field_evolution_note">Nota de evolución clínica</label><textarea readonly rows="3">@formulario.EvolucionClinica</textarea></div>
+            <div class="readonly-field-wide"><label data-i18n="pac_hist.field_prescription">Prescripción e instrucciones</label><textarea readonly rows="2">@formulario.Prescripcion</textarea></div>
           </div>
         </section>
 
         <section class="readonly-form-card" id="sec-adjuntos-paciente">
-          <div class="readonly-card-header"><span class="readonly-step step-green">5</span><div><h3>Documentación diagnóstica y consentimiento</h3><p>Documentos disponibles en la historia clínica</p></div></div>
-          <div class="readonly-document-list">@(pacienteAsignado ? (string.IsNullOrWhiteSpace(documentosRegistrados) ? "No hay documentos registrados." : documentosRegistrados) : "")</div>
+          <div class="readonly-card-header"><span class="readonly-step step-green">5</span><div><h3 data-i18n="pac_hist.card_documents_title">Documentación diagnóstica y consentimiento</h3><p data-i18n="pac_hist.card_documents_sub">Documentos disponibles en la historia clínica</p></div></div>
+          <div class="readonly-document-list">
+            @if (pacienteAsignado && !string.IsNullOrWhiteSpace(documentosRegistrados))
+            {
+              @documentosRegistrados
+            }
+            else if (pacienteAsignado)
+            {
+              <span data-i18n="pac_hist.no_documents">No hay documentos registrados.</span>
+            }
+          </div>
         </section>
       </section>
 
       <!-- Grid: Historial clínico en solo lectura + Sidebar cards -->
-      <div class="content-grid">
+      <section class="history-workspace" aria-labelledby="recordsTitle">
+        <header class="history-workspace-header">
+          <div><h2 id="recordsTitle" data-i18n="pac_hist.workspace_title">Evolución clínica</h2><p data-i18n="pac_hist.workspace_sub">Registros de atención, notas y documentos en orden cronológico.</p></div>
+        </header>
+        <div class="content-grid">
 
         <!-- Columna principal -->
         <div class="col-main">
 
           <!-- Historial escrito por el equipo profesional. No contiene controles de edición. -->
-          <div class="records-list clinical-history-readonly" id="recordsList" role="list" aria-label="Historial clínico registrado por profesionales">
-            @if (Model.LineaDeTiempo.Any())
+          <div class="records-list clinical-history-readonly" id="recordsList" role="list" aria-label="Evolución por cita atendida" data-i18n-aria-label="pac_hist.records_aria">
+            @if (Model.EvolucionesPorCita.Any())
             {
-                foreach (var evento in Model.LineaDeTiempo)
+                foreach (var evolucion in Model.EvolucionesPorCita)
                 {
                     <article class="record-card" role="listitem">
                         <div class="record-card-header">
                             <div>
-                                <span class="record-type">@evento.Categoria</span>
-
-                                <h3>@evento.Titulo</h3>
+                                <span class="record-type">@evolucion.CodigoHistoria · Cita #@evolucion.CitaId</span>
+                                <h3>@evolucion.Servicio</h3>
                             </div>
-                            <time datetime="@evento.Fecha.ToString("yyyy-MM-ddTHH:mm:ss")">@evento.Fecha.ToString("dd MMM yyyy")</time>
+                            <time datetime="@evolucion.Fecha.ToString("yyyy-MM-ddTHH:mm:ss")">@evolucion.Fecha.ToString("dd MMM yyyy · HH:mm")</time>
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(evento.Descripcion))
-                        {
-                            <p class="record-description">@evento.Descripcion</p>
-                        }
                         <div class="record-card-meta">
-                            <span><strong>Profesional:</strong> @evento.Profesional</span>
-                            <span><strong>Estado:</strong> @evento.Estado</span>
+                            <span><strong data-i18n="pac_hist.professional_label">Profesional:</strong> @evolucion.Profesional</span>
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(evento.EnlaceDocumento))
+                        <dl class="visit-clinical-details">
+                          @if (!string.IsNullOrWhiteSpace(evolucion.MotivoConsulta))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_reason">Motivo</dt><dd>@evolucion.MotivoConsulta</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.EnfermedadActual))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_illness">Enfermedad actual</dt><dd>@evolucion.EnfermedadActual</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.AntecedentesMedicos))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_history">Antecedentes</dt><dd>@evolucion.AntecedentesMedicos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Habitos))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_habits">Hábitos</dt><dd>@evolucion.Habitos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Alergias))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_allergies">Alergias</dt><dd>@evolucion.Alergias</dd></div>
+                          }
+                          @if (evolucion.Sintomas.Any())
+                          {
+                            <div><dt data-i18n="pac_hist.dt_symptoms">Síntomas</dt><dd>@string.Join(", ", evolucion.Sintomas)</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Diagnosticos))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_diagnosis">Diagnóstico</dt><dd>@evolucion.Diagnosticos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Hallazgos))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_findings">Hallazgos</dt><dd>@evolucion.Hallazgos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.OdontogramaObservaciones))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_odontogram_obs">Observaciones odontológicas</dt><dd>@evolucion.OdontogramaObservaciones</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.ExamenesComplementarios))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_tests">Exámenes</dt><dd>@evolucion.ExamenesComplementarios</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.EvolucionClinica))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_evolution">Evolución</dt><dd>@evolucion.EvolucionClinica</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Procedimientos))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_procedures">Procedimientos</dt><dd>@evolucion.Procedimientos</dd></div>
+                          }
+                          @if (!string.IsNullOrWhiteSpace(evolucion.Prescripcion))
+                          {
+                            <div><dt data-i18n="pac_hist.dt_prescription">Prescripción</dt><dd>@evolucion.Prescripcion</dd></div>
+                          }
+                        </dl>
+                        @if (evolucion.RegistrosRelacionados.Any())
                         {
-                            <a class="record-document-link" href="@evento.EnlaceDocumento" target="_blank" rel="noopener">Ver documento clínico</a>
+                            <div class="visit-related-records">
+                              @foreach (var registro in evolucion.RegistrosRelacionados)
+                              {
+                                <p><strong>@registro.Titulo:</strong> @registro.Descripcion</p>
+                              }
+                            </div>
                         }
                     </article>
                 }
             }
             else
             {
-                <div class="empty-history">Aún no hay registros clínicos disponibles.</div>
+                <div class="empty-history" data-i18n="pac_hist.empty_history">Aún no hay citas atendidas con evolución clínica registrada.</div>
+            }
+            @{
+              var eventosSinCita = Model.LineaDeTiempo
+                .Where(evento => !evento.CitaId.HasValue
+                  && !evento.Categoria.Equals("consulta", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            }
+            @if (eventosSinCita.Any())
+            {
+              <section class="unlinked-clinical-records" aria-label="Otros registros clínicos" data-i18n-aria-label="pac_hist.other_records_aria">
+                <h3 data-i18n="pac_hist.other_records_title">Otros registros clínicos</h3>
+                @foreach (var evento in eventosSinCita)
+                {
+                  <article class="record-card" role="listitem">
+                    <div class="record-card-header">
+                      <div><span class="record-type">@evento.Categoria</span><h3>@evento.Titulo</h3></div>
+                      <time datetime="@evento.Fecha.ToString("yyyy-MM-ddTHH:mm:ss")">@evento.Fecha.ToString("dd MMM yyyy")</time>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(evento.Descripcion))
+                    {
+                      <p class="record-description">@evento.Descripcion</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(evento.EnlaceDocumento))
+                    {
+                      <a class="record-document-link" href="@evento.EnlaceDocumento" target="_blank" rel="noopener" data-i18n="pac_hist.view_document">Ver documento clínico</a>
+                    }
+                  </article>
+                }
+              </section>
             }
           </div>
 
         </div>
 
-      </div>
+        </div>
+      </section>
     </section>
 
+    </div>
   </main>
 
   <!-- MODAL: Detalle de registro -->
@@ -212,8 +260,8 @@
   <div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
     aria-hidden="true" inert>
     <div class="modal">
-      <button class="modal-close" id="modalClose" aria-label="Cerrar modal">—</button>
-      <h2 class="modal-title" id="modalTitle">Detalle del Registro</h2>
+      <button class="modal-close" id="modalClose" aria-label="Cerrar modal" data-i18n-aria-label="pac_hist.modal_close_aria">—</button>
+      <h2 class="modal-title" id="modalTitle" data-i18n="pac_hist.modal_detail_title">Detalle del Registro</h2>
       <div id="modalContent"></div>
     </div>
   </div>
@@ -222,37 +270,16 @@
   <div class="modal-overlay" id="modalDescargar" role="dialog" aria-modal="true" aria-labelledby="descargarTitle"
     aria-hidden="true" inert>
     <div class="modal modal--sm">
-      <h2 class="modal-title" id="descargarTitle">¿Descargar historial?</h2>
-      <p class="modal-desc">Se generará un PDF con todos tus registros clínicos y documentos disponibles.</p>
+      <h2 class="modal-title" id="descargarTitle" data-i18n="pac_hist.modal_download_title">¿Descargar historial?</h2>
+      <p class="modal-desc" data-i18n="pac_hist.modal_download_desc">Se generará un PDF con todos tus registros clínicos y documentos disponibles.</p>
       <div class="modal-footer">
-        <button class="btn-secondary" id="cancelarDescarga">Volver</button>
-        <button class="btn-primary" id="confirmarDescarga">Sí, descargar</button>
+        <button class="btn-secondary" id="cancelarDescarga" data-i18n="pac_hist.btn_back">Volver</button>
+        <button class="btn-primary" id="confirmarDescarga" data-i18n="pac_hist.btn_confirm_download">Sí, descargar</button>
       </div>
     </div>
   </div>
 
-  <!-- Toast -->
-  <!-- [MEJORA]: aria-atomic="true" para que lectores anuncien mensaje completo -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">favorite</span>
-      <p>— 2025 Smile Track. Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-  <script src="@Url.Content("~/js/shared/perfil-paciente-service.js")"></script>
-  <script src="@Url.Content("~/js/shared/perfil-paciente-ui.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-
-</html>
-
+@section Scripts {
+  <script src="~/js/shared/perfil-paciente-service.js" asp-append-version="true" defer></script>
+  <script src="~/js/shared/perfil-paciente-ui.js" asp-append-version="true" defer></script>
+}

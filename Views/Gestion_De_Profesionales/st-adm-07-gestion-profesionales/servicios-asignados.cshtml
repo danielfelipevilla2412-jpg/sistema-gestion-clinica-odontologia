@@ -1,0 +1,153 @@
+@* ============================================
+SmileTrack — Servicios asignados a profesionales
+Vista de administración para asignar servicios (con precio personalizado en COP) a un profesional,
+según sus especialidades registradas, y activar/desactivar las asignaciones existentes.
+Dependencias: ProfesionalesServiciosController, componentes compartidos del layout y script de la vista.
+============================================ *@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using SmileTrack_MVC.Models.Entities
+@using System.Globalization
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Servicios asignados a profesionales";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+    var profesionales = ViewData["ProfesionalesLista"] as List<Profesional> ?? new();
+    var profesional = ViewData["ProfesionalSeleccionado"] as Profesional;
+    var servicios = ViewData["ServiciosLista"] as List<Servicio> ?? new();
+    var especialidades = ViewData["EspecialidadesProfesional"] as List<int> ?? new();
+    var asignaciones = ViewData["AsignacionesLista"] as List<ProfesionalServicio> ?? new();
+    var nombresEspecialidades = ViewData["NombresEspecialidadesProfesional"] as List<string> ?? new();
+    var compatibles = servicios.Where(s => s.Estado == "activo" && s.IdEspecialidad.HasValue && especialidades.Contains(s.IdEspecialidad.Value)).ToList();
+    var cop = CultureInfo.GetCultureInfo("es-CO");
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/servicios-asignados.css" asp-append-version="true" />
+}
+<main class="main assigned-services-page" id="main-content">
+    <header class="page-header">
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="layout_breadcrumb_aria">
+            <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" data-i18n="nav.gestion_profesionales">Gestión de Profesionales</a>
+            <span class="bc-sep" aria-hidden="true">›</span>
+            <span aria-current="page" data-i18n="asignados.title">Servicios asignados</span>
+        </nav>
+        <div class="page-header-content">
+            <div class="page-header-title">
+                <h1 class="page-title" data-i18n="asignados.title">Servicios asignados a profesionales</h1>
+                <p class="page-subtitle" data-i18n="asignados.subtitle">Asigna servicios según las especialidades registradas y configura precios en COP.</p>
+            </div>
+            <div class="page-header-actions">
+                <a class="btn-secondary" href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" data-i18n="asignados.back">Volver a profesionales</a>
+            </div>
+        </div>
+    </header>
+    @if (TempData["AsignacionError"] is string error) { <div class="assigned-feedback assigned-feedback-error" role="alert" data-i18n="@(TempData["AsignacionErrorI18n"])">@error</div> }
+    @if (TempData["AsignacionExito"] is string exito) { <div class="assigned-feedback assigned-feedback-success" role="status" data-i18n="@(TempData["AsignacionExitoI18n"])">@exito</div> }
+    <section class="table-card assigned-card" aria-labelledby="professionalSelectTitle">
+        <h2 class="card-title" id="professionalSelectTitle" data-i18n="asignados.select_professional">Seleccionar profesional</h2>
+        <form method="get" action="/gestion-de-profesionales/servicios-asignados" class="assigned-professional-form">
+            <div class="assigned-field">
+            <label for="profesionalId" data-i18n="asignados.professional">Profesional</label>
+            <select id="profesionalId" name="profesionalId" class="filter-select" required>
+                <option value="" disabled selected data-i18n="asignados.choose_professional">Selecciona un profesional</option>
+                @foreach (var p in profesionales) {
+                    <option value="@p.IdProfesional"
+                            selected="@(profesional?.IdProfesional == p.IdProfesional)"
+                            data-nombres="@p.Nombres"
+                            data-apellidos="@p.Apellidos"
+                            data-estado="@p.Estado">@p.Nombres @p.Apellidos (@p.Estado)</option>
+                }
+            </select>
+            </div>
+            <button type="submit" class="btn-primary" data-i18n="asignados.consult">Consultar</button>
+        </form>
+    </section>
+    @if (profesional is not null) {
+        <section class="table-card assigned-card" aria-labelledby="assignServiceTitle">
+            <h2 class="card-title" id="assignServiceTitle" data-i18n="asignados.assign_title">Asignar o actualizar un servicio</h2>
+            <p class="assigned-intro">
+                <span data-i18n="asignados.professional">Profesional</span>:
+                <strong>@profesional.Nombres @profesional.Apellidos</strong>.
+                <span data-i18n="asignados.compatible_services_hint">Solo se muestran servicios activos de sus especialidades.</span>
+            </p>
+            <p class="assigned-specialties"><strong data-i18n="asignados.registered_specialties">Especialidades registradas:</strong>
+                @if (nombresEspecialidades.Count > 0) { @string.Join(", ", nombresEspecialidades) }
+                else { <span data-i18n="asignados.none">Ninguna</span> }
+            </p>
+            @if (profesional.Estado != "activo") { <p class="assigned-notice" data-i18n="asignados.professional_inactive">Este profesional no está activo. No se permiten nuevas asignaciones.</p> }
+            else if (compatibles.Count == 0) { <p class="assigned-notice" data-i18n="asignados.no_compatible_services">No hay servicios activos compatibles. Verifica las especialidades del profesional.</p> }
+            else {
+                <form method="post" action="/gestion-de-profesionales/servicios-asignados/guardar" class="assigned-service-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="profesionalId" value="@profesional.IdProfesional" />
+                    <div class="assigned-field">
+                    <label for="servicioId" data-i18n="asignados.service">Servicio</label>
+                    <select id="servicioId" name="servicioId" class="filter-select" required>
+                        <option value="" selected disabled data-i18n="asignados.choose_service">Selecciona un servicio para asignar o editar</option>
+                        @foreach (var s in compatibles) {
+                            var existente = asignaciones.FirstOrDefault(a => a.IdServicio == s.IdServicio);
+                            <option value="@s.IdServicio"
+                                    data-asignado="@(existente is not null ? "true" : "false")"
+                                    data-activo="@(existente?.Activo == true ? "true" : "false")"
+                                    data-nombre="@s.Nombre"
+                                    data-precio-base="@s.Precio.ToString("C0", cop)"
+                                    data-precio="@(existente?.PrecioPersonalizado?.ToString("0.##", CultureInfo.InvariantCulture) ?? "")">
+                                @s.Nombre — base @s.Precio.ToString("C0", cop) @(existente is null ? "· Sin asignar" : existente.Activo ? "· Ya asignado (activo)" : "· Ya asignado (inactivo)")
+                            </option>
+                        }
+                    </select>
+                    </div>
+                    <p id="estadoSeleccionServicio" class="assigned-selection-status" role="status" aria-live="polite" data-i18n="asignados.select_service_hint">Selecciona un servicio para consultar su estado.</p>
+                    <div class="assigned-field">
+                    <label for="precioPersonalizado" data-i18n="asignados.custom_price">Precio personalizado (COP, opcional)</label>
+                    <input id="precioPersonalizado" name="precioPersonalizado" class="filter-select" type="number" min="0.01" max="999999999" step="0.01" placeholder="Vacío = precio base" data-i18n-ph="asignados.base_price_placeholder" aria-describedby="ayudaPrecio" />
+                    <small id="ayudaPrecio" class="form-hint" data-i18n="asignados.price_help">Deja el campo vacío para utilizar el precio base. Si el servicio ya está asignado, se cargará su precio actual.</small>
+                    </div>
+                    <button id="guardarServicioAsignado" class="btn-primary" type="submit" disabled data-i18n="asignados.choose_service_button">Selecciona un servicio</button>
+                </form>
+            }
+        </section>
+        <section class="table-card assigned-card" aria-labelledby="assignedServicesTitle">
+            <h2 class="card-title" id="assignedServicesTitle" data-i18n="asignados.assigned_services">Servicios del profesional</h2>
+            @if (asignaciones.Count == 0) {
+                <div class="empty-state" role="status">
+                    <span class="material-symbols-outlined empty-state-icon" aria-hidden="true">medical_services</span>
+                    <h3 class="empty-state-title" data-i18n="asignados.no_assignments">No hay servicios asignados</h3>
+                    <p class="empty-state-desc" data-i18n="asignados.no_assignments_hint">Selecciona un servicio compatible para crear una asignación.</p>
+                </div>
+            }
+            else {
+                <div class="table-wrap assigned-table-wrap" role="region" aria-label="Servicios asignados al profesional" data-i18n-aria-label="asignados.table_aria" tabindex="0">
+                  <table class="table-base assigned-table" aria-labelledby="assignedServicesTitle">
+                    <thead><tr>
+                        <th scope="col" data-i18n="asignados.service">Servicio</th>
+                        <th scope="col" data-i18n="asignados.base_price">Precio base</th>
+                        <th scope="col" data-i18n="asignados.custom_price_short">Precio personalizado</th>
+                        <th scope="col" data-i18n="asignados.applied_price">Precio aplicado</th>
+                        <th scope="col" data-i18n="facturacion.status">Estado</th>
+                        <th scope="col" data-i18n="table.actions">Acciones</th>
+                    </tr></thead><tbody>
+                    @foreach (var a in asignaciones) {
+                        <tr>
+                            <td>@a.Servicio?.Nombre</td>
+                            <td>@a.Servicio?.Precio.ToString("C0", cop)</td>
+                            <td>@(a.PrecioPersonalizado.HasValue ? a.PrecioPersonalizado.Value.ToString("C0", cop) : "—")</td>
+                            <td>@((a.PrecioPersonalizado ?? a.Servicio?.Precio ?? 0).ToString("C0", cop))</td>
+                            <td><span class="status-badge @(a.Activo ? "activo" : "inactivo")" role="status" data-i18n="@(a.Activo ? "asignados.active" : "asignados.inactive")">@(a.Activo ? "Activa" : "Inactiva")</span></td>
+                            <td><form method="post" action="/gestion-de-profesionales/servicios-asignados/estado" class="assigned-action-form">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="profesionalId" value="@profesional.IdProfesional" />
+                                <input type="hidden" name="servicioId" value="@a.IdServicio" />
+                                <input type="hidden" name="activo" value="@(a.Activo ? "false" : "true")" />
+                                <button type="submit" class="btn-secondary" data-i18n="@(a.Activo ? "asignados.deactivate" : "asignados.reactivate")">@(a.Activo ? "Desactivar" : "Reactivar")</button>
+                            </form></td>
+                        </tr>
+                    }
+                </tbody></table></div>
+            }
+        </section>
+    }
+</main>
+
+@section Scripts {
+    <script src="~/js/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/servicios-asignados.js" asp-append-version="true"></script>
+}

@@ -31,6 +31,7 @@ public sealed class OdontogramaPiezaApiDto
 public sealed class NotaClinicaApiDto
 {
     public int IdNota { get; set; }
+    public int? CitaId { get; set; }
     public DateTime Fecha { get; set; }
     public string? Doctor { get; set; }
     public string? Diagnostico { get; set; }

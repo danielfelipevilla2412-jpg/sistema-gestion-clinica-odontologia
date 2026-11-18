@@ -1,599 +1,435 @@
-/**
- * SMILETRACK — MIS PACIENTES ODONTÓLOGO (pacientes.js)
- * Paginación + Filtros múltiples + Modal detalle + Modal historial
- */
+(() => {
+  'use strict';
 
-// ═══════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN
-// ═══════════════════════════════════════════════════════════════════
-const API_BASE = '/api';
-
-// ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES
-// ═══════════════════════════════════════════════════════════════════
-const safeGetElement = (id) => {
-  const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  return el;
-};
-
-const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
-};
-
-const showToast = (message, type = 'success') => {
-  const toast = safeGetElement('toast');
-  if (!toast) return;
-  toast.textContent = message;
-  toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
-  if (toast._timeoutId) clearTimeout(toast._timeoutId);
-  toast._timeoutId = setTimeout(() => toast.classList.remove('show'), 3000);
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  ESTADO INICIAL (se reemplaza con datos reales vía fetchPacientes())
-// ═══════════════════════════════════════════════════════════════════
-const SAMPLE_PACIENTES = [];
-
-let pacientes = [...SAMPLE_PACIENTES];
-let filteredPacientes = [...SAMPLE_PACIENTES];
-let currentPage = 1;
-let pageSize = 10;
-
-// Estado de filtros
-let fEstado = '';
-let fAlergias = '';
-let fCita = '';
-let fServicio = '';
-let fSearch = '';
-
-// ═══════════════════════════════════════════════════════════════════
-//  HELPERS DE RENDERIZADO
-// ═══════════════════════════════════════════════════════════════════
-const badgeClass = (estado) => ({ activo: 'badge-activo', seguimiento: 'badge-seguimiento', alta: 'badge-alta' }[estado] || 'badge-activo');
-const estadoLabel = (estado) => ({ activo: 'Activo', seguimiento: 'En seguimiento', alta: 'Alta médica' }[estado] || estado);
-const getAvatarColor = (nombre) => {
-  const colors = ['var(--avatar-bg-1)', 'var(--avatar-bg-2)', 'var(--avatar-bg-3)', 'var(--avatar-bg-4)', 'var(--avatar-bg-5)'];
-  return colors[nombre.charCodeAt(0) % colors.length];
-};
-const getInitials = (nombre) => nombre.split(' ').map(n => n[0] || '').join('').toUpperCase().slice(0, 2);
-
-// ═══════════════════════════════════════════════════════════════════
-//  PAGINACIÓN
-// ═══════════════════════════════════════════════════════════════════
-const updatePagination = (total) => {
-  const controls = safeGetElement('paginationControls');
-  const pageShowing = safeGetElement('pageShowing');
-  const pageTotal = safeGetElement('pageTotal');
-  const btnPrev = safeGetElement('btnPrev');
-  const btnNext = safeGetElement('btnNext');
-  const pageNumBtns = safeGetElement('pageNumBtns');
-
-  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(total / pageSize));
-  const showing = pageSize === 0 ? total : Math.min(pageSize, total - (currentPage - 1) * pageSize);
-
-  if (pageShowing) pageShowing.textContent = String(showing);
-  if (pageTotal) pageTotal.textContent = String(total);
-
-  if (controls) controls.style.display = total === 0 ? 'none' : 'flex';
-
-  if (btnPrev) btnPrev.disabled = currentPage <= 1;
-  if (btnNext) btnNext.disabled = currentPage >= totalPages;
-
-  if (pageNumBtns) {
-    pageNumBtns.innerHTML = '';
-    for (let i = 1; i <= totalPages; i++) {
-      const btn = document.createElement('button');
-      btn.className = `pagination-btn${i === currentPage ? ' active' : ''}`;
-      btn.setAttribute('aria-label', `Página ${i}`);
-      if (i === currentPage) btn.setAttribute('aria-current', 'page');
-      btn.textContent = String(i);
-      btn.addEventListener('click', () => { currentPage = i; renderTable(filteredPacientes); });
-      pageNumBtns.appendChild(btn);
+  const state = {
+    pacientes: [],
+    servicios: [],
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 1,
+    requestVersion: 0,
+    filters: {
+      search: '',
+      status: '',
+      allergies: '',
+      appointment: '',
+      service: ''
     }
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  RENDERIZADO DE TABLA
-// ═══════════════════════════════════════════════════════════════════
-const renderTable = (data) => {
-  const tbody = safeGetElement('pacientesTbody');
-  if (!tbody) return;
-
-  filteredPacientes = data;
-  const total = data.length;
-
-  const start = pageSize === 0 ? 0 : (currentPage - 1) * pageSize;
-  const pageData = pageSize === 0 ? data : data.slice(start, start + pageSize);
-
-  tbody.innerHTML = '';
-
-  if (!pageData.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="table-empty">No se encontraron pacientes con los filtros aplicados.</td></tr>`;
-    updatePagination(0);
-    return;
-  }
-
-  pageData.forEach(p => {
-    const tr = document.createElement('tr');
-    tr.setAttribute('role', 'row');
-    tr.setAttribute('tabindex', '0');
-    tr.setAttribute('aria-label', `Ver detalle de ${p.nombre}`);
-    tr.style.cursor = 'pointer';
-
-    const proximaClase = p.proxima === '—' ? 'sin-cita' : '';
-    const avatarColor = getAvatarColor(p.nombre);
-    const initials = getInitials(p.nombre);
-
-    tr.innerHTML = `
-      <td class="td-paciente">
-        <div class="p-avatar" style="background:${avatarColor}" aria-hidden="true">${initials}</div>
-        <div>
-          <div class="p-name">${p.nombre}</div>
-          <div class="p-cedula">${p.cedula}</div>
-        </div>
-      </td>
-      <td class="td-fecha"><time datetime="${p.ultimaISO}">${p.ultima}</time></td>
-      <td>${p.servicio}</td>
-      <td class="td-cita ${proximaClase}">
-        ${p.proxima === '—' ? 'Sin cita' : `<time datetime="${p.proximaISO}">${p.proxima}</time>`}
-      </td>
-      <td><span class="badge ${badgeClass(p.estado)}" role="status" aria-label="Estado: ${estadoLabel(p.estado)}">${estadoLabel(p.estado)}</span></td>
-      <td>
-        <div class="actions-cell">
-          <button class="btn-action btn-detalle" data-id="${p.id}" aria-label="Ver detalle de ${p.nombre}" title="Ver perfil completo del paciente">
-            <span aria-hidden="true">👁️</span> Perfil
-          </button>
-          <button class="btn-action btn-historial" data-id="${p.id}" aria-label="Ver historial clínico de ${p.nombre}" title="Historial clínico">
-            <span aria-hidden="true">📋</span> Historial
-          </button>
-        </div>
-      </td>
-    `;
-
-    // Yeray (2025) - Fallo 3+5: clic en la fila navega al perfil completo
-    // y guarda el contexto de paciente en sessionStorage para el sidebar.
-    tr.addEventListener('click', (e) => {
-      if (!e.target.closest('.btn-action')) {
-        sessionStorage.setItem('st_paciente_id', String(p.id));
-        window.location.href = `/gestion-de-pacientes/${p.id}`;
-      }
-    });
-    tr.addEventListener('keydown', (e) => {
-      if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.btn-action')) {
-        e.preventDefault();
-        sessionStorage.setItem('st_paciente_id', String(p.id));
-        window.location.href = `/gestion-de-pacientes/${p.id}`;
-      }
-    });
-
-    tbody.appendChild(tr);
-  });
-
-  // Yeray (2025) - Fallo 3+5: navega al perfil y guarda contexto de paciente.
-  tbody.querySelectorAll('.btn-detalle').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      sessionStorage.setItem('st_paciente_id', btn.dataset.id);
-      window.location.href = `/gestion-de-pacientes/${btn.dataset.id}`;
-    });
-  });
-  // Yeray (2025) - Fallo 4: antes abría el modal interno con historial limitado.
-  // Ahora navega a la vista real de Historia Clínica con el pacienteId correcto.
-  tbody.querySelectorAll('.btn-historial').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Guardar contexto antes de navegar (reutilizado por Fallo 5)
-      sessionStorage.setItem('st_paciente_id', btn.dataset.id);
-      window.location.href = `/historia-clinica/st-odo-03-historial?pacienteId=${btn.dataset.id}`;
-    });
-  });
-
-  updatePagination(total);
-
-  // Actualizar contador de resultados
-  const filterResults = safeGetElement('filterResults');
-  const hasFilters = fSearch || fEstado || fAlergias || fCita || fServicio;
-  if (filterResults) {
-    filterResults.textContent = hasFilters
-      ? `${total} resultado${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}`
-      : '';
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  FILTROS
-// ═══════════════════════════════════════════════════════════════════
-const applyFilters = () => {
-  currentPage = 1;
-  const q = fSearch.trim().toLowerCase();
-
-  const filtered = pacientes.filter(p => {
-    if (q && !p.nombre.toLowerCase().includes(q) && !p.cedula.includes(q) && !p.servicio.toLowerCase().includes(q)) return false;
-    if (fEstado && p.estado !== fEstado) return false;
-    if (fAlergias === 'con' && !(p.alergias && p.alergias.length > 0)) return false;
-    if (fAlergias === 'sin' && (p.alergias && p.alergias.length > 0)) return false;
-    if (fCita === 'con' && (!p.proximaISO)) return false;
-    if (fCita === 'sin' && p.proximaISO) return false;
-    if (fServicio && p.servicio !== fServicio) return false;
-    return true;
-  });
-
-  // Indicar estado activo del botón limpiar
-  const hasFilters = fSearch || fEstado || fAlergias || fCita || fServicio;
-  const clearBtn = safeGetElement('btnClearFilters');
-  if (clearBtn) clearBtn.classList.toggle('active', !!hasFilters);
-
-  renderTable(filtered);
-};
-
-// Poblar select de servicios dinámicamente
-const populateServicioSelect = () => {
-  const select = safeGetElement('filterServicio');
-  if (!select) return;
-  const servicios = [...new Set(pacientes.map(p => p.servicio))].sort();
-  servicios.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s;
-    opt.textContent = s;
-    select.appendChild(opt);
-  });
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  MODAL DETALLE
-// ═══════════════════════════════════════════════════════════════════
-const openModal = (id) => {
-  const p = pacientes.find(a => a.id === id);
-  if (!p) return;
-
-  const content = safeGetElement('modalContent');
-  if (content) {
-    const avatarColor = getAvatarColor(p.nombre);
-    const initials = getInitials(p.nombre);
-    const alergiasHtml = p.alergias && p.alergias.length
-      ? `<span class="modal-val danger">${p.alergias.join(', ')}</span>`
-      : '<span class="modal-val">Ninguna</span>';
-
-    content.innerHTML = `
-      <div class="modal-avatar-wrap">
-        <div class="modal-avatar" style="background:${avatarColor}" aria-hidden="true">${initials}</div>
-      </div>
-      <h3 class="modal-name">${p.nombre}</h3>
-      <p class="modal-cedula">${p.cedula}</p>
-      <div class="modal-grid">
-        <div class="modal-item">
-          <div class="modal-key">Última consulta</div>
-          <div class="modal-val"><time datetime="${p.ultimaISO}">${p.ultima}</time></div>
-        </div>
-        <div class="modal-item">
-          <div class="modal-key">Próxima cita</div>
-          <div class="modal-val ${p.proxima === '—' ? 'danger' : ''}">
-            ${p.proxima === '—' ? 'Sin cita' : `<time datetime="${p.proximaISO}">${p.proxima}</time>`}
-          </div>
-        </div>
-        <div class="modal-item">
-          <div class="modal-key">Servicio</div>
-          <div class="modal-val">${p.servicio}</div>
-        </div>
-        <div class="modal-item">
-          <div class="modal-key">Estado</div>
-          <div class="modal-val"><span class="badge ${badgeClass(p.estado)}">${estadoLabel(p.estado)}</span></div>
-        </div>
-        <div class="modal-item">
-          <div class="modal-key">Teléfono</div>
-          <div class="modal-val">${p.telefono}</div>
-        </div>
-        <div class="modal-item">
-          <div class="modal-key">Email</div>
-          <div class="modal-val">${p.email}</div>
-        </div>
-        <div class="modal-item" style="grid-column: span 2;">
-          <div class="modal-key">Alergias</div>
-          ${alergiasHtml}
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn-modal-historial" onclick="
-          sessionStorage.setItem('st_paciente_id', '${p.id}');
-          window.location.href='/historia-clinica/st-odo-03-historial?pacienteId=${p.id}';
-        ">📋 Ver historia clínica completa</button>
-      </div>
-    `;
-  }
-
-  const overlay = safeGetElement('modalOverlay');
-  if (overlay) {
-    overlay.classList.add('open');
-    overlay.setAttribute('aria-hidden', 'false');
-    overlay.removeAttribute('inert');
-    document.body.style.overflow = 'hidden';
-    safeGetElement('modalClose')?.focus();
-  }
-};
-
-const closeModal = () => {
-  const overlay = safeGetElement('modalOverlay');
-  if (overlay) {
-    overlay.classList.remove('open');
-    overlay.setAttribute('aria-hidden', 'true');
-    overlay.setAttribute('inert', '');
-    document.body.style.overflow = '';
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  MODAL HISTORIAL CLÍNICO
-// ═══════════════════════════════════════════════════════════════════
-const openHistorialModal = (id) => {
-  const p = pacientes.find(a => a.id === id);
-  if (!p) return;
-
-  const title = safeGetElement('modalHistorialTitle');
-  if (title) title.textContent = `Historial Clínico — ${p.nombre}`;
-
-  const content = safeGetElement('modalHistorialContent');
-  if (content) {
-    const avatarColor = getAvatarColor(p.nombre);
-    const initials = getInitials(p.nombre);
-    const alergiasHtml = p.alergias && p.alergias.length
-      ? p.alergias.map(a => `<span class="alerg-badge">⚠️ ${a}</span>`).join('')
-      : '<span class="text-muted">Sin alergias registradas</span>';
-
-    const historialHtml = p.historial && p.historial.length
-      ? p.historial.map((h, i) => `
-          <div class="hist-entry${i === 0 ? ' hist-entry--latest' : ''}">
-            <div class="hist-entry-header">
-              <div class="hist-date-wrap">
-                <span class="hist-dot"></span>
-                <time class="hist-date" datetime="${h.fechaISO}">${h.fecha}</time>
-                ${i === 0 ? '<span class="hist-badge-reciente">Más reciente</span>' : ''}
-              </div>
-              <span class="hist-doctor">👨‍⚕️ ${h.doctor}</span>
-            </div>
-            <div class="hist-procedimiento">${h.procedimiento}</div>
-            <div class="hist-notas">${h.notas}</div>
-          </div>
-        `).join('')
-      : '<p class="text-muted" style="text-align:center;padding:20px;">Sin historial registrado.</p>';
-
-    content.innerHTML = `
-      <div class="hist-patient-header">
-        <div class="modal-avatar" style="background:${avatarColor};width:48px;height:48px;font-size:1rem;" aria-hidden="true">${initials}</div>
-        <div>
-          <div class="hist-patient-name">${p.nombre}</div>
-          <div class="hist-patient-cedula">${p.cedula} · ${p.telefono}</div>
-        </div>
-        <span class="badge ${badgeClass(p.estado)} hist-estado">${estadoLabel(p.estado)}</span>
-      </div>
-
-      <div class="hist-info-grid">
-        <div class="hist-info-item">
-          <div class="hist-info-label">Última consulta</div>
-          <div class="hist-info-val">${p.ultima}</div>
-        </div>
-        <div class="hist-info-item">
-          <div class="hist-info-label">Próxima cita</div>
-          <div class="hist-info-val ${p.proxima === '—' ? 'danger' : ''}">${p.proxima === '—' ? 'Sin cita programada' : p.proxima}</div>
-        </div>
-        <div class="hist-info-item">
-          <div class="hist-info-label">Servicio actual</div>
-          <div class="hist-info-val">${p.servicio}</div>
-        </div>
-        <div class="hist-info-item">
-          <div class="hist-info-label">Alergias</div>
-          <div class="hist-alergias-wrap">${alergiasHtml}</div>
-        </div>
-      </div>
-
-      <div class="hist-timeline-title">
-        <span>📋</span> Registro de consultas
-        <span class="hist-count">${p.historial ? p.historial.length : 0} registro${p.historial && p.historial.length !== 1 ? 's' : ''}</span>
-      </div>
-      <div class="hist-timeline">
-        ${historialHtml}
-      </div>
-    `;
-  }
-
-  const overlay = safeGetElement('modalHistorialOverlay');
-  if (overlay) {
-    overlay.classList.add('open');
-    overlay.setAttribute('aria-hidden', 'false');
-    overlay.removeAttribute('inert');
-    document.body.style.overflow = 'hidden';
-    safeGetElement('modalHistorialClose')?.focus();
-  }
-};
-
-const closeHistorialModal = () => {
-  const overlay = safeGetElement('modalHistorialOverlay');
-  if (overlay) {
-    overlay.classList.remove('open');
-    overlay.setAttribute('aria-hidden', 'true');
-    overlay.setAttribute('inert', '');
-    document.body.style.overflow = '';
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  CONTADORES ANIMADOS
-// ═══════════════════════════════════════════════════════════════════
-const animateCounter = (el, target) => {
-  if (!el) return;
-  let cur = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const t = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = cur;
-    if (cur >= target) clearInterval(t);
-  }, 30);
-};
-
-const updateCounts = () => {
-  animateCounter(safeGetElement('statTotal'), pacientes.length);
-  animateCounter(safeGetElement('statActivos'), pacientes.filter(p => p.estado === 'activo').length);
-  animateCounter(safeGetElement('statSeguimiento'), pacientes.filter(p => p.estado === 'seguimiento').length);
-  animateCounter(safeGetElement('statAltas'), pacientes.filter(p => p.estado === 'alta').length);
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN
-// ═══════════════════════════════════════════════════════════════════
-const initSidebar = () => {
-  const hamburger = safeGetElement('hamburger');
-  const sidebar = safeGetElement('sidebar');
-  const overlay = safeGetElement('overlay');
-  if (!hamburger || !sidebar || !overlay) return;
-
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
-    if (show) { sidebar.querySelector('.nav-item')?.focus(); } else { hamburger.focus(); }
   };
 
-  hamburger.addEventListener('click', () => toggleMenu(true));
-  overlay.addEventListener('click', () => toggleMenu(false));
-  sidebar.querySelectorAll('.nav-item').forEach(item =>
-    item.addEventListener('click', () => { if (window.innerWidth <= 680) toggleMenu(false); })
-  );
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) { e.preventDefault(); toggleMenu(false); }
-  });
-};
+  const byId = id => document.getElementById(id);
 
-const initModals = () => {
-  // Modal detalle
-  safeGetElement('modalClose')?.addEventListener('click', closeModal);
-  safeGetElement('modalOverlay')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeModal(); });
-
-  // Modal historial
-  safeGetElement('modalHistorialClose')?.addEventListener('click', closeHistorialModal);
-  safeGetElement('modalHistorialOverlay')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeHistorialModal(); });
-
-  // Escape cierra cualquier modal abierto
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      if (safeGetElement('modalHistorialOverlay')?.classList.contains('open')) { e.preventDefault(); closeHistorialModal(); }
-      else if (safeGetElement('modalOverlay')?.classList.contains('open')) { e.preventDefault(); closeModal(); }
+  const t = (key, values) => {
+    if (!window.I18N || typeof window.I18N.t !== 'function') {
+      throw new Error('El servicio de traducción no está disponible.');
     }
-  });
-};
-
-const initFilters = () => {
-  safeGetElement('searchInput')?.addEventListener('input', debounce((e) => {
-    fSearch = e.target.value;
-    applyFilters();
-  }, 250));
-
-  safeGetElement('filterEstado')?.addEventListener('change', (e) => { fEstado = e.target.value; applyFilters(); });
-  safeGetElement('filterAlergias')?.addEventListener('change', (e) => { fAlergias = e.target.value; applyFilters(); });
-  safeGetElement('filterCita')?.addEventListener('change', (e) => { fCita = e.target.value; applyFilters(); });
-  safeGetElement('filterServicio')?.addEventListener('change', (e) => { fServicio = e.target.value; applyFilters(); });
-
-  safeGetElement('pageSizeSelect')?.addEventListener('change', (e) => {
-    pageSize = e.target.value === 'all' ? 0 : Number(e.target.value);
-    currentPage = 1;
-    renderTable(filteredPacientes);
-  });
-
-  safeGetElement('btnClearFilters')?.addEventListener('click', () => {
-    fSearch = ''; fEstado = ''; fAlergias = ''; fCita = ''; fServicio = '';
-    const ids = ['searchInput', 'filterEstado', 'filterAlergias', 'filterCita', 'filterServicio'];
-    ids.forEach(id => { const el = safeGetElement(id); if (el) el.value = ''; });
-    safeGetElement('btnClearFilters')?.classList.remove('active');
-    applyFilters();
-  });
-
-  safeGetElement('btnPrev')?.addEventListener('click', () => {
-    if (currentPage > 1) { currentPage -= 1; renderTable(filteredPacientes); }
-  });
-  safeGetElement('btnNext')?.addEventListener('click', () => {
-    const totalPages = pageSize === 0 ? 1 : Math.ceil(filteredPacientes.length / pageSize);
-    if (currentPage < totalPages) { currentPage += 1; renderTable(filteredPacientes); }
-  });
-};
-
-const MESES_PAC = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-const fmtFechaCorta = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-};
-const fmtFechaLarga = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')} ${MESES_PAC[d.getMonth()]} ${d.getFullYear()}`;
-};
-const toISODate = (iso) => (iso ? String(iso).slice(0, 10) : null);
-
-// Convierte el DTO de /historia-clinica/st-odo-06-pacientes/data (mismo formato que
-// st-adm-historial) al modelo que usa esta vista: separa la última cita ya pasada
-// de la próxima cita futura a partir del listado real de citas del paciente.
-function normalizarPacienteOdo(p) {
-  const ahora = new Date();
-  const consultas = [...(p.consultas || [])].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-  const pasadas = consultas.filter(c => new Date(c.fecha) <= ahora);
-  const futuras = consultas.filter(c => new Date(c.fecha) > ahora).sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-  const ultimaConsulta = pasadas[0] || consultas[0] || null;
-  const proximaConsulta = futuras[0] || null;
-
-  return {
-    id: p.id,
-    nombre: p.nombre,
-    cedula: p.cedula,
-    ultima: fmtFechaCorta(ultimaConsulta?.fecha),
-    ultimaISO: toISODate(ultimaConsulta?.fecha),
-    servicio: ultimaConsulta?.proc || 'Sin servicio registrado',
-    proxima: proximaConsulta ? fmtFechaCorta(proximaConsulta.fecha) : '—',
-    proximaISO: toISODate(proximaConsulta?.fecha),
-    estado: p.estado === 'inactivo' ? 'alta' : 'activo',
-    alergias: p.alerta && p.alertaTexto ? p.alertaTexto.split(',').map(a => a.trim()).filter(Boolean) : [],
-    telefono: p.telefono || '',
-    email: p.email || '',
-    historial: consultas.map(c => ({
-      fecha: fmtFechaLarga(c.fecha),
-      fechaISO: toISODate(c.fecha),
-      procedimiento: c.proc,
-      doctor: c.odo,
-      notas: c.nota || ''
-    }))
+    return window.I18N.t(key, values);
   };
-}
 
-async function fetchPacientes() {
-  try {
-    const resp = await fetch('/historia-clinica/st-odo-06-pacientes/data', { headers: { 'Accept': 'application/json' } });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    return data.map(normalizarPacienteOdo);
-  } catch (error) {
-    console.error('No se pudieron cargar los pacientes desde el servidor:', error);
-    showToast('No se pudieron cargar los pacientes', 'error');
-    return [];
+  const notify = (messageKey, type = 'error') => {
+    const toast = window.ToastService;
+    if (!toast || typeof toast[type] !== 'function') {
+      console.error('[SmileTrack] El servicio de notificaciones no está disponible.');
+      return;
+    }
+
+    const titleKey = type === 'warning' ? 'toast.warning_title' : 'toast.error_title';
+    toast[type](t(titleKey), t(messageKey));
+  };
+
+  const createElement = (tagName, className, text) => {
+    const element = document.createElement(tagName);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = text;
+    return element;
+  };
+
+  const dateValue = value => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const formatDate = (value, options = { day: '2-digit', month: '2-digit', year: 'numeric' }) => {
+    const date = dateValue(value);
+    return date
+      ? new Intl.DateTimeFormat(t('odo06.date_locale'), options).format(date)
+      : '—';
+  };
+
+  const normalizePatient = patient => {
+    const now = new Date();
+    const consultations = Array.isArray(patient.consultas)
+      ? patient.consultas.slice().sort((left, right) => new Date(right.fecha) - new Date(left.fecha))
+      : [];
+    const attended = consultations.filter(consultation => {
+      const date = dateValue(consultation.fecha);
+      return date && date <= now;
+    });
+    const upcoming = patient.proximaCita && dateValue(patient.proximaCita.fecha)
+      ? patient.proximaCita
+      : null;
+    const latestVisit = attended[0] || consultations[0] || null;
+    const rawStatus = String(patient.estado || 'activo').toLowerCase();
+
+    return {
+      id: patient.id,
+      nombre: String(patient.nombre || ''),
+      cedula: String(patient.cedula || ''),
+      email: String(patient.email || ''),
+      telefono: String(patient.telefono || ''),
+      ultimaISO: latestVisit?.fecha || null,
+      servicio: latestVisit?.proc || '',
+      proximaISO: upcoming?.fecha || null,
+      estado: rawStatus === 'inactivo' || rawStatus === 'retirado'
+        ? 'alta'
+        : patient.enSeguimiento ? 'seguimiento' : 'activo'
+    };
+  };
+
+  const statusLabel = status => {
+    const labels = {
+      activo: 'odo06.stat_active',
+      seguimiento: 'odo06.stat_followup',
+      alta: 'odo06.stat_discharged'
+    };
+    return t(labels[status] || 'odo06.stat_active');
+  };
+
+  const statusClass = status => {
+    const classes = {
+      activo: 'activo',
+      seguimiento: 'en-proceso',
+      alta: 'inactivo'
+    };
+    return classes[status] || 'neutral';
+  };
+
+  const avatarColor = name => {
+    const initial = String(name || '').codePointAt(0) || 0;
+    return String((initial % 5) + 1);
+  };
+
+  const patientUrl = id => `/gestion-de-pacientes/${encodeURIComponent(String(id))}`;
+
+  const navigateToPatient = (id, destination) => {
+    try {
+      sessionStorage.setItem('st_paciente_id', String(id));
+    } catch (error) {
+      console.error('[SmileTrack] No fue posible guardar el contexto del paciente:', error);
+    }
+
+    const route = destination === 'history'
+      ? `/historia-clinica/st-odo-03-historial?pacienteId=${encodeURIComponent(String(id))}`
+      : patientUrl(id);
+    window.location.assign(route);
+  };
+
+  const buildEmptyRow = (titleKey, messageKey) => {
+    const row = document.createElement('tr');
+    const cell = createElement('td');
+    cell.colSpan = 6;
+
+    const emptyState = createElement('div', 'empty-state');
+    const icon = createElement('span', 'material-symbols-outlined empty-icon', 'person_search');
+    icon.setAttribute('aria-hidden', 'true');
+    emptyState.append(icon, createElement('h3', 'empty-state-title', t(titleKey)));
+    if (messageKey) emptyState.append(createElement('p', 'empty-state-text', t(messageKey)));
+
+    cell.appendChild(emptyState);
+    row.appendChild(cell);
+    return row;
+  };
+
+  const renderPatientRow = patient => {
+    const row = createElement('tr');
+    row.tabIndex = 0;
+    row.dataset.patientId = String(patient.id);
+    row.setAttribute('aria-label', t('odo06.patient_row_aria', { name: patient.nombre }));
+
+    const patientCell = createElement('td', 'td-paciente');
+    const avatar = createElement('span', 'p-avatar', getInitials(patient.nombre));
+    avatar.dataset.color = avatarColor(patient.nombre);
+    avatar.setAttribute('aria-hidden', 'true');
+    const patientInfo = createElement('span');
+    patientInfo.append(
+      createElement('span', 'p-name', patient.nombre),
+      createElement('span', 'p-cedula', patient.cedula)
+    );
+    patientCell.append(avatar, patientInfo);
+
+    const lastVisitCell = createElement('td', 'td-fecha');
+    lastVisitCell.textContent = formatDate(patient.ultimaISO);
+
+    const serviceCell = createElement('td');
+    serviceCell.textContent = patient.servicio || t('odo06.service_unavailable');
+
+    const nextAppointmentCell = createElement('td', `td-cita${patient.proximaISO ? '' : ' sin-cita'}`);
+    nextAppointmentCell.textContent = patient.proximaISO
+      ? formatDate(patient.proximaISO)
+      : t('odo06.no_appointment');
+
+    const statusCell = createElement('td');
+    const statusBadge = createElement('span', `badge-estado status-badge ${statusClass(patient.estado)}`, statusLabel(patient.estado));
+    statusBadge.setAttribute('role', 'status');
+    statusCell.appendChild(statusBadge);
+
+    const actionsCell = createElement('td');
+    const actions = createElement('div', 'actions-cell');
+    const profileButton = createElement('button', 'btn-secondary action-btn btn-action', t('odo06.action_profile'));
+    profileButton.type = 'button';
+    profileButton.dataset.action = 'profile';
+    profileButton.setAttribute('aria-label', t('odo06.action_profile_aria', { name: patient.nombre }));
+    profileButton.title = t('odo06.action_profile');
+
+    const historyButton = createElement('button', 'btn-secondary action-btn btn-action btn-historial', t('odo06.action_history'));
+    historyButton.type = 'button';
+    historyButton.dataset.action = 'history';
+    historyButton.setAttribute('aria-label', t('odo06.action_history_aria', { name: patient.nombre }));
+    historyButton.title = t('odo06.action_history');
+    actions.append(profileButton, historyButton);
+    actionsCell.appendChild(actions);
+
+    row.append(patientCell, lastVisitCell, serviceCell, nextAppointmentCell, statusCell, actionsCell);
+    return row;
+  };
+
+  const updatePagination = () => {
+    const controls = byId('paginationControls');
+    const showing = byId('pageShowing');
+    const total = byId('pageTotal');
+    const previous = byId('btnPrev');
+    const next = byId('btnNext');
+    const pageButtons = byId('pageNumBtns');
+
+    if (!controls || !showing || !total || !previous || !next || !pageButtons) return;
+
+    const firstItem = state.total === 0 ? 0 : (state.page - 1) * state.pageSize + 1;
+    const lastItem = Math.min(state.total, (state.page - 1) * state.pageSize + state.pacientes.length);
+    showing.textContent = String(lastItem === 0 ? 0 : firstItem);
+    total.textContent = String(state.total);
+    controls.hidden = state.total === 0;
+    previous.disabled = state.page <= 1;
+    next.disabled = state.page >= state.totalPages;
+
+    pageButtons.replaceChildren();
+    const firstPage = Math.max(1, Math.min(state.page - 3, state.totalPages - 6));
+    const lastPage = Math.min(state.totalPages, firstPage + 6);
+    for (let pageNumber = firstPage; pageNumber <= lastPage; pageNumber += 1) {
+      const button = createElement('button', `pagination-btn${pageNumber === state.page ? ' active' : ''}`, String(pageNumber));
+      button.type = 'button';
+      button.dataset.page = String(pageNumber);
+      button.setAttribute('aria-label', t('odo06.page_number', { number: pageNumber }));
+      if (pageNumber === state.page) button.setAttribute('aria-current', 'page');
+      pageButtons.appendChild(button);
+    }
+  };
+
+  const updateCounts = stats => {
+    const values = {
+      statTotal: stats.total,
+      statActivos: stats.activos,
+      statSeguimiento: stats.seguimiento,
+      statAltas: stats.altas
+    };
+
+    Object.entries(values).forEach(([id, value]) => {
+      const element = byId(id);
+      const count = Number(value);
+      if (!element || !Number.isFinite(count)) return;
+      element.dataset.target = String(count);
+      element.textContent = String(count);
+    });
+  };
+
+  const renderTable = () => {
+    const tbody = byId('pacientesTbody');
+    if (!tbody) return;
+
+    if (state.pacientes.length === 0) {
+      tbody.replaceChildren(buildEmptyRow('odo06.no_results_title', 'odo06.no_results_text'));
+    } else {
+      tbody.replaceChildren(...state.pacientes.map(renderPatientRow));
+    }
+
+    updatePagination();
+    const hasFilters = Object.values(state.filters).some(Boolean);
+    const results = byId('filterResults');
+    if (results) {
+      results.textContent = hasFilters
+        ? t('odo06.result_count', { count: state.total })
+        : '';
+    }
+  };
+
+  const populateServiceFilter = () => {
+    const select = byId('filterServicio');
+    if (!select) return;
+
+    const selectedService = select.value;
+    select.querySelectorAll('option[data-service-option]').forEach(option => option.remove());
+    state.servicios.forEach(service => {
+      const option = createElement('option', '', service);
+      option.value = service;
+      option.dataset.serviceOption = 'true';
+      select.appendChild(option);
+    });
+
+    select.value = state.servicios.includes(selectedService) ? selectedService : '';
+  };
+
+  const readFilters = () => {
+    state.filters.search = byId('searchInput')?.value.trim() || '';
+    state.filters.status = byId('filterEstado')?.value || '';
+    state.filters.allergies = byId('filterAlergias')?.value || '';
+    state.filters.appointment = byId('filterCita')?.value || '';
+    state.filters.service = byId('filterServicio')?.value || '';
+  };
+
+  const fetchPatients = async () => {
+    const version = ++state.requestVersion;
+    const size = byId('pageSizeSelect')?.value || '10';
+    state.pageSize = Number(size) || 10;
+
+    const parameters = new URLSearchParams({
+      page: String(state.page),
+      pageSize: String(state.pageSize)
+    });
+    if (state.filters.search) parameters.set('search', state.filters.search);
+    if (state.filters.status) parameters.set('estado', state.filters.status);
+    if (state.filters.allergies) parameters.set('alergias', state.filters.allergies);
+    if (state.filters.appointment) parameters.set('cita', state.filters.appointment);
+    if (state.filters.service) parameters.set('servicio', state.filters.service);
+
+    try {
+      const response = await fetch(`/historia-clinica/st-odo-06-pacientes/data?${parameters}`, {
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) {
+        throw new Error(`La consulta de pacientes respondió HTTP ${response.status}.`);
+      }
+
+      const result = await response.json();
+      if (!result || !Array.isArray(result.items) || !result.stats) {
+        throw new Error('La respuesta de pacientes tiene un formato no válido.');
+      }
+      if (version !== state.requestVersion) return false;
+
+      state.total = Number(result.total);
+      state.totalPages = Math.max(1, Number(result.totalPages) || 1);
+      state.servicios = Array.isArray(result.servicios) ? result.servicios.map(String) : [];
+      state.pacientes = result.items.map(normalizePatient);
+      updateCounts(result.stats);
+      populateServiceFilter();
+      return true;
+    } catch (error) {
+      if (version !== state.requestVersion) return false;
+      console.error('[SmileTrack] No se pudieron cargar los pacientes:', error);
+      notify('odo06.load_error');
+      const tbody = byId('pacientesTbody');
+      if (tbody) tbody.replaceChildren(buildEmptyRow('odo06.load_error_title', 'odo06.load_error'));
+      state.total = 0;
+      state.totalPages = 1;
+      updatePagination();
+      return false;
+    }
+  };
+
+  const loadAndRender = async () => {
+    if (await fetchPatients()) renderTable();
+  };
+
+  const debounce = (callback, delay) => {
+    let timeoutId;
+    return (...args) => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => callback(...args), delay);
+    };
+  };
+
+  const navigatePage = async page => {
+    if (page < 1 || page > state.totalPages) return;
+    state.page = page;
+    await loadAndRender();
+  };
+
+  const applyFilters = async () => {
+    readFilters();
+    state.page = 1;
+    byId('btnClearFilters')?.classList.toggle('active', Object.values(state.filters).some(Boolean));
+    await loadAndRender();
+  };
+
+  const clearFilters = async () => {
+    ['searchInput', 'filterEstado', 'filterAlergias', 'filterCita', 'filterServicio'].forEach(id => {
+      const element = byId(id);
+      if (element) element.value = '';
+    });
+    state.filters = { search: '', status: '', allergies: '', appointment: '', service: '' };
+    byId('btnClearFilters')?.classList.remove('active');
+    state.page = 1;
+    await loadAndRender();
+  };
+
+  const getInitials = name => String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => Array.from(part)[0] || '')
+    .join('')
+    .toLocaleUpperCase(t('odo06.date_locale'));
+
+  const bindEvents = () => {
+    byId('searchInput')?.addEventListener('input', debounce(applyFilters, 250));
+    ['filterEstado', 'filterAlergias', 'filterCita', 'filterServicio'].forEach(id => {
+      byId(id)?.addEventListener('change', applyFilters);
+    });
+    byId('pageSizeSelect')?.addEventListener('change', () => {
+      state.page = 1;
+      loadAndRender();
+    });
+    byId('btnClearFilters')?.addEventListener('click', clearFilters);
+    byId('btnPrev')?.addEventListener('click', () => navigatePage(state.page - 1));
+    byId('btnNext')?.addEventListener('click', () => navigatePage(state.page + 1));
+    byId('pageNumBtns')?.addEventListener('click', event => {
+      const button = event.target.closest('button[data-page]');
+      if (button) navigatePage(Number(button.dataset.page));
+    });
+
+    byId('pacientesTbody')?.addEventListener('click', event => {
+      const row = event.target.closest('tr[data-patient-id]');
+      if (!row) return;
+      const action = event.target.closest('button[data-action]')?.dataset.action;
+      navigateToPatient(row.dataset.patientId, action === 'history' ? 'history' : 'profile');
+    });
+    byId('pacientesTbody')?.addEventListener('keydown', event => {
+      const row = event.target.closest('tr[data-patient-id]');
+      if (!row || event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      navigateToPatient(row.dataset.patientId, 'profile');
+    });
+
+    document.addEventListener('i18n:change', () => {
+      renderTable();
+      populateServiceFilter();
+    });
+  };
+
+  const initialize = async () => {
+    try {
+      bindEvents();
+      await loadAndRender();
+    } catch (error) {
+      console.error('[SmileTrack] No fue posible inicializar la vista de pacientes:', error);
+      notify('odo06.load_error');
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialize, { once: true });
+  } else {
+    initialize();
   }
-}
-
-const init = async () => {
-  initSidebar();
-  initModals();
-
-  pacientes = await fetchPacientes();
-  filteredPacientes = [...pacientes];
-
-  populateServicioSelect();
-  initFilters();
-  renderTable(pacientes);
-  updateCounts();
-};
-
-document.addEventListener('DOMContentLoaded', init);
+})();

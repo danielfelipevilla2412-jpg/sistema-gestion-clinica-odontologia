@@ -1,0 +1,308 @@
+:root {
+  --state-success-bg: #dcfce7;
+  --state-success-text: #166534;
+  --state-success-border: #86efac;
+  --state-info-bg: #dbeafe;
+  --state-info-text: #1d4ed8;
+  --state-info-border: #93c5fd;
+  --state-pending-bg: #fef3c7;
+  --state-pending-text: #92400e;
+  --state-pending-border: #fcd34d;
+  --state-progress-bg: #ede9fe;
+  --state-progress-text: #6d28d9;
+  --state-progress-border: #c4b5fd;
+  --state-danger-bg: #fee2e2;
+  --state-danger-text: #991b1b;
+  --state-danger-border: #fca5a5;
+  --state-warning-bg: #fff7ed;
+  --state-warning-text: #9a3412;
+  --state-warning-border: #fed7aa;
+  --state-neutral-bg: #f1f5f9;
+  --state-neutral-text: #475569;
+  --state-neutral-border: #cbd5e1;
+}
+
+.badge-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-badge.activo,
+.status-badge.active,
+.status-badge.badge-activo,
+.status-badge.badge-confirmada,
+.status-badge.badge-completada,
+.status-badge.confirmada,
+.status-badge.atendida,
+.status-badge.pagada,
+.status-badge.completada,
+.badge-status.activo,
+.badge-status.badge-activo,
+.badge-status.badge-confirmada,
+.badge-estado.activo,
+.badge-estado.active,
+.badge-activo,
+.badge-confirmada,
+.badge-completada,
+.badge-resuelto,
+.status-btn.resuelto.active,
+.appointment.confirmed,
+.appointment.attended,
+.badge-level.success {
+  color: var(--state-success-text);
+  background-color: var(--state-success-bg);
+  border-color: var(--state-success-border);
+}
+
+.status-badge.programada,
+.status-badge.agendada,
+.status-badge.recibida,
+.status-badge.badge-agendada,
+.status-badge.badge-recibido,
+.status-badge.badge-recibida,
+.status-select-inline.programada,
+.status-select-inline.agendada,
+.status-select-inline.badge-agendada,
+.badge-agendada,
+.badge-recibido,
+.status-btn.recibido.active,
+.badge-level.info {
+  color: var(--state-info-text);
+  background-color: var(--state-info-bg);
+  border-color: var(--state-info-border);
+}
+
+.status-badge.pendiente,
+.status-badge.parcial,
+.status-badge.vacaciones,
+.status-badge.solicitada,
+.status-badge.badge-pendiente,
+.status-badge.badge-solicitada,
+.badge-status.badge-vacaciones,
+.badge-pendiente,
+.badge-solicitada,
+.badge-vacaciones,
+.badge-no,
+.pending-badge,
+.status-btn.pendiente.active,
+.appointment.reserved,
+.badge-level.warning {
+  color: var(--state-pending-text);
+  background-color: var(--state-pending-bg);
+  border-color: var(--state-pending-border);
+}
+
+.status-badge.en-proceso,
+.status-badge.en-curso,
+.status-badge.proceso,
+.status-badge.badge-proceso,
+.badge-proceso,
+.status-btn.proceso.active {
+  color: var(--state-progress-text);
+  background-color: var(--state-progress-bg);
+  border-color: var(--state-progress-border);
+}
+
+.status-badge.cancelada,
+.status-badge.cancelado,
+.status-badge.rechazada,
+.status-badge.rechazado,
+.status-badge.bloqueado,
+.status-badge.badge-cancelada,
+.status-badge.badge-bloqueado,
+.status-badge.badge-rechazada,
+.status-badge.badge-rechazado,
+.badge-status.bloqueado,
+.badge-status.badge-bloqueado,
+.badge-cancelada,
+.badge-rechazada,
+.badge-rechazado,
+.badge-bloqueado,
+.status-btn.rechazado.active,
+.appointment.cancelled,
+.badge-level.critical,
+.badge-level.error {
+  color: var(--state-danger-text);
+  background-color: var(--state-danger-bg);
+  border-color: var(--state-danger-border);
+}
+
+.status-badge.no-asistio,
+.status-badge.no-asistida,
+.status-badge.badge-no-asistio,
+.badge-no-asistio,
+.status-select-inline.no-asistio,
+.status-select-inline.no-asistida {
+  color: var(--state-warning-text);
+  background-color: var(--state-warning-bg);
+  border-color: var(--state-warning-border);
+}
+
+.status-badge.inactivo,
+.status-badge.neutral,
+.status-badge.anulada,
+.status-badge.cerrada,
+.status-badge.cerrado,
+.status-badge.retirado,
+.status-badge.sin-cita,
+.status-badge.available,
+.status-badge.badge-inactivo,
+.status-badge.badge-cerrado,
+.badge-status.inactivo,
+.badge-status.badge-inactivo,
+.badge-estado.inactivo,
+.badge-estado.retirado,
+.badge-inactivo,
+.badge-anulada,
+.badge-cerrado,
+.badge-no-cita,
+.badge-sin-cita,
+.badge-level.debug,
+.status-btn.cerrado.active,
+.appointment.available {
+  color: var(--state-neutral-text);
+  background-color: var(--state-neutral-bg);
+  border-color: var(--state-neutral-border);
+}
+
+.badge-activo::before,
+.badge-status.activo::before,
+.badge-status.badge-activo::before {
+  background: var(--state-success-text);
+}
+
+.badge-inactivo::before,
+.badge-status.inactivo::before,
+.badge-status.badge-inactivo::before {
+  background: var(--state-neutral-text);
+}
+
+.badge-bloqueado::before,
+.badge-status.bloqueado::before,
+.badge-status.badge-bloqueado::before {
+  background: var(--state-danger-text);
+}
+
+.status-connection {
+  color: var(--state-success-text);
+}
+
+.status-connection .status-dot {
+  background-color: var(--state-success-border);
+}
+
+.status-label.pagada {
+  color: var(--state-success-text);
+}
+
+.status-label.pendiente,
+.status-label.parcial {
+  color: var(--state-pending-text);
+}
+
+.status-label.anulada {
+  color: var(--state-neutral-text);
+}
+
+select[data-state-select] option[value="activo"],
+select[data-state-select] option[value="Activo"] {
+  color: var(--state-success-text);
+  background-color: var(--state-success-bg);
+}
+
+select[data-state-select] option[value="vacaciones"],
+select[data-state-select] option[value="Vacaciones"] {
+  color: var(--state-pending-text);
+  background-color: var(--state-pending-bg);
+}
+
+select[data-state-select] option[value="inactivo"],
+select[data-state-select] option[value="Inactivo"],
+select[data-state-select] option[value="retirado"] {
+  color: var(--state-neutral-text);
+  background-color: var(--state-neutral-bg);
+}
+
+select[data-state-select]:has(option:checked[value="activo"]),
+select[data-state-select]:has(option:checked[value="Activo"]),
+select[data-state-select]:has(option:checked[value="Confirmada"]),
+select[data-state-select]:has(option:checked[value="confirmada"]),
+select[data-state-select]:has(option:checked[value="atendida"]),
+select[data-state-select]:has(option:checked[value="completada"]),
+select[data-state-select]:has(option:checked[value="Pagada"]),
+select[data-state-select]:has(option:checked[value="pagada"]) {
+  color: var(--state-success-text);
+  background-color: var(--state-success-bg);
+  border-color: var(--state-success-border);
+}
+
+select[data-state-select]:has(option:checked[value="Programada"]),
+select[data-state-select]:has(option:checked[value="programada"]),
+select[data-state-select]:has(option:checked[value="Agendada"]),
+select[data-state-select]:has(option:checked[value="agendada"]),
+select[data-state-select]:has(option:checked[value="recibida"]) {
+  color: var(--state-info-text);
+  background-color: var(--state-info-bg);
+  border-color: var(--state-info-border);
+}
+
+select[data-state-select]:has(option:checked[value="vacaciones"]),
+select[data-state-select]:has(option:checked[value="Vacaciones"]) {
+  color: var(--state-pending-text);
+  background-color: var(--state-pending-bg);
+  border-color: var(--state-pending-border);
+}
+
+select[data-state-select]:has(option:checked[value="pendiente"]),
+select[data-state-select]:has(option:checked[value="solicitada"]),
+select[data-state-select]:has(option:checked[value="parcial"]) {
+  color: var(--state-pending-text);
+  background-color: var(--state-pending-bg);
+  border-color: var(--state-pending-border);
+}
+
+select[data-state-select]:has(option:checked[value="en_proceso"]),
+select[data-state-select]:has(option:checked[value="en-proceso"]),
+select[data-state-select]:has(option:checked[value="En curso"]) {
+  color: var(--state-progress-text);
+  background-color: var(--state-progress-bg);
+  border-color: var(--state-progress-border);
+}
+
+select[data-state-select]:has(option:checked[value="cancelada"]),
+select[data-state-select]:has(option:checked[value="rechazada"]),
+select[data-state-select]:has(option:checked[value="Rechazada"]),
+select[data-state-select]:has(option:checked[value="bloqueado"]) {
+  color: var(--state-danger-text);
+  background-color: var(--state-danger-bg);
+  border-color: var(--state-danger-border);
+}
+
+select[data-state-select]:has(option:checked[value="no-asistio"]),
+select[data-state-select]:has(option:checked[value="no_asistio"]) {
+  color: var(--state-warning-text);
+  background-color: var(--state-warning-bg);
+  border-color: var(--state-warning-border);
+}
+
+select[data-state-select]:has(option:checked[value="inactivo"]),
+select[data-state-select]:has(option:checked[value="Inactivo"]),
+select[data-state-select]:has(option:checked[value="retirado"]),
+select[data-state-select]:has(option:checked[value="neutral"]),
+select[data-state-select]:has(option:checked[value="Anulada"]),
+select[data-state-select]:has(option:checked[value="anulada"]),
+select[data-state-select]:has(option:checked[value="Cerrada"]),
+select[data-state-select]:has(option:checked[value="cerrada"]),
+select[data-state-select]:has(option:checked[value="cerrado"]) {
+  color: var(--state-neutral-text);
+  background-color: var(--state-neutral-bg);
+  border-color: var(--state-neutral-border);
+}

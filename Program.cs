@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
@@ -11,6 +12,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Services;
@@ -22,24 +24,27 @@ using System.Globalization;
 using System.Text.Json;
 using System.IO;
 using System.Text.RegularExpressions;
+using SmileTrack_MVC.Services.Perfiles;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // NOTA sobre orden de configuración: CADA NUEVA FUENTE AGREGADA SOBRESCRIBE A LAS ANTERIORES.
-// WebApplication.CreateBuilder(args) YA registra automáticamente:
-//   1) appsettings.json
-//   2) appsettings.{Environment}.json
-//   3) User Secrets (SI environment = Development)
-//   4) Variables de entorno
-//   5) Argumentos de línea de comandos
+// Sources.Clear() borra el registro automático del builder; reconstruimos manualmente:
 //
-// Orden que queremos para evitar perder el Password de user-secrets:
-//   (automáticos por el builder)
-//   + appsettings.Local.json   ← valores locales específicos de la máquina
-//   + user-secrets (explicito, por si el builder no lo cargó)
-//   + variables de entorno y CLI
+//   Development:
+//     appsettings.json → appsettings.Development.json → appsettings.Local.json
+//     → user-secrets → variables de entorno → CLI
 //
-// Así: Smtp:Password de user-secrets no será sobreescrito por un "" del json.
+//   Testing (entorno aislado con SmileTrackTest en LocalDB):
+//     appsettings.json → appsettings.Testing.json
+//     → user-secrets (cadena de conexión LocalDB sin contraseña)
+//     → variables de entorno → CLI
+//     * appsettings.Local.json NO se carga: evita que las credenciales de
+//       desarrollo sobreescriban el entorno de pruebas.
+//
+//   Production:
+//     appsettings.json → appsettings.Production.json
+//     → variables de entorno → CLI
 
 builder.Configuration.Sources.Clear();
 
@@ -51,13 +56,21 @@ builder.Configuration
     .AddJsonFile(
         $"appsettings.{builder.Environment.EnvironmentName}.json",
         optional: true,
-        reloadOnChange: true)
-    .AddJsonFile(
+        reloadOnChange: true);
+
+// appsettings.Local.json no se carga en Testing para que las credenciales
+// de desarrollo no sobreescriban el entorno de pruebas aislado.
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Configuration.AddJsonFile(
         "appsettings.Local.json",
         optional: true,
         reloadOnChange: true);
+}
 
-if (builder.Environment.IsDevelopment())
+// User-secrets se cargan en Development y Testing.
+// En Testing apuntan a SmileTrackTest (LocalDB) — sin contraseñas en texto plano.
+if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
 {
     builder.Configuration.AddUserSecrets(
         "ff5d4b9c-690c-44b5-a2e6-8cd9fe7ea759",
@@ -68,7 +81,26 @@ builder.Configuration
     .AddEnvironmentVariables()
     .AddCommandLine(args);
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        var defaultFactory = options.InvalidModelStateResponseFactory;
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            if (context.ActionDescriptor.RouteValues.TryGetValue("controller", out var controller) &&
+                string.Equals(controller, "GestionPacientesApi", StringComparison.OrdinalIgnoreCase))
+            {
+                return new Microsoft.AspNetCore.Mvc.UnprocessableEntityObjectResult(
+                    new Microsoft.AspNetCore.Mvc.ValidationProblemDetails(context.ModelState)
+                    {
+                        Status = StatusCodes.Status422UnprocessableEntity
+                    });
+            }
+
+            return defaultFactory(context);
+        };
+    });
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
@@ -104,25 +136,69 @@ if (ejecutandoEnContenedor)
 // RATE LIMITING
 // -----------------------------------------------------------------------------
 
+static string GetRateLimitPartitionKey(HttpContext context)
+{
+    var address = context.Connection.RemoteIpAddress;
+    if (address == null)
+    {
+        return "unknown";
+    }
+
+    return address.IsIPv4MappedToIPv6
+        ? address.MapToIPv4().ToString()
+        : address.ToString();
+}
+
+static FixedWindowRateLimiterOptions CreateFixedWindowOptions(
+    int permitLimit,
+    TimeSpan window) =>
+    new()
+    {
+        PermitLimit = permitLimit,
+        Window = window,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        QueueLimit = 0
+    };
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedProto;
+
+    foreach (string proxy in
+             builder.Configuration.GetSection("KnownProxies").Get<string[]>() ??
+             Array.Empty<string>())
+    {
+        if (IPAddress.TryParse(proxy, out var address))
+        {
+            options.KnownProxies.Add(address);
+        }
+    }
+});
+
 builder.Services.AddRateLimiter(options =>
 {
-    // Política por IP: 10 peticiones / 15 minutos
-    options.AddFixedWindowLimiter("LoginByIp", opt =>
-    {
-        opt.PermitLimit = 10;
-        opt.Window = TimeSpan.FromMinutes(15);
-        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        opt.QueueLimit = 0;
-    });
+    options.AddPolicy("LoginByIp", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetRateLimitPartitionKey(context),
+            _ => CreateFixedWindowOptions(
+                permitLimit: 10,
+                window: TimeSpan.FromMinutes(15))));
 
-    // Política por correo: 5 peticiones / 15 minutos
-    options.AddFixedWindowLimiter("LoginByEmail", opt =>
-    {
-        opt.PermitLimit = 5;
-        opt.Window = TimeSpan.FromMinutes(15);
-        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        opt.QueueLimit = 0;
-    });
+    options.AddPolicy("AccountRecoveryByIp", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetRateLimitPartitionKey(context),
+            _ => CreateFixedWindowOptions(
+                permitLimit: 5,
+                window: TimeSpan.FromMinutes(15))));
+
+    options.AddPolicy("RegisterByIp", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetRateLimitPartitionKey(context),
+            _ => CreateFixedWindowOptions(
+                permitLimit: 5,
+                window: TimeSpan.FromHours(1))));
 
     options.AddFixedWindowLimiter("PerfilPaciente", opt =>
     {
@@ -132,13 +208,50 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueLimit = 0;
     });
 
+    // Política para solicitudes de cita por paciente: 10 peticiones / minuto
+    options.AddFixedWindowLimiter("CitaSolicitud", opt =>
+    {
+        opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+
+    // Política para envío masivo de recordatorios: 5 peticiones / minuto
+    options.AddFixedWindowLimiter("RecordatoriosEnvio", opt =>
+    {
+        opt.PermitLimit = 5;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+
+    // Política para reasignación de ausencias: 3 peticiones / minuto
+    options.AddFixedWindowLimiter("AusenciaReasignacion", opt =>
+    {
+        opt.PermitLimit = 3;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+
     options.OnRejected = async (context, ct) =>
     {
-        context.HttpContext.Response.StatusCode =
-            StatusCodes.Status429TooManyRequests;
+        var response = context.HttpContext.Response;
+        response.StatusCode = StatusCodes.Status429TooManyRequests;
 
-        context.HttpContext.Response.ContentType =
-            "application/json; charset=utf-8";
+        int retryAfterSeconds = 60;
+        if (context.Lease.TryGetMetadata(
+                MetadataName.RetryAfter,
+                out TimeSpan retryAfter))
+        {
+            retryAfterSeconds = Math.Max(
+                1,
+                (int)Math.Ceiling(retryAfter.TotalSeconds));
+        }
+
+        response.Headers.RetryAfter =
+            retryAfterSeconds.ToString(CultureInfo.InvariantCulture);
 
         bool esApi = context.HttpContext.Request.Headers["Accept"]
             .ToString()
@@ -148,17 +261,17 @@ builder.Services.AddRateLimiter(options =>
 
         if (esApi)
         {
+            response.ContentType = "application/json; charset=utf-8";
             await context.HttpContext.Response.WriteAsync(
-                """{"success":false,"message":"Demasiados intentos de inicio de sesión. Por favor espera 15 minutos antes de intentar nuevamente."}""",
+                """{"success":false,"message":"Demasiadas solicitudes. Intenta de nuevo más tarde."}""",
                 ct);
         }
         else
         {
-            context.HttpContext.Response.ContentType =
-                "text/html; charset=utf-8";
+            response.ContentType = "text/html; charset=utf-8";
 
             await context.HttpContext.Response.WriteAsync(
-                """<meta http-equiv="refresh" content="2;url=/acceso-y-seguridad/login?rateLimited=1" /><p>Demasiados intentos. Redirigiendo...</p>""",
+                """<!doctype html><html lang="es"><meta charset="utf-8"><title>Demasiadas solicitudes</title><main><h1>Demasiadas solicitudes</h1><p>Intenta de nuevo más tarde.</p><a href="/">Volver al inicio</a></main></html>""",
                 ct);
         }
     };
@@ -168,11 +281,15 @@ builder.Services.AddRateLimiter(options =>
 // ANTIFORGERY
 // -----------------------------------------------------------------------------
 
+bool redirectHttpToHttps =
+    builder.Configuration.GetValue<bool?>("Security:RedirectHttpToHttps")
+    ?? !builder.Environment.IsDevelopment();
+
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
     options.Cookie.Name = "XSRF-TOKEN";
-    options.Cookie.HttpOnly = false;
+    options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
@@ -191,6 +308,14 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "Configure la cadena de conexión en appsettings.Local.json.");
 }
 
+// Diagnóstico temporal: muestra el destino de la conexión sin revelar credenciales.
+var conexionDiagnostico = new SqlConnectionStringBuilder(connectionString);
+Console.WriteLine("========== CONEXIÓN SMILETRACK ==========");
+Console.WriteLine($"Servidor: {conexionDiagnostico.DataSource}");
+Console.WriteLine($"Base de datos: {conexionDiagnostico.InitialCatalog}");
+Console.WriteLine($"Entorno: {builder.Environment.EnvironmentName}");
+Console.WriteLine("=========================================");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         connectionString,
@@ -198,6 +323,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryCount: 3,
             maxRetryDelay: TimeSpan.FromSeconds(3),
             errorNumbersToAdd: null)));
+builder.Services.AddHealthChecks()
+    .AddSqlServer(connectionString, name: "sqlserver", timeout: TimeSpan.FromSeconds(5));
 
 builder.Services.AddScoped<ICitaService, CitaService>();
 builder.Services.AddScoped<IAgendaService, AgendaService>();
@@ -205,6 +332,13 @@ builder.Services.AddScoped<IPanelOperativoService, PanelOperativoService>();
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.ICitasDashboardService,
     SmileTrack_MVC.Services.CitasDashboardService>();
+
+// Cierre automático de citas vencidas: se ejecuta a diario a las 23:59 y deja la agenda limpia
+// al día siguiente (las citas en espera que ya pasaron pasan a "No asistio").
+builder.Services.AddHostedService<
+    SmileTrack_MVC.Services.GestionDeCitas.CitasVencidasBackgroundService>();
+builder.Services.AddHostedService<
+    SmileTrack_MVC.Services.GestionDeCitas.CitasEnCursoBackgroundService>();
 
 // -----------------------------------------------------------------------------
 // JWT
@@ -255,15 +389,40 @@ builder.Services.AddAuthentication(options =>
         "/acceso-y-seguridad/login";
 
     options.AccessDeniedPath =
-        "/acceso-y-seguridad/login";
+        "/acceso-y-seguridad/acceso-denegado";
 
     options.ExpireTimeSpan =
         TimeSpan.FromHours(8);
 
     options.SlidingExpiration = true;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 
     options.Events = new CookieAuthenticationEvents
     {
+        OnRedirectToLogin = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api"))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        },
+        OnRedirectToAccessDenied = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api"))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        },
         OnValidatePrincipal = async context =>
         {
             var principal = context.Principal;
@@ -500,6 +659,14 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.IHistoriaClinicaService,
     SmileTrack_MVC.Services.HistoriaClinicaService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.AuditoriaHistoriaClinicaService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.PacienteFusionService>();
+
+builder.Services.AddScoped<
+    ActualizacionPerfilPacienteService>();
+
 
 // -----------------------------------------------------------------------------
 // URL DE ESCUCHA
@@ -562,16 +729,20 @@ app.Logger.LogInformation(
 // DATABASE STARTUP
 // -----------------------------------------------------------------------------
 
-await EnsureDatabaseExistsAsync(
-    connectionString,
-    app.Logger);
-
 await WaitForSqlServerAsync(
     connectionString,
     app.Logger);
 
-await EnsureDatabaseSchemaAsync(
-    app.Services,
+if (app.Environment.IsDevelopment())
+{
+    await ApplyDevelopmentSchemaMigrationsAsync(
+        connectionString,
+        app.Environment.ContentRootPath,
+        app.Logger);
+}
+
+await ValidateDatabaseSchemaAsync(
+    connectionString,
     app.Logger);
 
 // -----------------------------------------------------------------------------
@@ -588,8 +759,14 @@ app.Use(async (context, next) =>
             out var incomingId) &&
         !string.IsNullOrWhiteSpace(incomingId))
     {
-        requestId =
-            incomingId.ToString().Trim();
+        string candidate = incomingId.ToString().Trim();
+        if (candidate.Length <= 64 &&
+            candidate.All(character =>
+                char.IsAsciiLetterOrDigit(character) ||
+                character is '-' or '_'))
+        {
+            requestId = candidate;
+        }
     }
 
     context.Response.Headers["X-Request-ID"] =
@@ -777,15 +954,32 @@ Código de referencia:
 // MIDDLEWARE
 // -----------------------------------------------------------------------------
 
-if (!app.Environment.IsDevelopment())
+app.UseForwardedHeaders();
+
+if (!app.Environment.IsDevelopment() && redirectHttpToHttps)
 {
     app.UseHsts();
-}
-
-if (!app.Environment.IsDevelopment())
-{
     app.UseHttpsRedirection();
 }
+
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+
+    if (context.Request.Path.StartsWithSegments(
+            "/acceso-y-seguridad",
+            StringComparison.OrdinalIgnoreCase))
+    {
+        headers.CacheControl = "no-store, no-cache, max-age=0, must-revalidate";
+        headers.Pragma = "no-cache";
+    }
+
+    await next();
+});
 
 app.Use(async (context, next) =>
 {
@@ -805,6 +999,19 @@ app.Use(async (context, next) =>
 
         context.Request.Path =
             $"/ViewProxy/Render/{normalized}";
+    }
+
+    await next();
+});
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments(
+            "/uploads/documentos-clinicos",
+            StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
     }
 
     await next();
@@ -851,6 +1058,7 @@ app.UseAuthorization();
 // ROUTING
 // -----------------------------------------------------------------------------
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.MapControllerRoute(
@@ -870,75 +1078,177 @@ app.MapControllerRoute(
 // DATABASE SCHEMA
 // -----------------------------------------------------------------------------
 
-static async Task EnsureDatabaseSchemaAsync(
-    IServiceProvider services,
+static async Task ValidateDatabaseSchemaAsync(
+    string connectionString,
     ILogger logger)
 {
-    using var scope = services.CreateScope();
-
-    var db =
-        scope.ServiceProvider
-            .GetRequiredService<AppDbContext>();
-
-    string scriptPath =
-        Path.Combine(
-            Directory.GetCurrentDirectory(),
-            "Database",
-            "SCRIPT_SQL_UNICO_SMILETRACK.sql");
-
     try
     {
-        if (!File.Exists(scriptPath))
-        {
-            logger.LogCritical(
-                "❌ No se encontró el script SQL obligatorio en {ScriptPath}. " +
-                "La aplicación no puede iniciar sin el esquema oficial de SmileTrack.",
-                scriptPath);
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
 
-            throw new FileNotFoundException(
-                "No se encontró SCRIPT_SQL_UNICO_SMILETRACK.sql.",
-                scriptPath);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT CASE WHEN
+                OBJECT_ID(N'dbo.Usuario', N'U') IS NOT NULL AND
+                OBJECT_ID(N'dbo.Profesional', N'U') IS NOT NULL AND
+                OBJECT_ID(N'dbo.Diagnostico_CIE10', N'U') IS NOT NULL AND
+                OBJECT_ID(N'dbo.RegistroConsentimiento', N'U') IS NOT NULL AND
+                OBJECT_ID(N'dbo.Reporte_Generado', N'U') IS NOT NULL AND
+                COL_LENGTH(N'dbo.Usuario', N'version_consentimiento') IS NOT NULL AND
+                COL_LENGTH(N'dbo.Usuario', N'fecha_consentimiento') IS NOT NULL AND
+                COL_LENGTH(N'dbo.Usuario', N'ip_consentimiento') IS NOT NULL AND
+                COL_LENGTH(N'dbo.Usuario', N'bloqueado_hasta') IS NOT NULL AND
+                EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE object_id = OBJECT_ID(N'dbo.Usuario')
+                      AND name = N'UX_Usuario_Correo'
+                      AND is_unique = 1
+                      AND is_disabled = 0
+                ) AND
+                EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE object_id = OBJECT_ID(N'dbo.Paciente')
+                      AND name = N'UX_Paciente_TipoDocumento_Documento'
+                      AND is_unique = 1
+                      AND is_disabled = 0
+                )
+            THEN 1 ELSE 0 END;
+            """;
+
+        var schemaReady = Convert.ToInt32(await command.ExecuteScalarAsync());
+        if (schemaReady != 1)
+        {
+            logger.LogCritical("La base de datos no contiene el esquema requerido de SmileTrack.");
+            throw new InvalidOperationException(
+                "El esquema de la base de datos está incompleto. Ejecute el script de inicialización y las migraciones SQL pendientes, incluida Database/upgrade-auth-identifiers.sql, antes de iniciar la aplicación.");
         }
 
-        string sql =
-            await File.ReadAllTextAsync(scriptPath);
+        logger.LogInformation("El esquema requerido de SmileTrack está disponible.");
+    }
+    catch (SqlException ex)
+    {
+        logger.LogCritical(
+            ex,
+            "No se pudo validar el esquema de SmileTrack.");
 
-        string[] batches =
-            Regex.Split(
-                sql,
-                @"^\s*GO\s*$",
-                RegexOptions.Multiline |
-                RegexOptions.IgnoreCase);
+        throw new InvalidOperationException(
+            "No se pudo validar la base de datos de SmileTrack. " +
+            "Verifique que SQL Server esté disponible y que el script de inicialización haya terminado.",
+            ex);
+    }
+}
+
+static async Task ApplyDevelopmentSchemaMigrationsAsync(
+    string connectionString,
+    string contentRootPath,
+    ILogger logger)
+{
+    await using var connection = new SqlConnection(connectionString);
+    await connection.OpenAsync();
+
+    await using var schemaCommand = connection.CreateCommand();
+    schemaCommand.CommandText = """
+        SELECT CASE
+            WHEN OBJECT_ID(N'dbo.Usuario', N'U') IS NULL
+              OR OBJECT_ID(N'dbo.Profesional', N'U') IS NULL
+              OR OBJECT_ID(N'dbo.Diagnostico_CIE10', N'U') IS NULL
+              OR OBJECT_ID(N'dbo.Paciente', N'U') IS NULL
+                THEN -1
+            WHEN OBJECT_ID(N'dbo.RegistroConsentimiento', N'U') IS NOT NULL
+             AND OBJECT_ID(N'dbo.Reporte_Generado', N'U') IS NOT NULL
+             AND COL_LENGTH(N'dbo.Usuario', N'version_consentimiento') IS NOT NULL
+             AND COL_LENGTH(N'dbo.Usuario', N'fecha_consentimiento') IS NOT NULL
+             AND COL_LENGTH(N'dbo.Usuario', N'ip_consentimiento') IS NOT NULL
+             AND COL_LENGTH(N'dbo.Usuario', N'bloqueado_hasta') IS NOT NULL
+             AND EXISTS (
+                 SELECT 1
+                 FROM sys.indexes
+                 WHERE object_id = OBJECT_ID(N'dbo.Usuario')
+                   AND name = N'UX_Usuario_Correo'
+                   AND is_unique = 1
+                   AND is_disabled = 0
+             )
+             AND EXISTS (
+                 SELECT 1
+                 FROM sys.indexes
+                 WHERE object_id = OBJECT_ID(N'dbo.Paciente')
+                   AND name = N'UX_Paciente_TipoDocumento_Documento'
+                   AND is_unique = 1
+                   AND is_disabled = 0
+             )
+                THEN 1
+            ELSE 0
+        END;
+        """;
+
+    var schemaState = Convert.ToInt32(await schemaCommand.ExecuteScalarAsync());
+    if (schemaState == 1)
+    {
+        return;
+    }
+
+    if (schemaState == -1)
+    {
+        logger.LogInformation(
+            "Se omiten las migraciones automáticas: inicialice primero el esquema base de SmileTrack.");
+        return;
+    }
+
+    string[] migrationFiles =
+    [
+        "MIGRATION_Consentimiento.sql",
+        "MIGRATION_Reporte_Generado.sql",
+        "upgrade-auth-identifiers.sql"
+    ];
+
+    foreach (string migrationFile in migrationFiles)
+    {
+        string migrationPath = Path.Combine(
+            contentRootPath,
+            "Database",
+            migrationFile);
+        string migrationSql = await File.ReadAllTextAsync(migrationPath);
+        // Keep migrations scoped to the database selected by the app connection string.
+        migrationSql = Regex.Replace(
+            migrationSql,
+            @"(?im)^[ \t]*USE[ \t]+(?:\[[^\]]+\]|[A-Za-z0-9_]+)[ \t]*;[ \t]*\r?$",
+            string.Empty);
+        string[] batches = Regex.Split(
+            migrationSql,
+            @"(?im)^\s*GO\s*$");
 
         foreach (string batch in batches)
         {
-            string trimmed = batch.Trim();
-
-            if (string.IsNullOrWhiteSpace(trimmed))
+            if (string.IsNullOrWhiteSpace(batch))
             {
                 continue;
             }
 
-            await db.Database.ExecuteSqlRawAsync(trimmed);
+            await using var migrationCommand = connection.CreateCommand();
+            migrationCommand.CommandTimeout = 60;
+            migrationCommand.CommandText = batch;
+
+            try
+            {
+                await migrationCommand.ExecuteNonQueryAsync();
+            }
+            catch (SqlException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Falló la migración de desarrollo {migrationFile}.",
+                    ex);
+            }
         }
 
         logger.LogInformation(
-            "✅ Script unificado ejecutado correctamente desde {ScriptPath}",
-            scriptPath);
-    }
-    catch (Exception ex)
-    {
-        logger.LogCritical(
-            ex,
-            "❌ Error crítico durante la inicialización del esquema de SmileTrack. " +
-            "La aplicación no puede continuar porque la base de datos puede haber quedado incompleta.");
-
-        throw new InvalidOperationException(
-            "La inicialización de la base de datos de SmileTrack falló. " +
-            "Revise SCRIPT_SQL_UNICO_SMILETRACK.sql y los errores anteriores.",
-            ex);
+            "Migración de desarrollo aplicada: {MigrationFile}",
+            migrationFile);
     }
 }
+
 // -----------------------------------------------------------------------------
 // URL HELPERS
 // -----------------------------------------------------------------------------
@@ -1001,100 +1311,6 @@ static bool IsPortAvailable(
     catch
     {
         return false;
-    }
-}
-
-// -----------------------------------------------------------------------------
-// DATABASE CREATION
-// -----------------------------------------------------------------------------
-
-static async Task EnsureDatabaseExistsAsync(
-    string connectionString,
-    ILogger logger)
-{
-    const int maxAttempts = 12;
-
-    var delay =
-        TimeSpan.FromSeconds(2);
-
-    var targetBuilder =
-        new SqlConnectionStringBuilder(
-            connectionString);
-
-    string databaseName =
-        targetBuilder.InitialCatalog;
-
-    // Nos conectamos a master porque SmileTrackDB podría todavía no existir.
-    targetBuilder.InitialCatalog =
-        "master";
-
-    string masterConnectionString =
-        targetBuilder.ConnectionString;
-
-    for (
-        int attempt = 1;
-        attempt <= maxAttempts;
-        attempt++)
-    {
-        try
-        {
-            await using var connection =
-                new SqlConnection(
-                    masterConnectionString);
-
-            await connection.OpenAsync();
-
-            await using var command =
-                connection.CreateCommand();
-
-            command.CommandText =
-                """
-                IF DB_ID(@databaseName) IS NULL
-                BEGIN
-                    DECLARE @sql NVARCHAR(MAX);
-
-                    SET @sql =
-                        N'CREATE DATABASE ' +
-                        QUOTENAME(@databaseName);
-
-                    EXEC sp_executesql @sql;
-                END
-                """;
-
-            command.Parameters.AddWithValue(
-                "@databaseName",
-                databaseName);
-
-            await command.ExecuteNonQueryAsync();
-
-            logger.LogInformation(
-                "✅ Base de datos {DatabaseName} verificada/creada correctamente.",
-                databaseName);
-
-            return;
-        }
-        catch (Exception ex)
-            when (attempt < maxAttempts)
-        {
-            logger.LogWarning(
-                ex,
-                "No se pudo verificar/crear la base de datos en el intento {Intento}/{MaxIntentos}. Reintentando en {Retraso}s...",
-                attempt,
-                maxAttempts,
-                delay.TotalSeconds);
-
-            await Task.Delay(delay);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(
-                ex,
-                "No se pudo verificar/crear la base de datos {DatabaseName} después de {Intentos} intentos.",
-                databaseName,
-                maxAttempts);
-
-            throw;
-        }
     }
 }
 

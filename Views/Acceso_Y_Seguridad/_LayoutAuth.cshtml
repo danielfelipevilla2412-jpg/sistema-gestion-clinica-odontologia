@@ -1,0 +1,81 @@
+@*
+    SmileTrack — Layout de Autenticación y Acceso Seguro (_LayoutAuth.cshtml)
+    Layout unificado para vistas de Login, Registro, Recuperación y Cambio de Contraseña.
+    Garantiza:
+      1. Tarjeta centrada con fondo institucional y overlay translúcido.
+      2. Conmutador internacional de idiomas (ES / EN).
+      3. Botón accesible para volver al inicio.
+      4. Metatags de seguridad y antiforgery centralizado.
+*@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    var requestToken = Context.Items["AntiforgeryRequestToken"] as string ?? Antiforgery.GetAndStoreTokens(Context).RequestToken;
+}
+<!DOCTYPE html>
+<html lang="es" class="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="@(ViewData["Description"] ?? "Portal de Acceso y Seguridad de SmileTrack")" />
+    <meta name="csrf-request-token" content="@requestToken" />
+
+    <title>@(ViewData["Title"] != null ? ViewData["Title"] + " — SmileTrack" : "SmileTrack — Acceso Seguro")</title>
+
+    <!-- Fuentes institucionales e iconos -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Syne:wght@700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+    <!-- Estilos base y tokens de diseño -->
+    <link rel="stylesheet" href="~/css/generated/tailwind.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/shared/variables.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/shared/scrollbars.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/shared/accessibility.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/Acceso_Y_Seguridad/login/login.css" asp-append-version="true" />
+
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body data-error-status="@(ViewData["ErrorStatus"] ?? 0)" class="antialiased">
+
+    <div class="login-bg" aria-hidden="true"></div>
+
+    <a class="skip-link" href="#main-content" data-i18n="layout_skip_to_content">Saltar al contenido principal</a>
+
+    <!-- Conmutador internacional de idioma (ES / EN) -->
+    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+
+    <!-- Enlace accesible de retorno a la página pública principal -->
+    <a href="/" class="back-link" aria-label="Volver al inicio" data-i18n-aria-label="common.back_to_home">
+        <span class="material-symbols-outlined back-arrow" aria-hidden="true">arrow_back</span>
+        <span data-i18n="common.back_to_home">Volver al inicio</span>
+    </a>
+
+    <!-- Contenedor principal de la tarjeta de autenticación -->
+    <main class="login-main @(ViewData["MainClass"] ?? "")" id="main-content">
+        <div class="login-card">
+            <header class="login-header">
+                <div class="logo-wrap">
+                    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")"
+                         alt="Logo SmileTrack" class="logo-img" width="56" height="56" />
+                </div>
+                <h1 class="login-title font-['Syne',sans-serif]">SmileTrack</h1>
+                <p class="login-subtitle" data-i18n="@(ViewData["SubtitleI18n"] ?? "login.subtitle")">@(ViewData["Subtitle"] ?? "Sistema de Gestión Odontológica")</p>
+            </header>
+
+            @RenderBody()
+        </div>
+    </main>
+
+    <!-- Modales compartidos y avisos de error -->
+    @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
+
+    <script src="~/js/shared/common.js" asp-append-version="true" defer></script>
+    <script src="~/js/i18n-core.js" asp-append-version="true"></script>
+    <script src="~/js/i18n.config.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

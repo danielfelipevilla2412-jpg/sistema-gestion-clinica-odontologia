@@ -1,226 +1,290 @@
-@{ Layout = null; }
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Generar Factura";
+    ViewData["Description"] = "Genera y gestiona facturas en SmileTrack.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
-﻿<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+  <link rel="stylesheet" href="~/css/Facturacion_Y_Pagos/st-rec-04-generar-factura/styles.css" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Generar Factura</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Facturacion_Y_Pagos/st-rec-04-generar-factura/styles.css")" />
-</head>
+<main class="main" id="main-content">
 
-<body>
+  <!-- Page header -->
+  <header class="page-header">
+    <div class="header-left">
+      <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="common.breadcrumb_nav">
+        <span data-i18n="common_role_recepcionista">Recepción</span>
+        <span class="bc-sep" aria-hidden="true">›</span>
+        <span data-i18n="facturacion.title">Facturación y Pagos</span>
+        <span class="bc-sep" aria-hidden="true">›</span>
+        <span class="bc-active" aria-current="page" data-i18n="facturacion.new_invoice">Nueva factura</span>
+      </nav>
+      <h1 class="page-title" data-i18n="facturacion.new_invoice">Generar Factura</h1>
+      <p class="page-subtitle" id="invoiceSubtitle">Cita del 20 Mar 2026 · Pedro Garc&#237;a · Dr. Carlos M&#233;ndez</p>
+    </div>
+    <!-- Badge de estado con role status para anuncio dinámico -->
+    <span class="status-badge status-pendiente" id="statusBadge" role="status" aria-live="polite">
+      <span aria-hidden="true"></span> <span data-i18n="facturacion.status_pending">Pendiente de pago</span>
+    </span>
+  </header>
 
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-
-  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
-
-  <!-- ═════ SIDEBAR UNIFICADO (Activo: Facturas) ═════ -->
-  @{ await Html.RenderPartialAsync("_SidebarRecepcionista"); }
-
-  <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ═════ MAIN ═════ -->
-  <main class="main" id="main-content">
-
-    <!-- Page header -->
-    <header class="page-header">
-      <div class="header-left">
-        <div class="breadcrumb">Recepción → Facturas → Generar</div>
-        <h1 class="page-title" data-i18n="facturacion.new_invoice">Generar Factura</h1>
-        <p class="page-subtitle" id="invoiceSubtitle" data-i18n="common.loading">Cita del 20 Mar 2026 · Pedro Garc&#237;a · Dr. Carlos M&#233;ndez</p>
+  <!-- Header de factura con estructura semántica para impresión -->
+  <section class="invoice-header" aria-labelledby="invoiceTitle">
+    <h2 id="invoiceTitle" class="visually-hidden" data-i18n="billing.invoice_details">Detalles de factura</h2>
+    <div class="invoice-header-top">
+      <div>
+        <p class="invoice-logo">SmileTrack</p>
+        <p class="invoice-logo-sub" data-i18n="facturacion.company_tagline">Sistema de Gestión Odontológica</p>
+        <p class="invoice-address" data-i18n="facturacion.company_address">Calle 45 #12-30, Bogotá D.C.</p>
       </div>
-      <!-- Badge de estado con role status para anuncio dinámico -->
-      <span class="status-badge status-pendiente" id="statusBadge" role="status" aria-live="polite">
-        <span aria-hidden="true"></span> Pendiente de pago
-      </span>
-    </header>
-
-    <!-- Header de factura con estructura semántica para impresión -->
-    <section class="invoice-header" aria-labelledby="invoiceTitle">
-      <h2 id="invoiceTitle" class="visually-hidden">Detalles de factura</h2>
-      <div class="invoice-header-top">
-        <div>
-          <p class="invoice-logo">SmileTrack</p>
-          <p class="invoice-logo-sub">Sistema de Gestión Odontológica</p>
-          <p style="font-size:.7rem;opacity:.7;margin-top:2px;">Calle 45 #12-30, Bogotá D.C.</p>
-        </div>
-        <div class="invoice-meta">
-          <p class="invoice-number" aria-label="Número de factura">FAC-2026-0018</p>
-          <div class="invoice-dates">
-            <p><strong>Fecha:</strong> <time datetime="2026-03-20">20 de marzo 2026</time></p>
-            <p><strong>Vence:</strong> <time datetime="2026-03-27">27 de marzo 2026</time></p>
-          </div>
+      <div class="invoice-meta">
+        <p class="invoice-number" data-i18n-aria-label="facturacion.invoice_number_aria" aria-label="Número de factura">FAC-2026-0018</p>
+        <div class="invoice-dates">
+          <p><strong data-i18n="facturacion.issue_date">Fecha:</strong> <time datetime="2026-03-20">20 de marzo 2026</time></p>
+          <p><strong data-i18n="facturacion.due_date">Vence:</strong> <time datetime="2026-03-27">27 de marzo 2026</time></p>
         </div>
       </div>
-      <div class="invoice-info">
-        <div class="invoice-info-section">
-          <p class="invoice-info-label" data-i18n="citas.patient">Paciente</p>
-          <p class="invoice-info-value" id="invoicePatientName">Seleccione un paciente</p>
-          <p class="invoice-info-sub" id="invoicePatientDoc">—</p>
-        </div>
-        <div class="invoice-info-section">
-          <p class="invoice-info-label">Profesional</p>
-          <p class="invoice-info-value" id="invoiceProfessional">Dr. Carlos Méndez</p>
-          <p class="invoice-info-sub">Odontología General</p>
-        </div>
+    </div>
+    <div class="invoice-info">
+      <div class="invoice-info-section">
+        <p class="invoice-info-label" data-i18n="citas.patient">Paciente</p>
+        <p class="invoice-info-value" id="invoicePatientName">Seleccione un paciente</p>
+        <p class="invoice-info-sub" id="invoicePatientDoc">—</p>
       </div>
-    </section>
+      <div class="invoice-info-section">
+        <p class="invoice-info-label" data-i18n="citas.professional">Profesional</p>
+        <p class="invoice-info-value" id="invoiceProfessional">Dr. Carlos Méndez</p>
+        <p class="invoice-info-sub" data-i18n="facturacion.general_dentistry">Odontología General</p>
+      </div>
+    </div>
+  </section>
 
-    @{
-      var pacientesFactura = ViewData["Pacientes"] as List<SmileTrack_MVC.Models.Entities.Paciente> ?? new List<SmileTrack_MVC.Models.Entities.Paciente>();
-      var serviciosFactura = ViewData["Servicios"] as List<SmileTrack_MVC.Models.Entities.Servicio> ?? new List<SmileTrack_MVC.Models.Entities.Servicio>();
-    }
-    <!-- Formulario de selección con aria-labels en controles -->
-    <div class="form-row no-print">
-      <div class="form-group">
-          <label class="form-label" for="pacienteSelect" data-i18n="citas.patient">Paciente</label>
-        <select id="pacienteSelect" class="form-select" aria-label="Seleccionar paciente">
-          <option value="" data-doc="">Seleccione un paciente...</option>
-          @foreach (var p in pacientesFactura)
+  @{
+    var pacientesFactura = ViewData["Pacientes"] as List<SmileTrack_MVC.Models.Entities.Paciente> ?? new List<SmileTrack_MVC.Models.Entities.Paciente>();
+    var serviciosFactura = ViewData["Servicios"] as List<SmileTrack_MVC.Models.Entities.Servicio> ?? new List<SmileTrack_MVC.Models.Entities.Servicio>();
+    var profesionalesFactura = ViewData["Profesionales"] as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new List<SmileTrack_MVC.Models.Entities.Profesional>();
+  }
+  @Html.AntiForgeryToken()
+  <!-- Formulario de selección con aria-labels en controles -->
+  <div class="form-row no-print">
+    <div class="form-group">
+      <label class="form-label" for="pacienteSelect" data-i18n="citas.patient">Paciente</label>
+      <select id="pacienteSelect" class="form-select" aria-label="Seleccionar paciente" data-i18n-aria-label="facturacion.select_patient_aria">
+        <option value="" data-doc="" data-i18n="facturacion.select_patient_ph">Seleccione un paciente...</option>
+        @foreach (var p in pacientesFactura)
+        {
+          <option value="@p.IdPaciente" data-doc="@p.TipoDocumento @p.Documento">@p.Nombres @p.Apellidos</option>
+        }
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="profesionalSelect" data-i18n="citas.professional">Profesional</label>
+      <select id="profesionalSelect" class="form-select" aria-label="Seleccionar profesional" data-i18n-aria-label="facturacion.select_professional_aria">
+        @if (profesionalesFactura.Count == 0)
+        {
+          <option value="" selected disabled data-i18n="facturacion.no_active_professionals">No hay profesionales activos disponibles</option>
+        }
+        else
+        {
+          <option value="" selected disabled data-i18n="facturacion.select_professional_ph">Seleccione un profesional...</option>
+          @foreach (var p in profesionalesFactura)
           {
-            <option value="@p.IdPaciente" data-doc="@p.TipoDocumento @p.Documento">@p.Nombres @p.Apellidos</option>
+            <option value="@p.IdProfesional">@p.NombreProfesional</option>
+          }
+        }
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="servicioSelect" data-i18n="facturacion.invoice">Añadir Servicio</label>
+      <div class="service-add-row">
+        <select id="servicioSelect" class="form-select" aria-label="Seleccionar servicio a añadir" data-i18n-aria-label="facturacion.select_service_aria">
+          @if (serviciosFactura.Count == 0)
+          {
+            <option value="" selected disabled data-i18n="facturacion.no_active_services">No hay servicios activos disponibles</option>
+          }
+          else
+          {
+            <option value="" selected disabled data-i18n="facturacion.select_service_ph">Seleccione un servicio...</option>
+            @foreach (var s in serviciosFactura)
+            {
+              <option value="@s.IdServicio" data-price="@s.Precio" data-desc="@s.Descripcion">@s.Nombre - $@(s.Precio.ToString("N0")) COP</option>
+            }
           }
         </select>
+        <button class="btn-add" id="btnAddService" type="button" aria-label="Añadir servicio seleccionado a la factura" data-i18n-aria-label="facturacion.add_service_aria" disabled="@(serviciosFactura.Count == 0)">
+          <span class="material-symbols-outlined" aria-hidden="true">add</span>
+          <span data-i18n="facturacion.add_service">Añadir</span>
+        </button>
       </div>
+    </div>
+  </div>
+
+  <!-- Tabla de items con estructura accesible -->
+  <table class="items-table" aria-label="Detalle de servicios facturados">
+    <thead>
+      <tr>
+        <th scope="col" data-i18n="facturacion.col_description">Descripción</th>
+        <th scope="col" class="text-center" data-i18n="facturacion.col_quantity">Cant.</th>
+        <th scope="col" class="text-right" data-i18n="facturacion.col_unit_price">Unitario</th>
+        <th scope="col" class="text-right" data-i18n="facturacion.col_discount">Desc.</th>
+        <th scope="col" class="text-right" data-i18n="facturacion.col_total">Total</th>
+        <th scope="col" class="text-center no-print"><span class="visually-hidden" data-i18n="facturacion.col_actions">Acciones</span></th>
+      </tr>
+    </thead>
+    <tbody id="invoiceItemsBody" aria-live="polite"></tbody>
+  </table>
+
+  <!-- Totales con aria-live para actualización dinámica -->
+  <div class="totals-section" aria-label="Resumen de totales">
+    <div class="totals-box">
+      <div class="total-row">
+        <span class="label" data-i18n="facturacion.subtotal">Subtotal</span>
+        <span class="value" id="invoiceSubtotal">$0 COP</span>
+      </div>
+      <div class="total-row discount">
+        <span class="label" data-i18n="facturacion.discount">Descuento</span>
+        <span class="value" id="invoiceDiscount">$0 COP</span>
+      </div>
+      <div class="total-row">
+        <span class="label" data-i18n="facturacion.iva">IVA (0%)</span>
+        <span class="value" id="invoiceIva">$0 COP</span>
+      </div>
+      <div class="total-row final">
+        <span class="label" data-i18n="facturacion.total">TOTAL</span>
+        <span class="value" id="invoiceTotal" aria-live="polite">$0 COP</span>
+      </div>
+      <div class="total-row" id="invoicePaidSummary" hidden>
+        <span class="label" data-i18n="facturacion.paid_amount">Abonado</span>
+        <span class="value" id="invoicePaidAmount">$0 COP</span>
+      </div>
+      <div class="total-row" id="invoiceBalanceSummary" hidden>
+        <span class="label" data-i18n="facturacion.balance_due">Saldo pendiente</span>
+        <span class="value" id="invoiceBalanceAmount">$0 COP</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sección de pago con controles deshabilitables -->
+  <section class="payment-section no-print" aria-labelledby="paymentTitle">
+    <h3 id="paymentTitle" class="payment-section-title" data-i18n="facturacion.register_payment">Registrar pago</h3>
+    <div class="form-row">
       <div class="form-group">
-          <label class="form-label" for="profesionalSelect" data-i18n="citas.professional">Profesional</label>
-        <select id="profesionalSelect" class="form-select" aria-label="Seleccionar profesional">
-          <option value="Dr. Carlos Méndez">Dr. Carlos Méndez - Odontología General</option>
-          <option value="Dra. Laura Gómez">Dra. Laura Gómez - Ortodoncia</option>
-          <option value="Dr. Andrés Torres">Dr. Andrés Torres - Endodoncia</option>
+        <label class="form-label" for="paymentMethod" data-i18n="facturacion.method">Método de pago</label>
+        <select id="paymentMethod" class="form-select" aria-label="Seleccionar método de pago" data-i18n-aria-label="facturacion.select_method_aria">
+          <option value="efectivo" data-i18n="facturacion.method_cash">Efectivo</option>
+          <option value="tarjeta_debito" disabled data-i18n="facturacion.method_debit_card">Tarjeta débito (pasarela por configurar)</option>
+          <option value="tarjeta_credito" disabled data-i18n="facturacion.method_credit_card">Tarjeta crédito (pasarela por configurar)</option>
+          <option value="transferencia" disabled data-i18n="facturacion.method_transfer_pending">Transferencia electrónica (proveedor por configurar)</option>
         </select>
       </div>
       <div class="form-group">
-          <label class="form-label" for="servicioSelect" data-i18n="facturacion.invoice">Añadir Servicio</label>
-        <div style="display:flex;gap:8px;">
-          <select id="servicioSelect" class="form-select" aria-label="Seleccionar servicio a añadir">
-            @if (serviciosFactura.Count > 0)
-            {
-              @foreach (var s in serviciosFactura)
-              {
-                <option value="@s.IdServicio" data-price="@s.Precio" data-desc="@s.Descripcion">@s.Nombre - $@(s.Precio.ToString("N0"))</option>
-              }
-            }
-            else
-            {
-              <option value="consulta" data-price="50000" data-desc="Valoración y diagnóstico">Consulta General - $50.000</option>
-            }
-          </select>
-          <button class="btn-add" id="btnAddService" aria-label="Añadir servicio seleccionado a la factura">➕
-            Añadir</button>
-        </div>
+        <label class="form-label" for="amountReceived" data-i18n="facturacion.amount_received">Monto del abono</label>
+        <input type="text" id="amountReceived" class="form-input" value="$0 COP" aria-label="Monto del abono en pesos colombianos" data-i18n-aria-label="facturacion.amount_received_aria"
+          inputmode="numeric" aria-describedby="paymentAmountError" />
+        <p class="payment-error-message" id="paymentAmountError" role="alert" hidden></p>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="paymentPercentage" data-i18n="facturacion.percentage_pending">Porcentaje del saldo pendiente</label>
+        <input type="number" id="paymentPercentage" class="form-input" min="0.01" max="100" step="0.01"
+          inputmode="decimal" placeholder="Ej. 30" data-i18n-ph="facturacion.percentage_ph" aria-describedby="paymentPercentageError" />
+        <p class="payment-error-message" id="paymentPercentageError" role="alert" hidden></p>
       </div>
     </div>
-
-    <!-- Tabla de items con estructura accesible -->
-    <table class="items-table" aria-label="Detalle de servicios facturados">
-      <thead>
-        <tr>
-          <th scope="col">Descripción</th>
-          <th scope="col" class="text-center">Cant.</th>
-          <th scope="col" class="text-right">Unitario</th>
-          <th scope="col" class="text-right">Desc.</th>
-          <th scope="col" class="text-right">Total</th>
-          <th scope="col" class="text-center no-print"><span class="visually-hidden">Acciones</span></th>
-        </tr>
-      </thead>
-      <tbody id="invoiceItemsBody" aria-live="polite"></tbody>
-    </table>
-
-    <!-- Totales con aria-live para actualización dinámica -->
-    <div class="totals-section" aria-label="Resumen de totales">
-      <div class="totals-box">
-        <div class="total-row">
-          <span class="label">Subtotal</span>
-          <span class="value" id="invoiceSubtotal">$0</span>
-        </div>
-        <div class="total-row discount">
-          <span class="label">Descuento</span>
-          <span class="value" id="invoiceDiscount">$0</span>
-        </div>
-        <div class="total-row">
-          <span class="label">IVA (0%)</span>
-          <span class="value" id="invoiceIva">$0</span>
-        </div>
-        <div class="total-row final">
-          <span class="label">TOTAL</span>
-          <span class="value" id="invoiceTotal" aria-live="polite">$0</span>
-        </div>
-      </div>
+    <p class="payment-calculation" id="paymentCalculation" role="status" aria-live="polite"></p>
+    <div class="payment-actions">
+      <button class="btn-secondary" id="btnPrint" type="button" aria-label="Imprimir factura actual" data-i18n-aria-label="facturacion.print_invoice_aria">
+        <span class="material-symbols-outlined" aria-hidden="true">print</span>
+        <span data-i18n="facturacion.print_invoice">Imprimir factura</span>
+      </button>
+      <button class="btn-secondary" id="btnSavedInvoices" type="button">
+        <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
+        <span data-i18n="facturacion.saved_invoices">Consultar facturas guardadas</span>
+      </button>
+      <button class="btn-success" id="btnPay" type="button" aria-label="Registrar abono a la factura" data-i18n-aria-label="facturacion.register_payment_aria">
+        <span class="material-symbols-outlined" aria-hidden="true">check</span>
+        <span class="btn-pay-label" data-i18n="facturacion.register_payment_btn">Registrar abono — $0 COP</span>
+      </button>
     </div>
+  </section>
 
-    <!-- Sección de pago con controles deshabilitables -->
-    <section class="payment-section no-print" aria-labelledby="paymentTitle">
-      <h3 id="paymentTitle" class="payment-section-title">Registrar pago</h3>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label" for="paymentMethod">Método de pago</label>
-          <select id="paymentMethod" class="form-select" aria-label="Seleccionar método de pago">
-            <option value="Efectivo">Efectivo</option>
-            <option value="Transferencia">Transferencia</option>
-            <option value="Tarjeta">Tarjeta</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="amountReceived">Monto recibido</label>
-          <input type="text" id="amountReceived" class="form-input" value="$0" aria-label="Monto recibido para el pago"
-            inputmode="numeric" />
-        </div>
-      </div>
-      <div class="payment-actions">
-        <button class="btn-secondary" id="btnPrint" aria-label="Imprimir factura actual">🖨️ Imprimir factura</button>
-        <button class="btn-success" id="btnPay" aria-label="Registrar pago de la factura">✓ Registrar pago — $0</button>
-      </div>
-      <div id="toastContainer" class="toast-container" role="region" aria-live="polite" aria-atomic="true" aria-label="Notificaciones"></div>
-    </section>
+</main>
 
-  </main>
-
-  <!-- Estilos para contenido solo accesible por screen readers -->
-  <style>
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span style="font-size:1rem;">🦷</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
+<div class="payment-confirm-overlay payment-success-overlay" id="paymentSuccessOverlay" hidden>
+  <section class="payment-confirm-modal payment-success-modal" role="dialog" aria-modal="true"
+    aria-labelledby="paymentSuccessTitle" aria-describedby="paymentSuccessMessage">
+    <header class="payment-confirm-header">
+      <h2 id="paymentSuccessTitle" data-i18n="facturacion.payment_success_title">Registro de pago exitoso</h2>
+      <button class="payment-confirm-close" id="paymentSuccessClose" type="button" aria-label="Cerrar aviso" data-i18n-aria-label="facturacion.close_success_aria">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </header>
+    <div class="payment-confirm-content">
+      <p id="paymentSuccessMessage" role="status" aria-live="polite" data-i18n="facturacion.payment_success_message">El pago se registró correctamente.</p>
     </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
+    <footer class="payment-confirm-footer">
+      <button class="btn-secondary" id="paymentSuccessCloseFooter" type="button" data-i18n="common.close">Cerrar</button>
+      <button class="btn-success" id="paymentSuccessSavedInvoices" type="button" data-i18n="facturacion.view_saved_invoices">Ver facturas guardadas</button>
+    </footer>
+  </section>
+</div>
 
- <script src="@Url.Content("~/js/lib/apiRequest.js")"></script>
- <script src="@Url.Content("~/js/Facturacion_Y_Pagos/st-rec-04-generar-factura/app.js")"></script>
-   <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-   @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
+<div class="saved-invoices-overlay" id="savedInvoicesOverlay" hidden>
+  <section class="saved-invoices-modal" role="dialog" aria-modal="true" aria-labelledby="savedInvoicesTitle">
+    <header class="saved-invoices-header">
+      <h2 id="savedInvoicesTitle" data-i18n="facturacion.saved_invoices_title">Facturas guardadas</h2>
+      <button class="saved-invoices-close" id="savedInvoicesClose" type="button" aria-label="Cerrar consulta" data-i18n-aria-label="facturacion.close_lookup_aria">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </header>
+    <div class="saved-invoices-content">
+      <p class="saved-invoices-message" id="savedInvoicesMessage" role="status" aria-live="polite" data-i18n="facturacion.loading_invoices">Cargando facturas...</p>
+      <div class="saved-invoices-table-wrap">
+        <table class="saved-invoices-table">
+          <thead>
+            <tr>
+              <th scope="col" data-i18n="facturacion.invoice">Factura</th>
+              <th scope="col" data-i18n="facturacion.date">Fecha</th>
+              <th scope="col" data-i18n="citas.patient">Paciente</th>
+              <th scope="col" data-i18n="facturacion.col_services">Servicio(s)</th>
+              <th scope="col" data-i18n="facturacion.col_subtotal_cop">Subtotal (COP)</th>
+              <th scope="col" data-i18n="facturacion.col_total_cop">Total (COP)</th>
+              <th scope="col" data-i18n="facturacion.col_paid_cop">Abonado (COP)</th>
+              <th scope="col" data-i18n="facturacion.col_pending_cop">Pendiente (COP)</th>
+              <th scope="col" data-i18n="facturacion.status">Estado</th>
+              <th scope="col"><span class="visually-hidden" data-i18n="facturacion.col_detail">Detalle</span></th>
+            </tr>
+          </thead>
+          <tbody id="savedInvoicesRows"></tbody>
+        </table>
+      </div>
+      <section class="saved-invoice-detail" id="savedInvoiceDetail" hidden aria-labelledby="savedInvoiceDetailTitle">
+        <h3 id="savedInvoiceDetailTitle" data-i18n="facturacion.invoice_detail_title">Detalle de factura</h3>
+        <dl class="saved-invoice-summary">
+          <div><dt data-i18n="citas.patient">Paciente</dt><dd id="savedInvoicePatient"></dd></div>
+          <div><dt data-i18n="facturacion.detail_document">Documento</dt><dd id="savedInvoiceDocument"></dd></div>
+          <div><dt data-i18n="facturacion.detail_issue_date">Fecha de emisión</dt><dd id="savedInvoiceDate"></dd></div>
+          <div><dt data-i18n="facturacion.subtotal">Subtotal</dt><dd id="savedInvoiceSubtotal"></dd></div>
+          <div><dt data-i18n="facturacion.total">Total</dt><dd id="savedInvoiceTotal"></dd></div>
+          <div><dt data-i18n="facturacion.detail_paid">Total abonado</dt><dd id="savedInvoicePaid"></dd></div>
+          <div><dt data-i18n="facturacion.balance_due">Saldo pendiente</dt><dd id="savedInvoicePending"></dd></div>
+          <div><dt data-i18n="facturacion.status">Estado</dt><dd id="savedInvoiceStatus"></dd></div>
+        </dl>
+        <h4 data-i18n="facturacion.billed_services">Servicios facturados</h4>
+        <ul id="savedInvoiceServices"></ul>
+        <h4 data-i18n="facturacion.payment_history">Historial de abonos</h4>
+        <ol id="savedInvoicePayments"></ol>
+      </section>
+    </div>
+    <footer class="saved-invoices-footer">
+      <button class="btn-secondary" id="savedInvoicesDone" type="button" data-i18n="common.close">Cerrar</button>
+    </footer>
+  </section>
+</div>
 
-</html>
+@section Scripts {
+  <script src="~/js/lib/apiRequest.js" asp-append-version="true"></script>
+  <script src="~/js/Facturacion_Y_Pagos/st-rec-04-generar-factura/app.js" asp-append-version="true"></script>
+}

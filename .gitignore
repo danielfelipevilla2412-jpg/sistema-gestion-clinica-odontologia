@@ -1,6 +1,13 @@
 # .NET
 bin/
 obj/
+node_modules/
+
+# Build artifacts / test coverage
+artifacts/
+TestResults/
+*.coverage
+*.coveragexml
 
 # Visual Studio
 .vs/
@@ -16,7 +23,28 @@ obj/
 # Environment / secrets
 .env
 .env.*
+!.env.example
+!.env.production.example
+appsettings.Local.json
+appsettings.*.Local.json
 
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# Archives / bundles
+*.zip
+*.tar.gz
+*.7z
+
+# IDE & Editor caches
+.vscode/
+.antigravity-ide/
+.gemini/
+
+# Serena (MCP toolkit cache)
+.serena/
+
+# Private clinical documents
+/App_Data/clinical-documents/

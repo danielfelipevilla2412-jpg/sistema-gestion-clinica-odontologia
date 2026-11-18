@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SmileTrack_MVC.Helpers;
 
 namespace SmileTrack_MVC.Models.Entities;
 
@@ -49,7 +50,7 @@ public sealed class CredencialProfesional
     public string? ObservacionRevision { get; set; }
 
     [Column("fecha_subida")]
-    public DateTime FechaSubida { get; set; } = DateTime.UtcNow;
+    public DateTime FechaSubida { get; set; } = ColombiaClock.Now;
 
     [Column("revisado_por")]
     public int? RevisadoPor { get; set; }

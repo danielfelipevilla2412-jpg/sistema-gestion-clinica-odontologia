@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.CentroDeAyuda;
 using SmileTrack_MVC.Models.Entities;
 
@@ -96,7 +97,7 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
             Severidad = request.Severidad.Trim().ToLowerInvariant(),
             Descripcion = request.Descripcion.Trim(),
             Estado = "abierto",
-            FechaCreacion = DateTime.Now
+            FechaCreacion = ColombiaClock.Now
         };
 
         ticket.CapturaPantalla = await GuardarAdjuntoAsync(request.CapturaPantalla, ct);
@@ -128,7 +129,7 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
         if (request.Respuesta is not null)
         {
             ticket.Respuesta = request.Respuesta.Trim();
-            ticket.FechaRespuesta = DateTime.Now;
+            ticket.FechaRespuesta = ColombiaClock.Now;
             ticket.AtendidoPor = usuarioId;
         }
 
@@ -157,7 +158,7 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
         ticket.Estado = estado;
         if (estado is "resuelto" or "cerrado")
         {
-            ticket.FechaRespuesta ??= DateTime.Now;
+            ticket.FechaRespuesta ??= ColombiaClock.Now;
             ticket.AtendidoPor = usuarioId;
         }
 
@@ -196,11 +197,11 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
     {
         for (var i = 0; i < 10; i++)
         {
-            var reference = $"ST-{DateTime.Now:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
+            var reference = $"ST-{ColombiaClock.Now:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
             if (!await _db.TicketsSoporte.AnyAsync(t => t.Referencia == reference, ct))
                 return reference;
         }
-        return $"ST-{DateTime.Now:yyyyMMddHHmmssfff}";
+        return $"ST-{ColombiaClock.Now:yyyyMMddHHmmssfff}";
     }
 
     private async Task<string?> GuardarAdjuntoAsync(IFormFile? file, CancellationToken ct)

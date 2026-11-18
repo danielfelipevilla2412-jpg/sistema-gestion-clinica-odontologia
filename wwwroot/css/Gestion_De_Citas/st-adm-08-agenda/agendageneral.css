@@ -205,13 +205,25 @@ img {
     font-family: var(--font-display);
     font-size: 1.45rem;
     font-weight: 700;
+    line-height: 1.25;
     color: var(--primary);
 }
 
 .page-subtitle {
     font-size: 0.82rem;
+    font-weight: 400;
+    line-height: 1.5;
     color: var(--text-muted);
     margin-top: 2px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-left: auto;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -316,6 +328,19 @@ img {
     flex-wrap: wrap;
 }
 
+.agenda-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid var(--warning);
+    border-radius: var(--radius-sm);
+    background: #fff7ed;
+    color: #92400e;
+}
+
 .controls-left,
 .controls-right {
     display: flex;
@@ -348,8 +373,9 @@ img {
 }
 
 .filter-label {
-    font-size: 0.65rem;
-    font-weight: 700;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.4;
     text-transform: uppercase;
     color: var(--text-muted);
     letter-spacing: 0.5px;
@@ -362,7 +388,7 @@ img {
     border-radius: 10px;
     padding: 9px 38px 9px 12px;
     font-family: var(--font);
-    font-size: 0.82rem;
+    font-size: 0.84rem;
     background: linear-gradient(180deg, #ffffff, #f8fafc);
     color: var(--text);
     cursor: pointer;
@@ -398,6 +424,8 @@ img {
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
     overflow: hidden;
+    min-width: 0;
+    max-width: 100%;
     margin-bottom: 20px;
     position: relative;
     transition: opacity var(--tr);
@@ -423,6 +451,9 @@ img {
 }
 
 .calendar-scroll-wrapper {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
@@ -456,7 +487,7 @@ img {
 
 .day-name {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -469,7 +500,7 @@ img {
 .day-number {
     display: block;
     font-family: var(--font-display);
-    font-size: 1.3rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--text);
     margin-top: 4px;
@@ -514,14 +545,17 @@ img {
 }
 
 .calendar-day.closed {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg);
-    opacity: 0.6;
+    background: #f8fafc;
 }
 
 .day-closed {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
     text-align: center;
     color: var(--text-muted);
     font-size: 0.8rem;
@@ -543,6 +577,21 @@ img {
 .appointment:hover {
     box-shadow: var(--shadow);
     transform: translateY(-1px);
+}
+
+.appointment[draggable="true"] {
+    cursor: grab;
+}
+
+.appointment.dragging {
+    opacity: 0.55;
+    cursor: grabbing;
+}
+
+.calendar-day.drag-over {
+    background: var(--primary-light);
+    outline: 2px dashed var(--primary);
+    outline-offset: -4px;
 }
 
 /* Estados de cita */
@@ -598,7 +647,7 @@ img {
 
 .appt-detail {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     margin-top: 2px;
 }
 
@@ -616,9 +665,10 @@ img {
 
 .section-title {
     font-family: var(--font-display);
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--primary);
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text);
     margin-bottom: 12px;
 }
 
@@ -671,6 +721,7 @@ img {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
     z-index: 400;
     align-items: center;
     justify-content: center;
@@ -693,6 +744,7 @@ img {
     animation: fadeIn 0.2s ease;
     max-height: calc(100vh - 32px);
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 body.modal-open {
@@ -725,28 +777,63 @@ body.modal-open {
 
 .modal-close:focus-visible,
 .modal-footer button:focus-visible,
-.fab:focus-visible {
+.header-actions button:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
 
 .modal-title {
     font-family: var(--font-display);
-    font-size: 1.1rem;
-    font-weight: 700;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.35;
     margin-bottom: 16px;
     color: var(--primary);
 }
 
-.modal-content {
+.appointment-detail-content {
+    display: flex;
+    flex-direction: column;
     margin-bottom: 20px;
+}
+
+.appointment-detail-content p {
+    display: grid;
+    grid-template-columns: minmax(130px, auto) 1fr;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.45;
+}
+
+.appointment-detail-content p:last-child {
+    border-bottom: 0;
+}
+
+.appointment-detail-content strong {
+    color: var(--text-muted);
 }
 
 .modal-footer {
     display: flex;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 10px;
     padding-top: 10px;
+    /* El modal tiene max-height + overflow-y: auto. Sin anclar el pie, con un
+       detalle largo las acciones (Cancelar Cita / Reagendar / Editar) quedan
+       por debajo del área visible y el usuario no las ve al abrir el modal. */
+    position: sticky;
+    bottom: 0;
+    background: var(--white);
+    border-top: 1px solid var(--border);
+}
+
+/* El atributo [hidden] no oculta estos botones por sí solo: los estilos de
+   autor (.btn-primary/.btn-secondary/.btn-danger) declaran display:inline-flex
+   y ganan a la regla del user-agent [hidden]{display:none}. */
+.modal-footer > [hidden] {
+    display: none !important;
 }
 
 /* Formularios en modales */
@@ -767,8 +854,8 @@ body.modal-open {
 }
 
 .form-group label {
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: 0.78rem;
+    font-weight: var(--weight-heading);
     color: var(--text);
 }
 
@@ -779,7 +866,7 @@ body.modal-open {
     border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
     font-family: var(--font);
-    font-size: 0.9rem;
+    font-size: 0.84rem;
     color: var(--text);
     background: var(--white);
     transition: border-color var(--tr);
@@ -797,40 +884,6 @@ body.modal-open {
     resize: vertical;
     min-height: 72px;
 }
-
-/* ═══════════════════════════════════════════════════════════════
-   BOTÓN FLOTANTE (FAB)
-   ═══════════════════════════════════════════════════════════════ */
-.fab {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    font-size: 1.5rem;
-    font-weight: 700;
-    cursor: pointer;
-    box-shadow: var(--shadow-md);
-    transition: transform var(--tr), background var(--tr);
-    z-index: 100;
-}
-
-.fab:hover {
-    background: var(--primary-dark);
-    transform: scale(1.05);
-}
-
-.fab:active {
-    transform: scale(0.98);
-    background: var(--primary-dark);
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-
 
 /* ═══════════════════════════════════════════════════════════════
    NAVEGACIÓN MÓVIL INFERIOR
@@ -887,7 +940,7 @@ body.modal-open {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: .85rem;
+    font-size: .83rem;
 }
 
 .agenda-print-actions .material-symbols-outlined,
@@ -951,8 +1004,14 @@ body.modal-open {
         align-items: flex-start;
     }
 
+    .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+        margin-left: 0;
+    }
+
     .calendar-section {
-        overflow: visible;
+        overflow: hidden;
     }
 
     .calendar-scroll-wrapper {
@@ -981,7 +1040,7 @@ body.modal-open {
 
 @media (max-width: 480px) {
     .page-title {
-        font-size: 1.2rem;
+        font-size: 1.25rem;
     }
 
     .week-nav {
@@ -1005,9 +1064,7 @@ body.modal-open {
     }
 
     .modal-footer {
-        position: sticky;
-        bottom: -20px;
-        background: var(--white);
+        bottom: 0;
         padding: 12px 0 0;
     }
 }
@@ -1073,6 +1130,11 @@ body.modal-open {
 .form-hint {
     color: var(--text-muted);
     font-size: .72rem;
+}
+
+#modalNewApptStatus.form-error {
+    color: #b42318;
+    font-weight: 600;
 }
 
 .form-group input[readonly] {

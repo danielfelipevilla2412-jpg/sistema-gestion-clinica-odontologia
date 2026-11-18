@@ -1,224 +1,199 @@
-﻿@{ Layout = null; }
+@model IEnumerable<SmileTrack_MVC.Models.Entities.ProfesionalServicio>
+@using System.Globalization
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Mis servicios";
+    ViewData["Description"] = "Consulta los procedimientos asignados a tu perfil profesional.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
 
-﻿<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Consulta y gestiona los servicios prestados en la historia clínica del paciente." />
-  <title>SmileTrack — Servicios Prestados</title>
-  
-  <!-- Tailwind CSS CDN con plugins -->
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  
-  <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Roboto+Flex:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  
-  <!-- Configuración personalizada de Tailwind para consistencia -->
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: '#1a73e8',
-            primaryDark: '#1a2744',
-            primaryActive: '#1e5a9c',
-            surface: '#f4f7f9',
-            border: '#e5e7eb',
-            muted: '#9ca3af',
-            success: '#16a34a',
-            warning: '#d97706',
-            danger: '#ef4444'
-          },
-          fontFamily: {
-            display: ['Montserrat', 'sans-serif'],
-            body: ['Roboto Flex', 'sans-serif']
-          }
-        }
+    var items = Model?.Where(x => x.Servicio != null).ToList() ?? new();
+    var disponibles = items.Count(x => x.Activo && x.Servicio!.Estado == "activo");
+    var nombreProfesional = ViewData["NombreProfesional"] as string;
+    var cop = CultureInfo.GetCultureInfo("es-CO");
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/Servicios_Y_Recursos/st-odo-05-servicios/servicios.css" asp-append-version="true" />
+}
+
+<main id="main-content" class="main catalog-main professional-services">
+  <header class="catalog-header page-header">
+    <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="odo05.breadcrumb_aria">
+      <span data-i18n="common_role_profesional">Odontólogo</span>
+      <span class="bc-sep" aria-hidden="true">›</span>
+      <span data-i18n="odo05.section_title">Servicios y Recursos</span>
+      <span class="bc-sep" aria-hidden="true">›</span>
+      <strong class="bc-active" data-i18n="odo05.title">Mis servicios</strong>
+    </nav>
+    <div class="header-line">
+      <div>
+        <h1 class="page-title" data-i18n="odo05.title">Mis servicios</h1>
+        <p class="page-subtitle" data-i18n="odo05.subtitle">Consulta los procedimientos asignados a tu perfil profesional.</p>
+      </div>
+      @if (!string.IsNullOrWhiteSpace(nombreProfesional))
+      {
+        <div class="professional-name">@nombreProfesional</div>
       }
+      else
+      {
+        <div class="professional-name" data-i18n="odo05.professional_profile">Perfil profesional</div>
+      }
+    </div>
+  </header>
+
+  <section class="stats-grid" aria-label="Resumen de servicios" data-i18n-aria-label="odo05.stats_aria">
+    <div class="stat-card" data-color="blue">
+      <span class="material-symbols-outlined stat-icon" aria-hidden="true">inventory_2</span>
+      <strong class="stat-number" data-target="@items.Count">@items.Count</strong>
+      <span class="stat-label" data-i18n="odo05.assigned_services">Servicios asignados</span>
+    </div>
+    <div class="stat-card" data-color="green">
+      <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
+      <strong class="stat-number" data-target="@disponibles">@disponibles</strong>
+      <span class="stat-label" data-i18n="odo05.available">Disponibles</span>
+    </div>
+    <div class="stat-card" data-color="orange">
+      <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
+      <strong class="stat-number" data-target="@(items.Count - disponibles)">@(items.Count - disponibles)</strong>
+      <span class="stat-label" data-i18n="odo05.unavailable">No disponibles</span>
+    </div>
+  </section>
+
+  <section class="catalog-panel" aria-label="Catálogo de servicios" data-i18n-aria-label="odo05.panel_aria">
+    <div class="section-title">
+      <div>
+        <h2 data-i18n="odo05.catalog_title">Catálogo profesional</h2>
+        <p data-i18n="odo05.catalog_desc">Explora los detalles de los servicios que tienes asignados.</p>
+      </div>
+    </div>
+    <div class="filters-row">
+      <label class="search-wrap">
+        <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+        <input id="buscarServicio" class="search-input" type="search" placeholder="Buscar servicio o descripción..." aria-label="Buscar servicios" data-i18n-ph="odo05.search_placeholder" data-i18n-aria-label="odo05.search_aria" />
+      </label>
+      <label class="filter-group">
+        <span class="filter-label" data-i18n="odo05.specialty_label">Especialidad</span>
+        <select id="filtroEspecialidad" class="filter-select" aria-label="Filtrar por especialidad" data-i18n-aria-label="odo05.specialty_aria">
+          <option value="" data-i18n="odo05.all_specialties">Todas</option>
+          @foreach (var esp in items.Select(x => x.Servicio?.Especialidad?.Nombre).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+          {
+            <option value="@esp">@esp</option>
+          }
+          @if (items.Any(x => string.IsNullOrWhiteSpace(x.Servicio?.Especialidad?.Nombre)))
+          {
+            <option value="__none__" data-i18n="odo05.no_specialty">Sin especialidad</option>
+          }
+        </select>
+      </label>
+      <label class="filter-group">
+        <span class="filter-label" data-i18n="odo05.status_label">Estado</span>
+        <select id="filtroEstado" class="filter-select" aria-label="Filtrar por estado" data-i18n-aria-label="odo05.status_aria">
+          <option value="" data-i18n="odo05.all_statuses">Todos</option>
+          <option value="activo" data-i18n="odo05.status_available">Disponible</option>
+          <option value="inactivo" data-i18n="odo05.status_unavailable">No disponible</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="service-grid" id="listaServicios">
+      @foreach (var ps in items)
+      {
+        var s = ps.Servicio!;
+        var activo = ps.Activo && s.Estado == "activo";
+        var esp = s.Especialidad?.Nombre;
+        var precio = ps.PrecioPersonalizado ?? s.Precio;
+        <article class="service-card" data-name="@s.Nombre" data-description="@s.Descripcion" data-specialty="@(string.IsNullOrWhiteSpace(esp) ? "__none__" : esp)" data-status="@(activo ? "activo" : "inactivo")">
+          <div class="card-top">
+            <span class="service-symbol" aria-hidden="true">
+              <span class="material-symbols-outlined">dentistry</span>
+            </span>
+            <span class="status-badge badge-estado @(activo ? "activo" : "inactivo")">
+              <span data-i18n="@(activo ? "odo05.status_available" : "odo05.status_unavailable")">@(activo ? "Disponible" : "No disponible")</span>
+            </span>
+          </div>
+          <h3>@s.Nombre</h3>
+          @if (string.IsNullOrWhiteSpace(s.Descripcion))
+          {
+            <p class="service-description" data-i18n="odo05.description_not_registered">Sin descripción registrada para este procedimiento.</p>
+          }
+          else
+          {
+            <p class="service-description">@s.Descripcion</p>
+          }
+          <div class="tags">
+            <span>
+              @if (string.IsNullOrWhiteSpace(esp))
+              {
+                <span data-i18n="odo05.no_specialty">Sin especialidad</span>
+              }
+              else
+              {
+                @esp
+              }
+            </span>
+            <span>@s.DuracionMinutos min</span>
+          </div>
+          <div class="card-bottom">
+            <div>
+              <small data-i18n="odo05.service_price">Precio del servicio</small>
+              <strong>@precio.ToString("C0", cop) <span>COP</span></strong>
+            </div>
+            <button type="button" class="btn-secondary details-button" data-id="@s.IdServicio" aria-haspopup="dialog" aria-controls="detallePanel">
+              <span data-i18n="odo05.view_details">Ver detalles</span>
+              <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+            </button>
+          </div>
+          <div class="service-data" hidden data-name="@s.Nombre" data-description="@(string.IsNullOrWhiteSpace(s.Descripcion) ? "" : s.Descripcion)" data-specialty="@esp" data-category="@s.Categoria" data-duration="@s.DuracionMinutos" data-base="@s.Precio.ToString("C0",cop)" data-price="@precio.ToString("C0",cop)" data-custom="@(ps.PrecioPersonalizado.HasValue ? "true" : "false")" data-status="@(activo ? "activo" : "inactivo")"></div>
+        </article>
+      }
+    </div>
+
+    <div id="sinResultados" class="empty-state" hidden>
+      <span class="material-symbols-outlined empty-icon" aria-hidden="true">search_off</span>
+      <h3 class="empty-state-title" data-i18n="odo05.no_results">No hay servicios que coincidan con los filtros.</h3>
+      <p class="empty-state-text" data-i18n="odo05.no_results_help">Ajusta los filtros de búsqueda e inténtalo de nuevo.</p>
+    </div>
+    @if (!items.Any())
+    {
+      <div class="empty-state">
+        <span class="material-symbols-outlined empty-icon" aria-hidden="true">inventory_2</span>
+        <h3 class="empty-state-title" data-i18n="odo05.no_services_title">Aún no tienes servicios asignados.</h3>
+        <p class="empty-state-text" data-i18n="odo05.no_services">Contacta al administrador para gestionar tus asignaciones.</p>
+      </div>
     }
-  </script>
-  <link rel="stylesheet" href="@Url.Content("~/css/Servicios_Y_Recursos/st-odo-05-servicios/servicios.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-<body class="bg-surface text-gray-800 font-body">
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+  </section>
 
-  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
-  <a href="#main-content" class="skip-link sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded focus:z-50" data-i18n="common_skip_link">Saltar al contenido principal</a>
-
-  @{ await Html.RenderPartialAsync("_SidebarProfesional"); }
-
-  <!-- Overlay móvil -->
-  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden" aria-hidden="true"></div>
-
-  <!-- Botón hamburguer móvil -->
-  <button id="menu-toggle" class="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-primaryDark text-white hover:bg-primaryActive transition-colors" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span class="text-xl" aria-hidden="true">☰</span>
-  </button>
-
-  <!-- ═════ MAIN ═════ -->
-  <main class="ml-0 lg:ml-64 min-h-screen p-4 sm:p-6 lg:p-8 transition-all" id="main-content">
-    
-    <!-- Header con breadcrumb -->
-    <header class="mb-8">
-      <nav class="text-xs text-gray-500 mb-2" aria-label="Breadcrumb">
-        <span data-i18n="common_role_profesional">Odontólogo</span>
-        <span class="mx-1">→</span>
-        <span>Historia clínica</span>
-        <span class="mx-1">→</span>
-        <span class="text-primary font-semibold" data-i18n="servicios.title">Servicios prestados</span>
-      </nav>
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 class="text-2xl sm:text-3xl font-display font-bold text-primary" data-i18n="servicios.title">Servicios Prestados</h1>
-          <p class="text-sm text-gray-600 mt-1">Cita del 20 Mar 2026 · Pedro García · Dr. Carlos Méndez</p>
-        </div>
-        <button id="btnAddService" class="bg-primary hover:bg-blue-600 text-white px-5 sm:px-6 py-2.5 rounded-lg font-display font-semibold flex items-center justify-center gap-2 transition-all shadow-md w-full md:w-auto" aria-label="Agregar nuevo servicio" data-i18n-aria-label="servicios.new">
-          <span class="text-xl leading-none" aria-hidden="true">+</span> <span data-i18n="servicios.new">Agregar servicio</span>
-        </button>
-      </div>
-    </header>
-
-    <!-- Tabla de servicios (responsive) -->
-    <section class="max-w-6xl mx-auto" aria-label="Lista de servicios prestados">
-      
-      <!-- Encabezados de tabla (desktop) -->
-      <div class="hidden md:grid grid-cols-6 px-8 py-3 bg-white/60 rounded-t-xl text-[10px] font-bold text-gray-400 uppercase tracking-widest shadow-sm border-b border-border" role="row">
-        <div class="col-span-2 lg:col-span-1" role="columnheader">Servicio</div>
-        <div class="text-center hidden lg:block" role="columnheader">Categoría</div>
-        <div class="text-center" role="columnheader">Precio Histórico</div>
-        <div class="text-center" role="columnheader">Precio Actual</div>
-        <div class="text-center" role="columnheader">Diferencia</div>
-        <div class="text-center" role="columnheader">Estado</div>
-      </div>
-
-      <!-- Fila 1: Control de tratamiento -->
-      <div class="grid grid-cols-1 md:grid-cols-6 items-center px-4 sm:px-8 py-5 bg-white shadow-sm mb-4 border border-border rounded-lg md:rounded-none md:first:rounded-t-none md:last:rounded-b-none gap-4 md:gap-0" role="row" tabindex="0" aria-label="Servicio: Control de tratamiento">
-        <div class="col-span-1 md:col-span-2 lg:col-span-1" role="cell">
-          <p class="font-bold text-gray-800 text-sm">Control de tratamiento</p>
-          <p class="text-[10px] sm:text-xs text-gray-400">Pieza 23 – Seguimiento endodoncia</p>
-        </div>
-        <div class="flex justify-start md:justify-center hidden lg:flex" role="cell">
-          <span class="bg-blue-50 text-blue-600 px-3 py-1 rounded text-[11px] font-bold" role="status" aria-label="Categoría: Preventiva">Preventiva</span>
-        </div>
-
-        <!-- Vista móvil: labels + valores -->
-        <div class="grid grid-cols-2 gap-y-2 text-sm md:hidden mt-2" aria-hidden="true">
-          <div class="text-gray-500 font-medium">Precio Histórico:</div>
-          <div class="font-semibold text-success">$30.000</div>
-          <div class="text-gray-500 font-medium">Precio Actual:</div>
-          <div class="font-medium text-gray-600">$30.000</div>
-          <div class="text-gray-500 font-medium">Diferencia:</div>
-          <div class="text-gray-400">—</div>
-        </div>
-
-        <!-- Vista desktop: columnas -->
-        <div class="hidden md:block text-center" role="cell">
-          <span class="bg-green-50 text-success px-3 py-1 rounded text-sm font-semibold">$30.000</span>
-        </div>
-        <div class="hidden md:block text-center text-sm font-medium text-gray-600" role="cell">$30.000</div>
-        <div class="hidden md:block text-center text-sm text-gray-400" role="cell">—</div>
-
-        <div class="flex md:justify-center mt-2 md:mt-0 pt-3 md:pt-0 border-t border-border md:border-0" role="cell">
-          <span class="bg-green-100 text-success px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 w-max" role="status" aria-label="Estado: Realizado">
-            <span class="w-2 h-2 bg-success rounded-full" aria-hidden="true"></span> Realizado
-          </span>
-        </div>
-      </div>
-
-      <!-- Fila 2: Control general -->
-      <div class="grid grid-cols-1 md:grid-cols-6 items-center px-4 sm:px-8 py-5 bg-white shadow-sm mb-4 border border-border rounded-lg md:rounded-none gap-4 md:gap-0" role="row" tabindex="0" aria-label="Servicio: Control general">
-        <div class="col-span-1 md:col-span-2 lg:col-span-1" role="cell">
-          <p class="font-bold text-gray-800 text-sm">Control general</p>
-          <p class="text-[10px] sm:text-xs text-gray-400">Valoración y diagnóstico</p>
-        </div>
-        <div class="flex justify-start md:justify-center hidden lg:flex" role="cell">
-          <span class="bg-blue-50 text-blue-600 px-3 py-1 rounded text-[11px] font-bold" role="status" aria-label="Categoría: Preventiva">Preventiva</span>
-        </div>
-
-        <!-- Vista móvil -->
-        <div class="grid grid-cols-2 gap-y-2 text-sm md:hidden mt-2" aria-hidden="true">
-          <div class="text-gray-500 font-medium">Precio Histórico:</div>
-          <div class="font-semibold text-success">$45.000</div>
-          <div class="text-gray-500 font-medium">Precio Actual:</div>
-          <div class="font-medium text-gray-600">$50.000</div>
-          <div class="text-gray-500 font-medium">Diferencia:</div>
-          <div class="font-bold text-success">↑ $5.000</div>
-        </div>
-
-        <!-- Vista desktop -->
-        <div class="hidden md:block text-center" role="cell">
-          <span class="bg-green-50 text-success px-3 py-1 rounded text-sm font-semibold">$45.000</span>
-        </div>
-        <div class="hidden md:block text-center text-sm font-medium text-gray-600" role="cell">$50.000</div>
-        <div class="hidden md:block text-center text-sm font-bold text-success" role="cell">↑ $5.000</div>
-
-        <div class="flex md:justify-center mt-2 md:mt-0 pt-3 md:pt-0 border-t border-border md:border-0" role="cell">
-          <span class="bg-green-100 text-success px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 w-max" role="status" aria-label="Estado: Realizado">
-            <span class="w-2 h-2 bg-success rounded-full" aria-hidden="true"></span> Realizado
-          </span>
-        </div>
-      </div>
-
-      <!-- Resumen de facturación -->
-      <div class="bg-blue-50/50 border border-blue-100 rounded-xl p-5 sm:p-8 mt-8 lg:mt-12 flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-4 sm:gap-8" aria-label="Resumen de facturación">
-        <div class="w-full sm:w-auto flex justify-between sm:justify-start items-baseline gap-2">
-          <span class="text-gray-400 text-sm font-medium">Subtotal:</span>
-          <span class="text-gray-800 text-lg font-bold" id="subtotal">$80.000</span>
-        </div>
-        <div class="w-full sm:w-auto flex justify-between sm:justify-start items-baseline gap-2">
-          <span class="text-success text-sm font-medium">Descuento:</span>
-          <span class="text-success text-lg font-bold" id="discount">- $5.000</span>
-        </div>
-        <div class="w-full sm:w-auto flex justify-between sm:justify-start items-baseline gap-2">
-          <span class="text-gray-400 text-sm font-medium">IVA:</span>
-          <span class="text-gray-800 text-lg font-bold" id="tax">$0</span>
-        </div>
-        <div class="w-full sm:w-auto flex justify-between sm:justify-start items-baseline gap-3 pt-4 sm:pt-0 border-t border-blue-100 sm:border-0">
-          <span class="text-primary text-xl sm:text-2xl font-medium">Total:</span>
-          <span class="text-primary text-2xl sm:text-3xl font-black" id="total">$75.000</span>
-        </div>
-      </div>
-
-    </section>
-
-    <!-- Banner de estado (accesible) -->
-    <div id="statusBanner" class="max-w-6xl mx-auto mt-6 hidden" role="status" aria-live="polite">
-      <div class="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center">
-        <span class="w-3 h-3 rounded-full bg-success mr-3 animate-pulse" aria-hidden="true"></span>
-        <span id="statusText" class="text-green-800 text-sm font-medium">Servicio agregado correctamente</span>
-      </div>
+  <div id="detalleOverlay" class="detail-overlay" aria-hidden="true" hidden></div>
+  <aside id="detallePanel" class="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detalleTitulo" aria-describedby="detalleDescripcion" aria-hidden="true" hidden tabindex="-1">
+  <div class="detail-head">
+    <span data-i18n="odo05.modal_title">Información del procedimiento</span>
+    <button id="cerrarDetalle" class="btn-secondary detail-close" type="button" aria-label="Cerrar detalles" data-i18n-aria-label="odo05.close_details">
+      <span class="material-symbols-outlined" aria-hidden="true">close</span>
+    </button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-icon" aria-hidden="true">
+      <span class="material-symbols-outlined">dentistry</span>
     </div>
+    <h2 id="detalleTitulo"></h2>
+    <span id="detalleEstado" class="status"></span>
+    <h3 data-i18n="odo05.desc_heading">Descripción</h3>
+    <p id="detalleDescripcion"></p>
+    <h3 data-i18n="odo05.specs_heading">Características</h3>
+    <dl>
+      <div><dt data-i18n="odo05.specialty_label">Especialidad</dt><dd id="detalleEspecialidad"></dd></div>
+      <div><dt data-i18n="odo05.category_label">Categoría</dt><dd id="detalleCategoria"></dd></div>
+      <div><dt data-i18n="odo05.duration_label">Duración estimada</dt><dd id="detalleDuracion"></dd></div>
+      <div><dt data-i18n="odo05.base_price_label">Precio base</dt><dd id="detalleBase"></dd></div>
+      <div><dt data-i18n="odo05.applicable_price_label">Precio aplicable</dt><dd id="detallePrecio"></dd></div>
+      <div><dt data-i18n="odo05.custom_price_label">Precio personalizado</dt><dd id="detallePersonalizado"></dd></div>
+    </dl>
+    <p class="detail-note" data-i18n="odo05.modal_note">Los precios y asignaciones se administran desde el módulo correspondiente. Esta vista es solo de consulta.</p>
+  </div>
+  </aside>
+</main>
 
-  </main>
-
-  <!-- Toast para notificaciones -->
-  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-body opacity-0 pointer-events-none transition-all z-50" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Estilos para screen readers -->
-  <style>
-    .skip-link.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-    .skip-link:focus:not(.sr-only) { position:static; width:auto; height:auto; overflow:visible; clip:auto; white-space:normal; }
-  </style>
-
-<footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span style="font-size:1rem;">🦷</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-
-  <script src="@Url.Content("~/js/Servicios_Y_Recursos/st-odo-05-servicios/servicios.js")"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-</html>
-
+@section Scripts {
+  <script src="~/js/Servicios_Y_Recursos/st-odo-05-servicios/servicios.js" asp-append-version="true" defer></script>
+}

@@ -31,7 +31,9 @@ public class HistorialPacienteViewModel
     public string AntecedentesMedicos { get; set; } = "Sin antecedentes registrados";
     public DateTime? ProximaCitaFecha { get; set; }
     public string? ProximaCitaProfesional { get; set; }
+    public List<CitaProximaOpcion> CitasDisponibles { get; set; } = [];
     public HistoriaFormularioViewModel Formulario { get; set; } = new();
+    public List<EvolucionCitaHistorialItem> EvolucionesPorCita { get; set; } = [];
 
     /// <summary>
     /// Registros de consultas pasadas derivados de la tabla Cita.
@@ -53,21 +55,86 @@ public class HistorialPacienteViewModel
 
 public class HistoriaFormularioViewModel
 {
+    public int? ConsultaClinicaId { get; set; }
     public string MotivoConsulta { get; set; } = "";
     public string EnfermedadActual { get; set; } = "";
+    public string? AntecedentesMedicos { get; set; }
+    public List<string> SintomasSignos { get; set; } = [];
     public string Habitos { get; set; } = "";
+    public string Alergias { get; set; } = "";
     public string Hallazgos { get; set; } = "";
     public string OdontogramaObservaciones { get; set; } = "";
     public string ExamenesComplementarios { get; set; } = "";
+    public string? DiagnosticoPrincipalCodigo { get; set; }
+    public List<string> DiagnosticosSecundariosCodigos { get; set; } = [];
+    // Kept to display historical free-text values that do not have a verified CIE-10 code.
     public string DiagnosticoPrincipal { get; set; } = "";
     public string DiagnosticoSecundario { get; set; } = "";
     public string EvolucionClinica { get; set; } = "";
     public string Prescripcion { get; set; } = "";
+    public int? ProximaCitaId { get; set; }
 }
 
 public class HistoriaFormularioGuardarRequest : HistoriaFormularioViewModel
 {
     public int? PacienteId { get; set; }
+    public int? CitaId { get; set; }
+}
+
+public class PlanTratamientoGuardarRequest
+{
+    public int? IdPlan { get; set; }
+    public int? PacienteId { get; set; }
+    public int? ServicioId { get; set; }
+    public string? NumeroFdi { get; set; }
+    public string Estado { get; set; } = "propuesto";
+    public string? Observacion { get; set; }
+    // Yeray: Recibe la proyección manual del profesional, sin alterar el conteo real de sesiones.
+    public int SesionesEstimadas { get; set; }
+}
+
+// Yeray: Define los datos de una sesión realizada para mantener un registro individual y trazable.
+public class PlanSesionRegistrarRequest
+{
+    public DateTime? FechaSesion { get; set; }
+    public int? CitaId { get; set; }
+    public int? NotaId { get; set; }
+}
+
+// Yeray: Exige un motivo al anular una sesión para conservar la razón clínica del ajuste.
+public class PlanSesionAnularRequest
+{
+    public string? Motivo { get; set; }
+}
+
+public class CitaProximaOpcion
+{
+    public int IdCita { get; set; }
+    public string Etiqueta { get; set; } = "";
+}
+
+public class EvolucionCitaHistorialItem
+{
+    public int HistoriaId { get; set; }
+    public string CodigoHistoria { get; set; } = "";
+    public int CitaId { get; set; }
+    public DateTime Fecha { get; set; }
+    public string Servicio { get; set; } = "Consulta";
+    public string Profesional { get; set; } = "Sin asignar";
+    public string MotivoConsulta { get; set; } = "";
+    public string EnfermedadActual { get; set; } = "";
+    public string AntecedentesMedicos { get; set; } = "";
+    public string Habitos { get; set; } = "";
+    public string Alergias { get; set; } = "";
+    public List<string> Sintomas { get; set; } = [];
+    public string Diagnosticos { get; set; } = "";
+    public string Hallazgos { get; set; } = "";
+    public string OdontogramaObservaciones { get; set; } = "";
+    public string ExamenesComplementarios { get; set; } = "";
+    public string EvolucionClinica { get; set; } = "";
+    public string Procedimientos { get; set; } = "";
+    public string Prescripcion { get; set; } = "";
+    public List<EventoHistoriaClinicaItem> RegistrosRelacionados { get; set; } = [];
 }
 
 // FASE 1 — DTO de solo lectura para no exponer la entidad Paciente directamente
@@ -90,11 +157,15 @@ public class PacienteResumenClinicoViewModel
 // única línea de tiempo sin perder la categoría ni el vínculo del documento.
 public class EventoHistoriaClinicaItem
 {
+    public int? CitaId { get; set; }
+    public int? NotaId { get; set; }
     public DateTime Fecha { get; set; }
     /// <summary>consulta, nota, odontograma, control o documento.</summary>
     public string Categoria { get; set; } = "consulta";
     public string Titulo { get; set; } = "";
     public string Descripcion { get; set; } = "";
+    public string Diagnostico { get; set; } = "";
+    public string Procedimiento { get; set; } = "";
     public string Profesional { get; set; } = "";
     public string Estado { get; set; } = "";
     public string? EnlaceDocumento { get; set; }
@@ -102,6 +173,7 @@ public class EventoHistoriaClinicaItem
 
 public class RegistroHistorialItem
 {
+    public int? CitaId { get; set; }
     public DateTime Fecha { get; set; }
     public string Tipo { get; set; } = "consulta";
     public string Descripcion { get; set; } = string.Empty;
@@ -114,6 +186,8 @@ public class RegistroHistorialItem
 //   { titulo, fecha, doctor, diagnostico, procedimiento, proximaCita, estado }
 public class NotaClinicaHistorialItem
 {
+    public int IdNota { get; set; }
+    public int? CitaId { get; set; }
     /// <summary>Título visible en la lista (procedimiento o diagnóstico).</summary>
     public string Titulo { get; set; } = string.Empty;
 

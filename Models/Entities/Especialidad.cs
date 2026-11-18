@@ -18,5 +18,7 @@ namespace SmileTrack_MVC.Models.Entities
         [Column("descripcion")]
         [StringLength(255)]
         public string? Descripcion { get; set; }
+
+        public ICollection<Servicio> Servicios { get; set; } = [];
     }
 }

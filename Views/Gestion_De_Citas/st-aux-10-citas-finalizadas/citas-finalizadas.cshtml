@@ -17,7 +17,23 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Citas Finalizadas";
+    ViewData["UseGestionModulesDesignSystem"] = true;
     var citasFinalizadasDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["CitasFinalizadasData"] ?? new object());
+    var fechaResumen = SmileTrack_MVC.Helpers.ColombiaClock.Today;
+    using (var citasFinalizadasDocument = System.Text.Json.JsonDocument.Parse(citasFinalizadasDataJson))
+    {
+        if (citasFinalizadasDocument.RootElement.TryGetProperty("fechaResumen", out var fechaResumenJson) &&
+            fechaResumenJson.ValueKind == System.Text.Json.JsonValueKind.String &&
+            DateTime.TryParseExact(
+                fechaResumenJson.GetString(),
+                "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var fechaResumenParseada))
+        {
+            fechaResumen = fechaResumenParseada.Date;
+        }
+    }
 }
 
 @section Styles {
@@ -35,11 +51,11 @@
           <span class="bc-sep" aria-hidden="true">›</span>
           <span class="bc-active" data-i18n="status.attended">Citas finalizadas</span>
         </nav>
-        <h1 class="page-title" data-i18n="status.attended">Citas Finalizadas del Día</h1>
-        <p class="page-subtitle">Resumen de la jornada · <time datetime="@DateTime.Now.ToString("yyyy-MM-dd")">@DateTime.Now.ToString("d 'de' MMMM yyyy", new System.Globalization.CultureInfo("es-ES"))</time></p>
+        <h1 class="page-title">Citas Finalizadas del Día</h1>
+        <p class="page-subtitle">Resumen de la jornada · <time datetime="@fechaResumen.ToString("yyyy-MM-dd")">@fechaResumen.ToString("d 'de' MMMM yyyy", new System.Globalization.CultureInfo("es-ES"))</time></p>
       </div>
       <button class="btn-export" id="btnExport" aria-label="Descargar resumen de citas finalizadas" data-i18n-aria-label="table.export">
-        <span class="material-symbols-outlined action-icon" aria-hidden="true">download</span>
+        <span class="material-symbols-outlined" aria-hidden="true">download</span>
         <span class="btn-text">Descargar resumen</span>
       </button>
     </header>
@@ -47,44 +63,47 @@
     <!-- Stats Grid: patrón canónico (stats-grid + stat-card[data-color]) unificado con
          st-adm-07, st-rec-01, st-adm-01 y el resto del módulo de Citas/Profesionales.
          Antes usaba summary-cards/summary-card.green que era un diseño ad-hoc distinto. -->
-    <section class="stats-grid" aria-label="Resumen de citas por estado" data-i18n-aria-label="citas.status">
+    <section class="stats-grid" aria-label="Resumen de citas por estado">
       <div class="stat-card" data-color="green">
-        <span class="stat-number" id="countAtendidas" data-target="0" aria-live="polite">0</span>
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
+        <span class="stat-number" id="countAtendidas">0</span>
         <span class="stat-label" data-i18n="status.attended">Atendidas</span>
       </div>
       <div class="stat-card" data-color="red">
-        <span class="stat-number" id="countCanceladas" data-target="0" aria-live="polite">0</span>
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
+        <span class="stat-number" id="countCanceladas">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
       </div>
       <div class="stat-card" data-color="orange">
-        <span class="stat-number" id="countNoAsistio" data-target="0" aria-live="polite">0</span>
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">person_off</span>
+        <span class="stat-number" id="countNoAsistio">0</span>
         <span class="stat-label" data-i18n="status.no_show">No asistió</span>
       </div>
     </section>
 
     <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
-    <div class="table-tabs" role="tablist" aria-label="Filtrar citas finalizadas por estado">
-      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="all" id="tab-all">
+    <div class="table-tabs" role="group" aria-label="Filtrar citas finalizadas por estado">
+      <button type="button" class="tab-btn active" aria-pressed="true" data-tab="all" id="tab-all">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">task_alt</span>
         Todas las finalizadas
       </button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="attended" id="tab-attended">
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="attended" id="tab-attended">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">check_circle</span>
         Atendidas
       </button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="cancelled" id="tab-cancelled">
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="cancelled" id="tab-cancelled">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
         Canceladas
       </button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="no-show" id="tab-no-show">
+      <button type="button" class="tab-btn" aria-pressed="false" data-tab="no-show" id="tab-no-show">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_busy</span>
         No asistió
       </button>
     </div>
 
     <!-- Tabla de citas con estructura accesible -->
-    <div class="table-card">
-      <table class="table-base" aria-label="Listado de citas finalizadas del día" data-i18n-aria-label="citas.title">
+    <div class="table-wrap">
+      <table class="table-base" aria-label="Listado de citas finalizadas del día">
         <thead>
           <tr>
             <th scope="col" data-i18n="citas.time">HORA</th>
@@ -94,30 +113,39 @@
             <th scope="col" data-i18n="citas.status">ESTADO</th>
           </tr>
         </thead>
-        <tbody id="appointmentsBody" aria-live="polite">
+        <tbody id="appointmentsBody">
           <!-- Las filas se generan dinámicamente por JavaScript -->
         </tbody>
       </table>
     </div>
+
+    <nav class="pagination" aria-label="Paginación de citas finalizadas">
+      <span class="pagination-info" id="finalizedPaginationInfo" aria-live="polite">Mostrando 0 de 0 citas</span>
+      <div class="pagination-buttons">
+        <button type="button" class="pagination-btn" id="finalizedPreviousPage" aria-label="Página anterior" disabled>← Anterior</button>
+        <div class="pagination-numbers" id="finalizedPageNumbers" role="list" aria-label="Números de página"></div>
+        <button type="button" class="pagination-btn" id="finalizedNextPage" aria-label="Página siguiente" disabled>Siguiente →</button>
+      </div>
+    </nav>
 
   </main>
 
   <!-- Mobile bottom nav con aria-label para navegación móvil -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span></span>
       <span>Panel</span>
     </a>
     <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
       <span>Agenda</span>
     </a>
     <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item active" aria-current="page">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">check_circle</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">check_circle</span></span>
       <span>Finalizadas</span>
     </a>
     <a href="/perfiles/st-aux-11-perfil-auxiliar" class="mobile-nav-item">
-      <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
+      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">person</span></span>
       <span>Perfil</span>
     </a>
   </nav>
@@ -125,15 +153,6 @@
   <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-  </footer>
 
 
   <script>

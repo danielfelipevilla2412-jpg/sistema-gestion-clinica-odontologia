@@ -50,6 +50,7 @@
 
 <body>
 
+    <div hidden>@Html.AntiForgeryToken()</div>
 
 
  <!-- Enlace para saltar al contenido principal (accesibilidad) -->
@@ -218,9 +219,6 @@
                         <button class="estado-btn eb-exportar" onclick="exportarHistorial()">
                             <span class="estado-ico" aria-hidden="true">📥</span> Exportar historial
                         </button>
-                        <button class="estado-btn eb-limpiar" onclick="limpiarTodo()">
-                            <span class="estado-ico" aria-hidden="true">🗑️</span> Limpiar todo
-                        </button>
                     </div>
                 </div>
 
@@ -282,7 +280,7 @@
 
     <!-- TOOLTIP FLOTANTE -->
     <div id="holo-tooltip"></div>
-    
+
     <script
     src="@Url.Content("~/js/Historia_Clinica/st-odo-04-odontograma/odontograma-digital.js")"
     asp-append-version="true">

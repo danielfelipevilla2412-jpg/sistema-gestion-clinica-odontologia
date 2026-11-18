@@ -1,56 +1,42 @@
 /* General Styles and Custom Rules */
 
 /* Material Design Icons configuration */
-.material-symbols-outlined {
+.guide-page .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* Base font family */
-body { 
-    font-family: 'Montserrat', sans-serif;
-    background: #f4f7fb;
-    color: #181c1e;
-    min-height: max(884px, 100dvh);
+.main .bento-grid .support-card,
+.main .bento-grid .bg-primary.rounded-xl.p-card-padding {
+    background: linear-gradient(180deg, #0f2057 0%, #1a3580 100%);
+    font-family: 'DM Sans', sans-serif;
 }
 
-.main {
-    min-height: 100vh;
-    padding: 26px 28px 40px;
+.main .bento-grid .support-card h3,
+.main .bento-grid .bg-primary.rounded-xl.p-card-padding h3 {
+    font-family: 'Syne', sans-serif;
 }
 
-.page-header {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    box-shadow: 0 10px 24px rgba(15, 32, 87, 0.08);
-    padding: 18px 22px;
-    margin-bottom: 18px;
+.guide-page .guide-content .font-headline-lg,
+.guide-page .guide-content .font-headline-md {
+    font-family: 'Syne', sans-serif;
 }
 
-.page-title {
-    color: #0f172a;
+.guide-page .guide-content .font-body-md,
+.guide-page .guide-content .font-body-lg,
+.guide-page .guide-content .font-label-sm,
+.guide-page .guide-content .font-label-bold {
+    font-family: 'DM Sans', sans-serif;
 }
 
-.page-subtitle {
-    color: #64748b;
-}
-
-.guide-content {
+.guide-page .guide-content {
     max-width: 1200px;
     margin: 0 auto;
 }
 
-.guide-card {
+.guide-page .guide-card {
     border: 1px solid #e2e8f0;
     border-radius: 16px;
     box-shadow: 0 10px 24px rgba(15, 32, 87, 0.08);
-}
-
-@media (max-width: 680px) {
-    .main {
-        margin-left: 0;
-        padding: 72px 16px 32px;
-    }
 }
 
 /* Bento Grid Layout */

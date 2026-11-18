@@ -58,6 +58,7 @@ const WEEK_DAYS = [
 let currentPageIndex = 1;
 let editingProfessionalId = null;
 let detailProfessionalId = null;
+let pendingAbsenceDecisionResolve = null;
 let professionalAbsenceRecords = [];
 let professionalScheduleRecords = [];
 let lastFocusedElement = null;
@@ -88,11 +89,11 @@ const getSpecialtyBadgeClass = (specialtyName) => SPECIALTY_COLOR_MAP[specialtyN
  */
 const getStatusBadgeClass = (statusValue) => {
   const statusClassMap = {
-    'activo': 'activo', 'Activo': 'activo',
-    'vacaciones': 'vacaciones', 'Vacaciones': 'vacaciones',
-    'inactivo': 'inactivo', 'Inactivo': 'inactivo',
+    'activo': 'badge-activo', 'Activo': 'badge-activo',
+    'vacaciones': 'badge-vacaciones', 'Vacaciones': 'badge-vacaciones',
+    'inactivo': 'badge-inactivo', 'Inactivo': 'badge-inactivo',
   };
-  return statusClassMap[statusValue] || 'inactivo';
+  return statusClassMap[statusValue] || 'badge-inactivo';
 };
 
 /**
@@ -132,7 +133,12 @@ const fetchProfessionalsApi = async (queryParams = {}) => {
   if (queryParams.especialidad) urlParams.set('especialidad', queryParams.especialidad);
   if (queryParams.estado) urlParams.set('estado', queryParams.estado);
 
-  return await apiRequest(`${API_BASE_URL}?${urlParams.toString()}`);
+  const result = await apiRequest(`${API_BASE_URL}?${urlParams.toString()}`);
+  if (!result?.success || !Array.isArray(result.data) || !result.pagination) {
+    throw new Error(result?.message || 'La respuesta del servidor no contiene el listado de profesionales.');
+  }
+
+  return result;
 };
 
 /**
@@ -166,32 +172,141 @@ const loadProfessionalsList = async () => {
   }
 };
 
+const syncSecondarySpecialtyOptions = () => {
+  const primarySelect = document.querySelector('select[name="IdEspecialidad"]');
+  const secondarySelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+  if (!primarySelect || !secondarySelect) return;
+
+  const primaryId = primarySelect.value;
+  Array.from(secondarySelect.options).forEach(option => {
+    const isPrimary = option.value !== '' && option.value === primaryId;
+    option.disabled = isPrimary;
+    if (isPrimary) option.selected = false;
+  });
+  document.querySelectorAll('#secondarySpecialtyOptions input[type="checkbox"]').forEach(checkbox => {
+    const option = Array.from(secondarySelect.options).find(item => item.value === checkbox.value);
+    checkbox.checked = Boolean(option?.selected);
+    checkbox.disabled = checkbox.value === primaryId;
+  });
+  renderSelectedSpecialtyChips();
+};
+
+const renderSecondarySpecialtyOptions = (specialtyList) => {
+  const optionsContainer = getElementByIdSafe('secondarySpecialtyOptions');
+  const secondarySelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+  if (!optionsContainer || !secondarySelect) return;
+
+  optionsContainer.replaceChildren();
+  specialtyList.forEach(specialty => {
+    const specialtyId = String(specialty.idEspecialidad);
+    const option = Array.from(secondarySelect.options).find(item => item.value === specialtyId);
+    const label = document.createElement('label');
+    label.className = 'specialty-option';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = specialtyId;
+    checkbox.checked = Boolean(option?.selected);
+    checkbox.addEventListener('change', () => {
+      if (option) option.selected = checkbox.checked;
+      renderSelectedSpecialtyChips();
+    });
+
+    const name = document.createElement('span');
+    name.textContent = specialty.nombre;
+    label.append(checkbox, name);
+    optionsContainer.appendChild(label);
+  });
+  syncSecondarySpecialtyOptions();
+};
+
+const createSelectOption = (value, label, selected = false) => {
+  const option = document.createElement('option');
+  option.value = String(value ?? '');
+  option.textContent = String(label ?? '');
+  option.selected = selected;
+  return option;
+};
+
+const renderSelectedSpecialtyChips = () => {
+  const chipsContainer = getElementByIdSafe('selectedSpecialtyChips');
+  const primarySelect = document.querySelector('select[name="IdEspecialidad"]');
+  const secondarySelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+  if (!chipsContainer || !primarySelect || !secondarySelect) return;
+
+  chipsContainer.replaceChildren();
+  Array.from(secondarySelect.selectedOptions).forEach(option => {
+    const chip = document.createElement('span');
+    chip.className = 'specialty-chip';
+    chip.append(document.createTextNode(option.text));
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'specialty-chip-remove';
+    removeButton.setAttribute('aria-label', `Quitar especialidad ${option.text}`);
+    removeButton.textContent = '×';
+    removeButton.addEventListener('click', () => {
+      option.selected = false;
+      syncSecondarySpecialtyOptions();
+    });
+
+    chip.appendChild(removeButton);
+    chipsContainer.appendChild(chip);
+  });
+};
+
 /**
  * Carga el catálogo de especialidades desde la API para llenar los selectores.
  */
 const loadSpecialtiesCatalog = async () => {
   try {
     const apiResult = await apiRequest(`${API_BASE_URL}/especialidades`);
-    const specialtyList = apiResult.data || [];
+    if (!apiResult?.success || !Array.isArray(apiResult.data)) {
+      throw new Error(apiResult?.message || 'No se pudo cargar el catálogo de especialidades.');
+    }
+    const specialtyList = apiResult.data;
 
     const filterSelect = getElementByIdSafe('filterSpecialty');
-    const formSelect = document.querySelector('select[name="IdEspecialidad"]') || getElementByIdSafe('formIdEspecialidad');
+    const formSelect = document.querySelector('select[name="IdEspecialidad"]');
+    const secondarySpecialtiesSelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
 
     if (filterSelect) {
       const currentSelectedValue = filterSelect.value;
-      filterSelect.innerHTML = '<option value="">Todas las especialidades</option>' +
-        specialtyList.map(item => `<option value="${item.nombre}">${item.nombre}</option>`).join('');
+      filterSelect.replaceChildren(
+        createSelectOption('', 'Todas las especialidades'),
+        ...specialtyList.map(item => createSelectOption(item.nombre, item.nombre))
+      );
       filterSelect.value = currentSelectedValue;
     }
 
     if (formSelect) {
       const currentSelectedValue = formSelect.value;
-      formSelect.innerHTML = '<option value="" disabled selected>Selecciona una especialidad</option>' +
-        specialtyList.map(item => `<option value="${item.idEspecialidad}">${item.nombre}</option>`).join('');
-      if (currentSelectedValue) formSelect.value = currentSelectedValue;
+      const placeholderOption = formSelect.querySelector('option[value=""]')?.cloneNode(true)
+        || createSelectOption('', 'Sin especialidad');
+      formSelect.replaceChildren(
+        placeholderOption,
+        ...specialtyList.map(item => createSelectOption(item.idEspecialidad, item.nombre))
+      );
+      formSelect.value = currentSelectedValue;
+      formSelect.onchange = syncSecondarySpecialtyOptions;
     }
+
+    if (secondarySpecialtiesSelect) {
+      const currentSelectedValues = new Set(
+        Array.from(secondarySpecialtiesSelect.selectedOptions, option => option.value)
+      );
+      secondarySpecialtiesSelect.replaceChildren(
+        ...specialtyList.map(item =>
+          createSelectOption(item.idEspecialidad, item.nombre, currentSelectedValues.has(String(item.idEspecialidad)))
+        )
+      );
+      secondarySpecialtiesSelect.addEventListener('change', renderSelectedSpecialtyChips);
+      renderSecondarySpecialtyOptions(specialtyList);
+    }
+    syncSecondarySpecialtyOptions();
   } catch (error) {
     console.error('Error al cargar especialidades', error);
+    window.ToastService?.error?.(`No fue posible cargar las especialidades: ${error.message}`);
   }
 };
 
@@ -208,14 +323,17 @@ const loadProfessionalSchedule = async (professionalId) => {
 
   try {
     const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/horarios`);
-    professionalScheduleRecords = apiResult?.data || [];
+    if (!apiResult?.success || !Array.isArray(apiResult.data)) {
+      throw new Error(apiResult?.message || 'No se recibió una respuesta válida de horarios.');
+    }
+    professionalScheduleRecords = apiResult.data;
     renderScheduleDays();
   } catch (error) {
     professionalScheduleRecords = [];
     renderScheduleDays();
     if (statusMessageLabel) {
-      statusMessageLabel.style.color = 'var(--text-muted)';
-      statusMessageLabel.textContent = 'ℹ️ Sin horario personalizado (aplica horario general de la clínica).';
+      statusMessageLabel.style.color = 'var(--danger, #dc2626)';
+      statusMessageLabel.textContent = `No se pudieron cargar los horarios: ${error.message}. Un profesional sin horario registrado no recibirá citas.`;
     }
   } finally {
     if (loadingIndicator) loadingIndicator.textContent = '';
@@ -232,7 +350,10 @@ const loadProfessionalAbsences = async (professionalId) => {
   if (loadingIndicator) loadingIndicator.textContent = 'Cargando ausencias...';
   try {
     const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias`);
-    professionalAbsenceRecords = apiResult?.data || [];
+    if (!apiResult?.success || !Array.isArray(apiResult.data)) {
+      throw new Error(apiResult?.message || 'No se recibió una respuesta válida de ausencias.');
+    }
+    professionalAbsenceRecords = apiResult.data;
     renderAbsences();
   } catch (error) {
     professionalAbsenceRecords = [];
@@ -253,10 +374,17 @@ const loadProfessionalAbsences = async (professionalId) => {
  * @returns {HTMLTableRowElement}
  */
 const createProfessionalTableRow = (professionalRecord) => {
-  const escapeHtmlUtil = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml || ((str) => str);
+  const escapeHtmlUtil = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml
+    || ((value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    })[character]));
   const tableRow = document.createElement('tr');
   tableRow.setAttribute('role', 'row');
 
+  const professionalId = Number(professionalRecord.idProfesional);
+  const professionalIdAttribute = Number.isSafeInteger(professionalId) && professionalId > 0
+    ? String(professionalId)
+    : '';
   const fullName = `${escapeHtmlUtil(professionalRecord.nombres)} ${escapeHtmlUtil(professionalRecord.apellidos)}`.trim();
   const primarySpecialty = professionalRecord.especialidades && professionalRecord.especialidades.length > 0
     ? escapeHtmlUtil(professionalRecord.especialidades[0].nombre)
@@ -268,7 +396,7 @@ const createProfessionalTableRow = (professionalRecord) => {
 
   const initialFirst = professionalRecord.nombres ? professionalRecord.nombres.charAt(0).toUpperCase() : '';
   const initialLast = professionalRecord.apellidos ? professionalRecord.apellidos.charAt(0).toUpperCase() : '';
-  const initialsText = `${initialFirst}${initialLast}`;
+  const initialsText = escapeHtmlUtil(`${initialFirst}${initialLast}`);
 
   const phoneText = escapeHtmlUtil(professionalRecord.telefono);
   const statusText = escapeHtmlUtil(professionalRecord.estado);
@@ -287,9 +415,9 @@ const createProfessionalTableRow = (professionalRecord) => {
     <td><span class="badge-status ${statusBadgeClass}" role="status" aria-label="Estado: ${statusText}">${statusText}</span></td>
     <td>
       <div class="actions-cell">
-        <button class="btn-secondary btn-view view"
+        <button class="btn-secondary action-btn btn-view view"
                 type="button"
-                data-id="${professionalRecord.idProfesional}"
+                data-id="${professionalIdAttribute}"
                 data-name="${fullName}"
                 data-initials="${initialsText}"
                 data-specialty="${primarySpecialty}"
@@ -300,39 +428,27 @@ const createProfessionalTableRow = (professionalRecord) => {
                 data-status-class="${statusBadgeClass}"
                 aria-label="Ver detalles del profesional ${fullName}"
                 title="Ver detalles del profesional ${fullName}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
+          <span class="material-symbols-outlined" aria-hidden="true">visibility</span> <span class="btn-text">Ver</span>
         </button>
-        <button class="btn-secondary edit"
+        <button class="btn-secondary action-btn edit"
                 type="button"
+                data-id="${professionalIdAttribute}"
                 aria-label="Editar el profesional ${fullName}"
-                title="Editar profesional ${fullName}"
-                onclick="editProfessional(${professionalRecord.idProfesional})">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
+                title="Editar profesional ${fullName}">
+          <span class="material-symbols-outlined" aria-hidden="true">edit</span> <span class="btn-text">Editar</span>
         </button>
-        <button class="btn-danger btn-delete toggle"
+        <button class="${isProfessionalActive ? 'btn-danger' : 'btn-success'} action-btn btn-delete toggle"
                 type="button"
-                data-id="${professionalRecord.idProfesional}"
+                data-id="${professionalIdAttribute}"
                 data-name="${fullName}"
                 data-estado="${statusText || 'inactivo'}"
                 aria-label="${isProfessionalActive ? 'Desactivar' : 'Reactivar'} el profesional ${fullName}"
                 title="${isProfessionalActive ? 'Desactivar' : 'Reactivar'} profesional ${fullName}">
-          <span class="material-symbols-outlined action-icon" aria-hidden="true">${isProfessionalActive ? 'block' : 'check_circle'}</span> <span class="btn-text">${isProfessionalActive ? 'Desactivar' : 'Reactivar'}</span>
+          <span class="material-symbols-outlined" aria-hidden="true">${isProfessionalActive ? 'block' : 'check_circle'}</span> <span class="btn-text">${isProfessionalActive ? 'Desactivar' : 'Reactivar'}</span>
         </button>
       </div>
     </td>
   `;
-
-  // Listener para el botón Ver Detalle
-  const viewButton = tableRow.querySelector('.btn-view');
-  viewButton?.addEventListener('click', () => {
-    openProfessionalDetailView(viewButton, avatarBgColor, statusBadgeClass);
-  });
-
-  // Listener para el botón Desactivar / Reactivar
-  const deleteButton = tableRow.querySelector('.btn-delete');
-  deleteButton?.addEventListener('click', () => {
-    openConfirmToggleEstadoModal(professionalRecord.idProfesional, fullName, deleteButton.dataset.estado || 'activo');
-  });
 
   return tableRow;
 };
@@ -344,6 +460,7 @@ const createProfessionalTableRow = (professionalRecord) => {
  * @param {string} defaultStatusClass
  */
 const openProfessionalDetailView = (viewButton, defaultAvatarBg, defaultStatusClass) => {
+  lastFocusedElement = viewButton instanceof HTMLElement ? viewButton : document.activeElement;
   const avatarEl = getElementByIdSafe('detailAvatar');
   const nameEl = getElementByIdSafe('detailName');
   const specialtyEl = getElementByIdSafe('detailSpecialty');
@@ -426,8 +543,13 @@ const renderPaginationFromApi = (apiResult) => {
   const { page, pageSize, totalCount, totalPages } = apiResult.pagination;
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, totalCount);
+  const rangeStartLabel = getElementByIdSafe('paginationRangeStart');
+  const rangeEndLabel = getElementByIdSafe('paginationRangeEnd');
+  const totalLabel = getElementByIdSafe('paginationTotal');
 
-  infoLabel.textContent = `Mostrando ${rangeStart}-${rangeEnd} de ${totalCount} profesionales`;
+  if (rangeStartLabel) rangeStartLabel.textContent = String(rangeStart);
+  if (rangeEndLabel) rangeEndLabel.textContent = String(rangeEnd);
+  if (totalLabel) totalLabel.textContent = String(totalCount);
   buttonsContainer.innerHTML = '';
 
   // Botón página anterior
@@ -526,14 +648,21 @@ const renderAbsences = () => {
     return;
   }
 
-  const escapeHtmlUtil = window.SmileTrack?.utils?.escapeHtml || window.escapeHtml || ((str) => str);
-
   professionalAbsenceRecords.forEach((absenceItem) => {
     const absenceItemCard = document.createElement('div');
     absenceItemCard.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--border-color,#e5e7eb);padding:10px;border-radius:6px;';
     
     const detailsContainer = document.createElement('div');
-    detailsContainer.innerHTML = `<strong>${escapeHtmlUtil(absenceItem.tipo || 'Ausencia')}</strong><br><small>${escapeHtmlUtil(absenceItem.fechaInicio)} a ${escapeHtmlUtil(absenceItem.fechaFin)}</small>${absenceItem.observaciones ? `<br><small>${escapeHtmlUtil(absenceItem.observaciones)}</small>` : ''}`;
+    const typeLabel = document.createElement('strong');
+    typeLabel.textContent = absenceItem.tipo || 'Ausencia';
+    const dateLabel = document.createElement('small');
+    dateLabel.textContent = `${absenceItem.fechaInicio} a ${absenceItem.fechaFin}`;
+    detailsContainer.append(typeLabel, document.createElement('br'), dateLabel);
+    if (absenceItem.observaciones) {
+      const observations = document.createElement('small');
+      observations.textContent = absenceItem.observaciones;
+      detailsContainer.append(document.createElement('br'), observations);
+    }
     
     const actionButtonsContainer = document.createElement('div');
     const editAbsenceButton = document.createElement('button');
@@ -564,6 +693,9 @@ const renderAbsences = () => {
         onConfirm: async () => {
           try {
             const apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceItem.idAusencia}`, { method: 'DELETE' });
+            if (!apiResult?.success) {
+              throw new Error(apiResult?.message || 'El servidor no pudo eliminar la ausencia.');
+            }
             window.ToastService?.success(apiResult.message || 'Ausencia eliminada.');
             await loadProfessionalAbsences(detailProfessionalId);
           } catch (error) {
@@ -598,6 +730,24 @@ const initServerStats = () => {
     } else {
       targetEl.textContent = '0';
     }
+  });
+};
+
+const refreshProfessionalStats = async () => {
+  const response = await apiRequest(`${API_BASE_URL}/stats`);
+  const stats = response?.data;
+  if (!stats) throw new Error('La respuesta de estadísticas no contiene datos.');
+
+  [
+    ['profesionales-stat-total', stats.total],
+    ['profesionales-stat-activos', stats.activos],
+    ['profesionales-stat-vacaciones', stats.vacaciones],
+    ['profesionales-stat-inactivos', stats.inactivos],
+  ].forEach(([id, value]) => {
+    const element = getElementByIdSafe(id);
+    if (!element || !Number.isFinite(Number(value))) return;
+    element.dataset.target = String(value);
+    element.textContent = String(value);
   });
 };
 
@@ -661,6 +811,8 @@ const openFormModal = (isEditing = false) => {
     editingProfessionalId = null;
     const formElement = getElementByIdSafe('formProfessional');
     if (formElement) formElement.reset();
+    syncSecondarySpecialtyOptions();
+    configureAccessAccountFields(true);
 
     const modalTitle = getElementByIdSafe('modalFormTitle');
     if (modalTitle) modalTitle.textContent = 'Nuevo Profesional';
@@ -675,6 +827,25 @@ const openFormModal = (isEditing = false) => {
     if (firstInput) firstInput.focus();
     document.body.style.overflow = 'hidden';
   }
+};
+
+const configureAccessAccountFields = (hasAccessAccount) => {
+  const formElement = getElementByIdSafe('formProfessional');
+  const emailInput = getElementByIdSafe('formCorreoAcceso');
+  const requiredIndicator = getElementByIdSafe('formCorreoAccesoRequired');
+  const accountNote = getElementByIdSafe('formCorreoAccesoHelp');
+  if (!emailInput) return;
+
+  if (formElement) formElement.dataset.hasAccessAccount = String(hasAccessAccount);
+  emailInput.disabled = !hasAccessAccount;
+  emailInput.required = hasAccessAccount;
+  emailInput.setAttribute('aria-required', String(hasAccessAccount));
+  if (!hasAccessAccount) {
+    emailInput.value = '';
+    window.ValidationUtils?.clearError(emailInput);
+  }
+  if (requiredIndicator) requiredIndicator.hidden = !hasAccessAccount;
+  if (accountNote) accountNote.hidden = hasAccessAccount;
 };
 
 /**
@@ -788,13 +959,27 @@ const closeConfirmDeleteModal = () => {
  * Carga los datos de un profesional desde la API y llena el formulario de edición.
  * @param {number} professionalId
  */
-window.editProfessional = async (professionalId) => {
-  try {
-    const apiResult = await apiRequest(`${API_BASE_URL}/${professionalId}`);
-    const professionalData = apiResult.data;
-    if (!professionalData) return;
+window.editProfessional = async (professionalId, triggerButton = null) => {
+  const parsedProfessionalId = Number(professionalId);
+  if (!Number.isSafeInteger(parsedProfessionalId) || parsedProfessionalId <= 0) {
+    window.ToastService?.error('No se pudo identificar al profesional que se desea editar.');
+    return;
+  }
 
-    editingProfessionalId = professionalId;
+  const originalButtonText = triggerButton?.textContent;
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = 'Cargando...';
+  }
+
+  try {
+    const apiResult = await apiRequest(`${API_BASE_URL}/${parsedProfessionalId}`);
+    const professionalData = apiResult.data;
+    if (!apiResult?.success || !professionalData) {
+      throw new Error(apiResult?.message || 'El servidor no devolvió los datos del profesional.');
+    }
+
+    editingProfessionalId = parsedProfessionalId;
 
     const setFieldValue = (fieldId, val) => {
       const fieldElement = getElementByIdSafe(fieldId);
@@ -808,6 +993,7 @@ window.editProfessional = async (professionalId) => {
     setFieldValue('formCategoria', professionalData.categoria);
     setFieldValue('formTelefono', professionalData.telefono);
     setFieldValue('formCorreoAcceso', professionalData.correoAcceso);
+    configureAccessAccountFields(Number(professionalData.idUsuario) > 0);
 
     const normalizedStatus = (professionalData.estado || 'activo').toLowerCase();
     const statusSelectElement = getElementByIdSafe('formStatus');
@@ -816,22 +1002,39 @@ window.editProfessional = async (professionalId) => {
       statusSelectElement.dataset.originalEstado = normalizedStatus;
     }
     setFieldValue('formEstado', normalizedStatus);
-    setFieldValue('formContrasenaAcceso', '');
-    updateProfessionalPasswordRules();
 
-    const formSelect = document.querySelector('select[name="IdEspecialidad"]') || getElementByIdSafe('formIdEspecialidad');
-    if (formSelect && professionalData.especialidades && professionalData.especialidades.length > 0) {
-      formSelect.value = professionalData.especialidades[0].idEspecialidad;
-    } else if (formSelect) {
-      formSelect.value = '';
+    const primarySpecialty = (professionalData.especialidades || [])
+      .find(specialty => specialty.principal) || professionalData.especialidades?.[0];
+    const primarySpecialtySelect = document.querySelector('select[name="IdEspecialidad"]');
+    const secondarySpecialtiesSelect = document.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+    if (primarySpecialtySelect) {
+      primarySpecialtySelect.value = primarySpecialty?.idEspecialidad ?? '';
     }
+    if (secondarySpecialtiesSelect) {
+      const primarySpecialtyId = primarySpecialty?.idEspecialidad;
+      const secondarySpecialtyIds = new Set(
+        (professionalData.especialidades || [])
+          .filter(specialty => specialty.idEspecialidad !== primarySpecialtyId)
+          .map(specialty => String(specialty.idEspecialidad))
+      );
+      Array.from(secondarySpecialtiesSelect.options).forEach(option => {
+        option.selected = secondarySpecialtyIds.has(option.value);
+      });
+    }
+    syncSecondarySpecialtyOptions();
 
     const modalTitle = getElementByIdSafe('modalFormTitle');
     if (modalTitle) modalTitle.textContent = 'Editar Profesional';
 
     openFormModal(true);
   } catch (error) {
+    console.error('[SmileTrack][Profesionales] No se pudo abrir la edición:', error);
     window.ToastService?.error(`❌ No se pudo cargar el profesional: ${error.message}`);
+  } finally {
+    if (triggerButton) {
+      triggerButton.disabled = false;
+      triggerButton.textContent = originalButtonText;
+    }
   }
 };
 
@@ -846,9 +1049,12 @@ const validateProfessionalForm = (formElement) => {
   const requiredFields = [
     { id: 'formNombres', message: 'Ingresa los nombres.' },
     { id: 'formApellidos', message: 'Ingresa los apellidos.' },
-    { id: 'formRegistroMedico', message: 'Ingresa el registro médico.' },
-    { id: 'formCorreoAcceso', message: 'Ingresa un correo de acceso válido.' }
+    { id: 'formRegistroMedico', message: 'Ingresa el registro médico.' }
   ];
+  const emailField = getElementByIdSafe('formCorreoAcceso');
+  if (emailField && !emailField.disabled) {
+    requiredFields.push({ id: 'formCorreoAcceso', message: 'Ingresa un correo de acceso válido.' });
+  }
 
   if (window.ValidationUtils) {
     requiredFields.forEach(({ id }) => {
@@ -870,7 +1076,6 @@ const validateProfessionalForm = (formElement) => {
     }
   });
 
-  const emailField = getElementByIdSafe('formCorreoAcceso');
   if (emailField && emailField.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailField.value.trim())) {
     isFormValid = false;
     if (window.ValidationUtils) {
@@ -879,45 +1084,6 @@ const validateProfessionalForm = (formElement) => {
   }
 
   return isFormValid;
-};
-
-/**
- * Actualiza los indicadores visuales de reglas de contraseña.
- */
-const updateProfessionalPasswordRules = () => {
-  const passwordInput = getElementByIdSafe('formContrasenaAcceso');
-  if (!passwordInput) return;
-
-  const inputValue = passwordInput.value || '';
-  const passwordRules = {
-    length: inputValue.length >= 8,
-    upper: /[A-Z]/.test(inputValue),
-    lower: /[a-z]/.test(inputValue),
-    number: /\d/.test(inputValue),
-    symbol: /[^A-Za-z\d]/.test(inputValue)
-  };
-
-  Object.entries(passwordRules).forEach(([ruleKey, isRuleSatisfied]) => {
-    const ruleRow = document.querySelector(`#professionalPasswordRules [data-rule="${ruleKey}"]`);
-    if (!ruleRow) return;
-    const iconSpan = ruleRow.querySelector('.rule-icon');
-    if (iconSpan) iconSpan.textContent = isRuleSatisfied ? '✓' : '✗';
-    ruleRow.style.color = isRuleSatisfied ? '#15803d' : '#b91c1c';
-  });
-
-  const hiddenFormId = getElementByIdSafe('formIdProfesional');
-  const isEditingMode = Number(hiddenFormId?.value || 0) > 0;
-  const helpTextLabel = getElementByIdSafe('formContrasenaHelp');
-
-  if (helpTextLabel) {
-    if (isEditingMode && inputValue.length === 0) {
-      helpTextLabel.textContent = 'La contraseña no se modifica desde esta pantalla.';
-      helpTextLabel.style.color = '#6b7280';
-    } else {
-      helpTextLabel.textContent = 'La contraseña se genera automáticamente en el sistema.';
-      helpTextLabel.style.color = '#6b7280';
-    }
-  }
 };
 
 /**
@@ -936,15 +1102,28 @@ const saveProfessional = async (event) => {
     return;
   }
 
-  const submitButton = formElement.querySelector('[type="submit"]');
-  if (submitButton) { submitButton.disabled = true; submitButton.textContent = '⏳ Guardando...'; }
-
   const getFieldValue = (fieldId) => getElementByIdSafe(fieldId)?.value?.trim() ?? '';
   const professionalId = Number(getFieldValue('formIdProfesional'));
   const isEditingMode = professionalId > 0;
 
-  const specialtySelectElement = formElement.querySelector('select[name="IdEspecialidad"]') || getElementByIdSafe('formIdEspecialidad');
-  const selectedSpecialtyId = specialtySelectElement ? Number(specialtySelectElement.value) || null : null;
+  const primarySpecialtySelect = formElement.querySelector('select[name="IdEspecialidad"]');
+  const secondarySpecialtiesSelect = formElement.querySelector('select[name="IdsEspecialidadesSecundarias"]');
+  const primarySpecialtyId = primarySpecialtySelect ? Number(primarySpecialtySelect.value) || null : null;
+  const secondarySpecialtyIds = secondarySpecialtiesSelect
+    ? Array.from(secondarySpecialtiesSelect.selectedOptions)
+      .map(option => Number(option.value))
+      .filter(id => Number.isInteger(id) && id > 0 && id !== primarySpecialtyId)
+    : [];
+  if (!primarySpecialtyId && secondarySpecialtyIds.length > 0) {
+    window.ToastService?.warning('Selecciona una especialidad principal antes de agregar especialidades secundarias.');
+    primarySpecialtySelect?.focus();
+    return;
+  }
+  const selectedSpecialtyIds = [...new Set(
+    [primarySpecialtyId, ...secondarySpecialtyIds].filter(id => id !== null)
+  )];
+  const submitButton = formElement.querySelector('[type="submit"]');
+  if (submitButton) { submitButton.disabled = true; submitButton.textContent = '⏳ Guardando...'; }
 
   const requestPayload = {
     nombres:        getFieldValue('formNombres'),
@@ -952,14 +1131,13 @@ const saveProfessional = async (event) => {
     registroMedico: getFieldValue('formRegistroMedico'),
     categoria:      getFieldValue('formCategoria') || null,
     telefono:       getFieldValue('formTelefono')  || null,
-    correoAcceso:   getFieldValue('formCorreoAcceso'),
-    idEspecialidad: selectedSpecialtyId,
+    correoAcceso:   getElementByIdSafe('formCorreoAcceso')?.disabled
+      ? null
+      : getFieldValue('formCorreoAcceso'),
+    idEspecialidad: primarySpecialtyId,
+    especialidadesIds: selectedSpecialtyIds,
     estado:         isEditingMode ? (getElementByIdSafe('formStatus')?.value || getElementByIdSafe('formEstado')?.value || '').trim().toLowerCase() || null : null,
   };
-
-  if (!isEditingMode) {
-    delete requestPayload.contrasenaAcceso;
-  }
 
   try {
     let apiResult;
@@ -983,6 +1161,13 @@ const saveProfessional = async (event) => {
     closeFormModal();
     currentPageIndex = 1;
     await loadProfessionalsList();
+    try {
+      await refreshProfessionalStats();
+    } catch (statsError) {
+      window.ToastService?.warning(
+        `El profesional se guardó, pero no se pudieron actualizar las estadísticas: ${statsError.message}`
+      );
+    }
   } catch (error) {
     window.ToastService?.error(`❌ ${error.message}`);
   } finally {
@@ -1111,10 +1296,32 @@ const saveAbsence = async (event) => {
   submitButton.disabled = true;
 
   try {
-    const targetEndpoint = absenceId
-      ? `${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceId}`
-      : `${API_BASE_URL}/${detailProfessionalId}/ausencias`;
-    const apiResult = await apiRequest(targetEndpoint, { method: absenceId ? 'PUT' : 'POST', body: absencePayload });
+    let apiResult;
+    if (!absenceId) {
+      const query = new URLSearchParams({
+        fechaInicio: absencePayload.fechaInicio,
+        fechaFin: absencePayload.fechaFin
+      });
+      const preview = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias/preview?${query}`);
+      if (preview.count > 0) {
+        const debeReasignar = await confirmAbsenceReassignment(preview.data || []);
+        if (!debeReasignar) return;
+        apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias-reasignar`, {
+          method: 'POST',
+          body: JSON.stringify(absencePayload)
+        });
+      } else {
+        apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias`, {
+          method: 'POST',
+          body: JSON.stringify(absencePayload)
+        });
+      }
+    } else {
+      apiResult = await apiRequest(`${API_BASE_URL}/${detailProfessionalId}/ausencias/${absenceId}`, {
+        method: 'PUT',
+        body: JSON.stringify(absencePayload)
+      });
+    }
     window.ToastService?.success(apiResult.message || 'Ausencia guardada.');
     resetAbsenceForm();
     await loadProfessionalAbsences(detailProfessionalId);
@@ -1123,6 +1330,42 @@ const saveAbsence = async (event) => {
   } finally {
     submitButton.disabled = false;
   }
+};
+
+const confirmAbsenceReassignment = (appointments) => {
+  const modal = getElementByIdSafe('absenceConflictModal');
+  const summary = getElementByIdSafe('absenceConflictSummary');
+  const list = getElementByIdSafe('absenceConflictAppointments');
+  if (!modal || !summary || !list) {
+    throw new Error('No se pudo abrir la confirmación de citas afectadas.');
+  }
+
+  summary.textContent = `Se encontraron ${appointments.length} cita(s) que se cruzan con estas fechas:`;
+  list.replaceChildren(...appointments.map(appointment => {
+    const item = document.createElement('li');
+    const date = new Date(appointment.fechaHora).toLocaleString();
+    item.textContent = `${date} — ${appointment.paciente} — ${appointment.servicio}`;
+    return item;
+  }));
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.removeAttribute('inert');
+
+  return new Promise(resolve => {
+    pendingAbsenceDecisionResolve = resolve;
+    getElementByIdSafe('absenceConflictContinue')?.focus();
+  });
+};
+
+const resolveAbsenceReassignment = (confirmed) => {
+  if (!pendingAbsenceDecisionResolve) return;
+  const resolve = pendingAbsenceDecisionResolve;
+  pendingAbsenceDecisionResolve = null;
+  const modal = getElementByIdSafe('absenceConflictModal');
+  modal?.classList.remove('open');
+  modal?.setAttribute('aria-hidden', 'true');
+  modal?.setAttribute('inert', '');
+  resolve(confirmed);
 };
 
 // ===================================================================
@@ -1138,48 +1381,10 @@ window.goToPage = async (pageNumber) => {
   await loadProfessionalsList();
 };
 
-/**
- * Inicializa el comportamiento del sidebar responsive en dispositivos móviles.
- */
-const initSidebar = () => {
-  const hamburgerButton = getElementByIdSafe('hamburger');
-  const sidebarElement = getElementByIdSafe('sidebar');
-  const overlayElement = getElementByIdSafe('overlay');
-
-  if (!hamburgerButton || !sidebarElement || !overlayElement) return;
-
-  const toggleMobileMenu = (showMenu) => {
-    sidebarElement.classList.toggle('open', showMenu);
-    overlayElement.classList.toggle('open', showMenu);
-    hamburgerButton.setAttribute('aria-expanded', showMenu);
-    overlayElement.setAttribute('aria-hidden', !showMenu);
-
-    if (showMenu) {
-      const firstNavigationLink = sidebarElement.querySelector('.nav-item');
-      if (firstNavigationLink) firstNavigationLink.focus();
-    } else {
-      hamburgerButton.focus();
-    }
-  };
-
-  hamburgerButton.addEventListener('click', () => toggleMobileMenu(true));
-  overlayElement.addEventListener('click', () => toggleMobileMenu(false));
-
-  sidebarElement.querySelectorAll('.nav-item').forEach(navItem => {
-    navItem.addEventListener('click', () => {
-      if (window.innerWidth <= 680) {
-        toggleMobileMenu(false);
-      }
-    });
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && sidebarElement.classList.contains('open')) {
-      event.preventDefault();
-      toggleMobileMenu(false);
-    }
-  });
-};
+// NOTA: la apertura/cierre del sidebar móvil (hamburger + overlay + foco) y el
+// accordion los gestiona shared/sidebar.js (cargado por _Layout). No duplicar
+// esa lógica aquí: al enlazar dos veces los mismos elementos, el botón abre y
+// no vuelve a cerrar correctamente el menú.
 
 /**
  * Inicializa la lógica de filtrado reactivo debounced y el formulario de búsqueda.
@@ -1188,6 +1393,17 @@ const initFiltersAPI = () => {
   const searchInputField = getElementByIdSafe('searchInput');
   const specialtyFilterSelect = getElementByIdSafe('filterSpecialty');
   const statusFilterSelect = getElementByIdSafe('filterStatus');
+  const statusTabs = Array.from(document.querySelectorAll('.table-tabs [data-tab]'));
+  const syncStatusTabs = () => {
+    if (!statusFilterSelect) return;
+    const selectedStatus = statusFilterSelect.value.toLowerCase();
+    statusTabs.forEach(tab => {
+      const active = (tab.dataset.tab === 'all' && !selectedStatus)
+        || tab.dataset.tab === selectedStatus;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-pressed', String(active));
+    });
+  };
 
   const filterFormElement = searchInputField?.closest('form') || document.querySelector('.filters-section form');
   if (filterFormElement) {
@@ -1210,8 +1426,18 @@ const initFiltersAPI = () => {
 
   statusFilterSelect?.addEventListener('change', () => {
     currentPageIndex = 1;
+    syncStatusTabs();
     loadProfessionalsList();
   });
+
+  statusTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (!statusFilterSelect) return;
+      statusFilterSelect.value = tab.dataset.tab === 'all' ? '' : tab.dataset.tab;
+      statusFilterSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+  syncStatusTabs();
 };
 
 /**
@@ -1219,6 +1445,8 @@ const initFiltersAPI = () => {
  */
 const bindProfessionalFieldValidation = () => {
   const formElement = getElementByIdSafe('formProfessional');
+  document.querySelector('select[name="IdEspecialidad"]')
+    ?.addEventListener('change', syncSecondarySpecialtyOptions);
   if (!formElement) return;
 
   formElement.querySelectorAll('input, select').forEach((inputField) => {
@@ -1246,25 +1474,6 @@ const bindProfessionalFieldValidation = () => {
 };
 
 /**
- * Inicializa los eventos del campo de contraseña.
- */
-const initProfessionalPassword = () => {
-  const passwordInput = getElementByIdSafe('formContrasenaAcceso');
-  const toggleVisibilityButton = getElementByIdSafe('toggleProfesionalPassword');
-  if (!passwordInput) return;
-
-  passwordInput.addEventListener('input', updateProfessionalPasswordRules);
-  updateProfessionalPasswordRules();
-
-  toggleVisibilityButton?.addEventListener('click', () => {
-    const isPasswordVisible = passwordInput.type === 'text';
-    passwordInput.type = isPasswordVisible ? 'password' : 'text';
-    toggleVisibilityButton.textContent = isPasswordVisible ? '👁' : '🙈';
-    toggleVisibilityButton.setAttribute('aria-label', isPasswordVisible ? 'Mostrar contraseña' : 'Ocultar contraseña');
-  });
-};
-
-/**
  * Configura los event listeners para abrir, cerrar y procesar modales.
  */
 const initModals = () => {
@@ -1279,6 +1488,7 @@ const initModals = () => {
   const formModalElement = getElementByIdSafe('modalForm');
   const detailModalElement = getElementByIdSafe('modalDetail');
   const confirmDeleteModalElement = getElementByIdSafe('modalConfirmDelete');
+  const absenceConflictModal = getElementByIdSafe('absenceConflictModal');
   
   const formElement = getElementByIdSafe('formProfessional');
   const scheduleFormElement = getElementByIdSafe('scheduleForm');
@@ -1292,10 +1502,15 @@ const initModals = () => {
   detailModalCancelButton?.addEventListener('click', closeDetailModal);
   confirmDeleteCloseButton?.addEventListener('click', closeConfirmDeleteModal);
   confirmDeleteCancelButton?.addEventListener('click', closeConfirmDeleteModal);
+  getElementByIdSafe('absenceConflictCancel')?.addEventListener('click', () => resolveAbsenceReassignment(false));
+  getElementByIdSafe('absenceConflictContinue')?.addEventListener('click', () => resolveAbsenceReassignment(true));
 
   formModalElement?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeFormModal(); });
   detailModalElement?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeDetailModal(); });
   confirmDeleteModalElement?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeConfirmDeleteModal(); });
+  absenceConflictModal?.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) resolveAbsenceReassignment(false);
+  });
 
   formElement?.addEventListener('submit', saveProfessional);
   scheduleFormElement?.addEventListener('submit', saveSchedule);
@@ -1319,9 +1534,19 @@ const initModals = () => {
     if (viewButton) {
       openProfessionalDetailView(viewButton, getAvatarColorBySpecialty(viewButton.dataset.specialty || ''), getStatusBadgeClass(viewButton.dataset.status || ''));
       resetModalTabs();
-      resetAbsenceForm();
-      loadProfessionalSchedule(Number(viewButton.dataset.id));
-      loadProfessionalAbsences(Number(viewButton.dataset.id));
+      const professionalId = Number(viewButton.dataset.id);
+      loadProfessionalSchedule(professionalId);
+    }
+  });
+
+  tableBody?.addEventListener('click', (e) => {
+    const clickTarget = e.target instanceof Element ? e.target : null;
+    const editButton = clickTarget?.closest('.action-btn.edit[data-id]');
+    if (!editButton) return;
+    e.preventDefault();
+    const professionalId = Number(editButton?.dataset.id);
+    if (Number.isSafeInteger(professionalId) && professionalId > 0) {
+      void window.editProfessional(professionalId, editButton);
     }
   });
 
@@ -1363,6 +1588,11 @@ const initModals = () => {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (absenceConflictModal?.classList.contains('open')) {
+        e.preventDefault();
+        resolveAbsenceReassignment(false);
+        return;
+      }
       if (formModalElement?.classList.contains('open')) { e.preventDefault(); closeFormModal(); }
       if (detailModalElement?.classList.contains('open')) { e.preventDefault(); closeDetailModal(); }
       if (confirmDeleteModalElement?.classList.contains('open')) { e.preventDefault(); closeConfirmDeleteModal(); }
@@ -1374,14 +1604,19 @@ const initModals = () => {
  * Función de inicialización principal.
  */
 const init = async () => {
-  initSidebar();
   initModals();
   initModalTabs();
   bindProfessionalFieldValidation();
-  initProfessionalPassword();
   initFiltersAPI();
 
-  await loadSpecialtiesCatalog();
+  // Cargar catálogo de especialidades para los selects del formulario.
+  // Se hace ANTES de habilitar interacciones para que el form de edición
+  // tenga las opciones disponibles en cuanto el usuario haga click en Editar.
+  try {
+    await loadSpecialtiesCatalog();
+  } catch (e) {
+    console.warn('[SmileTrack][Profesionales] No se pudo cargar el catálogo de especialidades:', e);
+  }
   initServerStats();
 
   window.addEventListener('beforeunload', () => {});

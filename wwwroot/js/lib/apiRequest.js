@@ -1,5 +1,7 @@
 // Utilidad central para llamadas API que prioriza JWT en cookie "SmileTrack-JWT" y usa Cookie Auth como fallback
 function getAntiforgeryToken() {
+  const formToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  if (formToken) return formToken;
   const match = document.cookie.match(/(^|; )XSRF-TOKEN=([^;]+)/);
   return match ? decodeURIComponent(match[2]) : null;
 }

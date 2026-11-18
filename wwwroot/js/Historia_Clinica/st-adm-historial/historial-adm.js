@@ -1,368 +1,447 @@
-// ── DATOS REALES (API) ──────────────────────────────────────────────────
-// Se cargan de forma asíncrona desde el servidor; ver cargarPacientes().
-let pacientes = [];
-const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+(() => {
+  'use strict';
 
-function fmtFecha(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '—';
-    return `${String(d.getDate()).padStart(2, '0')} ${MESES[d.getMonth()]} ${d.getFullYear()}`;
-}
+  const translate = (key, values) => window.I18N?.t(key, values) || key;
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[character]));
 
-// Normaliza el DTO recibido de /historia-clinica/st-adm-historial/data al formato
-// que usa el render de esta vista (fechas ya formateadas para mostrar).
-function normalizarPaciente(p) {
-    return {
-        ...p,
-        fechaNac: fmtFecha(p.fechaNac),
-        ultimaConsulta: fmtFecha(p.ultimaConsulta),
-        consultas: (p.consultas || []).map(c => ({ ...c, fecha: fmtFecha(c.fecha) })),
-        tratamientos: p.tratamientos || [],
-        documentos: p.documentos || []
-    };
-}
+  const state = {
+    patients: [],
+    activePatient: null,
+    currentPage: 1,
+    pageSize: 10,
+    totalPages: 1,
+    totalRecords: 0,
+    requestVersion: 0,
+    dentists: [],
+    focusTarget: null,
+    bodyOverflow: ''
+  };
 
-async function cargarPacientes() {
-    try {
-        const resp = await fetch('/historia-clinica/st-adm-historial/data', { headers: { 'Accept': 'application/json' } });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        pacientes = data.map(normalizarPaciente);
-    } catch (e) {
-        console.error('No se pudo cargar el historial de pacientes:', e);
-        pacientes = [];
-        showToast('No se pudo cargar el historial de pacientes');
+  const formatDate = value => {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat(window.I18N?.lang === 'en' ? 'en-US' : 'es-CO', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).format(date);
+  };
+
+  const normalizePatient = patient => ({
+    ...patient,
+    fechaNacOriginal: patient.fechaNac,
+    ultimaConsultaOriginal: patient.ultimaConsulta,
+    fechaNac: formatDate(patient.fechaNac),
+    ultimaConsulta: formatDate(patient.ultimaConsulta),
+    consultas: (patient.consultas || []).map(consultation => ({
+      ...consultation,
+      fechaOriginal: consultation.fecha,
+      fecha: formatDate(consultation.fecha)
+    })),
+    tratamientos: patient.tratamientos || [],
+    documentos: patient.documentos || []
+  });
+
+  const showError = () => {
+    const toast = window.ToastService?.error;
+    if (typeof toast !== 'function') {
+      console.error('[SmileTrack][Historia] El servicio compartido de notificaciones no está disponible.');
+      return;
     }
-    poblarFiltroOdontologos();
-    pacientesFiltrados = [...pacientes];
-    renderTabla(pacientesFiltrados);
-    actualizarContadores();
-    animarContadores();
-}
+    toast(translate('historia_admin.error_title'), translate('historia_admin.load_error'));
+  };
 
-// El select de odontólogo ya no trae opciones fijas en el HTML: se construye
-// dinámicamente a partir de los odontólogos que aparecen en los datos reales.
-function poblarFiltroOdontologos() {
+  const populateDentistFilter = () => {
     const select = document.getElementById('filterOdontologo');
     if (!select) return;
-    const vistos = new Map();
-    pacientes.forEach(p => { if (p.odontologoKey) vistos.set(p.odontologoKey, p.odontologo); });
-    select.innerHTML = '<option value="">Todos los odontólogos</option>' +
-        [...vistos.entries()].map(([key, nombre]) => `<option value="${key}">${nombre}</option>`).join('');
-}
+    const selected = select.value;
+    const options = state.dentists.map(({ key, nombre }) =>
+      `<option value="${escapeHtml(key)}">${escapeHtml(nombre)}</option>`).join('');
+    select.innerHTML = `<option value="">${escapeHtml(translate('historia_admin.all_dentists'))}</option>${options}`;
+    if (state.dentists.some(dentist => dentist.key === selected)) select.value = selected;
+  };
 
-let pacientesFiltrados = [...pacientes];
-let pacienteActivo = null;
-let currentPage = 1;
-let pageSize = 10;
-let totalPages = 1;
+  const updateStatistics = stats => {
+    const values = {
+      statTotal: stats?.total ?? 0,
+      statHoy: stats?.hoy ?? 0,
+      statAlerta: stats?.alertas ?? 0,
+      statOdo: stats?.odontologos ?? 0
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.textContent = String(value);
+        element.dataset.target = String(value);
+      }
+    });
+  };
 
-function obtenerPagina(lista) {
-    pageSize = document.getElementById('pageSizeSelect')?.value === 'all' ? lista.length : Number(document.getElementById('pageSizeSelect')?.value) || 10;
-    totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(lista.length / pageSize));
-    currentPage = Math.min(Math.max(1, currentPage), totalPages);
-    if (pageSize === lista.length) return lista;
-    const start = (currentPage - 1) * pageSize;
-    return lista.slice(start, start + pageSize);
-}
-
-function actualizarPaginacion(totalRegistros) {
-    const pageControls = document.getElementById('paginationControls');
-    const pageShowing = document.getElementById('pageShowing');
-    const pageTotal = document.getElementById('pageTotal');
+  const updatePagination = () => {
+    const controls = document.getElementById('paginationControls');
+    const showing = document.getElementById('pageShowing');
+    const total = document.getElementById('pageTotal');
     const pageInfo = document.getElementById('pageInfo');
-    const btnPrev = document.getElementById('btnPrev');
-    const btnNext = document.getElementById('btnNext');
+    const previous = document.getElementById('btnPrev');
+    const next = document.getElementById('btnNext');
+    const pageCount = Math.max(1, state.totalPages);
 
-    if (!pageControls || totalRegistros <= pageSize) {
-        pageControls?.style.setProperty('display', 'none');
-        return;
-    }
+    controls.hidden = state.totalRecords <= state.pageSize;
+    showing.textContent = String(state.patients.length);
+    total.textContent = String(state.totalRecords);
+    pageInfo.textContent = `${state.currentPage} ${translate('historia_admin.of')} ${pageCount}`;
+    previous.disabled = state.currentPage <= 1;
+    next.disabled = state.currentPage >= pageCount;
+  };
 
-    pageControls.style.display = 'flex';
-    pageShowing.textContent = String(Math.min(pageSize, totalRegistros));
-    pageTotal.textContent = String(totalRegistros);
-    pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
-    if (btnPrev) {
-        btnPrev.disabled = currentPage <= 1;
-        btnPrev.setAttribute('aria-disabled', String(currentPage <= 1));
-    }
-    if (btnNext) {
-        btnNext.disabled = currentPage >= totalPages;
-        btnNext.setAttribute('aria-disabled', String(currentPage >= totalPages));
-    }
-}
-
-// ── RENDER TABLA ──────────────────────────────────────────────────────────
-function renderTabla(lista) {
+  const renderTable = () => {
     const tbody = document.getElementById('tablaBody');
+    const empty = document.getElementById('noResults');
     const count = document.getElementById('resultsCount');
-    const noRes = document.getElementById('noResults');
-    tbody.innerHTML = '';
-    const pagina = obtenerPagina(lista);
-    count.textContent = `Mostrando ${pagina.length} de ${lista.length} paciente${lista.length !== 1 ? 's' : ''}`;
-    if (lista.length === 0) {
-        noRes.style.display = 'block';
-        actualizarPaginacion(0);
-        return;
+    const patientWord = translate(state.totalRecords === 1 ? 'historia_admin.patient_singular' : 'historia_admin.patients');
+    count.textContent = translate('historia_admin.results_count', {
+      shown: state.patients.length,
+      total: state.totalRecords,
+      patients: patientWord
+    });
+    empty.hidden = state.totalRecords !== 0;
+    tbody.replaceChildren();
+
+    state.patients.forEach(patient => {
+      const initials = String(patient.nombre || '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(name => name[0])
+        .join('')
+        .slice(0, 2)
+        .toLocaleUpperCase();
+      const patientId = Number(patient.id);
+      const avatarColors = ['blue', 'green', 'yellow', 'purple', 'slate'];
+      const colorIndex = Math.abs(Number.isSafeInteger(patientId) ? patientId : 0) % avatarColors.length;
+      const avatarColor = avatarColors[colorIndex];
+      const status = String(patient.estado || '').trim().toLocaleLowerCase();
+      const statusLabel = status ? `${status[0].toLocaleUpperCase()}${status.slice(1)}` : translate('common.not_available');
+      const row = document.createElement('tr');
+      if (state.activePatient?.id === patient.id) row.classList.add('activa');
+      row.innerHTML = `
+        <td data-label="${escapeHtml(translate('historia_admin.patient'))}">
+          <div class="patient-info">
+            <span class="patient-avatar" data-color="${avatarColor}" aria-hidden="true">${escapeHtml(initials)}</span>
+            <span class="patient-details">
+              <span class="patient-name">${escapeHtml(patient.nombre)}</span>
+              <span class="patient-id">${escapeHtml(patient.email || translate('common.not_available'))}</span>
+            </span>
+          </div>
+        </td>
+        <td data-label="${escapeHtml(translate('historia_admin.document'))}">${escapeHtml(patient.cedula)}</td>
+        <td data-label="${escapeHtml(translate('historia_admin.dentist'))}">${escapeHtml(patient.odontologo)}</td>
+        <td data-label="${escapeHtml(translate('historia_admin.last_visit'))}">${escapeHtml(patient.ultimaConsulta)}</td>
+        <td data-label="${escapeHtml(translate('historia_admin.alert'))}">
+          <span class="badge-alerta ${patient.alerta ? 'si' : 'no'}">${escapeHtml(translate(patient.alerta ? 'historia_admin.yes' : 'historia_admin.no'))}</span>
+        </td>
+        <td data-label="${escapeHtml(translate('facturacion.status'))}">
+          <span class="status-badge ${status === 'activo' ? 'activo' : 'inactivo'}">${escapeHtml(statusLabel)}</span>
+        </td>
+        <td class="actions-cell" data-label="${escapeHtml(translate('table.actions'))}">
+          <button type="button" class="action-btn btn-history" data-action="view" data-id="${Number.isSafeInteger(patientId) ? patientId : ''}" aria-label="${escapeHtml(translate('historia_admin.view_history', { name: patient.nombre }))}" title="${escapeHtml(translate('historia_admin.view_history', { name: patient.nombre }))}">
+            <span class="material-symbols-outlined action-icon" aria-hidden="true">clinical_notes</span>
+            <span class="btn-text">${escapeHtml(translate('historia_admin.view'))}</span>
+          </button>
+        </td>`;
+      tbody.appendChild(row);
+    });
+
+    updatePagination();
+  };
+
+  const loadPatients = async () => {
+    const version = ++state.requestVersion;
+    const selectedPageSize = document.getElementById('pageSizeSelect').value;
+    state.pageSize = selectedPageSize === 'all' ? 100 : Number(selectedPageSize) || 10;
+
+    const params = new URLSearchParams({
+      page: String(state.currentPage),
+      pageSize: String(state.pageSize)
+    });
+    const filters = {
+      search: document.getElementById('searchInput').value.trim(),
+      odontologo: document.getElementById('filterOdontologo').value,
+      alerta: document.getElementById('filterAlerta').value,
+      estado: document.getElementById('filterEstado').value
+    };
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+
+    const tbody = document.getElementById('tablaBody');
+    tbody.setAttribute('aria-busy', 'true');
+    try {
+      const response = await fetch(`/historia-clinica/st-adm-historial/data?${params}`, {
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (version !== state.requestVersion) return;
+
+      state.patients = (data.items || []).map(normalizePatient);
+      state.totalRecords = data.total || 0;
+      state.totalPages = data.totalPages || 1;
+      state.dentists = data.odontologos || [];
+      updateStatistics(data.stats);
+      populateDentistFilter();
+    } catch (error) {
+      if (version !== state.requestVersion) return;
+      console.error('No se pudo cargar el historial de pacientes.', error);
+      state.patients = [];
+      state.totalRecords = 0;
+      state.totalPages = 1;
+      showError();
+    } finally {
+      if (version === state.requestVersion) {
+        tbody.setAttribute('aria-busy', 'false');
+        renderTable();
+      }
     }
-    noRes.style.display = 'none';
-    pagina.forEach(p => {
-const iniciales = p.nombre.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
-const tr = document.createElement('tr');
-if (pacienteActivo?.id === p.id) tr.classList.add('activa');
-tr.innerHTML = `
-   <td>
-     <div class="td-paciente">
-       <div class="pac-avatar">${iniciales}</div>
-       <div>
-         <div class="pac-name">${p.nombre}</div>
-         <div class="pac-email">${p.email}</div>
-       </div>
-     </div>
-   </td>
-   <td>${p.cedula}</td>
-   <td>${p.odontologo}</td>
-   <td>${p.ultimaConsulta}</td>
-   <td><span class="badge-alerta ${p.alerta ? 'si' : 'no'}">${p.alerta ? '⚠️ Sí' : '— No'}</span></td>
-   <td><span class="badge-estado ${p.estado}">${p.estado.charAt(0).toUpperCase() + p.estado.slice(1)}</span></td>
-   <td><button class="btn-ver" onclick="abrirPanel(${p.id})">📋 Historial</button></td>
-`;
+  };
 
-tbody.appendChild(tr);
+  const switchTab = tabName => {
+    document.querySelectorAll('.tab-btn').forEach(button => {
+      const selected = button.dataset.tab === tabName;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-selected', String(selected));
+      button.tabIndex = selected ? 0 : -1;
     });
-    actualizarPaginacion(lista.length);
-}
-
-// ── FILTRAR ───────────────────────────────────────────────────────────────
-function filtrarPacientes() {
-    currentPage = 1;
-    const q        = document.getElementById('searchInput').value.toLowerCase().trim();
-    const odo      = document.getElementById('filterOdontologo').value;
-    const alerta   = document.getElementById('filterAlerta').value;
-    const estado   = document.getElementById('filterEstado').value;
-    pacientesFiltrados = pacientes.filter(p => {
-        const matchQ      = !q || p.nombre.toLowerCase().includes(q) || p.cedula.includes(q) || p.email.toLowerCase().includes(q);
-        const matchOdo    = !odo || p.odontologoKey === odo;
-        const matchAlerta = !alerta || (alerta === 'si' ? p.alerta : !p.alerta);
-        const matchEstado = !estado || p.estado === estado;
-        return matchQ && matchOdo && matchAlerta && matchEstado;
+    document.querySelectorAll('.tab-content').forEach(panel => {
+      const selected = panel.id === `tab-${tabName}`;
+      panel.classList.toggle('active', selected);
+      panel.hidden = !selected;
     });
-    renderTabla(pacientesFiltrados);
-}
+  };
 
-// ── PANEL LATERAL ─────────────────────────────────────────────────────────
-function abrirPanel(id) {
-const p = pacientes.find(x => x.id === id);
-if (!p) return;
-pacienteActivo = p;
-renderTabla(pacientesFiltrados); // resaltar fila activa
-// Header
-document.getElementById('panelNombre').textContent  = p.nombre;
-document.getElementById('panelCedula').textContent  = `CC ${p.cedula}`;
-// Info grid
-document.getElementById('panelInfoGrid').innerHTML = `<div class="info-item"><div class="info-label">Fecha nacimiento</div><div class="info-val">${p.fechaNac}</div></div><div class="info-item"><div class="info-label">Teléfono</div><div class="info-val">${p.telefono}</div></div><div class="info-item"><div class="info-label">Odontólogo</div><div class="info-val">${p.odontologo}</div></div><div class="info-item"><div class="info-label">Estado</div><div class="info-val">${p.estado.charAt(0).toUpperCase() + p.estado.slice(1)}</div></div>`;
-// Alerta
-const alertaEl = document.getElementById('panelAlerta');
-if (p.alerta) {
-alertaEl.style.display = 'flex';
-document.getElementById('panelAlertaTexto').textContent = p.alertaTexto;
-} else {
-alertaEl.style.display = 'none';
-}
-// Consultas
-const cList = document.getElementById('consultasList');
-cList.innerHTML = p.consultas.map(c => `<div class="consulta-item"><div class="consulta-fecha">${c.fecha}</div><div class="consulta-proc">${c.proc}</div><div class="consulta-odo">👨‍️ ${c.odo}</div><div class="consulta-nota">${c.nota}</div></div>`).join('');
-// Tratamientos
-const tList = document.getElementById('tratamientosList');
-tList.innerHTML = p.tratamientos.map(t => `<div class="trat-item"><div class="trat-nombre">${t.nombre}</div><div class="trat-bar-wrap"><div class="trat-bar" style="width:${t.progreso}%"></div></div><div class="trat-meta"><span>${t.progreso}% completado</span><span>${t.sesiones} sesiones</span></div></div>`).join('');
-// Documentos
-const dList = document.getElementById('documentosList');
-dList.innerHTML = p.documentos.map(d => `<div class="doc-item"><div class="doc-icon">${d.tipo === 'pdf' ? '📄' : '️'}</div><div><div class="doc-nombre">${d.nombre}</div><div class="doc-fecha">${d.fecha}</div></div><span class="doc-badge ${d.tipo}">${d.tipo.toUpperCase()}</span></div>`).join('');
-// Activar primera tab
-switchTab('consultas', document.querySelector('.tab-btn'));
-// Abrir panel
-document.getElementById('panelLateral').classList.add('open');
-document.getElementById('panelOverlay').classList.add('open');
-const mainElement = document.querySelector('.main');
-if (mainElement) mainElement.classList.add('panel-open');
-}
+  const renderInfoGrid = patient => {
+    const items = [
+      ['historia_admin.birth_date', patient.fechaNac],
+      ['historia_admin.phone', patient.telefono],
+      ['historia_admin.dentist', patient.odontologo],
+      ['facturacion.status', patient.estado]
+    ];
+    document.getElementById('panelInfoGrid').innerHTML = items.map(([label, value]) => `
+      <div class="info-item">
+        <span class="info-label">${escapeHtml(translate(label))}</span>
+        <span class="info-val">${escapeHtml(value || translate('common.not_available'))}</span>
+      </div>`).join('');
+  };
 
-function cerrarPanel() {
-    pacienteActivo = null;
-    document.getElementById('panelLateral').classList.remove('open');
-    document.getElementById('panelOverlay').classList.remove('open');
-    const mainElement = document.querySelector('.main');
-    if (mainElement) mainElement.classList.remove('panel-open');
-    renderTabla(pacientesFiltrados);
-}
+  const renderConsultations = patient => {
+    document.getElementById('consultasList').innerHTML = patient.consultas.length
+      ? patient.consultas.map(consultation => `
+        <article class="consulta-item">
+          <time class="consulta-fecha">${escapeHtml(consultation.fecha)}</time>
+          <h3 class="consulta-proc">${escapeHtml(consultation.proc)}</h3>
+          <p class="consulta-odo">${escapeHtml(consultation.odo)}</p>
+          <p class="consulta-nota">${escapeHtml(consultation.nota || translate('historia_admin.no_consultation_notes'))}</p>
+        </article>`).join('')
+      : `<div class="empty-state"><h3>${escapeHtml(translate('historia_admin.no_consultations'))}</h3></div>`;
+  };
 
-function toggleMenu(show) {
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('overlay');
-    const hamburger = document.getElementById('hamburger');
-    if (!sidebar || !overlay) return;
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    if (hamburger) hamburger.setAttribute('aria-expanded', String(show));
-    overlay.setAttribute('aria-hidden', String(!show));
-}
+  const renderTreatments = patient => {
+    document.getElementById('tratamientosList').innerHTML = patient.tratamientos.length
+      ? patient.tratamientos.map(treatment => {
+        const progress = Math.min(100, Math.max(0, Number(treatment.progreso) || 0));
+        return `
+          <article class="trat-item">
+            <h3 class="trat-nombre">${escapeHtml(treatment.nombre)}</h3>
+            <div class="trat-bar-wrap" role="progressbar" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">
+              <span class="trat-bar" style="width:${progress}%"></span>
+            </div>
+            <div class="trat-meta"><span>${progress}%</span><span>${escapeHtml(treatment.sesiones)} ${escapeHtml(translate('historia_admin.sessions'))}</span></div>
+          </article>`;
+      }).join('')
+      : `<div class="empty-state"><h3>${escapeHtml(translate('historia_admin.no_treatments'))}</h3></div>`;
+  };
 
-function closeMenu() {
-    toggleMenu(false);
-}
+  const renderDocuments = patient => {
+    document.getElementById('documentosList').innerHTML = patient.documentos.length
+      ? patient.documentos.map(document => {
+        const type = String(document.tipo || '').toLocaleLowerCase();
+        return `
+          <article class="doc-item">
+            <span class="material-symbols-outlined doc-icon" aria-hidden="true">${type === 'pdf' ? 'picture_as_pdf' : 'image'}</span>
+            <span class="doc-details">
+              <span class="doc-nombre">${escapeHtml(document.nombre)}</span>
+              <span class="doc-fecha">${escapeHtml(formatDate(document.fecha))}</span>
+            </span>
+            <span class="doc-badge">${escapeHtml(type.toLocaleUpperCase())}</span>
+          </article>`;
+      }).join('')
+      : `<div class="empty-state"><h3>${escapeHtml(translate('historia_admin.no_documents'))}</h3></div>`;
+  };
 
-function initNavGroups() {
-    const groupHeaders = document.querySelectorAll('.nav-group-header');
-    if (!groupHeaders.length) return;
-
-    groupHeaders.forEach(header => {
-        header.setAttribute('aria-expanded', 'false');
-        header.addEventListener('click', function () {
-            const group = this.closest('.nav-group');
-            if (!group) return;
-            group.classList.toggle('open');
-            this.setAttribute('aria-expanded', String(group.classList.contains('open')));
-        });
-
-        header.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                this.click();
-            }
-        });
+  const refreshLocalizedDates = patient => {
+    patient.fechaNac = formatDate(patient.fechaNacOriginal);
+    patient.ultimaConsulta = formatDate(patient.ultimaConsultaOriginal);
+    patient.consultas.forEach(consultation => {
+      consultation.fecha = formatDate(consultation.fechaOriginal);
     });
+  };
 
-    const activeLink = document.querySelector('.nav-item.active');
-    if (activeLink) {
-        const activeGroup = activeLink.closest('.nav-group');
-        if (activeGroup) {
-            activeGroup.classList.add('open');
-            const header = activeGroup.querySelector('.nav-group-header');
-            if (header) header.setAttribute('aria-expanded', 'true');
-        }
-    }
-}
+  const openPanel = id => {
+    const patient = state.patients.find(item => Number(item.id) === id);
+    if (!patient) return;
+    const panel = document.getElementById('panelLateral');
+    const overlay = document.getElementById('panelOverlay');
+    state.activePatient = patient;
+    state.focusTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    state.bodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
 
-// ── TABS ──────────────────────────────────────────────────────────────────
-function switchTab(tab, btn) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    else document.querySelectorAll('.tab-btn')[0].classList.add('active');
-    const el = document.getElementById(`tab-${tab}`);
-    if (el) el.classList.add('active');
-}
+    document.getElementById('panelNombre').textContent = patient.nombre || '';
+    document.getElementById('panelCedula').textContent = `${patient.tipoDocumento || 'CC'} ${patient.cedula || ''}`.trim();
+    renderInfoGrid(patient);
+    const alert = document.getElementById('panelAlerta');
+    alert.hidden = !patient.alerta;
+    document.getElementById('panelAlertaTexto').textContent = patient.alertaTexto || '';
+    renderConsultations(patient);
+    renderTreatments(patient);
+    renderDocuments(patient);
+    switchTab('consultas');
 
-// ── CONTADORES ─────────────────────────────────────────────────────────────
-function actualizarContadores() {
-    const total = pacientes.length;
-    const hoy = pacientes.filter(p => {
-        const fecha = new Date(p.ultimaConsulta);
-        if (Number.isNaN(fecha.getTime())) return false;
-        const now = new Date();
-        return fecha.getDate() === now.getDate() && fecha.getMonth() === now.getMonth() && fecha.getFullYear() === now.getFullYear();
-    }).length;
-    const alerta = pacientes.filter(p => p.alerta).length;
-    const odoActivos = new Set(pacientes.filter(p => p.estado === 'activo').map(p => p.odontologo)).size;
+    panel.classList.add('open');
+    panel.setAttribute('aria-hidden', 'false');
+    panel.removeAttribute('inert');
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.getElementById('panelClose').focus();
+  };
 
-    const valores = {
-        statTotal: total,
-        statHoy: hoy,
-        statAlerta: alerta,
-        statOdo: odoActivos
+  const closePanel = () => {
+    const panel = document.getElementById('panelLateral');
+    if (panel.getAttribute('aria-hidden') === 'true') return;
+    const patientId = state.activePatient?.id;
+    panel.classList.remove('open');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.setAttribute('inert', '');
+    const overlay = document.getElementById('panelOverlay');
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = state.bodyOverflow;
+    state.activePatient = null;
+    renderTable();
+    const replacementTarget = patientId === undefined
+      ? null
+      : document.querySelector(`#tablaBody button[data-id="${Number(patientId)}"]`);
+    if (replacementTarget) replacementTarget.focus();
+    else if (state.focusTarget?.isConnected) state.focusTarget.focus();
+    state.focusTarget = null;
+  };
+
+  const debounce = (callback, delay) => {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => callback(...args), delay);
+    };
+  };
+
+  const init = () => {
+    const search = document.getElementById('searchInput');
+    const dentist = document.getElementById('filterOdontologo');
+    const alert = document.getElementById('filterAlerta');
+    const status = document.getElementById('filterEstado');
+    const pageSize = document.getElementById('pageSizeSelect');
+    const reloadFromFirstPage = () => {
+      state.currentPage = 1;
+      loadPatients();
     };
 
-    Object.entries(valores).forEach(([id, value]) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.dataset.target = String(value);
-        el.textContent = '0';
+    search.addEventListener('input', debounce(reloadFromFirstPage, 250));
+    [dentist, alert, status].forEach(select => select.addEventListener('change', reloadFromFirstPage));
+    pageSize.addEventListener('change', reloadFromFirstPage);
+    document.getElementById('btnPrev').addEventListener('click', () => {
+      if (state.currentPage > 1) {
+        state.currentPage--;
+        loadPatients();
+      }
     });
-}
-
-function animarContadores() {
-    document.querySelectorAll('.stat-number').forEach(el => {
-        const target = parseInt(el.dataset.target);
-        if (Number.isNaN(target)) return;
-        let current = 0;
-        const step = Math.max(1, Math.ceil(target / 40));
-        const timer = setInterval(() => {
-            current = Math.min(current + step, target);
-            el.textContent = current;
-            if (current >= target) clearInterval(timer);
-        }, 30);
+    document.getElementById('btnNext').addEventListener('click', () => {
+      if (state.currentPage < state.totalPages) {
+        state.currentPage++;
+        loadPatients();
+      }
     });
-}
-
-// ── TOAST ─────────────────────────────────────────────────────────────────
-function showToast(msg) {
-const t = document.getElementById('toast');
-t.textContent = msg;
-t.classList.add('show');
-setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-// ── SIDEBAR MÓVIL ─────────────────────────────────────────────────────────
-function toggleSidebar() {
-document.getElementById('sidebar').classList.toggle('open');
-document.getElementById('overlay').classList.toggle('open');
-}
-
-function closeSidebar() {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('overlay').classList.remove('open');
-}
-
-function inicializarHistoricoAdmin() {
-    const searchInput = document.getElementById('searchInput');
-    const filterOdontologo = document.getElementById('filterOdontologo');
-    const filterAlerta = document.getElementById('filterAlerta');
-    const filterEstado = document.getElementById('filterEstado');
-    const pageSizeSelect = document.getElementById('pageSizeSelect');
-    const btnPrev = document.getElementById('btnPrev');
-    const btnNext = document.getElementById('btnNext');
-    const hamburger = document.getElementById('hamburger');
-    const overlay = document.getElementById('overlay');
-    const panelOverlay = document.getElementById('panelOverlay');
-    const panelClose = document.getElementById('panelClose');
-
-    if (searchInput) searchInput.addEventListener('input', filtrarPacientes);
-    if (filterOdontologo) filterOdontologo.addEventListener('change', filtrarPacientes);
-    if (filterAlerta) filterAlerta.addEventListener('change', filtrarPacientes);
-    if (filterEstado) filterEstado.addEventListener('change', filtrarPacientes);
-    if (pageSizeSelect) pageSizeSelect.addEventListener('change', () => {
-        currentPage = 1;
-        renderTabla(pacientesFiltrados);
+    document.getElementById('tablaBody').addEventListener('click', event => {
+      const button = event.target.closest('button[data-action="view"]');
+      const id = Number(button?.dataset.id);
+      if (button && Number.isSafeInteger(id)) openPanel(id);
     });
-    if (btnPrev) btnPrev.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage -= 1;
-            renderTabla(pacientesFiltrados);
-        }
+    document.getElementById('panelClose').addEventListener('click', closePanel);
+    document.getElementById('panelOverlay').addEventListener('click', closePanel);
+    document.querySelector('.panel-tabs').addEventListener('click', event => {
+      const button = event.target.closest('button[data-tab]');
+      if (button) switchTab(button.dataset.tab);
     });
-    if (btnNext) btnNext.addEventListener('click', () => {
-        if (currentPage < totalPages) {
-            currentPage += 1;
-            renderTabla(pacientesFiltrados);
-        }
+    document.querySelector('.panel-tabs').addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+      const index = tabs.indexOf(document.activeElement);
+      if (index < 0) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0
+        : event.key === 'End' ? tabs.length - 1
+          : (index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+      tabs[next].focus();
+      switchTab(tabs[next].dataset.tab);
     });
-    if (hamburger) hamburger.addEventListener('click', () => toggleMenu(!document.getElementById('sidebar')?.classList.contains('open')));
-    if (overlay) overlay.addEventListener('click', closeMenu);
-    if (panelOverlay) panelOverlay.addEventListener('click', cerrarPanel);
-    if (panelClose) panelClose.addEventListener('click', cerrarPanel);
-    initNavGroups();
-}
+    document.addEventListener('keydown', event => {
+      const panel = document.getElementById('panelLateral');
+      if (panel.getAttribute('aria-hidden') === 'true') return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closePanel();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(panel.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'))
+        .filter(element => !element.hidden && element.getClientRects().length > 0);
+      if (!focusable.length) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+    document.addEventListener('i18n:change', () => {
+      populateDentistFilter();
+      state.patients.forEach(refreshLocalizedDates);
+      renderTable();
+      if (state.activePatient) {
+        renderInfoGrid(state.activePatient);
+        renderConsultations(state.activePatient);
+        renderTreatments(state.activePatient);
+        renderDocuments(state.activePatient);
+      }
+    });
+    loadPatients();
+  };
 
-// ── INIT ──────────────────────────────────────────────────────────────────
-function iniciarHistorialAdmin() {
-    inicializarHistoricoAdmin();
-    cargarPacientes();
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', iniciarHistorialAdmin);
-} else {
-    iniciarHistorialAdmin();
-}
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+})();

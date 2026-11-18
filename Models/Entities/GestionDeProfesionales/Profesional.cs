@@ -57,6 +57,15 @@ namespace SmileTrack_MVC.Models.Entities
         public ICollection<Profesional_Especialidad> Especialidades { get; set; } = [];
 
         [NotMapped]
-        public string NombreProfesional => Usuario != null ? $"{Usuario.Nombre} {Usuario.Apellidos}".Trim() : $"{Nombres} {Apellidos}".Trim();
+        public string NombreProfesional
+        {
+            get
+            {
+                var nombres = Usuario?.Nombre;
+                var apellidos = Usuario?.Apellidos;
+                return $"{(string.IsNullOrWhiteSpace(nombres) ? Nombres : nombres)} " +
+                    $"{(string.IsNullOrWhiteSpace(apellidos) ? Apellidos : apellidos)}".Trim();
+            }
+        }
     }
 }

@@ -26,14 +26,17 @@ namespace SmileTrack_MVC.Services
     {
         private const string MensajeErrorSeguridad =
             "No fue posible completar la operación. Por favor intente nuevamente en unos momentos.";
+        private const string CorreoRedactadoParaLog = "[redacted]";
 
         private const string MensajeCredencialesInvalidas =
             "Correo o contraseña incorrectos";
 
         private const int MaxLoginFailedAttempts = 3;
+        private static readonly TimeSpan DuracionBloqueoLogin =
+            TimeSpan.FromMinutes(15);
 
         private const string MensajeCuentaBloqueada =
-            "Cuenta bloqueada por 3 intentos fallidos. Contacta al administrador para reactivarla.";
+            "La cuenta está temporalmente bloqueada. Intenta de nuevo más tarde.";
 
         private const string MensajeUsuarioNoDisponible =
             "El acceso no está disponible en este momento. Intente nuevamente más tarde.";
@@ -54,8 +57,8 @@ namespace SmileTrack_MVC.Services
 
         private static readonly EmailAddressAttribute ValidadorCorreo = new();
 
-        private static readonly Regex RegexContrasenaRecuperacion = new(
-            @"^(?=.{8,}$)(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).+$",
+        private static readonly Regex RegexContrasenaNueva = new(
+            AuthPasswordPolicy.Pattern,
             RegexOptions.Compiled,
             TimeSpan.FromMilliseconds(500));
 
@@ -106,7 +109,7 @@ namespace SmileTrack_MVC.Services
             string ipCliente = ObtenerIpCliente();
 
             string correoNormalizado =
-                request?.Correo?.Trim() ?? string.Empty;
+                NormalizarCorreoCuenta(request?.Correo);
 
             string rolSolicitado =
                 request?.Rol?.Trim() ?? string.Empty;
@@ -115,7 +118,7 @@ namespace SmileTrack_MVC.Services
             {
                 _logger.LogInformation(
                     "Intento de inicio de sesión recibido. Correo={Correo}, RolSolicitado={Rol}, IpCliente={IpCliente}",
-                    correoNormalizado,
+                    CorreoRedactadoParaLog,
                     rolSolicitado,
                     ipCliente);
 
@@ -134,6 +137,17 @@ namespace SmileTrack_MVC.Services
                     };
                 }
 
+                if (!EsCorreoValido(correoNormalizado) ||
+                    correoNormalizado.Length > 150 ||
+                    request.Contrasena.Length > 100)
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = MensajeCredencialesInvalidas
+                    };
+                }
+
                 Usuario? user;
 
                 try
@@ -142,7 +156,7 @@ namespace SmileTrack_MVC.Services
                         .Include(u => u.Rol)
                         .AsNoTracking()
                         .FirstOrDefaultAsync(
-                            u => u.Correo == request.Correo,
+                            u => u.Correo.ToLower() == correoNormalizado,
                             ct);
                 }
                 catch (SqlException sqlEx)
@@ -150,7 +164,7 @@ namespace SmileTrack_MVC.Services
                     _logger.LogCritical(
                         sqlEx,
                         "Fallo SQL al consultar usuario en Login. Correo={Correo}, Rol={Rol}, IpCliente={IpCliente}, NumeroError={NumError}",
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         rolSolicitado,
                         ipCliente,
                         sqlEx.Number);
@@ -166,7 +180,7 @@ namespace SmileTrack_MVC.Services
                 {
                     _logger.LogWarning(
                         "Login fallido: usuario no encontrado. Correo={Correo}, RolSolicitadoUI={Rol}, IpCliente={IpCliente}",
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         rolSolicitado,
                         ipCliente);
 
@@ -177,26 +191,14 @@ namespace SmileTrack_MVC.Services
                     };
                 }
 
-                if (!string.IsNullOrWhiteSpace(rolSolicitado) &&
-                    !string.Equals(
-                        rolSolicitado,
-                        user.Rol.NombreRol,
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger.LogInformation(
-                        "Login: el usuario seleccionó el rol '{RolSolicitado}' en UI pero su cuenta tiene '{RolReal}'. Se continúa el login con el rol real asignado. IdUsuario={IdUsuario}, Correo={Correo}",
-                        rolSolicitado,
-                        user.Rol.NombreRol,
-                        user.IdUsuario,
-                        correoNormalizado);
-                }
-
-                if (user.IntentosFallidos >= MaxLoginFailedAttempts)
+                DateTime ahoraUtc = DateTime.UtcNow;
+                if (user.BloqueadoHasta.HasValue &&
+                    user.BloqueadoHasta.Value > ahoraUtc)
                 {
                     _logger.LogWarning(
-                        "Login fallido: cuenta bloqueada por intentos fallidos. IdUsuario={IdUsuario}, Correo={Correo}, IpCliente={IpCliente}",
+                        "Login fallido: cuenta temporalmente bloqueada. IdUsuario={IdUsuario}, Correo={Correo}, IpCliente={IpCliente}",
                         user.IdUsuario,
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         ipCliente);
 
                     return new AuthResponse
@@ -204,6 +206,34 @@ namespace SmileTrack_MVC.Services
                         Success = false,
                         Message = MensajeCuentaBloqueada
                     };
+                }
+
+                if (user.IntentosFallidos >= MaxLoginFailedAttempts)
+                {
+                    var usuarioActualizar =
+                        await _context.Usuarios.FindAsync(
+                            new object[] { user.IdUsuario },
+                            ct);
+
+                    if (usuarioActualizar != null)
+                    {
+                        if (!usuarioActualizar.BloqueadoHasta.HasValue)
+                        {
+                            usuarioActualizar.BloqueadoHasta =
+                                ahoraUtc.Add(DuracionBloqueoLogin);
+                            await _context.SaveChangesAsync(ct);
+
+                            return new AuthResponse
+                            {
+                                Success = false,
+                                Message = MensajeCuentaBloqueada
+                            };
+                        }
+
+                        usuarioActualizar.IntentosFallidos = 0;
+                        usuarioActualizar.BloqueadoHasta = null;
+                        await _context.SaveChangesAsync(ct);
+                    }
                 }
 
                 if (!string.Equals(
@@ -214,7 +244,7 @@ namespace SmileTrack_MVC.Services
                     _logger.LogWarning(
                         "Login fallido: usuario inactivo. IdUsuario={IdUsuario}, Correo={Correo}, Estado={Estado}, IpCliente={IpCliente}",
                         user.IdUsuario,
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         user.Estado,
                         ipCliente);
 
@@ -240,7 +270,7 @@ namespace SmileTrack_MVC.Services
                         fEx,
                         "Hash de contraseña inválido en BD para usuario. IdUsuario={IdUsuario}, Correo={Correo}, IpCliente={IpCliente}",
                         user.IdUsuario,
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         ipCliente);
 
                     return new AuthResponse
@@ -279,11 +309,13 @@ namespace SmileTrack_MVC.Services
 
                         if (usuarioActualizar.IntentosFallidos >= MaxLoginFailedAttempts)
                         {
-                            estaBloqueada = true;   // ya no se toca Estado
+                            estaBloqueada = true;
+                            usuarioActualizar.BloqueadoHasta =
+                                DateTime.UtcNow.Add(DuracionBloqueoLogin);
 
                             _logger.LogWarning(
                                 "Cuenta bloqueada por intentos fallidos. IdUsuario={IdUsuario}, Correo={Correo}, IntentosFallidos={IntentosFallidos}, IpCliente={IpCliente}",
-                                user.IdUsuario, correoNormalizado, usuarioActualizar.IntentosFallidos, ipCliente);
+                                user.IdUsuario, CorreoRedactadoParaLog, usuarioActualizar.IntentosFallidos, ipCliente);
                         }
 
                         _context.Usuarios.Update(usuarioActualizar);
@@ -297,7 +329,7 @@ namespace SmileTrack_MVC.Services
                             _logger.LogWarning(
                                 "Login: concurrencia al actualizar intentos fallidos. IdUsuario={IdUsuario}, Correo={Correo}, IpCliente={IpCliente}",
                                 user.IdUsuario,
-                                correoNormalizado,
+                                CorreoRedactadoParaLog,
                                 ipCliente);
                         }
                         catch (SqlException sqlEx)
@@ -313,7 +345,7 @@ namespace SmileTrack_MVC.Services
                     _logger.LogWarning(
                         "Login fallido: contraseña incorrecta. IdUsuario={IdUsuario}, Correo={Correo}, IpCliente={IpCliente}",
                         user.IdUsuario,
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         ipCliente);
 
                     return new AuthResponse
@@ -322,6 +354,25 @@ namespace SmileTrack_MVC.Services
                         Message = estaBloqueada
                             ? MensajeCuentaBloqueada
                             : MensajeCredencialesInvalidas
+                    };
+                }
+
+                if (!string.IsNullOrWhiteSpace(rolSolicitado) &&
+                    !string.Equals(
+                        rolSolicitado,
+                        user.Rol.NombreRol,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning(
+                        "Login fallido: el rol seleccionado no coincide con el rol de la cuenta. IdUsuario={IdUsuario}, Correo={Correo}, IpCliente={IpCliente}",
+                        user.IdUsuario,
+                        CorreoRedactadoParaLog,
+                        ipCliente);
+
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = MensajeCredencialesInvalidas
                     };
                 }
 
@@ -334,6 +385,7 @@ namespace SmileTrack_MVC.Services
                 {
                     usuarioLogin.UltimoLogin = DateTime.UtcNow;
                     usuarioLogin.IntentosFallidos = 0;
+                    usuarioLogin.BloqueadoHasta = null;
 
                     _context.Usuarios.Update(usuarioLogin);
 
@@ -346,7 +398,7 @@ namespace SmileTrack_MVC.Services
                         _logger.LogWarning(
                             "Login: concurrencia al actualizar UltimoLogin. IdUsuario={IdUsuario}, Correo={Correo}, IpCliente={IpCliente}",
                             user.IdUsuario,
-                            correoNormalizado,
+                            CorreoRedactadoParaLog,
                             ipCliente);
                     }
                     catch (SqlException sqlEx)
@@ -376,7 +428,7 @@ namespace SmileTrack_MVC.Services
                 _logger.LogInformation(
                     "Inicio de sesión exitoso. IdUsuario={IdUsuario}, Correo={Correo}, Rol={Rol}, IpCliente={IpCliente}",
                     user.IdUsuario,
-                    correoNormalizado,
+                    CorreoRedactadoParaLog,
                     user.Rol.NombreRol,
                     ipCliente);
 
@@ -392,7 +444,7 @@ namespace SmileTrack_MVC.Services
             {
                 _logger.LogWarning(
                     "Login cancelado por el cliente. Correo={Correo}, IpCliente={IpCliente}",
-                    correoNormalizado,
+                    CorreoRedactadoParaLog,
                     ipCliente);
 
                 return new AuthResponse
@@ -406,7 +458,7 @@ namespace SmileTrack_MVC.Services
                 _logger.LogWarning(
                     argEx,
                     "Parámetro inválido en Login. Correo={Correo}, IpCliente={IpCliente}",
-                    correoNormalizado,
+                    CorreoRedactadoParaLog,
                     ipCliente);
 
                 return new AuthResponse
@@ -420,7 +472,7 @@ namespace SmileTrack_MVC.Services
                 _logger.LogError(
                     ex,
                     "Error inesperado en LoginAsync. Correo={Correo}, IpCliente={IpCliente}",
-                    correoNormalizado,
+                    CorreoRedactadoParaLog,
                     ipCliente);
 
                 return new AuthResponse
@@ -442,13 +494,13 @@ namespace SmileTrack_MVC.Services
             string ipCliente = ObtenerIpCliente();
 
             string correoNormalizado =
-                request?.Correo?.Trim() ?? string.Empty;
+                NormalizarCorreoCuenta(request?.Correo);
 
             try
             {
                 _logger.LogInformation(
                     "Intento de registro recibido. Correo={Correo}, IpCliente={IpCliente}",
-                    correoNormalizado,
+                    CorreoRedactadoParaLog,
                     ipCliente);
 
                 if (request is null)
@@ -462,12 +514,40 @@ namespace SmileTrack_MVC.Services
 
                 if (string.IsNullOrWhiteSpace(request.Correo) ||
                     string.IsNullOrWhiteSpace(request.Contrasena) ||
-                    string.IsNullOrWhiteSpace(request.Nombre))
+                    string.IsNullOrWhiteSpace(request.Nombre) ||
+                    string.IsNullOrWhiteSpace(request.Apellidos) ||
+                    string.IsNullOrWhiteSpace(request.ConfirmarContrasena) ||
+                    string.IsNullOrWhiteSpace(request.Telefono))
                 {
                     return new AuthResponse
                     {
                         Success = false,
                         Message = "Todos los campos son obligatorios."
+                    };
+                }
+
+                if (!EsCorreoValido(correoNormalizado) ||
+                    correoNormalizado.Length > 150 ||
+                    request.Nombre.Trim().Length > 100 ||
+                    request.Apellidos.Trim().Length > 100 ||
+                    request.Telefono.Trim().Length > 20)
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "Verifica los datos ingresados."
+                    };
+                }
+
+                if (!string.Equals(
+                        request.Contrasena,
+                        request.ConfirmarContrasena,
+                        StringComparison.Ordinal))
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "Las contraseñas no coinciden."
                     };
                 }
 
@@ -481,26 +561,69 @@ namespace SmileTrack_MVC.Services
                     };
                 }
 
-                if (!Regex.IsMatch(
-                        request.Contrasena,
-                        @"^(?=.{8,}).+$",
-                        RegexOptions.None,
-                        TimeSpan.FromMilliseconds(500)))
+                if (!request.AceptaTratamientoDatos)
                 {
                     return new AuthResponse
                     {
                         Success = false,
-                        Message = "La contraseña debe tener al menos 8 caracteres."
+                        Message = "Debes autorizar el tratamiento de datos para crear tu cuenta."
                     };
                 }
 
-                bool existeCorreo;
+                string tipoDocumento = request.TipoDocumento.Trim().ToUpperInvariant();
+                string numeroDocumento = request.NumeroDocumento.Trim().ToUpperInvariant();
+                if (tipoDocumento is not ("CC" or "TI" or "CE" or "PAS"))
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "El tipo de documento no es válido."
+                    };
+                }
+
+                string patronDocumento = tipoDocumento == "PAS"
+                    ? "^[A-Z0-9]{5,20}$"
+                    : "^[0-9]{7,15}$";
+                if (!Regex.IsMatch(numeroDocumento, patronDocumento))
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "El documento no es válido para el tipo seleccionado."
+                    };
+                }
+
+                if (!request.FechaNacimiento.HasValue ||
+                    request.FechaNacimiento.Value.Date < new DateTime(1900, 1, 1) ||
+                    request.FechaNacimiento.Value.Date > DateTime.UtcNow.Date)
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = "Ingresa una fecha de nacimiento válida."
+                    };
+                }
+
+                if (!RegexContrasenaNueva.IsMatch(request.Contrasena))
+                {
+                    return new AuthResponse
+                    {
+                        Success = false,
+                        Message = AuthPasswordPolicy.ErrorMessage
+                    };
+                }
+
+                bool existeCuenta;
 
                 try
                 {
-                    existeCorreo =
+                    existeCuenta =
                         await _context.Usuarios.AnyAsync(
-                            u => u.Correo == request.Correo,
+                            u => u.Correo.ToLower() == correoNormalizado,
+                            ct) ||
+                        await _context.Pacientes.AnyAsync(
+                            p => p.TipoDocumento.ToUpper() == tipoDocumento &&
+                                 p.Documento.ToUpper() == numeroDocumento,
                             ct);
                 }
                 catch (SqlException sqlEx)
@@ -508,7 +631,7 @@ namespace SmileTrack_MVC.Services
                     _logger.LogCritical(
                         sqlEx,
                         "Fallo SQL al verificar correo duplicado. Correo={Correo}, IpCliente={IpCliente}, NumError={NumError}",
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         ipCliente,
                         sqlEx.Number);
 
@@ -519,12 +642,12 @@ namespace SmileTrack_MVC.Services
                     };
                 }
 
-                if (existeCorreo)
+                if (existeCuenta)
                 {
                     return new AuthResponse
                     {
                         Success = false,
-                        Message = "El correo ya se encuentra registrado en el sistema."
+                        Message = "El correo o documento ya se encuentran registrados."
                     };
                 }
 
@@ -569,7 +692,7 @@ namespace SmileTrack_MVC.Services
                     _logger.LogError(
                         bcEx,
                         "Error al generar hash BCrypt. Correo={Correo}, IpCliente={IpCliente}",
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         ipCliente);
 
                     return new AuthResponse
@@ -583,10 +706,11 @@ namespace SmileTrack_MVC.Services
                 {
                     Nombre = firstName,
                     Apellidos = lastName,
-                    Correo = request.Correo,
+                    Correo = correoNormalizado,
                     Contrasena = hashContrasena,
                     IdRol = role.IdRol,
                     Estado = "activo",
+                    FechaNacimiento = request.FechaNacimiento.Value.Date,
                     FechaCreacion = DateTime.UtcNow
                 };
 
@@ -610,17 +734,9 @@ namespace SmileTrack_MVC.Services
                         {
                             IdUsuario = newUser.IdUsuario,
 
-                            TipoDocumento =
-                                string.IsNullOrWhiteSpace(
-                                    request.TipoDocumento)
-                                    ? "CC"
-                                    : request.TipoDocumento,
+                            TipoDocumento = tipoDocumento,
 
-                            Documento =
-                                string.IsNullOrWhiteSpace(
-                                    request.NumeroDocumento)
-                                    ? "TEMP" + newUser.IdUsuario
-                                    : request.NumeroDocumento,
+                            Documento = numeroDocumento,
 
                             Nombres = firstName,
 
@@ -630,10 +746,10 @@ namespace SmileTrack_MVC.Services
                                     : lastName,
 
                             FechaNacimiento =
-                                DateTime.UtcNow.AddYears(-20).Date,
+                                request.FechaNacimiento.Value.Date,
 
-                            Correo = request.Correo,
-                            Telefono = request.Telefono,
+                            Correo = correoNormalizado,
+                            Telefono = request.Telefono.Trim(),
                             Estado = "activo",
                             FechaRegistro = DateTime.UtcNow.Date
                         };
@@ -642,6 +758,19 @@ namespace SmileTrack_MVC.Services
 
                         await _context.SaveChangesAsync(ct);
                     }
+
+                    // Yeray: Conserva evidencia de quién aceptó, cuándo, desde qué IP y qué versión legal se mostró.
+                    _context.Auditorias.Add(new Auditoria
+                    {
+                        IdUsuario = newUser.IdUsuario,
+                        TablaAfectada = "Autorizacion_Tratamiento_Datos",
+                        IdRegistro = newUser.IdUsuario,
+                        Accion = "INSERT",
+                        IpOrigen = ipCliente,
+                        Descripcion = "Aceptación de tratamiento de datos personales y sensibles; versión 1.0, noviembre de 2026.",
+                        Fecha = DateTime.UtcNow
+                    });
+                    await _context.SaveChangesAsync(ct);
 
                     await tx.CommitAsync(ct);
                     return (AuthResponse?)null;
@@ -671,7 +800,7 @@ namespace SmileTrack_MVC.Services
                     _logger.LogWarning(
                         concEx,
                         "Registro: conflicto concurrencia. Correo={Correo}, IpCliente={IpCliente}",
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         ipCliente);
 
                     return new AuthResponse
@@ -687,7 +816,7 @@ namespace SmileTrack_MVC.Services
                     _logger.LogCritical(
                         sqlEx,
                         "Registro fallido SQL. Correo={Correo}, NumeroError={NumError}, IpCliente={IpCliente}",
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         sqlEx.Number,
                         ipCliente);
 
@@ -704,7 +833,7 @@ namespace SmileTrack_MVC.Services
                     _logger.LogError(
                         innerEx,
                         "Registro fallido. Correo={Correo}, IpCliente={IpCliente}",
-                        correoNormalizado,
+                        CorreoRedactadoParaLog,
                         ipCliente);
 
                     return new AuthResponse
@@ -764,7 +893,7 @@ namespace SmileTrack_MVC.Services
                 _logger.LogError(
                     ex,
                     "Error inesperado en RegisterAsync. Correo={Correo}, IpCliente={IpCliente}",
-                    correoNormalizado,
+                    CorreoRedactadoParaLog,
                     ipCliente);
 
                 return new AuthResponse
@@ -811,7 +940,7 @@ namespace SmileTrack_MVC.Services
 
                 var user =
                     await _context.Usuarios.FirstOrDefaultAsync(
-                        u => u.Correo == correoNormalizado,
+                        u => u.Correo.ToLower() == correoNormalizado,
                         ct);
 
                 if (user == null)
@@ -923,7 +1052,7 @@ namespace SmileTrack_MVC.Services
                         mailEx,
                         "Fallo envío de correo de recuperación. IdUsuario={IdUsuario}, Correo={Correo}",
                         user.IdUsuario,
-                        correoNormalizado);
+                        CorreoRedactadoParaLog);
 
                     await RegistrarAuditoriaRecuperacionAsync(
                         user.IdUsuario,
@@ -966,7 +1095,7 @@ namespace SmileTrack_MVC.Services
                 _logger.LogError(
                     ex,
                     "Error inesperado en RecoverPasswordAsync. Correo={Correo}",
-                    correoNormalizado);
+                    CorreoRedactadoParaLog);
 
                 return new AuthResponse
                 {
@@ -1030,7 +1159,7 @@ namespace SmileTrack_MVC.Services
                 var user =
                     await _context.Usuarios
                         .FirstOrDefaultAsync(
-                            u => u.Correo == correoNormalizado,
+                            u => u.Correo.ToLower() == correoNormalizado,
                             ct);
 
                 if (user == null)
@@ -1172,7 +1301,7 @@ namespace SmileTrack_MVC.Services
                 _logger.LogError(
                     ex,
                     "Error inesperado en VerifyRecoveryCodeAsync. Correo={Correo}",
-                    correoNormalizado);
+                    CorreoRedactadoParaLog);
 
                 return new AuthResponse
                 {
@@ -1222,14 +1351,13 @@ namespace SmileTrack_MVC.Services
                     };
                 }
 
-                if (!RegexContrasenaRecuperacion.IsMatch(
+                if (!RegexContrasenaNueva.IsMatch(
                         request.NuevaContrasena))
                 {
                     return new AuthResponse
                     {
                         Success = false,
-                        Message =
-                            "La nueva contraseña debe tener al menos 8 caracteres e incluir una letra, un número y un símbolo."
+                        Message = AuthPasswordPolicy.ErrorMessage
                     };
                 }
 
@@ -1319,6 +1447,8 @@ namespace SmileTrack_MVC.Services
                 user.CodigoRecuperacion = null;
                 user.FechaExpiracionCodigo = null;
                 user.IntentosFallidos = 0;
+                user.BloqueadoHasta = null;
+                user.UltimoLogout = DateTime.UtcNow;
 
                 codigoRecuperacion.Usado = true;
 
@@ -1371,7 +1501,7 @@ namespace SmileTrack_MVC.Services
                 _logger.LogInformation(
                     "Contraseña restablecida exitosamente. IdUsuario={IdUsuario}, Correo={Correo}, IpCliente={IpCliente}",
                     user.IdUsuario,
-                    user.Correo,
+                    CorreoRedactadoParaLog,
                     ipCliente);
 
                 return new AuthResponse
@@ -1423,7 +1553,12 @@ namespace SmileTrack_MVC.Services
 
         private static string NormalizarCorreo(string? correo)
         {
-            return correo?.Trim() ?? string.Empty;
+            return NormalizarCorreoCuenta(correo);
+        }
+
+        private static string NormalizarCorreoCuenta(string? correo)
+        {
+            return correo?.Trim().ToLowerInvariant() ?? string.Empty;
         }
 
         private static bool EsCorreoValido(string correo)
@@ -1557,13 +1692,12 @@ namespace SmileTrack_MVC.Services
                     };
                 }
 
-                if (request.NuevaContrasena.Length < 8)
+                if (!RegexContrasenaNueva.IsMatch(request.NuevaContrasena))
                 {
                     return new AuthResponse
                     {
                         Success = false,
-                        Message =
-                            "La nueva contraseña debe tener al menos 8 caracteres."
+                        Message = AuthPasswordPolicy.ErrorMessage
                     };
                 }
 
@@ -1707,6 +1841,8 @@ namespace SmileTrack_MVC.Services
                 // Si existieran intentos fallidos acumulados,
                 // se reinician al cambiar correctamente la contraseña.
                 user.IntentosFallidos = 0;
+                user.BloqueadoHasta = null;
+                user.UltimoLogout = DateTime.UtcNow;
 
                 _context.Usuarios.Update(user);
 
@@ -1964,7 +2100,7 @@ namespace SmileTrack_MVC.Services
                 _logger.LogCritical(
                     ex,
                     "Error generando JWT. Correo={Correo}, Rol={Rol}",
-                    correo,
+                    CorreoRedactadoParaLog,
                     rol);
 
                 throw new InvalidOperationException(

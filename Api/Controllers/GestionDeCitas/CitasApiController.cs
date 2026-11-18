@@ -26,9 +26,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Exceptions;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api;
 using SmileTrack_MVC.Models.DTOs;
@@ -36,6 +39,7 @@ using SmileTrack_MVC.Models.DTOs.GestionDeCitas;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.Perfiles;
 using SmileTrack_MVC.Services.Email;
 using System.Security.Claims;
 
@@ -77,13 +81,23 @@ public sealed class CitasApiController : ControllerBase
     private readonly ILogger<CitasApiController> _logger;
     private readonly IEmailService _emailService;
     private readonly ICitaService _citaService;
+    private readonly IMemoryCache _memoryCache;
+    private readonly IPerfilPacienteService _perfilPacienteService;
 
-    public CitasApiController(AppDbContext context, ILogger<CitasApiController> logger, IEmailService emailService, ICitaService citaService)
+    public CitasApiController(
+        AppDbContext context,
+        ILogger<CitasApiController> logger,
+        IEmailService emailService,
+        ICitaService citaService,
+        IMemoryCache memoryCache,
+        IPerfilPacienteService perfilPacienteService)
     {
         _context = context;
         _logger = logger;
         _emailService = emailService;
         _citaService = citaService;
+        _memoryCache = memoryCache;
+        _perfilPacienteService = perfilPacienteService;
     }
 
     [HttpGet]
@@ -114,9 +128,15 @@ public sealed class CitasApiController : ControllerBase
         if (User.IsInRole("Paciente"))
         {
             role = "Paciente";
-            if (!int.TryParse(User.FindFirstValue("IdPaciente"), out int value) || value <= 0)
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
                 return Forbid();
-            idPaciente = value;
+
+            idPaciente = await _context.Pacientes
+                .Where(p => p.IdUsuario == userId)
+                .Select(p => (int?)p.IdPaciente)
+                .FirstOrDefaultAsync(ct);
+            if (idPaciente is not > 0)
+                return Forbid();
         }
         else if (User.IsInRole("Profesional"))
         {
@@ -176,7 +196,7 @@ public sealed class CitasApiController : ControllerBase
         var cita = await _citaService.ObtenerPorIdAsync(id, ct);
         if (cita is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
-        if (!TieneOwnership(cita))
+        if (!await TieneOwnershipAsync(cita, ct))
             return Forbid();
 
         int duracion = await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
@@ -270,13 +290,19 @@ public sealed class CitasApiController : ControllerBase
                 }, ct, ObtenerIdUsuarioActor()) ?? throw new InvalidOperationException("La cita no existe.")
                 : await _citaService.CrearAsync(request, ct, ObtenerIdUsuarioActor());
 
-            int duracion = await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+            // La duración ya está en la entidad Cita devuelta por CrearAsync/ActualizarAsync.
+            // No hace falta una query adicional a ConfiguracionGeneral.
+            int duracion = cita.DuracionMinutos > 0 ? cita.DuracionMinutos : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
             await RegistrarAuditoriaAsync(updating ? "UPDATE" : "INSERT", cita.IdCita, "Cita guardada desde Agenda.", ct);
             return Ok(new { success = true, message = updating ? "Cita actualizada exitosamente." : "Cita agendada exitosamente.", id = cita.IdCita, idEstado = cita.IdEstado, estado = cita.Estado, updated = updating, duracionMinutos = duracion });
         }
+        catch (CitaConflictException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
-            return EsConflicto(ex.Message) ? Conflict(new { success = false, message = ex.Message }) : BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
@@ -292,7 +318,7 @@ public sealed class CitasApiController : ControllerBase
         var existente = await _citaService.ObtenerPorIdAsync(id, ct);
         if (existente is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
-        if (!TieneOwnership(existente))
+        if (!await TieneOwnershipAsync(existente, ct))
             return Forbid();
 
         try
@@ -304,12 +330,17 @@ public sealed class CitasApiController : ControllerBase
             await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita actualizada mediante API.", ct);
             return Ok(new { success = true, message = "Cita actualizada exitosamente.", id = actualizada.IdCita, idEstado = actualizada.IdEstado, estado = actualizada.Estado, duracionMinutos = duracion });
         }
+        catch (CitaConflictException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
-            return EsConflicto(ex.Message) ? Conflict(new { success = false, message = ex.Message }) : BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
+    [EnableRateLimiting("CitaSolicitud")]
     [HttpPost]
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
@@ -319,25 +350,104 @@ public sealed class CitasApiController : ControllerBase
         if (dto is null || !ModelState.IsValid)
             return BadRequest(new { success = false, message = "Datos de solicitud inválidos." });
 
-        if (!int.TryParse(User.FindFirstValue("IdPaciente"), out int idPaciente) || idPaciente <= 0)
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ||
+            !await _perfilPacienteService.PerfilCompletoAsync(idUsuario, ct))
+        {
+            return Conflict(new
+            {
+                success = false,
+                code = "PROFILE_INCOMPLETE",
+                message = "Confirma tus datos personales antes de solicitar una cita.",
+                profileUrl = "/perfiles/st-pac-perfil-paciente"
+            });
+        }
+
+        int? idPaciente = await _context.Pacientes
+            .Where(p => p.IdUsuario == idUsuario)
+            .Select(p => (int?)p.IdPaciente)
+            .FirstOrDefaultAsync(ct);
+        if (idPaciente is not > 0)
             return Forbid();
 
         try
         {
-            var cita = await _citaService.SolicitarCitaPacienteAsync(idPaciente, dto, ct, ObtenerIdUsuarioActor());
-            await RegistrarAuditoriaAsync("INSERT", cita.IdCita, "Solicitud de cita creada por paciente.", ct);
+            var cita = await _citaService.AgendarCitaPacienteAsync(idPaciente.Value, dto, ct);
+            await RegistrarAuditoriaAsync("INSERT", cita.IdCita, "Cita programada por el paciente.", ct);
             return StatusCode(StatusCodes.Status201Created, new
             {
                 success = true,
-                message = "Solicitud de cita enviada exitosamente. La clínica revisará y confirmará tu cita en breve.",
+                message = "Cita agendada exitosamente.",
                 id = cita.IdCita,
                 estado = cita.Estado
             });
         }
         catch (InvalidOperationException ex)
         {
+            if (ex.Message.Contains("horario", StringComparison.OrdinalIgnoreCase))
+            {
+                var horariosDisponibles = await _citaService.ObtenerHorariosDisponiblesPacienteAsync(
+                    idPaciente.Value,
+                    dto.IdServicio!.Value,
+                    dto.IdProfesional!.Value,
+                    dto.Fecha,
+                    ct);
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                    data = horariosDisponibles.Select(hora => hora.ToString(@"hh\:mm"))
+                });
+            }
             return BadRequest(new { success = false, message = ex.Message });
         }
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
+    [Route("api/citas/profesionales-por-servicio")]
+    public async Task<IActionResult> ObtenerProfesionalesPorServicio(
+        [FromQuery] int idServicio,
+        CancellationToken ct = default)
+    {
+        var profesionales = await _citaService.ObtenerProfesionalesPorServicioAsync(idServicio, ct);
+        return Ok(new { success = true, data = profesionales });
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
+    [Route("api/citas/horarios-disponibles")]
+    public async Task<IActionResult> ObtenerHorariosDisponiblesPaciente(
+        [FromQuery] DateTime fecha,
+        [FromQuery] int idServicio,
+        [FromQuery] int idProfesional,
+        CancellationToken ct = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ||
+            !await _perfilPacienteService.PerfilCompletoAsync(idUsuario, ct))
+        {
+            return Conflict(new
+            {
+                success = false,
+                code = "PROFILE_INCOMPLETE",
+                message = "Confirma tus datos personales antes de agendar una cita.",
+                profileUrl = "/perfiles/st-pac-perfil-paciente"
+            });
+        }
+
+        int? idPaciente = await _context.Pacientes
+            .Where(p => p.IdUsuario == idUsuario)
+            .Select(p => (int?)p.IdPaciente)
+            .FirstOrDefaultAsync(ct);
+        if (idPaciente is not > 0)
+            return Forbid();
+
+        var horarios = await _citaService.ObtenerHorariosDisponiblesPacienteAsync(
+            idPaciente.Value, idServicio, idProfesional, fecha, ct);
+        return Ok(new
+        {
+            success = true,
+            data = horarios.Select(hora => hora.ToString(@"hh\:mm"))
+        });
     }
 
     [HttpGet]
@@ -424,8 +534,7 @@ public sealed class CitasApiController : ControllerBase
     }
 
     // GET /api/citas/kpis?fecha=YYYY-MM-DD
-    // M5 (RF-27): Endpoint de KPIs para polling periódico desde el dashboard.
-    // Permite que el cliente actualice los indicadores sin recargar la página.
+    // Devuelve los KPIs de gestión de citas para clientes que consultan métricas por período.
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
     [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
@@ -434,11 +543,11 @@ public sealed class CitasApiController : ControllerBase
         [FromQuery] DateTime? fecha = null,
         CancellationToken ct = default)
     {
-        var fechaRef = fecha?.Date ?? DateTime.Today;
+        var fechaRef = fecha?.Date ?? ColombiaClock.Today;
         try
         {
             var kpis = await _citaService.ObtenerKpisGestionAsync(fechaRef, ct);
-            return Ok(new { success = true, data = kpis, generadoEn = DateTime.Now });
+            return Ok(new { success = true, data = kpis, generadoEn = ColombiaClock.Now });
         }
         catch (Exception ex)
         {
@@ -462,7 +571,30 @@ public sealed class CitasApiController : ControllerBase
             return BadRequest(new { success = false, message = "Formato de hora inválido. Debe ser HH:mm." });
         }
 
-        int duracion = duracionMinutos is > 0 ? duracionMinutos.Value : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+        int duracion;
+        if (idServicio is > 0)
+        {
+            var duracionServicio = await _context.Servicios
+                .AsNoTracking()
+                .Where(s => s.IdServicio == idServicio.Value &&
+                            s.Estado.Trim().ToLower() == "activo")
+                .Select(s => (int?)s.DuracionMinutos)
+                .FirstOrDefaultAsync(ct);
+
+            if (!duracionServicio.HasValue)
+                return BadRequest(new { success = false, message = "El servicio seleccionado no está disponible." });
+
+            duracion = duracionServicio.Value > 0
+                ? duracionServicio.Value
+                : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+        }
+        else
+        {
+            duracion = duracionMinutos is > 0
+                ? duracionMinutos.Value
+                : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
+        }
+
         var profesionales = await _citaService.ObtenerProfesionalesDisponiblesAsync(fecha, tsHora, duracion, idServicio, ct);
 
         return Ok(new { success = true, data = profesionales });
@@ -495,12 +627,59 @@ public sealed class CitasApiController : ControllerBase
                 fechaHora = cita.FechaHora
             });
         }
+        catch (CitaConflictException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
-            return EsConflicto(ex.Message) ? Conflict(new { success = false, message = ex.Message }) : BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
+    [HttpPost]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
+    [Route("api/citas/{id:int}/rechazar-solicitud")]
+    public async Task<IActionResult> RechazarSolicitud(
+        int id,
+        [FromBody] CitaRechazoSolicitudDto dto,
+        CancellationToken ct = default)
+    {
+        if (id <= 0 || dto is null || !ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Indica un motivo válido para rechazar la solicitud." });
+
+        try
+        {
+            int? actorId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId)
+                ? userId
+                : null;
+            var cita = await _citaService.RechazarSolicitudAsync(id, dto.Motivo, actorId, ct);
+            if (cita is null)
+                return NotFound(new { success = false, message = "La solicitud no existe." });
+
+            await RegistrarAuditoriaAsync(
+                "UPDATE",
+                cita.IdCita,
+                $"Solicitud de cita rechazada. Motivo: {dto.Motivo.Trim()}",
+                new { EstadoAnterior = "Solicitada" },
+                new { EstadoNuevo = cita.Estado },
+                ct);
+            return Ok(new
+            {
+                success = true,
+                id = cita.IdCita,
+                estado = cita.Estado,
+                message = "Solicitud rechazada y paciente notificado."
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [EnableRateLimiting("RecordatoriosEnvio")]
     [HttpPost]
     [CookieAwareValidateAntiforgeryToken]
     [Authorize(Roles = "Administrador,Recepcionista", Policy = "ApiOrCookie")]
@@ -510,12 +689,13 @@ public sealed class CitasApiController : ControllerBase
         if (dto is null || !ModelState.IsValid || dto.IdsCitas == null || dto.IdsCitas.Count == 0)
             return BadRequest(new { success = false, message = "Debe seleccionar al menos una cita para enviar recordatorios." });
 
-        var (enviados, fallidos) = await _citaService.EnviarRecordatoriosAsync(dto.IdsCitas, dto.MensajePersonalizado, ct);
+        var (enviados, fallidos, idsEnviados) = await _citaService.EnviarRecordatoriosAsync(dto.IdsCitas, dto.MensajePersonalizado, ct);
         return Ok(new
         {
             success = true,
             enviados,
             fallidos,
+            idsEnviados,
             message = enviados > 0
                 ? $"Se enviaron {enviados} recordatorio(s) exitosamente por correo electrónico."
                 : "No fue posible enviar recordatorios (verifique que los pacientes tengan correo registrado)."
@@ -532,17 +712,24 @@ public sealed class CitasApiController : ControllerBase
     [Route("api/servicios")]
     public async Task<IActionResult> ObtenerServicios(CancellationToken ct = default)
     {
-        var servicios = await _context.Servicios
-            .Where(s => s.Estado == "activo" || string.IsNullOrEmpty(s.Estado))
-            .OrderBy(s => s.Nombre)
-            .Select(s => new
+        var servicios = await _memoryCache.GetOrCreateAsync(
+            CatalogCacheKeys.ServiciosApi,
+            async entry =>
             {
-                idServicio = s.IdServicio,
-                nombre = s.Nombre,
-                descripcion = s.Descripcion,
-                precio = s.Precio
-            })
-            .ToListAsync(ct);
+                entry.SlidingExpiration = CatalogCacheKeys.SlidingExpiration;
+                return await _context.Servicios
+                    .AsNoTracking()
+                    .Where(s => s.Estado == "activo" || string.IsNullOrEmpty(s.Estado))
+                    .OrderBy(s => s.Nombre)
+                    .Select(s => new
+                    {
+                        idServicio = s.IdServicio,
+                        nombre = s.Nombre,
+                        descripcion = s.Descripcion,
+                        precio = s.Precio
+                    })
+                    .ToListAsync(ct);
+            });
 
         return Ok(new { success = true, data = servicios });
     }
@@ -591,10 +778,10 @@ public sealed class CitasApiController : ControllerBase
         var cita = await _citaService.ObtenerPorIdAsync(id, ct);
         if (cita is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
-        if (!TieneOwnership(cita))
+        if (!await TieneOwnershipAsync(cita, ct))
             return Forbid();
 
-        if (dto.FechaHora < DateTime.Now.AddMinutes(-5))
+        if (dto.FechaHora < ColombiaClock.Now.AddMinutes(-5))
             return BadRequest(new { success = false, message = "La nueva fecha y hora no pueden estar en el pasado." });
 
         try
@@ -616,13 +803,15 @@ public sealed class CitasApiController : ControllerBase
                 return NotFound(new { success = false, message = "Cita no encontrada." });
 
             await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita reagendada desde la agenda.", ct);
-            return Ok(new { success = true, id = actualizada.IdCita, fechaHora = actualizada.FechaHora });
+            return Ok(new { success = true, message = "Cita reagendada correctamente.", id = actualizada.IdCita, fechaHora = actualizada.FechaHora });
+        }
+        catch (CitaConflictException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
-            return EsConflicto(ex.Message)
-                ? Conflict(new { success = false, message = ex.Message })
-                : BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
@@ -694,8 +883,11 @@ public sealed class CitasApiController : ControllerBase
         if (id <= 0)
             return BadRequest(new { success = false, message = "Identificador de cita inválido." });
 
-        if (!await _context.Citas.AsNoTracking().AnyAsync(c => c.IdCita == id, ct))
+        var cita = await _context.Citas.AsNoTracking().FirstOrDefaultAsync(c => c.IdCita == id, ct);
+        if (cita is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
+        if (User.IsInRole("Profesional") && !EsProfesionalPropietario(cita))
+            return Forbid();
 
         var asistencia = await _context.AsistenciasProcedimiento.AsNoTracking()
             .FirstOrDefaultAsync(a => a.IdCita == id, ct);
@@ -727,8 +919,11 @@ public sealed class CitasApiController : ControllerBase
         if (id <= 0 || request is null || !ModelState.IsValid)
             return BadRequest(new { success = false, message = "Datos de asistencia inválidos." });
 
-        if (!await _context.Citas.AnyAsync(c => c.IdCita == id, ct))
+        var cita = await _context.Citas.AsNoTracking().FirstOrDefaultAsync(c => c.IdCita == id, ct);
+        if (cita is null)
             return NotFound(new { success = false, message = "Cita no encontrada." });
+        if (User.IsInRole("Profesional") && !EsProfesionalPropietario(cita))
+            return Forbid();
 
         var asistencia = await _context.AsistenciasProcedimiento
             .FirstOrDefaultAsync(a => a.IdCita == id, ct);
@@ -742,12 +937,12 @@ public sealed class CitasApiController : ControllerBase
         if (request.Inicio.HasValue)
             asistencia.Inicio = request.Inicio.Value;
         else if (asistencia.Inicio == default)
-            asistencia.Inicio = DateTime.UtcNow;
+            asistencia.Inicio = ColombiaClock.Now;
         asistencia.Limpieza = request.Limpieza;
         asistencia.Esterilizacion = request.Esterilizacion;
         asistencia.Equipos = request.Equipos;
         asistencia.ActualizadoPor = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId) ? userId : null;
-        asistencia.ActualizadoEn = DateTime.UtcNow;
+        asistencia.ActualizadoEn = ColombiaClock.Now;
         await _context.SaveChangesAsync(ct);
 
         return Ok(new { success = true, message = "Asistencia del procedimiento guardada.", data = new AsistenciaProcedimientoApiDto
@@ -795,7 +990,7 @@ public sealed class CitasApiController : ControllerBase
         if (User.IsInRole("Profesional") && !EsProfesionalPropietario(cita))
             return Forbid();
 
-        if (User.IsInRole("Paciente") && !EsPacientePropietario(cita))
+        if (User.IsInRole("Paciente") && !await EsPacientePropietarioAsync(cita, ct))
             return Forbid();
 
         if (!User.IsInRole("Paciente") &&
@@ -827,10 +1022,23 @@ public sealed class CitasApiController : ControllerBase
     }
 
     private int? ObtenerIdUsuarioActor() => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ? idUsuario : null;
-    private bool TieneOwnership(Cita cita) => User.IsInRole("Administrador") || User.IsInRole("Recepcionista") || (User.IsInRole("Paciente") && EsPacientePropietario(cita)) || (User.IsInRole("Profesional") && EsProfesionalPropietario(cita));
-    private bool EsPacientePropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdPaciente"), out int id) && id == cita.IdPaciente;
+
+    private async Task<bool> TieneOwnershipAsync(Cita cita, CancellationToken ct) =>
+        User.IsInRole("Administrador") ||
+        User.IsInRole("Recepcionista") ||
+        (User.IsInRole("Paciente") && await EsPacientePropietarioAsync(cita, ct)) ||
+        (User.IsInRole("Profesional") && EsProfesionalPropietario(cita));
+
+    private async Task<bool> EsPacientePropietarioAsync(Cita cita, CancellationToken ct)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario))
+            return false;
+
+        return await _context.Pacientes.AnyAsync(
+            p => p.IdPaciente == cita.IdPaciente && p.IdUsuario == idUsuario,
+            ct);
+    }
     private bool EsProfesionalPropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdProfesional"), out int id) && id == cita.IdProfesional;
-    private static bool EsConflicto(string? message) => message?.Contains("horario", StringComparison.OrdinalIgnoreCase) == true;
     private static string NormalizarEstado(string? estado) => EstadoCitaHelper.Normalize(estado);
 
     private async Task RegistrarAuditoriaAsync(string accion, int idRegistro, string descripcion, CancellationToken ct)
@@ -845,7 +1053,7 @@ public sealed class CitasApiController : ControllerBase
                 Descripcion   = descripcion,
                 IdUsuario     = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int id) ? id : null,
                 IpOrigen      = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
-                Fecha         = DateTime.Now
+                Fecha         = ColombiaClock.Now
             });
             await _context.SaveChangesAsync(ct);
         }
@@ -871,7 +1079,7 @@ public sealed class CitasApiController : ControllerBase
                 Descripcion     = descripcion,
                 IdUsuario       = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int id) ? id : null,
                 IpOrigen        = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
-                Fecha           = DateTime.Now,
+                Fecha           = ColombiaClock.Now,
                 DatosAnteriores = datosAnteriores is null ? null : System.Text.Json.JsonSerializer.Serialize(datosAnteriores),
                 DatosNuevos     = datosNuevos is null     ? null : System.Text.Json.JsonSerializer.Serialize(datosNuevos)
             });

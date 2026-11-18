@@ -20,6 +20,7 @@ public sealed class PacienteApiDto
     public string? Telefono { get; set; }
     public string? Correo { get; set; }
     public string? Ciudad { get; set; }
+    public string? Direccion { get; set; }
     public string? GrupoSanguineo { get; set; }
     public List<string> Alergias { get; set; } = [];
     public List<string> Medicamentos { get; set; } = [];
@@ -41,10 +42,10 @@ public sealed class PacienteApiDto
 /// reflejan las que ya tiene la tabla Paciente en SQL Server (documento UNIQUE,
 /// tipo_documento con CHECK, etc.) — no se inventan reglas nuevas.
 /// </summary>
-public sealed class PacienteApiCreateDto
+public sealed class PacienteApiCreateDto : IValidatableObject
 {
     [Required(ErrorMessage = "El tipo de documento es obligatorio.")]
-    [StringLength(20)]
+    [StringLength(5)]
     public string TipoDocumento { get; set; } = "";
 
     [Required(ErrorMessage = "El documento es obligatorio.")]
@@ -62,7 +63,7 @@ public sealed class PacienteApiCreateDto
     [Required(ErrorMessage = "La fecha de nacimiento es obligatoria.")]
     public DateTime FechaNacimiento { get; set; }
 
-    [StringLength(20)]
+    [StringLength(5)]
     public string? Genero { get; set; }
 
     [StringLength(20)]
@@ -75,7 +76,10 @@ public sealed class PacienteApiCreateDto
     [StringLength(100)]
     public string? Ciudad { get; set; }
 
-    [StringLength(10)]
+    [StringLength(255)]
+    public string? Direccion { get; set; }
+
+    [StringLength(5)]
     public string? GrupoSanguineo { get; set; }
 
     public string? Alergias { get; set; }
@@ -89,21 +93,72 @@ public sealed class PacienteApiCreateDto
 
     [StringLength(20)]
     public string? TelefonoEmergencia { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        var tipo = TipoDocumento?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (tipo is not ("CC" or "TI" or "CE" or "PAS" or "NIT"))
+            yield return new ValidationResult("El tipo de documento no es válido.", [nameof(TipoDocumento)]);
+
+        var documento = Documento?.Trim().ToUpperInvariant() ?? string.Empty;
+        var patronDocumento = tipo == "PAS" ? "^[A-Z0-9]{5,20}$" : "^[0-9]{7,15}$";
+        if (!System.Text.RegularExpressions.Regex.IsMatch(documento, patronDocumento))
+            yield return new ValidationResult("El documento no es válido para el tipo seleccionado.", [nameof(Documento)]);
+
+        if (FechaNacimiento.Date < new DateTime(1900, 1, 1) || FechaNacimiento.Date > DateTime.Today)
+            yield return new ValidationResult("La fecha de nacimiento no es válida.", [nameof(FechaNacimiento)]);
+
+        if (!string.IsNullOrWhiteSpace(Genero) &&
+            Genero.Trim().ToUpperInvariant() is not ("M" or "F" or "O"))
+            yield return new ValidationResult("El género no es válido.", [nameof(Genero)]);
+
+        if (!GrupoSanguineoValido(GrupoSanguineo))
+            yield return new ValidationResult("El grupo sanguíneo no es válido.", [nameof(GrupoSanguineo)]);
+
+        if (TieneSustanciaAlergiaNoValida(Alergias))
+            yield return new ValidationResult("Cada alergia debe tener como máximo 150 caracteres.", [nameof(Alergias)]);
+
+        if ((tipo == "TI" || FechaNacimiento.Date > DateTime.Today.AddYears(-18)) &&
+            (string.IsNullOrWhiteSpace(ContactoEmergencia) ||
+             !System.Text.RegularExpressions.Regex.IsMatch((TelefonoEmergencia ?? "").Replace(" ", ""), "^[0-9]{7,15}$")))
+            yield return new ValidationResult("Los menores de edad y pacientes con documento TI requieren un acudiente y su teléfono.", [nameof(ContactoEmergencia), nameof(TelefonoEmergencia)]);
+    }
+
+    internal static bool GrupoSanguineoValido(string? grupo)
+    {
+        if (string.IsNullOrWhiteSpace(grupo))
+            return true;
+
+        return grupo.Trim().ToUpperInvariant() is "O+" or "O-" or "A+" or "A-" or "B+" or "B-" or "AB+" or "AB-";
+    }
+
+    internal static bool TieneSustanciaAlergiaNoValida(string? alergias) =>
+        (alergias ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(sustancia => sustancia.Length > 150);
 }
 
 /// <summary>
 /// Cuerpo esperado por PATCH api/v1/pacientes/{id}. Actualización parcial: solo
 /// se aplican los campos que vengan distintos de null.
 /// </summary>
-public sealed class PacienteApiUpdateDto
+public sealed class PacienteApiUpdateDto : IValidatableObject
 {
+    [StringLength(5)]
+    public string? TipoDocumento { get; set; }
+
+    [StringLength(20)]
+    public string? Documento { get; set; }
+
+    public DateTime? FechaNacimiento { get; set; }
+
     [StringLength(100)]
     public string? Nombres { get; set; }
 
     [StringLength(100)]
     public string? Apellidos { get; set; }
 
-    [StringLength(20)]
+    [StringLength(5)]
     public string? Genero { get; set; }
 
     [StringLength(20)]
@@ -116,7 +171,10 @@ public sealed class PacienteApiUpdateDto
     [StringLength(100)]
     public string? Ciudad { get; set; }
 
-    [StringLength(10)]
+    [StringLength(255)]
+    public string? Direccion { get; set; }
+
+    [StringLength(5)]
     public string? GrupoSanguineo { get; set; }
 
     public string? Alergias { get; set; }
@@ -130,6 +188,35 @@ public sealed class PacienteApiUpdateDto
 
     [StringLength(20)]
     public string? TelefonoEmergencia { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (!string.IsNullOrWhiteSpace(TipoDocumento) &&
+            TipoDocumento.Trim().ToUpperInvariant() is not ("CC" or "TI" or "CE" or "PAS" or "NIT"))
+            yield return new ValidationResult("El tipo de documento no es válido.", [nameof(TipoDocumento)]);
+
+        if (FechaNacimiento.HasValue &&
+            (FechaNacimiento.Value.Date < new DateTime(1900, 1, 1) || FechaNacimiento.Value.Date > DateTime.Today))
+            yield return new ValidationResult("La fecha de nacimiento no es válida.", [nameof(FechaNacimiento)]);
+
+        if (!string.IsNullOrWhiteSpace(Genero) &&
+            Genero.Trim().ToUpperInvariant() is not ("M" or "F" or "O"))
+            yield return new ValidationResult("El género no es válido.", [nameof(Genero)]);
+
+        if (!PacienteApiCreateDto.GrupoSanguineoValido(GrupoSanguineo))
+            yield return new ValidationResult("El grupo sanguíneo no es válido.", [nameof(GrupoSanguineo)]);
+
+        if (PacienteApiCreateDto.TieneSustanciaAlergiaNoValida(Alergias))
+            yield return new ValidationResult("Cada alergia debe tener como máximo 150 caracteres.", [nameof(Alergias)]);
+        if (!string.IsNullOrWhiteSpace(Documento) &&
+            TipoDocumento is not null &&
+            !System.Text.RegularExpressions.Regex.IsMatch(
+                Documento.Trim().ToUpperInvariant(),
+                TipoDocumento.Trim().Equals("PAS", StringComparison.OrdinalIgnoreCase)
+                    ? "^[A-Z0-9]{5,20}$"
+                    : "^[0-9]{7,15}$"))
+            yield return new ValidationResult("El documento no es válido para el tipo seleccionado.", [nameof(Documento)]);
+    }
 }
 
 /// <summary>Cuerpo esperado por PATCH api/v1/pacientes/{id}/estado.</summary>

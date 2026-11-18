@@ -148,7 +148,7 @@ public class VwCitasDashboard
     [StringLength(500)]
     public string? DescripcionServicio { get; set; }
     
-    [Column("precio_servicio")]
+    [Column("precio_servicio", TypeName = "decimal(12,2)")]
     public decimal? PrecioServicio { get; set; }
     
     [Column("duracion_servicio")]

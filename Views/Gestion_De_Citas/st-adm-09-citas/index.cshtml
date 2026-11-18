@@ -17,7 +17,13 @@
    - JS: ~/js/Gestion_De_Citas/st-adm-09-citas/gestionintegral.js
    ============================================ *@
 
-@{ Layout = "_Layout"; ViewData["Title"] = "Gestión de Citas"; }
+@using SmileTrack_MVC.Helpers
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Gestión de Citas";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-adm-09-citas/gestionintegral.css" asp-append-version="true" />
@@ -32,10 +38,26 @@
     var profesionalesFilterOptions = ViewData["ProfesionalesFilterOptions"] as
 List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
     var pageResult = ViewData["CitasPage"] as SmileTrack_MVC.Models.Shared.PagedResult<SmileTrack_MVC.Models.Entities.Cita>;
+    var resultItemCount = pageResult?.Items?.Count ?? 0;
+    var resultTotalCount = pageResult?.TotalCount ?? 0;
+    var resultPage = pageResult?.Page ?? 1;
+    var resultPageSize = pageResult?.PageSize ?? 10;
+    var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
+    var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
+    var estadoFilter = ViewData["EstadoFilter"]?.ToString();
+    var estadoFilterNormalized = EstadoCitaHelper.Normalize(estadoFilter);
+    var activeTab = estadoFilterNormalized switch
+    {
+        "cancelada" => "cancelled",
+        "no_asistida" => "no-show",
+        _ => "all"
+    };
 
     // Datos para modal de edición
     var editingCita = ViewData["EditingCita"] as SmileTrack_MVC.Models.Entities.Cita;
     var isEditing = editingCita != null;
+    var fechaMinimaCita = ViewData["FechaMinimaCita"] as DateTime? ?? SmileTrack_MVC.Helpers.ColombiaClock.Today;
+    var fechaInicialCita = ViewData["FechaInicialCita"] as DateTime? ?? (editingCita?.Fecha.Date ?? fechaMinimaCita);
 }
 
     <!-- Contenido principal -->
@@ -51,7 +73,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                 <h1 class="page-title" data-i18n="adm09_title">Gestión Integral de Citas</h1>
                 <p class="page-subtitle" data-i18n="adm09_subtitle">Supervisión y control</p>
             </div>
-            <button type="button" class="btn-primary" id="citas-btn-nueva" aria-label="Programar nueva cita" onclick="openModalCita(this)" data-i18n-aria-label="adm09_nueva_cita_aria">
+            <button type="button" class="btn-primary" id="citas-btn-nueva" aria-label="Programar nueva cita" data-i18n-aria-label="adm09_nueva_cita_aria">
                 <span class="material-symbols-outlined" aria-hidden="true">add</span>
                 <span data-i18n="adm09_btn_nueva_cita">Nueva Cita</span>
             </button>
@@ -69,27 +91,29 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                 var statKpiTasaAsis = ViewData["StatKpiTasaAsistencia"] ?? 0;
             }
             <div class="stat-card" data-color="blue">
-                <span class="stat-number" id="citas-stat-total" data-target="@statKpiTotal" aria-live="polite">0</span>
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_note</span>
+                <span class="stat-number" id="citas-stat-total" data-target="@statKpiTotal">0</span>
                 <span class="stat-label" data-i18n="adm09_stat_total">Total Citas</span>
                 <span class="stat-sub" data-i18n="adm09_stat_total_sub">Este mes</span>
             </div>
             <div class="stat-card" data-color="green">
-                <span class="stat-number" id="citas-stat-programadas" data-target="@statKpiProgramadas"
-                      aria-live="polite">0</span>
+                <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
+                <span class="stat-number" id="citas-stat-programadas" data-target="@statKpiProgramadas">0</span>
                 <span class="stat-label" data-i18n="adm09_stat_programadas">Programadas</span>
-                <span class="stat-sub">@((int.TryParse(statKpiDifSemana?.ToString(), out var ds) && ds >= 0 ? $"↑ +{ds}"
-                                                                                                                                            : $"↓ {statKpiDifSemana}")) <span data-i18n="adm09_stat_vs_week">vs semana pasada</span></span>
+                <span class="stat-sub">@{var ds = int.TryParse(statKpiDifSemana?.ToString(), out var dsParsed) ? dsParsed : 0;}
+                    @(ds >= 0 ? "↑" : "↓") @Math.Abs(ds) <span data-i18n="adm09_stat_vs_week">vs semana pasada</span></span>
                 </div>
                 <div class="stat-card" data-color="red">
-                    <span class="stat-number" id="citas-stat-canceladas" data-target="@statKpiCanceladas"
-                          aria-live="polite">0</span>
+                    <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
+                    <span class="stat-number" id="citas-stat-canceladas" data-target="@statKpiCanceladas">0</span>
                     <span class="stat-label" data-i18n="adm09_stat_canceladas">Canceladas</span>
                     <span class="stat-sub"><span data-i18n="adm09_stat_rate">Tasa:</span> @statKpiTasaCancel%</span>
                 </div>
                 <div class="stat-card" data-color="orange">
-                    <span class="stat-number" id="citas-stat-atendidas" data-target="@statKpiAtendidas" aria-live="polite">0</span>
+                    <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
+                    <span class="stat-number" id="citas-stat-atendidas" data-target="@statKpiAtendidas">0</span>
                     <span class="stat-label" data-i18n="adm09_stat_atendidas">Atendidas</span>
-                    <span class="stat-sub">↓ @statKpiTasaAsis% <span data-i18n="adm09_stat_attendance">asistencia</span></span>
+                    <span class="stat-sub">↑ @statKpiTasaAsis% <span data-i18n="adm09_stat_attendance">asistencia</span></span>
                 </div>
             </section>
 
@@ -98,14 +122,14 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                 <h2 class="visually-hidden" id="tableTitle" data-i18n="adm09_table_title">Lista de citas</h2>
 
                 <!-- Tabs accesibles para filtrado rápido -->
-                <div class="table-tabs" role="tablist" aria-label="Filtrar citas por estado" data-i18n-aria-label="adm09_tabs_aria">
-                    <button class="tab-btn active" data-tab="all" role="tab" aria-selected="true" aria-controls="citasBody" data-i18n="adm09_tab_all">
+                <div class="table-tabs" role="group" aria-label="Filtrar citas por estado" data-i18n-aria-label="adm09_tabs_aria">
+                    <button type="button" class="tab-btn @(activeTab == "all" ? "active" : "")" data-tab="all" aria-pressed="@(activeTab == "all" ? "true" : "false")" data-i18n="adm09_tab_all">
                         Todas las citas
                     </button>
-                    <button class="tab-btn" data-tab="cancelled" role="tab" aria-selected="false" aria-controls="citasBody" data-i18n="adm09_tab_cancelled">
+                    <button type="button" class="tab-btn @(activeTab == "cancelled" ? "active" : "")" data-tab="cancelled" aria-pressed="@(activeTab == "cancelled" ? "true" : "false")" data-i18n="adm09_tab_cancelled">
                         Cancelaciones
                     </button>
-                    <button class="tab-btn" data-tab="no-show" role="tab" aria-selected="false" aria-controls="citasBody" data-i18n="adm09_tab_noshow">
+                    <button type="button" class="tab-btn @(activeTab == "no-show" ? "active" : "")" data-tab="no-show" aria-pressed="@(activeTab == "no-show" ? "true" : "false")" data-i18n="adm09_tab_noshow">
                         No asistió
                     </button>
                 </div>
@@ -126,13 +150,12 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             <select id="filterStatus" name="estado" class="status-select" aria-label="Filtrar por estado" data-i18n-aria-label="adm09_filter_status_aria">
                                 <option value="" data-i18n="adm09_filter_status_all">Todos los estados</option>
                                 @{
-                                    var estadoFilter = ViewData["EstadoFilter"]?.ToString();
-                                    var estados = new[] { "programada", "confirmada", "atendida", "cancelada" };
+                                    var estados = new[] { "programada", "confirmada", "atendida", "cancelada", "no_asistida" };
                                     foreach (var estado in estados)
                                     {
-                                        var isSelected = estadoFilter == estado;
-                                        <option value="@estado" @(isSelected ? "selected" : "")>
-                                            @char.ToUpper(estado[0])@estado.Substring(1)</option>
+                                        var isSelected = estadoFilterNormalized == estado;
+                                        <option value="@estado" selected="@isSelected">
+                                            @(estado == "no_asistida" ? "No asistió" : char.ToUpper(estado[0]) + estado.Substring(1))</option>
                                         }
                                     }
                                 </select>
@@ -146,7 +169,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                     {
                                         var isSelected = ViewData["ProfesionalFilter"]?.ToString() ==
                                     profesional.IdProfesional.ToString();
-                                        <option value="@profesional.IdProfesional" @(isSelected ? "selected" : "")>
+                                        <option value="@profesional.IdProfesional" selected="@isSelected">
                                             @profesional.NombreProfesional
                                         </option>
                                     }
@@ -171,19 +194,20 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                     </section>
 
                     <!-- Tabla ACCESIBLE con semántica HTML nativa -->
-                    <table class="table-appointments" aria-label="Tabla de citas" role="grid" data-i18n-aria-label="adm09_table_aria">
+                    <div class="table-wrap">
+                    <table class="table-appointments" aria-label="Tabla de citas" data-i18n-aria-label="adm09_table_aria">
                         <thead>
-                            <tr role="row">
-                                <th role="columnheader" scope="col" class="col-fecha" data-i18n="citas.date">Fecha</th>
-                                <th role="columnheader" scope="col" class="col-hora" data-i18n="citas.time">Hora</th>
-                                <th role="columnheader" scope="col" class="col-paciente" data-i18n="citas.patient">Paciente</th>
-                                <th role="columnheader" scope="col" class="col-profesional" data-i18n="citas.professional">Profesional</th>
-                                <th role="columnheader" scope="col" class="col-servicio" data-i18n="citas.service">Servicio</th>
-                                <th role="columnheader" scope="col" class="col-estado" data-i18n="citas.status">Estado</th>
-                                <th role="columnheader" scope="col" class="col-acciones" data-i18n="table.actions">Acciones</th>
+                            <tr>
+                                <th scope="col" class="col-fecha" data-i18n="citas.date">Fecha</th>
+                                <th scope="col" class="col-hora" data-i18n="citas.time">Hora</th>
+                                <th scope="col" class="col-paciente" data-i18n="citas.patient">Paciente</th>
+                                <th scope="col" class="col-profesional" data-i18n="citas.professional">Profesional</th>
+                                <th scope="col" class="col-servicio" data-i18n="citas.service">Servicio</th>
+                                <th scope="col" class="col-estado" data-i18n="citas.status">Estado</th>
+                                <th scope="col" class="col-acciones" data-i18n="table.actions">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody id="citasBody" aria-live="polite">
+                        <tbody id="citasBody">
                             @if (citas.Count == 0)
                             {
                                 @await Html.PartialAsync("_EmptyState", new { 
@@ -232,9 +256,16 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 var cHora = cita.HoraInicio?.ToString("hh\\:mm") ?? "—";
                                 var cPaciente = cita.Paciente?.NombresCompleto ?? "—";
                                 var cProfesional = cita.Profesional?.NombreProfesional ?? "—";
-                                var cServicio = cita.MotivoConsulta ?? "—";
+                                var cServicio = cita.Servicio?.Nombre ?? cita.MotivoConsulta ?? "—";
                                 var cConsultorio = cita.Consultorio?.Nombre ?? "—";
                                 var cEstado = cita.EstadoCita?.NombreEstado ?? cita.Estado ?? "Sin estado";
+                                var cEstadoNormalizado = EstadoCitaHelper.Normalize(cEstado);
+                                var estadosCatalogo = new[] { "Programada", "Confirmada", "Atendida", "Cancelada", "No asistió" };
+                                var estadoSelectValue = estadosCatalogo.FirstOrDefault(estado =>
+                                    cEstadoNormalizado == EstadoCitaHelper.Normalize(estado)) ?? estadosCatalogo[0];
+                                var estadosDisponibles = estadosCatalogo
+                                    .Where(estado => estado == estadoSelectValue || EstadoCitaHelper.IsTransitionAllowed(cEstado, estado))
+                                    .ToArray();
                                 var cNotas = cita.NotasPrevias ?? "";
 
 
@@ -265,7 +296,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                  style="background:@profesionalColor; opacity:@profesionalOpacity;">
                                                 @profesionalIniciales
                                             </div>
-                                            <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                                            <div class="patient-info-col">
                                                 <span class="patient-name">
                                                      @if (string.IsNullOrEmpty(profesionalNombre))
                                                      {
@@ -278,8 +309,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                  </span>
                                                 @if (!string.IsNullOrEmpty(profesionalNombre))
                                                 {
-                                                    <span class="badge-spec @especialidadPrincipal.ToLowerInvariant()"
-                                                          style="font-size: 0.65rem; padding: 2px 6px; margin-top: 2px;">
+                                                    <span class="badge-spec badge-spec-sub @especialidadPrincipal.ToLowerInvariant()">
                                                         @especialidadPrincipal
                                                     </span>
                                                 }
@@ -289,24 +319,24 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
 
                                     <!-- Servicio -->
                                     <td role="cell" data-label="Servicio" class="col-servicio">
-                                        @cita.MotivoConsulta
+                                        @cServicio
                                     </td>
 
                                     <!-- Estado (cambio rápido inline) -->
                                     <td role="cell" data-label="Estado" class="col-estado text-center">
-                                        <form method="post" action="/gestion-de-citas/cambiar-estado" class="form-estado-inline"
-                                              style="display:inline-block; margin:0;">
+                                        <form method="post" action="/gestion-de-citas/cambiar-estado" class="form-estado-inline">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="IdCita" value="@cita.IdCita" />
                                             <input type="hidden" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
                                             <select name="Estado"
-                                                    class="status-badge status-select-inline @((cita.Estado ?? string.Empty).ToLowerInvariant().Replace(" ", "-").Replace("_", "-"))"
+                                                    class="status-badge status-select-inline @cEstadoNormalizado.Replace("_", "-")"
+                                                    data-previous-value="@estadoSelectValue"
                                                     aria-label="Cambiar estado de la cita"
                                                     title="Cambiar estado de la cita">
-                                                @foreach (var estado in new[] { "Programada", "Confirmada", "Atendida", "Cancelada" })
+                                                @foreach (var estado in estadosDisponibles)
                                                 {
-                                                    var isSelected = string.Equals(cita.Estado, estado, StringComparison.OrdinalIgnoreCase);
-                                                    <option value="@estado" @(isSelected ? "selected" : "")>
+                                                    var isSelected = cEstadoNormalizado == EstadoCitaHelper.Normalize(estado);
+                                                    <option value="@estado" selected="@isSelected">
                                                         @estado
                                                     </option>
                                                 }
@@ -324,22 +354,23 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                     data-paciente="@Html.Encode(cPaciente)" data-profesional="@Html.Encode(cProfesional)"
                                                     data-servicio="@Html.Encode(cServicio)" data-consultorio="@Html.Encode(cConsultorio)"
                                                     data-estado="@Html.Encode(cEstado)" data-notas="@Html.Encode(cNotas)">
-                                                <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
+                                                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
                                                 <span class="btn-text">Ver</span>
                                             </button>
                                             <a class="action-btn btn-secondary btn-edit"
                                                href="@Url.Action("Stadm09Citas", "GestionCitas", new { editId = cita.IdCita })"
                                                aria-label="Editar la cita de @cPaciente"
                                                title="Editar la cita de @Html.Encode(cPaciente)">
-                                                <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
+                                                <span class="material-symbols-outlined" aria-hidden="true">edit</span>
                                                 <span class="btn-text">Editar</span>
                                             </a>
                                             <button type="button" class="action-btn btn-danger btn-delete"
-                                                    aria-label="Eliminar la cita de @cPaciente"
-                                                    title="Eliminar la cita de @Html.Encode(cPaciente)"
-                                                    onclick="openConfirmDeleteCita(@cita.IdCita, '@cPaciente.Replace("'", "\\'")', this)">
-                                                <span class="material-symbols-outlined action-icon" aria-hidden="true">delete</span>
-                                                <span class="btn-text">Eliminar</span>
+                                                    data-id="@cita.IdCita"
+                                                    data-paciente="@cPaciente"
+                                                    aria-label="Cancelar cita de @cPaciente"
+                                                    title="Cancelar cita de @Html.Encode(cPaciente)">
+                                                <span class="material-symbols-outlined" aria-hidden="true">event_busy</span>
+                                                <span class="btn-text">Cancelar</span>
                                             </button>
                                         </div>
                                     </td>
@@ -348,15 +379,12 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             }
                         </tbody>
                     </table>
+                    </div>
 
                     <!-- Paginación accesible -->
                     <footer class="table-footer" aria-label="Navegación de páginas">
-                        @{
-                            var mostrando = Math.Min(pageResult?.PageSize ?? 10, pageResult?.Items?.Count ?? 0);
-                            var total = pageResult?.TotalCount ?? 0;
-                        }
                         <span>
-                            Mostrando <strong id="pageShowing">@mostrando</strong> de <strong id="pageTotal">@total</strong>
+                            Mostrando <strong id="pageRangeStart">@resultRangeStart</strong>-<strong id="pageShowing">@resultRangeEnd</strong> de <strong id="pageTotal">@resultTotalCount</strong>
                             citas
                         </span>
                         <nav class="pagination" aria-label="Páginas de resultados">
@@ -424,9 +452,9 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
             <div class="modal-overlay" id="modalAppointment" role="dialog" aria-modal="true"
                  aria-labelledby="modalAppointmentTitle" aria-hidden="true" inert>
                 <div class="modal">
-                    <button class="modal-close" id="modalAppointmentClose" aria-label="Cerrar ventana">×</button>
+                    <button class="modal-close" id="modalAppointmentClose" aria-label="Cerrar ventana"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
                     <h2 class="modal-title" id="modalAppointmentTitle">Detalle de Cita</h2>
-                    <div id="modalAppointmentContent" class="modal-content" role="document"></div>
+                    <div id="modalAppointmentContent" class="appointment-detail-content" role="document"></div>
                     <div class="modal-footer">
                         <button type="button" class="btn-secondary" id="modalAppointmentCancel"
                                 aria-label="Cerrar detalles de la cita actual">
@@ -440,67 +468,30 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                 </div>
             </div>
 
-            <!-- Navegación inferior para móviles -->
-            <nav class="mobile-nav" aria-label="Navegación móvil">
-                <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item">
-                    <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
-                    <span>Dashboard</span>
-                </a>
-                <a href="#" class="mobile-nav-item active" aria-current="page">
-                    <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">event</span>
-                    <span>Citas</span>
-                </a>
-                <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
-                    <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
-                    <span>Agenda</span>
-                </a>
-            </nav>
-
-            <!-- Contenedor de notificaciones toast -->
-            <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
             @if (TempData["MensajeExito"] != null)
             {
                 <script>
-                        document.addEventListener('DOMContentLoaded', () => {
-                            if (window.ToastService) {
-                                window.ToastService.success('Éxito', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(TempData["MensajeExito"]?.ToString()))');
-                            } else {
-                                const toast = document.getElementById('toast');
-                                if (toast) {
-                                    toast.textContent = '✅ @TempData["MensajeExito"]';
-                                    toast.className = 'toast show';
-                                    setTimeout(() => toast.classList.remove('show'), 4000);
-                                }
-                            }
-                        });
+                    document.addEventListener('DOMContentLoaded', () => {
+                        window.ToastService?.success('Éxito', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(TempData["MensajeExito"]?.ToString()))');
+                    });
                 </script>
             }
 
             @if (TempData["ErrorValidacion"] != null)
             {
                 <script>
-                        document.addEventListener('DOMContentLoaded', () => {
-                            if (window.ToastService) {
-                                window.ToastService.error('Atención', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(TempData["ErrorValidacion"]?.ToString()))');
-                            } else {
-                                const toast = document.getElementById('toast');
-                                if (toast) {
-                                    toast.textContent = '⚠️ @TempData["ErrorValidacion"]';
-                                    toast.className = 'toast warning show';
-                                    setTimeout(() => toast.classList.remove('show'), 5000);
-                                }
-                            }
-                        });
+                    document.addEventListener('DOMContentLoaded', () => {
+                        window.ToastService?.warning('Atención', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(TempData["ErrorValidacion"]?.ToString()))');
+                    });
                 </script>
             }
 
             <!-- Modal: Crear/Editar Cita -->
             <div class="modal-overlay" id="modalCita" role="dialog" aria-modal="true" aria-labelledby="modalCitaTitle"
                  aria-hidden="true" inert>
-                <div class="modal">
-                    <button class="modal-close" onclick="closeModalCita()" aria-label="Cerrar ventana">
-                        ×
+                <div class="modal modal-lg">
+                    <button class="modal-close" id="modalCitaClose" aria-label="Cerrar ventana">
+                        <span class="material-symbols-outlined" aria-hidden="true">close</span>
                     </button>
                     <h2 class="modal-title" id="modalCitaTitle">
                         @(isEditing ? "Editar Cita" : "Nueva Cita")
@@ -520,7 +511,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                     @foreach (var paciente in pacientes)
                                     {
                                         var isSelectedPaciente = editingCita?.IdPaciente == paciente.IdPaciente;
-                                        <option value="@paciente.IdPaciente" @(isSelectedPaciente ? "selected" : "")>
+                                        <option value="@paciente.IdPaciente" selected="@isSelectedPaciente">
                                             @paciente.NombresCompleto
                                         </option>
                                     }
@@ -600,7 +591,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                         @foreach (var servicio in servicios)
                                         {
                                             var isSelectedServicio = editingCita?.IdServicio == servicio.IdServicio;
-                                            <option value="@servicio.IdServicio" @(isSelectedServicio ? "selected" : "")>
+                                            <option value="@servicio.IdServicio" selected="@isSelectedServicio">
                                                 @servicio.Nombre
                                             </option>
                                         }
@@ -613,8 +604,10 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                     <div class="form-group">
                                         <label class="form-label" for="fechaCita">Fecha *</label>
                                         <input type="date" id="fechaCita" name="Fecha" class="form-input"
-                                               min="@DateTime.Today.ToString("yyyy-MM-dd")"
-                                               value="@(editingCita?.Fecha.ToString("yyyy-MM-dd") ?? DateTime.Today.ToString("yyyy-MM-dd"))"
+                                               min="@fechaMinimaCita.ToString("yyyy-MM-dd")"
+                                               value="@fechaInicialCita.ToString("yyyy-MM-dd")"
+                                               data-open-days="1,2,3,4,5,6"
+                                               data-original-date="@(editingCita?.Fecha.ToString("yyyy-MM-dd") ?? string.Empty)"
                                                required aria-required="true" aria-describedby="error-fechaCita" />
                                         <span class="error-message" id="error-fechaCita" role="alert">Por favor selecciona una fecha
                                             válida.</span>
@@ -649,7 +642,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                                 List<SmileTrack_MVC.Models.Entities.EstadoCita> ?? new()))
                                                 {
                                                     var isSelectedEstado = editingCita?.IdEstado == estado.IdEstado;
-                                                    <option value="@estado.IdEstado" @(isSelectedEstado ? "selected" : "")>
+                                                    <option value="@estado.IdEstado" selected="@isSelectedEstado">
                                                         @estado.NombreEstado
                                                     </option>
                                                 }
@@ -684,7 +677,7 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                         </div>
 
                                         <div class="modal-footer">
-                                            <button type="button" class="btn-secondary" onclick="closeModalCita()">
+                                            <button type="button" class="btn-secondary" id="modalCitaCancel" data-i18n="common.cancel">
                                                 Cancelar
                                             </button>
                                             <button type="submit" class="btn-primary" id="btnGuardarCita">
@@ -699,43 +692,32 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             <div class="modal-overlay" id="modalConfirmDeleteCita" role="dialog" aria-modal="true"
                                  aria-labelledby="modalConfirmDeleteCitaTitle" aria-hidden="true" inert>
                                 <div class="modal modal--sm">
-                                    <button class="modal-close" id="modalConfirmDeleteCitaClose" aria-label="Cerrar ventana">×</button>
-                                    <h2 class="modal-title" id="modalConfirmDeleteCitaTitle">Confirmar eliminación</h2>
-                                    <p id="modalConfirmDeleteCitaMessage"
-                                       style="margin:16px 0 24px; line-height:1.5; color:var(--text-muted, #64748b);">
-                                        ¿Está seguro de eliminar esta cita? Esta acción no se puede deshacer.
+                                    <button class="modal-close" id="modalConfirmDeleteCitaClose" aria-label="Cerrar ventana"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+                                    <h2 class="modal-title" id="modalConfirmDeleteCitaTitle" data-i18n="adm09_modal_delete_title">Confirmar cancelación</h2>
+                                    <p id="modalConfirmDeleteCitaMessage" class="modal-delete-text" data-i18n="adm09_modal_delete_msg">
+                                        ¿Está seguro de cancelar esta cita? Esta acción no se puede deshacer.
                                     </p>
                             <form id="formDeleteCita" method="post" action="/gestion-de-citas/eliminar-cita">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" id="deleteCitaId" name="IdCita" value="" />
                                         <input type="hidden" id="deleteCitaReturnUrl" name="ReturnUrl" value="@ViewData["ReturnUrl"]" />
                                         <!-- A1/B1: motivo obligatorio en ruta MVC (RN-23) -->
-                                        <div class="form-group" style="margin-bottom:16px;">
-                                            <label class="form-label" for="deleteCitaMotivo" style="font-size:0.82rem;font-weight:600;">
-                                                Motivo de cancelación <span style="color:var(--danger)">*</span>
+                                        <div class="form-group form-group-cancel-reason">
+                                            <label class="form-label form-label-cancel-reason" for="deleteCitaMotivo">
+                                                <span data-i18n="adm09_modal_delete_reason">Motivo de cancelación</span> <span class="required-star">*</span>
                                             </label>
-                                            <textarea id="deleteCitaMotivo" name="MotivoCancelacion" class="form-input" rows="2"
-                                                      maxlength="500" required placeholder="Indique el motivo..." style="resize:vertical;"></textarea>
+                                            <textarea id="deleteCitaMotivo" name="MotivoCancelacion" class="form-input textarea-cancel-reason" rows="2"
+                                                      minlength="5" maxlength="500" required placeholder="Indique el motivo..." data-i18n-ph="adm09_modal_delete_reason_ph"></textarea>
                                         </div>
                                         <div class="modal-footer">
-                                            <button type="button" class="btn-secondary" id="modalConfirmDeleteCitaCancel">Cancelar</button>
-                                            <button type="submit" class="btn-primary"
-                                                    style="background:var(--red,#ef4444); border-color:var(--red,#ef4444);">
-                                                Eliminar
+                                            <button type="button" class="btn-secondary" id="modalConfirmDeleteCitaCancel" data-i18n="common.cancel">Cancelar</button>
+                                            <button type="submit" class="btn-danger" data-i18n="adm09_modal_delete_confirm">
+                                                Cancelar cita
                                             </button>
                                         </div>
                                     </form>
                                 </div>
                             </div>
-
-                            <!-- Footer -->
-                            <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-                                <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-                                    <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-                                    <p>© @DateTime.Now.Year Smile Track. Todos los derechos reservados.</p>
-                                </div>
-                                <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-                            </footer>
 
                             @section Scripts {
                             <script src="~/js/Gestion_De_Citas/st-adm-09-citas/gestionintegral.js" asp-append-version="true" defer></script>
@@ -743,6 +725,13 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             <!-- Script de inicialización específico de la vista -->
                             <script>
                                 document.addEventListener('DOMContentLoaded', () => {
+                                // ═══ BOTONES DE APERTURA / CIERRE DE MODAL CITA ═══
+                                document.getElementById('citas-btn-nueva')?.addEventListener('click', (e) => {
+                                    openModalCita(e.currentTarget);
+                                });
+                                document.getElementById('modalCitaClose')?.addEventListener('click', closeModalCita);
+                                document.getElementById('modalCitaCancel')?.addEventListener('click', closeModalCita);
+
                                 // ═══ MODAL CONFIRMAR ELIMINACIÓN DE CITA ═══
                                 const modalDeleteCita = document.getElementById('modalConfirmDeleteCita');
                                 document.getElementById('modalConfirmDeleteCitaClose')?.addEventListener('click', window.closeConfirmDeleteCita);
@@ -770,52 +759,9 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 });
                                 }
 
-                                // ═══ TABS DE FILTRADO RÁPIDO Y PERSISTENCIA DE URL ═══
-                                const tabButtons = document.querySelectorAll('.tab-btn');
-                                const tableRows = document.querySelectorAll('#citasBody .table-row');
-
-                                const applyTabFilter = (tab) => {
-                                    tabButtons.forEach(btn => {
-                                        const isMatch = btn.dataset.tab === tab;
-                                        btn.classList.toggle('active', isMatch);
-                                        btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
-                                    });
-
-                                    tableRows.forEach(row => {
-                                        const statusBadge = row.querySelector('.status-badge');
-                                        const estado = statusBadge ? statusBadge.textContent.trim().toLowerCase() : '';
-
-                                        if (tab === 'all') {
-                                            row.style.display = '';
-                                        } else if (tab === 'cancelled') {
-                                            row.style.display = estado === 'cancelada' ? '' : 'none';
-                                        } else if (tab === 'no-show') {
-                                            row.style.display = (estado === 'no_asistio' || estado === 'no asistio' || estado === 'inasistencia') ? '' : 'none';
-                                        }
-                                    });
-                                };
-
-                                // Inicializar tab desde querystring URL o por defecto 'all'
-                                const urlParams = new URLSearchParams(window.location.search);
-                                const initialTab = urlParams.get('tab') || 'all';
-                                applyTabFilter(initialTab);
-
-                                tabButtons.forEach(button => {
-                                    button.addEventListener('click', () => {
-                                        const currentTab = button.dataset.tab;
-                                        applyTabFilter(currentTab);
-
-                                        // Sincronizar querystring con history.replaceState
-                                        const params = new URLSearchParams(window.location.search);
-                                        if (currentTab === 'all') {
-                                            params.delete('tab');
-                                        } else {
-                                            params.set('tab', currentTab);
-                                        }
-                                        const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-                                        window.history.replaceState(null, '', newUrl);
-                                    });
-                                });
+                                // Las pestañas (.tab-btn) las gestiona gestionintegral.js (setupTabListeners),
+                                // que además actualiza .active/aria-pressed y aplica el filtro por estado.
+                                // No duplicar aquí el handler para evitar un doble envío del formulario.
 
                                 // ═══ AUTO-ABRIR MODAL SI ESTAMOS EDITANDO ═══
                                 const isEditingCita = '@(isEditing ? "true" : "false")' === 'true';
@@ -862,38 +808,38 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                         const esc = (val) => window.CommonUtils?.escapeHtml ? window.CommonUtils.escapeHtml(val) : String(val ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
                                         
                                         const html = `
-                                        <div style="display:grid; gap:12px; font-size:0.95rem;">
-                                            <div style="display:flex; justify-content:space-between; gap:12px;">
-                                                <strong style="color:var(--text-muted); min-width:120px;">Fecha:</strong>
+                                        <div class="appointment-detail-grid">
+                                            <div class="appointment-detail-row">
+                                                <strong class="appointment-detail-label">Fecha:</strong>
                                                 <span>${esc(btn.dataset.fecha ?? '—')}</span>
                                             </div>
-                                            <div style="display:flex; justify-content:space-between; gap:12px;">
-                                                <strong style="color:var(--text-muted); min-width:120px;">Hora:</strong>
+                                            <div class="appointment-detail-row">
+                                                <strong class="appointment-detail-label">Hora:</strong>
                                                 <span>${esc(btn.dataset.hora ?? '—')}</span>
                                             </div>
-                                            <div style="display:flex; justify-content:space-between; gap:12px;">
-                                                <strong style="color:var(--text-muted); min-width:120px;">Paciente:</strong>
+                                            <div class="appointment-detail-row">
+                                                <strong class="appointment-detail-label">Paciente:</strong>
                                                 <span>${esc(btn.dataset.paciente ?? '—')}</span>
                                             </div>
-                                            <div style="display:flex; justify-content:space-between; gap:12px;">
-                                                <strong style="color:var(--text-muted); min-width:120px;">Profesional:</strong>
+                                            <div class="appointment-detail-row">
+                                                <strong class="appointment-detail-label">Profesional:</strong>
                                                 <span>${esc(btn.dataset.profesional ?? '—')}</span>
                                             </div>
-                                            <div style="display:flex; justify-content:space-between; gap:12px;">
-                                                <strong style="color:var(--text-muted); min-width:120px;">Servicio:</strong>
+                                            <div class="appointment-detail-row">
+                                                <strong class="appointment-detail-label">Servicio:</strong>
                                                 <span>${esc(btn.dataset.servicio ?? '—')}</span>
                                             </div>
-                                            <div style="display:flex; justify-content:space-between; gap:12px;">
-                                                <strong style="color:var(--text-muted); min-width:120px;">Consultorio:</strong>
+                                            <div class="appointment-detail-row">
+                                                <strong class="appointment-detail-label">Consultorio:</strong>
                                                 <span>${esc(btn.dataset.consultorio ?? '—')}</span>
                                             </div>
-                                            <div style="display:flex; justify-content:space-between; gap:12px;">
-                                                <strong style="color:var(--text-muted); min-width:120px;">Estado:</strong>
+                                            <div class="appointment-detail-row">
+                                                <strong class="appointment-detail-label">Estado:</strong>
                                                 <span class="status-badge status-select-inline ${esc((btn.dataset.estado ?? '').toLowerCase().replace(' ', '-'))}">${esc(btn.dataset.estado ?? '—')}</span>
                                             </div>
                                             ${(btn.dataset.notas && btn.dataset.notas.length > 0) ? `
-                                            <div style="margin-top:8px; padding:12px; background:var(--bg-soft); border-radius:8px;">
-                                                <strong style="color:var(--text-muted); display:block; margin-bottom:4px;">Notas previas:</strong>
+                                            <div class="appointment-detail-notes">
+                                                <strong>Notas previas:</strong>
                                                 <span>${esc(btn.dataset.notas)}</span>
                                             </div>` : ''}
                                         </div>`;
@@ -909,13 +855,6 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                             modalAppCloseBtn?.focus();
                                         }
                                     });
-                                });
-                                modalAppEl.setAttribute('aria-hidden', 'false');
-                                modalAppEl.removeAttribute('inert');
-                                document.body.style.overflow = 'hidden';
-                                modalAppCloseBtn?.focus();
-                                }
-                                });
                                 });
 
                                 // Botón Editar del modalAppointment → cerrar modal y llevar al formulario de edición
@@ -939,4 +878,5 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
 
                             <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
                             <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
+                            <script src="~/js/Gestion_De_Citas/asignaciones-citas.js" asp-append-version="true" defer></script>
                             }

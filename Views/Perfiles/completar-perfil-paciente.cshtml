@@ -1,0 +1,58 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@model SmileTrack_MVC.Models.ViewModels.CompletarPerfilPacienteViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Completar perfil";
+    ViewData["Description"] = "Confirma tu documento y fecha de nacimiento para completar tu perfil en SmileTrack.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
+
+@section Styles {
+  <link rel="stylesheet" href="~/css/Perfiles/completar-perfil-paciente/styles.css" asp-append-version="true" />
+}
+
+<main class="main profile-complete-page" id="main-content">
+  <header class="page-header">
+    <div class="header-left">
+      <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="pac_complete.breadcrumb_aria">
+        <a href="/perfiles/st-pac-perfil-paciente" data-i18n="pac_complete.breadcrumb_paciente">Paciente</a>
+        <span class="bc-sep" aria-hidden="true">›</span>
+        <span class="bc-active" aria-current="page" data-i18n="pac_complete.breadcrumb_current">Completar perfil</span>
+      </nav>
+      <h1 class="page-title" data-i18n="pac_complete.title">Completa tus datos personales</h1>
+      <p class="page-subtitle" data-i18n="pac_complete.subtitle">Necesitamos tu documento y fecha de nacimiento reales para completar tu perfil.</p>
+    </div>
+  </header>
+
+  @if (TempData["PerfilPacienteAviso"] is string aviso)
+  {
+      <p role="status" class="profile-notice">@aviso</p>
+  }
+
+  <section class="profile-card">
+    <form method="post" action="/perfiles/st-pac-completar-perfil">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="All" class="validation-summary-errors"></div>
+        <label asp-for="NombreCompleto" data-i18n="pac_complete.label_nombre">Nombre</label>
+        <input asp-for="NombreCompleto" readonly />
+        <label asp-for="Correo" data-i18n="pac_complete.label_correo">Correo</label>
+        <input asp-for="Correo" readonly />
+        <label asp-for="TipoDocumento" data-i18n="pac_complete.label_tipo_documento">Tipo de documento</label>
+        <select asp-for="TipoDocumento">
+            <option value="" data-i18n="pac_complete.option_select">Selecciona un tipo</option>
+            <option value="CC" data-i18n="pac_complete.option_cc">Cédula de ciudadanía</option>
+            <option value="TI" data-i18n="pac_complete.option_ti">Tarjeta de identidad</option>
+            <option value="CE" data-i18n="pac_complete.option_ce">Cédula de extranjería</option>
+            <option value="PAS" data-i18n="pac_complete.option_pas">Pasaporte</option>
+        </select>
+        <span asp-validation-for="TipoDocumento" class="error"></span>
+        <label asp-for="Documento" data-i18n="pac_complete.label_documento">Número de documento</label>
+        <input asp-for="Documento" autocomplete="off" />
+        <span asp-validation-for="Documento" class="error"></span>
+        <label asp-for="FechaNacimiento" data-i18n="pac_complete.label_fecha_nacimiento">Fecha de nacimiento</label>
+        <input asp-for="FechaNacimiento" type="date" max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+        <span asp-validation-for="FechaNacimiento" class="error"></span>
+        <button type="submit" class="btn-primary" data-i18n="pac_complete.btn_save">Guardar perfil</button>
+    </form>
+  </section>
+</main>

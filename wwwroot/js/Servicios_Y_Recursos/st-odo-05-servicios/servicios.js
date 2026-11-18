@@ -1,175 +1,163 @@
-﻿/**
- * SMILETRACK — Servicios Prestados (script.js)
- * Sidebar móvil accesible + Persistencia + API-ready
- */
+(() => {
+  'use strict';
 
-// ═══════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN
-// ═══════════════════════════════════════════════════════════════════
-const API_BASE = '/api';
-const STORAGE_KEY = 'smiletrack_services';
-
-// ═══════════════════════════════════════════════════════════════════
-//  UTILIDADES
-// ═══════════════════════════════════════════════════════════════════
-
-const $ = (id) => {
-  const el = document.getElementById(id);
-  if (!el) console.warn(`[SmileTrack] Elemento no encontrado: #${id}`);
-  return el;
-};
-
-const showToast = (msg, type = 'success') => {
-  const toast = $('toast');
-  if (!toast) return;
-  toast.textContent = msg;
-  toast.className = `fixed bottom-5 left-1/2 -translate-x-1/2 px-5 py-3 rounded-lg shadow-lg text-sm font-body transition-all z-50 ${
-    type === 'error' ? 'bg-red-600' : type === 'warning' ? 'bg-orange-500' : 'bg-gray-800'
-  } text-white show`;
-  setTimeout(() => toast.classList.remove('show'), 3000);
-};
-
-const fmtMoney = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
-
-// ═══════════════════════════════════════════════════════════════════
-//  PERSISTENCIA
-// ═══════════════════════════════════════════════════════════════════
-
-const storage = {
-  load: () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  },
-  save: (data) => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); return true; }
-    catch (e) { console.error('Error guardando:', e); return false; }
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  DATOS DE EJEMPLO
-// ═══════════════════════════════════════════════════════════════════
-
-const defaultData = {
-  services: [
-    { id: 1, name: 'Control de tratamiento', description: 'Pieza 23 – Seguimiento endodoncia', category: 'preventiva', historicalPrice: 30000, currentPrice: 30000, status: 'realizado' },
-    { id: 2, name: 'Control general', description: 'Valoración y diagnóstico', category: 'preventiva', historicalPrice: 45000, currentPrice: 50000, status: 'realizado' }
-  ],
-  summary: { subtotal: 80000, discount: 5000, tax: 0, total: 75000 }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  ESTADO
-// ═══════════════════════════════════════════════════════════════════
-
-let data = storage.load() || defaultData;
-
-// ═══════════════════════════════════════════════════════════════════
-//  SIDEBAR MÓVIL (ACCESIBLE)
-// ═══════════════════════════════════════════════════════════════════
-
-const initSidebar = () => {
-  const sidebar = $('sidebar');
-  const backdrop = $('sidebar-backdrop');
-  const toggle = $('menu-toggle');
-  
-  if (!sidebar || !backdrop || !toggle) return;
-  
-  const toggleMenu = (show) => {
-    sidebar.classList.toggle('open', show);
-    backdrop.classList.toggle('hidden', !show);
-    toggle.setAttribute('aria-expanded', show);
-    if (show) sidebar.querySelector('.nav-item')?.focus();
-    else toggle.focus();
-  };
-  
-  toggle.addEventListener('click', () => toggleMenu(true));
-  backdrop.addEventListener('click', () => toggleMenu(false));
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => { if (window.innerWidth < 1024) toggleMenu(false); });
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleMenu(false);
+  const requiredElement = id => {
+    const element = document.getElementById(id);
+    if (!element) {
+      throw new Error(`No se encontró el elemento requerido #${id}.`);
     }
-  });
-  window.addEventListener('resize', () => { if (window.innerWidth >= 1024) toggleMenu(false); });
-};
+    return element;
+  };
 
-// ═══════════════════════════════════════════════════════════════════
-//  RENDER: RESUMEN DE FACTURACIÓN
-// ═══════════════════════════════════════════════════════════════════
+  const translate = key => {
+    if (!window.I18N || typeof window.I18N.t !== 'function') {
+      throw new Error('El servicio de traducción no está disponible.');
+    }
+    return window.I18N.t(key);
+  };
 
-const renderSummary = () => {
-  const { subtotal, discount, tax, total } = data.summary;
-  
-  const elSubtotal = $('subtotal');
-  const elDiscount = $('discount');
-  const elTax = $('tax');
-  const elTotal = $('total');
-  
-  if (elSubtotal) elSubtotal.textContent = fmtMoney(subtotal);
-  if (elDiscount) elDiscount.textContent = `-${fmtMoney(discount)}`;
-  if (elTax) elTax.textContent = fmtMoney(tax);
-  if (elTotal) elTotal.textContent = fmtMoney(total);
-};
+  const normalize = value => (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 
-// ═══════════════════════════════════════════════════════════════════
-//  FEEDBACK DE ESTADO
-// ═══════════════════════════════════════════════════════════════════
+  const initialize = () => {
+    const search = requiredElement('buscarServicio');
+    const specialty = requiredElement('filtroEspecialidad');
+    const status = requiredElement('filtroEstado');
+    const empty = requiredElement('sinResultados');
+    const panel = requiredElement('detallePanel');
+    const overlay = requiredElement('detalleOverlay');
+    const closeButton = requiredElement('cerrarDetalle');
+    const cards = Array.from(document.querySelectorAll('.service-card'));
+    let activeCard = null;
+    let previousFocus = null;
 
-const showStatus = (msg) => {
-  const banner = $('statusBanner');
-  const text = $('statusText');
-  if (!banner || !text) return;
-  
-  text.textContent = `${msg} - ${new Date().toLocaleString('es-ES')}`;
-  banner.classList.remove('hidden');
-  
-  setTimeout(() => banner.classList.add('hidden'), 5000);
-};
+    const filterServices = () => {
+      const query = normalize(search.value);
+      let visibleCount = 0;
 
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN DE EVENTOS
-// ═══════════════════════════════════════════════════════════════════
+      cards.forEach(card => {
+        const searchableText = normalize(`${card.dataset.name} ${card.dataset.description}`);
+        const matches = searchableText.includes(query)
+          && (!specialty.value || card.dataset.specialty === specialty.value)
+          && (!status.value || card.dataset.status === status.value);
+        card.hidden = !matches;
+        if (matches) visibleCount += 1;
+      });
 
-const initAddService = () => {
-  $('btnAddService')?.addEventListener('click', () => {
-    showToast('📝 Funcionalidad de agregar servicio en desarrollo', 'warning');
-  });
-};
+      empty.hidden = cards.length === 0 || visibleCount > 0;
+    };
 
-// ═══════════════════════════════════════════════════════════════════
-//  API CALLS (Listas para backend C#)
-// ═══════════════════════════════════════════════════════════════════
+    const renderDetails = card => {
+      const data = card.querySelector('.service-data')?.dataset;
+      if (!data) {
+        throw new Error('No se encontraron los detalles del servicio seleccionado.');
+      }
 
-const fetchServices = async () => {
-  try {
-    // const res = await fetch(`${API_BASE}/odontologo/services`);
-    // if (!res.ok) throw new Error('API error');
-    // return await res.json();
-    return storage.load() || defaultData;
-  } catch (e) {
-    console.warn('Fallback a datos locales:', e);
-    return defaultData;
+      requiredElement('detalleTitulo').textContent = data.name || translate('odo05.not_specified');
+      requiredElement('detalleDescripcion').textContent = data.description || translate('odo05.description_not_registered');
+      requiredElement('detalleEspecialidad').textContent = data.specialty || translate('odo05.not_specified');
+      requiredElement('detalleCategoria').textContent = data.category || translate('odo05.not_specified');
+      requiredElement('detalleDuracion').textContent = data.duration
+        ? `${data.duration} ${translate('odo05.minutes')}`
+        : translate('odo05.not_specified');
+      requiredElement('detalleBase').textContent = data.base
+        ? `${data.base} COP`
+        : translate('odo05.not_specified');
+      requiredElement('detallePrecio').textContent = data.price
+        ? `${data.price} COP`
+        : translate('odo05.not_specified');
+      requiredElement('detallePersonalizado').textContent = data.custom === 'true'
+        ? translate('common.yes')
+        : translate('common.no');
+
+      const statusElement = requiredElement('detalleEstado');
+      const isAvailable = data.status === 'activo';
+      statusElement.className = `status-badge badge-estado ${isAvailable ? 'activo' : 'inactivo'}`;
+      statusElement.textContent = translate(isAvailable ? 'odo05.status_available' : 'odo05.status_unavailable');
+    };
+
+    const openDetails = button => {
+      const card = button.closest('.service-card');
+      if (!card) {
+        throw new Error('No se encontró la tarjeta del servicio seleccionado.');
+      }
+
+      activeCard = card;
+      previousFocus = button;
+      renderDetails(card);
+      panel.hidden = false;
+      overlay.hidden = false;
+      panel.setAttribute('aria-hidden', 'false');
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('professional-services-detail-open');
+      closeButton.focus();
+    };
+
+    const closeDetails = () => {
+      if (panel.hidden) return;
+
+      panel.hidden = true;
+      overlay.hidden = true;
+      panel.setAttribute('aria-hidden', 'true');
+      overlay.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('professional-services-detail-open');
+      activeCard = null;
+      previousFocus?.focus();
+      previousFocus = null;
+    };
+
+    search.addEventListener('input', filterServices);
+    specialty.addEventListener('change', filterServices);
+    status.addEventListener('change', filterServices);
+
+    document.querySelectorAll('.details-button').forEach(button => {
+      button.addEventListener('click', () => openDetails(button));
+    });
+
+    closeButton.addEventListener('click', closeDetails);
+    overlay.addEventListener('click', closeDetails);
+
+    document.addEventListener('keydown', event => {
+      if (panel.hidden) return;
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeDetails();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(panel.querySelectorAll(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ));
+      if (!focusable.length) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    document.addEventListener('i18n:change', () => {
+      if (activeCard) renderDetails(activeCard);
+    });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialize, { once: true });
+  } else {
+    initialize();
   }
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  INICIALIZACIÓN PRINCIPAL
-// ═══════════════════════════════════════════════════════════════════
-
-const init = async () => {
-  initSidebar();
-  initAddService();
-  
-  data = await fetchServices();
-  renderSummary();
-  
-  window.addEventListener('beforeunload', () => { /* Cleanup SPA */ });
-};
-
-document.addEventListener('DOMContentLoaded', init);
+})();

@@ -224,7 +224,7 @@ img { max-width: 100%; height: auto; display: block; }
     --border-color: #e5e7eb;
 }
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: var(--font);
     background-color: var(--bg-gray);
     color: var(--text-dark);
 }
@@ -310,6 +310,17 @@ body {
     letter-spacing: 0.5px;
     margin-bottom: 15px;
     font-weight: 600;
+}
+/* Separación entre el bloque de tipos de solicitud y el formulario */
+.section-title--spaced {
+    margin-top: 30px;
+}
+/* Contador de caracteres del textarea de descripción */
+.char-counter {
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 5px;
 }
 /* Request Type Cards */
 .request-types {
@@ -417,10 +428,34 @@ body {
     border-color: var(--primary-blue);
     background: #eff6ff;
 }
-.file-upload i {
+.file-upload .material-symbols-outlined {
+    display: inline-block;
     font-size: 32px;
     color: var(--primary-blue);
     margin-bottom: 10px;
+}
+/* Vista previa del archivo adjunto seleccionado */
+.file-upload .file-preview-icon {
+    color: var(--success-green);
+}
+.file-preview-name {
+    font-weight: 600;
+    color: var(--text-dark);
+}
+.file-preview-size {
+    font-size: 12px;
+    color: var(--text-light);
+}
+.file-remove {
+    margin-top: 10px;
+    border: 0;
+    background: none;
+    color: var(--primary-blue);
+    cursor: pointer;
+}
+/* Contador de caracteres cuando se supera el limite del textarea */
+.char-counter.is-over-limit {
+    color: var(--danger-red);
 }
 /* Sidebar Right */
 .sidebar-right {
@@ -439,6 +474,17 @@ body {
     margin-bottom: 15px;
     color: var(--text-dark);
 }
+/* Encabezado de tarjeta con título a la izquierda y enlace a la derecha */
+.info-card-title--split {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.info-card-link {
+    font-size: 12px;
+    color: var(--primary-blue);
+    text-decoration: none;
+}
 .time-item {
     display: flex;
     justify-content: space-between;
@@ -455,7 +501,7 @@ body {
     gap: 8px;
     font-size: 14px;
 }
-.time-label i {
+.time-label .material-symbols-outlined {
     width: 20px;
     height: 20px;
     border-radius: 50%;
@@ -464,15 +510,15 @@ body {
     justify-content: center;
     font-size: 12px;
 }
-.time-label.petition i {
+.time-label.petition .material-symbols-outlined {
     background: #dbeafe;
     color: var(--primary-blue);
 }
-.time-label.complaint i {
+.time-label.complaint .material-symbols-outlined {
     background: #fef3c7;
     color: var(--warning-orange);
 }
-.time-label.claim i {
+.time-label.claim .material-symbols-outlined {
     background: #fee2e2;
     color: var(--danger-red);
 }
@@ -494,6 +540,10 @@ body {
 .channel-value {
     font-weight: 600;
     color: var(--text-dark);
+}
+.channel-hours {
+    font-size: 12px;
+    color: var(--text-light);
 }
 .how-it-works {
     background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-blue) 100%);
@@ -791,4 +841,33 @@ body {
 }
 body.pqr-modal-open {
     overflow: hidden;
+}
+
+/* ===== INTEGRACIÓN CON EL SHELL ESTANDARIZADO (_Layout) ===== */
+.main .page-header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    min-width: 0;
+    gap: 16px;
+}
+.main .page-header-title {
+    min-width: 0;
+}
+
+/* Indicador de carga del botón de envío */
+.material-symbols-outlined.spin {
+    animation: pqr-icon-spin 0.9s linear infinite;
+}
+@keyframes pqr-icon-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 680px) {
+    .main .page-header-content {
+        align-items: stretch;
+        flex-direction: column;
+    }
 }

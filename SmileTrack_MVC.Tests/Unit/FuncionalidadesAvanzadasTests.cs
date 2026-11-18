@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Services;
@@ -28,7 +29,16 @@ public class FuncionalidadesAvanzadasTests
         db.Profesionales.Add(new Profesional { IdProfesional = 1, Nombres = "Dr. Pedro", Apellidos = "Ramírez", Estado = "activo" });
         db.Profesionales.Add(new Profesional { IdProfesional = 2, Nombres = "Dra. Sofía", Apellidos = "Vargas", Estado = "activo" });
 
-        db.Servicios.Add(new Servicio { IdServicio = 1, Nombre = "Limpieza Odontológica", Precio = 100000m, DuracionMinutos = 30, Estado = "activo" });
+        db.Especialidades.Add(new Especialidad { IdEspecialidad = 1, Nombre = "Odontología General" });
+        db.Servicios.Add(new Servicio
+        {
+            IdServicio = 1,
+            Nombre = "Limpieza Odontológica",
+            Precio = 100000m,
+            DuracionMinutos = 30,
+            Estado = "activo",
+            IdEspecialidad = 1
+        });
         db.Consultorios.Add(new Consultorio { IdConsultorio = 1, Nombre = "Consultorio 101", Estado = "disponible" });
 
         db.EstadosCita.Add(new EstadoCita { IdEstado = 1, NombreEstado = "Programada" });
@@ -50,6 +60,25 @@ public class FuncionalidadesAvanzadasTests
                     Activo = true
                 });
             }
+        }
+
+        db.SaveChanges();
+
+        // La elegibilidad exige especialidad coincidente y asignación activa del servicio.
+        foreach (var profId in new[] { 1, 2 })
+        {
+            db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+            {
+                IdProfesional = profId,
+                IdEspecialidad = 1,
+                Principal = true
+            });
+            db.ProfesionalServicios.Add(new ProfesionalServicio
+            {
+                IdProfesional = profId,
+                IdServicio = 1,
+                Activo = true
+            });
         }
 
         db.SaveChanges();
@@ -99,6 +128,53 @@ public class FuncionalidadesAvanzadasTests
     }
 
     [Fact]
+    public async Task RegistrarAusenciaConReasignacionAsync_NoAsignaSustitutoFueraDeSuHorario()
+    {
+        var db = CreateInMemoryDb($"db_reasignar_fuera_horario_{Guid.NewGuid()}");
+        var citaService = new CitaService(db, NullLogger<CitaService>.Instance);
+        var lunes = ColombiaClock.Today.AddDays(1);
+        while (lunes.DayOfWeek != DayOfWeek.Monday)
+            lunes = lunes.AddDays(1);
+
+        var cita = await citaService.CrearAsync(new CitaApiRequest
+        {
+            IdPaciente = 1,
+            IdProfesional = 1,
+            IdServicio = 1,
+            IdConsultorio = 1,
+            FechaHora = lunes.AddHours(10),
+            Estado = "Programada"
+        });
+
+        var horariosSustituto = await db.HorariosProfesional
+            .Where(h => h.IdProfesional == 2)
+            .ToListAsync();
+        db.HorariosProfesional.RemoveRange(horariosSustituto);
+        db.HorariosProfesional.Add(new HorarioProfesional
+        {
+            IdProfesional = 2,
+            DiaSemana = "Lunes",
+            HoraInicio = new TimeOnly(12, 0),
+            HoraFin = new TimeOnly(18, 0),
+            Activo = true
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        var resultado = await service.RegistrarAusenciaConReasignacionAsync(
+            1,
+            lunes,
+            lunes.AddDays(1).AddTicks(-1),
+            "Incapacidad");
+
+        var citaActualizada = await db.Citas.SingleAsync(c => c.IdCita == cita.IdCita);
+        Assert.Equal(0, resultado.TotalReasignadas);
+        Assert.Equal(1, resultado.TotalCanceladas);
+        Assert.Equal(1, citaActualizada.IdProfesional);
+        Assert.Equal("Cancelada", citaActualizada.Estado);
+    }
+
+    [Fact]
     public async Task CalcularComisionesAsync_CalculaHonorariosCorrectamente()
     {
         var db = CreateInMemoryDb($"db_comisiones_{Guid.NewGuid()}");
@@ -125,7 +201,10 @@ public class FuncionalidadesAvanzadasTests
         var db = CreateInMemoryDb($"db_espera_{Guid.NewGuid()}");
         var citaService = new CitaService(db, NullLogger<CitaService>.Instance);
 
-        var fechaCita = DateTime.Today.AddDays(2).AddHours(14);
+        var fechaCita = DateTime.Today.AddDays(2);
+        if (fechaCita.DayOfWeek == DayOfWeek.Sunday)
+            fechaCita = fechaCita.AddDays(1);
+        fechaCita = fechaCita.AddHours(14);
 
         // Paciente 2 está en lista de espera para la misma fecha/hora y servicio
         db.ListaEsperaCitas.Add(new ListaEsperaCita
@@ -151,7 +230,7 @@ public class FuncionalidadesAvanzadasTests
         var cita = await citaService.CrearAsync(citaReq);
 
         // Paciente 1 cancela su cita
-        bool cancelado = await citaService.CancelarAsync(cita.IdCita);
+        bool cancelado = await citaService.CancelarAsync(cita.IdCita, "Cancelación solicitada");
 
         Assert.True(cancelado);
 

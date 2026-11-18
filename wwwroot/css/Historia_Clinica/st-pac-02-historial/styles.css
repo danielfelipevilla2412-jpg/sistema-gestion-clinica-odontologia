@@ -215,30 +215,41 @@ img { max-width: 100%; height: auto; display: block; }
 .record-card-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--text-muted, #64748b); font-size: .8rem; }
 .record-document-link { display: inline-block; margin-top: 12px; color: var(--primary, #2563eb); font-size: .85rem; font-weight: 600; }
 .empty-history { padding: 32px 16px; border: 1px dashed var(--border, #dbe4ef); border-radius: 12px; color: var(--text-muted, #64748b); text-align: center; }
+.visit-clinical-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin-top: 16px; }
+.visit-clinical-details > div { min-width: 0; }
+.visit-clinical-details dt { margin-bottom: 4px; color: var(--text-muted); font-size: .72rem; font-weight: 700; text-transform: uppercase; }
+.visit-clinical-details dd { color: var(--text); font-size: .84rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.visit-related-records { display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: .8rem; line-height: 1.5; }
+.unlinked-clinical-records { display: grid; gap: 10px; }
+.unlinked-clinical-records > h3 { color: var(--text); font: 700 1rem var(--font-display); }
 .clinical-form-readonly { display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
 .readonly-form-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0; }
 .readonly-eyebrow { color: var(--primary, #2563eb); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .readonly-form-heading h2 { margin: 4px 0 0; color: var(--text, #172033); font-size: 1.35rem; }
 .readonly-badge { border: 1px solid #bfdbfe; border-radius: 999px; color: #1d4ed8; background: #eff6ff; padding: 6px 10px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
-.readonly-form-card { border: 1px solid var(--border, #dbe4ef); border-radius: 12px; background: var(--panel, #fff); padding: 18px; box-shadow: var(--shadow-sm, 0 2px 8px rgba(15, 23, 42, .05)); }
-.readonly-card-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
-.readonly-card-header h3 { margin: 0; color: var(--text, #172033); font-size: 1rem; }
-.readonly-card-header p { margin: 4px 0 0; color: var(--text-muted, #64748b); font-size: .82rem; }
-.readonly-step { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; background: #2563eb; color: #fff; font-size: .8rem; font-weight: 700; }
+.readonly-form-card { border: 1px solid var(--border, #dbe4ef); border-radius: 18px; background: var(--panel, #fff); padding: 0; overflow: hidden; box-shadow: var(--shadow-sm, 0 2px 8px rgba(15, 23, 42, .05)); }
+.readonly-card-header { display: flex; align-items: center; gap: 12px; margin: 0; padding: 18px 18px 16px; border-bottom: 1px solid var(--line, #dfe7f1); background: #f8fafc; }
+.readonly-card-header > div { flex: 1; min-width: 0; }
+.readonly-card-header h3 { margin: 0; color: var(--brand-dark, #1d4ed8); font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.readonly-card-header p { margin: 2px 0 0; color: var(--text-soft, #64748b); font-size: 11px; }
+.readonly-step { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 9px; background: linear-gradient(180deg, #1f9d8c 0%, #1d8f7d 100%); box-shadow: 0 8px 16px rgba(15, 118, 110, .18); color: #fff; font-size: .8rem; font-weight: 700; }
 .readonly-step.step-blue { background: #0ea5e9; }
 .readonly-step.step-purple { background: #8b5cf6; }
 .readonly-step.step-indigo { background: #4f46e5; }
 .readonly-step.step-green { background: #10b981; }
-.readonly-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.readonly-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 20px 18px 18px; }
 .readonly-fields > div { min-width: 0; }
 .readonly-fields label { display: block; margin-bottom: 6px; color: var(--text-soft, #475569); font-size: .78rem; font-weight: 700; }
-.readonly-fields textarea { display: block; width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--border, #dbe4ef); border-radius: 8px; padding: 10px; background: #f8fafc; color: var(--text, #172033); font: inherit; line-height: 1.45; }
+.readonly-fields textarea { display: block; width: 100%; min-height: 72px; resize: vertical; border: 1px solid #d9e2ee; border-radius: 10px; padding: 11px 12px; background: #f9fbff; color: var(--text, #172033); font: inherit; line-height: 1.45; }
 .readonly-field-wide { grid-column: 1 / -1; }
-.readonly-document-list { min-height: 52px; padding: 12px; border: 1px dashed var(--border, #dbe4ef); border-radius: 8px; background: #f8fafc; color: var(--text-soft, #475569); white-space: pre-line; }
+.readonly-document-list { min-height: 52px; margin: 20px 18px 18px; padding: 12px; border: 1px dashed var(--border, #dbe4ef); border-radius: 8px; background: #f8fafc; color: var(--text-soft, #475569); white-space: pre-line; }
+.patient-history-main .perfil-paciente-header { margin: 0 0 18px; padding: 18px 20px; border: 1px solid var(--line, #dfe7f1); border-radius: var(--radius-xl, 18px); background: linear-gradient(135deg, #fff 0%, #f8fbff 100%); box-shadow: var(--shadow, 0 4px 16px rgba(15, 23, 42, .06)); }
+.patient-history-main .perfil-paciente-header__avatar { width: 56px; height: 56px; flex-basis: 56px; border-radius: 18px; background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%); }
 @media (max-width: 680px) {
   .readonly-form-heading { align-items: flex-start; flex-direction: column; }
   .readonly-fields { grid-template-columns: 1fr; }
   .readonly-field-wide { grid-column: auto; }
+  .visit-clinical-details { grid-template-columns: 1fr; }
 }
 .record-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; align-items: center; gap: 12px; transition: background var(--tr), border-color var(--tr); background: var(--white); }
 .record-item:hover { background: #f8fafc; border-color: #bfdbfe; }
@@ -325,3 +336,38 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+/* ═════ NUEVO: ESTILOS MIGRADOS DEL <style> INLINE DE LA VISTA (st-pac-02) ═════ */
+/* NOTA: `@keyframes scan` ya está definido arriba (sección odontograma); no se duplica. */
+.hw button { transform: none !important; }
+.tb {
+  font-size: 10px;
+  padding: 4px 13px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  background: transparent;
+  color: rgba(0, 212, 255, 0.5);
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+.tb.active {
+  border-color: rgba(0, 212, 255, 0.7);
+  background: rgba(0, 212, 255, 0.15);
+  color: #00d4ff;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.2);
+}
+
+/* ── Impresión: reglas de layout propias de la vista ──
+   Los elementos de navegación/UI globales (.sidebar, .hamburger, .overlay,
+   .clinical-topbar, .modal-overlay, .toast, .site-footer, .mobile-nav) ya se
+   ocultan desde css/shared/print.css, por eso no se repiten aquí. */
+@media print {
+  body { display: block; background: #fff; }
+  .patient-history-header .page-header-actions { display: none !important; }
+  .patient-history-main, .clinical-content-shell { width: 100%; max-width: none; margin: 0; padding: 0; }
+  .patient-history-header { padding: 0 0 12px; box-shadow: none; border: 0; }
+  .patient-summary-card, .form-card, .history-workspace, .record-card { box-shadow: none; break-inside: avoid; }
+  .clinical-section-tabs { display: none; }
+  .readonly-fields textarea { overflow: visible; resize: none; }
+  a { color: inherit; text-decoration: none; }
+}

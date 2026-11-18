@@ -22,12 +22,15 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const EXPORT_RESET_TIMEOUT_MS = 2000;
+const FINALIZED_PAGE_SIZE = 10;
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. ESTADO DE LA APLICACIÓN
 // ═══════════════════════════════════════════════════════════════════
 
 const summaryIntervalsWeakMap = new WeakMap();
+let finalizedCurrentPage = 1;
+let finalizedStatusFilter = 'all';
 
 // ═══════════════════════════════════════════════════════════════════
 // 3. UTILIDADES Y HELPERS
@@ -36,14 +39,13 @@ const summaryIntervalsWeakMap = new WeakMap();
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
-const debounce = (fn, delay) =>
-  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
-
 const formatDateForExport = () => {
   const dateObj = new Date();
   const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   return `${dateObj.getDate()} de ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
 };
+const getSummaryDate = () =>
+  window.smiletrackCitasFinalizadasData?.fechaResumen || new Date().toISOString().split('T')[0];
 
 const escapeCsvValue = (value) => {
   const textValue = String(value ?? '');
@@ -56,13 +58,12 @@ const escapeCsvValue = (value) => {
 
 const exportFinalizedAppointmentsToCsv = (buttonElement) => {
   const originalHtml = buttonElement.innerHTML;
-  buttonElement.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">hourglass_top</span><span class="btn-text">Generando...</span>';
+  buttonElement.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">hourglass_top</span><span class="btn-text">Generando...</span>';
   buttonElement.disabled = true;
-  
+
   try {
     const appointmentsList = finalizedStorage.load();
     const countsSummary = finalizedStorage.getCounts(appointmentsList);
-    
     const csvLines = [
       'Fecha de exportación,' + formatDateForExport(),
       '',
@@ -74,29 +75,27 @@ const exportFinalizedAppointmentsToCsv = (buttonElement) => {
       `Total,${appointmentsList.length}`,
       '',
       'DETALLE DE CITAS',
-      'Hora,Paciente,Profesional,Servicio,Estado',
-      ...appointmentsList.map(item => [item.hora, item.paciente, item.profesional, item.servicio, item.estado].map(escapeCsvValue).join(','))
+      'Fecha,Hora,Paciente,Profesional,Servicio,Estado',
+      ...appointmentsList.map(item => [item.fecha, item.hora, item.paciente, item.profesional, item.servicio, item.estado].map(escapeCsvValue).join(','))
     ].join('\n');
-    
+
     const csvBlob = new Blob([csvLines], { type: 'text/csv;charset=utf-8;' });
     const downloadUrl = URL.createObjectURL(csvBlob);
     const downloadLink = document.createElement('a');
     downloadLink.href = downloadUrl;
-    downloadLink.download = `smiletrack_citas_finalizadas_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadLink.download = `smiletrack_citas_finalizadas_${getSummaryDate()}.csv`;
     downloadLink.style.display = 'none';
     document.body.appendChild(downloadLink);
     downloadLink.click();
     document.body.removeChild(downloadLink);
     URL.revokeObjectURL(downloadUrl);
-    
-    buttonElement.innerHTML = '<span class="material-symbols-outlined action-icon" aria-hidden="true">check_circle</span><span class="btn-text">Descargado</span>';
+
+    buttonElement.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">check_circle</span><span class="btn-text">Descargado</span>';
     buttonElement.style.background = '#dcfce7';
     buttonElement.style.borderColor = '#22c55e';
     buttonElement.style.color = '#166534';
-    if (window.ToastService) {
-      window.ToastService.success('Resumen descargado exitosamente');
-    }
-    
+    if (window.ToastService) window.ToastService.success('Resumen descargado exitosamente');
+
     setTimeout(() => {
       buttonElement.innerHTML = originalHtml;
       buttonElement.disabled = false;
@@ -104,7 +103,6 @@ const exportFinalizedAppointmentsToCsv = (buttonElement) => {
       buttonElement.style.borderColor = '';
       buttonElement.style.color = '';
     }, EXPORT_RESET_TIMEOUT_MS);
-    
   } catch (error) {
     console.error('Error al exportar:', error);
     buttonElement.innerHTML = originalHtml;
@@ -121,19 +119,72 @@ const finalizedStorage = {
   load: () => (window.smiletrackCitasFinalizadasData?.citas) || [],
 
   getCounts: (appointments) => {
+    const normalize = (e) => window.CommonUtils?.normalizeAppointmentStatus(e) ?? String(e || '').toLowerCase().trim().replace(/\s+/g, '_');
     return {
-      atendidas: appointments.filter(item => CommonUtils.normalizeAppointmentStatus(item.estado) === 'atendida').length,
-      canceladas: appointments.filter(item => CommonUtils.normalizeAppointmentStatus(item.estado) === 'cancelada').length,
-      noAsistio: appointments.filter(item => CommonUtils.normalizeAppointmentStatus(item.estado) === 'no_asistida').length
+      atendidas: appointments.filter(item => normalize(item.estado) === 'atendida').length,
+      canceladas: appointments.filter(item => normalize(item.estado) === 'cancelada').length,
+      noAsistio: appointments.filter(item => normalize(item.estado) === 'no_asistida').length
     };
   }
 };
+
+const filterFinalizedAppointments = (dataList) => {
+    if (finalizedStatusFilter === 'all') return dataList;
+
+    const statusByTab = {
+      attended: 'atendida',
+      cancelled: 'cancelada',
+      'no-show': 'no_asistida'
+    };
+    const targetStatus = statusByTab[finalizedStatusFilter];
+    const normalize = (e) => window.CommonUtils?.normalizeAppointmentStatus(e) ?? String(e || '').toLowerCase().trim().replace(/\s+/g, '_');
+
+    return dataList.filter(appointment =>
+      normalize(appointment.estado) === targetStatus
+    );
+  };
+
+const updateFinalizedPagination = (totalItems) => {
+    const pageCount = Math.ceil(totalItems / FINALIZED_PAGE_SIZE);
+    finalizedCurrentPage = Math.min(finalizedCurrentPage, Math.max(pageCount, 1));
+
+    const rangeStart = totalItems > 0 ? (finalizedCurrentPage - 1) * FINALIZED_PAGE_SIZE + 1 : 0;
+    const rangeEnd = totalItems > 0 ? Math.min(rangeStart + FINALIZED_PAGE_SIZE - 1, totalItems) : 0;
+    const infoElement = safeGetElement('finalizedPaginationInfo');
+    const previousButton = safeGetElement('finalizedPreviousPage');
+    const nextButton = safeGetElement('finalizedNextPage');
+    const pageNumbersElement = safeGetElement('finalizedPageNumbers');
+
+    if (infoElement) {
+      infoElement.textContent = totalItems > 0
+        ? `Mostrando ${rangeStart}-${rangeEnd} de ${totalItems} citas`
+        : 'Mostrando 0 de 0 citas';
+    }
+    if (previousButton) previousButton.disabled = finalizedCurrentPage <= 1 || totalItems === 0;
+    if (nextButton) nextButton.disabled = finalizedCurrentPage >= pageCount || totalItems === 0;
+    if (!pageNumbersElement) return;
+
+    pageNumbersElement.replaceChildren();
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
+      const pageButton = document.createElement('button');
+      pageButton.type = 'button';
+      pageButton.className = `pagination-number${pageNumber === finalizedCurrentPage ? ' active' : ''}`;
+      pageButton.textContent = String(pageNumber);
+      pageButton.dataset.page = String(pageNumber);
+      pageButton.setAttribute('aria-label', `Página ${pageNumber}`);
+      if (pageNumber === finalizedCurrentPage) pageButton.setAttribute('aria-current', 'page');
+      pageNumbersElement.appendChild(pageButton);
+    }
+  };
 
 const renderAppointmentsTable = (dataList) => {
   const tableBody = safeGetElement('appointmentsBody');
   if (!tableBody) return;
 
-  if (dataList.length === 0) {
+  const filteredAppointments = filterFinalizedAppointments(dataList);
+  updateFinalizedPagination(filteredAppointments.length);
+
+  if (filteredAppointments.length === 0) {
     const emptyRow = document.createElement('tr');
     emptyRow.className = 'empty-state-row';
     emptyRow.setAttribute('role', 'row');
@@ -151,7 +202,7 @@ const renderAppointmentsTable = (dataList) => {
     iconDiv.textContent = '📅';
     const messageParagraph = document.createElement('p');
     messageParagraph.className = 'empty-state-message';
-    messageParagraph.textContent = 'No hay citas finalizadas registradas.';
+    messageParagraph.textContent = 'No hay citas que coincidan con el filtro seleccionado.';
     contentDiv.append(iconDiv, messageParagraph);
     emptyCell.appendChild(contentDiv);
     emptyRow.appendChild(emptyCell);
@@ -159,8 +210,12 @@ const renderAppointmentsTable = (dataList) => {
     return;
   }
 
-  tableBody.replaceChildren(...dataList.map(apt => {
-    const normalizedStatus = CommonUtils.normalizeAppointmentStatus(apt.estado);
+  const startIndex = (finalizedCurrentPage - 1) * FINALIZED_PAGE_SIZE;
+  const pageAppointments = filteredAppointments.slice(startIndex, startIndex + FINALIZED_PAGE_SIZE);
+
+  tableBody.replaceChildren(...pageAppointments.map(apt => {
+    const normalizedStatus = window.CommonUtils?.normalizeAppointmentStatus(apt.estado)
+      ?? String(apt.estado || '').toLowerCase().trim().replace(/\s+/g, '_');
     const statusClass = normalizedStatus === 'atendida' ? 'atendida' :
                normalizedStatus === 'cancelada' ? 'cancelada' : 'no-asistio';
     const tableRow = document.createElement('tr');
@@ -240,6 +295,45 @@ const setupExportButtonListener = () => {
 // 7. INICIALIZACIÓN Y EVENT LISTENERS
 // ═══════════════════════════════════════════════════════════════════
 
+const setupFinalizedTableControls = () => {
+    const tabButtons = document.querySelectorAll('.table-tabs .tab-btn');
+
+    tabButtons.forEach(tabButton => {
+      tabButton.addEventListener('click', () => {
+        tabButtons.forEach(button => {
+          button.classList.remove('active');
+          button.setAttribute('aria-pressed', 'false');
+        });
+        tabButton.classList.add('active');
+        tabButton.setAttribute('aria-pressed', 'true');
+        finalizedStatusFilter = tabButton.dataset.tab || 'all';
+        finalizedCurrentPage = 1;
+        renderAppointmentsTable(finalizedStorage.load());
+      });
+    });
+
+    safeGetElement('finalizedPreviousPage')?.addEventListener('click', () => {
+      if (finalizedCurrentPage <= 1) return;
+      finalizedCurrentPage--;
+      renderAppointmentsTable(finalizedStorage.load());
+    });
+
+    safeGetElement('finalizedNextPage')?.addEventListener('click', () => {
+      const current = finalizedStorage.load();
+      const pageCount = Math.ceil(filterFinalizedAppointments(current).length / FINALIZED_PAGE_SIZE);
+      if (finalizedCurrentPage >= pageCount) return;
+      finalizedCurrentPage++;
+      renderAppointmentsTable(current);
+    });
+
+    safeGetElement('finalizedPageNumbers')?.addEventListener('click', event => {
+      const pageButton = event.target.closest('button[data-page]');
+      if (!pageButton) return;
+      finalizedCurrentPage = Number(pageButton.dataset.page) || 1;
+      renderAppointmentsTable(finalizedStorage.load());
+    });
+  };
+
 const setupMobileMenu = () => {
   // El menú móvil es gestionado centralizadamente por ~/js/shared/sidebar.js
 };
@@ -247,12 +341,12 @@ const setupMobileMenu = () => {
 const initializeCitasFinalizadasModule = () => {
     setupMobileMenu();
     setupExportButtonListener();
+    setupFinalizedTableControls();
     
     const appointmentsList = finalizedStorage.load();
     renderAppointmentsTable(appointmentsList);
     updateSummaryCounters();
     
-    window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
 };
 
 document.addEventListener('DOMContentLoaded', initializeCitasFinalizadasModule);

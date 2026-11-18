@@ -31,7 +31,13 @@ const DEFAULT_FILTER_ALL = 'todos';
 class AgendaSupportController {
   constructor() {
     const data = window.smiletrackAgendaApoyoData || {};
-    this._fechaHoy = data.fechaHoy || '';
+    const hoy = new Date();
+    const fechaLocal = [
+      hoy.getFullYear(),
+      String(hoy.getMonth() + 1).padStart(2, '0'),
+      String(hoy.getDate()).padStart(2, '0')
+    ].join('-');
+    this._fechaHoy = data.fecha || fechaLocal;
     this._citasBase = data.citas || [];
     this._filtroProfesional = DEFAULT_FILTER_ALL;
     this._filtroTipo = DEFAULT_FILTER_ALL;
@@ -39,13 +45,14 @@ class AgendaSupportController {
 
   async getCitas(profesional = DEFAULT_FILTER_ALL, tipo = DEFAULT_FILTER_ALL) {
     let resultado = [...this._citasBase];
-    
+
     if (profesional !== DEFAULT_FILTER_ALL) {
       const normalizar = (valor) => String(valor || '').trim().toLocaleLowerCase('es-CO');
       resultado = resultado.filter(c => normalizar(c.profesional) === normalizar(profesional));
     }
     if (tipo !== DEFAULT_FILTER_ALL) {
-      resultado = resultado.filter(c => c.tipo === tipo);
+      const normalizarTipo = (valor) => String(valor || '').trim().toLocaleLowerCase('es-CO');
+      resultado = resultado.filter(c => normalizarTipo(c.tipo) === normalizarTipo(tipo));
     }
     return resultado;
   }
@@ -62,14 +69,20 @@ const agendaSupportControllerInstance = new AgendaSupportController();
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
-const debounce = (fn, delay) =>
-  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
-
 const formatDateSpanishLabel = (valueString) => {
   if (!valueString) return '—';
   const dateObj = new Date(valueString + 'T00:00:00');
   return Number.isNaN(dateObj.getTime()) ? valueString : dateObj.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 };
+
+// Construye 'YYYY-MM-DD' con los componentes locales de la fecha. Se usa en lugar
+// de toISOString().slice(0,10) porque esa conversión a UTC puede retroceder un
+// día en zonas horarias detrás de UTC (p. ej. Colombia, UTC-5).
+const toLocalIsoDate = (dateObj) => [
+  dateObj.getFullYear(),
+  String(dateObj.getMonth() + 1).padStart(2, '0'),
+  String(dateObj.getDate()).padStart(2, '0')
+].join('-');
 
 const createBadgeElement = (classNameText, labelText, ariaLabelText) => {
   const badgeSpan = document.createElement('span');
@@ -102,7 +115,7 @@ const createAllergiesBadge = (allergyText) => {
 };
 
 const createStatusBadge = (statusString) => {
-  const normalizedStatus = CommonUtils.normalizeAppointmentStatus(statusString);
+  const normalizedStatus = window.CommonUtils?.normalizeAppointmentStatus(statusString) ?? String(statusString || '').toLowerCase().trim().replace(/\s+/g, '_');
   const statusCssMap = {
     atendida: 'badge-atendida',
     pendiente: 'badge-pendiente',
@@ -178,7 +191,7 @@ const updateHeaderMetadata = () => {
     const weekStartParam = urlParams.get('weekStart');
 
     const metaDescriptionText = weekStartParam
-      ? `Semana del ${formatDateSpanishLabel(weekStartParam)} al ${formatDateSpanishLabel(new Date(new Date(weekStartParam + 'T00:00:00').getTime() + 6 * 86400000).toISOString().slice(0, 10))}`
+      ? `Semana del ${formatDateSpanishLabel(weekStartParam)} al ${formatDateSpanishLabel(toLocalIsoDate(new Date(new Date(weekStartParam + 'T00:00:00').getTime() + 6 * 86400000)))}`
       : `Citas del día ${formatDateSpanishLabel(dateParam)}`;
 
     metaElement.textContent = metaDescriptionText;
@@ -192,7 +205,9 @@ const updateHeaderMetadata = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 const setupTypeFilterButtons = () => {
-  const filterButtonsList = document.querySelectorAll('.filter-btn[data-value]');
+  const filterButtonsList = document.querySelectorAll(
+    '.filter-group[role="radiogroup"] .filter-btn[role="radio"][data-value]'
+  );
   
   filterButtonsList.forEach(buttonElement => {
     buttonElement.addEventListener('click', () => {
@@ -208,7 +223,7 @@ const setupTypeFilterButtons = () => {
       
       applyCombinedFilters();
       
-      if (window.ToastService) window.ToastService.success(`Filtro aplicado: ${buttonElement.textContent.trim()}`, 'info');
+      if (window.ToastService) window.ToastService.info(`Filtro aplicado: ${buttonElement.textContent.trim()}`);
     });
     
     buttonElement.addEventListener('keydown', (event) => {
@@ -261,7 +276,7 @@ const setupProfessionalDropdownMenu = () => {
       dropdownBtn.setAttribute('aria-expanded', 'false');
       
       applyCombinedFilters();
-      if (window.ToastService) window.ToastService.success(`Profesional: ${itemElement.textContent.trim()}`, 'info');
+      if (window.ToastService) window.ToastService.info(`Profesional: ${itemElement.textContent.trim()}`);
     });
     
     itemElement.addEventListener('keydown', (event) => {
@@ -309,7 +324,7 @@ const initializeAgendaApoyoModule = async () => {
 
   document.querySelector('.toggle-vistas')?.addEventListener('viewchange', (event) => {
     const urlParams = new URLSearchParams(window.location.search);
-    const currentDate = urlParams.get('fecha') || new Date().toISOString().slice(0, 10);
+    const currentDate = urlParams.get('fecha') || agendaSupportControllerInstance.getFechaHoy();
     if (event.detail.view === 'semana') {
       urlParams.delete('fecha');
       urlParams.set('weekStart', urlParams.get('weekStart') || currentDate);
@@ -328,7 +343,6 @@ const initializeAgendaApoyoModule = async () => {
   const initialAppointments = await agendaSupportControllerInstance.getCitas();
   renderAgendaSupportTable(initialAppointments);
   
-  window.addEventListener('beforeunload', () => { /* cleanup SPA */ });
 };
 
 document.addEventListener('DOMContentLoaded', initializeAgendaApoyoModule);

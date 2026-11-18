@@ -20,6 +20,7 @@
 @{ 
     Layout = "_Layout"; 
     ViewData["Title"] = "Mi Agenda";
+    ViewData["UseGestionModulesDesignSystem"] = true;
 
     var diaHoy = Model.Dias.FirstOrDefault(d => d.EsHoy);
     int citasHoyCount = diaHoy?.Citas.Count ?? 0;
@@ -27,6 +28,7 @@
     int pendientesHoyCount = diaHoy?.Citas.Count(c => !c.Estado.Equals("Atendida", StringComparison.OrdinalIgnoreCase) && !c.Estado.Equals("Cancelada", StringComparison.OrdinalIgnoreCase)) ?? 0;
     int totalPendientesSemana = Model.Dias.Sum(d => d.Citas.Count(c => !c.Estado.Equals("Cancelada", StringComparison.OrdinalIgnoreCase)));
     int progresoPct = citasHoyCount > 0 ? (int)Math.Round((double)atendidasHoyCount * 100 / citasHoyCount) : 0;
+    var totalSemana = (int)(ViewData["TotalCitasSemana"] ?? 0);
 }
 
 @section Styles {
@@ -49,30 +51,34 @@
             </p>
         </div>
         <div class="header-right agenda-print-actions no-print">
-            <button type="button" class="btn-secondary" onclick="window.print()" aria-label="Imprimir mi agenda semanal" data-i18n-aria-label="form.print">
+            <button type="button" class="btn-secondary" id="btnImprimirAgenda" aria-label="Imprimir mi agenda semanal" data-i18n-aria-label="form.print">
                 <span class="material-symbols-outlined" aria-hidden="true">print</span>
-                Imprimir Agenda
+                <span data-i18n="form.print">Imprimir Agenda</span>
             </button>
         </div>
     </header>
 
-    <!-- Resumen de KPIs y Progreso Diario -->
-    <section class="stats-grid" aria-label="Resumen de citas del día" data-i18n-aria-label="citas.title">
+    <!-- Resumen de KPIs — unificado: día + semana en un solo bloque -->
+    <section class="stats-grid" aria-label="Resumen de citas del día y la semana" data-i18n-aria-label="citas.title">
         <div class="stat-card" data-color="blue">
-            <span class="stat-number" id="statHoy" data-target="@citasHoyCount" aria-live="polite">0</span>
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">event</span>
+            <span class="stat-number" id="statHoy" data-target="@citasHoyCount">0</span>
             <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
         </div>
         <div class="stat-card" data-color="green">
-            <span class="stat-number" id="statAtendidas" data-target="@atendidasHoyCount" aria-live="polite">0</span>
-            <span class="stat-label" data-i18n="status.attended">Atendidas</span>
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
+            <span class="stat-number" id="statAtendidas" data-target="@atendidasHoyCount">0</span>
+            <span class="stat-label" data-i18n="status.attended">Atendidas hoy</span>
         </div>
         <div class="stat-card" data-color="orange">
-            <span class="stat-number" id="statPendientes" data-target="@pendientesHoyCount" aria-live="polite">0</span>
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule</span>
+            <span class="stat-number" id="statPendientes" data-target="@pendientesHoyCount">0</span>
             <span class="stat-label" data-i18n="status.pending">Pendientes hoy</span>
         </div>
         <div class="stat-card" data-color="purple">
-            <span class="stat-number" id="statMes" data-target="@totalPendientesSemana" aria-live="polite">0</span>
-            <span class="stat-label">Pendientes en la semana</span>
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">date_range</span>
+            <span class="stat-number" id="statMes" data-target="@(totalSemana)">0</span>
+            <span class="stat-label">Citas en la semana</span>
         </div>
     </section>
 
@@ -89,16 +95,16 @@
     <section class="agenda-controls" aria-label="Controles de navegación semanal">
         <div class="controls-left">
             <!-- Toggle de Vista -->
-            <div class="view-toggle" role="radiogroup" aria-label="Tipo de vista">
-                <button class="view-btn active" data-view="week" aria-pressed="true" title="Vista semanal">
+            <div class="view-toggle" role="group" aria-label="Tipo de vista">
+                <button type="button" class="view-btn active" data-view="week" aria-pressed="true" title="Vista semanal">
                     <span class="material-symbols-outlined">view_week</span>
                     <span class="view-btn-text">Semana</span>
                 </button>
-                <button class="view-btn" data-view="day" aria-pressed="false" title="Vista de día">
+                <button type="button" class="view-btn" data-view="day" aria-pressed="false" title="Vista de día">
                     <span class="material-symbols-outlined">view_day</span>
                     <span class="view-btn-text">Día</span>
                 </button>
-                <button class="view-btn" data-view="list" aria-pressed="false" title="Vista de lista">
+                <button type="button" class="view-btn" data-view="list" aria-pressed="false" title="Vista de lista">
                     <span class="material-symbols-outlined">list</span>
                     <span class="view-btn-text">Lista</span>
                 </button>
@@ -163,44 +169,6 @@
         </div>
     </section>
 
-    <!-- Panel de Estadísticas Rápidas -->
-    @{
-        var totalSemana = (int)(ViewData["TotalCitasSemana"] ?? 0);
-        var programadas = (int)(ViewData["CitasProgramadas"] ?? 0);
-        var confirmadas = (int)(ViewData["CitasConfirmadas"] ?? 0);
-        var atendidas = (int)(ViewData["CitasAtendidas"] ?? 0);
-    }
-    <section class="quick-stats-panel" aria-label="Estadísticas de la semana">
-        <div class="quick-stat-item" data-status="total">
-            <span class="material-symbols-outlined">event</span>
-            <div>
-                <strong>@totalSemana</strong>
-                <span>Total semana</span>
-            </div>
-        </div>
-        <div class="quick-stat-item" data-status="programada">
-            <span class="material-symbols-outlined">schedule</span>
-            <div>
-                <strong>@programadas</strong>
-                <span>Programadas</span>
-            </div>
-        </div>
-        <div class="quick-stat-item" data-status="confirmada">
-            <span class="material-symbols-outlined">check_circle</span>
-            <div>
-                <strong>@confirmadas</strong>
-                <span>Confirmadas</span>
-            </div>
-        </div>
-        <div class="quick-stat-item" data-status="atendida">
-            <span class="material-symbols-outlined">task_alt</span>
-            <div>
-                <strong>@atendidas</strong>
-                <span>Atendidas</span>
-            </div>
-        </div>
-    </section>
-
     <!-- Grid Semanal de Calendario -->
     <section class="calendar-section" aria-labelledby="calendarTitle">
         <h2 class="visually-hidden" id="calendarTitle">Calendario semanal de citas</h2>
@@ -218,7 +186,7 @@
                     </div>
                 }
             </div>
-            <div class="calendar-body" role="grid" aria-label="Citas por día">
+            <div class="calendar-body" aria-label="Citas por día">
                 @foreach (var dia in Model.Dias)
                 {
                     var diaClasses = "calendar-day";
@@ -240,6 +208,9 @@
                             {
                                 var ariaLabel = $"Cita {cita.Estado}: {cita.Paciente}, {cita.Hora}, {cita.Servicio}, {cita.Consultorio}";
                                 var dateTimeValue = $"{dia.Fecha.ToString("yyyy-MM-dd")}T{cita.Hora}:00";
+                                var esReagendable = cita.Estado.Equals("agendada", StringComparison.OrdinalIgnoreCase)
+                                    || cita.Estado.Equals("programada", StringComparison.OrdinalIgnoreCase)
+                                    || cita.Estado.Equals("confirmada", StringComparison.OrdinalIgnoreCase);
                                 <div class="appointment @cita.ClaseEstado" tabindex="0" role="button"
                                      aria-label="@ariaLabel"
                                      data-id="@cita.Id" data-date="@dia.Fecha.ToString("yyyy-MM-dd")"
@@ -249,11 +220,8 @@
                                      data-status="@Html.Encode(cita.Estado)" data-notes="@Html.Encode(cita.Notas)"
                                      data-patient-name="@Html.Encode(cita.Paciente)" data-service-name="@Html.Encode(cita.Servicio)"
                                      data-office-name="@Html.Encode(cita.Consultorio)" data-professional-name="@Html.Encode(cita.NombreProfesional)"
-                                     data-professional-email="@Html.Encode(cita.CorreoProfesional)"
-                                     data-professional-phone="@Html.Encode(cita.TelefonoProfesional)"
-                                     data-professional-registry="@Html.Encode(cita.RegistroMedicoProfesional)"
-                                     data-professional-user-status="@Html.Encode(cita.EstadoUsuarioProfesional)"
-                                     draggable="true">
+                                     data-reschedulable="@esReagendable.ToString().ToLowerInvariant()"
+                                     draggable="@esReagendable.ToString().ToLowerInvariant()">
                                     <time datetime="@dateTimeValue" class="appt-time">@cita.Hora</time>
                                     <span class="appt-patient">@cita.Paciente</span>
                                     <span class="appt-detail">@cita.Servicio — @cita.Consultorio</span>
@@ -289,6 +257,11 @@
     </section>
 </main>
 
+<!-- FAB: agendar nueva cita / sobrecupo -->
+<button type="button" class="fab" id="btnNewAppointment" aria-label="Agendar nueva cita" title="Agendar nueva cita">
+    <span class="material-symbols-outlined" aria-hidden="true">add</span>
+</button>
+
 <!-- Modal: Detalle de Cita y Acciones Clínicas -->
 <div class="modal-overlay" id="modalAppointment" role="dialog" aria-modal="true"
      aria-labelledby="modalApptTitle" aria-hidden="true" inert>
@@ -297,8 +270,9 @@
             <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
         <h2 class="modal-title" id="modalApptTitle">Detalle de Cita</h2>
-        <div class="modal-content" id="modalApptContent" aria-live="polite"></div>
+        <div class="appointment-detail-content" id="modalApptContent" aria-live="polite"></div>
         <div class="modal-footer modal-actions-grid">
+            <button type="button" class="btn-secondary" id="modalApptReagendar" hidden>Reagendar</button>
             <a href="/historia-clinica/st-odo-04-odontograma" class="btn-primary" id="btnIniciarAtencion">
                 <span class="material-symbols-outlined" aria-hidden="true">medical_services</span>
                 Iniciar Atención
@@ -309,7 +283,7 @@
             </button>
             <button type="button" class="btn-secondary btn-danger" id="modalApptCancelar">
                 <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
-                No asistió / Cancelar
+                Registrar inasistencia
             </button>
         </div>
     </div>
@@ -323,15 +297,18 @@
             <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
         <h2 class="modal-title" id="modalNewApptTitle">Agendar Nueva Cita</h2>
-        <div class="modal-content">
+        <div class="appointment-form-content">
             <form id="formNewAppointment" method="post" action="/gestion-de-citas/guardar-cita" novalidate>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="ReturnUrl" value="/gestion-de-citas/st-odo-02-agenda" />
                 <input type="hidden" id="appointmentId" name="IdCita" value="" />
+                @* El profesional solo puede agendar citas para sí mismo (validado en GuardarCita);
+                   sin este IdProfesional el POST sería rechazado. *@
+                <input type="hidden" name="IdProfesional" value="@Model.ProfessionalId" />
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="newApptDate">Fecha</label>
-                        <input type="date" id="newApptDate" name="Fecha" required aria-required="true" />
+                        <input type="date" id="newApptDate" name="Fecha" min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" required aria-required="true" />
                     </div>
                     <div class="form-group">
                         <label for="newApptStatus">Estado</label>
@@ -394,40 +371,10 @@
     </div>
 </div>
 
-<!-- FAB nueva cita -->
-<button class="fab" id="btnNewAppointment" aria-label="Crear nueva cita">
-    <span class="material-symbols-outlined" aria-hidden="true">add</span>
-</button>
-
-<!-- Navegación móvil -->
-<nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-profesionales/st-odo-01-dashboard" class="mobile-nav-item">
-        <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">dashboard</span>
-        <span>Dashboard</span>
-    </a>
-    <a href="/gestion-de-citas/st-odo-02-agenda" class="mobile-nav-item active" aria-current="page">
-        <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">calendar_month</span>
-        <span>Agenda</span>
-    </a>
-    <a href="/gestion-de-profesionales/st-odo-09-perfil-profesional" class="mobile-nav-item">
-        <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">person</span>
-        <span>Perfil</span>
-    </a>
-</nav>
-
-<!-- Toast para notificaciones accesibles -->
-<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-<!-- Footer -->
-<footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-        <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-</footer>
+@await Html.PartialAsync("~/Views/Shared/_ReagendarCitaModal.cshtml")
 
 @section Scripts {
+     <script src="~/js/shared/reagendamiento-agenda.js" asp-append-version="true" defer></script>
      <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
      <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
      <script src="~/js/Gestion_De_Citas/st-odo-02-agenda/agenda.js" asp-append-version="true" defer></script>

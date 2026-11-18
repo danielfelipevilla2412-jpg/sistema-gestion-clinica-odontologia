@@ -18,7 +18,6 @@
     --bg: #f4f6fb;
     --white: #ffffff;
     --text: #1e293b;
-    --text-muted: #64748b;
     --border: #e2e8f0;
 
     /* Paleta principal */
@@ -157,11 +156,14 @@ img {
     font-family: var(--font-display);
     font-size: 1.45rem;
     font-weight: 700;
+    line-height: 1.25;
     color: var(--primary);
 }
 
 .page-subtitle {
     font-size: 0.82rem;
+    font-weight: 400;
+    line-height: 1.5;
     color: var(--text-muted);
     margin-top: 2px;
 }
@@ -193,8 +195,8 @@ img {
 
 .stat-number {
     font-family: var(--font-display);
-    font-size: 1.7rem;
-    font-weight: 800;
+    font-size: 2.2rem;
+    font-weight: 700;
     line-height: 1;
 }
 
@@ -378,7 +380,7 @@ img {
 
 .day-name {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -389,7 +391,7 @@ img {
 .day-number {
     display: block;
     font-family: var(--font-display);
-    font-size: 1.3rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--text);
     margin-top: 4px;
@@ -488,7 +490,7 @@ img {
 }
 
 .appt-time {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 700;
     opacity: 0.85;
 }
@@ -514,9 +516,10 @@ img {
 }
 
 .section-title {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--text-muted);
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 12px;
@@ -565,43 +568,128 @@ img {
     transition: opacity var(--tr);
 }
 
-.modal-overlay:not([hidden]):not([inert]) {
+.modal-overlay:not([hidden]):not([inert]),
+.modal-overlay.open {
+    display: flex !important;
     opacity: 1;
     pointer-events: auto;
 }
 
 .modal {
     background: var(--white);
-    border-radius: var(--radius);
-    padding: 24px 28px;
+    border-radius: 18px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    padding: 22px 22px 18px;
     width: 100%;
     max-width: 500px;
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
     position: relative;
     max-height: 90vh;
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .modal-lg { max-width: 650px; }
 
+.modal-overlay.open .modal > .modal-content {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    overflow: visible;
+    transform: none;
+    opacity: 1;
+    transition: none;
+}
+
 .modal-close {
     position: absolute;
-    top: 18px;
-    right: 18px;
-    background: none;
+    top: 16px;
+    right: 16px;
+    background: rgba(15, 23, 42, 0.04);
     border: none;
     color: var(--text-muted);
     font-size: 1.2rem;
-    padding: 4px;
-    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--tr), color var(--tr);
+}
+
+.modal-close:hover {
+    background: rgba(15, 23, 42, 0.08);
+    color: var(--text);
 }
 
 .modal-title {
     font-family: var(--font-display);
-    font-size: 1.2rem;
-    font-weight: 700;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.35;
     color: var(--primary);
     margin-bottom: 16px;
+    padding-right: 40px;
+}
+
+.appointment-detail-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    font-size: 0.84rem;
+}
+
+.appointment-detail-content {
+    margin: 12px 0 20px;
+}
+
+.appointment-form-content {
+    width: 100%;
+}
+
+.appointment-detail-summary h3 {
+    margin: 0;
+    color: var(--primary-dark);
+    font-size: 1.1rem;
+}
+
+.appointment-detail-summary p {
+    margin: 6px 0 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.appointment-professional-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.appointment-detail-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 18px;
+    line-height: 1.5;
+}
+
+.appointment-detail-facts .badge {
+    font-weight: 700;
+}
+
+.appointment-detail-notes p {
+    margin: 6px 0 0;
+    color: var(--text-muted);
+    line-height: 1.5;
 }
 
 .modal-footer {
@@ -617,6 +705,20 @@ img {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 10px;
+    margin-top: 18px;
+}
+
+.modal-actions-grid > [hidden] {
+    display: none !important;
+}
+
+.modal-actions-grid .btn-primary,
+.modal-actions-grid .btn-secondary,
+.modal-footer .btn-primary,
+.modal-footer .btn-secondary,
+.modal-footer .btn-danger {
+    border-radius: 12px;
+    min-height: 42px;
 }
 
 /* FAB */
@@ -669,7 +771,7 @@ img {
     border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
     font-family: var(--font);
-    font-size: 0.83rem;
+    font-size: 0.84rem;
     outline: none;
 }
 
@@ -691,17 +793,67 @@ img {
     box-shadow: var(--shadow-md);
     z-index: 2000;
     transition: transform 0.3s ease;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     font-weight: 500;
 }
 
 .toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ═══ MOBILE NAV (patrón canónico del proyecto) ═══ */
+.mobile-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--white);
+    border-top: 1px solid var(--border);
+    padding: 8px 0;
+    z-index: 100;
+    justify-content: space-around;
+    align-items: center;
+    height: 56px;
+}
+
+.mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: .65rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: color var(--tr), background var(--tr);
+}
+
+.mobile-nav-item.active {
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.mobile-nav-item:hover:not(.active) { color: var(--primary); }
+
+.mobile-nav-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.mobile-nav-icon { font-size: 1.2rem; }
 
 /* Responsive */
 @media (max-width: 900px) {
     .main { margin-left: 0; padding: 16px; }
     .form-grid { grid-template-columns: 1fr; }
     .full-width { grid-column: span 1; }
+}
+
+/* Móvil: barra inferior fija y ajuste de contenido (mismo breakpoint que shared/sidebar.css) */
+@media (max-width: 680px) {
+    /* 'body .main' (0,1,1) supera en especificidad la regla '.main' (0,1,0) de
+       shared/gestion-modules.css (cargada después vía _ViewStart). Así el
+       padding-bottom (80px > 56px del mobile-nav) sí se aplica y evita que el
+       último contenido y el footer queden ocultos tras la barra inferior fija. */
+    body .main { margin-left: 0; padding: 58px 14px 80px; }
+    .mobile-nav { display: flex; }
 }
 
 
@@ -731,8 +883,8 @@ img {
     cursor: pointer;
     transition: all 0.2s ease;
     color: var(--text-muted);
-    font-weight: 500;
-    font-size: 0.85rem;
+    font-weight: 600;
+    font-size: 0.83rem;
 }
 
 .view-btn .material-symbols-outlined {
@@ -775,7 +927,7 @@ img {
     padding: 0.6rem 0.75rem 0.6rem 2.5rem;
     border: 2px solid var(--border);
     border-radius: 8px;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     min-width: 220px;
     transition: all 0.2s ease;
 }
@@ -788,75 +940,6 @@ img {
 
 .search-patient-wrap input[type="search"]::placeholder {
     color: var(--text-muted);
-}
-
-/* ═══ PANEL DE ESTADÍSTICAS RÁPIDAS ═══ */
-.quick-stats-panel {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem;
-    margin: 1.5rem 0;
-    padding: 1rem;
-    background: var(--white);
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-}
-
-.quick-stat-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    border-radius: 8px;
-    background: var(--bg);
-    transition: all 0.2s ease;
-    cursor: default;
-}
-
-.quick-stat-item:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
-}
-
-.quick-stat-item .material-symbols-outlined {
-    font-size: 2rem;
-    flex-shrink: 0;
-}
-
-.quick-stat-item[data-status="total"] .material-symbols-outlined {
-    color: var(--primary);
-}
-
-.quick-stat-item[data-status="programada"] .material-symbols-outlined {
-    color: #f59e0b;
-}
-
-.quick-stat-item[data-status="confirmada"] .material-symbols-outlined {
-    color: #3b82f6;
-}
-
-.quick-stat-item[data-status="atendida"] .material-symbols-outlined {
-    color: #22c55e;
-}
-
-.quick-stat-item div {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-}
-
-.quick-stat-item strong {
-    font-size: 1.5rem;
-    font-weight: 700;
-    line-height: 1;
-    color: var(--text);
-}
-
-.quick-stat-item span {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    font-weight: 500;
 }
 
 /* ═══ VISTAS DINÁMICAS DEL CALENDARIO ═══ */
@@ -932,7 +1015,7 @@ img {
     position: absolute;
     top: -6px;
     right: 6px;
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 4px;
@@ -982,7 +1065,7 @@ img {
 
 /* ═══ DRAG & DROP STYLES ═══ */
 .appointment[draggable="true"] {
-    cursor: move;
+    cursor: grab;
 }
 
 .appointment.dragging {
@@ -1007,7 +1090,7 @@ img {
     background: rgba(26, 86, 204, 0.05);
     color: var(--primary);
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     z-index: 10;
     pointer-events: none;
 }
@@ -1057,8 +1140,9 @@ img {
 }
 
 .filter-label {
-    font-size: 0.72rem;
-    font-weight: 700;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.4;
     letter-spacing: 0.5px;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -1074,7 +1158,7 @@ img {
     border: 1.5px solid var(--border);
     border-radius: 10px;
     font-family: var(--font);
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     color: var(--text);
     background: linear-gradient(180deg, #ffffff, #f8fafc);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
@@ -1141,12 +1225,6 @@ img {
 }
 
 /* ═══ RESPONSIVE PARA NUEVOS COMPONENTES ═══ */
-@media (max-width: 1200px) {
-    .quick-stats-panel {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
 @media (max-width: 768px) {
     .view-toggle {
         width: 100%;
@@ -1185,30 +1263,18 @@ img {
         flex: 1;
     }
 
-    .quick-stats-panel {
-        grid-template-columns: 1fr;
-    }
-
-    .quick-stat-item {
-        padding: 1rem;
-    }
-
     .appointment:hover::after {
         display: none;
     }
 }
 
 @media (max-width: 480px) {
-    .quick-stat-item .material-symbols-outlined {
-        font-size: 1.5rem;
-    }
-
-    .quick-stat-item strong {
-        font-size: 1.2rem;
+    .appointment-detail-facts {
+        grid-template-columns: 1fr;
     }
 
     .appt-status-indicator {
-        font-size: 0.6rem;
+        font-size: 0.72rem;
         padding: 1px 4px;
     }
 }
@@ -1216,7 +1282,6 @@ img {
 /* ═══ MEJORAS DE ACCESIBILIDAD ═══ */
 @media (prefers-reduced-motion: reduce) {
     .appointment,
-    .quick-stat-item,
     .view-btn,
     .calendar-day {
         transition: none !important;
@@ -1248,11 +1313,6 @@ img {
         display: none !important;
     }
 
-    .quick-stats-panel {
-        border: 1px solid #ccc;
-        page-break-inside: avoid;
-    }
-
     .calendar-scroll-wrapper {
         overflow: visible;
     }
@@ -1273,10 +1333,6 @@ img {
 
 .appointment {
     transition: all 0.2s ease, border-left-color 0.3s ease;
-}
-
-.quick-stat-item {
-    transition: all 0.2s ease;
 }
 
 /* ═══ ESTADOS DE FOCO MEJORADOS ═══ */

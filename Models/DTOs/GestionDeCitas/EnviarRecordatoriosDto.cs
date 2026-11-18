@@ -10,5 +10,6 @@ public sealed class EnviarRecordatoriosDto
     [Required(ErrorMessage = "Debe especificar al menos una cita para enviar recordatorio.")]
     public List<int> IdsCitas { get; set; } = new();
 
+    [StringLength(1000, ErrorMessage = "El mensaje personalizado no puede superar los 1000 caracteres.")]
     public string? MensajePersonalizado { get; set; }
 }

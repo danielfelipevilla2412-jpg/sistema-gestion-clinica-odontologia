@@ -25,7 +25,7 @@
     if (string.IsNullOrWhiteSpace(_aInitials)) _aInitials = "AD";
 }
 
-<aside class="sidebar" id="sidebar" aria-label="Navegación principal" data-i18n-aria-label="sidebar_main_nav">
+<aside class="sidebar" id="sidebar" data-sidebar-role="admin" aria-label="Navegación principal" data-i18n-aria-label="sidebar_main_nav">
 
   <div class="sidebar-logo">
     <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="SmileTrack" class="logo-img" />
@@ -33,8 +33,9 @@
 
   <nav class="sidebar-nav">
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_inicio">
-        Inicio <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_inicio">Inicio</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/" class="@linkClass("/")" data-icon="🏠" data-i18n="nav.item_homepage">Homepage</a>
@@ -42,8 +43,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_reportes_analitica">
-        Reportes y Analítica <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_reportes_analitica">Reportes y Analítica</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/reportes" class="@linkClass("/reportes")" data-icon="📊" data-i18n="nav.item_panel_analitica">Panel de Analítica</a>
@@ -51,8 +53,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_acceso_seguridad">
-        Acceso y Seguridad <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_acceso_seguridad">Acceso y Seguridad</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/acceso-y-seguridad/st-adm-02-gestion-usuarios"
@@ -71,8 +74,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_pacientes">
-        Gestión de Pacientes <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_gestion_pacientes">Gestión de Pacientes</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes"
@@ -82,8 +86,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_historia_clinica">
-        Historia Clínica <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_historia_clinica">Historia Clínica</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/historia-clinica/st-adm-historial"
@@ -93,8 +98,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_profesionales">
-        Gestión de Profesionales <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_gestion_profesionales">Gestión de Profesionales</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales"
@@ -107,8 +113,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_citas">
-        Gestión de Citas <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_gestion_citas">Gestión de Citas</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-citas/st-adm-01-dashboard"
@@ -124,8 +131,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_facturacion_pagos">
-        Facturación y Pagos <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_facturacion_pagos">Facturación y Pagos</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/facturacion-y-pagos/st-adm-12-facturacion"
@@ -135,8 +143,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_servicios_recursos">
-        Servicios y Recursos <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_servicios_recursos">Servicios y Recursos</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/servicios-y-recursos/st-adm-10-servicios"
@@ -149,8 +158,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_gestion_pqr">
-        Gestión de PQR <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_gestion_pqr">Gestión de PQR</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/gestion-de-pqr/st-adm-17-gestion-pqr"
@@ -163,8 +173,9 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false" data-i18n="nav.group_centro_ayuda">
-        Centro de Ayuda <span class="nav-arrow" aria-hidden="true">▼</span>
+      <div class="nav-group-header" role="button" tabindex="0" aria-expanded="false">
+        <span class="nav-group-label" data-i18n="nav.group_centro_ayuda">Centro de Ayuda</span>
+        <span class="nav-arrow" aria-hidden="true">▼</span>
       </div>
       <div class="nav-group-items">
         <a href="/centro-de-ayuda/como-programar-cita"

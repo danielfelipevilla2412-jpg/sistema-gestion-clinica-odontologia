@@ -33,8 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalDownloadBtn = document.getElementById('modalDownloadBtn');
 
   let selectedFile = null;
-  let currentDocFilename = '';
-  let currentDocTitle = '';
+  let currentPreviewUrl = null;
+  let previewAbortController = null;
 
   // ── Cargar documentos reales del paciente ──
   // Yeray (2025): antes devolvía siempre lista vacía porque no había tabla.
@@ -196,6 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fd = new FormData();
     fd.append('pacienteId', pacienteId);
     fd.append('tipo',       docType);
+    fd.append('fechaDocumento', docDate);
     fd.append('observacion', document.getElementById('docObs')?.value || '');
     fd.append('archivo',    selectedFile, selectedFile.name);
 
@@ -222,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Reset form
       uploadForm.reset();
+      establecerFechaDocumentoActual();
       removeFile();
       showToast('✅ Documento guardado correctamente', 'success');
 
@@ -250,17 +252,32 @@ document.addEventListener('DOMContentLoaded', () => {
     // Crear item
     const item = document.createElement('div');
     item.className = 'doc-item';
-    item.innerHTML = `
-      <span class="doc-icon">${icon}</span>
-      <div class="doc-info">
-        <p class="doc-name">${type}</p>
-        <p class="doc-meta">${fmtDate}${subidoPor ? ' · ' + subidoPor : ''}</p>
-      </div>
-      <button class="doc-eye" aria-label="Ver documento">👁️</button>
-    `;
+    const iconElement = document.createElement('span');
+    iconElement.className = 'doc-icon';
+    iconElement.textContent = icon;
+
+    const info = document.createElement('div');
+    info.className = 'doc-info';
+
+    const name = document.createElement('p');
+    name.className = 'doc-name';
+    name.textContent = type;
+
+    const meta = document.createElement('p');
+    meta.className = 'doc-meta';
+    meta.textContent = `${fmtDate}${subidoPor ? ' · ' + subidoPor : ''}`;
+
+    info.append(name, meta);
+
+    const eye = document.createElement('button');
+    eye.className = 'doc-eye';
+    eye.setAttribute('aria-label', 'Ver documento');
+    eye.textContent = '👁️';
+
+    item.append(iconElement, info, eye);
     
     // Agregar evento de vista previa
-    item.querySelector('.doc-eye').addEventListener('click', () => {
+    eye.addEventListener('click', () => {
       viewDocument(filename, type, docId);
     });
     
@@ -276,48 +293,86 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── Modal de vista previa ──
-  window.viewDocument = function(filename, title, docId) {
-    currentDocFilename = filename;
-    currentDocTitle = title;
+  window.viewDocument = async function(filename, title, docId) {
     // Guardar el id para la descarga real
     modalDownloadBtn.dataset.docId = docId || '';
     
     modalTitle.textContent = title;
-    
-    // Icono según extensión
-    const isPDF = filename.toLowerCase().endsWith('.pdf');
-    const isImage = filename.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/);
-    
-    if (isPDF) {
-      modalIcon.textContent = '📄';
-      modalPreview.innerHTML = `
-        <span class="placeholder-icon">📄</span>
-        <p class="placeholder-text">${title}</p>
-        <p class="placeholder-subtext">Archivo PDF</p>
-      `;
-    } else if (isImage) {
-      modalIcon.textContent = '🖼️';
-      modalPreview.innerHTML = `
-        <span class="placeholder-icon">🖼️</span>
-        <p class="placeholder-text">${title}</p>
-        <p class="placeholder-subtext">Archivo de imagen</p>
-      `;
-    } else {
-      modalIcon.textContent = '📎';
-      modalPreview.innerHTML = `
-        <span class="placeholder-icon">📎</span>
-        <p class="placeholder-text">${title}</p>
-        <p class="placeholder-subtext">${filename}</p>
-      `;
-    }
-    
     modalBackdrop.classList.add('active');
     document.body.style.overflow = 'hidden';
+    previewAbortController?.abort();
+    previewAbortController = new AbortController();
+    releasePreviewUrl();
+    modalIcon.textContent = '📄';
+    setPreviewPlaceholder('⏳', title, 'Cargando vista previa...');
+
+    try {
+      if (!docId) throw new Error('No se recibió el identificador del documento.');
+      const response = await fetch(
+        `/historia-clinica/documentos-clinicos/preview/${encodeURIComponent(docId)}`,
+        {
+          headers: { 'Accept': 'image/jpeg, image/png, application/pdf' },
+          signal: previewAbortController.signal
+        }
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const blob = await response.blob();
+      currentPreviewUrl = URL.createObjectURL(blob);
+
+      if (blob.type === 'application/pdf') {
+        modalIcon.textContent = '📄';
+        const frame = document.createElement('iframe');
+        frame.className = 'clinical-preview-frame';
+        frame.title = `Vista previa: ${title}`;
+        frame.src = currentPreviewUrl;
+        modalPreview.replaceChildren(frame);
+      } else if (blob.type === 'image/jpeg' || blob.type === 'image/png') {
+        modalIcon.textContent = '🖼️';
+        const image = document.createElement('img');
+        image.className = 'clinical-preview-image';
+        image.alt = `Vista previa: ${title}`;
+        image.src = currentPreviewUrl;
+        modalPreview.replaceChildren(image);
+      } else {
+        throw new Error('El tipo de archivo no permite vista previa.');
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      console.error('No se pudo cargar la vista previa del documento:', error);
+      releasePreviewUrl();
+      setPreviewPlaceholder('⚠️', title, 'No se pudo cargar la vista previa.');
+    }
   };
+
+  function setPreviewPlaceholder(icon, title, description) {
+    const iconElement = document.createElement('span');
+    iconElement.className = 'placeholder-icon';
+    iconElement.textContent = icon;
+
+    const titleElement = document.createElement('p');
+    titleElement.className = 'placeholder-text';
+    titleElement.textContent = title;
+
+    const descriptionElement = document.createElement('p');
+    descriptionElement.className = 'placeholder-subtext';
+    descriptionElement.textContent = description;
+
+    modalPreview.replaceChildren(iconElement, titleElement, descriptionElement);
+  }
 
   function closeModal() {
     modalBackdrop.classList.remove('active');
     document.body.style.overflow = '';
+    previewAbortController?.abort();
+    previewAbortController = null;
+    releasePreviewUrl();
+  }
+
+  function releasePreviewUrl() {
+    if (!currentPreviewUrl) return;
+    URL.revokeObjectURL(currentPreviewUrl);
+    currentPreviewUrl = null;
   }
 
   modalCloseBtn?.addEventListener('click', closeModal);
@@ -349,9 +404,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Init ──
   function init() {
     toggleSidebar(false);
-    // Fecha por defecto
-    const dateInput = document.getElementById('docDate');
-    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+    establecerFechaDocumentoActual();
   }
+
+  function establecerFechaDocumentoActual() {
+    const dateInput = document.getElementById('docDate');
+    if (!dateInput) return;
+    const hoy = new Date();
+    hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset());
+    dateInput.value = hoy.toISOString().slice(0, 10);
+  }
+
   init();
 });

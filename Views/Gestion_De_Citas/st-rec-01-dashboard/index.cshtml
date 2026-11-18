@@ -17,6 +17,7 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Dashboard Recepción";
+    ViewData["UseGestionModulesDesignSystem"] = true;
     var dashboardRecDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["DashboardRecData"] ?? new object());
 }
 
@@ -30,7 +31,11 @@
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
-        <div class="breadcrumb" data-i18n="rec01_breadcrumb">Recepción ? Panel</div>
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
+          <span data-i18n="common_role_recepcionista">Recepción</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" aria-current="page" data-i18n="rec01_title">Panel de Recepción</span>
+        </nav>
         <h1 class="page-title" data-i18n="rec01_title">Panel de Recepción</h1>
         <!-- [MEJORA]: time datetime para accesibilidad de fecha/hora -->
         <p class="page-subtitle" id="pageSubtitleDate" data-i18n="common.loading">Cargando…</p>
@@ -53,21 +58,25 @@
     <!-- [MEJORA]: aria-label para sección de estadÍdsticas -->
     <section class="stats-grid" aria-label="Resumen de actividad del día" data-i18n-aria-label="rec01.stats_aria">
       <div class="stat-card" data-color="blue">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event</span>
         <span class="stat-number" id="statCitasHoy" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="rec01.stat_today">Citas hoy</span>
         <span class="stat-sub">Hoy</span>
       </div>
       <div class="stat-card" data-color="green">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
         <span class="stat-number" id="statConfirmadas" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.confirmed">Confirmadas</span>
         <span class="stat-sub">Este turno</span>
       </div>
       <div class="stat-card" data-color="orange">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule</span>
         <span class="stat-number" id="statPendientes" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="status.pending">Pendientes</span>
         <span class="stat-sub">Por atender</span>
       </div>
       <div class="stat-card" data-color="purple">
+        <span class="material-symbols-outlined stat-icon" aria-hidden="true">receipt_long</span>
         <span class="stat-number" id="statFacturasPendientes" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="rec01.stat_invoices_pending">Facturas pendientes</span>
         <span class="stat-sub">Sin pagar</span>
@@ -119,26 +128,27 @@
           <h4 class="sidebar-card-title" id="alertasTitle"><span class="material-symbols-outlined" aria-hidden="true">notifications</span> Alertas pendientes</h4>
           <!-- [MEJORA]: role="list" + aria-labelledby para estructura semántica -->
           <div class="alerts-list" role="list" aria-labelledby="alertasTitle">
-            <div class="alert-item-card" role="listitem">
+            <div class="alert-item-card" role="listitem" id="alertCardSinConfirmar" style="display:none;">
               <div class="alert-item-header">
                 <span class="icon red material-symbols-outlined" aria-hidden="true">warning</span>
-                <span>3 pacientes sin confirmar</span>
+                <span id="alertSinConfirmarText">0 pacientes sin confirmar</span>
               </div>
               <!-- [MEJORA]: aria-label descriptivo para botón de acción -->
               <button class="btn-notify btn-notify-red" data-alert="sin-confirmar"
                 aria-label="Enviar notificación a pacientes sin confirmar">Notificar</button>
             </div>
-            <div class="alert-item-card" role="listitem">
+            <div class="alert-item-card" role="listitem" id="alertCardFacturasVencidas" style="display:none;">
               <div class="alert-item-header">
                 <!-- BUG FIX: 'invoice' no es un nombre de ligature válido en Material Symbols
                      y se renderizaba como texto literal "invoice". El ícono correcto para
                      facturas/cobros en la biblioteca es 'receipt_long'. -->
                 <span class="icon orange material-symbols-outlined" aria-hidden="true">receipt_long</span>
-                <span>2 facturas vencidas</span>
+                <span id="alertFacturasVencidasText">0 facturas vencidas</span>
               </div>
               <button class="btn-notify btn-notify-orange" data-alert="facturas-vencidas"
                 aria-label="Enviar recordatorio de pago por facturas vencidas">Notificar</button>
             </div>
+            <p id="alertsEmptyState" style="font-size:.8rem;color:var(--text-muted);display:none;">Sin alertas pendientes.</p>
           </div>
         </div>
 
@@ -146,7 +156,7 @@
         <div class="sidebar-card">
           <h4 class="sidebar-card-title"><span class="material-symbols-outlined" aria-hidden="true">monitor_heart</span> Estado del sistema</h4>
           <p style="font-size:.85rem;color:var(--text-muted);">Todos los servicios operativos</p>
-          <p style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">última verificación: hace 2 min</p>
+          <p style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">última verificación: <span id="systemLastCheck">—</span></p>
         </div>
 
       </aside>
@@ -158,10 +168,13 @@
   <!-- Toast -->
   <!-- [MEJORA]: aria-atomic="true" para que lectores anuncien mensaje completo -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+@section Scripts {
   <script>
     window.smiletrackDashboardRecData = @Html.Raw(dashboardRecDataJson);
   </script>
-  <script src="@Url.Content("~/js/Gestion_De_Citas/st-rec-01-dashboard/app.js")" defer></script>
+  <script src="~/js/Gestion_De_Citas/st-rec-01-dashboard/app.js" asp-append-version="true" defer></script>
+}
 
   <!-- Mobile bottom nav — Recepcionista -->
   <nav class="mobile-nav" aria-label="Navegación móvil">
@@ -178,11 +191,3 @@
       <span>Perfil</span>
     </a>
   </nav>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-      <p>© @DateTime.Now.Year Smile Track — <span data-i18n="footer_copyright">Todos los derechos reservados.</span></p>
-    </div>
-    <p class="footer-sub" data-i18n="footer_project">Proyecto Formativo ADSO — SENA</p>
-  </footer>

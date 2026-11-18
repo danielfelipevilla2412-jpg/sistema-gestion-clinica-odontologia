@@ -485,6 +485,7 @@
     /** Claves canónicas de estado del servidor (snake_case) */
     const APPOINTMENT_STATUS = Object.freeze({
         SOLICITADA:  'solicitada',   // M8: estado canónico para solicitudes de paciente (RF-23)
+        RECHAZADA:   'rechazada',
         PROGRAMADA:  'programada',
         CONFIRMADA:  'confirmada',
         EN_PROCESO:  'en_proceso',
@@ -501,6 +502,7 @@
         [APPOINTMENT_STATUS.CONFIRMADA]:  { label: 'Confirmada', cls: 'badge-confirmada' },
         // M8: Solicitada es el estado inicial de solicitudes de paciente (RF-23)
         [APPOINTMENT_STATUS.SOLICITADA]:  { label: 'Solicitada', cls: 'badge-solicitada' },
+        [APPOINTMENT_STATUS.RECHAZADA]:  { label: 'Rechazada', cls: 'badge-rechazada' },
         [APPOINTMENT_STATUS.EN_PROCESO]:  { label: 'En curso',   cls: 'badge-confirmada' },
         [APPOINTMENT_STATUS.FINALIZADA]:  { label: 'Completada', cls: 'badge-completada' },
         [APPOINTMENT_STATUS.ATENDIDA]:    { label: 'Completada', cls: 'badge-completada' },
@@ -514,6 +516,7 @@
     /** Mapa Label UI → Clave Server (para selects/filters cliente → server) */
     const STATUS_MAP_CLIENTE = Object.freeze({
         'Solicitada': APPOINTMENT_STATUS.SOLICITADA,  // M8: mapeo canónico
+        'Rechazada':  APPOINTMENT_STATUS.RECHAZADA,
         'Agendada':   APPOINTMENT_STATUS.PROGRAMADA,
         'Confirmada': APPOINTMENT_STATUS.CONFIRMADA,
         'En curso':   APPOINTMENT_STATUS.EN_PROCESO,
@@ -530,6 +533,7 @@
 
         return {
             solicitado: 'solicitada',
+            rechazada: APPOINTMENT_STATUS.RECHAZADA,
             agendada: APPOINTMENT_STATUS.PROGRAMADA,
             programado: APPOINTMENT_STATUS.PROGRAMADA,
             confirmado: APPOINTMENT_STATUS.CONFIRMADA,
@@ -549,6 +553,7 @@
         const normalized = normalizeAppointmentStatus(estado);
         // M8: solicitada tiene su propio estado canónico
         if (normalized === 'solicitada') return APPOINTMENT_STATUS.SOLICITADA;
+        if (normalized === APPOINTMENT_STATUS.RECHAZADA) return APPOINTMENT_STATUS.RECHAZADA;
         if (normalized === APPOINTMENT_STATUS.FINALIZADA || normalized === APPOINTMENT_STATUS.ATENDIDA || normalized === APPOINTMENT_STATUS.EN_PROCESO) return APPOINTMENT_STATUS.FINALIZADA;
         if (STATUS_MAP_SERVER[normalized]) return normalized;
         return APPOINTMENT_STATUS.PROGRAMADA;

@@ -1,51 +1,24 @@
-@{ Layout = null; }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Control Postoperatorio";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
-<!DOCTYPE html>
-<html lang="es">
+@section Styles {
+  <link rel="stylesheet" href="~/css/Historia_Clinica/st-aux-07-control-postoperato/control-post.css" asp-append-version="true" />
+}
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmileTrack — Control Postoperatorio</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap"
-    rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-aux-07-control-postoperato/control-post.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-
-  <!-- Enlace para saltar al contenido principal, accesibilidad keyboard-first -->
-  <a href="#main-content" class="skip-link" data-i18n="common_skip_link">Saltar al contenido principal</a>
-
-  <!-- ═════ SIDEBAR UNIFICADO (Activo: Control post-operatorio) ═════ -->
-
-    @{ await Html.RenderPartialAsync("_SidebarAuxiliar"); }
-
-  <!-- Botón hamburguesa para menú móvil, con atributos ARIA para accesibilidad -->
-  <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-    <span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-  <!-- ═════ MAIN ═════ -->
-  <main class="main" id="main-content">
+<main class="main" id="main-content">
 
     <!-- Breadcrumb y header -->
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
           <span data-i18n="common_role_auxiliar">Auxiliar</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
           <span>Citas finalizadas</span>
-          <span class="bc-sep" aria-hidden="true">→</span>
-          <span class="bc-active">Postoperatorio</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" aria-current="page">Postoperatorio</span>
         </nav>
         <h1 class="page-title" data-i18n="historia.evolution">Control Postoperatorio</h1>
         <p class="page-subtitle" id="postopSubtitle" data-i18n="common.loading">Cargando…</p>
@@ -57,14 +30,11 @@
                 del día (GET /historia-clinica/st-aux-07-control-postoperato/data)
                 y al cambiar la selección navega a ?citaId=X, recargando los datos
                 del control postoperatorio correspondiente. *@
-      <div class="header-right" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <label for="selectorCitaPostop" style="font-size:.85rem;color:var(--text-muted);white-space:nowrap;">
+      <div class="header-right">
+        <label for="selectorCitaPostop" class="postop-appointment-label">
           <span data-i18n="citas.title">Cita:</span>
         </label>
-        <select id="selectorCitaPostop"
-                aria-label="Seleccionar cita postoperatoria"
-                style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;
-                       font-size:.85rem;cursor:pointer;max-width:280px;">
+        <select id="selectorCitaPostop" aria-label="Seleccionar cita postoperatoria" class="postop-appointment-selector">
           <option value="">Cargando citas…</option>
         </select>
       </div>
@@ -174,59 +144,11 @@
   <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Estilos para contenido solo accesible por screen readers -->
-  <style>
-    .skip-link {
-      position: absolute;
-      top: -40px;
-      left: 0;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 16px;
-      z-index: 1000;
-      transition: top var(--tr);
-    }
-
-    .skip-link:focus {
-      top: 0;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
+@section Scripts {
   <script>
     window.smiletrackPostopData = @Html.Raw(ViewData["PostopData"]);
   </script>
   @Html.AntiForgeryToken()
-  <script src="@Url.Content("~/js/Historia_Clinica/st-aux-07-control-postoperato/control-post.js")"></script>
-
-  <footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <span style="font-size:1rem;">🦷</span>
-      <p>© 2025 Smile Track. Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO – SENA</p>
-    <script src="@Url.Content("~/js/footer.js")"></script>
-    <link rel="stylesheet" href="@Url.Content("~/css/footer.css")">
-  </footer>
-
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-
-</html>
-
+  <script src="~/js/Historia_Clinica/st-aux-07-control-postoperato/control-post.js" asp-append-version="true"></script>
+}
 

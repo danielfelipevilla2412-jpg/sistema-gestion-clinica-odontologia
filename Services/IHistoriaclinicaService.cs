@@ -24,6 +24,12 @@ public interface IHistoriaClinicaService
         string doctorNombre,
         CancellationToken ct = default);
 
+    Task<(bool Success, string Message)> FinalizarConsultaAsync(
+        FinalizarConsultaRequest request,
+        int? idProfesional,
+        string doctorNombre,
+        CancellationToken ct = default);
+
     Task<(bool Success, string Message)> RegistrarControlPostoperatorioAsync(
         ControlPostoperatorioGuardarRequest request,
         CancellationToken ct = default);
@@ -56,4 +62,6 @@ public interface IHistoriaClinicaService
     // ── Ownership (rol Paciente) ────────────────────────────────────────────
 
     Task<bool> EsPropioPacienteAsync(int pacienteId, int idUsuario, CancellationToken ct = default);
+    Task<bool> ProfesionalPuedeAccederPacienteAsync(int pacienteId, int idUsuario, CancellationToken ct = default);
+    Task<bool> ProfesionalPuedeAccederHistoriaAsync(int historiaId, int idUsuario, CancellationToken ct = default);
 }

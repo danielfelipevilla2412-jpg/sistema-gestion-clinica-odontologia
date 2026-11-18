@@ -1,0 +1,89 @@
+.odontograma-fdi-chart {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  overflow-x: auto;
+  border: 1px solid #dfe7f1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.fdi-arch-section { min-width: 320px; }
+.fdi-arch-title {
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.fdi-arch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.fdi-quadrant {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(20px, 1fr));
+  gap: 4px;
+  flex: 1;
+  max-width: 420px;
+}
+
+.fdi-tooth {
+  min-width: 20px;
+  min-height: 38px;
+  padding: 4px 1px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px 8px 11px 11px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
+}
+
+.fdi-tooth:hover,
+.fdi-tooth:focus-visible {
+  z-index: 1;
+  outline: 2px solid #0e7490;
+  outline-offset: 1px;
+  transform: translateY(-2px);
+  box-shadow: 0 3px 8px rgb(15 23 42 / 14%);
+}
+
+.fdi-tooth--caries,
+.fdi-tooth--fractura { border-color: #ef4444; background: #fee2e2; color: #991b1b; }
+.fdi-tooth--endodoncia,
+.fdi-tooth--obturacion { border-color: #0f766e; background: #ccfbf1; color: #115e59; }
+.fdi-tooth--sellante,
+.fdi-tooth--corona { border-color: #a855f7; background: #f3e8ff; color: #6b21a8; }
+.fdi-tooth--placa { border-color: #f59e0b; background: #fef3c7; color: #92400e; }
+.fdi-tooth--sano { border-color: #16a34a; background: #dcfce7; color: #166534; }
+.fdi-tooth--restauracion,
+.fdi-tooth--protesis { border-color: #0284c7; background: #e0f2fe; color: #075985; }
+.fdi-tooth--extraccion,
+.fdi-tooth--ausente { border-color: #94a3b8; background: #e2e8f0; color: #475569; }
+.fdi-tooth--implante { border-color: #0369a1; background: #dbeafe; color: #1e3a8a; }
+
+.fdi-chart-help {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 420px) {
+  .odontograma-fdi-chart { padding: 10px 6px; }
+  .fdi-arch { gap: 5px; }
+  .fdi-quadrant { gap: 2px; }
+  .fdi-tooth { min-width: 18px; min-height: 34px; font-size: 10px; }
+}

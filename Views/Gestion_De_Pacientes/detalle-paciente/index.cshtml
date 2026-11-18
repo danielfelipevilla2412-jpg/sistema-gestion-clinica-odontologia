@@ -11,7 +11,10 @@
 @using System.Text.Json
 @model SmileTrack_MVC.Models.ViewModels.PacienteViewModel
 @{
-    Layout = null;
+    Layout = "_Layout";
+    ViewData["Title"] = $"Paciente: {Model.Name}";
+    ViewData["Description"] = "Detalle, información clínica y actividad del paciente.";
+    ViewData["UseGestionModulesDesignSystem"] = true;
 
     // Calcular edad a partir de FechaNacimiento
     var hoy    = DateTime.Today;
@@ -46,37 +49,25 @@
         doctor    = h.Doctor
     }));
 }
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title data-i18n="detalle_paciente_title">SmileTrack — @Model.Name</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+@section Styles {
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
   <style>
     /* ── Reset y variables ────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --primary: #2563eb; --primary-light: #dbeafe;
-      --green: #22c55e;   --green-light: #dcfce7;
-      --red: #ef4444;     --red-light: #fee2e2;
-      --yellow: #f59e0b;  --yellow-light: #fef3c7;
-      --bg: #f8fafc;      --surface: #ffffff;
-      --border: #e2e8f0;  --text: #0f172a;
-      --text-muted: #64748b;
-      --radius: 12px;     --shadow: 0 1px 3px rgba(0,0,0,.08);
-      --tr: .18s ease;
+      --surface: var(--white);
+      --green-light: #dcfce7;
+      --red-light: #fee2e2;
+      --yellow-light: #fef3c7;
     }
-    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
     /* ── Layout ───────────────────────────────────────────── */
-    .page-wrap { display: flex; min-height: 100vh; }
-    .main { flex: 1; padding: 28px 32px; max-width: 1100px; margin: 0 auto; width: 100%; }
+    .main.patient-detail-page { width: auto; max-width: 1100px; min-height: 100vh; margin-right: auto; }
 
     /* ── Header ──────────────────────────────────────────── */
-    .page-header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+    .patient-detail-page .page-header { margin-bottom: 20px; }
+    .patient-detail-page .page-header-content { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
+    .patient-detail-page .page-header-title { min-width: 0; }
+    .patient-detail-page .page-header-actions { flex: 0 0 auto; }
     .back-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
       border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
       color: var(--text-muted); font-size: .88rem; cursor: pointer; text-decoration: none;
@@ -89,20 +80,20 @@
 
     /* ── Hero card ───────────────────────────────────────── */
     .hero-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 28px 32px; display: flex; gap: 24px; align-items: flex-start;
-      box-shadow: var(--shadow); margin-bottom: 24px; flex-wrap: wrap; }
+      padding: 22px 24px; display: flex; gap: 20px; align-items: center;
+      box-shadow: var(--shadow); margin-bottom: 20px; flex-wrap: wrap; }
     .hero-avatar { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center;
       justify-content: center; font-size: 2rem; font-weight: 700; color: #fff; flex-shrink: 0; }
     .hero-info { flex: 1; min-width: 200px; }
-    .hero-name { font-size: 1.5rem; font-weight: 700; font-family: 'Syne', sans-serif; margin-bottom: 4px; }
-    .hero-sub  { color: var(--text-muted); font-size: .9rem; margin-bottom: 12px; }
+    .hero-name { font-size: 1.5rem; font-weight: 700; font-family: var(--font-display); margin-bottom: 4px; }
+    .hero-sub  { color: var(--text-muted); font-size: var(--text-sm, .8125rem); margin-bottom: 12px; }
     .badge-row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .badge { padding: 4px 12px; border-radius: 20px; font-size: .78rem; font-weight: 500; }
+    .badge { padding: 4px 12px; border-radius: var(--radius-full); font-size: var(--text-xs, .75rem); font-weight: 600; }
     .badge-activo   { background: var(--green-light);  color: #166534; }
     .badge-inactivo { background: var(--red-light);    color: #991b1b; }
     .badge-retirado { background: var(--yellow-light); color: #92400e; }
     .badge-info     { background: var(--primary-light); color: var(--primary); }
-    .hero-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+    .hero-actions { display: flex; flex-direction: row; gap: 8px; align-items: center; flex-wrap: wrap; }
     .btn-primary   { padding: 9px 20px; background: var(--primary); color: #fff; border: none;
       border-radius: 8px; font-size: .88rem; font-weight: 500; cursor: pointer;
       text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: opacity var(--tr); }
@@ -114,11 +105,11 @@
     .btn-secondary:hover { background: var(--bg); }
 
     /* ── Stats strip ─────────────────────────────────────── */
-    .stats-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    .stats-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
       gap: 16px; margin-bottom: 24px; }
     .stat-item { background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); }
-    .stat-item .num  { font-size: 1.8rem; font-weight: 700; font-family: 'Syne', sans-serif; }
+    .stat-item .num  { font-size: 1.8rem; font-weight: 700; font-family: var(--font-display); }
     .stat-item .lbl  { font-size: .8rem; color: var(--text-muted); margin-top: 2px; }
 
     /* ── Grid de secciones ───────────────────────────────── */
@@ -129,19 +120,30 @@
     .section-card { background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 22px 24px; box-shadow: var(--shadow); }
     .section-card.full-width { grid-column: 1 / -1; }
-    .section-title { font-size: .95rem; font-weight: 600; font-family: 'Syne', sans-serif;
+    .section-title { font-size: .95rem; font-weight: 600; font-family: var(--font-display);
       margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
     .field-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 0;
       border-bottom: 1px solid var(--border); font-size: .9rem; }
     .field-row:last-child { border-bottom: none; }
     .field-label { color: var(--text-muted); min-width: 160px; flex-shrink: 0; }
-    .field-value { color: var(--text); font-weight: 500; }
+    .field-value { color: var(--text); font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
     .field-value.empty { color: var(--text-muted); font-weight: 400; font-style: italic; }
 
     /* ── Alergias badges ─────────────────────────────────── */
     .allergy-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
     .allergy-badge { padding: 3px 10px; background: var(--red-light);
       color: #991b1b; border-radius: 20px; font-size: .78rem; font-weight: 500; }
+    .allergy-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
+    .allergy-form label { grid-column: 1 / -1; color: var(--text-muted); font-weight: 600; }
+    .allergy-form input, .allergy-form select { min-width: 0; min-height: 40px; width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+    .allergy-form input:focus-visible, .allergy-form select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .allergy-form button { grid-column: 1 / -1; justify-content: center; }
+
+    #fusionDialog { width: min(560px, calc(100vw - 24px)); max-width: calc(100vw - 24px);
+      max-height: calc(100dvh - 24px); padding: 0; border: 0; background: transparent; overflow: visible; }
+    #fusionDialog::backdrop { background: rgb(15 23 42 / 55%); }
+    #fusionDialog > .section-card { width: auto; max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px);
+      overflow-y: auto; overscroll-behavior: contain; }
 
     /* ── Historial de citas ──────────────────────────────── */
     .history-list { display: flex; flex-direction: column; gap: 0; }
@@ -156,61 +158,88 @@
     .empty-msg    { color: var(--text-muted); font-style: italic; text-align: center;
       padding: 20px 0; font-size: .9rem; }
 
-    /* ── Toast ───────────────────────────────────────────── */
-    .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b;
-      color: #fff; padding: 12px 20px; border-radius: 10px; font-size: .9rem;
-      opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 9999; }
-    .toast.show { opacity: 1; pointer-events: auto; }
-    .toast.error   { background: var(--red); }
-    .toast.warning { background: var(--yellow); color: #1e293b; }
+    /* ── Clases utilitarias y componentes de detalle ────── */
+    .badge-alergia { background: var(--red-light); color: #991b1b; }
+    .num-primary { color: var(--primary); }
+    .num-green { color: var(--green); }
+    .num-red { color: var(--red); }
+    .num-muted { color: var(--text-muted); }
+    .field-row-column { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .field-row-column-sm { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .field-value-prewrap { white-space: pre-wrap; font-size: .88rem; }
+    .attachment-preview-box { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .attachment-img { max-width: 120px; max-height: 120px; border-radius: 8px; border: 1px solid var(--border); object-fit: cover; }
+    .attachment-info-text { font-size: .85rem; color: var(--text-muted); margin-bottom: 8px; }
+    .btn-action-sm { font-size: .82rem; padding: 6px 14px; }
+    .btn-action-delete { font-size: .82rem; padding: 6px 14px; color: var(--red); border-color: var(--red); margin-left: 6px; }
+    .btn-action-delete:hover { background: var(--red-light); }
+    .upload-zone { margin-top: 12px; }
+    .btn-file-sm { font-size: .85rem; padding: 8px 18px; }
+    .file-name-hint { font-size: .82rem; color: var(--text-muted); margin-left: 10px; }
+    .mb-12 { margin-bottom: 12px; }
+    .ml-8 { margin-left: 8px; }
+    .d-none { display: none !important; }
 
-    /* ── Responsive hamburguesa ──────────────────────────── */
-    .hamburger { display: none; position: fixed; top: 16px; left: 16px; z-index: 200;
-      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-      padding: 8px; cursor: pointer; }
     @@media (max-width: 768px) {
-      .hamburger { display: flex; }
-      .main { padding: 64px 16px 24px; }
-      .hero-card { padding: 18px; }
+      .patient-detail-page .page-header-content { align-items: flex-start; }
+      .hero-card { padding: 18px; gap: 16px; }
+      .hero-actions { width: 100%; }
+      .hero-actions > * { flex: 1 1 auto; justify-content: center; }
+      .field-label { min-width: 130px; }
+    }
+    @@media (max-width: 480px) {
+      .patient-detail-page .page-header-content { align-items: stretch; flex-direction: column; }
+      .patient-detail-page .page-header-actions { width: 100%; }
+      .patient-detail-page .back-btn { width: 100%; justify-content: center; }
+      .hero-card { padding: 14px; gap: 12px; }
+      .hero-avatar { width: 56px; height: 56px; font-size: 1.4rem; }
+      .hero-info { flex: 1 1 calc(100% - 72px); min-width: 0; }
+      .hero-actions { flex-direction: column; align-items: stretch; }
+      .hero-actions > * { width: 100%; }
+      .stats-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .stat-item { padding: 14px; }
+      .stat-item .num { font-size: 1.35rem; overflow-wrap: anywhere; }
+      .sections-grid { grid-template-columns: 1fr; gap: 12px; }
+      .section-card { min-width: 0; padding: 16px; }
+      .field-row { align-items: flex-start; flex-direction: column; gap: 3px; }
+      .field-label { min-width: 0; }
+      #fusionDialog > .section-card { padding: 16px; }
     }
   </style>
-</head>
-<body>
+}
   @Html.AntiForgeryToken()
 
-  <button class="hamburger" id="hamburger" data-i18n-aria-label="detalle_paciente_abrir_menu" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
-  </button>
-  <div class="overlay" id="overlay" aria-hidden="true"></div>
-  @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
+  <main class="main patient-detail-page" id="main-content">
 
-  @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-  <main class="main" id="main-content">
-
-    <!-- ── Encabezado de navegación ─────────────────── -->
-    <div class="page-header">
-      <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="back-btn" data-i18n-aria-label="detalle_paciente_volver_listado" aria-label="Volver al listado">
-        <span data-i18n="detalle_paciente_volver">← Volver</span>
-      </a>
+    <header class="page-header">
       <nav class="breadcrumb" data-i18n-aria-label="detalle_paciente_ruta_navegacion" aria-label="Ruta de navegación">
         <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" data-i18n="detalle_paciente_breadcrumb_pacientes">Pacientes</a>
         <span class="sep" aria-hidden="true">›</span>
-        <span>@Model.Name</span>
+        <span aria-current="page">@Model.Name</span>
       </nav>
-    </div>
+      <div class="page-header-content">
+        <div class="page-header-title">
+          <h1 class="page-title" id="heroName">@Model.Name</h1>
+          <p class="page-subtitle">@Model.Doc · @edad años · Registrado el @(Model.FechaRegistro?.ToString("dd MMM yyyy") ?? "N/D")</p>
+        </div>
+        <div class="page-header-actions">
+          <a href="/gestion-de-pacientes/st-adm-05-gestion-pacientes" class="back-btn" data-i18n-aria-label="detalle_paciente_volver_listado" aria-label="Volver al listado">
+            <span data-i18n="detalle_paciente_volver">← Volver</span>
+          </a>
+        </div>
+      </div>
+    </header>
 
     <!-- ── Hero: avatar + nombre + estado + acciones ─ -->
     <section class="hero-card" aria-labelledby="heroName">
       <div class="hero-avatar" style="background:@avatarColor" aria-hidden="true">@Model.Initials</div>
 
       <div class="hero-info">
-        <h1 class="hero-name" id="heroName">@Model.Name</h1>
-        <p class="hero-sub">@Model.Doc · @edad años · Registrado el @(Model.FechaRegistro?.ToString("dd MMM yyyy") ?? "N/D")</p>
         <div class="badge-row">
           <span class="badge badge-@Model.Estado.ToLower()" role="status">@Model.Estado.ToUpperInvariant()</span>
           @if (Model.Allergies.Count > 0)
           {
-            <span class="badge" style="background:#fee2e2;color:#991b1b;" data-i18n="detalle_paciente_alergias_badge">⚠️ Alergias</span>
+            <span class="badge badge-alergia" data-i18n="detalle_paciente_alergias_badge">⚠️ Alergias</span>
           }
           @if (Model.NextVisit.HasValue)
           {
@@ -220,35 +249,81 @@
       </div>
 
       <div class="hero-actions">
+        @if (User.IsInRole("Profesional"))
+        {
         <a href="/historia-clinica/st-odo-03-historial?pacienteId=@Model.Id"
            class="btn-primary" data-i18n-aria-label="detalle_paciente_abrir_historia_clinica" aria-label="Abrir historia clínica de @Model.Name">
-          <span data-i18n="detalle_paciente_historia_clinica">🦷 Historia Clínica</span>
+          <span class="material-symbols-outlined" aria-hidden="true">clinical_notes</span>
+          <span data-i18n="detalle_paciente_historia_clinica">Historia Clínica</span>
         </a>
+        }
+        else if (User.IsInRole("Administrador"))
+        {
+        <a href="/historia-clinica/st-adm-historial"
+           class="btn-primary" data-i18n-aria-label="detalle_paciente_abrir_historia_clinica" aria-label="Abrir historia clínica">
+          <span class="material-symbols-outlined" aria-hidden="true">clinical_notes</span>
+          <span data-i18n="detalle_paciente_historia_clinica">Historia Clínica</span>
+        </a>
+        }
+        else if (User.IsInRole("Recepcionista"))
+        {
+        <a href="/historia-clinica/st-rec-historial"
+           class="btn-primary" data-i18n-aria-label="detalle_paciente_abrir_historia_clinica" aria-label="Abrir historias clínicas">
+          <span class="material-symbols-outlined" aria-hidden="true">clinical_notes</span>
+          <span data-i18n="detalle_paciente_historia_clinica">Historia Clínica</span>
+        </a>
+        }
         <button class="btn-secondary" id="btnEditarPaciente"
                 data-id="@Model.Id" data-i18n-aria-label="detalle_paciente_editar_datos" aria-label="Editar datos de @Model.Name">
-          <span data-i18n="detalle_paciente_editar">✏️ Editar</span>
+          <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+          <span data-i18n="detalle_paciente_editar">Editar</span>
         </button>
+        @if (User.IsInRole("Administrador"))
+        {
+          <button class="btn-secondary" id="btnAbrirFusion" type="button">Fusionar duplicado</button>
+        }
       </div>
     </section>
+
+    @if (User.IsInRole("Administrador"))
+    {
+      <dialog id="fusionDialog" aria-labelledby="fusionDialogTitle">
+        <div class="section-card">
+          <h2 class="section-title" id="fusionDialogTitle">Fusionar pacientes</h2>
+          <p>Se conservará este paciente como principal. El otro registro quedará inactivo; las fusiones con dos historias clínicas completas requieren revisión manual.</p>
+          <label for="fusionSearch" class="field-label">Buscar duplicado por nombre o documento</label>
+          <input id="fusionSearch" type="search" autocomplete="off" />
+          <div id="fusionResults" role="listbox" aria-label="Resultados de pacientes"></div>
+          <p id="fusionSelection" aria-live="polite">Selecciona el paciente duplicado.</p>
+          <form method="post" action="/gestion-de-pacientes/fusionar" id="fusionForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="idPrincipal" value="@Model.Id" />
+            <input type="hidden" name="idDuplicado" id="fusionDuplicateId" />
+            <button type="submit" class="btn-primary" id="btnConfirmarFusion" disabled>Confirmar fusión</button>
+            <button type="button" class="btn-secondary" id="btnCerrarFusion">Cancelar</button>
+          </form>
+        </div>
+      </dialog>
+    }
 
     <!-- ── Métricas de actividad ─────────────────────── -->
     <section class="stats-strip" data-i18n-aria-label="detalle_paciente_resumen_actividad" aria-label="Resumen de actividad">
       <div class="stat-item">
-        <div class="num" style="color:var(--primary)">@Model.TotalCitas</div>
+        <div class="num num-primary">@Model.TotalCitas</div>
         <div class="lbl" data-i18n="detalle_paciente_citas_totales">Citas totales</div>
       </div>
       <div class="stat-item">
-        <div class="num" style="color:var(--green)">@Model.CitasPendientes</div>
+        <div class="num num-green">@Model.CitasPendientes</div>
         <div class="lbl" data-i18n="detalle_paciente_citas_pendientes">Citas pendientes</div>
       </div>
       <div class="stat-item">
-        <div class="num" style="color:@(Model.Allergies.Count > 0 ? "var(--red)" : "var(--green)")">
+        <div class="num @(Model.Allergies.Count > 0 ? "num-red" : "num-green")">
           @Model.Allergies.Count
         </div>
         <div class="lbl" data-i18n="detalle_paciente_alergias_registradas">Alergias registradas</div>
       </div>
       <div class="stat-item">
-        <div class="num" style="color:var(--text-muted)">
+        <div class="num num-muted">
           @(Model.LastVisit.HasValue ? Model.LastVisit.Value.ToString("dd/MM") : "—")
         </div>
         <div class="lbl" data-i18n="detalle_paciente_ultima_visita">Última visita</div>
@@ -308,11 +383,11 @@
             @(string.IsNullOrWhiteSpace(Model.GrupoSanguineo) ? "No registrado" : Model.GrupoSanguineo)
           </span>
         </div>
-        <div class="field-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
+        <div class="field-row field-row-column">
           <span class="field-label" data-i18n="detalle_paciente_alergias_label">Alergias</span>
           @if (Model.Allergies.Count > 0)
           {
-            <div class="allergy-list" role="list" data-i18n-aria-label="detalle_paciente_lista_alergias" aria-label="Lista de alergias">
+            <div class="allergy-list" id="allergyDisplay" role="list" data-i18n-aria-label="detalle_paciente_lista_alergias" aria-label="Lista de alergias">
               @foreach (var a in Model.Allergies)
               {
                 <span class="allergy-badge" role="listitem">@a</span>
@@ -321,13 +396,34 @@
           }
           else
           {
-            <span class="field-value empty" data-i18n="detalle_paciente_sin_alergias">Sin alergias registradas</span>
+            <span class="field-value empty" id="allergyDisplay" data-i18n="detalle_paciente_sin_alergias">Sin alergias registradas</span>
+          }
+          <div id="structuredAllergies" class="allergy-list" role="list" aria-label="Alergias con detalle clínico"></div>
+          @if (User.IsInRole("Administrador") || User.IsInRole("Recepcionista") || User.IsInRole("Profesional"))
+          {
+            <form id="allergyForm" class="allergy-form">
+              <label for="allergySubstance">Registrar alergia</label>
+              <input id="allergySubstance" name="sustancia" type="text" maxlength="150" required placeholder="Sustancia" />
+              <select id="allergyType" name="tipo" required>
+                <option value="medicamento">Medicamento</option>
+                <option value="alimento">Alimento</option>
+                <option value="ambiental">Ambiental</option>
+                <option value="latex">Látex</option>
+                <option value="otro">Otro</option>
+              </select>
+              <select id="allergySeverity" name="severidad" required>
+                <option value="leve">Leve</option>
+                <option value="moderada">Moderada</option>
+                <option value="grave">Grave</option>
+              </select>
+              <input id="allergyReaction" name="reaccion" type="text" maxlength="300" placeholder="Reacción (opcional)" />
+              <button type="submit" class="btn-secondary">Agregar alergia</button>
+            </form>
           }
         </div>
-        <div class="field-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
+        <div class="field-row field-row-column-sm">
           <span class="field-label" data-i18n="detalle_paciente_antecedentes_medicos_label">Antecedentes médicos</span>
-          <span class="field-value @(string.IsNullOrWhiteSpace(Model.AntecedentesMedicos) ? "empty" : "")"
-                style="white-space: pre-wrap; font-size:.88rem;">
+          <span class="field-value field-value-prewrap @(string.IsNullOrWhiteSpace(Model.AntecedentesMedicos) ? "empty" : "")">
             @(string.IsNullOrWhiteSpace(Model.AntecedentesMedicos) ? "Sin antecedentes registrados" : Model.AntecedentesMedicos)
           </span>
         </div>
@@ -382,43 +478,43 @@
 
         @if (!string.IsNullOrWhiteSpace(Model.ArchivoAdjunto))
         {
-          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <div class="attachment-preview-box">
             <img src="/@Model.ArchivoAdjunto"
                  data-i18n-alt="detalle_paciente_archivo_adjunto_de"
                  alt="Archivo adjunto de @Model.Name"
-                 style="max-width:120px;max-height:120px;border-radius:8px;
-                        border:1px solid var(--border);object-fit:cover;" />
+                 class="attachment-img" />
             <div>
-              <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">
+              <p class="attachment-info-text">
                 <span data-i18n="detalle_paciente_archivo_actual">Archivo actual:</span> <strong>@System.IO.Path.GetFileName(Model.ArchivoAdjunto)</strong>
               </p>
-              <button class="btn-secondary" id="btnCambiarArchivo" style="font-size:.82rem;padding:6px 14px;">
-                <span data-i18n="detalle_paciente_cambiar">🔄 Cambiar</span>
+              <button class="btn-secondary btn-action-sm" id="btnCambiarArchivo">
+                <span class="material-symbols-outlined" aria-hidden="true">sync</span>
+                <span data-i18n="detalle_paciente_cambiar">Cambiar</span>
               </button>
-              <button class="btn-secondary" id="btnEliminarArchivo"
-                      style="font-size:.82rem;padding:6px 14px;color:var(--red);border-color:var(--red);margin-left:6px;">
-                <span data-i18n="detalle_paciente_eliminar">🗑️ Eliminar</span>
+              <button class="btn-secondary btn-action-delete" id="btnEliminarArchivo">
+                <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                <span data-i18n="detalle_paciente_eliminar">Eliminar</span>
               </button>
             </div>
           </div>
         }
         else
         {
-          <p class="field-value empty" style="margin-bottom:12px;" data-i18n="detalle_paciente_sin_archivo_adjunto">Sin archivo adjunto</p>
+          <p class="field-value empty mb-12" data-i18n="detalle_paciente_sin_archivo_adjunto">Sin archivo adjunto</p>
         }
 
         <!-- Input de subida (oculto, se activa con los botones) -->
-        <div id="uploadZone" style="margin-top:12px;@(string.IsNullOrWhiteSpace(Model.ArchivoAdjunto) ? "" : "display:none;")">
+        <div id="uploadZone" class="upload-zone @(string.IsNullOrWhiteSpace(Model.ArchivoAdjunto) ? "" : "d-none")">
           <input type="file" id="inputArchivo" accept="image/jpeg,image/png,image/webp"
-                 style="display:none;" data-i18n-aria-label="detalle_paciente_seleccionar_archivo_adjunto" aria-label="Seleccionar archivo adjunto" />
-          <button class="btn-secondary" id="btnSeleccionarArchivo"
-                  style="font-size:.85rem;padding:8px 18px;">
-            <span data-i18n="detalle_paciente_seleccionar_imagen">📁 Seleccionar imagen (JPG, PNG o WEBP — máx. 5 MB)</span>
+                 class="visually-hidden" data-i18n-aria-label="detalle_paciente_seleccionar_archivo_adjunto" aria-label="Seleccionar archivo adjunto" />
+          <button class="btn-secondary btn-file-sm" id="btnSeleccionarArchivo">
+            <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+            <span data-i18n="detalle_paciente_seleccionar_imagen">Seleccionar imagen (JPG, PNG o WEBP — máx. 5 MB)</span>
           </button>
-          <span id="archivoNombre" style="font-size:.82rem;color:var(--text-muted);margin-left:10px;"></span>
-          <button class="btn-primary" id="btnSubirArchivo" disabled
-                  style="font-size:.85rem;padding:8px 18px;margin-left:8px;">
-            <span data-i18n="detalle_paciente_subir">⬆️ Subir</span>
+          <span id="archivoNombre" class="file-name-hint"></span>
+          <button class="btn-primary btn-file-sm ml-8" id="btnSubirArchivo" disabled>
+            <span class="material-symbols-outlined" aria-hidden="true">upload</span>
+            <span data-i18n="detalle_paciente_subir">Subir</span>
           </button>
         </div>
       </div>
@@ -454,9 +550,9 @@
 
   </main>
 
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
+@section Scripts {
   <script>
+    (() => {
     // Yeray (2025) - Script inline de la vista de detalle.
     // Solo maneja el botón "Editar" (abre modal inline con el form existente)
     // y el toast de feedback. La lógica de edición reutiliza el endpoint
@@ -464,21 +560,128 @@
 
     const pacienteId   = @Model.Id;
     const pacienteNombre = @Html.Raw(JsonSerializer.Serialize(Model.Name));
+    sessionStorage.setItem('st_paciente_id', String(pacienteId));
 
+    const translate = (key, vars) => window.I18N?.t(key, vars) || key;
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[character]));
     const showToast = (msg, type = 'success') => {
-      const t = document.getElementById('toast');
-      if (!t) return;
-      t.textContent = msg;
-      t.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : ''} show`;
-      clearTimeout(t._tid);
-      t._tid = setTimeout(() => t.classList.remove('show'), 3200);
+      const method = window.ToastService?.[type];
+      if (typeof method !== 'function') {
+        console.error(`[SmileTrack][DetallePaciente] ToastService no tiene un método válido para "${type}".`);
+        return;
+      }
+      method(escapeHtml(msg));
     };
+    const confirmDestructiveAction = (options) => {
+      if (typeof window.ModalService?.confirm !== 'function') {
+        console.error('[SmileTrack][DetallePaciente] El servicio compartido de confirmación no está disponible.');
+        showToast(translate('common.confirmation_unavailable'), 'error');
+        return false;
+      }
+
+      window.ModalService.confirm({
+        ...options,
+        cancelText: translate('common.cancel'),
+        isDanger: true
+      });
+      return true;
+    };
+
+    const mergeMessage = @Html.Raw(JsonSerializer.Serialize(TempData["PacienteFusionMensaje"]));
+    const mergeHasError = @Html.Raw(JsonSerializer.Serialize(TempData["PacienteFusionError"] is true));
+    if (mergeMessage) {
+      document.addEventListener('DOMContentLoaded', () => {
+        showToast(mergeMessage, mergeHasError ? 'error' : 'success');
+      }, { once: true });
+    }
+
+    const fusionDialog = document.getElementById('fusionDialog');
+    const fusionSearch = document.getElementById('fusionSearch');
+    const fusionResults = document.getElementById('fusionResults');
+    const fusionDuplicateId = document.getElementById('fusionDuplicateId');
+    const fusionSelection = document.getElementById('fusionSelection');
+    let fusionSearchTimer;
+
+    document.getElementById('btnAbrirFusion')?.addEventListener('click', () => fusionDialog?.showModal());
+    document.getElementById('btnCerrarFusion')?.addEventListener('click', () => fusionDialog?.close());
+    fusionDialog?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      fusionDialog.close();
+    });
+    fusionSearch?.addEventListener('input', () => {
+      clearTimeout(fusionSearchTimer);
+      fusionDuplicateId.value = '';
+      document.getElementById('btnConfirmarFusion').disabled = true;
+      const search = fusionSearch.value.trim();
+      fusionResults.replaceChildren();
+      fusionSelection.textContent = 'Selecciona el paciente duplicado.';
+      if (search.length < 2) return;
+
+      fusionSearchTimer = setTimeout(async () => {
+        try {
+          const response = await fetch(`/gestion-de-pacientes/buscar?search=${encodeURIComponent(search)}&estado=todos&page=1&pageSize=10`, {
+            credentials: 'same-origin'
+          });
+          if (!response.ok) throw new Error('No se pudieron buscar pacientes.');
+          const result = await response.json();
+          result.items
+            .filter((patient) => patient.id !== pacienteId)
+            .forEach((patient) => {
+              const option = document.createElement('button');
+              option.type = 'button';
+              option.setAttribute('role', 'option');
+              option.className = 'btn-secondary';
+              option.textContent = `${patient.name} · ${patient.doc} · ${patient.estado}`;
+              option.addEventListener('click', () => {
+                fusionDuplicateId.value = patient.id;
+                fusionSelection.textContent = `Secundario: ${patient.name} · ${patient.doc}`;
+                document.getElementById('btnConfirmarFusion').disabled = false;
+              });
+              fusionResults.append(option);
+            });
+          if (!fusionResults.childElementCount) fusionResults.textContent = 'No hay coincidencias.';
+        } catch (error) {
+          fusionResults.textContent = error.message || 'No se pudo completar la búsqueda.';
+        }
+      }, 250);
+    });
+
+    let fusionConfirmed = false;
+    const fusionForm = document.getElementById('fusionForm');
+    fusionForm?.addEventListener('submit', (event) => {
+      if (!fusionDuplicateId.value) {
+        event.preventDefault();
+        return;
+      }
+      if (fusionConfirmed) {
+        fusionConfirmed = false;
+        return;
+      }
+
+      event.preventDefault();
+      confirmDestructiveAction({
+        title: translate('detalle_paciente_confirm_fusion_title'),
+        message: escapeHtml(translate('detalle_paciente_confirm_fusion_message', { name: pacienteNombre })),
+        confirmText: translate('detalle_paciente_confirm_fusion'),
+        onConfirm: () => {
+          fusionConfirmed = true;
+          fusionForm.requestSubmit();
+        }
+      });
+    });
 
     // Botón Editar: redirige al listado con el modal de edición precargado
     // El listado ya tiene toda la lógica de edición implementada.
     document.getElementById('btnEditarPaciente')?.addEventListener('click', () => {
       window.location.href =
-        `/gestion-de-pacientes/st-adm-05-gestion-pacientes#editar-${pacienteId}`;
+        `/gestion-de-pacientes/st-adm-05-gestion-pacientes?editar=${pacienteId}#editar-${pacienteId}`;
     });
 
     // ── Archivo adjunto ───────────────────────────────────────────────────────
@@ -495,9 +698,84 @@
 
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
+    const allergyList = document.getElementById('structuredAllergies');
+    const loadStructuredAllergies = async () => {
+      if (!allergyList) return;
+      try {
+        const response = await fetch(`/gestion-de-pacientes/${pacienteId}/alergias`, {
+          credentials: 'same-origin'
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'No se pudieron cargar las alergias.');
+        if (!result.data.length) return;
+
+        document.getElementById('allergyDisplay')?.remove();
+        allergyList.replaceChildren();
+        result.data.forEach((allergy) => {
+          const item = document.createElement('div');
+          item.className = 'allergy-badge';
+          item.setAttribute('role', 'listitem');
+          const description = document.createElement('span');
+          description.textContent = `${allergy.sustancia} — ${allergy.tipo} — ${allergy.severidad}${allergy.reaccion ? ` — ${allergy.reaccion}` : ''}`;
+          item.append(description);
+
+          if (document.getElementById('allergyForm')) {
+            const deactivate = document.createElement('button');
+            deactivate.type = 'button';
+            deactivate.textContent = 'Desactivar';
+            deactivate.addEventListener('click', async () => {
+              const form = new FormData();
+              try {
+                const response = await fetch(`/gestion-de-pacientes/alergias/${allergy.id}/desactivar`, {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+                  body: form
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) throw new Error(data.message || 'No se pudo desactivar la alergia.');
+                window.location.reload();
+              } catch (error) {
+                showToast(error.message, 'error');
+              }
+            });
+            item.append(deactivate);
+          }
+
+          allergyList.append(item);
+        });
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    };
+
+    document.getElementById('allergyForm')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      try {
+        const response = await fetch(`/gestion-de-pacientes/${pacienteId}/alergias/agregar`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'X-CSRF-TOKEN': token, 'RequestVerificationToken': token },
+          body: form
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'No se pudo registrar la alergia.');
+        window.location.reload();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    });
+
+    loadStructuredAllergies();
+
     // Botón "Cambiar" (solo visible si ya hay archivo)
     document.getElementById('btnCambiarArchivo')?.addEventListener('click', () => {
-      document.getElementById('uploadZone').style.display = '';
+      const zone = document.getElementById('uploadZone');
+      if (zone) {
+        zone.classList.remove('d-none');
+        zone.style.display = '';
+      }
     });
 
     // Botón "Seleccionar imagen" abre el input oculto
@@ -550,9 +828,7 @@
     });
 
     // Botón "Eliminar": elimina el archivo del disco y limpia el campo en BD
-    document.getElementById('btnEliminarArchivo')?.addEventListener('click', async () => {
-      if (!confirm('¿Seguro que deseas eliminar el archivo adjunto?')) return;
-
+    const deleteAttachment = async () => {
       try {
         const fd = new FormData();
         const resp = await fetch(
@@ -572,13 +848,16 @@
       } catch (err) {
         showToast(err.message || 'No se pudo eliminar el archivo.', 'error');
       }
-    });
-  </script>
+    };
 
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  <script src="@Url.Content("~/js/i18n-core.js")"></script>
-  <script src="@Url.Content("~/js/i18n.config.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-</html>
+    document.getElementById('btnEliminarArchivo')?.addEventListener('click', () => {
+      confirmDestructiveAction({
+        title: translate('detalle_paciente_confirmar_eliminar_archivo_titulo'),
+        message: translate('detalle_paciente_confirmar_eliminar_archivo_mensaje'),
+        confirmText: translate('detalle_paciente_eliminar'),
+        onConfirm: deleteAttachment
+      });
+    });
+    })();
+  </script>
+}

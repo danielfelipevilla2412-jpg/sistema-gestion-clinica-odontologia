@@ -24,6 +24,7 @@ NOTAS DE MANTENIMIENTO:
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Mi Perfil";
+    ViewData["UseGestionModulesDesignSystem"] = true;
     var loggedProfesional = ViewData["LoggedProfesional"] as SmileTrack_MVC.Models.Entities.Profesional;
     var especialidades = loggedProfesional?.Especialidades?.Select(pe => pe.Especialidad?.Nombre).Where(n => n != null).ToList() ?? new List<string?>();
     var initials = loggedProfesional != null && !string.IsNullOrEmpty(loggedProfesional.Nombres)
@@ -32,6 +33,7 @@ NOTAS DE MANTENIMIENTO:
     var professionalStatus = loggedProfesional?.Estado ?? "inactivo";
     var professionalStatusClass = string.Equals(professionalStatus, "activo", StringComparison.OrdinalIgnoreCase) ? "active" : "inactive";
     var credenciales = ViewData["CredencialesProfesional"] as List<SmileTrack_MVC.Models.Entities.CredencialProfesional> ?? new();
+    var profileError = TempData["ErrorValidacion"] as string;
 }
 
 @section Styles {
@@ -40,6 +42,10 @@ NOTAS DE MANTENIMIENTO:
 
   <!-- ═════ MAIN ═════ -->
   <main class="main" id="main-content">
+    @if (!string.IsNullOrWhiteSpace(profileError))
+    {
+      <p class="credential-feedback credential-feedback--error" role="alert">@profileError</p>
+    }
 
     <!-- Header -->
     <header class="page-header">
@@ -58,15 +64,15 @@ NOTAS DE MANTENIMIENTO:
     <section class="profile-header-card" aria-labelledby="profileName">
       <div class="profile-avatar-large" aria-hidden="true">@initials</div>
       <div class="profile-info">
-        <h2 id="profileName">@(loggedProfesional != null ? $"Dr. {loggedProfesional.Nombres} {loggedProfesional.Apellidos}" : "Profesional no disponible")</h2>
+        <h2 id="profileName">@(loggedProfesional != null ? $"{loggedProfesional.Nombres} {loggedProfesional.Apellidos}" : "Profesional no disponible")</h2>
         <div class="profile-tags" role="list">
           @if (loggedProfesional != null)
           {
             foreach (var esp in especialidades)
             {
-              <span class="tag tag-blue" role="listitem"><span class="material-symbols-outlined" style="font-size:.85rem;vertical-align:middle;margin-right:2px;" aria-hidden="true">medical_services</span> @esp</span>
+              <span class="tag tag-blue" role="listitem"><span class="material-symbols-outlined icon-tag" aria-hidden="true">medical_services</span> @esp</span>
             }
-            <span class="tag tag-green" role="listitem"><span class="material-symbols-outlined" style="font-size:.85rem;vertical-align:middle;margin-right:2px;" aria-hidden="true">verified</span> @loggedProfesional.RegistroMedico</span>
+            <span class="tag tag-green" role="listitem"><span class="material-symbols-outlined icon-tag" aria-hidden="true">verified</span> @loggedProfesional.RegistroMedico</span>
           }
           else
           {
@@ -76,86 +82,33 @@ NOTAS DE MANTENIMIENTO:
       </div>
     </section>
 
-    <section class="card" aria-labelledby="credentialsTitle" style="margin:1.25rem 0;padding:1.25rem;">
-      <h2 class="card-title" id="credentialsTitle">Credenciales profesionales</h2>
-      <p>Sube certificados médicos, títulos de especialidad o estudios en PDF o imagen. La activación requiere aprobación administrativa.</p>
-      @if (TempData["Mensaje"] is string successMessage)
-      {
-        <p role="status">@successMessage</p>
-      }
-      @if (TempData["ErrorValidacion"] is string errorMessage)
-      {
-        <p role="alert">@errorMessage</p>
-      }
-      <form method="post" action="/gestion-de-profesionales/credenciales/subir" enctype="multipart/form-data">
-        @Html.AntiForgeryToken()
-        <div class="form-group">
-          <label class="form-label" for="credentialType">Tipo de documento</label>
-          <select class="form-input" id="credentialType" name="tipo" required>
-            <option value="">Seleccionar tipo</option>
-            <option value="Certificado médico">Certificado médico</option>
-            <option value="Título de especialidad">Título de especialidad</option>
-            <option value="Estudios complementarios">Estudios complementarios</option>
-            <option value="Registro profesional">Registro profesional</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="credentialFile">Archivo (PDF, JPG o PNG, máximo 10 MB)</label>
-          <input class="form-input" type="file" id="credentialFile" name="archivo" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
-        </div>
-        <button class="btn-primary" type="submit">Cargar documento</button>
-      </form>
-
-      <h3>Documentos cargados</h3>
-      @if (credenciales.Count == 0)
-      {
-        <p>Aún no has cargado documentos.</p>
-      }
-      else
-      {
-        <ul>
-          @foreach (var credencial in credenciales)
-          {
-            <li>
-              <a href="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/archivo">@credencial.Tipo: @credencial.NombreOriginal</a>
-              <span> · @credencial.EstadoRevision · @credencial.FechaSubida.ToLocalTime().ToString("dd/MM/yyyy")</span>
-              @if (!string.IsNullOrWhiteSpace(credencial.ObservacionRevision))
-              {
-                <p>@credencial.ObservacionRevision</p>
-              }
-            </li>
-          }
-        </ul>
-      }
-    </section>
-
     <!-- Content Layout -->
     <div class="content-layout">
 
       <!-- Left Column: Personal Info -->
       <div class="content-left">
         <div class="card info-card">
-          <h3 class="card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">person_search</span><span data-i18n="common.personal_data">Información personal</span></h3>
+          <h3 class="card-title"><span class="material-symbols-outlined icon-card-title" aria-hidden="true">person_search</span><span data-i18n="common.personal_data">Información personal</span></h3>
 
           <div class="info-grid">
             <div class="info-item">
               <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">call</span></div>
               <div>
-                <label>Teléfono</label>
+                <span class="info-label">Teléfono</span>
                 <div class="info-value">@(loggedProfesional?.Telefono ?? "No disponible")</div>
               </div>
             </div>
             <div class="info-item">
               <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">mail</span></div>
               <div>
-                <label>Correo</label>
+                <span class="info-label">Correo</span>
                 <div class="info-value">@(loggedProfesional?.Usuario?.Correo ?? "No disponible")</div>
               </div>
             </div>
             <div class="info-item">
               <div class="info-icon" aria-hidden="true"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></div>
               <div>
-                <label>Fecha de ingreso</label>
+                <span class="info-label">Fecha de ingreso</span>
                 <div class="info-value">
                   <time datetime="@(loggedProfesional?.FechaIngreso?.ToString("yyyy-MM-dd") ?? string.Empty)">
                     @(loggedProfesional?.FechaIngreso?.ToString("dd MMM yyyy") ?? "No disponible")
@@ -166,7 +119,7 @@ NOTAS DE MANTENIMIENTO:
             <div class="info-item">
               <div class="info-icon" aria-hidden="true"></div>
               <div>
-                <label>Estado</label>
+                <span class="info-label">Estado</span>
                 <div class="info-value">
                   <span class="status-badge @professionalStatusClass" role="status" aria-label="Estado: @professionalStatus">
                     <span class="status-dot" aria-hidden="true"></span>
@@ -181,23 +134,23 @@ NOTAS DE MANTENIMIENTO:
 
           <!-- Change Password Section -->
           <div class="password-section">
-            <h3 class="card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">lock</span> Cambiar contraseña</h3>
+            <h3 class="card-title"><span class="material-symbols-outlined icon-card-title" aria-hidden="true">lock</span> <span data-i18n="profile.change_password">Cambiar contraseña</span></h3>
 
-            <form id="passwordForm" novalidate>
+            <form id="passwordForm" method="post" action="/acceso-y-seguridad/cambiar-contrasena" novalidate>
               @Html.AntiForgeryToken()
               <div class="form-group">
                 <label class="form-label" for="currentPassword">Contraseña actual</label>
                 <div class="input-with-icon">
-                  <input type="password" class="form-input" id="currentPassword" placeholder="••••••••" required
+                  <input type="password" class="form-input" id="currentPassword" name="contrasenaActual" placeholder="••••••••" required
                     aria-required="true">
                   <button type="button" class="toggle-password" aria-label="Mostrar u ocultar contraseña actual"
-                    aria-pressed="false"><span class="material-symbols-outlined" aria-hidden="true">visibility</span></button>
+                    aria-pressed="false">👁</button>
                 </div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="newPassword">Nueva contraseña</label>
                 <div class="input-with-icon">
-                  <input type="password" class="form-input" id="newPassword" placeholder="••••••••" required
+                  <input type="password" class="form-input" id="newPassword" name="nuevaContrasena" placeholder="••••••••" required
                     aria-required="true" aria-describedby="passwordStrength">
                   <button type="button" class="toggle-password" aria-label="Mostrar u ocultar nueva contraseña"
                     aria-pressed="false">👁</button>
@@ -207,7 +160,7 @@ NOTAS DE MANTENIMIENTO:
               <div class="form-group">
                 <label class="form-label" for="confirmPassword">Confirmar nueva contraseña</label>
                 <div class="input-with-icon">
-                  <input type="password" class="form-input" id="confirmPassword" placeholder="••••••••" required
+                  <input type="password" class="form-input" id="confirmPassword" name="confirmarContrasena" placeholder="••••••••" required
                     aria-required="true">
                   <button type="button" class="toggle-password"
                     aria-label="Mostrar u ocultar confirmación de contraseña" aria-pressed="false">👁</button>
@@ -217,14 +170,139 @@ NOTAS DE MANTENIMIENTO:
             </form>
           </div>
         </div>
+
+        <section class="card credentials-card" aria-labelledby="credentialsTitle">
+          <header class="credentials-header">
+            <div class="credentials-heading">
+              <span class="credentials-icon material-symbols-outlined" aria-hidden="true">workspace_premium</span>
+              <div>
+                <h2 class="credentials-title" id="credentialsTitle">Credenciales profesionales</h2>
+                <p class="credentials-description">Carga títulos y certificados para revisión administrativa. «Pendiente» significa que el administrador aún debe revisar el documento; solo las credenciales aprobadas validan tu perfil.</p>
+              </div>
+            </div>
+            <span class="credentials-count" aria-label="Documentos cargados">
+              <span class="material-symbols-outlined" aria-hidden="true">description</span>
+              @credenciales.Count
+            </span>
+          </header>
+
+          @if (TempData["Mensaje"] is string successMessage)
+          {
+            <p class="credential-feedback credential-feedback--success" role="status">
+              <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+              @successMessage
+            </p>
+          }
+          @if (TempData["ErrorValidacion"] is string credentialError)
+          {
+            <p class="credential-feedback credential-feedback--error" role="alert">
+              <span class="material-symbols-outlined" aria-hidden="true">error</span>
+              @credentialError
+            </p>
+          }
+          <form class="credentials-form" method="post" action="/gestion-de-profesionales/credenciales/subir" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <div class="credentials-form-grid">
+              <div class="form-group">
+                <label class="form-label" for="credentialType">Tipo de documento</label>
+                <select class="form-input" id="credentialType" name="tipo" required>
+                  <option value="">Seleccionar tipo</option>
+                  <option value="Certificado médico">Certificado médico</option>
+                  <option value="Título de especialidad">Título de especialidad</option>
+                  <option value="Estudios complementarios">Estudios complementarios</option>
+                  <option value="Registro profesional">Registro profesional</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="credentialFile">Archivo del documento</label>
+                <div class="credentials-file-control">
+                  <input class="credentials-file-input" type="file" id="credentialFile" name="archivo"
+                         accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                         aria-describedby="credentialFileHelp credentialFileName" required />
+                  <label class="credentials-file-trigger" for="credentialFile">
+                    <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+                    Seleccionar archivo
+                  </label>
+                  <span class="credentials-file-name" id="credentialFileName" aria-live="polite">Sin archivo seleccionado</span>
+                </div>
+                <p class="credentials-help" id="credentialFileHelp">PDF, JPG o PNG. Tamaño máximo: 10 MB.</p>
+              </div>
+            </div>
+            <div class="credentials-form-footer">
+              <p class="credentials-review-note">
+                <span class="material-symbols-outlined" aria-hidden="true">info</span>
+                Los documentos se activan después de la aprobación administrativa.
+              </p>
+              <button class="btn-primary" type="submit">
+                <span class="material-symbols-outlined" aria-hidden="true">cloud_upload</span>
+                Cargar documento
+              </button>
+            </div>
+          </form>
+
+          <div class="credentials-documents">
+            <div class="credentials-documents-heading">
+              <h3>Documentos cargados</h3>
+              <span>@credenciales.Count</span>
+            </div>
+            @if (credenciales.Count == 0)
+            {
+              <div class="credentials-empty">
+                <span class="material-symbols-outlined" aria-hidden="true">folder_open</span>
+                <p>Aún no has cargado documentos.</p>
+              </div>
+            }
+            else
+            {
+              <ul class="credentials-list">
+                @foreach (var credencial in credenciales)
+                {
+                  <li class="credential-item">
+                    <span class="credential-document-icon material-symbols-outlined" aria-hidden="true">description</span>
+                    <div class="credential-item-content">
+                      <div class="credential-item-heading">
+                        <a class="credential-link" href="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/archivo">@credencial.Tipo</a>
+                        <span class="credential-status">@credencial.EstadoRevision</span>
+                      </div>
+                      <p class="credential-item-meta">
+                        @credencial.NombreOriginal
+                        <span aria-hidden="true">·</span>
+                        @credencial.FechaSubida.ToString("dd/MM/yyyy")
+                      </p>
+                      @if (string.Equals(credencial.EstadoRevision, "rechazado", StringComparison.OrdinalIgnoreCase))
+                      {
+                        <p class="credential-observation">El administrador rechazó este documento. Puedes retirarlo y cargar una versión corregida.</p>
+                      }
+                      @if (!string.IsNullOrWhiteSpace(credencial.ObservacionRevision))
+                      {
+                        <p class="credential-observation">@credencial.ObservacionRevision</p>
+                      }
+                    </div>
+                    @if (!string.Equals(credencial.EstadoRevision, "aprobado", StringComparison.OrdinalIgnoreCase))
+                    {
+                      <form method="post" action="/gestion-de-profesionales/credenciales/@credencial.IdCredencial/eliminar"
+                            onsubmit="return confirm('¿Eliminar esta credencial? Esta acción no se puede deshacer.');">
+                        @Html.AntiForgeryToken()
+                        <button class="btn-danger" type="submit" aria-label="Eliminar credencial @credencial.Tipo">
+                          <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                          Eliminar
+                        </button>
+                      </form>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </section>
       </div>
 
       <!-- Right Column: Schedule -->
       <div class="content-right">
         <div class="card schedule-card">
           <div class="schedule-header">
-            <h3 class="card-title schedule-card-title"><span class="material-symbols-outlined" style="font-size:1.05rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">calendar_month</span> Horario Semanal</h3>
-            <span class="edit-hint">Click en un día para editar</span>
+            <h3 class="card-title schedule-card-title"><span class="material-symbols-outlined icon-card-title" aria-hidden="true">calendar_month</span> <span data-i18n="profile.weekly_schedule">Horario Semanal</span></h3>
+            <span class="edit-hint" data-i18n="profile.click_to_edit">Click en un día para editar</span>
           </div>
 
           <div class="schedule-grid" id="scheduleGrid" role="list" aria-label="Horario semanal del profesional"
@@ -271,6 +349,9 @@ NOTAS DE MANTENIMIENTO:
       </div>
 
       <div class="modal-body">
+        <p class="schedule-multiple-blocks-note" id="modalExistingBlocksNote" role="status" hidden>
+          Este día tiene varios bloques. Guardar modificará el primero y conservará los demás.
+        </p>
         <!-- Toggle Activo/Inactivo -->
         <div class="modal-toggle-section">
           <label class="modal-toggle">
@@ -292,14 +373,14 @@ NOTAS DE MANTENIMIENTO:
         <!-- Time Inputs (solo visibles si está activo) -->
         <div class="modal-time-section" id="modalTimeSection">
           <div class="time-input-group">
-            <label class="time-label" for="modalStartTime"><span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:3px;" aria-hidden="true">wb_twilight</span> Hora de inicio</label>
+            <label class="time-label" for="modalStartTime"><span class="material-symbols-outlined icon-time-label" aria-hidden="true">wb_twilight</span> <span data-i18n="profile.start_time">Hora de inicio</span></label>
             <input type="time" class="time-input" id="modalStartTime" value="08:00">
           </div>
           <div class="time-separator" aria-hidden="true">
             <span>a</span>
           </div>
           <div class="time-input-group">
-            <label class="time-label" for="modalEndTime"><span class="material-symbols-outlined" style="font-size:.95rem;vertical-align:middle;margin-right:3px;" aria-hidden="true">nightlight</span> Hora de fin</label>
+            <label class="time-label" for="modalEndTime"><span class="material-symbols-outlined icon-time-label" aria-hidden="true">nightlight</span> <span data-i18n="profile.end_time">Hora de fin</span></label>
             <input type="time" class="time-input" id="modalEndTime" value="12:00">
           </div>
         </div>
@@ -348,7 +429,6 @@ NOTAS DE MANTENIMIENTO:
 
   </footer>
 @section Scripts {
-    <script src="~/js/shared/toasts.js" asp-append-version="true" defer></script>
     <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
     <script src="~/js/Gestion_De_Profesionales/st-odo-09-perfil-profesional/perfil.js" asp-append-version="true" defer></script>
 }

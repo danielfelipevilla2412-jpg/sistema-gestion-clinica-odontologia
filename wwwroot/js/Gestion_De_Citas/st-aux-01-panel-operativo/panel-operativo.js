@@ -11,7 +11,7 @@
  *
  * REGLAS DE NEGOCIO Y COMPORTAMIENTO CLIENTE:
  * - Filtra únicamente el flujo de la jornada actual.
- * - Animación fluida de contadores KPI con gestión de cola para notificaciones Toast.
+ * - Animación fluida de contadores KPI y barras de progreso al cargar la vista.
  *
  * DEPENDENCIAS TÉCNICAS:
  * - Controller: GestionCitasController -> Staux01PanelOperativo
@@ -19,50 +19,29 @@
  * ============================================ */
 
 // ════════════════════════════════════════════════════════════════════
-// 1. CONSTANTES Y CONFIGURACIÓN
-// ════════════════════════════════════════════════════════════════════
-
-const API_BASE_URL = (window.APP_CONFIG && window.APP_CONFIG.ApiBase) ? window.APP_CONFIG.ApiBase : '/api';
-const activeAnimationsSet = new Set();
-const cleanupHandlersList = [];
-
-// ════════════════════════════════════════════════════════════════════
-// 2. ESTADO DE LA APLICACIÓN
+// 1. ESTADO DE LA APLICACIÓN
 // ════════════════════════════════════════════════════════════════════
 
 let isExportingPdfState = false;
 
 // ════════════════════════════════════════════════════════════════════
-// 3. UTILIDADES Y HELPERS
+// 2. UTILIDADES Y HELPERS
 // ════════════════════════════════════════════════════════════════════
 
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
-const debounce = (fn, delay) =>
-  window.CommonUtils?.debounce ? window.CommonUtils.debounce(fn, delay) : fn;
-
-const trackedRequestAnimationFrame = (callback) => {
-  let animationId;
-  const wrapper = (timestamp) => {
-    callback(timestamp);
-    activeAnimationsSet.delete(animationId);
-  };
-  animationId = requestAnimationFrame(wrapper);
-  activeAnimationsSet.add(animationId);
-  return animationId;
-};
-
 // ════════════════════════════════════════════════════════════════════
-// 4. SERVICIOS Y API
+// 3. SERVICIOS Y API
 // ════════════════════════════════════════════════════════════════════
 
 async function exportReportPdf() {
   try {
-    const response = await fetch('/gestion-de-citas/st-adm-01-dashboard/exportar-pdf', {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/gestion-de-citas/st-adm-01-dashboard/exportar-pdf', {
       method: 'GET',
       credentials: 'same-origin',
-      headers: { Accept: 'application/pdf' }
+      headers: { Accept: 'application/pdf' },
+      timeoutMs: 60000
     });
     if (!response.ok) throw new Error(`Error HTTP ${response.status}`);
     const pdfBlob = await response.blob();
@@ -72,7 +51,7 @@ async function exportReportPdf() {
     downloadAnchor.download = `reporte-dashboard-${new Date().toISOString().slice(0, 10)}.pdf`;
     downloadAnchor.click();
     window.URL.revokeObjectURL(blobUrl);
-    
+
     return true;
   } catch (error) {
     console.error('[SmileTrack][API] Error exportando reporte:', error);
@@ -81,7 +60,7 @@ async function exportReportPdf() {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// 5. RENDERIZADO Y DOM
+// 4. RENDERIZADO Y DOM
 // ════════════════════════════════════════════════════════════════════
 
 const initializeNativeAnimations = () => {
@@ -91,7 +70,9 @@ const initializeNativeAnimations = () => {
     }
   });
 
-  trackedRequestAnimationFrame(() => {
+  // Se difiere al siguiente frame para que el navegador aplique la transición
+  // de ancho definida en CSS (.progress-bar / .status-bar-fill).
+  requestAnimationFrame(() => {
     document.querySelectorAll('[data-width]').forEach(progressBar => {
       progressBar.style.width = progressBar.dataset.width + '%';
     });
@@ -99,7 +80,7 @@ const initializeNativeAnimations = () => {
 };
 
 // ════════════════════════════════════════════════════════════════════
-// 6. MANEJO DE MODALES Y FORMULARIOS
+// 5. MANEJO DE MODALES Y FORMULARIOS
 // ════════════════════════════════════════════════════════════════════
 
 const setupExportButtonListener = () => {
@@ -131,11 +112,10 @@ const setupExportButtonListener = () => {
   };
 
   exportBtn.addEventListener('click', handleExportClick);
-  cleanupHandlersList.push(() => exportBtn.removeEventListener('click', handleExportClick));
 };
 
 // ════════════════════════════════════════════════════════════════════
-// 7. INICIALIZACIÓN Y EVENT LISTENERS
+// 6. INICIALIZACIÓN Y EVENT LISTENERS
 // ════════════════════════════════════════════════════════════════════
 
 const setupSidebarNavigation = () => {
@@ -172,20 +152,11 @@ const setupSidebarNavigation = () => {
   overlayElement.addEventListener('click', handleOverlayClick);
   document.addEventListener('keydown', handleKeyDown);
 
-  cleanupHandlersList.push(() => {
-    hamburgerButton.removeEventListener('click', handleHamburgerClick);
-    overlayElement.removeEventListener('click', handleOverlayClick);
-    document.removeEventListener('keydown', handleKeyDown);
-  });
-
   const navItems = sidebarElement.querySelectorAll('.nav-item');
   const handleNavClick = () => {
     if (window.innerWidth <= 680) toggleMenuState(false);
   };
   navItems.forEach(item => item.addEventListener('click', handleNavClick));
-  cleanupHandlersList.push(() => {
-    navItems.forEach(item => item.removeEventListener('click', handleNavClick));
-  });
 };
 
 const initializePanelOperativoModule = async () => {
@@ -200,12 +171,9 @@ const initializePanelOperativoModule = async () => {
   } catch (error) {
     console.error('[SmileTrack][Init] Falla crítica durante la inicialización:', error);
   }
-
-  window.addEventListener('beforeunload', () => {
-    activeAnimationsSet.forEach(animationId => cancelAnimationFrame(animationId));
-    activeAnimationsSet.clear();
-    cleanupHandlersList.forEach(cleanupFunction => cleanupFunction());
-  });
 };
 
+// Nota: no se registra 'beforeunload'. La aplicación no usa navegación SPA:
+// el mismo documento se descarta al navegar/recargar, por lo que cancelar
+// animaciones o remover listeners manualmente era código muerto.
 document.addEventListener('DOMContentLoaded', initializePanelOperativoModule);

@@ -2,6 +2,8 @@ const API_BASE = '/api/v1/admin/usuarios';
 const SAMPLE_USERS = [];
 
 const safeGetElement = (id) => document.getElementById(id);
+const translate = (key, variables) =>
+  window.I18N.t(key, variables);
 
 const debounce = (fn, delay) => {
   let timeoutId;
@@ -12,24 +14,19 @@ const debounce = (fn, delay) => {
 };
 
 const showToast = (message, type = 'success') => {
-  const toast = safeGetElement('toast');
-  if (!toast) return;
+  const titles = {
+    success: 'Éxito',
+    error: 'Error',
+    warning: 'Validación'
+  };
+  const title = titles[type];
+  const toast = window.ToastService?.[type];
 
-  toast.textContent = message;
-  toast.className =
-    `toast ${
-      type === 'error'
-        ? 'error'
-        : type === 'warning'
-          ? 'warning'
-          : ''
-    } show`;
+  if (!title || typeof toast !== 'function') {
+    throw new Error(`No hay un servicio de notificaciones disponible para "${type}".`);
+  }
 
-  clearTimeout(toast._timeoutId);
-
-  toast._timeoutId = setTimeout(() => {
-    toast.classList.remove('show');
-  }, 3500);
+  toast(title, message);
 };
 
 let users = Array.isArray(window.RAZOR_USERS)
@@ -41,6 +38,8 @@ let selectedRole = '';
 let selectedStatus = '';
 let currentPage = 1;
 let editingUserId = null;
+let userModalReturnFocus = null;
+let userModalPreviousBodyOverflow = '';
 
 const itemsPerPage = 5;
 
@@ -349,9 +348,6 @@ const createPasswordToggle = () => {
 
     button.type = 'button';
     button.id = 'togglePasswordVisibility';
-
-    button.textContent = '👁';
-
     wrapper.appendChild(button);
 
     button.addEventListener('click', () => {
@@ -361,20 +357,7 @@ const createPasswordToggle = () => {
       passwordInput.type =
         visible ? 'password' : 'text';
 
-      button.textContent =
-        visible ? '👁' : '🙈';
-
-      button.setAttribute(
-        'aria-label',
-        visible
-          ? 'Mostrar contraseña'
-          : 'Ocultar contraseña'
-      );
-
-      button.setAttribute(
-        'aria-pressed',
-        String(!visible)
-      );
+      updateToggleButtonState();
     });
   } else {
     /*
@@ -382,6 +365,48 @@ const createPasswordToggle = () => {
      */
     wrapper.appendChild(button);
   }
+
+  button.classList.add(
+    'btn-icon',
+    'password-visibility-toggle'
+  );
+
+  let icon =
+    button.querySelector(
+      '.material-symbols-outlined'
+    );
+
+  if (!icon) {
+    icon = document.createElement('span');
+    icon.className = 'material-symbols-outlined';
+    icon.setAttribute('aria-hidden', 'true');
+    button.replaceChildren(icon);
+  }
+
+  const updateToggleButtonState = () => {
+    const visible =
+      passwordInput.type === 'text';
+    const label = translate(
+      visible
+        ? 'gestionusuarios_password_hide'
+        : 'gestionusuarios_password_show'
+    );
+
+    icon.textContent =
+      visible ? 'visibility_off' : 'visibility';
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
+    button.setAttribute(
+      'aria-pressed',
+      String(visible)
+    );
+  };
+
+  updateToggleButtonState();
+  document.addEventListener(
+    'i18n:change',
+    updateToggleButtonState
+  );
 
   /*
    * POSICIÓN REAL DEL BOTÓN
@@ -412,95 +437,9 @@ const createPasswordToggle = () => {
   );
 
   button.style.setProperty(
-    'height',
-    '30px',
-    'important'
-  );
-
-  button.style.setProperty(
-    'width',
-    '34px',
-    'important'
-  );
-
-  button.style.setProperty(
-    'display',
-    'flex',
-    'important'
-  );
-
-  button.style.setProperty(
-    'align-items',
-    'center',
-    'important'
-  );
-
-  button.style.setProperty(
-    'justify-content',
-    'center',
-    'important'
-  );
-
-  button.style.setProperty(
-    'border',
-    '0',
-    'important'
-  );
-
-  button.style.setProperty(
-    'background',
-    'transparent',
-    'important'
-  );
-
-  button.style.setProperty(
-    'padding',
-    '0',
-    'important'
-  );
-
-  button.style.setProperty(
-    'margin',
-    '0',
-    'important'
-  );
-
-  button.style.setProperty(
-    'cursor',
-    'pointer',
-    'important'
-  );
-
-  button.style.setProperty(
-    'font-size',
-    '16px',
-    'important'
-  );
-
-  button.style.setProperty(
-    'line-height',
-    '1',
-    'important'
-  );
-
-  button.style.setProperty(
     'z-index',
     '100',
     'important'
-  );
-
-  button.setAttribute(
-    'aria-label',
-    passwordInput.type === 'text'
-      ? 'Ocultar contraseña'
-      : 'Mostrar contraseña'
-  );
-
-  button.setAttribute(
-    'aria-pressed',
-    String(
-      passwordInput.type === 'text'
-    )
   );
 };
 
@@ -676,12 +615,12 @@ const getStatusBadgeClass = (status) => {
     normalizeStatus(status);
 
   if (normalized === 'Bloqueado') {
-    return 'bloqueado';
+    return 'badge-bloqueado';
   }
 
   return normalized === 'Activo'
-    ? 'activo'
-    : 'inactivo';
+    ? 'badge-activo'
+    : 'badge-inactivo';
 };
 
 /* ================================================================
@@ -777,23 +716,43 @@ const updatePagination = (total) => {
       total
     );
 
-  info.textContent =
-    `Mostrando ${start}-${end} de ${total} usuarios`;
+  info.textContent = translate(
+    'gestionusuarios_pagination_info',
+    { start, end, total }
+  );
 
   buttons.innerHTML = '';
 
   const addButton = (
-    text,
+    content,
     label,
     disabled,
     active,
-    handler
+    handler,
+    icon = false
   ) => {
     const btn =
       document.createElement('button');
 
     btn.type = 'button';
-    btn.textContent = text;
+    btn.className = 'pagination-btn';
+
+    if (icon) {
+      const iconElement =
+        document.createElement('span');
+
+      iconElement.className =
+        'material-symbols-outlined';
+      iconElement.setAttribute(
+        'aria-hidden',
+        'true'
+      );
+      iconElement.textContent = content;
+      btn.appendChild(iconElement);
+    } else {
+      btn.textContent = content;
+    }
+
     btn.setAttribute(
       'aria-label',
       label
@@ -804,6 +763,7 @@ const updatePagination = (total) => {
 
     if (active) {
       btn.classList.add('active');
+      btn.setAttribute('aria-current', 'page');
     }
 
     btn.addEventListener(
@@ -815,14 +775,15 @@ const updatePagination = (total) => {
   };
 
   addButton(
-    '«',
-    'Página anterior',
+    'chevron_left',
+    translate('gestionusuarios_pagination_prev_aria'),
     currentPage === 1,
     false,
     () => {
       currentPage--;
       renderTable(users);
-    }
+    },
+    true
   );
 
   for (
@@ -832,7 +793,10 @@ const updatePagination = (total) => {
   ) {
     addButton(
       String(page),
-      `Ir a página ${page}`,
+      translate(
+        'gestionusuarios_pagination_page_aria',
+        { page }
+      ),
       false,
       page === currentPage,
       () => {
@@ -843,14 +807,15 @@ const updatePagination = (total) => {
   }
 
   addButton(
-    '»',
-    'Página siguiente',
+    'chevron_right',
+    translate('gestionusuarios_pagination_next_aria'),
     currentPage === totalPages,
     false,
     () => {
       currentPage++;
       renderTable(users);
-    }
+    },
+    true
   );
 };
 
@@ -930,7 +895,7 @@ const renderTable = (data) => {
 
   if (!paginated.length) {
     tbody.innerHTML =
-      '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No se encontraron usuarios.</td></tr>';
+      `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">${escapeHtml(translate('gestionusuarios_empty'))}</td></tr>`;
 
     updatePagination(0);
     return;
@@ -949,8 +914,7 @@ const renderTable = (data) => {
     tr.innerHTML = `
       <td class="td-usuario">
         <div
-          class="u-avatar"
-          style="background:var(--${u.color || 'blue'}-500)"
+          class="u-avatar u-avatar--${u.color || 'blue'}"
           aria-hidden="true"
         >
           ${u.initials || '?'}
@@ -991,27 +955,37 @@ const renderTable = (data) => {
         <div class="actions-cell">
 
           <button
-            class="btn-icon view"
-            title="Ver detalles"
-            onclick="viewUser(${u.id})"
+            type="button"
+            class="btn-secondary action-btn btn-view"
+            title="${escapeHtml(translate('gestionusuarios_action_view_aria'))}"
+            aria-label="${escapeHtml(translate('gestionusuarios_action_view_aria'))}"
+            data-action="view"
+            data-user-id="${u.id}"
           >
-            👁️
+            <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
+            <span class="btn-text">${escapeHtml(translate('gestionusuarios_action_view'))}</span>
           </button>
 
           <button
-            class="btn-icon edit"
-            title="Editar usuario"
-            onclick="editUser(${u.id})"
+            type="button"
+            class="btn-secondary action-btn btn-edit"
+            title="${escapeHtml(translate('gestionusuarios_action_edit_aria'))}"
+            aria-label="${escapeHtml(translate('gestionusuarios_action_edit_aria'))}"
+            data-action="edit"
+            data-user-id="${u.id}"
           >
-            ✏️
+            <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
+            <span class="btn-text">${escapeHtml(translate('gestionusuarios_action_edit'))}</span>
           </button>
 
-          <button
-            class="btn-icon lock"
-            title="${blocked ? 'Activar' : 'Desactivar'}"
-            onclick="toggleStatus(${u.id})"
-          >
-            ${blocked ? '🔓' : '🔒'}
+          <button type="button"
+            class="${blocked ? 'btn-secondary' : 'btn-danger'} action-btn btn-delete"
+            title="${escapeHtml(translate(blocked ? 'gestionusuarios_action_unblock_aria' : 'gestionusuarios_action_block_aria'))}"
+            aria-label="${escapeHtml(translate(blocked ? 'gestionusuarios_action_unblock_aria' : 'gestionusuarios_action_block_aria'))}"
+            data-action="toggle-block"
+            data-user-id="${u.id}">
+            <span class="material-symbols-outlined action-icon" aria-hidden="true">${blocked ? 'lock_open' : 'block'}</span>
+            <span class="btn-text">${escapeHtml(translate(blocked ? 'gestionusuarios_action_unblock' : 'gestionusuarios_action_block'))}</span>
           </button>
 
         </div>
@@ -1049,6 +1023,13 @@ const openModal = (user = null) => {
   if (!modal || !form) {
     return;
   }
+
+  userModalReturnFocus =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  userModalPreviousBodyOverflow =
+    document.body.style.overflow;
 
   editingUserId =
     user?.id ?? null;
@@ -1172,7 +1153,8 @@ const closeModal = () => {
     ''
   );
 
-  document.body.style.overflow = '';
+  document.body.style.overflow =
+    userModalPreviousBodyOverflow;
 
   safeGetElement('formAddUser')?.reset();
 
@@ -1182,13 +1164,18 @@ const closeModal = () => {
    * Recalcular el estado del botón después del reset.
    */
   updatePasswordRequirements();
+
+  if (userModalReturnFocus?.isConnected) {
+    userModalReturnFocus.focus();
+  }
+  userModalReturnFocus = null;
 };
 
 /* ================================================================
    VER USUARIO
 ================================================================ */
 
-window.viewUser = (id) => {
+const viewUser = (id) => {
   const user = users.find(
     (u) => u.id === id
   );
@@ -1207,22 +1194,30 @@ window.viewUser = (id) => {
   const modal =
     document.createElement('div');
 
+  const returnFocus =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  const previousBodyOverflow =
+    document.body.style.overflow;
+
   modal.id = 'userDetailsModal';
   modal.className = 'modal-overlay open';
 
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
   modal.setAttribute('aria-labelledby', 'userDetailsTitle');
+  modal.setAttribute('aria-hidden', 'false');
 
   modal.innerHTML = `
     <div class="modal">
       <button
         type="button"
-        class="modal-close"
+        class="btn-icon modal-close"
         id="closeUserDetails"
-        aria-label="Cerrar detalles"
+        aria-label="${escapeHtml(translate('common.close'))}"
       >
-        ×
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
       </button>
 
       <h2
@@ -1294,7 +1289,11 @@ window.viewUser = (id) => {
 
   const close = () => {
     modal.remove();
-    document.body.style.overflow = '';
+    document.body.style.overflow =
+      previousBodyOverflow;
+    if (returnFocus?.isConnected) {
+      returnFocus.focus();
+    }
   };
 
   document
@@ -1304,6 +1303,10 @@ window.viewUser = (id) => {
   document
     .getElementById('closeUserDetailsFooter')
     ?.addEventListener('click', close);
+
+  document
+    .getElementById('closeUserDetails')
+    ?.focus();
 
   modal.addEventListener('click', (event) => {
     if (event.target === modal) {
@@ -1317,7 +1320,7 @@ window.viewUser = (id) => {
    EDITAR
 ================================================================ */
 
-window.editUser = (id) => {
+const editUser = (id) => {
   const user =
     users.find(
       (u) => u.id === id
@@ -1360,10 +1363,6 @@ window.toggleStatus = async (id) => {
       );
 
     user.status = mapApiUser(response.data).status;
-      
-
-    user.status =
-      response.data.status;
 
     updateStats();
     renderTable(users);
@@ -1377,6 +1376,42 @@ window.toggleStatus = async (id) => {
       error.message,
       'error'
     );
+  }
+};
+
+/* ================================================================
+   BLOQUEAR / DESBLOQUEAR USUARIO
+   Alterna el estado de un usuario entre 'activo' y 'bloqueado'.
+   Expuesto en window para ser llamado desde los botones inline del HTML
+   generado dinámicamente en renderTable().
+================================================================ */
+
+const toggleBlock = async (id) => {
+  const user = users.find((u) => u.id === id);
+  if (!user) return;
+
+  const currentStatus = normalizeStatus(user.status);
+  const isBlocked = currentStatus === 'Bloqueado';
+  const nextEstado = isBlocked ? 'activo' : 'bloqueado';
+
+  try {
+    const response = await apiFetch(
+      `${API_BASE}/${id}/estado`,
+      { method: 'PATCH', body: { estado: nextEstado } }
+    );
+
+    // Actualizar el estado local desde la respuesta mapeada
+    user.status = mapApiUser(response.data).status;
+
+    updateStats();
+    renderTable(users);
+
+    showToast(
+      response.message ||
+      (isBlocked ? 'Usuario desbloqueado.' : 'Usuario bloqueado.')
+    );
+  } catch (error) {
+    showToast(error.message || 'No se pudo cambiar el estado del usuario.', 'error');
   }
 };
 
@@ -1604,9 +1639,14 @@ const roleToId = (role) => ROLE_ID_MAP[role] || 0;
 ================================================================ */
 
 const initFilters = () => {
-  safeGetElement(
-    'searchUser'
-  )?.addEventListener(
+  const searchInput =
+    safeGetElement('searchUser');
+  const roleFilter =
+    safeGetElement('filterRole');
+  const statusFilter =
+    safeGetElement('filterStatus');
+
+  searchInput?.addEventListener(
     'input',
     debounce(
       (e) => {
@@ -1621,9 +1661,7 @@ const initFilters = () => {
     )
   );
 
-  safeGetElement(
-    'filterRole'
-  )?.addEventListener(
+  roleFilter?.addEventListener(
     'change',
     (e) => {
       selectedRole =
@@ -1635,9 +1673,7 @@ const initFilters = () => {
     }
   );
 
-  safeGetElement(
-    'filterStatus'
-  )?.addEventListener(
+  statusFilter?.addEventListener(
     'change',
     (e) => {
       selectedStatus =
@@ -1647,6 +1683,54 @@ const initFilters = () => {
 
       renderTable(users);
     }
+  );
+
+  safeGetElement(
+    'userFiltersForm'
+  )?.addEventListener(
+    'submit',
+    (event) => {
+      event.preventDefault();
+      searchQuery =
+        searchInput?.value.trim() || '';
+      selectedRole =
+        roleFilter?.value || '';
+      selectedStatus =
+        statusFilter?.value || '';
+      currentPage = 1;
+      renderTable(users);
+    }
+  );
+
+  safeGetElement(
+    'btnClearFilters'
+  )?.addEventListener(
+    'click',
+    () => {
+      if (searchInput) {
+        searchInput.value = '';
+      }
+
+      if (roleFilter) {
+        roleFilter.value = '';
+      }
+
+      if (statusFilter) {
+        statusFilter.value = '';
+      }
+
+      searchQuery = '';
+      selectedRole = '';
+      selectedStatus = '';
+      currentPage = 1;
+      renderTable(users);
+      searchInput?.focus();
+    }
+  );
+
+  document.addEventListener(
+    'i18n:change',
+    () => renderTable(users)
   );
 };
 
@@ -1689,6 +1773,45 @@ const initModal = () => {
       }
     }
   );
+
+  document.addEventListener('keydown', (event) => {
+    const modal = document.querySelector(
+      '.modal-overlay.open[role="dialog"]'
+    );
+    if (!modal) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (modal.id === 'userDetailsModal') {
+        modal.querySelector('#closeUserDetails')?.click();
+      } else {
+        closeModal();
+      }
+      return;
+    }
+
+    if (event.key !== 'Tab') return;
+
+    const focusable = Array.from(modal.querySelectorAll(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(element =>
+      !element.hidden && element.getClientRects().length > 0
+    );
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!modal.contains(document.activeElement)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
 
   safeGetElement(
     'formAddUser'
@@ -1754,6 +1877,39 @@ const initSidebar = () => {
   );
 };
 
+const initUserActions = () => {
+  const tbody = safeGetElement('usersTbody');
+  if (!tbody) {
+    console.error('[SmileTrack][Usuarios] No se encontró la tabla de usuarios.');
+    return;
+  }
+
+  tbody.addEventListener('click', (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest('button[data-action][data-user-id]')
+      : null;
+
+    if (!target || !tbody.contains(target)) return;
+
+    const id = Number(target.dataset.userId);
+    if (!Number.isSafeInteger(id) || id <= 0) return;
+
+    switch (target.dataset.action) {
+      case 'view':
+        viewUser(id);
+        break;
+      case 'edit':
+        editUser(id);
+        break;
+      case 'toggle-block':
+        toggleBlock(id);
+        break;
+      default:
+        console.error('[SmileTrack][Usuarios] Acción de tabla desconocida:', target.dataset.action);
+    }
+  });
+};
+
 /* ================================================================
    INIT
 ================================================================ */
@@ -1763,6 +1919,7 @@ const init = async () => {
   initFilters();
   initModal();
   initPasswordControls();
+  initUserActions();
   
   await loadRoleIds()
 

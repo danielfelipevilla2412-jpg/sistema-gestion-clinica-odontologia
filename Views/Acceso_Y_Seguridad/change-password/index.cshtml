@@ -1,5 +1,10 @@
-﻿@{
-    Layout = null;
+@addTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.LinkTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.ScriptTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "~/Views/Acceso_Y_Seguridad/_LayoutAuth.cshtml";
+    ViewData["Title"] = "Cambiar Contraseña";
+    ViewData["Description"] = "Actualiza tu contraseña de acceso en SmileTrack.";
+
     var mensajeErrorServidor = string.Empty;
     foreach (var estadoModelo in ViewData.ModelState.Values)
     {
@@ -8,110 +13,93 @@
             mensajeErrorServidor = error.ErrorMessage;
         }
     }
+
+    var rolActual = User?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
+    var urlInicio = rolActual switch
+    {
+        "administrador" or "admin" => "/gestion-de-citas/st-adm-01-dashboard",
+        "recepcionista" => "/gestion-de-citas/st-rec-01-dashboard",
+        "auxiliar" => "/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo",
+        "paciente" => "/gestion-de-citas/st-pac-01-mis-citas",
+        _ => "/gestion-de-profesionales/st-odo-01-dashboard"
+    };
 }
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Cambiar contraseña en SmileTrack" />
-    <title>Cambiar Contraseña - SmileTrack</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="@Url.Content("~/css/Acceso_Y_Seguridad/login/login.css")">
-</head>
-<body>
-    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-    <div class="login-bg">
-        <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1920&q=80" alt="Clínica dental" class="bg-img">
-        <div class="bg-overlay"></div>
+<form id="changePasswordForm" class="login-form" action="/acceso-y-seguridad/cambiar-contrasena" method="post" novalidate>
+    @Html.AntiForgeryToken()
+
+    <div class="form-group">
+        <label class="form-label" for="contrasenaActual">
+            CONTRASEÑA ACTUAL <span class="text-error" aria-hidden="true">*</span>
+        </label>
+        <div class="input-wrap">
+            <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
+            <input class="form-input" id="contrasenaActual" name="contrasenaActual" type="password" autocomplete="current-password" placeholder="••••••••" required minlength="8" />
+            <button type="button" class="toggle-pass" data-i18n-aria-label="login.show_password" aria-label="Mostrar contraseña" aria-pressed="false">
+                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+            </button>
+        </div>
     </div>
 
-    <main class="login-main" role="main">
-        <div class="login-card">
-            <div class="login-header">
-                <div class="logo-wrap">
-                    <img src="@Url.Content("~/images/Imagenes/Logos/logo.jpg")" alt="Logo SmileTrack" class="logo-img">
-                </div>
-                <h1 class="login-title" data-i18n="common.password">Cambiar Contraseña</h1>
-                <p class="login-subtitle">Protege tu cuenta con una nueva contraseña segura.</p>
-            </div>
-
-            <form id="changePasswordForm" class="login-form" action="/acceso-y-seguridad/cambiar-contrasena" method="post" novalidate>
-                @Html.AntiForgeryToken()
-
-                <div class="form-group">
-                    <label class="form-label" for="contrasenaActual">
-                        CONTRASEÑA ACTUAL <span class="text-error" aria-hidden="true">*</span>
-                    </label>
-                    <div class="input-wrap">
-                        <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
-                        <input class="form-input" id="contrasenaActual" name="contrasenaActual" type="password" autocomplete="current-password" required minlength="8" />
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="nuevaContrasena">
-                        NUEVA CONTRASEÑA <span class="text-error" aria-hidden="true">*</span>
-                    </label>
-                    <div class="input-wrap">
-                        <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
-                        <input class="form-input" id="nuevaContrasena" name="nuevaContrasena" type="password" autocomplete="new-password" required minlength="8" />
-                    </div>
-                    <div class="password-requirements">
-                        <p id="reqLength" class="text-xs text-white/60">• Al menos 8 caracteres</p>
-                        <p id="reqUpper" class="text-xs text-white/60">• Una letra mayúscula</p>
-                        <p id="reqNumber" class="text-xs text-white/60">• Un número</p>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="confirmarContrasena">
-                        CONFIRMAR CONTRASEÑA <span class="text-error" aria-hidden="true">*</span>
-                    </label>
-                    <div class="input-wrap">
-                        <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
-                        <input class="form-input" id="confirmarContrasena" name="confirmarContrasena" type="password" autocomplete="new-password" required minlength="8" />
-                    </div>
-                    <span id="confirmError" class="error-msg"></span>
-                </div>
-
-                @if (!string.IsNullOrEmpty(mensajeErrorServidor))
-                {
-                    <div class="error-box" role="alert" aria-live="assertive">
-                        <span class="material-symbols-outlined" aria-hidden="true">error</span>
-                        <span>@mensajeErrorServidor</span>
-                    </div>
-                }
-
-                <button id="changePasswordBtn" class="btn-login" type="submit" disabled aria-busy="false" data-i18n="common.save">
-                    <span class="material-symbols-outlined" aria-hidden="true">lock_open</span>
-                    <span data-i18n="common.password">Cambiar contraseña</span>
-                </button>
-
-                <div class="form-footer">
-                    <p class="footer-text" data-i18n="common.back_to_home">
-                        <a class="link-register" href="/acceso-y-seguridad/login">Volver al inicio de sesión</a>
-                    </p>
-                </div>
-            </form>
+    <div class="form-group">
+        <label class="form-label" for="nuevaContrasena">
+            NUEVA CONTRASEÑA <span class="text-error" aria-hidden="true">*</span>
+        </label>
+        <div class="input-wrap">
+            <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
+            <input class="form-input" id="nuevaContrasena" name="nuevaContrasena" type="password" autocomplete="new-password" placeholder="••••••••" required minlength="8" />
+            <button type="button" class="toggle-pass" data-i18n-aria-label="login.show_password" aria-label="Mostrar contraseña" aria-pressed="false">
+                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+            </button>
         </div>
+        <div class="password-requirements">
+            <p id="reqLength" class="text-xs text-white/60">• Al menos 8 caracteres</p>
+            <p id="reqUpper" class="text-xs text-white/60">• Una letra mayúscula</p>
+            <p id="reqNumber" class="text-xs text-white/60">• Un número</p>
+        </div>
+    </div>
 
-        <footer class="login-footer">
-            <p class="footer-badge">
-                <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
-                Portal Clínico Seguro · v2.4.0
-            </p>
-        </footer>
-    </main>
-    <script src="@Url.Content("~/js/i18n-core.js")"></script>
-    <script src="@Url.Content("~/js/i18n.config.js")"></script>
+    <div class="form-group">
+        <label class="form-label" for="confirmarContrasena">
+            CONFIRMAR CONTRASEÑA <span class="text-error" aria-hidden="true">*</span>
+        </label>
+        <div class="input-wrap">
+            <span class="material-symbols-outlined input-icon" aria-hidden="true">lock</span>
+            <input class="form-input" id="confirmarContrasena" name="confirmarContrasena" type="password" autocomplete="new-password" placeholder="••••••••" required minlength="8" />
+            <button type="button" class="toggle-pass" data-i18n-aria-label="login.show_password" aria-label="Mostrar contraseña" aria-pressed="false">
+                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+            </button>
+        </div>
+        <span id="confirmError" class="error-msg"></span>
+    </div>
 
-    <script src="@Url.Content("~/js/Acceso_Y_Seguridad/change-password/change-password.js")" defer></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-</body>
-</html>
+    @if (!string.IsNullOrEmpty(mensajeErrorServidor))
+    {
+        <div class="error-box" role="alert" aria-live="assertive">
+            <span class="material-symbols-outlined" aria-hidden="true">error</span>
+            <span>@mensajeErrorServidor</span>
+        </div>
+    }
+
+    <button id="changePasswordBtn" class="btn-login" type="submit" disabled aria-busy="false" data-i18n="common.save">
+        <span class="material-symbols-outlined" aria-hidden="true">lock_open</span>
+        <span data-i18n="nav.item_cambiar_contrasena">Cambiar contraseña</span>
+    </button>
+
+    <div class="form-footer">
+        <p class="footer-text">
+            <a class="link-register" href="@urlInicio" data-i18n="common.back_to_home">Volver al inicio</a>
+        </p>
+    </div>
+</form>
+
+<footer class="login-footer">
+    <p class="footer-badge">
+        <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+        Portal Clínico Seguro · v2.4.0
+    </p>
+</footer>
+
+@section Scripts {
+    <script src="@Url.Content("~/js/Acceso_Y_Seguridad/change-password/change-password.js")" asp-append-version="true" defer></script>
+}

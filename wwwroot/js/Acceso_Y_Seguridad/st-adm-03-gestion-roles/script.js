@@ -61,27 +61,18 @@ const announce = (message, priority = 'polite') => {
 };
 
 const showToast = (message, type = 'success', duration = 4000) => {
-  const toast = $('toast');
-  const icon = $('toastIcon');
-  const msg = $('toastMsg');
-  if (!toast) return;
-
-  const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
-  icon.textContent = icons[type] || icons.success;
-  msg.textContent = message;
-  toast.className = `toast ${type} show`;
-  toast.hidden = false;
-  toast.setAttribute('aria-hidden', 'false');
-
-  clearTimeout(toast._timeout);
-  toast._timeout = setTimeout(() => {
-    toast.classList.remove('show');
-    setTimeout(() => {
-      toast.hidden = true;
-      toast.setAttribute('aria-hidden', 'true');
-    }, 250);
-  }, duration);
-
+  const toastTitleKeys = {
+    success: 'gestionroles_toast_success',
+    error: 'gestionroles_toast_error',
+    warning: 'gestionroles_toast_warning',
+    info: 'gestionroles_toast_info'
+  };
+  const toastMethod = window.ToastService?.[type];
+  const toastTitleKey = toastTitleKeys[type];
+  if (typeof toastMethod !== 'function' || !toastTitleKey) {
+    throw new Error(`ToastService no tiene un método válido para "${type}".`);
+  }
+  toastMethod(window.I18N.t(toastTitleKey), message, duration);
   announce(message, 'assertive');
 };
 
@@ -138,7 +129,7 @@ const storage = {
       const raw = localStorage.getItem(CONFIG.STORAGE_KEY);
       if (!raw) { initializeDefaults(); return; }
       
-      const data = JSON.parse(raw);
+      let data = JSON.parse(raw);
       
       // Migración de versiones
       if (data.version !== CONFIG.STORAGE_VERSION) {
@@ -170,7 +161,7 @@ const storage = {
       return true;
     } catch (e) {
       console.error('Error guardando datos', e);
-      showToast('❌ Error al guardar configuración', 'error');
+      showToast('Error al guardar la configuración', 'error');
       return false;
     }
   },
@@ -200,7 +191,7 @@ const storage = {
     
     updatePendingBadge();
     renderMatrix();
-    showToast('↩️ Cambio deshecho');
+    showToast('Cambio deshecho');
     announce('Cambio deshecho');
     return true;
   },
@@ -225,7 +216,7 @@ const storage = {
     
     updatePendingBadge();
     renderMatrix();
-    showToast('↪️ Cambio rehecho');
+    showToast('Cambio rehecho');
     announce('Cambio rehecho');
     return true;
   },
@@ -489,7 +480,8 @@ const cyclePermissionLevel = (cell) => {
   const currentIndex = levels.indexOf(current);
   const next = levels[(currentIndex + 1) % levels.length];
   
-  applyPermissionChange(cell.dataset.role, cell.dataset.module, next);
+  if (!applyPermissionChange(cell.dataset.role, cell.dataset.module, next)) return;
+
   cell.dataset.level = next;
   cell.className = `perm-cell ${next}`;
   cell.textContent = next.toUpperCase();
@@ -611,7 +603,7 @@ const closePermissionModal = () => {
 
 const openBulkEditModal = () => {
   // Placeholder para edición masiva
-  showToast('ℹ️ Edición masiva: selecciona un nivel y se aplicará a todas las celdas seleccionadas');
+  showToast('Edición masiva: selecciona un nivel y se aplicará a todas las celdas seleccionadas', 'info');
   // Implementar modal específico si se requiere
 };
 
@@ -624,15 +616,22 @@ const openConfirmModal = () => {
   
   count.textContent = state.pendingChanges.length;
   
-  preview.innerHTML = state.pendingChanges.map(change => `
-    <div class="change-item" role="listitem">
-      <span class="role-badge ${change.roleId}" aria-hidden="true">${roleLabel(change.roleId)}</span>
-      <span class="change-arrow" aria-hidden="true">→</span>
-      <strong>${moduleLabel(change.moduleId)}</strong>
-      <span class="visually-hidden">cambiado de</span>
-      <span aria-hidden="true">${change.oldLevel.toUpperCase()} → ${change.newLevel.toUpperCase()}</span>
-    </div>
-  `).join('');
+  preview.innerHTML = state.pendingChanges.map(change => {
+    const removesCriticalAccess = change.oldLevel !== 'none'
+      && change.newLevel === 'none'
+      && isCritical(change.roleId, change.moduleId);
+
+    return `
+      <div class="change-item" role="listitem">
+        <span class="role-badge ${change.roleId}" aria-hidden="true">${roleLabel(change.roleId)}</span>
+        <span class="change-arrow" aria-hidden="true">→</span>
+        <strong>${moduleLabel(change.moduleId)}</strong>
+        <span class="visually-hidden">cambiado de</span>
+        <span aria-hidden="true">${change.oldLevel.toUpperCase()} → ${change.newLevel.toUpperCase()}</span>
+        ${removesCriticalAccess ? `<span class="change-critical">${window.I18N.t('gestionroles_critical_revocation')}</span>` : ''}
+      </div>
+    `;
+  }).join('');
   
   modal.classList.add('open');
   modal.setAttribute('aria-hidden', 'false');
@@ -709,13 +708,6 @@ const applyPermissionChange = (roleId, moduleId, newLevel) => {
   const oldLevel = state.roles[roleId]?.[moduleId]?.level || 'none';
   if (oldLevel === newLevel) return false;
   
-  // Validar permisos críticos
-  if (oldLevel !== 'none' && newLevel === 'none' && isCritical(roleId, moduleId)) {
-    if (!confirm(`⚠️ Estás quitando acceso crítico a "${moduleLabel(moduleId)}" para "${roleLabel(roleId)}". ¿Continuar?`)) {
-      return false;
-    }
-  }
-  
   // Aplicar cambio
   if (!state.roles[roleId]) state.roles[roleId] = {};
   const mod = MODULES.find(m => m.id === moduleId);
@@ -749,8 +741,9 @@ const updatePendingBadge = () => {
   const badge = $('pendingBadge');
   const count = $('pendingCount');
   const saveBtn = $('btnSave');
+  const saveBtnText = $('saveBtnText');
   
-  if (!badge || !count || !saveBtn) return;
+  if (!badge || !count || !saveBtn || !saveBtnText) return;
   
   const pending = state.pendingChanges.length;
   if (pending > 0) {
@@ -758,12 +751,12 @@ const updatePendingBadge = () => {
     count.textContent = pending;
     saveBtn.disabled = false;
     saveBtn.setAttribute('aria-disabled', 'false');
-    saveBtn.innerHTML = `<span aria-hidden="true">💾</span> <span>Guardar ${pending}</span>`;
+    saveBtnText.textContent = window.I18N.t('gestionroles_save_pending', { count: pending });
   } else {
     badge.classList.add('hidden');
     saveBtn.disabled = true;
     saveBtn.setAttribute('aria-disabled', 'true');
-    saveBtn.innerHTML = `<span aria-hidden="true">💾</span> <span>Guardar</span>`;
+    saveBtnText.textContent = window.I18N.t('form.save');
   }
 };
 
@@ -814,19 +807,31 @@ const renderActiveFilters = () => {
   }
   
   container.classList.remove('hidden');
-  container.innerHTML = chips.map(chip => `
-    <span class="filter-chip" role="listitem">
-      ${chip.label}
-      <button type="button" data-filter="${chip.key}" data-value="${chip.value || ''}" aria-label="Quitar filtro ${chip.label}">×</button>
-    </span>
-  `).join('');
+  container.replaceChildren(...chips.map(chip => {
+    const item = document.createElement('span');
+    item.className = 'filter-chip';
+    item.setAttribute('role', 'listitem');
+
+    const label = document.createElement('span');
+    label.className = 'filter-chip-label';
+    label.textContent = chip.label;
+
+    const removeButton = document.createElement('button');
+    removeButton.className = 'btn-icon';
+    removeButton.type = 'button';
+    removeButton.dataset.filter = chip.key;
+    removeButton.dataset.value = chip.value || '';
+    removeButton.setAttribute('aria-label', `Quitar filtro ${chip.label}`);
+    removeButton.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">close</span>';
+
+    item.append(label, removeButton);
+    return item;
+  }));
   
   // Event listeners para quitar filtros
   $$('.filter-chip button', container).forEach(btn => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.filter;
-      const value = btn.dataset.value;
-      
       if (key === 'search') state.filters.search = '';
       else if (key === 'role') state.filters.role = '';
       else if (key === 'module') state.filters.module = '';
@@ -838,7 +843,7 @@ const renderActiveFilters = () => {
       
       renderMatrix();
       renderActiveFilters();
-      showToast('🔄 Filtro removido');
+      showToast('Filtro removido');
     });
   });
 };
@@ -896,7 +901,7 @@ const exportConfig = (format = 'json') => {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   
-  showToast(`📥 Exportado: ${filename}`);
+  showToast(`Exportado: ${filename}`);
   announce(`Configuración exportada a ${filename}`);
 };
 
@@ -943,7 +948,7 @@ const initEvents = () => {
     $('searchClear').hidden = true;
     renderMatrix();
     renderActiveFilters();
-    showToast('🔄 Filtros reseteados');
+    showToast('Filtros reseteados');
   });
   
   $('emptyResetBtn')?.addEventListener('click', () => {
@@ -975,11 +980,32 @@ const initEvents = () => {
   
   // Historial
   $('btnClearHistory')?.addEventListener('click', () => {
-    if (confirm('¿Limpiar historial de cambios?')) {
-      state.changeHistory = [];
-      renderHistory();
-      showToast('🗑️ Historial limpiado');
+    const service = window.ModalService;
+    if (!service || typeof service.confirm !== 'function') {
+      console.error('[SmileTrack][Roles] ModalService no está disponible.');
+      showToast(window.I18N.t('gestionroles_confirm_unavailable'), 'error');
+      return;
     }
+
+    service.confirm({
+      title: window.I18N.t('common.confirm'),
+      message: window.I18N.t('gestionroles_history_clear_confirm'),
+      confirmText: window.I18N.t('gestionroles_history_clear_action'),
+      cancelText: window.I18N.t('common.cancel'),
+      isDanger: true,
+      onConfirm: () => {
+        const previousHistory = state.changeHistory;
+        state.changeHistory = [];
+        if (!storage.save()) {
+          state.changeHistory = previousHistory;
+          renderHistory();
+          return;
+        }
+
+        renderHistory();
+        showToast(window.I18N.t('gestionroles_history_cleared'));
+      }
+    });
   });
   
   // Modales
@@ -999,7 +1025,7 @@ const initEvents = () => {
     if (roleId && moduleId && newLevel) {
       if (applyPermissionChange(roleId, moduleId, newLevel)) {
         renderMatrix();
-        showToast(`✅ ${roleLabel(roleId)} → ${moduleLabel(moduleId)}: ${levelLabel(newLevel)}`);
+        showToast(`${roleLabel(roleId)} → ${moduleLabel(moduleId)}: ${levelLabel(newLevel)}`);
       }
     }
     closePermissionModal();
@@ -1020,7 +1046,7 @@ const initEvents = () => {
     const saveBtn = $('btnSave');
     const original = saveBtn.innerHTML;
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<span aria-hidden="true">⏳</span> Guardando...';
+    saveBtn.innerHTML = `<span class="material-symbols-outlined" aria-hidden="true">progress_activity</span><span>${window.I18N.t('gestionroles_saving')}</span>`;
     
     try {
       // Simular API call
@@ -1033,11 +1059,11 @@ const initEvents = () => {
       // Actualizar UI
       renderMatrix();
       updatePendingBadge();
-      showToast(`✅ ${state.changeHistory[0]?.moduleName || 'Configuración'} guardada`);
+      showToast('Configuración guardada');
       
     } catch (err) {
       console.error('Error guardando', err);
-      showToast('❌ Error al guardar', 'error');
+      showToast('Error al guardar', 'error');
     } finally {
       saveBtn.disabled = state.pendingChanges.length === 0;
       saveBtn.innerHTML = original;
@@ -1047,13 +1073,6 @@ const initEvents = () => {
   
   // Exportar
   $('btnExport')?.addEventListener('click', () => exportConfig('json'));
-  
-  // Toast close
-  $('toastClose')?.addEventListener('click', () => {
-    const toast = $('toast');
-    toast.classList.remove('show');
-    setTimeout(() => { toast.hidden = true; }, 250);
-  });
   
   // Keyboard shortcuts globales
   document.addEventListener('keydown', (e) => {
@@ -1114,7 +1133,6 @@ const init = async () => {
   storage.load();
   
   // Inicializar UI
-  initMobileMenu();
   initEvents();
   
   // Renderizar
@@ -1125,7 +1143,7 @@ const init = async () => {
   
   // Mensaje de bienvenida
   setTimeout(() => {
-    showToast('✅ Matriz de permisos cargada');
+    showToast('Matriz de permisos cargada');
     announce('Gestión de roles cargada. Usa las flechas para navegar, Enter para editar.');
   }, 300);
   
@@ -1138,49 +1156,5 @@ const init = async () => {
 };
 
 // Mobile menu (shared utility)
-const initMobileMenu = () => {
-  const sidebar = $('sidebar');
-  const hamburger = $('hamburger');
-  const overlay = $('overlay');
-  
-  if (!sidebar || !hamburger || !overlay) return;
-  
-  const toggle = (show) => {
-    sidebar.classList.toggle('open', show);
-    overlay.classList.toggle('open', show);
-    hamburger.setAttribute('aria-expanded', show);
-    overlay.setAttribute('aria-hidden', !show);
-    document.body.style.overflow = show ? 'hidden' : '';
-    
-    if (show) {
-      sidebar.querySelector('.nav-item')?.focus();
-    } else {
-      hamburger.focus();
-    }
-  };
-  
-  hamburger.addEventListener('click', () => toggle(true));
-  overlay.addEventListener('click', () => toggle(false));
-  
-  $$('.nav-item', sidebar).forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth < 1024) toggle(false);
-    });
-  });
-  
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggle(false);
-    }
-  });
-  
-  window.addEventListener('resize', () => {
-    if (window.innerWidth >= 1024 && sidebar.classList.contains('open')) {
-      toggle(false);
-    }
-  });
-};
-
 // Ejecutar
 document.addEventListener('DOMContentLoaded', init);

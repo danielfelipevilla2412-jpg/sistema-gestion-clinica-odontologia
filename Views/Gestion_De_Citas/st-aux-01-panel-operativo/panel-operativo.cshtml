@@ -14,7 +14,11 @@
    - CSS: ~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css
    - JS: ~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js
    ============================================ *@
-@{ Layout = "_Layout"; ViewData["Title"] = "Dashboard General"; }
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Dashboard General";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.css" asp-append-version="true" />
@@ -24,7 +28,7 @@
     <header class="page-header">
         <div class="header-left">
             <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
-                <span data-i18n="common_bc_administracion">Administración</span>
+                <span data-i18n="common_role_auxiliar">Auxiliar</span>
                 <span class="bc-sep" aria-hidden="true">›</span>
                 <span class="bc-active" data-i18n="nav.dashboard_general">Dashboard General</span>
             </nav>
@@ -38,28 +42,28 @@
     </header>
 
     <!-- KPIs principales: la primera tarjeta lleva más peso visual (jerarquía) -->
-    <section class="stats-grid" aria-label="Métricas principales" data-i18n-aria-label="facturacion.title">
+    <section class="stats-grid" aria-label="Métricas principales">
         <div class="stat-card stat-card--primary" data-color="blue">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">group</span>
-            <span class="stat-number" id="statTotal" data-target="@(ViewData["TotalPacientes"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-number" id="statTotal" data-target="@(ViewData["TotalPacientes"] ?? 0)">0</span>
             <span class="stat-label" data-i18n="patients.active">Pacientes activos</span>
             <span class="stat-sub">Total registrados</span>
         </div>
         <div class="stat-card" data-color="green">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
-            <span class="stat-number" id="statScheduled" data-target="@(ViewData["CitasHoy"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-number" id="statScheduled" data-target="@(ViewData["CitasHoy"] ?? 0)">0</span>
             <span class="stat-label" data-i18n="citas.total_today">Citas hoy</span>
             <span class="stat-sub">Programadas</span>
         </div>
         <div class="stat-card" data-color="orange">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">stethoscope</span>
-            <span class="stat-number" id="statAttended" data-target="@(ViewData["ProfesionalesActivos"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-number" id="statAttended" data-target="@(ViewData["ProfesionalesActivos"] ?? 0)">0</span>
             <span class="stat-label" data-i18n="professionals.active">Profesionales activos</span>
             <span class="stat-sub">En servicio</span>
         </div>
         <div class="stat-card" data-color="purple">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">payments</span>
-            <span class="stat-number" id="statIncome" data-format="currency-cop" data-target="@(ViewData["IngresosDelMes"] ?? 0)" aria-live="polite">0</span>
+            <span class="stat-number" id="statIncome" data-format="currency-cop" data-target="@(ViewData["IngresosDelMes"] ?? 0)">0</span>
             <span class="stat-label">Ingresos del mes</span>
             <span class="stat-sub">Solo citas atendidas</span>
         </div>
@@ -164,19 +168,19 @@
             <section class="card" aria-labelledby="quickActionsTitle">
                 <h2 class="card-title" id="quickActionsTitle">Acciones rápidas</h2>
                 <div class="quick-actions">
-                    <a href="/gestion-de-citas/st-adm-09-citas" class="quick-action" aria-label="Ir a la gestión integral de citas">
+                    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="quick-action" aria-label="Ir a la agenda de apoyo">
                         <span class="material-symbols-outlined quick-action-icon" aria-hidden="true">event_note</span>
                         <span class="quick-action-text">
-                            <span class="quick-action-title">Gestión de citas</span>
-                            <span class="quick-action-desc">Ver, editar y filtrar todas las citas</span>
+                            <span class="quick-action-title">Agenda de apoyo</span>
+                            <span class="quick-action-desc">Consultar las citas del día o de la semana</span>
                         </span>
                         <span class="material-symbols-outlined quick-action-arrow" aria-hidden="true">chevron_right</span>
                     </a>
-                    <a href="/gestion-de-citas/st-adm-08-agenda" class="quick-action" aria-label="Ir a la agenda general">
+                    <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="quick-action" aria-label="Ir a las citas finalizadas">
                         <span class="material-symbols-outlined quick-action-icon" aria-hidden="true">calendar_month</span>
                         <span class="quick-action-text">
-                            <span class="quick-action-title">Agenda general</span>
-                            <span class="quick-action-desc">Vista semanal por consultorio</span>
+                            <span class="quick-action-title">Citas finalizadas</span>
+                            <span class="quick-action-desc">Revisar el resumen de atenciones</span>
                         </span>
                         <span class="material-symbols-outlined quick-action-arrow" aria-hidden="true">chevron_right</span>
                     </a>
@@ -190,31 +194,23 @@
     </section>
 </main>
 
-<!-- Mobile bottom nav — Administrador -->
+<!-- Mobile bottom nav — Auxiliar -->
 <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-citas/st-adm-01-dashboard" class="mobile-nav-item active" aria-current="page">
-        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">bar_chart</span></span>
-        <span>Dashboard</span>
+    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item active" aria-current="page">
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span></span>
+        <span>Panel</span>
     </a>
-    <a href="/gestion-de-citas/st-adm-08-agenda" class="mobile-nav-item">
+    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item">
         <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
         <span>Agenda</span>
     </a>
-    <a href="/gestion-de-citas/st-adm-09-citas" class="mobile-nav-item">
-        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_note</span></span>
-        <span>Citas</span>
+    <a href="/gestion-de-citas/st-aux-10-citas-finalizadas" class="mobile-nav-item">
+        <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">event_available</span></span>
+        <span>Finalizadas</span>
     </a>
 </nav>
 
 <!-- Footer -->
-<footer id="dynamic-footer" class="site-footer" role="contentinfo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;">copyright</span>
-        <p>© @DateTime.Now.Year Smile Track — Todos los derechos reservados.</p>
-    </div>
-    <p class="footer-sub">Proyecto Formativo ADSO — SENA</p>
-</footer>
-
 @section Scripts {
     <script src="~/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js" asp-append-version="true" defer></script>
 }

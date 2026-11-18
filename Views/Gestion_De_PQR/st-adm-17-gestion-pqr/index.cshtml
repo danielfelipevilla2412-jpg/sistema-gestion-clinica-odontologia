@@ -1,95 +1,74 @@
-@using Microsoft.AspNetCore.Antiforgery
-@inject IAntiforgery Antiforgery
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Gestión de PQR";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
 
-@{ Layout = null; }
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_PQR/st-adm-17-gestion-pqr/styles.css" asp-append-version="true" />
+}
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    @{
-        var pqrRequestToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
-    }
-    <meta name="csrf-request-token" content="@pqrRequestToken" />
-    <title>SmileTrack — Gestión de PQR</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_PQR/st-adm-17-gestion-pqr/styles.css")" />
-  <link rel="stylesheet" href="@Url.Content("~/css/shared/sidebar.css")" />
-</head>
-
-<body>
-    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
-    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-
-    @{ await Html.RenderPartialAsync("_SidebarAdmin"); }
-
-    <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
-        <span aria-hidden="true"></span>
-        <span aria-hidden="true"></span>
-        <span aria-hidden="true"></span>
-    </button>
-    <div class="overlay" id="overlay" aria-hidden="true"></div>
-
-    <!-- Main Content -->
-    <main class="main-content" id="main-content">
-        <!-- Top Bar -->
-        <div class="top-bar">
-            <div class="page-header">
-                <h1>Gestión de PQR</h1>
-                <p>Administra, consulta y responde las solicitudes de los pacientes.</p>
-            </div>
-            <div class="action-buttons">
+    <main class="main pqr-page" id="main-content">
+        <header class="page-header">
+            <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="layout_breadcrumb_aria">
+                <a href="/gestion-de-citas/st-adm-01-dashboard" data-i18n="common_bc_administracion">Administración</a>
+                <span class="bc-sep" aria-hidden="true">›</span>
+                <span aria-current="page" data-i18n="pqr.title">Gestión de PQR</span>
+            </nav>
+            <div class="page-header-content">
+              <div class="page-header-title">
+                <h1 class="page-title" data-i18n="pqr.title">Gestión de PQR</h1>
+                <p class="page-subtitle" data-i18n="pqr.admin_subtitle">Administra, consulta y responde las solicitudes de los pacientes.</p>
+              </div>
+              <div class="page-header-actions action-buttons">
                 <button class="notification-btn" id="pqrNotificationBtn"
                         type="button"
-                        title="Nuevas solicitudes PQR"
-                        aria-label="Nuevas solicitudes PQR">
-                    <i class="fas fa-bell" aria-hidden="true"></i>
+                        title="Nuevas solicitudes PQR" data-i18n-title="pqr.notifications_aria"
+                        aria-label="Nuevas solicitudes PQR" data-i18n-aria-label="pqr.notifications_aria">
+                    <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
                     <span class="notification-badge" id="pqrNotificationBadge" aria-live="polite">0</span>
                 </button>
+              </div>
             </div>
-        </div>
+        </header>
 
         <!-- Stats Cards -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-icon blue">
-                    <i class="fas fa-inbox"></i>
+                    <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
                 </div>
                 <div class="stat-info">
                     <h3 id="statTotal">0</h3>
-                    <p>Total PQR</p>
+                    <p data-i18n="pqr.total">Total PQR</p>
                 </div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon yellow">
-                    <i class="fas fa-clock"></i>
+                    <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
                 </div>
                 <div class="stat-info">
                     <h3 id="statSinResponder">0</h3>
-                    <p>Sin responder</p>
+                    <p data-i18n="pqr.unanswered">Sin responder</p>
                 </div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon purple">
-                    <i class="fas fa-tasks"></i>
+                    <span class="material-symbols-outlined" aria-hidden="true">pending_actions</span>
                 </div>
                 <div class="stat-info">
                     <h3 id="statEnGestion">0</h3>
-                    <p>En gestión</p>
+                    <p data-i18n="pqr.in_management">En gestión</p>
                 </div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon red">
-                    <i class="fas fa-exclamation-triangle"></i>
+                    <span class="material-symbols-outlined" aria-hidden="true">warning</span>
                 </div>
                 <div class="stat-info">
                     <h3 id="statVencidas">0</h3>
-                    <p>Vencidas</p>
+                    <p data-i18n="pqr.overdue">Vencidas</p>
                 </div>
             </div>
         </div>
@@ -97,23 +76,24 @@
         <!-- Filters -->
         <div class="filters-bar">
             <div class="search-box">
-                <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Buscar por paciente, ID o asunto..." data-i18n-ph="table.search"
-                    onkeyup="filterTable()">
+                <span class="material-symbols-outlined" aria-hidden="true">search</span>
+                <input type="search" id="searchInput" placeholder="Buscar por paciente, radicado o asunto..."
+                       aria-label="Buscar solicitudes PQR" data-i18n-ph="table.search" data-i18n-aria-label="pqr.search_aria">
             </div>
-            <select class="filter-select" id="filterTipo" onchange="filterTable()" data-i18n-aria-label="pqr.type">
-                <option value="todos" data-i18n="table.filter">Todos los tipos</option>
+            <select class="filter-select" id="filterTipo" aria-label="Filtrar por tipo" data-i18n-aria-label="pqr.type">
+                <option value="todos" data-i18n="pqr.all_types">Todos los tipos</option>
                 <option value="peticion" data-i18n="pqr.type_petition">Petición</option>
                 <option value="queja" data-i18n="pqr.type_complaint">Queja</option>
                 <option value="reclamo" data-i18n="pqr.type_claim">Reclamo</option>
+                <option value="sugerencia" data-i18n="pqr.type_suggestion">Sugerencia</option>
             </select>
-            <select class="filter-select" id="filterEstado" onchange="filterTable()">
-                <option value="todos">Todos los estados</option>
-                <option value="recibido">Recibido</option>
-                <option value="proceso">En proceso</option>
-                <option value="pendiente">Pend. info</option>
-                <option value="resuelto">Resuelto</option>
-                <option value="cerrado">Cerrado</option>
+            <select class="filter-select" id="filterEstado" aria-label="Filtrar por estado" data-i18n-aria-label="pqr.status">
+                <option value="todos" data-i18n="pqr.all_statuses">Todos los estados</option>
+                <option value="recibido" data-i18n="pqr.status_received">Recibido</option>
+                <option value="proceso" data-i18n="pqr.status_in_progress">En proceso</option>
+                <option value="resuelto" data-i18n="pqr.status_resolved">Resuelto</option>
+                <option value="cerrado" data-i18n="pqr.status_closed">Cerrado</option>
+                <option value="rechazado" data-i18n="pqr.rejected">Rechazado</option>
             </select>
         </div>
 
@@ -121,18 +101,18 @@
         <div class="content-container">
             <!-- Table -->
             <div class="table-container">
-                <div class="table-wrapper">
-                    <table id="pqrsTable">
+                <div class="table-wrapper table-wrap" role="region" aria-label="Tabla de solicitudes PQR" data-i18n-aria-label="pqr.table_aria" tabindex="0">
+                    <table id="pqrsTable" aria-label="Solicitudes PQR" data-i18n-aria-label="pqr.table_aria">
                         <thead>
                             <tr>
-                                <th data-i18n="pqr.subject">Radicado</th>
-                                <th data-i18n="citas.patient">Paciente</th>
-                                <th data-i18n="pqr.type">Tipo</th>
-                                <th data-i18n="pqr.subject">Asunto</th>
-                                <th data-i18n="pqr.status">Estado</th>
-                                <th data-i18n="status.pending">Prioridad</th>
-                                <th data-i18n="citas.date">Tiempo</th>
-                                <th data-i18n="table.actions">Acciones</th>
+                                <th scope="col" data-i18n="pqr.ticket">Radicado</th>
+                                <th scope="col" data-i18n="citas.patient">Paciente</th>
+                                <th scope="col" data-i18n="pqr.type">Tipo</th>
+                                <th scope="col" data-i18n="pqr.subject">Asunto</th>
+                                <th scope="col" data-i18n="pqr.status">Estado</th>
+                                <th scope="col" data-i18n="pqr.priority">Prioridad</th>
+                                <th scope="col" data-i18n="citas.date">Tiempo</th>
+                                <th scope="col" data-i18n="table.actions">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="pqrsTableBody">
@@ -140,24 +120,31 @@
                         </tbody>
                     </table>
                 </div>
+                <nav id="pqrPaginacion" hidden aria-label="Paginación de PQR" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:12px;flex-wrap:wrap">
+                    <button type="button" id="pqrAnterior" class="filter-select">Anterior</button>
+                    <span id="pqrPaginaInfo" aria-live="polite">Página 1</span>
+                    <button type="button" id="pqrSiguiente" class="filter-select">Siguiente</button>
+                </nav>
             </div>
 
+            <div class="detail-overlay" id="detailOverlay" aria-hidden="true"></div>
+
             <!-- Detail Panel -->
-            <div class="detail-panel" id="detailPanel">
+            <div class="detail-panel" id="detailPanel" role="region" aria-label="Detalle de solicitud PQR" data-i18n-aria-label="pqr.detail_aria">
                 <div class="empty-state" id="emptyState">
-                    <i class="fas fa-mouse-pointer"></i>
-                    <h3>Selecciona un caso</h3>
-                    <p>Haz clic en cualquier PQR de la lista para ver el detalle y gestionar la respuesta.</p>
+                    <span class="material-symbols-outlined" aria-hidden="true">touch_app</span>
+                    <h3 data-i18n="pqr.select_case">Selecciona un caso</h3>
+                    <p data-i18n="pqr.select_case_help">Selecciona una solicitud para ver el detalle y gestionar la respuesta.</p>
                 </div>
 
-                <div id="detailContent" style="display: none;">
+                <div id="detailContent" hidden>
                     <div class="detail-header">
                         <div>
                             <h2 id="detailTitle"></h2>
                             <div class="radicado-code" id="detailRadicado"></div>
                         </div>
-                        <button class="close-panel" onclick="closeDetail()">
-                            <i class="fas fa-times"></i>
+                        <button class="close-panel" id="closeDetailButton" type="button" aria-label="Cerrar detalle" data-i18n-aria-label="pqr.close_detail">
+                            <span class="material-symbols-outlined" aria-hidden="true">close</span>
                         </button>
                     </div>
 
@@ -168,83 +155,82 @@
                     </div>
 
                     <div class="detail-section">
-                        <h3>Información General</h3>
+                        <h3 data-i18n="pqr.general_information">Información general</h3>
                         <div class="info-row">
-                            <i class="fas fa-calendar"></i>
+                            <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
                             <div>
-                                <strong>Radicado:</strong> <span id="infoRadicado"></span>
+                                <strong data-i18n="pqr.ticket">Radicado:</strong> <span id="infoRadicado"></span>
                             </div>
                         </div>
                         <div class="info-row">
-                            <i class="fas fa-clock"></i>
+                            <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
                             <div>
-                                <strong>Tiempo abierto:</strong> <span id="infoTiempo"></span>
+                                <strong data-i18n="pqr.open_time">Tiempo abierto:</strong> <span id="infoTiempo"></span>
                             </div>
                         </div>
                     </div>
 
                     <div class="detail-section">
-                        <h3>Paciente</h3>
+                        <h3 data-i18n="pqr.patient">Paciente</h3>
                         <div class="info-row">
-                            <i class="fas fa-user"></i>
+                            <span class="material-symbols-outlined" aria-hidden="true">person</span>
                             <div>
                                 <strong id="infoPaciente"></strong>
                             </div>
                         </div>
                         <div class="info-row">
-                            <i class="fas fa-id-card"></i>
+                            <span class="material-symbols-outlined" aria-hidden="true">badge</span>
                             <div id="infoDocumento"></div>
                         </div>
                         <div class="info-row">
-                            <i class="fas fa-envelope"></i>
+                            <span class="material-symbols-outlined" aria-hidden="true">mail</span>
                             <div id="infoEmail"></div>
                         </div>
                     </div>
 
                     <div class="detail-section">
-                        <h3>Descripción</h3>
+                        <h3 data-i18n="pqr.description">Descripción</h3>
                         <div class="description-box" id="detailDescripcion"></div>
                     </div>
 
-                    <div class="detail-section" id="evidenciaSection" style="display: none;">
-                        <h3>Evidencia adjunta</h3>
-                        <a id="evidenciaLink" href="#" target="_blank" class="btn btn-secondary" style="width: 100%; text-align: center; display: block;">
-                            <i class="fas fa-paperclip"></i> Ver archivo adjunto
+                    <div class="detail-section" id="evidenciaSection" hidden>
+                        <h3 data-i18n="pqr.attached_evidence">Evidencia adjunta</h3>
+                        <a id="evidenciaLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-secondary pqr-evidence-link">
+                            <span class="material-symbols-outlined" aria-hidden="true">attach_file</span> <span data-i18n="pqr.view_attachment">Ver archivo adjunto</span>
                         </a>
                     </div>
 
                     <div class="detail-section">
-                        <h3 id="responsesTitle">Hilo de Respuestas (0)</h3>
+                        <h3 id="responsesTitle" data-i18n="pqr.response_thread">Hilo de respuestas</h3>
                         <div class="timeline" id="responsesThread"></div>
                     </div>
 
                     <div class="detail-section response-box">
-                        <h3>Responder</h3>
-                        <textarea id="responseTextarea" placeholder="Escribe tu respuesta al paciente..."></textarea>
-                        <button class="btn btn-primary" id="btnSendResponse" style="width: 100%;">
-                            <i class="fas fa-paper-plane"></i>
-                            Enviar respuesta
+                        <h3 data-i18n="pqr.reply">Responder</h3>
+                        <textarea id="responseTextarea" placeholder="Escribe tu respuesta al paciente..." data-i18n-ph="pqr.reply_placeholder"></textarea>
+                        <button class="btn btn-primary" id="btnSendResponse" type="button">
+                            <span class="material-symbols-outlined" aria-hidden="true">send</span>
+                            <span data-i18n="pqr.send_response">Enviar respuesta</span>
                         </button>
                     </div>
 
                     <div class="detail-section">
-                        <h3>Cambiar Estado</h3>
+                        <h3 data-i18n="pqr.change_status">Cambiar estado</h3>
                         <div class="status-buttons">
-                            <button class="status-btn recibido" onclick="changeStatus(this, 'recibida')">
-                                <i class="fas fa-inbox"></i> Recibida
+                            <button class="status-btn recibido" type="button" data-state="recibida">
+                                <span class="material-symbols-outlined" aria-hidden="true">inbox</span> <span data-i18n="pqr.received">Recibida</span>
                             </button>
-                            <button class="status-btn proceso" onclick="changeStatus(this, 'en_proceso')">
-                                <i class="fas fa-tasks"></i> En proceso
+                            <button class="status-btn proceso" type="button" data-state="en_proceso">
+                                <span class="material-symbols-outlined" aria-hidden="true">pending_actions</span> <span data-i18n="pqr.status_in_progress">En proceso</span>
                             </button>
-                            <button class="status-btn resuelto" onclick="changeStatus(this, 'resuelta')">
-                                <i class="fas fa-check-circle"></i> Resuelta
+                            <button class="status-btn resuelto" type="button" data-state="resuelta">
+                                <span class="material-symbols-outlined" aria-hidden="true">check_circle</span> <span data-i18n="pqr.resolved">Resuelta</span>
                             </button>
-                            <button class="status-btn cerrado" onclick="changeStatus(this, 'cerrada')">
-                                <i class="fas fa-lock"></i> Cerrada
+                            <button class="status-btn cerrado" type="button" data-state="cerrada">
+                                <span class="material-symbols-outlined" aria-hidden="true">lock</span> <span data-i18n="pqr.status_closed">Cerrada</span>
                             </button>
-                            <button class="status-btn cerrado" onclick="changeStatus(this, 'rechazada')"
-                                style="grid-column: span 2;">
-                                <i class="fas fa-ban"></i> Rechazada
+                            <button class="status-btn rechazado" type="button" data-state="rechazada">
+                                <span class="material-symbols-outlined" aria-hidden="true">block</span> <span data-i18n="pqr.rejected">Rechazada</span>
                             </button>
                         </div>
                     </div>
@@ -253,22 +239,12 @@
         </div>
     </main>
 
-    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
     @Html.AntiForgeryToken()
+@section Scripts {
     <script>
         window.RAZOR_PQRS = @Html.Raw(ViewData["PqrsJson"] ?? "[]");
         window.RAZOR_PQR_STATS = @Html.Raw(ViewData["PqrStatsJson"] ?? "null");
     </script>
-    <script src="@Url.Content("~/js/Gestion_De_PQR/st-adm-17-gestion-pqr/script.js")?v=20260922-pqr"></script>
-  <script src="@Url.Content("~/js/shared/sidebar.js")"></script>
-  @{ await Html.RenderPartialAsync("~/Views/shared/_Toasts.cshtml"); }
-  @{ await Html.RenderPartialAsync("~/Views/shared/_ConfirmModal.cshtml"); }
-    <script src="@Url.Content("~/js/i18n-core.js")"></script>
-    <script src="@Url.Content("~/js/i18n.config.js")"></script>
-    @{ await Html.RenderPartialAsync("~/Views/shared/_Chatbot.cshtml"); }
-</body>
-
-</html>
-
+    <script src="~/js/Gestion_De_PQR/st-adm-17-gestion-pqr/script.js" asp-append-version="true"></script>
+}
 

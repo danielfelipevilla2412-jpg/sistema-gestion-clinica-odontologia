@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
 
 namespace SmileTrack_MVC.Services.Perfiles;
@@ -11,6 +12,43 @@ public sealed class PerfilPacienteService : IPerfilPacienteService
     public PerfilPacienteService(AppDbContext context)
     {
         _context = context;
+    }
+
+    public async Task<bool> PerfilCompletoAsync(int idUsuario, CancellationToken ct = default)
+    {
+        if (idUsuario <= 0)
+            return false;
+
+        var fechaCuenta = await _context.Usuarios
+            .AsNoTracking()
+            .Where(u => u.IdUsuario == idUsuario)
+            .Select(u => u.FechaNacimiento)
+            .FirstOrDefaultAsync(ct);
+
+        var paciente = await _context.Pacientes
+            .AsNoTracking()
+            .Where(p => p.IdUsuario == idUsuario)
+            .Select(p => new { p.TipoDocumento, p.Documento, p.FechaNacimiento })
+            .FirstOrDefaultAsync(ct);
+
+        if (fechaCuenta is null || paciente is null)
+            return false;
+
+        DateTime fechaNacimiento = paciente.FechaNacimiento.Date;
+        if (fechaNacimiento < new DateTime(1900, 1, 1) ||
+            fechaNacimiento > DateTime.UtcNow.Date ||
+            fechaCuenta.Value.Date != fechaNacimiento)
+            return false;
+
+        string tipoDocumento = paciente.TipoDocumento?.Trim().ToUpperInvariant() ?? string.Empty;
+        string documento = paciente.Documento?.Trim().ToUpperInvariant() ?? string.Empty;
+
+        if (tipoDocumento == "PAS")
+            return documento.Length is >= 5 and <= 20 && documento.All(EsCaracterPasaporte);
+
+        return tipoDocumento is "CC" or "TI" or "CE" &&
+            documento.Length is >= 7 and <= 15 &&
+            documento.All(char.IsAsciiDigit);
     }
 
     public async Task<InfoBasicaPacienteDto?> ObtenerInfoBasicaAsync(int idPaciente, CancellationToken ct = default)
@@ -88,7 +126,7 @@ public sealed class PerfilPacienteService : IPerfilPacienteService
         var pendientes = citas.Where(c => EsEstado(c.Estado, "agendada", "programada", "confirmada")).ToList();
         var completadas = citas.Where(c => EsEstado(c.Estado, "completada", "atendida")).ToList();
         var canceladas = citas.Count(c => EsEstado(c.Estado, "cancelada", "no asistió", "no asistio"));
-        var ahora = DateTime.Now;
+        var ahora = ColombiaClock.Now;
 
         var proxima = await _context.Citas.AsNoTracking()
             .Include(c => c.Profesional).ThenInclude(p => p!.Usuario)
@@ -140,6 +178,9 @@ public sealed class PerfilPacienteService : IPerfilPacienteService
     }
 
     private static bool EsEstado(string estado, params string[] estados) => estados.Any(e => string.Equals(estado, e, StringComparison.OrdinalIgnoreCase));
+    private static bool EsCaracterPasaporte(char caracter) =>
+        caracter is >= 'A' and <= 'Z' or >= '0' and <= '9';
+
     private static int CalcularEdad(DateTime? nacimiento)
     {
         if (!nacimiento.HasValue) return 0;

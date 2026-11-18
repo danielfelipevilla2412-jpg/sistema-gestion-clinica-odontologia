@@ -138,7 +138,7 @@ La refactorización se ejecutará en prompts individuales (un archivo/vista por 
 ### Prioridad Baja (Archivos Livianos de Mantenimiento Menor)
 14. `wwwroot/js/Gestion_De_Citas/st-aux-01-panel-operativo/panel-operativo.js` + `panel-operativo.cshtml` + `panel-operativo.css`
 15. `wwwroot/js/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.js` + `agenda-apoyo.cshtml` + `agenda-apoyo.css`
-16. `wwwroot/js/Gestion_De_Citas/st-aux-05-historial-parcial/historial-parcial.js` + `historial-parcial.cshtml` + `historial-parcial.css`
+16. `wwwroot/js/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.js` + `historial-parcial.cshtml` + `historial-parcial.css`
 17. `wwwroot/js/Gestion_De_Citas/st-aux-06-asistencia-procedi/asistencia-procedi.js` + `asistencia-procedi.cshtml` + `asistencia-procedi.css`
 18. `wwwroot/js/Gestion_De_Citas/st-adm-01-dashboard/app.js` + `index.cshtml` + `styles.css`
 19. `wwwroot/js/Gestion_De_Profesionales/st-adm-14-reportes-clinicos/reportes.js` + `index.cshtml` + `styles.css`

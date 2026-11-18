@@ -4,6 +4,7 @@ namespace SmileTrack_MVC.Services.Perfiles;
 
 public interface IPerfilPacienteService
 {
+    Task<bool> PerfilCompletoAsync(int idUsuario, CancellationToken ct = default);
     Task<InfoBasicaPacienteDto?> ObtenerInfoBasicaAsync(int idPaciente, CancellationToken ct = default);
     Task<InfoMedicaPacienteDto?> ObtenerInfoMedicaAsync(int idPaciente, CancellationToken ct = default);
     Task<EstadisticasPacienteDto> ObtenerEstadisticasAsync(int idPaciente, CancellationToken ct = default);

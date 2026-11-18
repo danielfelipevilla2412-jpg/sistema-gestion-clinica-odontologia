@@ -27,5 +27,6 @@ public interface IAgendaService
         DateTime? weekStart,
         int? professionalId,
         int? officeId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool includeCatalogs = true);
 }

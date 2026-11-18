@@ -1,0 +1,24 @@
+<div class="modal-overlay" id="modalReagendarCita" role="dialog" aria-modal="true"
+     aria-labelledby="modalReagendarCitaTitle" aria-hidden="true" inert>
+  <div class="modal">
+    <button type="button" class="modal-close" id="modalReagendarCitaClose" aria-label="Cerrar ventana">×</button>
+    <h2 class="modal-title" id="modalReagendarCitaTitle">Reagendar cita</h2>
+    <p id="modalReagendarCitaInfo"></p>
+    <form id="formReagendarCita">
+      @Html.AntiForgeryToken()
+      <div class="form-group">
+        <label for="reagendarFecha">Nueva fecha</label>
+        <input type="date" id="reagendarFecha" name="fecha" required>
+      </div>
+      <div class="form-group">
+        <label for="reagendarHora">Nueva hora</label>
+        <input type="time" id="reagendarHora" name="hora" required>
+      </div>
+      <p id="reagendarEstado" role="status" aria-live="polite"></p>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="modalReagendarCitaCancel">Volver</button>
+        <button type="submit" class="btn-primary" id="modalReagendarCitaSave">Validar y guardar</button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -451,6 +451,18 @@ button { font-family: inherit; cursor: pointer; }
 .placeholder-icon { font-size: 3rem; opacity: .5; }
 .placeholder-text { font-size: .9rem; font-weight: 600; color: var(--text-muted); }
 .placeholder-subtext { font-size: .75rem; color: var(--text-muted); }
+.clinical-preview-image,
+.clinical-preview-frame {
+  display: block;
+  width: 100%;
+  min-height: 420px;
+  max-height: 70vh;
+  border: 0;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  background: #fff;
+}
+.clinical-preview-frame { height: 70vh; }
 .modal-footer {
   display: flex;
   gap: 12px;

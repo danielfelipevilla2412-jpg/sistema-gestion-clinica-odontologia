@@ -1,0 +1,158 @@
+@* ============================================
+   SmileTrack — Módulo: Gestión de Pacientes
+   Vista: Historial Clínico Parcial (st-aux-05-historial-parcial)
+   ============================================
+   Archivo: Views/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.cshtml
+
+   PROPÓSITO Y JUSTIFICACIÓN:
+   Vista en modo lectura para que el personal de auxilio consulte de forma segura antecedentes médicos, alergias y notas resumidas.
+
+   REGLAS DE RENDERIZADO Y NEGOCIO:
+   - Limita por privacidad a las evoluciones relevantes y resalta alertas médicas críticas.
+
+   DEPENDENCIAS:
+   - CSS: ~/css/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.css
+   - JS: ~/js/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.js
+   ============================================ *@
+@*
+  span interno (#alergia, #medicamentos, #grupoSang), lo que según la spec de ARIA (comportamiento
+  indefinido para live regions anidadas) hacía que los lectores de pantalla anunciaran los cambios
+  como "polite" en vez de "assertive" — contradiciendo el propio propósito de la alerta médica.
+  No agregues aria-live a los spans internos: la actualización de su texto ya es capturada por la
+  región del contenedor. El role/aria-live del contenedor ahora es dinámico vía JS
+  (ver renderAlerta en historial-parcial.js): arranca en "status"/"polite" y solo escala a
+  "alert"/"assertive" cuando el paciente tiene alergias registradas, para no anunciar una alerta
+  médica urgente a pacientes sin antecedentes.
+============================================ *@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Historial Clínico Parcial";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+    var historialParcialDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["HistorialParcialData"] ?? new object());
+    var pacientes = ViewData["Pacientes"] as List<SmileTrack_MVC.Models.Entities.Paciente> ?? new();
+    var pacienteSeleccionado = System.Text.Json.JsonDocument.Parse(historialParcialDataJson).RootElement;
+    var pacienteSeleccionadoId = pacienteSeleccionado.TryGetProperty("paciente", out var pacienteJson) &&
+      pacienteJson.TryGetProperty("id", out var idJson) &&
+      idJson.ValueKind == System.Text.Json.JsonValueKind.Number &&
+      idJson.TryGetInt32(out var idSeleccionado)
+      ? idSeleccionado
+      : 0;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.css" asp-append-version="true" />
+}
+
+  <!-- ----- MAIN ----- -->
+  <main class="main" id="main-content">
+
+    <!-- Page header con metadatos del paciente -->
+    <header class="page-header">
+      <div class="header-left">
+        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+          <span data-i18n="common_role_auxiliar">Auxiliar</span>
+          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-active" data-i18n="historia.title">Historial Clínico</span>
+        </nav>
+        <h1 class="page-title" data-i18n="historia.title">Historial Clínico — Solo Lectura</h1>
+        <p class="page-subtitle" id="patientMeta" aria-live="polite" data-i18n="common.loading">Cargando...</p>
+      </div>
+      <div class="header-actions">
+        <label for="pacienteSelect" class="visually-hidden">Seleccionar paciente</label>
+        <select id="pacienteSelect" class="status-select" aria-label="Seleccionar paciente">
+          <option value="">Seleccionar paciente</option>
+          @foreach (var paciente in pacientes.Where(p => p.Estado == "activo"))
+          {
+            <option value="@paciente.IdPaciente" selected="@(paciente.IdPaciente == pacienteSeleccionadoId ? "selected" : null)">@paciente.NombresCompleto</option>
+          }
+        </select>
+      </div>
+    </header>
+
+    <!-- Contenido principal -->
+    <div class="content">
+
+      <!-- Alerta médica: role/aria-live arrancan neutros y el JS los escala a "alert"/"assertive"
+           solo si el paciente tiene alergias registradas (ver renderAlerta en el JS). Los spans
+           internos NO llevan aria-live propio: anidar live regions es un anti-patrón ARIA que
+           hacía que el navegador anunciara los cambios como "polite" en vez de "assertive". -->
+      <div class="alerta-medica" id="alertaMedica" role="status" aria-live="polite">
+        <div class="alerta-medica-title">
+          <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+          <span data-i18n="common.warning">ALERTA MÉDICA — LEER ANTES DE PROCEDER</span>
+        </div>
+        <div class="alerta-medica-row">
+          <span class="material-symbols-outlined allergy-icon" aria-hidden="true">warning</span>
+          <span><strong>Alergia:</strong> <span class="alerta-medica-value red" id="alergia">—</span></span>
+        </div>
+        <div class="alerta-medica-row">
+          <span class="material-symbols-outlined alerta-medica-icon" aria-hidden="true">medication</span>
+          <span><strong>Medicamentos:</strong> <span class="alerta-medica-value" id="medicamentos">—</span></span>
+        </div>
+        <div class="alerta-medica-row">
+          <span class="material-symbols-outlined alerta-medica-icon" aria-hidden="true">bloodtype</span>
+          <span><strong>Grupo sanguíneo:</strong> <span class="alerta-medica-value" id="grupoSang">—</span></span>
+        </div>
+        <div class="alerta-medica-row">
+          <span class="material-symbols-outlined alerta-medica-icon" aria-hidden="true">medical_information</span>
+          <span><strong>Antecedentes médicos:</strong> <span class="alerta-medica-value" id="antecedentesMedicos">—</span></span>
+        </div>
+      </div>
+
+      <section class="table-card history-card" aria-labelledby="historyTitle">
+        <header class="history-section-heading">
+          <div>
+            <h2 id="historyTitle">Atenciones recientes</h2>
+            <p>Consultas atendidas y evolución registrada por el profesional.</p>
+          </div>
+          <span class="history-readonly">Solo lectura</span>
+        </header>
+        <div class="table-scroll" role="region" aria-label="Atenciones clínicas" tabindex="0">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Profesional</th>
+                <th scope="col">Diagnóstico</th>
+                <th scope="col">Procedimiento</th>
+              </tr>
+            </thead>
+            <tbody id="histBody">
+              <tr><td colspan="4" class="history-empty">Selecciona un paciente para consultar su historial clínico.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <footer class="table-footer" id="tableFooter" hidden></footer>
+      </section>
+
+      <section class="related-records-grid" aria-label="Otros registros de la historia clínica">
+        <div class="table-card related-records-card">
+          <h2>Planes de tratamiento</h2>
+          <ul class="related-records-list" id="tratamientosBody"></ul>
+        </div>
+        <div class="table-card related-records-card">
+          <h2>Documentos clínicos</h2>
+          <ul class="related-records-list" id="documentosBody"></ul>
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- Toast container con atributos ARIA para notificaciones -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Estilos para contenido solo accesible por screen readers -->
+
+  <script>
+    window.smiletrackHistorialParcialData = @Html.Raw(historialParcialDataJson);
+    document.getElementById('pacienteSelect')?.addEventListener('change', function () {
+      const params = new URLSearchParams(window.location.search);
+      if (this.value) params.set('pacienteId', this.value); else params.delete('pacienteId');
+      window.location.search = params.toString();
+    });
+  </script>
+@section Scripts {
+    <script src="~/js/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.js" asp-append-version="true" defer></script>
+}

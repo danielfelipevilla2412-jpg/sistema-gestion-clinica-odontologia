@@ -1,3 +1,5 @@
+@import url("scrollbars.css");
+
 /* ============================================
    SmileTrack — Sidebar Compartido (shared/sidebar.css)
    ============================================
@@ -38,6 +40,25 @@
 
 
 /* ═══════════════════════════════════════════
+   LAYOUT BASE DEL CONTENIDO (.main)
+   ═══════════════════════════════════════════ */
+@media (min-width: 681px) {
+  .main {
+    margin-left: var(--sidebar-w, 220px);
+    transition: margin-left var(--tr, .18s ease);
+  }
+  .main.sidebar-mini-offset {
+    margin-left: 56px !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .main {
+    margin-left: 0 !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
    SIDEBAR PRINCIPAL
    ═══════════════════════════════════════════ */
 
@@ -70,41 +91,6 @@
   overflow-y: auto;
   overflow-x: hidden;
 }
-
-/* ── Scrollbar personalizado — WebKit (Chrome, Edge, Safari) ─────────────── */
-
-/**
- * WHY scrollbar personalizado: el scrollbar predeterminado del navegador
- * es visualmente intrusivo en un sidebar oscuro y estrecho. Un scrollbar
- * delgado y sutil mantiene la coherencia visual sin sacrificar usabilidad.
- */
-.sidebar::-webkit-scrollbar {
-  width: 4px;
-  /* Delgado: no compite visualmente con el contenido */
-}
-
-.sidebar::-webkit-scrollbar-track {
-  background: transparent;
-  /* Sin fondo para integración visual */
-}
-
-.sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
-  /* Visible pero discreto */
-  border-radius: 4px;
-}
-
-.sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.32);
-  /* Feedback visual al hover */
-}
-
-/* ── Scrollbar personalizado — Firefox ──────────────────────────────────── */
-.sidebar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
-}
-
 
 /* ═══════════════════════════════════════════
    LOGO
@@ -155,6 +141,26 @@
   padding: 0 10px;
   overflow: visible;
   /* El sidebar padre gestiona el scroll, no este nav */
+}
+
+.patient-profile-notice {
+  display: grid;
+  gap: 6px;
+  margin: 12px 12px 8px;
+  padding: 10px;
+  border: 1px solid rgba(251, 191, 36, .45);
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(120, 83, 12, .2);
+  color: #fde68a;
+  font-size: .75rem;
+  line-height: 1.4;
+}
+
+.patient-profile-notice a {
+  color: #fff;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ── Ítems de navegación individuales ───────────────────────────────────── */
@@ -515,17 +521,22 @@
     display: none;
   }
 
-  /* Centrar el ícono en el ancho reducido */
+  /* Centrar el ícono en el ancho reducido y ocultar texto de forma robusta */
   .sidebar.mini .nav-item {
     padding: 10px 0;
     justify-content: center;
     gap: 0;
     position: relative;
+    font-size: 0 !important;
+  }
+
+  .sidebar.mini .nav-item::before {
+    font-size: 16px !important;
   }
 
   /* Ocultar texto del nav-item dejando solo el ::before (ícono emoji) */
   .sidebar.mini .nav-item .nav-text {
-    display: none;
+    display: none !important;
   }
 
   /* Tooltip nativo al hover: muestra el texto del ítem en modo mini */

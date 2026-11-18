@@ -10,6 +10,7 @@ public class DetalleFactura
     public string Descripcion { get; set; } = string.Empty;
     public int Cantidad { get; set; } = 1;
     public decimal PrecioUnitario { get; set; }
+    public decimal Descuento { get; set; }
     public decimal SubtotalLinea { get; set; }
 
     public Factura? Factura { get; set; }
