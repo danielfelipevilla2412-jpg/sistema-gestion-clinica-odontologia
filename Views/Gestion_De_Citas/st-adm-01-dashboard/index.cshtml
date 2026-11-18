@@ -152,6 +152,13 @@
             <span class="stat-sub">@Model.Estados.PorcentajeCanceladas% <span data-i18n="adm01_dist_of_total">del total</span></span>
         </article>
 
+        <article class="stat-card" data-color="red">
+            <span class="material-symbols-outlined stat-icon" aria-hidden="true">person_off</span>
+            <span class="stat-number" data-target="@Model.Estados.NoAsistio">@Model.Estados.NoAsistio</span>
+            <span class="stat-label">No asistió</span>
+            <span class="stat-sub">@Model.Estados.PorcentajeNoAsistio% del total</span>
+        </article>
+
         <article class="stat-card" data-color="other">
             <span class="material-symbols-outlined stat-icon" aria-hidden="true">more_horiz</span>
             <span class="stat-number" data-target="@Model.Estados.Otros">@Model.Estados.Otros</span>

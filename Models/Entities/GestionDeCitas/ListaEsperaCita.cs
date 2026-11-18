@@ -21,6 +21,9 @@ namespace SmileTrack_MVC.Models.Entities
         [Column("id_profesional_preferido")]
         public int? IdProfesionalPreferido { get; set; }
 
+        [Column("id_cita_asignada")]
+        public int? IdCitaAsignada { get; set; }
+
         [Required]
         [Column("fecha_deseada_inicio")]
         public DateTime FechaDeseadaInicio { get; set; }
@@ -44,5 +47,6 @@ namespace SmileTrack_MVC.Models.Entities
         public Paciente? Paciente { get; set; }
         public Servicio? Servicio { get; set; }
         public Profesional? ProfesionalPreferido { get; set; }
+        public Cita? CitaAsignada { get; set; }
     }
 }

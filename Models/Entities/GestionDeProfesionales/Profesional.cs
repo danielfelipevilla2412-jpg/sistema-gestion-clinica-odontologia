@@ -28,6 +28,10 @@ namespace SmileTrack_MVC.Models.Entities
         [StringLength(50)]
         public string RegistroMedico { get; set; } = string.Empty;
 
+        [Column("tarjeta_profesional")]
+        [StringLength(50)]
+        public string? TarjetaProfesional { get; set; }
+
         [Column("descripcion")]
         [StringLength(255)]
         public string? Descripcion { get; set; }

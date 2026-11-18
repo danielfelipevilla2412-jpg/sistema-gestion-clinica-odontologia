@@ -257,6 +257,58 @@ Este es un mensaje automatico, por favor no respondas a este correo.
         }
     }
 
+    public async Task SendProfessionalTemporaryPasswordAsync(
+        string recipientEmail,
+        string nombreProfesional,
+        string temporaryPassword,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(recipientEmail))
+            throw new ArgumentException("El destinatario es obligatorio.", nameof(recipientEmail));
+        if (string.IsNullOrWhiteSpace(temporaryPassword))
+            throw new ArgumentException("La contraseña temporal es obligatoria.", nameof(temporaryPassword));
+
+        ValidarConfiguracionSmtp();
+        string finalRecipient = string.IsNullOrWhiteSpace(_options.RecipientOverride)
+            ? recipientEmail
+            : _options.RecipientOverride.Trim();
+        string nombreSafe = WebUtility.HtmlEncode(nombreProfesional);
+        string passwordSafe = WebUtility.HtmlEncode(temporaryPassword);
+
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("SmileTrack", _options.Username));
+        message.To.Add(new MailboxAddress(finalRecipient, finalRecipient));
+        message.Subject = "SmileTrack — Acceso temporal a tu cuenta profesional";
+        message.Body = new BodyBuilder
+        {
+            TextBody = $"Hola {nombreProfesional},\n\nSe creó tu cuenta profesional en SmileTrack.\n\nContraseña temporal: {temporaryPassword}\n\nIngresa al sistema y cámbiala al iniciar sesión. No compartas esta contraseña.",
+            HtmlBody = $"""
+<html><body style="margin:0;padding:24px;background:#f4f7fb;font-family:Arial,sans-serif;">
+<div style="max-width:600px;margin:auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;">
+<h1 style="color:#0f766e;">SmileTrack</h1>
+<p>Hola, <strong>{nombreSafe}</strong>.</p>
+<p>Se creó tu cuenta profesional. Usa esta contraseña temporal para el primer acceso:</p>
+<div style="margin:20px 0;padding:16px;text-align:center;font-size:24px;font-weight:bold;background:#f8fafc;border:1px dashed #94a3b8;border-radius:8px;">{passwordSafe}</div>
+<p>Ingresa al sistema y cámbiala inmediatamente. No compartas esta contraseña con terceros.</p>
+</div></body></html>
+"""
+        }.ToMessageBody();
+
+        using var client = new SmtpClient();
+        client.Timeout = 15_000;
+        var socketOptions = _options.Port switch
+        {
+            465 => SecureSocketOptions.SslOnConnect,
+            587 => SecureSocketOptions.StartTls,
+            _ => _options.EnableSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.None
+        };
+
+        await client.ConnectAsync(_options.Host, _options.Port, socketOptions, cancellationToken);
+        await client.AuthenticateAsync(_options.Username, _options.Password, cancellationToken);
+        await client.SendAsync(message, cancellationToken);
+        await client.DisconnectAsync(true, cancellationToken);
+    }
+
     // ─── SendCitaNotificacionAsync ─────────────────────────────────────────
     // Notifica al paciente cuando su cita cambia a estado Confirmada o Cancelada.
     // Se llama desde GestionCitasController de forma fire-and-forget con Task.Run

@@ -27,7 +27,9 @@ public sealed class NotificacionesStpac03Tests
     [Fact]
     public void Controller_ExponeRutasRestDeNotificacionesYMotorOmnicanal()
     {
-        var controllerSource = File.ReadAllText(RepoFile("Controllers", "GestionDeCitas", "GestionCitasController.cs"));
+        var controllerSource = string.Join(
+            Environment.NewLine,
+            File.ReadAllText(RepoFile("Controllers", "GestionDeCitas", "GestionCitasController.cs")));
 
         Assert.Contains("Route(\"api/notificaciones\")", controllerSource, StringComparison.Ordinal);
         Assert.Contains("Route(\"api/notificaciones/unread-count\")", controllerSource, StringComparison.Ordinal);

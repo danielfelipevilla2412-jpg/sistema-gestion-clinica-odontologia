@@ -6,9 +6,10 @@ namespace SmileTrack_MVC.Tests;
 public class EstadoCitaHelperTests
 {
     [Theory]
-    [InlineData("programada", "atendida")]
+    [InlineData("programada", "confirmada")]
+    [InlineData("programada", "en_sala_de_espera")]
     [InlineData("programada", "no_asistida")]
-    [InlineData("confirmada", "atendida")]
+    [InlineData("confirmada", "en_sala_de_espera")]
     [InlineData("confirmada", "no_asistida")]
     [InlineData("en_sala_de_espera", "en_proceso")]
     [InlineData("en_proceso", "atendida")]

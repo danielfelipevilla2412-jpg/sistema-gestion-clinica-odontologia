@@ -13,8 +13,7 @@ public sealed class CitaSolicitudPacienteDto
     [Range(1, int.MaxValue, ErrorMessage = "El servicio seleccionado no es válido.")]
     public int? IdServicio { get; set; }
 
-    [Required(ErrorMessage = "Debe seleccionar un profesional.")]
-    [Range(1, int.MaxValue, ErrorMessage = "El profesional seleccionado no es válido.")]
+    [Range(1, int.MaxValue, ErrorMessage = "El profesional preferido no es válido.")]
     public int? IdProfesional { get; set; }
 
     [Required(ErrorMessage = "La fecha de la cita es obligatoria.")]
@@ -25,5 +24,25 @@ public sealed class CitaSolicitudPacienteDto
     public TimeSpan HoraInicio { get; set; }
 
     [StringLength(4000, ErrorMessage = "Las notas no pueden superar los 4000 caracteres.")]
+    public string? Notas { get; set; }
+}
+
+/// <summary>Datos para inscribir a un paciente en la lista de espera de un servicio.</summary>
+public sealed class ListaEsperaSolicitudDto
+{
+    [Required]
+    [Range(1, int.MaxValue)]
+    public int? IdServicio { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int? IdProfesionalPreferido { get; set; }
+
+    [Required]
+    public DateTime FechaDeseadaInicio { get; set; }
+
+    [Required]
+    public DateTime FechaDeseadaFin { get; set; }
+
+    [StringLength(500)]
     public string? Notas { get; set; }
 }

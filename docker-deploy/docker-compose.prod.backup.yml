@@ -1,0 +1,86 @@
+services:
+
+  # ─── Base de datos SQL Server 2022 ───────────────────────────────────────────
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: smiletrack-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      MSSQL_PID: "Express"
+    # Puerto NO expuesto al exterior — solo accesible desde la red interna Docker
+    expose:
+      - "1433"
+    volumes:
+      - smiletrack-sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -b -Q \"SELECT 1\""]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    restart: always
+    networks:
+      - smiletrack-net
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    entrypoint: ["/bin/bash", "/init-db.sh"]
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      SQL_SERVER_HOST: "sqlserver"
+    volumes:
+      - ./Database/SCRIPT_SQL_DEPLOYMENT_SMILETRACK.sql:/docker-entrypoint-initdb.d/SCRIPT_SQL_UNICO_SMILETRACK.sql:ro
+      - ./Database/init-db.sh:/init-db.sh:ro
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - smiletrack-net
+
+  # ─── Aplicación Web (imagen desde Docker Hub) ────────────────────────────────
+  web:
+    image: "${WEB_IMAGE:?Define WEB_IMAGE en el archivo .env de producción}"
+    container_name: smiletrack-web
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    ports:
+      - "80:80"      # HTTP — el servidor escucha en puerto 80
+    environment:
+      ASPNETCORE_URLS: "http://+:80"
+      ASPNETCORE_ENVIRONMENT: "Production"
+      Storage__ClinicalDocumentsPath: "/app/App_Data/clinical-documents"
+      # Cadena de conexión apunta al contenedor sqlserver (nombre de servicio Docker)
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SmileTrackDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Connect Timeout=30;"
+      # JWT — usa variables de entorno en producción, NO el appsettings
+      Jwt__Key: "${JWT_KEY}"
+      Jwt__Issuer: "SmileTrack"
+      Jwt__Audience: "SmileTrackClient"
+      Jwt__ExpiryMinutes: "60"
+      # SMTP para correos
+      Smtp__Host: "${SMTP_HOST}"
+      Smtp__Port: "${SMTP_PORT}"
+      Smtp__Username: "${SMTP_USERNAME}"
+      Smtp__Password: "${SMTP_PASSWORD}"
+      Smtp__EnableSsl: "true"
+    volumes:
+      - smiletrack-dataprotection:/root/.aspnet/DataProtection-Keys
+      - smiletrack-clinical-files:/app/App_Data/clinical-documents
+    restart: always
+    networks:
+      - smiletrack-net
+
+# ─── Volúmenes persistentes ───────────────────────────────────────────────────
+volumes:
+  smiletrack-sqldata:
+  smiletrack-dataprotection:
+  smiletrack-clinical-files:
+
+# ─── Red interna (aísla los contenedores del exterior) ───────────────────────
+networks:
+  smiletrack-net:
+    driver: bridge

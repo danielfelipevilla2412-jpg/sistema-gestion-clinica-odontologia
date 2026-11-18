@@ -85,7 +85,7 @@ public sealed class CitasEnCursoBackgroundServiceTests
     }
 
     [Fact]
-    public async Task IniciarCitasProgramadasAsync_CitaDeHoyYaVencida_LaPasaAEnProceso()
+    public async Task IniciarCitasProgramadasAsync_CitaDeHoyYaVencida_NoLaIniciaAutomaticamente()
     {
         string dbName = NuevaDb();
         DateTime ahora = ColombiaClock.Now;
@@ -117,16 +117,16 @@ public sealed class CitasEnCursoBackgroundServiceTests
 
         using var dbVerificacion = LeerDb(dbName);
         var cita = await dbVerificacion.Citas.AsNoTracking().FirstAsync(c => c.IdCita == 10);
-        Assert.Equal("En consulta", cita.Estado);
-        Assert.Equal(5, cita.IdEstado);
+        Assert.Equal("Programada", cita.Estado);
+        Assert.Equal(1, cita.IdEstado);
 
         var historial = await dbVerificacion.CitasHistorialEstado.AsNoTracking()
             .Where(h => h.IdCita == 10).ToListAsync();
-        Assert.Contains(historial, h => h.EstadoTexto == "En consulta");
+        Assert.Empty(historial);
 
         var asistencias = await dbVerificacion.AsistenciasProcedimiento.AsNoTracking()
             .Where(a => a.IdCita == 10).ToListAsync();
-        Assert.Single(asistencias);
+        Assert.Empty(asistencias);
     }
 
     [Fact]

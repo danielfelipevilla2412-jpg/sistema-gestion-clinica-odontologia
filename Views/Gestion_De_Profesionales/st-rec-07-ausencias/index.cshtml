@@ -1,0 +1,97 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Ausencias de profesionales";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+    var profesionales = ViewData["ProfesionalesAusencias"] as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
+}
+
+<main class="main" id="main-content">
+    <header class="page-header">
+        <div class="header-left">
+            <nav class="breadcrumb" aria-label="Ruta de navegación">
+                <span>Gestión de Citas</span>
+                <span class="bc-sep" aria-hidden="true">›</span>
+                <span class="bc-active" aria-current="page">Ausencias de profesionales</span>
+            </nav>
+            <h1 class="page-title">Ausencias de profesionales</h1>
+            <p class="page-subtitle">Registra y consulta los períodos que bloquean la disponibilidad.</p>
+        </div>
+    </header>
+
+    @if (TempData["ErrorValidacion"] is string error)
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+
+    <section class="table-card" aria-labelledby="absenceFormTitle">
+        <h2 class="card-title" id="absenceFormTitle">Registrar ausencia</h2>
+        @Html.AntiForgeryToken()
+        <form id="absenceForm" class="filters-row">
+            <input id="absenceId" type="hidden" />
+            <div class="filter-wrap">
+                <label for="absenceProfessional">Profesional</label>
+                <select id="absenceProfessional" class="status-select" required>
+                    <option value="">Selecciona un profesional</option>
+                    @foreach (var profesional in profesionales)
+                    {
+                        <option value="@profesional.IdProfesional">@profesional.Apellidos, @profesional.Nombres</option>
+                    }
+                </select>
+            </div>
+            <div class="filter-wrap">
+                <label for="absenceTipo">Tipo</label>
+                <select id="absenceTipo" class="status-select" required>
+                    <option value="vacaciones">Vacaciones</option>
+                    <option value="incapacidad">Incapacidad</option>
+                    <option value="permiso">Permiso</option>
+                    <option value="otro">Otro</option>
+                </select>
+            </div>
+            <div class="filter-wrap">
+                <label for="absenceFechaInicio">Desde</label>
+                <input id="absenceFechaInicio" class="status-select" type="date" required />
+            </div>
+            <div class="filter-wrap">
+                <label for="absenceFechaFin">Hasta</label>
+                <input id="absenceFechaFin" class="status-select" type="date" required />
+            </div>
+            <div class="filter-wrap">
+                <label for="absenceObservaciones">Observaciones</label>
+                <input id="absenceObservaciones" class="status-select" type="text" maxlength="500" />
+            </div>
+            <div class="action-buttons-row">
+                <button id="absenceSaveButton" class="btn-primary" type="submit">Registrar ausencia</button>
+                <button id="absenceCancelEdit" class="btn-secondary" type="button" hidden>Cancelar edición</button>
+            </div>
+        </form>
+        <p id="absenceFeedback" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="table-card" aria-labelledby="absenceListTitle">
+        <div class="page-header">
+            <h2 class="card-title" id="absenceListTitle">Ausencias registradas</h2>
+            <button id="absenceReload" class="btn-secondary" type="button">Actualizar</button>
+        </div>
+        <div class="table-wrap">
+            <table class="table-base">
+                <thead>
+                    <tr>
+                        <th scope="col">Profesional</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Desde</th>
+                        <th scope="col">Hasta</th>
+                        <th scope="col">Observaciones</th>
+                        <th scope="col">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="absenceRows">
+                    <tr><td colspan="6">Selecciona un profesional para consultar sus ausencias.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+@section Scripts {
+    <script src="~/js/Gestion_De_Profesionales/st-rec-07-ausencias/ausencias.js" asp-append-version="true" defer></script>
+}

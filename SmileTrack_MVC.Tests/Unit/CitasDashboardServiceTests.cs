@@ -93,11 +93,13 @@ public sealed class CitasDashboardServiceTests
         Assert.Equal(1, dashboard.Estados.Atendidas);
         Assert.Equal(1, dashboard.Estados.Programadas);
         Assert.Equal(1, dashboard.Estados.Canceladas);
-        Assert.Equal(2, dashboard.Estados.Otros);
+        Assert.Equal(1, dashboard.Estados.NoAsistio);
+        Assert.Equal(1, dashboard.Estados.Otros);
         Assert.Equal(100, dashboard.Estados.PorcentajeAtendidas +
             dashboard.Estados.PorcentajeConfirmadas +
             dashboard.Estados.PorcentajeProgramadas +
             dashboard.Estados.PorcentajeCanceladas +
+            dashboard.Estados.PorcentajeNoAsistio +
             dashboard.Estados.PorcentajeOtros);
         Assert.Equal(1, dashboard.Kpis.VariacionAtencionesSemana);
         Assert.Equal(75, dashboard.OcupacionPorcentaje);

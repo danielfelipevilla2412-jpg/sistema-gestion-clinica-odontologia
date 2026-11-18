@@ -806,6 +806,24 @@ img { max-width: 100%; height: auto; display: block; }
   align-items: center;
   gap: 6px;
 }
+.schedule-blocks {
+  grid-column: 3 / 5;
+  display: grid;
+  gap: 8px;
+}
+.schedule-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.schedule-block .schedule-time-group input {
+  min-width: 112px;
+}
+.schedule-add-block {
+  grid-column: 3 / 5;
+  justify-self: start;
+}
 .schedule-time-label {
   font-size: var(--type-caption);
   color: var(--text-muted);
@@ -818,6 +836,10 @@ img { max-width: 100%; height: auto; display: block; }
     gap: 8px;
   }
   .schedule-row-day {
+    grid-column: 1 / -1;
+  }
+  .schedule-blocks,
+  .schedule-add-block {
     grid-column: 1 / -1;
   }
 }

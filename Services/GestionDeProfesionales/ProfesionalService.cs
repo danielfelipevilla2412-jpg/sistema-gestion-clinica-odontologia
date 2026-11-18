@@ -283,6 +283,7 @@ public partial class ProfesionalService : IProfesionalService
         string nombres = request.Nombres.Trim();
         string apellidos = request.Apellidos.Trim();
         string registro = request.RegistroMedico.Trim();
+        string tarjetaProfesional = request.TarjetaProfesional.Trim();
         string correo = request.CorreoAcceso!.Trim();
         string password = GenerarContrasenaTemporal();
 
@@ -294,6 +295,11 @@ public partial class ProfesionalService : IProfesionalService
             if (regDuplicado)
                 return ProfesionalApiOperationResult.Conflict(
                     $"El registro médico '{registro}' ya está asignado a otro profesional.");
+            bool tarjetaDuplicada = await _context.Profesionales
+                .AnyAsync(p => p.TarjetaProfesional == tarjetaProfesional, ct);
+            if (tarjetaDuplicada)
+                return ProfesionalApiOperationResult.Conflict(
+                    $"La tarjeta profesional '{tarjetaProfesional}' ya está asignada a otro profesional.");
 
             Profesional? profesional = null;
             Usuario? usuario = null;
@@ -336,6 +342,7 @@ public partial class ProfesionalService : IProfesionalService
                         Nombres = nombres,
                         Apellidos = apellidos,
                         RegistroMedico = registro,
+                        TarjetaProfesional = tarjetaProfesional,
                         Categoria = request.Categoria?.Trim(),
                         Telefono = request.Telefono?.Trim(),
                         Descripcion = request.Descripcion?.Trim(),
@@ -466,6 +473,7 @@ public partial class ProfesionalService : IProfesionalService
         string nombres = request.Nombres.Trim();
         string apellidos = request.Apellidos.Trim();
         string registro = request.RegistroMedico.Trim();
+        string tarjetaProfesional = request.TarjetaProfesional.Trim();
         string correo = request.CorreoAcceso?.Trim() ?? string.Empty;
         string? estadoSolicitado = string.IsNullOrWhiteSpace(request.Estado)
             ? null
@@ -483,6 +491,11 @@ public partial class ProfesionalService : IProfesionalService
             if (regDuplicado)
                 return ProfesionalApiOperationResult.Conflict(
                     $"El registro médico '{registro}' ya está asignado a otro profesional.");
+            bool tarjetaDuplicada = await _context.Profesionales
+                .AnyAsync(p => p.TarjetaProfesional == tarjetaProfesional && p.IdProfesional != id, ct);
+            if (tarjetaDuplicada)
+                return ProfesionalApiOperationResult.Conflict(
+                    $"La tarjeta profesional '{tarjetaProfesional}' ya está asignada a otro profesional.");
 
             Profesional? profesional = null;
 
@@ -545,6 +558,7 @@ public partial class ProfesionalService : IProfesionalService
                     profesional.Nombres = nombres;
                     profesional.Apellidos = apellidos;
                     profesional.RegistroMedico = registro;
+                    profesional.TarjetaProfesional = tarjetaProfesional;
                     profesional.Categoria = request.Categoria?.Trim();
                     profesional.Telefono = request.Telefono?.Trim();
                     profesional.Descripcion = request.Descripcion?.Trim();
@@ -1526,7 +1540,8 @@ public partial class ProfesionalService : IProfesionalService
             var serviciosPorEsp = await _context.Servicios
                 .AsNoTracking()
                 .Where(s => s.Estado == "activo"
-                         && (!s.IdEspecialidad.HasValue || idsEsp.Contains(s.IdEspecialidad.Value)))
+                         && s.IdEspecialidad.HasValue
+                         && idsEsp.Contains(s.IdEspecialidad.Value))
                 .ToListAsync(ct);
 
             var asignacionesExcepcionales = await _context.ProfesionalServicios
@@ -1579,6 +1594,7 @@ public partial class ProfesionalService : IProfesionalService
             ? apellidos.Trim()
             : p.Apellidos,
         RegistroMedico = p.RegistroMedico,
+        TarjetaProfesional = p.TarjetaProfesional,
         Categoria = p.Categoria,
         Telefono = p.Telefono,
         Descripcion = p.Descripcion,
@@ -1609,6 +1625,11 @@ public partial class ProfesionalService : IProfesionalService
 
         if (!EsRegistroMedicoValido(request.RegistroMedico))
             return (false, "El registro médico tiene un formato inválido. Use letras, números y guiones (3-30 caracteres).");
+
+        if (string.IsNullOrWhiteSpace(request.TarjetaProfesional) ||
+            request.TarjetaProfesional.Trim().Length is < 3 or > 50 ||
+            !Regex.IsMatch(request.TarjetaProfesional.Trim(), @"^[A-Za-z0-9\-\. ]+$"))
+            return (false, "La tarjeta profesional es obligatoria y debe contener entre 3 y 50 letras, números, puntos, guiones o espacios.");
 
         if (!string.IsNullOrWhiteSpace(request.Telefono) && !EsTelefonoValido(request.Telefono))
             return (false, "El número de teléfono es inválido. Debe contener entre 7 y 15 dígitos.");
@@ -1885,6 +1906,7 @@ public partial class ProfesionalService : IProfesionalService
 
         int reasignadas = 0;
         int canceladas = 0;
+        var huecosReservados = new HashSet<(int IdProfesional, DateTime Inicio, DateTime Fin)>();
 
         foreach (var cita in citasAfectadas)
         {
@@ -1956,6 +1978,8 @@ public partial class ProfesionalService : IProfesionalService
                                 && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > cita.FechaHora, ct);
 
                 if (candidatoConConflicto) continue;
+                if (huecosReservados.Contains((candidato.IdProfesional, cita.FechaHora, finCita)))
+                    continue;
 
                 candidatoElegido = candidato;
                 break;
@@ -1963,6 +1987,7 @@ public partial class ProfesionalService : IProfesionalService
 
             if (candidatoElegido is not null)
             {
+                huecosReservados.Add((candidatoElegido.IdProfesional, cita.FechaHora, finCita));
                 int idAnterior = cita.IdProfesional ?? 0;
                 cita.IdProfesional = candidatoElegido.IdProfesional;
 

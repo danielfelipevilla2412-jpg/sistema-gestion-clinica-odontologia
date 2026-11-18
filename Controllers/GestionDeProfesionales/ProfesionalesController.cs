@@ -93,6 +93,29 @@ public partial class GestionProfesionalesController(
     }
 
     [HttpGet]
+    [Authorize(Roles = "Administrador,Recepcionista")]
+    [Route("gestion-de-profesionales/ausencias")]
+    public async Task<IActionResult> AusenciasProfesionales(CancellationToken ct = default)
+    {
+        try
+        {
+            ViewData["ProfesionalesAusencias"] = await _context.Profesionales
+                .AsNoTracking()
+                .OrderBy(p => p.Apellidos)
+                .ThenBy(p => p.Nombres)
+                .ToListAsync(ct);
+
+            return View("~/Views/Gestion_De_Profesionales/st-rec-07-ausencias/index.cshtml");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error cargando la gestión de ausencias profesionales.");
+            TempData["ErrorValidacion"] = MensajeErrorFallback;
+            return View("~/Views/Gestion_De_Profesionales/st-rec-07-ausencias/index.cshtml");
+        }
+    }
+
+    [HttpGet]
     [Authorize(Roles = "Administrador,Profesional")]
     [Route("gestion-de-profesionales/st-adm-14-reportes-clinicos")]
     public async Task<IActionResult> Stadm14ReportesClinicos([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null, [FromQuery] string? profesional = null, [FromQuery] string? mes = null, CancellationToken ct = default)
@@ -689,6 +712,12 @@ public partial class GestionProfesionalesController(
             var ahora = ColombiaClock.Now;
             var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
             var finMes = inicioMes.AddMonths(1);
+            if (!string.IsNullOrWhiteSpace(mes) &&
+                DateTime.TryParseExact(mes, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var filterMonth))
+            {
+                inicioMes = new DateTime(filterMonth.Year, filterMonth.Month, 1);
+                finMes = inicioMes.AddMonths(1);
+            }
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 500);
 
@@ -731,12 +760,7 @@ public partial class GestionProfesionalesController(
                 );
             }
 
-            if (!string.IsNullOrWhiteSpace(mes) && DateTime.TryParseExact(mes, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var filterMonth))
-            {
-                var filterStart = filterMonth;
-                var filterEnd = filterMonth.AddMonths(1);
-                citasQuery = citasQuery.Where(c => c.FechaHora >= filterStart && c.FechaHora < filterEnd);
-            }
+            citasQuery = citasQuery.Where(c => c.FechaHora >= inicioMes && c.FechaHora < finMes);
 
             var totalReales = await citasQuery
                 .Select(c => c.IdPaciente)
@@ -803,6 +827,15 @@ public partial class GestionProfesionalesController(
                         && (c.EstadoCita == null || !new[] { "cancelada", "cancelado" }.Contains(c.EstadoCita.NombreEstado.ToLower())));
                 if (idProfesionalForzado.HasValue)
                     citasFuturasQuery = citasFuturasQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
+                else if (!string.IsNullOrWhiteSpace(profesional))
+                {
+                    string profesionalFiltro = profesional.Trim();
+                    citasFuturasQuery = citasFuturasQuery.Where(c =>
+                        c.Profesional != null &&
+                        (((c.Profesional.Nombres ?? "") + " " + (c.Profesional.Apellidos ?? "")).Contains(profesionalFiltro) ||
+                         (c.Profesional.Usuario != null &&
+                          ((c.Profesional.Usuario.Nombre ?? "") + " " + (c.Profesional.Usuario.Apellidos ?? "")).Contains(profesionalFiltro))));
+                }
 
                 var citasFuturas = await citasFuturasQuery
                     .GroupBy(c => c.IdPaciente)
@@ -813,6 +846,8 @@ public partial class GestionProfesionalesController(
                 IQueryable<NotaClinica> notasClinicasQuery = _context.NotasClinicas
                     .AsNoTracking()
                     .Where(n => idsPacientes.Contains(n.HistoriaClinica!.IdPaciente) &&
+                                n.Fecha >= inicioMes &&
+                                n.Fecha < finMes &&
                                 n.Estado != "Preparación");
                 if (idProfesionalForzado.HasValue)
                     notasClinicasQuery = notasClinicasQuery.Where(n => n.IdProfesional == idProfesionalForzado.Value);
@@ -935,26 +970,10 @@ public partial class GestionProfesionalesController(
             ViewData["ReportesClinicos"] = reportes;
             ViewData["ReportesClinicosPage"] = pagedReportes;
             ViewData["ProfesionalesReportes"] = profesionalesOptions;
-            var pacientesReportesQuery = _context.Citas
-                .AsNoTracking()
-                .Where(c => c.Paciente != null);
-            if (idProfesionalForzado.HasValue)
-                pacientesReportesQuery = pacientesReportesQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
-            ViewData["TotalPacientesReportes"] = idProfesionalForzado.HasValue
-                ? await pacientesReportesQuery.Select(c => c.IdPaciente).Distinct().CountAsync(ct)
-                : await _context.Pacientes.CountAsync(ct);
+            ViewData["TotalPacientesReportes"] = totalReales;
 
-            var consultasQuery = _context.Citas.AsNoTracking();
-            if (idProfesionalForzado.HasValue)
-            {
-                consultasQuery = consultasQuery.Where(c => c.IdProfesional == idProfesionalForzado.Value);
-            }
-            else if (User.IsInRole("Profesional"))
-            {
-                consultasQuery = consultasQuery.Where(c => c.IdProfesional == 0);
-            }
-
-            int totalCitasMes = await consultasQuery.CountAsync(c => c.FechaHora >= inicioMes && c.FechaHora < finMes, ct);
+            var consultasQuery = citasQuery;
+            int totalCitasMes = await consultasQuery.CountAsync(ct);
             ViewData["ConsultasMes"] = totalCitasMes;
 
             // Tasa de asistencia = citas atendidas sobre el total mensual.

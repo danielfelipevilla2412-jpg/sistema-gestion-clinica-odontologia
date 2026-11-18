@@ -25,12 +25,17 @@ TestResults/
 .env.*
 !.env.example
 !.env.production.example
+appsettings.local.json
+appsettings.*.local.json
+appsettings.Local.json
+appsettings.*.Local.json
 
 
 # OS
 .DS_Store
 Thumbs.db
 Desktop.ini
+~$*.docx
 
 # Archives / bundles
 *.zip

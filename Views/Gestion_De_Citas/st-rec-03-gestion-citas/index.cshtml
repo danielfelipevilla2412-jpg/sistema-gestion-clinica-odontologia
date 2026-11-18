@@ -165,8 +165,11 @@
               var estadoActual = ViewData["EstadoFilter"]?.ToString();
               var estadosFiltrar = new[]
               {
+                ("solicitada", "Solicitud pendiente"),
                 ("programada", "Programada"),
                 ("confirmada", "Confirmada"),
+                ("en_sala_de_espera", "En sala de espera"),
+                ("en_proceso", "En atención"),
                 ("atendida", "Atendida"),
                 ("cancelada", "Cancelada"),
                 ("no_asistida", "No asistió")

@@ -52,4 +52,40 @@ public class EstadoCitaHelperTests
     {
         Assert.Equal(esperado, EstadoCitaHelper.IsTransitionAllowed(actual, siguiente));
     }
+
+    [Theory]
+    [InlineData("Confirmada", "En sala de espera", false, true, false, true)]
+    [InlineData("En sala de espera", "En atención", false, true, false, false)]
+    [InlineData("En sala de espera", "En atención", false, false, true, true)]
+    [InlineData("Programada", "Atendida", true, false, false, true)]
+    public void PuedeTransicionarPorRol_EnforcesOperationalPermissions(
+        string actual,
+        string destino,
+        bool administrador,
+        bool recepcionista,
+        bool profesional,
+        bool esperado)
+    {
+        Assert.Equal(
+            esperado,
+            EstadoCitaHelper.PuedeTransicionarPorRol(
+                actual,
+                destino,
+                administrador,
+                recepcionista,
+                profesional));
+    }
+
+    [Theory]
+    [InlineData("Programada", false, true)]
+    [InlineData("Confirmada", false, true)]
+    [InlineData("Atendida", false, false)]
+    [InlineData("Atendida", true, true)]
+    public void PuedeCrearPorRol_LimitsNonAdminInitialStates(
+        string estado,
+        bool administrador,
+        bool esperado)
+    {
+        Assert.Equal(esperado, EstadoCitaHelper.PuedeCrearPorRol(estado, administrador));
+    }
 }

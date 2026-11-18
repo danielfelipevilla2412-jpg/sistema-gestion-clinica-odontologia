@@ -547,7 +547,7 @@ public sealed class ProfesionalServiceTests
         Assert.Equal(125000m, serviciosOrtodoncia.Data[0].PrecioEfectivo);
         Assert.True(serviciosEndodoncia.Success);
         Assert.Equal(
-            new[] { "Endodoncia", "Valoración" },
+            new[] { "Endodoncia" },
             serviciosEndodoncia.Data.Select(s => s.NombreServicio).OrderBy(n => n).ToArray());
     }
 
@@ -604,6 +604,7 @@ public sealed class ProfesionalServiceTests
                 Nombres = "María",
                 Apellidos = "García",
                 RegistroMedico = "RM-GEN-001",
+                TarjetaProfesional = "TP-GEN-001",
                 CorreoAcceso = "maria.garcia@smiletrack.test",
                 ContrasenaAcceso = null
             },
@@ -635,6 +636,7 @@ public sealed class ProfesionalServiceTests
                 Nombres = "María",
                 Apellidos = "García",
                 RegistroMedico = "RM-CAT-001",
+                TarjetaProfesional = "TP-CAT-001",
                 Categoria = "Categoría inventada",
                 CorreoAcceso = "maria.categoria@smiletrack.test"
             },
@@ -665,6 +667,7 @@ public sealed class ProfesionalServiceTests
                 Nombres = "María",
                 Apellidos = "García",
                 RegistroMedico = "RM-MULTI-001",
+                TarjetaProfesional = "TP-MULTI-001",
                 CorreoAcceso = "maria.multi@smiletrack.test",
                 IdsEspecialidades = new List<int> { 1, 2 }
             },
@@ -712,6 +715,7 @@ public sealed class ProfesionalServiceTests
                 Nombres = "Carlos Andrés",
                 Apellidos = "Ruiz",
                 RegistroMedico = "RM-LEG-001",
+                TarjetaProfesional = "TP-LEG-001",
                 Categoria = "Endodoncia",
                 Estado = "activo",
                 IdEspecialidad = 1
@@ -726,6 +730,107 @@ public sealed class ProfesionalServiceTests
         Assert.Null(profesional.IdUsuario);
         Assert.False(profesional.CredencialesAprobadas);
         Assert.Empty(await db.Usuarios.ToListAsync());
+    }
+
+    [Fact]
+    public async Task RegistrarAusenciaConReasignacionAsync_NoReservaElMismoHuecoDosVeces()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+        var ausente = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Ausente",
+            RegistroMedico = "RM-AUSENTE-RESERVA",
+            Estado = "activo"
+        };
+        var reemplazo = new Profesional
+        {
+            Nombres = "Carlos",
+            Apellidos = "Reemplazo",
+            RegistroMedico = "RM-REEMPLAZO-RESERVA",
+            Estado = "activo"
+        };
+        db.Profesionales.AddRange(ausente, reemplazo);
+
+        var especialidad = new Especialidad { Nombre = "Odontología General" };
+        var servicio = new Servicio
+        {
+            Nombre = "Consulta simultánea",
+            Estado = "activo",
+            DuracionMinutos = 60
+        };
+        db.Especialidades.Add(especialidad);
+        db.Servicios.Add(servicio);
+        await db.SaveChangesAsync();
+
+        servicio.IdEspecialidad = especialidad.IdEspecialidad;
+        db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+        {
+            IdProfesional = reemplazo.IdProfesional,
+            IdEspecialidad = especialidad.IdEspecialidad,
+            Principal = true
+        });
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = reemplazo.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            Activo = true
+        });
+
+        DateTime fechaCita = DateTime.Today.AddDays(5).AddHours(10);
+        db.Citas.AddRange(
+            new Cita
+            {
+                IdPaciente = 1,
+                IdProfesional = ausente.IdProfesional,
+                IdServicio = servicio.IdServicio,
+                FechaHora = fechaCita,
+                DuracionMinutos = 60,
+                Estado = "Programada"
+            },
+            new Cita
+            {
+                IdPaciente = 2,
+                IdProfesional = ausente.IdProfesional,
+                IdServicio = servicio.IdServicio,
+                FechaHora = fechaCita,
+                DuracionMinutos = 60,
+                Estado = "Programada"
+            });
+        string dia = fechaCita.DayOfWeek switch
+        {
+            DayOfWeek.Monday => "Lunes",
+            DayOfWeek.Tuesday => "Martes",
+            DayOfWeek.Wednesday => "Miercoles",
+            DayOfWeek.Thursday => "Jueves",
+            DayOfWeek.Friday => "Viernes",
+            DayOfWeek.Saturday => "Sabado",
+            _ => "Domingo"
+        };
+        db.HorariosProfesional.Add(new HorarioProfesional
+        {
+            IdProfesional = reemplazo.IdProfesional,
+            DiaSemana = dia,
+            HoraInicio = new TimeOnly(8, 0),
+            HoraFin = new TimeOnly(18, 0),
+            Activo = true
+        });
+        await db.SaveChangesAsync();
+
+        var resultado = await new ProfesionalService(db, NullLogger<ProfesionalService>.Instance)
+            .RegistrarAusenciaConReasignacionAsync(
+                ausente.IdProfesional,
+                fechaCita.AddHours(-2),
+                fechaCita.AddHours(2),
+                "incapacidad");
+
+        Assert.Equal(2, resultado.TotalCitasAfectadas);
+        Assert.Equal(1, resultado.TotalReasignadas);
+        Assert.Equal(1, resultado.TotalCanceladas);
+        Assert.Single(await db.Citas.Where(c => c.IdProfesional == reemplazo.IdProfesional).ToListAsync());
     }
 
     [Fact]

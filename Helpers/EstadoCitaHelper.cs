@@ -28,7 +28,7 @@ public static class EstadoCitaHelper
 {
     public static readonly string[] EstadosQueLiberanRecursos =
     [
-        "cancelada", "cancelado", "rechazada", "rechazado"
+        "cancelada", "cancelado", "rechazada", "rechazado", "solicitada", "solicitado", "pendiente"
     ];
 
     /// <summary>
@@ -66,7 +66,7 @@ public static class EstadoCitaHelper
             "solicitado" => "solicitada",
             "agendada" or "programado" => "programada",
             "confirmado" => "confirmada",
-            "en_consulta" or "en_proceso" => "en_proceso",
+            "en_consulta" or "en_atencion" or "en_proceso" => "en_proceso",
             "en_espera" or "sala_de_espera" or "en_sala_espera" or "en_sala_de_espera" => "en_sala_de_espera",
             "realizada" or "completada" or "finalizada" => "atendida",
             "cancelado" => "cancelada",
@@ -88,7 +88,7 @@ public static class EstadoCitaHelper
             "programada" => "Programada",
             "confirmada" => "Confirmada",
             "en_sala_de_espera" => "En sala de espera",
-            "en_proceso" => "En consulta",
+            "en_proceso" => "En atención",
             "atendida" => "Atendida",
             "rechazada" => "Rechazada",
             "cancelada" => "Cancelada",
@@ -108,13 +108,37 @@ public static class EstadoCitaHelper
         return (actual, siguiente) switch
         {
             ("solicitada", "programada" or "confirmada") => true,
-            ("programada", "confirmada" or "en_sala_de_espera" or "en_proceso" or "atendida" or "no_asistida") => true,
-            ("confirmada", "en_sala_de_espera" or "en_proceso" or "atendida" or "no_asistida") => true,
-            ("en_sala_de_espera", "en_proceso" or "atendida" or "no_asistida") => true,
-            ("en_proceso", "atendida" or "no_asistida") => true,
+            ("programada", "confirmada" or "en_sala_de_espera" or "no_asistida") => true,
+            ("confirmada", "en_sala_de_espera" or "no_asistida") => true,
+            ("en_sala_de_espera", "en_proceso" or "no_asistida") => true,
+            ("en_proceso", "atendida") => true,
             _ => false
         };
     }
+
+    public static bool PuedeTransicionarPorRol(
+        string? estadoActual,
+        string? nuevoEstado,
+        bool esAdministrador,
+        bool esRecepcionista,
+        bool esProfesional)
+    {
+        string actual = Normalize(estadoActual);
+        string destino = Normalize(nuevoEstado);
+
+        if (string.IsNullOrWhiteSpace(destino))
+            return false;
+        if (actual == destino || esAdministrador)
+            return true;
+        if (esProfesional)
+            return destino is "en_proceso" or "atendida";
+        if (esRecepcionista)
+            return destino is not ("en_proceso" or "atendida");
+        return false;
+    }
+
+    public static bool PuedeCrearPorRol(string? estado, bool esAdministrador)
+        => esAdministrador || Normalize(estado) is "programada" or "confirmada";
 
     /// <summary>
     /// Construye un mensaje legible para el usuario cuando una transición de estado
@@ -125,10 +149,10 @@ public static class EstadoCitaHelper
         return estadoActual switch
         {
             "solicitada" => "Una solicitud solo puede pasar a Programada o Confirmada. Para cancelar o rechazar la solicitud use la acción correspondiente.",
-            "programada" => "Una cita programada solo puede pasar a Confirmada o En sala de espera. Para cancelar la cita use la función de cancelación.",
-            "confirmada" => "Una cita confirmada solo puede pasar a En sala de espera o En consulta. Para cancelar la cita use la función de cancelación.",
-            "en_sala_de_espera" => "Una cita en sala de espera solo puede pasar a En consulta. Para cancelar la cita use la función de cancelación.",
-            "en_proceso" => "Una cita en consulta solo puede pasar a Atendida.",
+            "programada" => "Una cita programada solo puede pasar a Confirmada, En sala de espera o No asistió. Para cancelar la cita use la función de cancelación.",
+            "confirmada" => "Una cita confirmada solo puede pasar a En sala de espera o No asistió. Para cancelar la cita use la función de cancelación.",
+            "en_sala_de_espera" => "Una cita en sala de espera solo puede pasar a En atención o No asistió. Para cancelar la cita use la función de cancelación.",
+            "en_proceso" => "Una cita en atención solo puede pasar a Atendida.",
             "atendida" or "finalizada" => "Una cita atendida ya está finalizada y no puede regresar a otro estado.",
             "cancelada" => "Una cita cancelada es definitiva y no puede reactivarse desde la agenda del profesional.",
             "no_asistida" => "Una cita marcada como No asistió es definitiva y no puede reactivarse desde la agenda del profesional.",

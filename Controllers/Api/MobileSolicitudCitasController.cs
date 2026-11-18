@@ -12,7 +12,7 @@
  * REGLAS DE NEGOCIO PRINCIPALES:
  * - Filtra servicios disponibles únicamente en estado "activo".
  * - Valida la existencia del paciente autenticado antes de crear la solicitud.
- * - Reserva la cita mediante el flujo centralizado con estado inicial "Programada".
+ * - Registra una solicitud pendiente sin reservar recursos; el profesional preferido es opcional.
  *
  * DEPENDENCIAS TÉCNICAS:
  * - AppDbContext, ICitaService, JwtBearerDefaults
@@ -36,7 +36,7 @@ namespace SmileTrack_MVC.Controllers.Api;
 public class SolicitudCitaMovil
 {
     public int IdServicio { get; set; }
-    public int IdProfesional { get; set; }
+    public int? IdProfesional { get; set; }
     public DateTime FechaHora { get; set; }
     public string? Notas { get; set; }
 }
@@ -91,7 +91,7 @@ public class MobileSolicitudCitasController : ControllerBase
     [HttpGet("horarios")]
     public async Task<IActionResult> ObtenerHorarios(
         [FromQuery] int idServicio,
-        [FromQuery] int idProfesional,
+        [FromQuery] int? idProfesional,
         [FromQuery] DateTime fecha,
         CancellationToken cancellationToken)
     {
@@ -113,7 +113,7 @@ public class MobileSolicitudCitasController : ControllerBase
         if (idPaciente is not > 0)
             return NotFound(new { message = "No hay un paciente asociado a esta cuenta." });
 
-        var horarios = await _citaService.ObtenerHorariosDisponiblesPacienteAsync(
+        var horarios = await _citaService.ObtenerHorariosSolicitudPacienteAsync(
             idPaciente.Value, idServicio, idProfesional, fecha, cancellationToken);
         return Ok(horarios.Select(hora => hora.ToString(@"hh\:mm")));
     }
@@ -141,13 +141,11 @@ public class MobileSolicitudCitasController : ControllerBase
             });
         }
 
-        if (solicitud.IdServicio <= 0 ||
-            solicitud.IdProfesional <= 0 ||
-            solicitud.FechaHora <= ColombiaClock.Now)
+        if (solicitud.IdServicio <= 0 || solicitud.FechaHora <= ColombiaClock.Now)
         {
             return BadRequest(new
             {
-                message = "Selecciona un servicio, profesional y horario futuro."
+                message = "Selecciona un servicio y un horario futuro."
             });
         }
 
@@ -183,14 +181,14 @@ public class MobileSolicitudCitasController : ControllerBase
                 success = true,
                 id = cita.IdCita,
                 estado = cita.Estado,
-                message = "Cita agendada correctamente."
+                message = "Solicitud enviada para revisión."
             });
         }
         catch (InvalidOperationException ex)
         {
             if (ex.Message.Contains("horario", StringComparison.OrdinalIgnoreCase))
             {
-                var horariosDisponibles = await _citaService.ObtenerHorariosDisponiblesPacienteAsync(
+                var horariosDisponibles = await _citaService.ObtenerHorariosSolicitudPacienteAsync(
                     paciente.IdPaciente,
                     solicitud.IdServicio,
                     solicitud.IdProfesional,

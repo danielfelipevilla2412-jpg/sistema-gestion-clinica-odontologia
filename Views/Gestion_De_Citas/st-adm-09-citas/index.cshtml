@@ -260,7 +260,17 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                                 var cConsultorio = cita.Consultorio?.Nombre ?? "—";
                                 var cEstado = cita.EstadoCita?.NombreEstado ?? cita.Estado ?? "Sin estado";
                                 var cEstadoNormalizado = EstadoCitaHelper.Normalize(cEstado);
-                                var estadosCatalogo = new[] { "Programada", "Confirmada", "Atendida", "Cancelada", "No asistió" };
+                                var estadosCatalogo = new[]
+                                {
+                                    "Solicitada",
+                                    "Programada",
+                                    "Confirmada",
+                                    "En sala de espera",
+                                    "En atención",
+                                    "Atendida",
+                                    "Cancelada",
+                                    "No asistió"
+                                };
                                 var estadoSelectValue = estadosCatalogo.FirstOrDefault(estado =>
                                     cEstadoNormalizado == EstadoCitaHelper.Normalize(estado)) ?? estadosCatalogo[0];
                                 var estadosDisponibles = estadosCatalogo

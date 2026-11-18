@@ -777,6 +777,8 @@ public sealed class CambiarEstadoCitaDto
 
             if (model.IdCita > 0)
             {
+                var citaExistente = await _citaService.ObtenerPorIdAsync(model.IdCita.Value, ct)
+                    ?? throw new InvalidOperationException("La cita que intenta actualizar no existe.");
                 var updateDto = new Models.DTOs.CitaApiUpdateDto
                 {
                     IdCita = model.IdCita.Value,
@@ -800,6 +802,18 @@ public sealed class CambiarEstadoCitaDto
                         : null
                 };
 
+                if (!EstadoCitaHelper.PuedeTransicionarPorRol(
+                    citaExistente.Estado,
+                    updateDto.Estado,
+                    User.IsInRole("Administrador"),
+                    User.IsInRole("Recepcionista"),
+                    User.IsInRole("Profesional")))
+                {
+                    TempData["ErrorValidacion"] =
+                        "Su rol no puede realizar esta transición de estado.";
+                    return Redirect(returnUrlSafe);
+                }
+
                 cita = await _citaService.ActualizarAsync(
                            model.IdCita.Value,
                            updateDto,
@@ -812,6 +826,22 @@ public sealed class CambiarEstadoCitaDto
             }
             else
             {
+                var estadoInicial = EstadoCitaHelper.ResolveEstadoNombre(
+                    await BuildEstadoNombreAsync(
+                        model.IdEstado,
+                        model.Estado,
+                        "programada",
+                        ct),
+                    "programada");
+                if (!EstadoCitaHelper.PuedeCrearPorRol(
+                    estadoInicial,
+                    User.IsInRole("Administrador")))
+                {
+                    TempData["ErrorValidacion"] =
+                        "Solo administración puede crear una cita en ese estado.";
+                    return Redirect(returnUrlSafe);
+                }
+
                 var request = new Models.DTOs.CitaApiRequest
                 {
                     IdPaciente = model.IdPaciente,
@@ -819,13 +849,7 @@ public sealed class CambiarEstadoCitaDto
                     IdServicio = model.IdServicio > 0 ? model.IdServicio : null,
                     IdConsultorio = model.IdConsultorio > 0 ? model.IdConsultorio : null,
                     FechaHora = model.FechaHora,
-                    Estado = EstadoCitaHelper.ResolveEstadoNombre(
-                                 await BuildEstadoNombreAsync(
-                                     model.IdEstado,
-                                     model.Estado,
-                                     "programada",
-                                     ct),
-                                 "programada"),
+                    Estado = estadoInicial,
                     Notas = BuildNotasCita(model),
                     IdEstado = model.IdEstado > 0 ? model.IdEstado : null
                 };
@@ -1046,6 +1070,16 @@ public sealed class CambiarEstadoCitaDto
             {
                 TempData["ErrorValidacion"] = "La cita no existe o no se pudo modificar su estado.";
                 return Redirect(returnUrlSafe);
+            }
+
+            if (!EstadoCitaHelper.PuedeTransicionarPorRol(
+                citaActual.Estado,
+                estadoNormalizado,
+                User.IsInRole("Administrador"),
+                User.IsInRole("Recepcionista"),
+                User.IsInRole("Profesional")))
+            {
+                return Forbid();
             }
 
             if (User.IsInRole("Profesional"))

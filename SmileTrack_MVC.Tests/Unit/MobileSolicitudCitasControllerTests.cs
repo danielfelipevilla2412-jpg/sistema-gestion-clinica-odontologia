@@ -159,7 +159,7 @@ public sealed class MobileSolicitudCitasControllerTests
     }
 
     [Fact]
-    public async Task Solicitar_DatosValidos_RegistraCitaProgramada()
+    public async Task Solicitar_DatosValidos_RegistraSolicitudPendienteSinReservarRecursos()
     {
         await using var db = CrearContexto();
         SembrarPerfilCompleto(db);
@@ -203,6 +203,7 @@ public sealed class MobileSolicitudCitasControllerTests
         });
         db.Consultorios.Add(new Consultorio { IdConsultorio = 1, Nombre = "Consultorio 1", Estado = "activo" });
         db.EstadosCita.Add(new EstadoCita { IdEstado = 1, NombreEstado = "Programada" });
+        db.EstadosCita.Add(new EstadoCita { IdEstado = 2, NombreEstado = "Solicitada" });
         await db.SaveChangesAsync();
 
         DateTime fecha = ColombiaClock.Today.AddDays(1);
@@ -223,12 +224,14 @@ public sealed class MobileSolicitudCitasControllerTests
             CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        Assert.Equal("Programada", ok.Value!.GetType().GetProperty("estado")!.GetValue(ok.Value));
+        Assert.Equal("Solicitada", ok.Value!.GetType().GetProperty("estado")!.GetValue(ok.Value));
 
         var cita = await db.Citas.SingleAsync();
         Assert.Equal(1, cita.IdPaciente);
         Assert.Equal(1, cita.IdServicio);
-        Assert.Equal(profesional.IdProfesional, cita.IdProfesional);
-        Assert.Equal("Programada", cita.Estado);
+        Assert.Null(cita.IdProfesional);
+        Assert.Null(cita.IdConsultorio);
+        Assert.Equal(profesional.IdProfesional, cita.IdProfesionalPreferido);
+        Assert.Equal("Solicitada", cita.Estado);
     }
 }
