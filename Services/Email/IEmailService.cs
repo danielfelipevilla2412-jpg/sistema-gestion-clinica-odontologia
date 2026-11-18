@@ -4,6 +4,13 @@ public interface IEmailService
 {
     Task SendRecoveryCodeAsync(string recipientEmail, string code, CancellationToken cancellationToken = default);
 
+    Task SendProfessionalTemporaryPasswordAsync(
+        string recipientEmail,
+        string nombreProfesional,
+        string temporaryPassword,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
     /// <summary>
     /// Envía una notificación HTML al paciente cuando su cita cambia a estado Confirmada o Cancelada.
     /// </summary>

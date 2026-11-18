@@ -1838,6 +1838,7 @@ public partial class ProfesionalService : IProfesionalService
 
         int reasignadas = 0;
         int canceladas = 0;
+        var huecosReservados = new HashSet<(int IdProfesional, DateTime Inicio, DateTime Fin)>();
 
         foreach (var cita in citasAfectadas)
         {
@@ -1909,6 +1910,8 @@ public partial class ProfesionalService : IProfesionalService
                                 && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > cita.FechaHora, ct);
 
                 if (candidatoConConflicto) continue;
+                if (huecosReservados.Contains((candidato.IdProfesional, cita.FechaHora, finCita)))
+                    continue;
 
                 candidatoElegido = candidato;
                 break;
@@ -1916,6 +1919,7 @@ public partial class ProfesionalService : IProfesionalService
 
             if (candidatoElegido is not null)
             {
+                huecosReservados.Add((candidatoElegido.IdProfesional, cita.FechaHora, finCita));
                 int idAnterior = cita.IdProfesional ?? 0;
                 cita.IdProfesional = candidatoElegido.IdProfesional;
 

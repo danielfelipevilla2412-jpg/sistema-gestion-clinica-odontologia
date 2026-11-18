@@ -337,6 +337,11 @@ builder.Services.AddScoped<
 // al día siguiente (las citas en espera que ya pasaron pasan a "No asistio").
 builder.Services.AddHostedService<
     SmileTrack_MVC.Services.GestionDeCitas.CitasVencidasBackgroundService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.GestionDeCitas.IRecordatorioCitaService,
+    SmileTrack_MVC.Services.GestionDeCitas.RecordatorioCitaService>();
+builder.Services.AddHostedService<
+    SmileTrack_MVC.Services.GestionDeCitas.RecordatoriosCitasBackgroundService>();
 
 // -----------------------------------------------------------------------------
 // JWT

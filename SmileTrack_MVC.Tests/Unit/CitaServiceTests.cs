@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1379,6 +1380,69 @@ public class CitaServiceTests
 
         // Assert
         Assert.False(resultado);
+    }
+
+    [Fact]
+    public async Task ObtenerKpisGestion_ProcesaMilCitasSinDegradacionExcesiva()
+    {
+        await using var db = CrearDb();
+        var referencia = ColombiaClock.Now;
+        var inicio = new DateTime(referencia.Year, referencia.Month, 1);
+
+        var citas = Enumerable.Range(1, 1000).Select(index => new Cita
+        {
+            IdPaciente = ((index - 1) % 20) + 1,
+            FechaHora = inicio.AddHours(((index - 1) % (27 * 24))),
+            Estado = index % 4 == 0 ? "Cancelada" : "Programada",
+            DuracionMinutos = 60
+        });
+        db.Citas.AddRange(citas);
+        await db.SaveChangesAsync();
+
+        var cronometro = Stopwatch.StartNew();
+        var kpis = await CrearServicio(db).ObtenerKpisGestionAsync(ColombiaClock.Now);
+        cronometro.Stop();
+
+        Assert.Equal(1000, kpis.Total);
+        Assert.True(cronometro.Elapsed < TimeSpan.FromSeconds(5),
+            $"El cálculo de KPIs tardó {cronometro.ElapsedMilliseconds} ms.");
+    }
+
+    [Fact]
+    public async Task HayConflictoHorario_AtiendeCienConsultasConsecutivasSinResultadosContradictorios()
+    {
+        const string dbName = "db_conflictos_concurrentes";
+        var opciones = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(dbName)
+            .Options;
+
+        await using (var inicial = new AppDbContext(opciones))
+        {
+            inicial.Pacientes.Add(new Paciente { IdPaciente = 1, Nombres = "Ana", Estado = "activo" });
+            inicial.Profesionales.Add(new Profesional
+            {
+                IdProfesional = 1,
+                Nombres = "Carlos",
+                Apellidos = "Ortiz",
+                Estado = "activo",
+                RegistroMedico = "RM-CONCURRENCIA"
+            });
+            await inicial.SaveChangesAsync();
+        }
+
+        var fecha = ColombiaClock.Now.AddDays(5).AddHours(10);
+        var tareas = Enumerable.Range(1, 100).Select(async index =>
+        {
+            await using var contexto = new AppDbContext(opciones);
+            var servicio = new CitaService(contexto, NullLogger<CitaService>.Instance);
+            return await servicio.HayConflictoHorarioAsync(
+                idProfesional: 1,
+                fechaHora: fecha.AddMinutes(index % 3),
+                ct: CancellationToken.None);
+        });
+
+        var resultados = await Task.WhenAll(tareas);
+        Assert.All(resultados, resultado => Assert.False(resultado));
     }
 
     // =========================================================================

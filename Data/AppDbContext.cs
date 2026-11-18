@@ -1152,6 +1152,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(h => h.IdProfesional)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(h => new { h.IdProfesional, h.DiaSemana, h.Activo })
+                  .HasDatabaseName("IX_Horario_Profesional_DiaActivo");
         });
 
         // ── AusenciaProfesional (P-01 / U-06) ────────────────────────────────
@@ -1172,6 +1175,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(a => a.IdProfesional)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(a => new { a.IdProfesional, a.FechaInicio, a.FechaFin })
+                  .HasDatabaseName("IX_Ausencia_Profesional_Periodo");
         });
 
         // ── BloqueoProfesional (P-01 / U-06) ─────────────────────────────────
@@ -1190,6 +1196,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(b => b.IdProfesional)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(b => new { b.IdProfesional, b.FechaInicio, b.FechaFin })
+                  .HasDatabaseName("IX_Bloqueo_Profesional_Periodo");
         });
 
         // ── ProfesionalServicio (P-01 / U-06) ────────────────────────────────
@@ -1305,6 +1314,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .WithMany()
                   .HasForeignKey(r => r.IdCita)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(r => new { r.IdCita, r.Estado, r.ProgramadoPara })
+                  .HasDatabaseName("IX_Recordatorio_Cita_Duplicado");
         });
 
         // ══════════════════════════════════════════════════════════════════════════

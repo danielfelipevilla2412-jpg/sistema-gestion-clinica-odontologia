@@ -733,6 +733,107 @@ public sealed class ProfesionalServiceTests
     }
 
     [Fact]
+    public async Task RegistrarAusenciaConReasignacionAsync_NoReservaElMismoHuecoDosVeces()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+        var ausente = new Profesional
+        {
+            Nombres = "Ana",
+            Apellidos = "Ausente",
+            RegistroMedico = "RM-AUSENTE-RESERVA",
+            Estado = "activo"
+        };
+        var reemplazo = new Profesional
+        {
+            Nombres = "Carlos",
+            Apellidos = "Reemplazo",
+            RegistroMedico = "RM-REEMPLAZO-RESERVA",
+            Estado = "activo"
+        };
+        db.Profesionales.AddRange(ausente, reemplazo);
+
+        var especialidad = new Especialidad { Nombre = "Odontología General" };
+        var servicio = new Servicio
+        {
+            Nombre = "Consulta simultánea",
+            Estado = "activo",
+            DuracionMinutos = 60
+        };
+        db.Especialidades.Add(especialidad);
+        db.Servicios.Add(servicio);
+        await db.SaveChangesAsync();
+
+        servicio.IdEspecialidad = especialidad.IdEspecialidad;
+        db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+        {
+            IdProfesional = reemplazo.IdProfesional,
+            IdEspecialidad = especialidad.IdEspecialidad,
+            Principal = true
+        });
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = reemplazo.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            Activo = true
+        });
+
+        DateTime fechaCita = DateTime.Today.AddDays(5).AddHours(10);
+        db.Citas.AddRange(
+            new Cita
+            {
+                IdPaciente = 1,
+                IdProfesional = ausente.IdProfesional,
+                IdServicio = servicio.IdServicio,
+                FechaHora = fechaCita,
+                DuracionMinutos = 60,
+                Estado = "Programada"
+            },
+            new Cita
+            {
+                IdPaciente = 2,
+                IdProfesional = ausente.IdProfesional,
+                IdServicio = servicio.IdServicio,
+                FechaHora = fechaCita,
+                DuracionMinutos = 60,
+                Estado = "Programada"
+            });
+        string dia = fechaCita.DayOfWeek switch
+        {
+            DayOfWeek.Monday => "Lunes",
+            DayOfWeek.Tuesday => "Martes",
+            DayOfWeek.Wednesday => "Miercoles",
+            DayOfWeek.Thursday => "Jueves",
+            DayOfWeek.Friday => "Viernes",
+            DayOfWeek.Saturday => "Sabado",
+            _ => "Domingo"
+        };
+        db.HorariosProfesional.Add(new HorarioProfesional
+        {
+            IdProfesional = reemplazo.IdProfesional,
+            DiaSemana = dia,
+            HoraInicio = new TimeOnly(8, 0),
+            HoraFin = new TimeOnly(18, 0),
+            Activo = true
+        });
+        await db.SaveChangesAsync();
+
+        var resultado = await new ProfesionalService(db, NullLogger<ProfesionalService>.Instance)
+            .RegistrarAusenciaConReasignacionAsync(
+                ausente.IdProfesional,
+                fechaCita.AddHours(-2),
+                fechaCita.AddHours(2),
+                "incapacidad");
+
+        Assert.Equal(2, resultado.TotalCitasAfectadas);
+        Assert.Equal(1, resultado.TotalReasignadas);
+        Assert.Equal(1, resultado.TotalCanceladas);
+        Assert.Single(await db.Citas.Where(c => c.IdProfesional == reemplazo.IdProfesional).ToListAsync());
+    }
+
+    [Fact]
     public async Task RegistrarAusenciaConReasignacionAsync_CubreCrucesDeFechaEnCitasYAusencias()
     {
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
