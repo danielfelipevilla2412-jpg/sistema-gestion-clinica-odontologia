@@ -1197,7 +1197,7 @@ public class GestionCitasController(
                     IdCita,
                     MotivoCancelacion,
                     ct: ct,
-                    operadorId: operadorId,
+                    idUsuarioActor: operadorId,
                     ipOrigen: ipActor);
             }
             catch (InvalidOperationException ioex)

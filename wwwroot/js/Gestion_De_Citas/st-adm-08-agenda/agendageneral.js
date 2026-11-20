@@ -353,6 +353,7 @@ const initializeNewAppointmentModal = () => {
     if (formElement.dataset.initialized === 'true') return;
     formElement.dataset.initialized = 'true';
     let lastFocusedElement = null;
+    let isSubmitting = false;
 
     const getConfiguredDuration = () => {
         const duration = Number(safeGetElement('weekLabel')?.dataset.durationMinutes);
@@ -410,6 +411,11 @@ const initializeNewAppointmentModal = () => {
         statusSelect?.querySelectorAll('[data-transient-status]').forEach(option => option.remove());
         formElement.reset();
         setFormStatus('');
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.textContent = window.i18n?.t?.(saveButton.dataset.i18n || 'adm08_form_guardar_cita')
+                || 'Guardar Cita';
+        }
         if (lastFocusedElement instanceof HTMLElement) {
             lastFocusedElement.focus();
         } else {
@@ -478,35 +484,29 @@ const initializeNewAppointmentModal = () => {
 
     const handleNewAppointmentFormSubmit = async (event) => {
         event.preventDefault();
-
-        if (saveButton.disabled) return;
-
+        if (isSubmitting) return;
+        isSubmitting = true;
         saveButton.disabled = true;
-        const originalButtonText = saveButton.textContent;
+        const originalButtonText = window.i18n?.t?.(saveButton.dataset.i18n || 'adm08_form_guardar_cita')
+            || 'Guardar Cita';
         saveButton.textContent = 'Guardando...';
         formElement.setAttribute('aria-busy', 'true');
         setFormStatus('Enviando la cita al servidor...');
 
         try {
-            const parseIntOrNull = (val) => {
-                const parsed = parseInt(val, 10);
-                return Number.isFinite(parsed) ? parsed : null;
-            };
-
             const formDataPayload = {
-                IdCita: parseIntOrNull(formElement.querySelector('#appointmentId')?.value || ''),
+                IdCita: Number(formElement.querySelector('#appointmentId')?.value) || null,
                 Fecha: formElement.querySelector('#newApptDate').value,
                 Estado: formElement.querySelector('#newApptStatus').value,
                 HoraInicio: formElement.querySelector('#newApptStartTime').value,
-                IdPaciente: parseIntOrNull(formElement.querySelector('#newApptPatient').value),
-                IdProfesional: parseIntOrNull(formElement.querySelector('#newApptProfessional').value),
-                IdConsultorio: parseIntOrNull(formElement.querySelector('#newApptOffice').value),
-                IdServicio: parseIntOrNull(formElement.querySelector('#newApptService').value),
+                IdPaciente: Number(formElement.querySelector('#newApptPatient').value) || null,
+                IdProfesional: Number(formElement.querySelector('#newApptProfessional').value) || null,
+                IdConsultorio: Number(formElement.querySelector('#newApptOffice').value) || null,
+                IdServicio: Number(formElement.querySelector('#newApptService').value) || null,
                 Notas: formElement.querySelector('#newApptNotes').value
             };
 
             const derivedEndTime = calculateAppointmentEndTime(formDataPayload.HoraInicio, getConfiguredDuration());
-
             if (!formDataPayload.Fecha || !formDataPayload.HoraInicio || !formDataPayload.IdPaciente || !formDataPayload.IdProfesional || !formDataPayload.IdConsultorio || !formDataPayload.IdServicio) {
                 const message = 'Completa todos los campos obligatorios antes de guardar la cita.';
                 setFormStatus(message, true);
@@ -514,33 +514,16 @@ const initializeNewAppointmentModal = () => {
                 return;
             }
 
-            if (window.AppointmentUtils && window.ValidationUtils) {
-                formElement.querySelectorAll('input, select').forEach(input => window.ValidationUtils.clearError(input));
-
-                const validationErrors = window.AppointmentUtils.validateAppointmentTime(formDataPayload.Fecha, formDataPayload.HoraInicio, derivedEndTime);
+            if (window.AppointmentUtils) {
+                const validationErrors = window.AppointmentUtils.validateAppointmentTime(
+                    formDataPayload.Fecha,
+                    formDataPayload.HoraInicio,
+                    derivedEndTime
+                );
                 if (validationErrors.length > 0) {
-                    validationErrors.forEach(err => {
-                        if (err.field === 'general') {
-                            if (window.ToastService) window.ToastService.warning(`⚠️ ${err.message}`);
-                        } else {
-                            let inputId = '';
-                            if (err.field === 'fecha') inputId = 'newApptDate';
-                            if (err.field === 'horaInicio') inputId = 'newApptStartTime';
-                            if (err.field === 'horaFin') inputId = 'newApptEndTime';
-                            
-                            const inputEl = formElement.querySelector(`#${inputId}`);
-                            if (inputEl) {
-                                window.ValidationUtils.showError(inputEl, null, err.message);
-                            } else {
-                                if (window.ToastService) window.ToastService.warning(`⚠️ ${err.message}`);
-                            }
-                        }
-                    });
-                    
-                    if (!validationErrors.some(e => e.field === 'general')) {
-                        if (window.ToastService) window.ToastService.warning('⚠️ Verifique los campos resaltados en rojo');
-                    }
-                    setFormStatus('Corrige los campos indicados antes de enviar.', true);
+                    const message = validationErrors.map(error => error.message).join(' ');
+                    setFormStatus(message, true);
+                    if (window.ToastService) window.ToastService.warning(`⚠️ ${message}`);
                     return;
                 }
             }
@@ -578,6 +561,7 @@ const initializeNewAppointmentModal = () => {
             setFormStatus(message, true);
             if (window.ToastService) window.ToastService.error(`❌ ${message}`);
         } finally {
+            isSubmitting = false;
             saveButton.disabled = false;
             saveButton.textContent = originalButtonText;
             formElement.removeAttribute('aria-busy');

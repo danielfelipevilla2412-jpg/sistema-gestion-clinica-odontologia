@@ -277,7 +277,7 @@ Se contrastaron los hallazgos anteriores con el código vigente el 20 de noviemb
 
 ### Validación posterior
 
-La suite completa `SmileTrack_MVC.Tests` pasó **522/522 pruebas** en `net9.0`, incluida una prueba de integración SQL Server que valida rollback y persistencia de estado, historial, auditoría y notificación de citas. Esta cobertura no acredita los demás flujos SQL ni el despliegue.
+La suite completa `SmileTrack_MVC.Tests` obtuvo **521 pruebas aprobadas y 1 omitida de 522 casos** en `net9.0`, incluida una prueba de integración SQL Server que valida rollback y persistencia de estado, historial, auditoría y notificación de citas. Esta cobertura no acredita los demás flujos SQL ni el despliegue.
 
 ### Decisiones de producto confirmadas
 

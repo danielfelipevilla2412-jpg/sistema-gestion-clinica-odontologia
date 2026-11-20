@@ -505,7 +505,7 @@ public class CitaServiceTests
             IdConsultorio = datos.Consultorio.IdConsultorio,
             FechaHora = fecha,
             Estado = "Programada"
-        }, operadorId: 31, ipOrigen: "127.0.0.3");
+        }, idUsuarioActor: 31, ipOrigen: "127.0.0.3");
 
         Assert.NotNull(cita);
         Assert.Equal("Agendada", cita.Estado);
@@ -1444,7 +1444,7 @@ public class CitaServiceTests
         bool resultado = await CrearServicio(db).CancelarAsync(
             cita.IdCita,
             "Cancelación administrativa",
-            operadorId: 17,
+            idUsuarioActor: 17,
             ipOrigen: "192.0.2.2");
 
         // Assert

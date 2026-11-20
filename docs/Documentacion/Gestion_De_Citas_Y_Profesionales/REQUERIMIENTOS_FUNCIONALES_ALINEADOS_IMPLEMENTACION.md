@@ -228,7 +228,7 @@ El ejemplo “Gestión de citas — RF8 — permitir crear una orden de compra�
 
 ## Estado de verificación
 
-Validación automatizada al 2026-11-20: **522 pruebas aprobadas, 0 fallidas**; `git diff --check` sin errores. La migración se aplicó a una base de pruebas SQL Server desechable y la prueba de integración valida el cambio de estado, su auditoría/historial y la notificación. Node.js no está disponible en este entorno, por lo que no se repitió `node --check`; esta aplicación no valida otras bases ni el despliegue.
+Validación automatizada al 2026-11-20: **521 pruebas aprobadas, 0 fallidas y 1 omitida de 522 casos**; `git diff --check` sin errores. La migración se aplicó a una base de pruebas SQL Server desechable y la prueba de integración valida el cambio de estado, su auditoría/historial y la notificación. Node.js no está disponible en este entorno, por lo que no se repitió `node --check`; esta aplicación no valida otras bases ni el despliegue.
 
 | ID | Resultado del código y pruebas disponibles | Límite que permanece |
 |---|---|---|

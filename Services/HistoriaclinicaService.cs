@@ -272,14 +272,10 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
 
         // El JSON conserva solo el mapeo del modelo 3D; los estados clínicos viven
         // en Registro_Odontograma.
-        var actual = string.IsNullOrWhiteSpace(historia.ObservacionesGenerales)
-            ? new JsonObject()
-            : (JsonNode.Parse(historia.ObservacionesGenerales) as JsonObject) ?? new JsonObject();
-
-        actual["mapeoFDI"] = JsonSerializer.SerializeToNode(request.MapeoFDI);
-        actual.Remove("registros");
-        actual["actualizadoEn"] = DateTime.UtcNow;
-        historia.ObservacionesGenerales = actual.ToJsonString();
+        estadoActual["mapeoFDI"] = JsonSerializer.SerializeToNode(request.MapeoFDI);
+        estadoActual.Remove("registros");
+        estadoActual["actualizadoEn"] = DateTime.UtcNow;
+        historia.ObservacionesGenerales = estadoActual.ToJsonString();
 
         try
         {

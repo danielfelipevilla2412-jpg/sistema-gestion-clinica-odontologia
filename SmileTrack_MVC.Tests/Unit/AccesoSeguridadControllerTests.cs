@@ -30,6 +30,33 @@ namespace SmileTrack_MVC.Tests.Unit;
 
 public sealed class AccesoSeguridadControllerTests
 {
+    private static string ObtenerDirectorioDatabase()
+    {
+        var candidatos = new[]
+        {
+            Directory.GetCurrentDirectory(),
+            AppContext.BaseDirectory
+        };
+
+        foreach (string candidato in candidatos)
+        {
+            var directorio = new DirectoryInfo(candidato);
+            while (directorio is not null)
+            {
+                string databaseDirectory = Path.Combine(directorio.FullName, "Database");
+                if (Directory.Exists(databaseDirectory))
+                {
+                    return databaseDirectory;
+                }
+
+                directorio = directorio.Parent;
+            }
+        }
+
+        throw new DirectoryNotFoundException(
+            "No se encontró el directorio Database desde el directorio de trabajo ni desde el directorio de salida de pruebas.");
+    }
+
     private static AppDbContext CrearContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -481,8 +508,7 @@ public sealed class AccesoSeguridadControllerTests
     [Fact]
     public void ScriptsUsuariosPrueba_UsanLaContrasenaCompartidaSolicitada()
     {
-        string databaseDirectory = Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "../../../../Database"));
+        string databaseDirectory = ObtenerDirectorioDatabase();
         string[] archivosSeed =
         {
             "seed-usuarios-prueba.sql",

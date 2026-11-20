@@ -34,7 +34,7 @@ Los conteos son una señal para inspección, no una calificación de calidad ni 
 
 ## Validación
 
-La suite completa pasó **522/522 pruebas** en `net9.0`, incluida una prueba real de `CitaService.CambiarEstadoAsync` en SQL Server. La prueba valida rollback ante fallo de FK y persistencia de estado, historial, auditoría y notificación en el camino válido. La migración idempotente eliminó una restricción antigua incompatible y la prueba limpió sus fixtures. La línea base Coverlet de `SmileTrack_MVC` es **42,98 % de líneas (13.178/30.654)** y **25,52 % de ramas (3.385/13.262)**; aún no se fija umbral. El build reportó advertencias nullable existentes en `ViewComponentsTests.cs`; no se atribuyen a estos cambios. Los demás flujos SQL y la configuración de producción siguen pendientes de validación.
+La suite completa obtuvo **521 pruebas aprobadas y 1 omitida de 522 casos** en `net9.0`, incluida una prueba real de `CitaService.CambiarEstadoAsync` en SQL Server. La prueba valida rollback ante fallo de FK y persistencia de estado, historial, auditoría y notificación en el camino válido. La migración idempotente eliminó una restricción antigua incompatible y la prueba limpió sus fixtures. La línea base Coverlet de `SmileTrack_MVC` es **42,98 % de líneas (13.178/30.654)** y **25,52 % de ramas (3.385/13.262)**; aún no se fija umbral. El build reportó advertencias nullable existentes en `ViewComponentsTests.cs`; no se atribuyen a estos cambios. Los demás flujos SQL y la configuración de producción siguen pendientes de validación.
 
 ## Deudas y límites pendientes
 

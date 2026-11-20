@@ -7,7 +7,7 @@
 
 El análisis de 2025 se contrastó con la implementación actual. Las mejoras prioritarias en agenda, especialidades, ausencias, cancelación, lista de espera e historial de estados ya tienen implementación. Se extrajeron consultas, disponibilidad, dashboards, horarios y ausencias a servicios específicos y se unificó el envío manual de recordatorios. La auditoría de los flujos principales de citas, incluida la asignación automática desde lista de espera, se centralizó; siguen pendientes cambios graduales en acciones/comandos y ampliar la validación transaccional SQL Server más allá del cambio de estado.
 
-La suite completa pasó **522/522 pruebas** en `net9.0`, incluida una prueba SQL Server que valida rollback y persistencia de estado, historial, auditoría y notificación de citas. La línea base Coverlet de `SmileTrack_MVC` es 42,98 % de líneas y 25,52 % de ramas; no se ha fijado un umbral ni validado el despliegue de producción. La integración SQL se limita a este flujo y no acredita los demás casos ni producción.
+La suite completa obtuvo **521 pruebas aprobadas y 1 omitida de 522 casos** en `net9.0`, incluida una prueba SQL Server que valida rollback y persistencia de estado, historial, auditoría y notificación de citas. La línea base Coverlet de `SmileTrack_MVC` es 42,98 % de líneas y 25,52 % de ramas; no se ha fijado un umbral ni validado el despliegue de producción. La integración SQL se limita a este flujo y no acredita los demás casos ni producción.
 
 ## Documentos vigentes
 

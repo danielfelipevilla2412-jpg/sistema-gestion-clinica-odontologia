@@ -619,6 +619,10 @@ const submitCitaForm = (event) => {
 
     const submitButton = form.querySelector('#btnGuardarCita');
     if (submitButton) {
+        if (submitButton.disabled) {
+            event.preventDefault();
+            return;
+        }
         submitButton.disabled = true;
         submitButton.textContent = 'Guardando...';
     }
@@ -751,6 +755,11 @@ const saveAppointmentEdit = (id) => {
     });
 
     document.body.appendChild(formElement);
+    const editButton = safeGetElement('modalAppointmentEdit');
+    if (editButton) {
+        editButton.disabled = true;
+        editButton.textContent = 'Guardando...';
+    }
     formElement.submit();
 };
 

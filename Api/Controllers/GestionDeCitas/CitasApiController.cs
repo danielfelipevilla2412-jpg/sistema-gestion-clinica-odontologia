@@ -1123,7 +1123,7 @@ public sealed class CitasApiController : ControllerBase
                     motivo,
                     anticipacionMinima,
                     ct,
-                    operadorId: idUsuarioActor,
+                    idUsuarioActor: idUsuarioActor,
                     ipOrigen: ipActor))
                 return NotFound(new { success = false, message = "Cita no encontrada." });
 

@@ -418,7 +418,7 @@ public class CitaService : ICitaService
             };
 
             _context.Citas.Add(cita);
-            AgregarHistorialEstado(cita, operadorId, "Cita creada");
+            AgregarHistorialEstado(cita, idUsuarioActor, "Cita creada");
             await _context.SaveChangesAsync(ct);
             _context.Auditorias.Add(new Auditoria
             {
@@ -436,7 +436,7 @@ public class CitaService : ICitaService
                     cita.Estado,
                     cita.FechaHora
                 }),
-                IdUsuario = operadorId,
+                IdUsuario = idUsuarioActor,
                 IpOrigen = ipOrigen ?? "CitaService",
                 Fecha = ColombiaClock.Now
             });
@@ -474,7 +474,7 @@ public class CitaService : ICitaService
         if (request is null)
             throw new ArgumentNullException(nameof(request));
 
-        request.IdUsuarioModificacion ??= idUsuarioActor;
+        request.IdUsuarioModificacion ??= operadorId;
 
         if (id != request.IdCita || request.IdPaciente <= 0)
             throw new InvalidOperationException("Datos de cita inválidos.");
@@ -889,7 +889,7 @@ public class CitaService : ICitaService
         }
 
         string motivoHistorial = $"Cita cancelada (estado anterior: '{estadoAnteriorCancelar}', motivo: '{motivoCancelacion}')";
-        AgregarHistorialEstado(cita, operadorId, motivoHistorial);
+        AgregarHistorialEstado(cita, idUsuarioActor, motivoHistorial);
         _context.Auditorias.Add(new Auditoria
         {
             Accion = "UPDATE",
@@ -917,7 +917,7 @@ public class CitaService : ICitaService
                 cita.IdConsultorio,
                 MotivoCancelacion = motivoCancelacion
             }),
-            IdUsuario = operadorId,
+            IdUsuario = idUsuarioActor,
             IpOrigen = ipOrigen ?? "CitaService",
             Fecha = ColombiaClock.Now
         });
@@ -1386,13 +1386,10 @@ public class CitaService : ICitaService
             Fecha = ColombiaClock.Now
         });
         await _context.SaveChangesAsync(ct);
-        await RegistrarHistorialEstadoAsync(
-            cita.IdCita,
-            cita.IdEstado,
-            cita.Estado,
+        AgregarHistorialEstado(
+            cita,
             idUsuarioActor,
-            "Cita confirmada y asignada por recepción.",
-            ct);
+            "Cita confirmada y asignada por recepción.");
 
         // Notificar al paciente por correo si hay servicio de email configurado
         if (_emailService is not null && cita.Paciente is not null && !string.IsNullOrWhiteSpace(cita.Paciente.Correo))

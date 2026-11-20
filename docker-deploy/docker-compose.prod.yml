@@ -9,7 +9,7 @@ services:
     container_name: smiletrack-sqlserver
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "SmileTrack#2025"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Define_MSSQL_SA_PASSWORD_in_.env}
       MSSQL_PID: "Express"
     # Puerto NO expuesto al exterior — solo accesible desde la red interna Docker
     expose:
@@ -40,17 +40,17 @@ services:
       ASPNETCORE_ENVIRONMENT: "Production"
       Storage__ClinicalDocumentsPath: "/app/App_Data/clinical-documents"
       # Cadena de conexión apunta al contenedor sqlserver
-      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SmileTrackDB;User Id=sa;Password=SmileTrack#2025;TrustServerCertificate=True;Connect Timeout=30;"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SmileTrackDB;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Define_MSSQL_SA_PASSWORD_in_.env};TrustServerCertificate=True;Connect Timeout=30;"
       # JWT — clave secreta y configuración de tokens
-      Jwt__Key: "SmileTrack_Secret_Key_Production_2025_Secure_Jwt_Token_Signing_Key"
+      Jwt__Key: ${JWT_KEY:?Define_JWT_KEY_in_.env}
       Jwt__Issuer: "SmileTrack"
       Jwt__Audience: "SmileTrackClient"
       Jwt__ExpiryMinutes: "60"
       # SMTP para correos
       Smtp__Host: "smtp.gmail.com"
       Smtp__Port: "587"
-      Smtp__Username: "smiletrack18@gmail.com"
-      Smtp__Password: "tqox azaz jwtw twpp"
+      Smtp__Username: ${SMTP_USERNAME:?Define_SMTP_USERNAME_in_.env}
+      Smtp__Password: ${SMTP_PASSWORD:?Define_SMTP_PASSWORD_in_.env}
       Smtp__EnableSsl: "true"
     volumes:
       - smiletrack-dataprotection:/root/.aspnet/DataProtection-Keys

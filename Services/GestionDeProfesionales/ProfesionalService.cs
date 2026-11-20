@@ -1143,21 +1143,11 @@ public partial class ProfesionalService : IProfesionalService
                 _context.ProfesionalServicios.Add(new ProfesionalServicio
                 {
                     IdProfesional = id,
-                    IdServicio = s.IdServicio,
-                    NombreServicio = s.Nombre,
-                    PrecioBase = s.Precio,
-                    PrecioPersonalizado = precioPersonalizado,
-                    PrecioEfectivo = precioPersonalizado ?? s.Precio,
-                    Activo = true
-                };
-            })
-            .OrderBy(s => s.NombreServicio)
-            .ToList();
-        }
-        else
-        {
-            // Sin especialidades ni fallback disponible: lista vacía
-            servicios = [];
+                    IdServicio = solicitud.IdServicio,
+                    PrecioPersonalizado = solicitud.PrecioPersonalizado,
+                    Activo = solicitud.Activo
+                });
+            }
         }
 
         await _context.SaveChangesAsync(ct);
@@ -1329,7 +1319,7 @@ public partial class ProfesionalService : IProfesionalService
         string? observaciones = null,
         CancellationToken ct = default)
         => _ausenciaService.RegistrarAusenciaConReasignacionAsync(
-            idProfesional, fechaInicio, fechaFin, motivo, operadorId, observaciones, ct);
+            idProfesional, fechaInicio, fechaFin, motivo, idUsuarioActor, observaciones, ct);
     // ── Excepciones internas ──────────────────────────────────────────────────
 
     private sealed class CorreoDuplicadoException : Exception { }

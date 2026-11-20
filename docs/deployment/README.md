@@ -5,7 +5,7 @@ Este paquete ejecuta la imagen publicada `johanmaa2/smiletrack-web:latest` junto
 ## Contenido
 
 - `docker-compose.prod.yml`: servicios web, SQL Server e inicializador.
-- `.env.production.example`: plantilla de variables; no contiene credenciales reales.
+- `.env.production.example`: plantilla con marcadores; reemplázalos por secretos únicos antes del despliegue.
 - `Database/SCRIPT_SQL_DEPLOYMENT_SMILETRACK.sql`: esquema limpio y catalogos minimos.
 - `Database/init-db.sh`: inicializa la base de datos una vez.
 - `Database/MIGRATION_Consentimiento.sql` y `Database/MIGRATION_Reporte_Generado.sql`: actualizan bases existentes.
@@ -36,7 +36,7 @@ Para el Compose local desde la raíz del repositorio:
 
 ```powershell
 Copy-Item .env.example .env
-# Completa MSSQL_SA_PASSWORD y JWT_KEY en .env; no compartas el archivo.
+# Completa MSSQL_SA_PASSWORD, JWT_KEY, SMTP_USERNAME y SMTP_PASSWORD en .env; no compartas el archivo.
 docker compose config --quiet
 docker compose up -d --build
 docker compose ps
@@ -104,7 +104,7 @@ Restringe el acceso al directorio `backups`, cifra las copias fuera del host y p
    chmod 600 .env
    ```
 
-3. Configura `MSSQL_SA_PASSWORD` y `JWT_KEY` con secretos unicos. Configura SMTP con credenciales de aplicacion si la clinica enviara correos. No compartas ni subas el `.env`.
+3. Configura `MSSQL_SA_PASSWORD` y `JWT_KEY` con secretos únicos. Si se enviarán correos, configura `SMTP_USERNAME` y `SMTP_PASSWORD` con credenciales de aplicación. No compartas ni subas el `.env`.
 4. Mantén `REDIRECT_HTTP_TO_HTTPS=true` para produccion. Configura `KNOWN_PROXY_IP` con la IP del proxy inverso que conecta directamente a la aplicacion; esto permite validar `X-Forwarded-Proto` y emitir cookies seguras cuando el navegador usa HTTPS.
 5. Verifica la configuracion sin mostrar los secretos:
 
