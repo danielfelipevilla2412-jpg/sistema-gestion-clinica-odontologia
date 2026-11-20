@@ -52,8 +52,8 @@ const ESTADOS = [
     { key: 'protesis',   label: 'Prótesis',   color: '#c2410c', ico: '◇' },
 ];
 
-const MODELO_ADULTO = '7f5b381c66674e0a969e8db04d139666';
-const SKETCHFAB_API_VERSION = '1.12.1';
+const MODELO_ADULTO = window.SmileTrackOdontograma3DConfig.modelId;
+const SKETCHFAB_API_VERSION = window.SmileTrackOdontograma3DConfig.apiVersion;
 
 const MAPEO_FDI = {
     '11': 'Incisivo Central Superior Derecho',   '12': 'Incisivo Lateral Superior Derecho',
@@ -357,12 +357,20 @@ function resetearMapeo() {
 function generarBotonesMapeo() {
     const grid = safeGetElement('mapeo-grid');
     if (!grid) return;
-    grid.innerHTML = Object.keys(MAPEO_FDI).map(num => {
+    grid.replaceChildren();
+    Object.keys(MAPEO_FDI).forEach(num => {
         const mapeado = Object.entries(mapeoFDI).some(([instanceId, numero]) =>
             numero === num && !/^fdi-\d{2}$/.test(instanceId)
         );
-        return `<button class="mapeo-btn ${mapeado ? 'mapped' : ''}" type="button" aria-pressed="${mapeado}" onclick="asignarFDI('${num}')" title="${MAPEO_FDI[num]}">${num}</button>`;
-    }).join('');
+        const button = document.createElement('button');
+        button.className = `mapeo-btn${mapeado ? ' mapped' : ''}`;
+        button.type = 'button';
+        button.setAttribute('aria-pressed', String(mapeado));
+        button.title = MAPEO_FDI[num];
+        button.textContent = num;
+        button.addEventListener('click', () => asignarFDI(num));
+        grid.appendChild(button);
+    });
 }
 
 async function asignarFDI(numeroFDI) {
@@ -382,15 +390,9 @@ async function asignarFDI(numeroFDI) {
             && mappedInstanceId !== instanceId
             && mappedInstanceId !== fallbackInstanceId
     );
-    if (instanciaExistente) {
-        showToast(`El diente ${numeroFDI} ya está asignado a otra pieza.`, 'warning');
-        return;
-    }
-
     const numeroAnterior = mapeoFDI[instanceId];
-    if (numeroAnterior && numeroAnterior !== numeroFDI
-        && baseDatosTratamientos[instanceId]?.tratamientos?.length) {
-        showToast('No se puede cambiar la numeración de una pieza con historial clínico.', 'warning');
+    if (instanciaExistente && !numeroAnterior) {
+        showToast(`El diente ${numeroFDI} ya está asignado a otra pieza.`, 'warning');
         return;
     }
 
@@ -398,24 +400,41 @@ async function asignarFDI(numeroFDI) {
     const registrosPrevios = baseDatosTratamientos;
     mapeoFDI = { ...mapeoFDI };
     baseDatosTratamientos = { ...baseDatosTratamientos };
-    const registroFallback = instanceId === fallbackInstanceId
-        ? null
-        : baseDatosTratamientos[fallbackInstanceId];
+    if (instanciaExistente) {
+        mapeoFDI[instanciaExistente] = numeroAnterior;
+    } else if (numeroAnterior) {
+        const fallbackAnteriorId = `fdi-${numeroAnterior}`;
+        const registroFallbackAnterior = baseDatosTratamientos[fallbackAnteriorId];
+        if (registroFallbackAnterior && fallbackAnteriorId !== instanceId) {
+            const registroNodo = baseDatosTratamientos[instanceId];
+            baseDatosTratamientos[instanceId] = registroNodo
+                ? {
+                    ...registroNodo,
+                    tratamientos: [...registroNodo.tratamientos, ...registroFallbackAnterior.tratamientos]
+                        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+                }
+                : registroFallbackAnterior;
+            delete baseDatosTratamientos[fallbackAnteriorId];
+            delete mapeoFDI[fallbackAnteriorId];
+        }
+    }
 
-    if (instanceId !== fallbackInstanceId && mapeoFDI[fallbackInstanceId] === numeroFDI) {
+    if (mapeoFDI[fallbackInstanceId] === numeroFDI && fallbackInstanceId !== instanceId) {
+        const registroFallback = baseDatosTratamientos[fallbackInstanceId];
+        if (registroFallback) {
+            const registroNodo = baseDatosTratamientos[instanceId];
+            baseDatosTratamientos[instanceId] = registroNodo
+                ? {
+                    ...registroNodo,
+                    tratamientos: [...registroNodo.tratamientos, ...registroFallback.tratamientos]
+                        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+                }
+                : registroFallback;
+            delete baseDatosTratamientos[fallbackInstanceId];
+        }
         delete mapeoFDI[fallbackInstanceId];
     }
-    if (registroFallback) {
-        const registroNodo = baseDatosTratamientos[instanceId];
-        baseDatosTratamientos[instanceId] = registroNodo
-            ? {
-                ...registroNodo,
-                tratamientos: [...registroNodo.tratamientos, ...registroFallback.tratamientos]
-                    .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
-            }
-            : registroFallback;
-        delete baseDatosTratamientos[fallbackInstanceId];
-    }
+
     mapeoFDI[instanceId] = numeroFDI;
 
     const nombre = `${numeroFDI} - ${MAPEO_FDI[numeroFDI]}`;

@@ -143,6 +143,109 @@ public class HistoriaClinicaStructuredDataTests
     }
 
     [Fact]
+    public async Task Stodo03Historial_MuestraEnMiniElEstadoActualDelFdiRemapeado()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, profesional) = CrearControlador(db);
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow,
+            Activa = true,
+            ObservacionesGenerales = JsonSerializer.Serialize(new
+            {
+                mapeoFDI = new Dictionary<string, string> { ["node-a"] = "12" }
+            })
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+
+        var fechaAnterior = DateTime.UtcNow.AddDays(-1);
+        db.RegistrosOdontograma.AddRange(
+            new RegistroOdontograma
+            {
+                IdHistoria = historia.IdHistoria,
+                NumeroFdi = "11",
+                Estado = "caries",
+                FechaRegistro = fechaAnterior,
+                IdProfesional = profesional.IdProfesional
+            },
+            new RegistroOdontograma
+            {
+                IdHistoria = historia.IdHistoria,
+                NumeroFdi = "11",
+                Estado = "sin_registro",
+                FechaRegistro = DateTime.UtcNow,
+                IdProfesional = profesional.IdProfesional
+            },
+            new RegistroOdontograma
+            {
+                IdHistoria = historia.IdHistoria,
+                NumeroFdi = "12",
+                Estado = "caries",
+                Observacion = "Lesión",
+                FechaRegistro = DateTime.UtcNow,
+                IdProfesional = profesional.IdProfesional
+            });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<ViewResult>(
+            await controller.Stodo03Historial(paciente.IdPaciente, null, null));
+        var model = Assert.IsType<HistorialPacienteViewModel>(result.Model);
+        using var estado = JsonDocument.Parse(model.Odontograma.EstadoPersistido!);
+
+        Assert.False(estado.RootElement.GetProperty("registros").TryGetProperty("fdi-11", out _));
+        Assert.Equal(
+            "caries",
+            estado.RootElement.GetProperty("registros").GetProperty("node-a")
+                .GetProperty("tratamientos")[0].GetProperty("key").GetString());
+        Assert.Equal("12", estado.RootElement.GetProperty("mapeoFDI").GetProperty("node-a").GetString());
+    }
+
+    [Fact]
+    public async Task ObtenerOdontogramaHasta_DevuelveElMapeoFDIVigenteEnLaFecha()
+    {
+        await using var db = await CrearBaseAsync();
+        var (controller, paciente, _) = CrearControlador(db);
+        var fechaMapeoAnterior = DateTime.UtcNow.AddDays(-2);
+        var fechaMapeoNuevo = DateTime.UtcNow.AddDays(-1);
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = fechaMapeoAnterior,
+            Activa = true,
+            ObservacionesGenerales = JsonSerializer.Serialize(new
+            {
+                mapeoFDI = new Dictionary<string, string> { ["node-a"] = "12" },
+                mapeoFDIHistorial = new[]
+                {
+                    new
+                    {
+                        fecha = fechaMapeoAnterior,
+                        mapeoFDI = new Dictionary<string, string> { ["node-a"] = "11" }
+                    },
+                    new
+                    {
+                        fecha = fechaMapeoNuevo,
+                        mapeoFDI = new Dictionary<string, string> { ["node-a"] = "12" }
+                    }
+                }
+            })
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<OkObjectResult>(await controller.ObtenerOdontogramaHasta(
+            paciente.IdPaciente,
+            DateOnly.FromDateTime(fechaMapeoAnterior)));
+        using var response = JsonDocument.Parse(JsonSerializer.Serialize(result.Value));
+
+        Assert.Equal(
+            "11",
+            response.RootElement.GetProperty("mapeoFDI").GetProperty("node-a").GetString());
+    }
+
+    [Fact]
     public async Task Stodo03Historial_SinMapeoConservaCompatibilidadConIdentificadorFdi()
     {
         await using var db = await CrearBaseAsync();

@@ -130,6 +130,37 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         if (!historia.Activa)
             historia.Activa = true;
 
+        JsonObject estadoActual;
+        try
+        {
+            estadoActual = string.IsNullOrWhiteSpace(historia.ObservacionesGenerales)
+                ? new JsonObject()
+                : JsonNode.Parse(historia.ObservacionesGenerales) as JsonObject ?? new JsonObject();
+        }
+        catch (JsonException)
+        {
+            estadoActual = new JsonObject();
+        }
+
+        var mapeoAnterior = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (estadoActual["mapeoFDI"] is JsonObject mapeoAnteriorJson)
+        {
+            foreach (var (instanceId, numeroNode) in mapeoAnteriorJson)
+            {
+                string? numeroFdi = numeroNode?.ToString();
+                if (!string.IsNullOrWhiteSpace(numeroFdi))
+                    mapeoAnterior[instanceId] = numeroFdi;
+            }
+        }
+
+        var numerosFdiRemapeados = mapeoAnterior
+            .Where(asignacion => !request.MapeoFDI.TryGetValue(asignacion.Key, out var numeroNuevo)
+                || !string.Equals(asignacion.Value, numeroNuevo, StringComparison.Ordinal))
+            .Select(asignacion => asignacion.Value)
+            .Where(numeroFdi => !request.MapeoFDI.Values.Contains(numeroFdi, StringComparer.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
         foreach (var (instanceId, registroPieza) in request.Registros)
         {
             string numeroFdi = request.MapeoFDI[instanceId];
@@ -171,6 +202,72 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
             }
 
             ultimo.Fecha = fechaRegistro.ToString("O");
+        }
+
+        foreach (var numeroFdi in numerosFdiRemapeados)
+        {
+            var registroActual = await _context.RegistrosOdontograma
+                .Where(registro => registro.IdHistoria == historia.IdHistoria && registro.NumeroFdi == numeroFdi)
+                .OrderByDescending(registro => registro.FechaRegistro)
+                .FirstOrDefaultAsync(ct);
+
+            if (registroActual is null
+                || string.Equals(registroActual.Estado, "sin_registro", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            DateTime fechaRegistro = DateTime.UtcNow;
+            if (fechaRegistro <= registroActual.FechaRegistro)
+                fechaRegistro = registroActual.FechaRegistro.AddTicks(1);
+            _context.RegistrosOdontograma.Add(new RegistroOdontograma
+            {
+                IdHistoria = historia.IdHistoria,
+                NumeroFdi = numeroFdi,
+                Estado = "sin_registro",
+                FechaRegistro = fechaRegistro,
+                IdProfesional = idProfesional,
+                IdCita = citaIdValidado
+            });
+        }
+
+        // Keep dated map snapshots so historical views can resolve the model nodes
+        // using the FDI assignment that was active on the selected date.
+        bool mapeoCambio = mapeoAnterior.Count != request.MapeoFDI.Count
+            || mapeoAnterior.Any(asignacion =>
+                !request.MapeoFDI.TryGetValue(asignacion.Key, out var numeroNuevo)
+                || !string.Equals(asignacion.Value, numeroNuevo, StringComparison.Ordinal));
+        if (mapeoCambio)
+        {
+            var fechaMapeo = DateTime.UtcNow;
+            var historialMapeos = estadoActual["mapeoFDIHistorial"] as JsonArray;
+            if (historialMapeos is null)
+            {
+                historialMapeos = new JsonArray();
+                estadoActual["mapeoFDIHistorial"] = historialMapeos;
+            }
+
+            if (historialMapeos.Count == 0 && mapeoAnterior.Count > 0)
+            {
+                var fechaAnterior = DateTime.TryParse(
+                    estadoActual["mapeoFDIActualizadoEn"]?.ToString()
+                        ?? estadoActual["actualizadoEn"]?.ToString(),
+                    out var fechaActualizacion)
+                    ? fechaActualizacion
+                    : fechaMapeo;
+                historialMapeos.Add(new JsonObject
+                {
+                    ["fecha"] = fechaAnterior,
+                    ["mapeoFDI"] = JsonSerializer.SerializeToNode(mapeoAnterior)
+                });
+            }
+
+            historialMapeos.Add(new JsonObject
+            {
+                ["fecha"] = fechaMapeo,
+                ["mapeoFDI"] = JsonSerializer.SerializeToNode(request.MapeoFDI)
+            });
+            estadoActual["mapeoFDIActualizadoEn"] = fechaMapeo;
         }
 
         // El JSON conserva solo el mapeo del modelo 3D; los estados clínicos viven
@@ -564,11 +661,21 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
 
         if (historia is null) return [];
 
-        return await _context.RegistrosOdontograma
+        var registros = await _context.RegistrosOdontograma
             .AsNoTracking()
             .Include(r => r.Profesional)
             .Where(r => r.IdHistoria == historia.IdHistoria)
-            .OrderBy(r => r.NumeroFdi)
+            .OrderByDescending(r => r.FechaRegistro)
+            .ToListAsync(ct);
+
+        return registros
+            .GroupBy(registro => registro.NumeroFdi, StringComparer.Ordinal)
+            .Select(grupo => grupo.First())
+            .Where(registro => !string.Equals(
+                registro.Estado,
+                "sin_registro",
+                StringComparison.OrdinalIgnoreCase))
+            .OrderBy(registro => registro.NumeroFdi, StringComparer.Ordinal)
             .Select(r => new OdontogramaPiezaApiDto
             {
                 NumeroFdi = r.NumeroFdi,
@@ -578,7 +685,7 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
                 FechaRegistro = r.FechaRegistro,
                 Profesional = r.Profesional != null ? $"Dr(a). {r.Profesional.Nombres} {r.Profesional.Apellidos}" : null
             })
-            .ToListAsync(ct);
+            .ToList();
     }
 
     public async Task<HistoriaClinicaApiOperationResult> GuardarOdontogramaApiAsync(

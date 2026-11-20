@@ -92,7 +92,12 @@ public class FuncionalidadesAvanzadasTests
         var profService = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
         var citaService = new CitaService(db, NullLogger<CitaService>.Instance);
 
-        var fechaCita = DateTime.Today.AddDays(3).AddHours(10);
+        var fechaCita = ColombiaClock.Today.AddDays(3).AddHours(10);
+
+        while (fechaCita.DayOfWeek == DayOfWeek.Sunday)
+        {
+            fechaCita = fechaCita.AddDays(1);
+        }
 
         // Cita con Dr. Pedro (ID=1)
         var citaReq = new CitaApiRequest

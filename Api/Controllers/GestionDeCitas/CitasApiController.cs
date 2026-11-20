@@ -35,6 +35,7 @@ using SmileTrack_MVC.Exceptions;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api;
 using SmileTrack_MVC.Models.DTOs;
+using SmileTrack_MVC.Models.DTOs.GestionDeCitas;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
@@ -593,6 +594,37 @@ public sealed class CitasApiController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/citas/lista-espera
+    [HttpPost]
+    [CookieAwareValidateAntiforgeryToken]
+    [Authorize(Roles = "Paciente", Policy = "ApiOrCookie")]
+    [Route("api/citas/lista-espera")]
+    public async Task<IActionResult> RegistrarListaEspera(
+        [FromBody] RegistrarListaEsperaDto dto,
+        CancellationToken ct = default)
+    {
+        if (dto is null || !ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Los datos de la lista de espera no son válidos." });
+
+        if (!int.TryParse(User.FindFirstValue("IdPaciente"), out int idPaciente) || idPaciente <= 0)
+            return Forbid();
+
+        try
+        {
+            var entrada = await _citaService.RegistrarListaEsperaAsync(idPaciente, dto, ct);
+            return StatusCode(StatusCodes.Status201Created, new
+            {
+                success = true,
+                message = "Te agregamos a la lista de espera.",
+                data = new { entrada.IdListaEspera, entrada.Estado, entrada.FechaDeseadaInicio, entrada.FechaDeseadaFin }
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
     // GET /api/citas/kpis?fecha=YYYY-MM-DD
     // Devuelve los KPIs de gestión de citas para clientes que consultan métricas por período.
     // ─────────────────────────────────────────────────────────────────────────
@@ -1102,6 +1134,8 @@ public sealed class CitasApiController : ControllerBase
             return BadRequest(new { success = false, message = ex.Message });
         }
     }
+
+    private int? ObtenerIdUsuarioActor() => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ? idUsuario : null;
 
     private async Task<bool> TieneOwnershipAsync(Cita cita, CancellationToken ct) =>
         User.IsInRole("Administrador") ||

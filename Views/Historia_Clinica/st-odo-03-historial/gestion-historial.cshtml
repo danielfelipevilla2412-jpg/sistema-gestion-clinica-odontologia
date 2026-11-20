@@ -114,7 +114,6 @@
 
 @section Styles {
     <link rel="stylesheet" href="@Url.Content("~/css/Historia_Clinica/st-odo-03-historial/gestion-historial.css")" asp-append-version="true" />
-    <link rel="stylesheet" href="@Url.Content("~/css/shared/odontograma-fdi.css")" asp-append-version="true" />
 }
 
 <main class="main clinical-main" id="main-content">
@@ -435,8 +434,20 @@
                     </div>
                     <p id="odontogramaSnapshotNotice" class="snapshot-notice" role="status" hidden></p>
                     <div id="odontogramaHost" class="history-odontogram-viewer">
-                        <div id="historyOdontogramChart" class="odontograma-fdi-chart" role="group" aria-label="Odontograma FDI histórico"></div>
-                        <p class="fdi-chart-help">Selecciona un diente para consultar su evolución.</p>
+                        <div id="historyOdontogramViewer" class="history-odontogram-3d">
+                            <div id="historyOdontogramLoading" class="history-viewer-loading" role="status">
+                                <span class="history-loading-spinner" aria-hidden="true"></span>
+                                <p>Cargando modelo 3D del odontograma…</p>
+                            </div>
+                            <div id="historyOdontogramError" class="history-viewer-error" role="alert" hidden>
+                                <p id="historyOdontogramErrorMessage">No se pudo cargar el modelo 3D.</p>
+                                <button type="button" id="retryHistoryOdontogram">Reintentar</button>
+                            </div>
+                            <iframe id="historyOdontogramFrame"
+                                    title="Modelo 3D del odontograma"
+                                    allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
+                        </div>
+                        <p class="history-odontogram-help">Gira el modelo y selecciona una pieza asignada para consultar su evolución.</p>
                         <p id="historyToothStatus" class="history-tooth-status" aria-live="polite">Pasa sobre un diente para consultar su estado en la fecha seleccionada.</p>
                     </div>
                 </aside>
@@ -503,6 +514,7 @@
 </script>
 
 @section Scripts {
-    <script src="@Url.Content("~/js/shared/odontograma-fdi.js")" asp-append-version="true"></script>
+    <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
+    <script src="@Url.Content("~/js/shared/odontograma-sketchfab-config.js")" asp-append-version="true"></script>
     <script src="@Url.Content("~/js/Historia_Clinica/st-odo-03-historial/gestion-historial.js")" asp-append-version="true"></script>
 }

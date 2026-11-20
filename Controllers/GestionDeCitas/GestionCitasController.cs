@@ -2606,16 +2606,55 @@ public class GestionCitasController(
             .FirstOrDefaultAsync(ct);
         if (!idPaciente.HasValue) return Forbid();
 
+        var ahora = ColombiaClock.Now;
+        int? idCita = null;
         var notif = await _context.Notificaciones
             .FirstOrDefaultAsync(n => n.IdNotificacion == id && n.IdPaciente == idPaciente.Value, ct);
-        if (notif is null)
-            return NotFound(new { success = false, message = "Notificación no encontrada." });
 
-        notif.FechaLectura = ColombiaClock.Now;
-        notif.Estado = "leida";
+        if (notif is not null)
+        {
+            notif.FechaLectura = ahora;
+            notif.Estado = "leida";
+            if (notif.IdCita.HasValue)
+            {
+                idCita = await _context.Citas.AsNoTracking()
+                    .Where(c => c.IdCita == notif.IdCita.Value && c.IdPaciente == idPaciente.Value)
+                    .Select(c => (int?)c.IdCita)
+                    .FirstOrDefaultAsync(ct);
+            }
+        }
+        else
+        {
+            idCita = await _context.Citas.AsNoTracking()
+                .Where(c => c.IdCita == id && c.IdPaciente == idPaciente.Value)
+                .Select(c => (int?)c.IdCita)
+                .FirstOrDefaultAsync(ct);
+
+            if (!idCita.HasValue)
+                return NotFound(new { success = false, message = "No se encontró la notificación." });
+        }
+
+        if (idCita.HasValue)
+        {
+            var lectura = await _context.NotificacionesLeidas
+                .FirstOrDefaultAsync(n => n.IdPaciente == idPaciente.Value && n.IdCita == idCita.Value, ct);
+            if (lectura is null)
+            {
+                _context.NotificacionesLeidas.Add(new NotificacionLeida
+                {
+                    IdPaciente = idPaciente.Value,
+                    IdCita = idCita.Value,
+                    FechaLectura = ahora
+                });
+            }
+            else
+            {
+                lectura.FechaLectura = ahora;
+            }
+        }
 
         await _context.SaveChangesAsync(ct);
-        return Ok(new { success = true, id, leida = true });
+        return Ok(new { success = true, idCita = id, leida = true });
     }
 
     [HttpPut]
@@ -2643,6 +2682,7 @@ public class GestionCitasController(
         if (!perteneceAlPaciente)
             return NotFound(new { success = false, message = "Cita no encontrada." });
 
+        var ahora = ColombiaClock.Now;
         var lectura = await _context.NotificacionesLeidas
             .FirstOrDefaultAsync(n => n.IdPaciente == idPaciente.Value && n.IdCita == id, ct);
         if (lectura is null)
@@ -2651,12 +2691,12 @@ public class GestionCitasController(
             {
                 IdPaciente = idPaciente.Value,
                 IdCita = id,
-                FechaLectura = ColombiaClock.Now
+                FechaLectura = ahora
             });
         }
         else
         {
-            lectura.FechaLectura = ColombiaClock.Now;
+            lectura.FechaLectura = ahora;
         }
 
         await _context.SaveChangesAsync(ct);
@@ -2678,18 +2718,46 @@ public class GestionCitasController(
             .FirstOrDefaultAsync(ct);
         if (!idPaciente.HasValue) return Forbid();
 
-        // IDs del cuerpo corresponden exclusivamente a Notificacion.IdNotificacion.
+        var requestedIds = ids?.Where(id => id > 0).Distinct().ToList();
         var dbNotifs = await _context.Notificaciones
-            .Where(n => n.IdPaciente == idPaciente.Value && (ids == null || ids.Contains(n.IdNotificacion)))
+            .Where(n => n.IdPaciente == idPaciente.Value &&
+                        (requestedIds == null || requestedIds.Contains(n.IdNotificacion)))
             .ToListAsync(ct);
-        foreach (var n in dbNotifs)
+        var notificationIds = dbNotifs.Select(n => n.IdNotificacion).ToHashSet();
+        var ahora = ColombiaClock.Now;
+        foreach (var notification in dbNotifs)
         {
-            n.FechaLectura = ColombiaClock.Now;
-            n.Estado = "leida";
+            notification.FechaLectura = ahora;
+            notification.Estado = "leida";
         }
 
+        var requestedAppointmentIds = requestedIds?
+            .Where(id => !notificationIds.Contains(id))
+            .ToList();
+        IQueryable<Cita> citasQuery = _context.Citas.AsNoTracking()
+            .Where(c => c.IdPaciente == idPaciente.Value);
+        if (requestedAppointmentIds is not null)
+            citasQuery = citasQuery.Where(c => requestedAppointmentIds.Contains(c.IdCita));
+
+        var citaIds = await citasQuery.Select(c => c.IdCita).ToListAsync(ct);
+        var existingReads = await _context.NotificacionesLeidas
+            .Where(read => read.IdPaciente == idPaciente.Value && citaIds.Contains(read.IdCita))
+            .ToListAsync(ct);
+        var existingReadIds = existingReads.Select(read => read.IdCita).ToHashSet();
+        foreach (var read in existingReads)
+            read.FechaLectura = ahora;
+
+        _context.NotificacionesLeidas.AddRange(citaIds
+            .Where(idCita => !existingReadIds.Contains(idCita))
+            .Select(idCita => new NotificacionLeida
+            {
+                IdPaciente = idPaciente.Value,
+                IdCita = idCita,
+                FechaLectura = ahora
+            }));
+
         await _context.SaveChangesAsync(ct);
-        return Ok(new { success = true, count = dbNotifs.Count });
+        return Ok(new { success = true, count = dbNotifs.Count + citaIds.Count });
     }
 
     [HttpDelete]
@@ -3810,6 +3878,8 @@ public class GestionCitasController(
 
         return edad;
     }
+
+    private int? ObtenerIdUsuarioActual() => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ? idUsuario : null;
 
     private static string? BuildNotasCita(
         CitaViewModel model)

@@ -29,9 +29,6 @@ appsettings.local.json
 appsettings.*.local.json
 appsettings.Local.json
 appsettings.*.Local.json
-appsettings.local.json
-appsettings.*.local.json
-
 
 
 # OS

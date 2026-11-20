@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -99,6 +100,122 @@ public class HistoriaClinicaServiceTests
         Assert.Equal(
             "16",
             estado.RootElement.GetProperty("mapeoFDI").GetProperty("node-16").GetString());
+    }
+
+    [Fact]
+    public async Task GuardarOdontogramaInternoAsync_RemappingMovesCurrentStateAndRetainsOldHistory()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        var paciente = new Paciente
+        {
+            Nombres = "Paciente",
+            Apellidos = "Prueba",
+            Documento = "654321",
+            FechaNacimiento = new DateTime(1990, 1, 1)
+        };
+        db.Pacientes.Add(paciente);
+        await db.SaveChangesAsync();
+
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow.AddYears(-1),
+            Activa = true,
+            ObservacionesGenerales = JsonSerializer.Serialize(new
+            {
+                mapeoFDI = new Dictionary<string, string> { ["node-a"] = "11" }
+            })
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+
+        var fechaAnterior = DateTime.UtcNow.AddDays(-1);
+        db.RegistrosOdontograma.Add(new RegistroOdontograma
+        {
+            IdHistoria = historia.IdHistoria,
+            NumeroFdi = "11",
+            Estado = "caries",
+            Observacion = "Lesión",
+            FechaRegistro = fechaAnterior
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.GuardarOdontogramaInternoAsync(
+            paciente.IdPaciente,
+            new OdontogramaGuardarRequest
+            {
+                PacienteId = paciente.IdPaciente,
+                MapeoFDI = new Dictionary<string, string> { ["node-a"] = "12" },
+                Registros = new Dictionary<string, OdontogramaRegistroPayload>
+                {
+                    ["node-a"] = new()
+                    {
+                        NombrePieza = "Incisivo lateral",
+                        Tratamientos = [new OdontogramaTratamientoPayload
+                        {
+                            Key = "caries",
+                            Obs = "Lesión"
+                        }]
+                    }
+                }
+            },
+            idProfesional: null);
+
+        Assert.True(result.Success);
+        var registros = await db.RegistrosOdontograma
+            .OrderBy(registro => registro.FechaRegistro)
+            .ToListAsync();
+        Assert.Collection(registros,
+            registro =>
+            {
+                Assert.Equal("11", registro.NumeroFdi);
+                Assert.Equal("caries", registro.Estado);
+            },
+            registro =>
+            {
+                Assert.Equal("12", registro.NumeroFdi);
+                Assert.Equal("caries", registro.Estado);
+            },
+            registro =>
+            {
+                Assert.Equal("11", registro.NumeroFdi);
+                Assert.Equal("sin_registro", registro.Estado);
+            });
+
+        using var estado = JsonDocument.Parse((await db.HistoriasClinicas.SingleAsync()).ObservacionesGenerales!);
+        Assert.Equal("12", estado.RootElement.GetProperty("mapeoFDI").GetProperty("node-a").GetString());
+        var historialMapeos = estado.RootElement.GetProperty("mapeoFDIHistorial");
+        Assert.Equal(2, historialMapeos.GetArrayLength());
+        Assert.Equal("11", historialMapeos[0].GetProperty("mapeoFDI").GetProperty("node-a").GetString());
+        Assert.Equal("12", historialMapeos[1].GetProperty("mapeoFDI").GetProperty("node-a").GetString());
+
+        var remapeoPosterior = await service.GuardarOdontogramaInternoAsync(
+            paciente.IdPaciente,
+            new OdontogramaGuardarRequest
+            {
+                PacienteId = paciente.IdPaciente,
+                MapeoFDI = new Dictionary<string, string> { ["node-a"] = "13" },
+                Registros = new Dictionary<string, OdontogramaRegistroPayload>
+                {
+                    ["node-a"] = new()
+                    {
+                        NombrePieza = "Canino",
+                        Tratamientos = [new OdontogramaTratamientoPayload { Key = "caries" }]
+                    }
+                }
+            },
+            idProfesional: null);
+
+        Assert.True(remapeoPosterior.Success);
+        using var estadoPosterior = JsonDocument.Parse((await db.HistoriasClinicas.SingleAsync()).ObservacionesGenerales!);
+        var historialPosterior = estadoPosterior.RootElement.GetProperty("mapeoFDIHistorial");
+        Assert.Equal(3, historialPosterior.GetArrayLength());
+        Assert.Equal("13", historialPosterior[2].GetProperty("mapeoFDI").GetProperty("node-a").GetString());
     }
 
     [Fact]

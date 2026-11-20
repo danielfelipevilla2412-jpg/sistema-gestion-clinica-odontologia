@@ -126,6 +126,11 @@ public interface IProfesionalService
         int id,
         CancellationToken ct = default);
 
+    Task<ProfesionalApiOperationResult> ActualizarServiciosAsync(
+        int id,
+        IReadOnlyCollection<ServicioProfesionalAsignacionApiRequest> servicios,
+        CancellationToken ct = default);
+
     Task<SmileTrack_MVC.Models.DTOs.ReporteComisionProfesionalDto> CalcularComisionesAsync(
         int idProfesional,
         DateTime fechaInicio,
@@ -138,7 +143,7 @@ public interface IProfesionalService
         DateTime fechaInicio,
         DateTime fechaFin,
         string motivo,
-        int? operadorId = null,
+        int? idUsuarioActor = null,
         string? observaciones = null,
         CancellationToken ct = default);
 }
