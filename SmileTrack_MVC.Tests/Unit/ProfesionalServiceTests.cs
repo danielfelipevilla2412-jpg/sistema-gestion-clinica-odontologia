@@ -546,9 +546,7 @@ public sealed class ProfesionalServiceTests
         Assert.Equal("Ajuste de brackets", Assert.Single(serviciosOrtodoncia.Data).NombreServicio);
         Assert.Equal(125000m, serviciosOrtodoncia.Data[0].PrecioEfectivo);
         Assert.True(serviciosEndodoncia.Success);
-        Assert.Equal(
-            new[] { "Endodoncia", "Valoración" },
-            serviciosEndodoncia.Data.Select(s => s.NombreServicio).OrderBy(n => n).ToArray());
+        Assert.Empty(serviciosEndodoncia.Data);
     }
 
     [Fact]
