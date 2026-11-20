@@ -542,13 +542,12 @@ public sealed class ProfesionalServiceTests
         var serviciosOrtodoncia = await service.ObtenerServiciosAsync(profesionalOrtodoncia.IdProfesional);
         var serviciosEndodoncia = await service.ObtenerServiciosAsync(profesionalEndodoncia.IdProfesional);
 
-        Assert.True(serviciosOrtodoncia.Success);
+         Assert.True(serviciosOrtodoncia.Success);
         Assert.Equal("Ajuste de brackets", Assert.Single(serviciosOrtodoncia.Data).NombreServicio);
         Assert.Equal(125000m, serviciosOrtodoncia.Data[0].PrecioEfectivo);
+
         Assert.True(serviciosEndodoncia.Success);
-        Assert.Equal(
-            new[] { "Endodoncia" },
-            serviciosEndodoncia.Data.Select(s => s.NombreServicio).OrderBy(n => n).ToArray());
+        Assert.Empty(serviciosEndodoncia.Data);
     }
 
     [Fact]

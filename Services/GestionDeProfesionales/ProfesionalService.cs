@@ -1471,34 +1471,69 @@ public partial class ProfesionalService : IProfesionalService
         IReadOnlyCollection<ServicioProfesionalAsignacionApiRequest> servicios,
         CancellationToken ct = default)
     {
+        if (servicios is null)
+            return ProfesionalApiOperationResult.Fail("Debe enviar la lista de servicios.", 422);
+
         bool profesionalExiste = await _context.Profesionales.AsNoTracking()
             .AnyAsync(p => p.IdProfesional == id, ct);
         if (!profesionalExiste)
             return ProfesionalApiOperationResult.NotFound();
 
-        if (servicios.Any(s => s.IdServicio <= 0 || s.PrecioPersonalizado < 0) ||
+        if (servicios.Any(s => s is null || s.IdServicio <= 0 || s.PrecioPersonalizado < 0) ||
             servicios.Select(s => s.IdServicio).Distinct().Count() != servicios.Count)
             return ProfesionalApiOperationResult.Fail("La lista de servicios contiene datos inválidos.", 422);
 
         var idsServicio = servicios.Select(s => s.IdServicio).ToArray();
-        int serviciosActivosEncontrados = await _context.Servicios.AsNoTracking()
-            .CountAsync(s => idsServicio.Contains(s.IdServicio) && s.Estado == "activo", ct);
-        if (serviciosActivosEncontrados != idsServicio.Length)
+        var catalogo = await _context.Servicios.AsNoTracking()
+            .Where(s => idsServicio.Contains(s.IdServicio))
+            .Select(s => new { s.IdServicio, s.Estado, s.IdEspecialidad })
+            .ToListAsync(ct);
+
+        if (catalogo.Count != idsServicio.Length || catalogo.Any(s => s.Estado != "activo"))
             return ProfesionalApiOperationResult.Fail("Uno o más servicios no existen o están inactivos.", 422);
+
+        var especialidadesProfesional = await _context.ProfesionalEspecialidades.AsNoTracking()
+            .Where(pe => pe.IdProfesional == id)
+            .Select(pe => pe.IdEspecialidad)
+            .ToListAsync(ct);
+
+        if (catalogo.Any(s => !s.IdEspecialidad.HasValue ||
+                             !especialidadesProfesional.Contains(s.IdEspecialidad.Value)))
+            return ProfesionalApiOperationResult.Fail(
+                "Uno o más servicios no tienen una especialidad compatible con el profesional.", 422);
 
         var existentes = await _context.ProfesionalServicios
             .Where(ps => ps.IdProfesional == id)
             .ToListAsync(ct);
-        _context.ProfesionalServicios.RemoveRange(existentes);
-        await _context.ProfesionalServicios.AddRangeAsync(servicios.Select(s => new ProfesionalServicio
-        {
-            IdProfesional = id,
-            IdServicio = s.IdServicio,
-            PrecioPersonalizado = s.PrecioPersonalizado,
-            Activo = s.Activo
-        }), ct);
-        await _context.SaveChangesAsync(ct);
+        var existentesPorServicio = existentes.ToDictionary(ps => ps.IdServicio);
+        var idsSolicitados = idsServicio.ToHashSet();
 
+        foreach (var existente in existentes)
+        {
+            if (!idsSolicitados.Contains(existente.IdServicio))
+                existente.Activo = false;
+        }
+
+        foreach (var solicitud in servicios)
+        {
+            if (existentesPorServicio.TryGetValue(solicitud.IdServicio, out var existente))
+            {
+                existente.PrecioPersonalizado = solicitud.PrecioPersonalizado;
+                existente.Activo = solicitud.Activo;
+            }
+            else
+            {
+                _context.ProfesionalServicios.Add(new ProfesionalServicio
+                {
+                    IdProfesional = id,
+                    IdServicio = solicitud.IdServicio,
+                    PrecioPersonalizado = solicitud.PrecioPersonalizado,
+                    Activo = solicitud.Activo
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync(ct);
         return ProfesionalApiOperationResult.Ok("Servicios del profesional actualizados correctamente.");
     }
 
@@ -1506,79 +1541,35 @@ public partial class ProfesionalService : IProfesionalService
         int id,
         CancellationToken ct = default)
     {
-        bool existe = await _context.Profesionales.AsNoTracking()
-            .AnyAsync(p => p.IdProfesional == id, ct);
-        if (!existe)
+        bool profesionalActivo = await _context.Profesionales.AsNoTracking()
+            .AnyAsync(p => p.IdProfesional == id && p.Estado == "activo", ct);
+        if (!profesionalActivo)
             return ProfesionalApiCollectionResult<ServicioProfesionalApiDto>.Fail(
-                "Profesional no encontrado.", 404);
+                "Profesional no encontrado o inactivo.", 404);
 
-        // M2 (RF-16): los servicios habilitados se derivan desde las especialidades asignadas.
-        // 1. Obtener IDs de especialidades del profesional.
-        var idsEsp = await _context.ProfesionalEspecialidades
-            .AsNoTracking()
-            .Where(pe => pe.IdProfesional == id)
-            .Select(pe => pe.IdEspecialidad)
-            .ToListAsync(ct);
-
-        // 2. Si no tiene especialidades, aplicar fallback a Odontología General (RN-15).
-        if (idsEsp.Count == 0)
-        {
-            var espGeneral = await _context.Especialidades
-                .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Nombre.ToLower().Contains("general"), ct);
-            if (espGeneral != null)
-                idsEsp.Add(espGeneral.IdEspecialidad);
-        }
-
-        // 3. Obtener servicios activos asociados a esas especialidades.
-        //    Si un servicio tiene asignación directa personalizada (PrecioPersonalizado),
-        //    se usa ese precio; si no, el precio base del servicio.
-        List<ServicioProfesionalApiDto> servicios;
-
-        if (idsEsp.Count > 0)
-        {
-            var serviciosPorEsp = await _context.Servicios
-                .AsNoTracking()
-                .Where(s => s.Estado == "activo"
-                         && s.IdEspecialidad.HasValue
-                         && idsEsp.Contains(s.IdEspecialidad.Value))
-                .ToListAsync(ct);
-
-            var asignacionesExcepcionales = await _context.ProfesionalServicios
-                .AsNoTracking()
-                .Where(ps => ps.IdProfesional == id && ps.Activo)
-                .ToDictionaryAsync(ps => ps.IdServicio, ct);
-            var serviciosDeshabilitados = await _context.ProfesionalServicios
-                .AsNoTracking()
-                .Where(ps => ps.IdProfesional == id && !ps.Activo)
-                .Select(ps => ps.IdServicio)
-                .ToListAsync(ct);
-
-            servicios = serviciosPorEsp
-                .Where(s => !serviciosDeshabilitados.Contains(s.IdServicio))
-                .Select(s =>
+        var servicios = await (
+            from ps in _context.ProfesionalServicios.AsNoTracking()
+            join servicio in _context.Servicios.AsNoTracking()
+                on ps.IdServicio equals servicio.IdServicio
+            where ps.IdProfesional == id
+                && ps.Activo
+                && servicio.Estado == "activo"
+                && servicio.IdEspecialidad.HasValue
+                && _context.ProfesionalEspecialidades.Any(pe =>
+                    pe.IdProfesional == id &&
+                    pe.IdEspecialidad == servicio.IdEspecialidad.Value)
+            orderby servicio.Nombre
+            select new ServicioProfesionalApiDto
             {
-                asignacionesExcepcionales.TryGetValue(s.IdServicio, out var asignacion);
-                decimal? precioPersonalizado = asignacion?.PrecioPersonalizado;
-                return new ServicioProfesionalApiDto
-                {
-                    IdProfesional       = id,
-                    IdServicio          = s.IdServicio,
-                    NombreServicio      = s.Nombre,
-                    PrecioBase          = s.Precio,
-                    PrecioPersonalizado = precioPersonalizado,
-                    PrecioEfectivo      = precioPersonalizado ?? s.Precio,
-                    Activo              = true
-                };
-            })
-            .OrderBy(s => s.NombreServicio)
-            .ToList();
-        }
-        else
-        {
-            // Sin especialidades ni fallback disponible: lista vacía
-            servicios = [];
-        }
+                IdProfesional = id,
+                IdServicio = servicio.IdServicio,
+                NombreServicio = servicio.Nombre,
+                PrecioBase = servicio.Precio,
+                PrecioPersonalizado = ps.PrecioPersonalizado,
+                PrecioEfectivo = ps.PrecioPersonalizado ?? servicio.Precio,
+                Activo = true
+            }
+        ).ToListAsync(ct);
 
         return ProfesionalApiCollectionResult<ServicioProfesionalApiDto>.Ok(servicios);
     }

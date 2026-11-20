@@ -7,7 +7,12 @@
     ViewData["Description"] = "Consulta los procedimientos asignados a tu perfil profesional.";
     ViewData["UseGestionModulesDesignSystem"] = true;
 
-    var items = Model?.Where(x => x.Servicio != null).ToList() ?? new();
+   var items = Model?
+    .Where(x =>
+        x.Activo &&
+        x.Servicio != null &&
+        x.Servicio.Estado == "activo")
+    .ToList() ?? new();
     var disponibles = items.Count(x => x.Activo && x.Servicio!.Estado == "activo");
     var nombreProfesional = ViewData["NombreProfesional"] as string;
     var cop = CultureInfo.GetCultureInfo("es-CO");

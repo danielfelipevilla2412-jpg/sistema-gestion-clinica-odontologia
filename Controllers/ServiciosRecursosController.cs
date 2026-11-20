@@ -195,7 +195,9 @@ public class ServiciosRecursosController : Controller
         if (!int.TryParse(claim, out var usuarioId)) return Challenge();
 
         var profesional = await _context.Profesionales.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.IdUsuario == usuarioId, ct);
+            .FirstOrDefaultAsync(
+    p => p.IdUsuario == usuarioId && p.Estado == "activo",
+    ct);
         if (profesional is null)
         {
             return View("~/Views/Servicios_Y_Recursos/st-odo-05-servicios/index.cshtml",
@@ -203,11 +205,21 @@ public class ServiciosRecursosController : Controller
         }
 
         ViewData["NombreProfesional"] = $"{profesional.Nombres} {profesional.Apellidos}".Trim();
-        var asignaciones = await _context.ProfesionalServicios.AsNoTracking()
-            .Include(ps => ps.Servicio).ThenInclude(s => s!.Especialidad)
-            .Where(ps => ps.IdProfesional == profesional.IdProfesional)
-            .OrderBy(ps => ps.Servicio!.Nombre)
-            .ToListAsync(ct);
+        var asignaciones = await _context.ProfesionalServicios
+    .AsNoTracking()
+    .Include(ps => ps.Servicio)
+        .ThenInclude(s => s!.Especialidad)
+    .Where(ps =>
+        ps.IdProfesional == profesional.IdProfesional &&
+        ps.Activo &&
+        ps.Servicio != null &&
+        ps.Servicio.Estado == "activo" &&
+        ps.Servicio.IdEspecialidad.HasValue &&
+        _context.ProfesionalEspecialidades.Any(pe =>
+            pe.IdProfesional == profesional.IdProfesional &&
+            pe.IdEspecialidad == ps.Servicio.IdEspecialidad.Value))
+    .OrderBy(ps => ps.Servicio!.Nombre)
+    .ToListAsync(ct);
         return View("~/Views/Servicios_Y_Recursos/st-odo-05-servicios/index.cshtml", asignaciones);
     }
 
@@ -369,11 +381,14 @@ public class ServiciosRecursosController : Controller
             servicio.IdEspecialidad = request.IdEspecialidad;
             await _context.SaveChangesAsync(ct);
 
-            return Ok(new { success = true,
+            return Ok(new
+            {
+                success = true,
                 message = incompatibles.Count > 0
                     ? $"Servicio actualizado. Se desactivaron {incompatibles.Count} asignaciones incompatibles. Revisa las citas futuras."
                     : "Servicio actualizado correctamente.",
-                data = new { id, asignacionesDesactivadas = incompatibles.Count } });
+                data = new { id, asignacionesDesactivadas = incompatibles.Count }
+            });
         }
         catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && (sql.Number == 2601 || sql.Number == 2627))
         {

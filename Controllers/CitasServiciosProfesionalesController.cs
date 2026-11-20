@@ -11,32 +11,37 @@ public sealed class CitasServiciosProfesionalesController : Controller
 {
     private readonly AppDbContext _context;
 
-    public CitasServiciosProfesionalesController(AppDbContext context) => _context = context;
+    public CitasServiciosProfesionalesController(AppDbContext context)
+        => _context = context;
 
     [HttpGet("gestion-de-citas/api/asignaciones-profesionales")]
     public async Task<IActionResult> ObtenerAsignaciones(CancellationToken ct)
     {
-        // La condición de especialidad es un refinamiento opcional:
-        // un profesional con ProfesionalServicio activo ya fue validado por el ADM.
-        // No aplicamos el INNER JOIN de especialidad aquí para no excluir profesionales
-        // válidamente asignados cuando el servicio no tiene especialidad configurada
-        // o cuando la tabla ProfesionalEspecialidades está desincronizada.
-        // La verificación de especialidad se realiza al momento de guardar la cita
-        // en CitaService.ValidarDisponibilidadProfesionalAsync.
         var asignaciones = await (
             from ps in _context.ProfesionalServicios.AsNoTracking()
-            join p in _context.Profesionales.AsNoTracking() on ps.IdProfesional equals p.IdProfesional
-            join s in _context.Servicios.AsNoTracking() on ps.IdServicio equals s.IdServicio
-            where ps.Activo && p.Estado == "activo" && s.Estado == "activo"
+            join p in _context.Profesionales.AsNoTracking()
+                on ps.IdProfesional equals p.IdProfesional
+            join s in _context.Servicios.AsNoTracking()
+                on ps.IdServicio equals s.IdServicio
+            where ps.Activo
+                && p.Estado == "activo"
+                && s.Estado == "activo"
+                && s.IdEspecialidad.HasValue
+                && _context.ProfesionalEspecialidades.Any(pe =>
+                    pe.IdProfesional == ps.IdProfesional &&
+                    pe.IdEspecialidad == s.IdEspecialidad.Value)
             select new
             {
                 idProfesional = ps.IdProfesional,
                 idServicio = ps.IdServicio,
                 precioAplicado = ps.PrecioPersonalizado ?? s.Precio,
                 precioPersonalizado = ps.PrecioPersonalizado.HasValue
-            }).Distinct().ToListAsync(ct);
+            })
+            .Distinct()
+            .ToListAsync(ct);
 
         Response.Headers.CacheControl = "no-store";
+
         return Ok(asignaciones);
     }
 }

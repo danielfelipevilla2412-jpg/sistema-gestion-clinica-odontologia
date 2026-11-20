@@ -10,6 +10,7 @@ using SmileTrack_MVC.Controllers;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using Xunit;
+using System.Linq;
 
 namespace SmileTrack_MVC.Tests.Unit;
 
@@ -156,4 +157,123 @@ public sealed class CitasServiciosProfesionalesControllerTests
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Empty(Materializar(ok.Value!));
     }
+
+[Fact]
+public async Task ObtenerAsignaciones_ServicioInactivo_ExcluyeAsignacion()
+{
+    await using var db = CrearContexto();
+    Sembrar(db);
+
+    var servicio = await db.Servicios.FindAsync(1);
+    Assert.NotNull(servicio);
+    servicio.Estado = "inactivo";
+
+    await db.SaveChangesAsync();
+
+    var controller = CrearControlador(db);
+    var result = await controller.ObtenerAsignaciones(CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result);
+    Assert.Empty(Materializar(ok.Value!));
+}
+
+[Fact]
+public async Task ObtenerAsignaciones_EspecialidadIncompatible_ExcluyeAsignacion()
+{
+    await using var db = CrearContexto();
+    Sembrar(db);
+
+    db.Especialidades.Add(new Especialidad
+    {
+        IdEspecialidad = 2,
+        Nombre = "Ortodoncia"
+    });
+
+    var servicio = await db.Servicios.FindAsync(1);
+    Assert.NotNull(servicio);
+    servicio.IdEspecialidad = 2;
+
+    await db.SaveChangesAsync();
+
+    var controller = CrearControlador(db);
+    var result = await controller.ObtenerAsignaciones(CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result);
+    Assert.Empty(Materializar(ok.Value!));
+}
+
+[Fact]
+public async Task ObtenerAsignaciones_ServicioSinEspecialidad_ExcluyeAsignacion()
+{
+    await using var db = CrearContexto();
+    Sembrar(db);
+
+    var servicio = await db.Servicios.FindAsync(1);
+    Assert.NotNull(servicio);
+    servicio.IdEspecialidad = null;
+
+    await db.SaveChangesAsync();
+
+    var controller = CrearControlador(db);
+    var result = await controller.ObtenerAsignaciones(CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result);
+    Assert.Empty(Materializar(ok.Value!));
+}
+
+[Fact]
+public async Task ObtenerAsignaciones_MultiplesEspecialidades_IncluyeServiciosCompatibles()
+{
+    await using var db = CrearContexto();
+    Sembrar(db);
+
+    db.Especialidades.Add(new Especialidad
+    {
+        IdEspecialidad = 2,
+        Nombre = "Ortodoncia"
+    });
+
+    db.ProfesionalEspecialidades.Add(new Profesional_Especialidad
+    {
+        IdProfesional = 7,
+        IdEspecialidad = 2,
+        Principal = false
+    });
+
+    db.Servicios.Add(new Servicio
+    {
+        IdServicio = 2,
+        Nombre = "Tratamiento de ortodoncia",
+        Estado = "activo",
+        Precio = 200000m,
+        IdEspecialidad = 2
+    });
+
+    db.ProfesionalServicios.Add(new ProfesionalServicio
+    {
+        IdProfesional = 7,
+        IdServicio = 2,
+        Activo = true,
+        PrecioPersonalizado = null
+    });
+
+    await db.SaveChangesAsync();
+
+    var controller = CrearControlador(db);
+    var result = await controller.ObtenerAsignaciones(CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result);
+    var items = Materializar(ok.Value!);
+
+    Assert.Equal(2, items.Count);
+
+    var servicios = items.Select(item =>
+        Convert.ToInt32(
+            item.GetType().GetProperty("idServicio")!.GetValue(item)
+        )).ToList();
+
+    Assert.Contains(1, servicios);
+    Assert.Contains(2, servicios);
+}
+
 }
