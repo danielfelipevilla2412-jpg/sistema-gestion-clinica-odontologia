@@ -3761,7 +3761,7 @@ ALTER TABLE [dbo].[Notificacion]  WITH CHECK ADD CHECK  (([canal]='whatsapp' OR 
 GO
 ALTER TABLE [dbo].[Notificacion]  WITH CHECK ADD CHECK  (([estado]='cancelada' OR [estado]='fallida' OR [estado]='leida' OR [estado]='enviada' OR [estado]='pendiente'))
 GO
-ALTER TABLE [dbo].[Notificacion]  WITH CHECK ADD  CONSTRAINT [CK_Notificacion_tipo] CHECK  (([tipo]='pago' OR [tipo]='factura' OR [tipo]='alerta' OR [tipo]='mensaje' OR [tipo]='cancelacion' OR [tipo]='confirmacion' OR [tipo]='recordatorio'))
+ALTER TABLE [dbo].[Notificacion]  WITH CHECK ADD  CONSTRAINT [CK_Notificacion_tipo] CHECK  (([tipo]='pago' OR [tipo]='factura' OR [tipo]='alerta' OR [tipo]='mensaje' OR [tipo]='cancelacion' OR [tipo]='confirmacion' OR [tipo]='recordatorio' OR [tipo]='cambio_estado'))
 GO
 ALTER TABLE [dbo].[Notificacion] CHECK CONSTRAINT [CK_Notificacion_tipo]
 GO
@@ -4691,7 +4691,7 @@ IF COL_LENGTH(N'dbo.Cita', N'id_profesional_preferido') IS NULL
     ALTER TABLE [dbo].[Cita] ADD [id_profesional_preferido] [int] NULL;
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_Cita_ProfesionalPreferido' AND [parent_object_id] = OBJECT_ID(N'dbo.Cita'))
-    ALTER TABLE [dbo].[Cita] WITH CHECK ADD CONSTRAINT [FK_Cita_ProfesionalPreferido] FOREIGN KEY ([id_profesional_preferido]) REFERENCES [dbo].[Profesional]([id_profesional]) ON DELETE SET NULL;
+    ALTER TABLE [dbo].[Cita] WITH CHECK ADD CONSTRAINT [FK_Cita_ProfesionalPreferido] FOREIGN KEY ([id_profesional_preferido]) REFERENCES [dbo].[Profesional]([id_profesional]) ON DELETE NO ACTION;
 GO
 IF OBJECT_ID(N'dbo.Lista_Espera_Cita', N'U') IS NULL
 BEGIN

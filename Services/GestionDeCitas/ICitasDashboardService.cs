@@ -18,6 +18,7 @@
  */
 
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Models.ViewModels.GestionDeCitas;
 
 namespace SmileTrack_MVC.Services;
 
@@ -32,6 +33,14 @@ public interface ICitasDashboardService
     /// <paramref name="fechaReferencia"/> (normalmente DateTime.Today).
     /// </summary>
     Task<CitasDashboardViewModel> ObtenerDashboardAsync(
-        DateTime          fechaReferencia,
+        DateTime fechaReferencia,
+        CancellationToken cancellationToken = default);
+
+    Task<CitasDashboardRecepcionViewModel> ObtenerDashboardRecepcionAsync(
+        DateTime fechaReferencia,
+        CancellationToken cancellationToken = default);
+
+    Task<PanelOperativoDashboardMetricsViewModel> ObtenerMetricasPanelOperativoAsync(
+        DateTime fechaReferencia,
         CancellationToken cancellationToken = default);
 }

@@ -37,8 +37,20 @@ let upcomingAppointmentsTimerRef = null;
 const safeGetElement = (elementId) =>
   window.CommonUtils?.safeGetElement ? window.CommonUtils.safeGetElement(elementId) : document.getElementById(elementId);
 
-const escapeHtml = (value) =>
-  window.CommonUtils?.escapeHtml ? window.CommonUtils.escapeHtml(value) : String(value ?? '');
+const escapeHtml = (value) => {
+  const text = String(value ?? '');
+  if (typeof window.CommonUtils?.escapeHtml === 'function') {
+    return window.CommonUtils.escapeHtml(text);
+  }
+
+  return text.replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[character]);
+};
 
 // Metadatos de los botones de acción de la tabla. Se usa el patrón canónico
 // declarado en el propio styles.css de la vista (.btn-icon.action-btn, L262) con
@@ -69,6 +81,48 @@ const refreshUpcomingAppointmentsData = async () => {
     renderUpcomingAppointmentsBanner(Array.isArray(payload.proximasCitas) ? payload.proximasCitas : []);
   } catch (error) {
     console.warn('[SmileTrack] No se pudieron actualizar las próximas citas:', error);
+  }
+};
+
+const refreshDashboardSummary = async () => {
+  if (document.hidden) return;
+  try {
+    const response = await window.SmileTrack.utils.fetchWithTimeout('/api/citas/dashboard-resumen', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) throw new Error(`status ${response.status}`);
+    const payload = await response.json();
+    if (payload.success !== true || !payload.stats) {
+      throw new Error('respuesta de resumen inválida');
+    }
+
+    const numericStats = {
+      statCitasHoy: payload.stats.citasHoy,
+      statConfirmadas: payload.stats.confirmadas,
+      statPendientes: payload.stats.pendientes
+    };
+    Object.entries(numericStats).forEach(([elementId, value]) => {
+      const element = safeGetElement(elementId);
+      if (!element) return;
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return;
+      element.dataset.target = String(numericValue);
+      reanimateCounter(element, numericValue);
+    });
+
+    const invoicesElement = safeGetElement('statFacturasPendientes');
+    if (invoicesElement) {
+      invoicesElement.textContent = String(payload.stats.facturasPendientes ?? '0');
+    }
+
+    const lastCheckElement = safeGetElement('systemLastCheck');
+    if (lastCheckElement) {
+      lastCheckElement.textContent = payload.horaActualTexto || '';
+    }
+    renderAlertWidgets(payload);
+  } catch (error) {
+    console.warn('[SmileTrack] No se pudo actualizar el resumen del dashboard:', error);
   }
 };
 
@@ -303,7 +357,11 @@ const setupUpcomingAppointmentsPolling = () => {
     stopPolling();
     if (!document.hidden) {
       refreshUpcomingAppointmentsData();
-      upcomingAppointmentsTimerRef = setInterval(refreshUpcomingAppointmentsData, POLLING_INTERVAL_MS);
+      refreshDashboardSummary();
+      upcomingAppointmentsTimerRef = setInterval(() => {
+        refreshUpcomingAppointmentsData();
+        refreshDashboardSummary();
+      }, POLLING_INTERVAL_MS);
     }
   };
   document.addEventListener('visibilitychange', resumePolling);

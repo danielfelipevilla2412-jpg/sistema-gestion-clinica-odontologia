@@ -1,9 +1,8 @@
-using System.Data;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
+using System.Data;
 
 namespace SmileTrack_MVC.Services;
 
@@ -89,13 +88,13 @@ public sealed class PacienteFusionService(
                 cancellationToken);
         }
 
-            int? idUsuarioTransferido = null;
-            if (!principal.IdUsuario.HasValue && duplicado.IdUsuario.HasValue)
-            {
-                idUsuarioTransferido = duplicado.IdUsuario;
-                duplicado.IdUsuario = null;
-                await context.SaveChangesAsync(cancellationToken);
-            }
+        int? idUsuarioTransferido = null;
+        if (!principal.IdUsuario.HasValue && duplicado.IdUsuario.HasValue)
+        {
+            idUsuarioTransferido = duplicado.IdUsuario;
+            duplicado.IdUsuario = null;
+            await context.SaveChangesAsync(cancellationToken);
+        }
 
         await ConsolidarHistoriaAsync(
             historiaPrincipal,
@@ -105,7 +104,7 @@ public sealed class PacienteFusionService(
             principal.IdPaciente,
             cancellationToken);
         ConsolidarDatosPaciente(principal, duplicado);
-            principal.IdUsuario ??= idUsuarioTransferido;
+        principal.IdUsuario ??= idUsuarioTransferido;
         await ReasignarRelacionesAsync(idPrincipal, idDuplicado, cancellationToken);
 
         duplicado.Estado = "inactivo";

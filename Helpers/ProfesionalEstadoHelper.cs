@@ -83,9 +83,9 @@ public static partial class ProfesionalEstadoHelper
     public static string EstadoLabel(string? estado) =>
         NormalizarEstado(estado) switch
         {
-            "activo"     => "Activo",
+            "activo" => "Activo",
             "vacaciones" => "En vacaciones",
-            "inactivo"   => "Inactivo",
-            _            => "Activo"
+            "inactivo" => "Inactivo",
+            _ => "Activo"
         };
 }

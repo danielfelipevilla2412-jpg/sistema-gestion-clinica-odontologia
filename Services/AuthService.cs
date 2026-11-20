@@ -1,24 +1,17 @@
-using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services.Email;
-using System;
-using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace SmileTrack_MVC.Services
 {
@@ -718,7 +711,7 @@ namespace SmileTrack_MVC.Services
 
                 AuthResponse? resultadoError = await strategy.ExecuteAsync(async () =>
             {
-                    await using var tx = await _context.Database.BeginTransactionAsync(ct);
+                await using var tx = await _context.Database.BeginTransactionAsync(ct);
 
                 try
                 {
@@ -776,12 +769,12 @@ namespace SmileTrack_MVC.Services
                     return (AuthResponse?)null;
                 }
                 catch (DbUpdateException dbEx)
-                    when (EsViolacionIndiceUnico( dbEx, out string? nombreIndice))
+                    when (EsViolacionIndiceUnico(dbEx, out string? nombreIndice))
                 {
                     await tx.RollbackAsync(ct);
                     return new AuthResponse { Success = false, Message = "El correo o documento ya se encuentran registrados." };
                 }
-                
+
                 catch (DbUpdateException dbEx)
                     when (EsViolacionIntegridadReferencial(dbEx))
                 {
@@ -842,7 +835,7 @@ namespace SmileTrack_MVC.Services
                         Message = MensajeErrorSeguridad
                     };
                 }
-            });                                   
+            });
 
                 if (resultadoError != null)             // ← AGREGAR: si hubo error, cortar aquí
                 {
@@ -871,7 +864,7 @@ namespace SmileTrack_MVC.Services
                     User = userPayload
                 };
             }
-            
+
             catch (OperationCanceledException)
             {
                 return new AuthResponse
@@ -903,7 +896,7 @@ namespace SmileTrack_MVC.Services
                 };
             }
         }
-        
+
 
         // ============================================================
         // RECUPERAR CONTRASEÑA

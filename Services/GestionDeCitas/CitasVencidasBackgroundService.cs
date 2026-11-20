@@ -7,7 +7,7 @@
  *
  * PROPÓSITO Y JUSTIFICACIÓN:
  * Servicio en segundo plano que cierra automáticamente las citas que ya vencieron y se quedaron
- * en un estado no final (solicitada / pendiente / agendada / confirmada / en espera). Sin este
+ * en un estado operativo no final (agendada / confirmada / en espera). Sin este
  * cierre, la agenda y los reportes siguen mostrando indefinidamente citas "fantasma" de días
  * anteriores que nunca se atendieron ni se cancelaron.
  *
@@ -16,7 +16,7 @@
  * - Al arrancar la aplicación ejecuta una puesta al día que cierra las citas de días anteriores.
  * - Las citas de la jornada en curso solo se cierran en la pasada nocturna, nunca durante el día,
  *   para no marcar como inasistencia a un paciente que todavía está en sala de espera.
- * - El estado destino es "No asistio" (estado ya existente en el catálogo dbo.Estado_Cita).
+ * - El estado destino es "No asistio"; el servicio de citas registra historial y auditoría.
  *
  * DEPENDENCIAS TÉCNICAS:
  * - IServiceScopeFactory (AppDbContext es scoped), ILogger
@@ -26,6 +26,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
+using SmileTrack_MVC.Services;
 
 namespace SmileTrack_MVC.Services.GestionDeCitas;
 
@@ -96,7 +97,7 @@ public sealed class CitasVencidasBackgroundService : BackgroundService
 
     /// <summary>
     /// Marca como "No asistio" todas las citas anteriores a <paramref name="corte"/> que sigan en
-    /// un estado no final.
+    /// un estado operativo pendiente.
     /// </summary>
     private async Task CerrarCitasVencidasAsync(DateTime corte, CancellationToken ct)
     {
@@ -104,6 +105,7 @@ public sealed class CitasVencidasBackgroundService : BackgroundService
         {
             using IServiceScope scope = _scopeFactory.CreateScope();
             AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            ICitaService citaService = scope.ServiceProvider.GetRequiredService<ICitaService>();
 
             int? idNoAsistio = await db.EstadosCita
                 .AsNoTracking()
@@ -111,22 +113,52 @@ public sealed class CitasVencidasBackgroundService : BackgroundService
                 .Select(e => (int?)e.IdEstado)
                 .FirstOrDefaultAsync(ct);
 
-            string[] estadosPendientes = EstadosPendientes;
+            if (!idNoAsistio.HasValue)
+            {
+                _logger.LogError(
+                    "No se puede cerrar citas vencidas: el catálogo no contiene el estado '{Estado}'.",
+                    EstadoNoAsistio);
+                return;
+            }
 
-            var vencidas = db.Citas
+            int[] vencidas = await db.Citas
+                .AsNoTracking()
                 .Where(c => c.FechaHora < corte)
-                .Where(c => estadosPendientes.Contains(
-                    ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).ToLower()));
+                .Where(c => EstadosPendientes.Contains(
+                    ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).ToLower()))
+                .Select(c => c.IdCita)
+                .ToArrayAsync(ct);
 
-            int actualizadas = idNoAsistio.HasValue
-                ? await vencidas.ExecuteUpdateAsync(
-                    setters => setters
-                        .SetProperty(c => c.Estado, EstadoNoAsistio)
-                        .SetProperty(c => c.IdEstado, idNoAsistio.Value),
-                    ct)
-                : await vencidas.ExecuteUpdateAsync(
-                    setters => setters.SetProperty(c => c.Estado, EstadoNoAsistio),
-                    ct);
+            int actualizadas = 0;
+            foreach (int idCita in vencidas)
+            {
+                try
+                {
+                    var actualizada = await citaService.CambiarEstadoAsync(
+                        idCita,
+                        EstadoNoAsistio,
+                        ct: ct,
+                        ipOrigen: nameof(CitasVencidasBackgroundService));
+
+                    if (actualizada is not null)
+                        actualizadas++;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "No se pudo cerrar automáticamente la cita vencida {IdCita}; puede haber cambiado de estado o faltar un estado en el catálogo.",
+                        idCita);
+                }
+                catch (DbUpdateException ex)
+                {
+                    db.ChangeTracker.Clear();
+                    _logger.LogError(
+                        ex,
+                        "No se pudo persistir el cierre automático de la cita vencida {IdCita}.",
+                        idCita);
+                }
+            }
 
             if (actualizadas > 0)
             {

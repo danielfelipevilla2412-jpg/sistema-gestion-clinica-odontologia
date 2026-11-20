@@ -19,17 +19,16 @@
  * ============================================
  */
 
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
-using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Perfiles;
+using System.Security.Claims;
 
 namespace SmileTrack_MVC.Controllers.Api;
 
@@ -174,7 +173,9 @@ public class MobileSolicitudCitasController : ControllerBase
                     HoraInicio = solicitud.FechaHora.TimeOfDay,
                     Notas = solicitud.Notas
                 },
-                cancellationToken);
+                cancellationToken,
+                idUsuario,
+                HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida");
 
             return Ok(new
             {

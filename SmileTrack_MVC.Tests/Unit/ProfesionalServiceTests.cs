@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
@@ -11,12 +12,31 @@ using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Services;
+using SmileTrack_MVC.Services.GestionDeProfesionales;
 using Xunit;
 
 namespace SmileTrack_MVC.Tests.Unit;
 
 public sealed class ProfesionalServiceTests
 {
+    [Fact]
+    public void ProfesionalService_SeResuelveConServicioDeComisiones()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddMemoryCache();
+        services.AddDbContext<AppDbContext>(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        services.AddScoped<IProfesionalComisionService, ProfesionalComisionService>();
+        services.AddScoped<IProfesionalService, ProfesionalService>();
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        Assert.IsType<ProfesionalService>(
+            scope.ServiceProvider.GetRequiredService<IProfesionalService>());
+    }
+
     [Fact]
     public async Task CrearAusenciaAsync_RechazaRangosSolapadosDelMismoProfesional()
     {

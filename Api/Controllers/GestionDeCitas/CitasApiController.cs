@@ -22,12 +22,12 @@
  * ============================================
  */
 
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using SmileTrack_MVC.Data;
@@ -38,8 +38,8 @@ using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
-using SmileTrack_MVC.Services.Perfiles;
 using SmileTrack_MVC.Services.Email;
+using SmileTrack_MVC.Services.Perfiles;
 using System.Security.Claims;
 
 namespace SmileTrack_MVC.Api.Controllers;
@@ -296,6 +296,10 @@ public sealed class CitasApiController : ControllerBase
                 return Forbid();
             }
 
+            int? actorId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId)
+                ? userId
+                : null;
+            string ipOrigen = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
             Cita cita = updating
                 ? await _citaService.ActualizarAsync(dto.IdCita!.Value, new CitaApiUpdateDto
                 {
@@ -310,13 +314,12 @@ public sealed class CitasApiController : ControllerBase
                     IdUsuarioModificacion = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int usuarioActual)
                         ? usuarioActual
                         : null
-                }, ct) ?? throw new InvalidOperationException("La cita no existe.")
-                : await _citaService.CrearAsync(request, ct);
+                }, ct, actorId, ipOrigen) ?? throw new InvalidOperationException("La cita no existe.")
+                : await _citaService.CrearAsync(request, ct, actorId, ipOrigen);
 
             // La duración ya está en la entidad Cita devuelta por CrearAsync/ActualizarAsync.
             // No hace falta una query adicional a ConfiguracionGeneral.
             int duracion = cita.DuracionMinutos > 0 ? cita.DuracionMinutos : await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
-            await RegistrarAuditoriaAsync(updating ? "UPDATE" : "INSERT", cita.IdCita, "Cita guardada desde Agenda.", ct);
             return Ok(new { success = true, message = updating ? "Cita actualizada exitosamente." : "Cita agendada exitosamente.", id = cita.IdCita, idEstado = cita.IdEstado, estado = cita.Estado, updated = updating, duracionMinutos = duracion });
         }
         catch (CitaConflictException ex)
@@ -358,11 +361,16 @@ public sealed class CitasApiController : ControllerBase
                 out int usuarioActual)
                     ? usuarioActual
                     : null;
-            var actualizada = await _citaService.ActualizarAsync(id, dto, ct);
+            string ipOrigen = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
+            var actualizada = await _citaService.ActualizarAsync(
+                id,
+                dto,
+                ct,
+                dto.IdUsuarioModificacion,
+                ipOrigen);
             if (actualizada is null)
                 return NotFound(new { success = false, message = "Cita no encontrada." });
             int duracion = await _citaService.ObtenerDuracionCitaMinutosAsync(ct);
-            await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita actualizada mediante API.", ct);
             return Ok(new { success = true, message = "Cita actualizada exitosamente.", id = actualizada.IdCita, idEstado = actualizada.IdEstado, estado = actualizada.Estado, duracionMinutos = duracion });
         }
         catch (CitaConflictException ex)
@@ -406,8 +414,8 @@ public sealed class CitasApiController : ControllerBase
 
         try
         {
-            var cita = await _citaService.AgendarCitaPacienteAsync(idPaciente.Value, dto, ct);
-            await RegistrarAuditoriaAsync("INSERT", cita.IdCita, "Cita programada directamente por el paciente.", ct);
+            string ipOrigen = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
+            var cita = await _citaService.AgendarCitaPacienteAsync(idPaciente.Value, dto, ct, idUsuario, ipOrigen);
             return StatusCode(StatusCodes.Status201Created, new
             {
                 success = true,
@@ -663,11 +671,14 @@ public sealed class CitasApiController : ControllerBase
 
         try
         {
-            var cita = await _citaService.ConfirmarYAsignarCitaAsync(id, dto, ct);
+            int? actorId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId)
+                ? userId
+                : null;
+            string ipOrigen = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
+            var cita = await _citaService.ConfirmarYAsignarCitaAsync(id, dto, ct, actorId, ipOrigen);
             if (cita is null)
                 return NotFound(new { success = false, message = "Cita no encontrada." });
 
-            await RegistrarAuditoriaAsync("UPDATE", cita.IdCita, "Cita confirmada y asignada por recepción.", ct);
             return Ok(new
             {
                 success = true,
@@ -706,17 +717,11 @@ public sealed class CitasApiController : ControllerBase
             int? actorId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId)
                 ? userId
                 : null;
-            var cita = await _citaService.RechazarSolicitudAsync(id, dto.Motivo, actorId, ct);
+            string ipOrigen = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
+            var cita = await _citaService.RechazarSolicitudAsync(id, dto.Motivo, actorId, ct, ipOrigen);
             if (cita is null)
                 return NotFound(new { success = false, message = "La solicitud no existe." });
 
-            await RegistrarAuditoriaAsync(
-                "UPDATE",
-                cita.IdCita,
-                $"Solicitud de cita rechazada. Motivo: {dto.Motivo.Trim()}",
-                new { EstadoAnterior = "Solicitada" },
-                new { EstadoNuevo = cita.Estado },
-                ct);
             return Ok(new
             {
                 success = true,
@@ -838,6 +843,9 @@ public sealed class CitasApiController : ControllerBase
 
         try
         {
+            int? actorId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int usuarioActual)
+                ? usuarioActual
+                : null;
             var actualizada = await _citaService.ActualizarAsync(id, new CitaApiUpdateDto
             {
                 IdCita = cita.IdCita,
@@ -849,26 +857,13 @@ public sealed class CitasApiController : ControllerBase
                 Estado = cita.Estado,
                 Notas = cita.Notas,
                 IdEstado = cita.IdEstado,
-                IdUsuarioModificacion = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int usuarioActual)
-                    ? usuarioActual
-                    : null
-            }, ct);
+                IdUsuarioModificacion = actorId
+            }, ct, actorId, HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+                motivoHistorial: "Cita reagendada desde la agenda.");
 
             if (actualizada is null)
                 return NotFound(new { success = false, message = "Cita no encontrada." });
 
-            _context.CitasHistorialEstado.Add(new CitaHistorialEstado
-            {
-                IdCita = actualizada.IdCita,
-                IdEstado = actualizada.IdEstado,
-                EstadoTexto = actualizada.Estado,
-                IdUsuario = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int idUsuario) ? idUsuario : null,
-                Motivo = "Cita reagendada desde la agenda.",
-                FechaCambio = ColombiaClock.Now
-            });
-            await _context.SaveChangesAsync(ct);
-
-            await RegistrarAuditoriaAsync("UPDATE", actualizada.IdCita, "Cita reagendada desde la agenda.", ct);
             return Ok(new { success = true, message = "Cita reagendada correctamente.", id = actualizada.IdCita, fechaHora = actualizada.FechaHora });
         }
         catch (CitaConflictException ex)
@@ -884,13 +879,13 @@ public sealed class CitasApiController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
     // PUT /api/citas/{id}/estado
     // Cambia el estado de una cita.
-    // Actores (RF-21/CU-CIT-04): Recepcionista, Profesional.
+    // Actores: Recepcionista, Profesional y Auxiliar (solo llegada/atención).
     // - Profesional: solo sus propias citas (RN-25).
     // - Recepcionista/Administrador: sin restricción de ownership.
     // ─────────────────────────────────────────────────────────────────────────
     [HttpPut]
     [CookieAwareValidateAntiforgeryToken]
-    [Authorize(Roles = "Administrador,Recepcionista,Profesional", Policy = "ApiOrCookie")]
+    [Authorize(Roles = "Administrador,Recepcionista,Profesional,Auxiliar", Policy = "ApiOrCookie")]
     [Route("api/citas/{id:int}/estado")]
     public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoCitaDto dto, CancellationToken ct = default)
     {
@@ -910,7 +905,8 @@ public sealed class CitasApiController : ControllerBase
             dto.Estado,
             User.IsInRole("Administrador"),
             User.IsInRole("Recepcionista"),
-            User.IsInRole("Profesional")))
+            User.IsInRole("Profesional"),
+            User.IsInRole("Auxiliar")))
         {
             return Forbid();
         }
@@ -920,7 +916,12 @@ public sealed class CitasApiController : ControllerBase
             int? idUsuarioActor = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int uid) ? uid : null;
             string? ipActor = HttpContext.Connection.RemoteIpAddress?.ToString();
 
-            var actualizada = await _citaService.CambiarEstadoAsync(id, dto.Estado, idUsuarioActor, ct);
+            var actualizada = await _citaService.CambiarEstadoAsync(
+                id,
+                dto.Estado,
+                idUsuarioActor,
+                ct,
+                ipActor);
             if (actualizada is null)
                 return NotFound(new { success = false, message = "La cita no existe." });
 
@@ -928,20 +929,13 @@ public sealed class CitasApiController : ControllerBase
             if (estado is "confirmada" or "cancelada")
                 await EnviarNotificacionCitaAsync(actualizada.IdCita, estado, ct);
 
-            await RegistrarAuditoriaAsync(
-                "UPDATE", actualizada.IdCita,
-                $"Estado cambiado a '{actualizada.Estado}' por usuario {idUsuarioActor}.",
-                new { EstadoAnterior = cita.Estado },
-                new { EstadoNuevo = actualizada.Estado },
-                ct);
-
             return Ok(new
             {
-                success  = true,
-                id       = actualizada.IdCita,
+                success = true,
+                id = actualizada.IdCita,
                 idEstado = actualizada.IdEstado,
-                estado   = actualizada.Estado,
-                message  = $"Cita actualizada a '{actualizada.Estado}' correctamente."
+                estado = actualizada.Estado,
+                message = $"Cita actualizada a '{actualizada.Estado}' correctamente."
             });
         }
         catch (InvalidOperationException ex)
@@ -1020,12 +1014,21 @@ public sealed class CitasApiController : ControllerBase
         asistencia.ActualizadoEn = ColombiaClock.Now;
         await _context.SaveChangesAsync(ct);
 
-        return Ok(new { success = true, message = "Asistencia del procedimiento guardada.", data = new AsistenciaProcedimientoApiDto
+        return Ok(new
         {
-            IdCita = asistencia.IdCita, Minutos = asistencia.Minutos, Inicio = asistencia.Inicio,
-            Limpieza = asistencia.Limpieza, Esterilizacion = asistencia.Esterilizacion,
-            Equipos = asistencia.Equipos, ActualizadoEn = asistencia.ActualizadoEn
-        }});
+            success = true,
+            message = "Asistencia del procedimiento guardada.",
+            data = new AsistenciaProcedimientoApiDto
+            {
+                IdCita = asistencia.IdCita,
+                Minutos = asistencia.Minutos,
+                Inicio = asistencia.Inicio,
+                Limpieza = asistencia.Limpieza,
+                Esterilizacion = asistencia.Esterilizacion,
+                Equipos = asistencia.Equipos,
+                ActualizadoEn = asistencia.ActualizadoEn
+            }
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1078,16 +1081,20 @@ public sealed class CitasApiController : ControllerBase
         {
             TimeSpan? anticipacionMinima = User.IsInRole("Paciente") ? TimeSpan.FromHours(2) : null;
             string motivo = dto.Motivo.Trim();
+            int? idUsuarioActor = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId)
+                ? userId
+                : null;
+            string? ipActor = HttpContext.Connection.RemoteIpAddress?.ToString();
 
-            if (!await _citaService.CancelarAsync(id, motivo, anticipacionMinima, ct))
+            if (!await _citaService.CancelarAsync(
+                    id,
+                    motivo,
+                    anticipacionMinima,
+                    ct,
+                    operadorId: idUsuarioActor,
+                    ipOrigen: ipActor))
                 return NotFound(new { success = false, message = "Cita no encontrada." });
 
-            await RegistrarAuditoriaAsync(
-                "UPDATE", id,
-                $"Cita cancelada mediante API. Motivo: {motivo}",
-                new { EstadoAnterior = cita.Estado, cita.FechaHora, cita.IdPaciente, cita.IdProfesional },
-                new { Estado = "Cancelada", Motivo = motivo },
-                ct);
             return Ok(new { success = true, message = "Cita cancelada exitosamente.", id });
         }
         catch (InvalidOperationException ex)
@@ -1113,53 +1120,6 @@ public sealed class CitasApiController : ControllerBase
     }
     private bool EsProfesionalPropietario(Cita cita) => int.TryParse(User.FindFirstValue("IdProfesional"), out int id) && id == cita.IdProfesional;
     private static string NormalizarEstado(string? estado) => EstadoCitaHelper.Normalize(estado);
-
-    private async Task RegistrarAuditoriaAsync(string accion, int idRegistro, string descripcion, CancellationToken ct)
-    {
-        try
-        {
-            _context.Auditorias.Add(new Auditoria
-            {
-                Accion        = accion,
-                TablaAfectada = "Cita",
-                IdRegistro    = idRegistro,
-                Descripcion   = descripcion,
-                IdUsuario     = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int id) ? id : null,
-                IpOrigen      = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
-                Fecha         = ColombiaClock.Now
-            });
-            await _context.SaveChangesAsync(ct);
-        }
-        catch (Exception ex) { _logger.LogWarning(ex, "No se pudo registrar auditoría de cita IdCita={IdCita}", idRegistro); }
-    }
-
-    // M4: Sobrecarga con snapshots anterior/nuevo para cumplir RN-28 completo
-    private async Task RegistrarAuditoriaAsync(
-        string accion,
-        int idRegistro,
-        string descripcion,
-        object? datosAnteriores,
-        object? datosNuevos,
-        CancellationToken ct)
-    {
-        try
-        {
-            _context.Auditorias.Add(new Auditoria
-            {
-                Accion          = accion,
-                TablaAfectada   = "Cita",
-                IdRegistro      = idRegistro,
-                Descripcion     = descripcion,
-                IdUsuario       = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int id) ? id : null,
-                IpOrigen        = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
-                Fecha           = ColombiaClock.Now,
-                DatosAnteriores = datosAnteriores is null ? null : System.Text.Json.JsonSerializer.Serialize(datosAnteriores),
-                DatosNuevos     = datosNuevos is null     ? null : System.Text.Json.JsonSerializer.Serialize(datosNuevos)
-            });
-            await _context.SaveChangesAsync(ct);
-        }
-        catch (Exception ex) { _logger.LogWarning(ex, "No se pudo registrar auditoría con snapshots. IdCita={IdCita}", idRegistro); }
-    }
 
     private async Task EnviarNotificacionCitaAsync(int idCita, string estado, CancellationToken ct)
     {

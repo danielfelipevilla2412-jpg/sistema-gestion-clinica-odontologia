@@ -45,7 +45,7 @@ public class ProximaCitaWidgetViewComponent : ViewComponent
     /// <param name="idPaciente">ID del paciente (opcional)</param>
     /// <param name="incluirUltimaAtencion">Si debe incluir información de última atención</param>
     public async Task<IViewComponentResult> InvokeAsync(
-        int? idProfesional = null, 
+        int? idProfesional = null,
         int? idPaciente = null,
         bool incluirUltimaAtencion = true)
     {
@@ -64,7 +64,7 @@ public class ProximaCitaWidgetViewComponent : ViewComponent
         {
             query = query.Where(c => c.IdProfesional == idProfesional.Value);
         }
-        
+
         if (idPaciente.HasValue)
         {
             query = query.Where(c => c.IdPaciente == idPaciente.Value);
@@ -92,8 +92,8 @@ public class ProximaCitaWidgetViewComponent : ViewComponent
                 .Select(c => c.FechaHora)
                 .FirstOrDefaultAsync();
 
-            ultimaAtencion = ultimaCitaAtendida != default 
-                ? $"Última atención: {ultimaCitaAtendida:dd/MM/yyyy}" 
+            ultimaAtencion = ultimaCitaAtendida != default
+                ? $"Última atención: {ultimaCitaAtendida:dd/MM/yyyy}"
                 : "Primera visita";
         }
 

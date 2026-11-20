@@ -348,29 +348,29 @@ public sealed class PacienteService : IPacienteService
         Paciente p,
         DateTime? ultimaConsulta,
         DateTime? proximaConsulta) => new()
-    {
-        IdPaciente = p.IdPaciente,
-        TipoDocumento = p.TipoDocumento,
-        Documento = p.Documento,
-        Nombres = p.Nombres,
-        Apellidos = p.Apellidos,
-        NombreCompleto = p.NombresCompleto,
-        FechaNacimiento = p.FechaNacimiento,
-        Genero = p.Genero,
-        Telefono = p.Telefono,
-        Correo = p.Correo,
-        Ciudad = p.Ciudad,
-        Direccion = p.Direccion,
-        GrupoSanguineo = p.GrupoSanguineo,
-        Alergias = string.IsNullOrWhiteSpace(p.Alergias)
+        {
+            IdPaciente = p.IdPaciente,
+            TipoDocumento = p.TipoDocumento,
+            Documento = p.Documento,
+            Nombres = p.Nombres,
+            Apellidos = p.Apellidos,
+            NombreCompleto = p.NombresCompleto,
+            FechaNacimiento = p.FechaNacimiento,
+            Genero = p.Genero,
+            Telefono = p.Telefono,
+            Correo = p.Correo,
+            Ciudad = p.Ciudad,
+            Direccion = p.Direccion,
+            GrupoSanguineo = p.GrupoSanguineo,
+            Alergias = string.IsNullOrWhiteSpace(p.Alergias)
             ? []
             : p.Alergias.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-        AntecedentesMedicos = p.AntecedentesMedicos,
-        ContactoEmergencia = p.ContactoEmergencia,
-        TelefonoEmergencia = p.TelefonoEmergencia,
-        Estado = p.Estado,
-        FechaRegistro = p.FechaRegistro,
-        UltimaConsulta = ultimaConsulta,
-        ProximaConsulta = proximaConsulta
-    };
+            AntecedentesMedicos = p.AntecedentesMedicos,
+            ContactoEmergencia = p.ContactoEmergencia,
+            TelefonoEmergencia = p.TelefonoEmergencia,
+            Estado = p.Estado,
+            FechaRegistro = p.FechaRegistro,
+            UltimaConsulta = ultimaConsulta,
+            ProximaConsulta = proximaConsulta
+        };
 }

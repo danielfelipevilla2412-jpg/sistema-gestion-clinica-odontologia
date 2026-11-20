@@ -1,6 +1,12 @@
 USE [SmileTrackDB];
 GO
 
+IF COL_LENGTH(N'dbo.Profesional', N'credenciales_aprobadas') IS NULL
+    ALTER TABLE [dbo].[Profesional]
+        ADD [credenciales_aprobadas] [bit] NOT NULL
+            CONSTRAINT [DF_Profesional_CredencialesAprobadas] DEFAULT ((1)) WITH VALUES;
+GO
+
 IF COL_LENGTH(N'dbo.Profesional', N'tarjeta_profesional') IS NULL
     ALTER TABLE [dbo].[Profesional]
         ADD [tarjeta_profesional] [nvarchar](50) NULL;
@@ -32,7 +38,7 @@ IF NOT EXISTS (
         ADD CONSTRAINT [FK_Cita_ProfesionalPreferido]
         FOREIGN KEY ([id_profesional_preferido])
         REFERENCES [dbo].[Profesional]([id_profesional])
-        ON DELETE SET NULL;
+        ON DELETE NO ACTION;
 GO
 
 IF OBJECT_ID(N'dbo.Lista_Espera_Cita', N'U') IS NULL
@@ -111,6 +117,43 @@ IF NOT EXISTS (
     CREATE UNIQUE INDEX [UX_ListaEspera_CitaAsignada]
         ON [dbo].[Lista_Espera_Cita]([id_cita_asignada])
         WHERE [id_cita_asignada] IS NOT NULL;
+GO
+
+DECLARE @RestriccionTipoNotificacion sysname;
+DECLARE @SqlEliminarRestriccion nvarchar(300);
+SELECT TOP (1) @RestriccionTipoNotificacion = [name]
+FROM sys.check_constraints
+WHERE [parent_object_id] = OBJECT_ID(N'dbo.Notificacion')
+  AND CHARINDEX(N'[tipo]', [definition]) > 0
+  AND LOWER([definition]) NOT LIKE N'%cambio_estado%';
+
+WHILE @RestriccionTipoNotificacion IS NOT NULL
+BEGIN
+    SET @SqlEliminarRestriccion =
+        N'ALTER TABLE [dbo].[Notificacion] DROP CONSTRAINT ' +
+        QUOTENAME(@RestriccionTipoNotificacion);
+    EXEC sp_executesql @SqlEliminarRestriccion;
+    SET @RestriccionTipoNotificacion = NULL;
+
+    SELECT TOP (1) @RestriccionTipoNotificacion = [name]
+    FROM sys.check_constraints
+    WHERE [parent_object_id] = OBJECT_ID(N'dbo.Notificacion')
+      AND CHARINDEX(N'[tipo]', [definition]) > 0
+      AND LOWER([definition]) NOT LIKE N'%cambio_estado%';
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.check_constraints
+    WHERE [name] = N'CK_Notificacion_tipo'
+      AND [parent_object_id] = OBJECT_ID(N'dbo.Notificacion')
+)
+    ALTER TABLE [dbo].[Notificacion] WITH CHECK
+        ADD CONSTRAINT [CK_Notificacion_tipo]
+        CHECK ([tipo] IN (
+            'pago', 'factura', 'alerta', 'mensaje',
+            'cancelacion', 'confirmacion', 'recordatorio', 'cambio_estado'
+        ));
 GO
 
 DECLARE @Estados TABLE ([nombre_estado] [nvarchar](50) NOT NULL);

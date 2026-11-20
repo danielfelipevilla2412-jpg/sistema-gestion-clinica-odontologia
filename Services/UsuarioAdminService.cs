@@ -1,10 +1,9 @@
-using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
+using System.Text.RegularExpressions;
 
 namespace SmileTrack_MVC.Services;
 
@@ -29,200 +28,200 @@ public sealed class UsuarioAdminService(
         ["Recepcionista", "Auxiliar"],
         StringComparer.OrdinalIgnoreCase);
 
-public async Task<(bool Success, string Message, object? Data)> CrearAsync(
-    CrearUsuarioAdminRequest request,
-    int? creadoPor,
-    CancellationToken ct = default)
-{
-    string correo = request.Correo.Trim();
-    string nombre = request.Nombre.Trim();
-    string apellidos = request.Apellidos.Trim();
-
-    if (!EsPasswordValida(request.Contrasena))
+    public async Task<(bool Success, string Message, object? Data)> CrearAsync(
+        CrearUsuarioAdminRequest request,
+        int? creadoPor,
+        CancellationToken ct = default)
     {
-        return (
-            false,
-            "La contraseña debe tener al menos 8 caracteres, una letra, un número y un símbolo.",
-            null);
-    }
+        string correo = request.Correo.Trim();
+        string nombre = request.Nombre.Trim();
+        string apellidos = request.Apellidos.Trim();
 
-    var rol = await _context.Roles
-        .AsNoTracking()
-        .FirstOrDefaultAsync(
-            r => r.IdRol == request.IdRol,
-            ct);
+        if (!EsPasswordValida(request.Contrasena))
+        {
+            return (
+                false,
+                "La contraseña debe tener al menos 8 caracteres, una letra, un número y un símbolo.",
+                null);
+        }
 
-    if (rol == null)
-    {
-        return (
-            false,
-            "El rol seleccionado no existe.",
-            null);
-    }
+        var rol = await _context.Roles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                r => r.IdRol == request.IdRol,
+                ct);
 
-    if (!RolesInternosCreables.Contains(rol.NombreRol))
-    {
-        return (
-            false,
-            "Los usuarios Profesional y Paciente se crean desde sus módulos respectivos para garantizar la vinculación de sus perfiles. El Administrador inicial se gestiona por configuración.",
-            null);
-    }
+        if (rol == null)
+        {
+            return (
+                false,
+                "El rol seleccionado no existe.",
+                null);
+        }
 
-    bool correoExiste = await _context.Usuarios
-        .AnyAsync(
-            u => u.Correo == correo,
-            ct);
+        if (!RolesInternosCreables.Contains(rol.NombreRol))
+        {
+            return (
+                false,
+                "Los usuarios Profesional y Paciente se crean desde sus módulos respectivos para garantizar la vinculación de sus perfiles. El Administrador inicial se gestiona por configuración.",
+                null);
+        }
 
-    if (correoExiste)
-    {
-        return (
-            false,
-            "El correo ya se encuentra registrado.",
-            null);
-    }
+        bool correoExiste = await _context.Usuarios
+            .AnyAsync(
+                u => u.Correo == correo,
+                ct);
 
-    string estado =
-        NormalizarEstado(request.Estado);
+        if (correoExiste)
+        {
+            return (
+                false,
+                "El correo ya se encuentra registrado.",
+                null);
+        }
 
-    var strategy =
-        _context.Database.CreateExecutionStrategy();
+        string estado =
+            NormalizarEstado(request.Estado);
 
-    try
-    {
-        return await strategy.ExecuteAsync(
-            async () =>
-            {
-                await using var tx =
-                    await _context.Database
-                        .BeginTransactionAsync(ct);
+        var strategy =
+            _context.Database.CreateExecutionStrategy();
 
-                try
+        try
+        {
+            return await strategy.ExecuteAsync(
+                async () =>
                 {
-                    var usuario = new Usuario
-                    {
-                        Nombre = nombre,
-                        Apellidos = apellidos,
-                        Correo = correo,
-                        Contrasena =
-                            BCrypt.Net.BCrypt.HashPassword(
-                                request.Contrasena,
-                                workFactor: 11),
-                        IdRol = rol.IdRol,
-                        Estado = estado,
-                        CreadoPor = creadoPor,
-                        FechaCreacion = DateTime.UtcNow,
-                        IntentosFallidos = 0
-                    };
+                    await using var tx =
+                        await _context.Database
+                            .BeginTransactionAsync(ct);
 
-                    _context.Usuarios.Add(usuario);
-
-                    await _context.SaveChangesAsync(ct);
-
-                    await RegistrarAuditoriaAsync(
-                        "INSERT",
-                        usuario.IdUsuario,
-                        null,
-                        SerializeUsuario(
-                            usuario,
-                            rol.NombreRol),
-                        $"Usuario creado por administración. Rol={rol.NombreRol}, Correo={usuario.Correo}",
-                        creadoPor,
-                        ct);
-
-                    await tx.CommitAsync(ct);
-
-                    _logger.LogInformation(
-                        "Usuario creado. IdUsuario={IdUsuario}, Correo={Correo}, Rol={Rol}, CreadoPor={CreadoPor}",
-                        usuario.IdUsuario,
-                        usuario.Correo,
-                        rol.NombreRol,
-                        creadoPor);
-
-                    return (
-                        true,
-                        "Usuario creado correctamente.",
-                        MapUsuario(
-                            usuario,
-                            rol.NombreRol));
-                }
-                catch
-                {
                     try
                     {
-                        await tx.RollbackAsync(ct);
+                        var usuario = new Usuario
+                        {
+                            Nombre = nombre,
+                            Apellidos = apellidos,
+                            Correo = correo,
+                            Contrasena =
+                                BCrypt.Net.BCrypt.HashPassword(
+                                    request.Contrasena,
+                                    workFactor: 11),
+                            IdRol = rol.IdRol,
+                            Estado = estado,
+                            CreadoPor = creadoPor,
+                            FechaCreacion = DateTime.UtcNow,
+                            IntentosFallidos = 0
+                        };
+
+                        _context.Usuarios.Add(usuario);
+
+                        await _context.SaveChangesAsync(ct);
+
+                        await RegistrarAuditoriaAsync(
+                            "INSERT",
+                            usuario.IdUsuario,
+                            null,
+                            SerializeUsuario(
+                                usuario,
+                                rol.NombreRol),
+                            $"Usuario creado por administración. Rol={rol.NombreRol}, Correo={usuario.Correo}",
+                            creadoPor,
+                            ct);
+
+                        await tx.CommitAsync(ct);
+
+                        _logger.LogInformation(
+                            "Usuario creado. IdUsuario={IdUsuario}, Correo={Correo}, Rol={Rol}, CreadoPor={CreadoPor}",
+                            usuario.IdUsuario,
+                            usuario.Correo,
+                            rol.NombreRol,
+                            creadoPor);
+
+                        return (
+                            true,
+                            "Usuario creado correctamente.",
+                            MapUsuario(
+                                usuario,
+                                rol.NombreRol));
                     }
-                    catch (Exception rollbackEx)
+                    catch
                     {
-                        _logger.LogWarning(
-                            rollbackEx,
-                            "No se pudo hacer rollback de la transacción al crear usuario. Correo={Correo}",
-                            correo);
+                        try
+                        {
+                            await tx.RollbackAsync(ct);
+                        }
+                        catch (Exception rollbackEx)
+                        {
+                            _logger.LogWarning(
+                                rollbackEx,
+                                "No se pudo hacer rollback de la transacción al crear usuario. Correo={Correo}",
+                                correo);
+                        }
+
+                        throw;
                     }
+                });
+        }
+        catch (DbUpdateException ex) when (EsUnique(ex))
+        {
+            _logger.LogWarning(
+                ex,
+                "Intento de crear usuario con correo duplicado. Correo={Correo}",
+                correo);
 
-                    throw;
-                }
-            });
-    }
-    catch (DbUpdateException ex) when (EsUnique(ex))
-    {
-        _logger.LogWarning(
-            ex,
-            "Intento de crear usuario con correo duplicado. Correo={Correo}",
-            correo);
+            return (
+                false,
+                "El correo ya se encuentra registrado.",
+                null);
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error SQL creando usuario. Correo={Correo}",
+                correo);
 
-        return (
-            false,
-            "El correo ya se encuentra registrado.",
-            null);
-    }
-    catch (SqlException ex)
-    {
-        _logger.LogError(
-            ex,
-            "Error SQL creando usuario. Correo={Correo}",
-            correo);
+            return (
+                false,
+                "No se pudo guardar el usuario en la base de datos.",
+                null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error de operación creando usuario. Correo={Correo}",
+                correo);
 
-        return (
-            false,
-            "No se pudo guardar el usuario en la base de datos.",
-            null);
-    }
-    catch (InvalidOperationException ex)
-    {
-        _logger.LogError(
-            ex,
-            "Error de operación creando usuario. Correo={Correo}",
-            correo);
+            return (
+                false,
+                "No se pudo completar la creación del usuario.",
+                null);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "Creación de usuario cancelada. Correo={Correo}",
+                correo);
 
-        return (
-            false,
-            "No se pudo completar la creación del usuario.",
-            null);
-    }
-    catch (OperationCanceledException)
-    {
-        _logger.LogWarning(
-            "Creación de usuario cancelada. Correo={Correo}",
-            correo);
+            return (
+                false,
+                "La operación fue cancelada.",
+                null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error inesperado creando usuario. Correo={Correo}",
+                correo);
 
-        return (
-            false,
-            "La operación fue cancelada.",
-            null);
+            return (
+                false,
+                "No se pudo crear el usuario.",
+                null);
+        }
     }
-    catch (Exception ex)
-    {
-        _logger.LogError(
-            ex,
-            "Error inesperado creando usuario. Correo={Correo}",
-            correo);
-
-        return (
-            false,
-            "No se pudo crear el usuario.",
-            null);
-    }
-}
     public async Task<(bool Success, string Message, object? Data)> ActualizarAsync(
         int idUsuario,
         ActualizarUsuarioAdminRequest request,
@@ -387,7 +386,7 @@ public async Task<(bool Success, string Message, object? Data)> CrearAsync(
         }
     }
 
-        // "Bloqueado" no es un valor de la columna Estado:
+    // "Bloqueado" no es un valor de la columna Estado:
     // se calcula a partir de IntentosFallidos >= 3 (el mismo criterio del login).
     // Bloquear/desbloquear manualmente sube o reinicia ese contador.
     public async Task<(bool Success, string Message, object? Data)> CambiarBloqueoAsync(

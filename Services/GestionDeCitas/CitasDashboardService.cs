@@ -24,6 +24,7 @@ using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
+using SmileTrack_MVC.Models.ViewModels.GestionDeCitas;
 using System.Globalization;
 using System.Text;
 
@@ -42,18 +43,18 @@ public sealed class CitasDashboardService : ICitasDashboardService
         "realizada", "realizado", "finalizada", "finalizado"
     ];
 
-    private readonly AppDbContext                         _context;
-    private readonly ICitaService                         _citaService;
-    private readonly ILogger<CitasDashboardService>       _logger;
+    private readonly AppDbContext _context;
+    private readonly ICitaService _citaService;
+    private readonly ILogger<CitasDashboardService> _logger;
 
     public CitasDashboardService(
-        AppDbContext                         context,
-        ICitaService                         citaService,
-        ILogger<CitasDashboardService>       logger)
+        AppDbContext context,
+        ICitaService citaService,
+        ILogger<CitasDashboardService> logger)
     {
-        _context     = context;
+        _context = context;
         _citaService = citaService;
-        _logger      = logger;
+        _logger = logger;
     }
 
     // =========================================================================
@@ -61,24 +62,24 @@ public sealed class CitasDashboardService : ICitasDashboardService
     // =========================================================================
 
     public async Task<CitasDashboardViewModel> ObtenerDashboardAsync(
-        DateTime          fechaReferencia,
+        DateTime fechaReferencia,
         CancellationToken cancellationToken = default)
     {
-        var hoy       = fechaReferencia.Date;
+        var hoy = fechaReferencia.Date;
         var inicioDia = hoy;
-        var finDia    = hoy.AddDays(1);
+        var finDia = hoy.AddDays(1);
 
         var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
-        var finMes    = inicioMes.AddMonths(1);
+        var finMes = inicioMes.AddMonths(1);
 
         // Compara las atenciones de esta semana con los mismos días de la semana anterior.
-        var lunes              = hoy.DayOfWeek == DayOfWeek.Sunday
+        var lunes = hoy.DayOfWeek == DayOfWeek.Sunday
                                     ? hoy.AddDays(-6)
                                     : hoy.AddDays(-(int)hoy.DayOfWeek + 1);
-        var inicioSemana       = lunes;
+        var inicioSemana = lunes;
         var inicioSemanaAnterior = lunes.AddDays(-7);
         var diasTranscurridosSemana = (hoy - inicioSemana).Days + 1;
-        var finSemanaAnterior  = inicioSemanaAnterior.AddDays(diasTranscurridosSemana);
+        var finSemanaAnterior = inicioSemanaAnterior.AddDays(diasTranscurridosSemana);
 
         try
         {
@@ -128,6 +129,202 @@ public sealed class CitasDashboardService : ICitasDashboardService
         }
     }
 
+    public async Task<PanelOperativoDashboardMetricsViewModel> ObtenerMetricasPanelOperativoAsync(
+        DateTime fechaReferencia,
+        CancellationToken cancellationToken = default)
+    {
+        var hoy = fechaReferencia.Date;
+        var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
+        var finMes = inicioMes.AddMonths(1);
+
+        try
+        {
+            var totalPacientes = await _context.Pacientes
+                .CountAsync(p => p.Estado == "activo", cancellationToken);
+            var finHoy = hoy.AddDays(1);
+            var citasHoy = await _context.Citas
+                .CountAsync(c => c.FechaHora >= hoy && c.FechaHora < finHoy, cancellationToken);
+            var profesionalesActivos = await _context.Profesionales
+                .CountAsync(p => p.Estado == "activo", cancellationToken);
+            var citasDelMes = await _context.Citas
+                .AsNoTracking()
+                .Where(c => c.FechaHora >= inicioMes && c.FechaHora < finMes)
+                .Select(c => new
+                {
+                    c.Estado,
+                    PrecioServicio = c.Servicio != null ? c.Servicio.Precio : 0m
+                })
+                .ToListAsync(cancellationToken);
+
+            var atendidas = citasDelMes
+                .Where(c => NormalizarEstado(c.Estado) == "atendida")
+                .ToList();
+            var confirmadas = citasDelMes.Count(c => NormalizarEstado(c.Estado) == "confirmada");
+            var programadas = citasDelMes.Count(c => NormalizarEstado(c.Estado) == "programada");
+            var canceladas = citasDelMes.Count(c => EstadoCitaHelper.EsEstadoCancelado(c.Estado));
+
+            var horariosActivos = await _context.HorariosProfesional
+                .AsNoTracking()
+                .Where(h => h.Activo)
+                .ToListAsync(cancellationToken);
+            var diasDelMes = Enumerable.Range(1, DateTime.DaysInMonth(hoy.Year, hoy.Month))
+                .Select(day => new DateTime(hoy.Year, hoy.Month, day))
+                .ToArray();
+            var horasDisponibles = horariosActivos.Sum(h =>
+            {
+                var diasDisponibles = diasDelMes.Count(fecha =>
+                    NormalizarTexto(NombreDia(fecha.DayOfWeek)) == NormalizarTexto(h.DiaSemana));
+                return Math.Max(0, (h.HoraFin - h.HoraInicio).TotalHours) * diasDisponibles;
+            });
+            var duracionMinutos = await _citaService.ObtenerDuracionCitaMinutosAsync(cancellationToken);
+            var capacidadCitas = duracionMinutos > 0 ? horasDisponibles * 60 / duracionMinutos : 0;
+            var maxEstado = new[] { atendidas.Count, confirmadas, programadas, canceladas }
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return new PanelOperativoDashboardMetricsViewModel
+            {
+                TotalPacientes = totalPacientes,
+                CitasHoy = citasHoy,
+                ProfesionalesActivos = profesionalesActivos,
+                IngresosDelMes = atendidas.Sum(c => c.PrecioServicio),
+                PorcentajeOcupacion = capacidadCitas > 0
+                    ? (int)Math.Min(100, (double)citasDelMes.Count / capacidadCitas * 100)
+                    : 0,
+                CitasAtendidas = atendidas.Count,
+                CitasConfirmadas = confirmadas,
+                CitasProgramadas = programadas,
+                CitasCanceladas = canceladas,
+                PorcentajeAtendidas = CalcularPorcentaje(atendidas.Count, maxEstado),
+                PorcentajeConfirmadas = CalcularPorcentaje(confirmadas, maxEstado),
+                PorcentajeProgramadas = CalcularPorcentaje(programadas, maxEstado),
+                PorcentajeCanceladas = CalcularPorcentaje(canceladas, maxEstado)
+            };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Error calculando métricas del panel operativo para {Fecha}.", hoy);
+            throw;
+        }
+    }
+
+    public async Task<CitasDashboardRecepcionViewModel> ObtenerDashboardRecepcionAsync(
+        DateTime fechaReferencia,
+        CancellationToken cancellationToken = default)
+    {
+        DateTime inicioDia = fechaReferencia.Date;
+        DateTime finDia = inicioDia.AddDays(1);
+        var cultura = CultureInfo.GetCultureInfo("es-CO");
+        DateTime ahora = ColombiaClock.Now;
+
+        try
+        {
+            var citasHoy = await _context.Citas
+                .AsNoTracking()
+                .Include(c => c.Paciente)
+                .Include(c => c.Profesional)
+                .Include(c => c.Servicio)
+                .Include(c => c.Consultorio)
+                .Where(c => c.FechaHora >= inicioDia && c.FechaHora < finDia)
+                .OrderBy(c => c.FechaHora)
+                .ToListAsync(cancellationToken);
+
+            var appointments = citasHoy.Select(c =>
+            {
+                string estado = EstadoCitaHelper.Normalize(c.Estado);
+                var presentation = estado switch
+                {
+                    "atendida" or "completada" or "realizada" =>
+                        (status: "Atendida", css: "status-atendida", actions: new[] { "eye" }),
+                    "en_consulta" or "en_proceso" =>
+                        (status: "En consulta", css: "status-consulta", actions: new[] { "pencil" }),
+                    "confirmada" =>
+                        (status: "Confirmada", css: "status-confirmada", actions: new[] { "pencil", "eye" }),
+                    "en_sala_de_espera" or "en_espera" or "sala_de_espera" =>
+                        (status: "En sala de espera", css: "status-espera", actions: new[] { "eye" }),
+                    "cancelada" =>
+                        (status: "Cancelada", css: "status-cancelada", actions: new[] { "eye" }),
+                    "no_asistio" or "no_asistida" =>
+                        (status: "No asistió", css: "status-no-asistio", actions: new[] { "eye" }),
+                    "programada" or "agendada" =>
+                        (status: "Programada", css: "status-programada", actions: new[] { "pencil", "file-invoice" }),
+                    _ =>
+                        (status: "Pendiente", css: "status-pendiente", actions: new[] { "pencil", "file-invoice" })
+                };
+
+                return new CitaDashboardRecepcionViewModelItem
+                {
+                    Id = c.IdCita,
+                    Time = c.FechaHora.ToString("HH:mm"),
+                    Patient = c.Paciente?.NombresCompleto ?? "Paciente sin datos",
+                    Doctor = c.Profesional is not null
+                        ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}"
+                        : "Sin asignar",
+                    Service = c.Servicio?.Nombre ?? "Servicio no especificado",
+                    Status = presentation.status,
+                    StatusClass = presentation.css,
+                    Highlight = presentation.status == "En consulta",
+                    Actions = presentation.actions
+                };
+            }).ToList();
+
+            int confirmadas = citasHoy.Count(c =>
+                EstadoCitaHelper.Normalize(c.Estado) is "confirmada" or "atendida" or "completada" or "realizada");
+            int pendientes = citasHoy.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "programada");
+            decimal facturasPendientes = await _context.Facturas
+                .AsNoTracking()
+                .Where(f => f.Estado == "pendiente" || f.Estado == "parcial")
+                .SumAsync(f => f.Total, cancellationToken);
+            int facturasVencidas = await _context.Facturas
+                .AsNoTracking()
+                .CountAsync(f => f.Estado == "pendiente" && f.FechaFactura < inicioDia.AddDays(-15), cancellationToken);
+
+            var proximas = citasHoy
+                .Where(c =>
+                    c.FechaHora > ahora &&
+                    c.FechaHora <= ahora.AddMinutes(30) &&
+                    !EstadoCitaHelper.EsEstadoCancelado(c.Estado))
+                .Select(c => new CitaDashboardRecepcionProximaViewModel
+                {
+                    Hora = c.FechaHora.ToString("hh:mm tt"),
+                    FechaIso = c.FechaHora.ToString("yyyy-MM-ddTHH:mm"),
+                    Texto = $"{c.Paciente?.NombresCompleto ?? "Paciente sin datos"} - " +
+                        $"{c.Servicio?.Nombre ?? "Consulta"} - " +
+                        $"{(c.Profesional is not null ? $"Dr(a). {c.Profesional.Nombres} {c.Profesional.Apellidos}" : "Sin asignar")}" +
+                        $"{(c.Consultorio is not null ? " - " + c.Consultorio.Nombre : string.Empty)}"
+                })
+                .ToList();
+
+            return new CitasDashboardRecepcionViewModel
+            {
+                Appointments = appointments,
+                FechaHoraTexto = inicioDia.ToString("dddd d 'de' MMMM yyyy", cultura),
+                HoraActualIso = ahora.ToString("yyyy-MM-ddTHH:mm"),
+                HoraActualTexto = ahora.ToString("hh:mm tt"),
+                Stats = new DashboardRecepcionStatsViewModel
+                {
+                    CitasHoy = citasHoy.Count,
+                    Confirmadas = confirmadas,
+                    Pendientes = pendientes,
+                    FacturasPendientes = facturasPendientes >= 1000
+                        ? $"${facturasPendientes / 1000:0.#}k"
+                        : $"${facturasPendientes:0}"
+                },
+                Alertas = new DashboardRecepcionAlertasViewModel
+                {
+                    SinConfirmar = pendientes,
+                    FacturasVencidas = facturasVencidas
+                },
+                ProximasCitas = proximas
+            };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Error calculando dashboard de recepción para {Fecha}.", inicioDia);
+            throw;
+        }
+    }
+
     // =========================================================================
     // CONSULTAS PRIVADAS
     // =========================================================================
@@ -170,7 +367,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
                 .AsNoTracking()
                 .CountAsync(c =>
                     c.FechaHora >= inicio &&
-                    c.FechaHora < fin     &&
+                    c.FechaHora < fin &&
                     !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
                         (c.EstadoCita != null
                             ? c.EstadoCita.NombreEstado
@@ -191,11 +388,11 @@ public sealed class CitasDashboardService : ICitasDashboardService
             .Select(c => new
             {
                 Estado = c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado,
-                PrecioServicio  = c.Servicio != null ? c.Servicio.Precio : 0m
+                PrecioServicio = c.Servicio != null ? c.Servicio.Precio : 0m
             })
             .ToListAsync(ct);
 
-        int     total       = 0, atendidas = 0, confirmadas = 0, programadas = 0, canceladas = 0, noAsistio = 0, otros = 0;
+        int total = 0, atendidas = 0, confirmadas = 0, programadas = 0, canceladas = 0, noAsistio = 0, otros = 0;
         decimal valorAtendido = 0m;
 
         foreach (var fila in filas)
@@ -235,7 +432,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
             .AsNoTracking()
             .Where(c =>
                 c.FechaHora >= inicioMes &&
-                c.FechaHora <  finMes   &&
+                c.FechaHora < finMes &&
                 EstadosAtendidos.Contains(
                     (c.EstadoCita != null
                         ? c.EstadoCita.NombreEstado
@@ -276,9 +473,9 @@ public sealed class CitasDashboardService : ICitasDashboardService
             return new TopProfesionalViewModel
             {
                 IdProfesional = item.IdProfesional,
-                Nombre        = string.IsNullOrWhiteSpace(nombre)       ? "Sin nombre" : nombre,
-                Especialidad  = string.IsNullOrWhiteSpace(especialidad) ? "General"   : especialidad,
-                TotalCitas    = item.Total
+                Nombre = string.IsNullOrWhiteSpace(nombre) ? "Sin nombre" : nombre,
+                Especialidad = string.IsNullOrWhiteSpace(especialidad) ? "General" : especialidad,
+                TotalCitas = item.Total
             };
         }).ToList();
     }
@@ -331,8 +528,8 @@ public sealed class CitasDashboardService : ICitasDashboardService
     /// </summary>
     private static double MinutosHorarioEnMes(
         HorarioProfesional horario,
-        DateTime           inicioMes,
-        DateTime           finMes)
+        DateTime inicioMes,
+        DateTime finMes)
     {
         double minutosDiarios =
             (horario.HoraFin - horario.HoraInicio).TotalMinutes;
@@ -354,13 +551,13 @@ public sealed class CitasDashboardService : ICitasDashboardService
 
     private static string NombreDia(DayOfWeek dia) => dia switch
     {
-        DayOfWeek.Monday    => "Lunes",
-        DayOfWeek.Tuesday   => "Martes",
+        DayOfWeek.Monday => "Lunes",
+        DayOfWeek.Tuesday => "Martes",
         DayOfWeek.Wednesday => "Miércoles",
-        DayOfWeek.Thursday  => "Jueves",
-        DayOfWeek.Friday    => "Viernes",
-        DayOfWeek.Saturday  => "Sábado",
-        _                   => "Domingo"
+        DayOfWeek.Thursday => "Jueves",
+        DayOfWeek.Friday => "Viernes",
+        DayOfWeek.Saturday => "Sábado",
+        _ => "Domingo"
     };
 
     /// <summary>
@@ -378,4 +575,7 @@ public sealed class CitasDashboardService : ICitasDashboardService
     /// <summary>Normaliza alias de estados al token canónico del sistema.</summary>
     private static string NormalizarEstado(string? estado) =>
         EstadoCitaHelper.Normalize(estado);
+
+    private static int CalcularPorcentaje(int valor, int total) =>
+        total <= 0 ? 0 : (int)Math.Round(valor * 100d / total);
 }

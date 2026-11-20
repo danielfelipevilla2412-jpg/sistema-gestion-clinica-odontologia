@@ -48,10 +48,16 @@ public sealed class RecordatoriosCitasBackgroundService : BackgroundService
                 .AsNoTracking()
                 .Where(c => c.FechaHora >= ahora
                     && c.FechaHora <= limite
+                    && (c.EstadoCita != null
+                        ? c.EstadoCita.NombreEstado != null &&
+                          EstadoCitaHelper.EstadosRecordables.Contains(c.EstadoCita.NombreEstado.Trim().ToLower())
+                        : c.Estado != null &&
+                          EstadoCitaHelper.EstadosRecordables.Contains(c.Estado.Trim().ToLower()))
                     && !context.RecordatoriosCita.Any(r =>
                         r.IdCita == c.IdCita
                         && r.Estado == "enviado"
                         && r.ProgramadoPara.Date == ahora.Date))
+                .OrderBy(c => c.FechaHora)
                 .Select(c => c.IdCita)
                 .Take(100)
                 .ToListAsync(ct);
