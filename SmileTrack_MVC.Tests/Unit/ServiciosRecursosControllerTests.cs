@@ -105,7 +105,7 @@ public sealed class ServiciosRecursosControllerTests
     {
         await using var db = CrearContext();
         db.ConfiguracionesGenerales.AddRange(
-            new ConfiguracionGeneral { IdConfiguracion = 1, Clave = "cita_duracion_default", Valor = "45", Modulo = "general" },
+            new ConfiguracionGeneral { IdConfiguracion = 1, Clave = "cita_duracion_minutos", Valor = "45", Modulo = "general" },
             new ConfiguracionGeneral { IdConfiguracion = 2, Clave = "nombre_clinica", Valor = "Clinica Test", Modulo = "general" });
         await db.SaveChangesAsync();
 
@@ -126,7 +126,7 @@ public sealed class ServiciosRecursosControllerTests
         db.ConfiguracionesGenerales.Add(new ConfiguracionGeneral
         {
             IdConfiguracion = 1,
-            Clave = "cita_duracion_default",
+            Clave = "cita_duracion_minutos",
             Valor = "30",
             Modulo = "citas"
         });
@@ -142,7 +142,7 @@ public sealed class ServiciosRecursosControllerTests
         var result = await controller.ApiActualizarConfiguracionGeneral(request, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(45, int.Parse((await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "cita_duracion_default")).Valor));
+        Assert.Equal(45, int.Parse((await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "cita_duracion_minutos")).Valor));
         Assert.Equal("Clínica de prueba", (await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "nombre_clinica")).Valor);
         Assert.Equal("false", (await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "notif_email")).Valor);
         Assert.Equal(9, await db.ConfiguracionesGenerales.CountAsync());

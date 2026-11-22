@@ -397,6 +397,13 @@ public class HistoriaClinicaStructuredDataTests
         };
         db.Servicios.Add(servicio);
         await db.SaveChangesAsync();
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = profesional.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            Activo = true
+        });
+        await db.SaveChangesAsync();
 
         await controller.GuardarPlanTratamiento(new PlanTratamientoGuardarRequest
         {
