@@ -323,6 +323,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(c => c.IdConsultorio).HasColumnName("id_consultorio");
             entity.Property(c => c.IdEstado).HasColumnName("id_estado");
             entity.Property(c => c.FechaHora).HasColumnName("fecha_hora");
+            entity.Property(c => c.ProgramacionId).HasColumnName("programacion_id").HasDefaultValueSql("NEWID()");
             entity.Property(c => c.Estado).HasColumnName("estado");
             entity.Property(c => c.Notas).HasColumnName("notas");
             entity.Property(c => c.MotivoConsulta).HasColumnName("motivo_consulta");
@@ -415,6 +416,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasKey(r => r.IdRecordatorio);
             entity.Property(r => r.IdRecordatorio).HasColumnName("id_recordatorio");
             entity.Property(r => r.IdCita).HasColumnName("id_cita");
+            entity.Property(r => r.ProgramacionId).HasColumnName("programacion_id");
             entity.Property(r => r.Canal).HasColumnName("canal");
             entity.Property(r => r.Estado).HasColumnName("estado");
             entity.Property(r => r.ProgramadoPara).HasColumnName("programado_para");
@@ -422,6 +424,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(r => r.Intentos).HasColumnName("intentos");
             entity.Property(r => r.UltimoError).HasColumnName("ultimo_error");
             entity.Property(r => r.CreadoEn).HasColumnName("creado_en");
+            entity.Property(r => r.ProximoIntentoEn).HasColumnName("proximo_intento_en");
+            entity.Property(r => r.ReservaId).HasColumnName("reserva_id");
+            entity.Property(r => r.ReservaHasta).HasColumnName("reserva_hasta");
             entity.HasOne(r => r.Cita).WithMany().HasForeignKey(r => r.IdCita).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -1317,8 +1322,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .HasForeignKey(r => r.IdCita)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasIndex(r => new { r.IdCita, r.Estado, r.ProgramadoPara })
-                  .HasDatabaseName("IX_Recordatorio_Cita_Duplicado");
+            entity.HasIndex(r => new { r.IdCita, r.Canal, r.ProgramacionId })
+                  .IsUnique()
+                  .HasFilter("[programacion_id] IS NOT NULL")
+                  .HasDatabaseName("UX_Recordatorio_Cita_Programacion");
+            entity.HasIndex(r => new { r.Estado, r.ProximoIntentoEn, r.ReservaHasta, r.IdRecordatorio })
+                  .HasDatabaseName("IX_Recordatorio_Cita_Reclamo");
         });
 
         // ══════════════════════════════════════════════════════════════════════════

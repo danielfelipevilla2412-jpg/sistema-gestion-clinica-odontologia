@@ -157,17 +157,12 @@ public sealed class CitaDisponibilidadService : ICitaDisponibilidadService
     {
         var servicio = await _context.Servicios
             .AsNoTracking()
+            .Include(s => s.Especialidad)
             .Where(s => s.IdServicio == idServicio && s.Estado == "activo")
-            .Select(s => new { s.IdEspecialidad })
+            .Select(s => new { s.IdEspecialidad, NombreEspecialidad = s.Especialidad != null ? s.Especialidad.Nombre : null })
             .FirstOrDefaultAsync(ct);
         if (servicio?.IdEspecialidad is not > 0)
             return [];
-
-        int? especialidadGeneral = await _context.Especialidades
-            .AsNoTracking()
-            .Where(e => e.Nombre.ToLower().Contains("general"))
-            .Select(e => (int?)e.IdEspecialidad)
-            .FirstOrDefaultAsync(ct);
 
         var profesionalesConServicioAsignado = await _context.ProfesionalServicios
             .AsNoTracking()
@@ -197,10 +192,12 @@ public sealed class CitaDisponibilidadService : ICitaDisponibilidadService
                     return false;
 
                 bool tieneEspecialidades = profesional.Especialidades.Count > 0;
+                bool esServicioGeneral = servicio.NombreEspecialidad is not null &&
+                    servicio.NombreEspecialidad.Contains("general", StringComparison.OrdinalIgnoreCase);
                 return profesional.Especialidades.Any(pe =>
                            pe.IdEspecialidad == servicio.IdEspecialidad.Value) ||
                        (!tieneEspecialidades &&
-                        especialidadGeneral == servicio.IdEspecialidad.Value);
+                        esServicioGeneral);
             })
             .ToList();
     }

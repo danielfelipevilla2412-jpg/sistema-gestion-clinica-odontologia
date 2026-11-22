@@ -27,6 +27,21 @@ namespace SmileTrack_MVC.Models.Entities
         [Column("fecha_hora")]
         public DateTime FechaHora { get; set; }
 
+        [Column("programacion_id")]
+        public Guid ProgramacionId { get; private set; } = Guid.NewGuid();
+
+        public bool Reprogramar(DateTime nuevaFechaHora)
+        {
+            if (FechaHora == nuevaFechaHora)
+                return false;
+
+            FechaHora = nuevaFechaHora;
+            ProgramacionId = Guid.NewGuid();
+            return true;
+        }
+
+        public void NuevaProgramacion() => ProgramacionId = Guid.NewGuid();
+
         [Required]
         [Column("estado")]
         [StringLength(30)]

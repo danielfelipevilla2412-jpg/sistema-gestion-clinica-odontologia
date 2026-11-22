@@ -6,4 +6,7 @@ public interface IRecordatorioCitaService
         IReadOnlyCollection<int> idsCitas,
         string? mensajePersonalizado = null,
         CancellationToken ct = default);
+
+    Task<(int Enviados, int Fallidos, List<int> IdsEnviados)> ProcesarPendientesAsync(
+        CancellationToken ct = default);
 }

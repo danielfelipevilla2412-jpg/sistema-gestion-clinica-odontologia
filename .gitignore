@@ -5,6 +5,7 @@ node_modules/
 
 # Build artifacts / test coverage
 artifacts/
+.codex-artifacts/
 TestResults/
 *.coverage
 *.coveragexml

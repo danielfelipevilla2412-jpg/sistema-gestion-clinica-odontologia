@@ -704,115 +704,86 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
     [Route("acceso-y-seguridad/st-adm-16-test-smtp")]
     public IActionResult Stadm16TestSmtp()
     {
-        ViewData["SmtpConfigOk"] = true;
-        return Content(@$"
+        string token = System.Net.WebUtility.HtmlEncode(
+            _antiforgery.GetAndStoreTokens(HttpContext).RequestToken ?? string.Empty);
+        const string template = """
 <!DOCTYPE html>
-<html lang='es'>
+<html lang="es">
 <head>
-<meta charset='utf-8' />
-<title>SmileTrack — Panel de Diagnóstico SMTP</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Diagn?stico SMTP ? SmileTrack</title>
 <style>
-body{{font-family:Arial;margin:0;padding:32px;background:#f3f4f6;color:#111827}}
-.container{{max-width:960px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:28px;box-shadow:0 1px 3px rgba(0,0,0,.05)}}
-h1{{margin:0 0 8px 0;color:#0f766e;font-size:24px}}
-.subtitle{{margin:0 0 24px 0;color:#6b7280}}
-.form-row{{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:end}}
-label{{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:#374151}}
-input[type=email]{{padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;min-width:320px}}
-button{{padding:10px 18px;background:#0f766e;color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px}}
-button:hover{{background:#0d6660}}
-button:disabled{{background:#94a3b8;cursor:not-allowed}}
-.result{{margin-top:16px;padding:18px;border-radius:10px;font-size:13px;line-height:1.6;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace;max-height:60vh;overflow-y:auto;word-break:break-word}}
-.result.ok{{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46}}
-.result.err{{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b}}
-.result.loading{{background:#eff6ff;border:1px solid #93c5fd;color:#1e40af}}
-.back-link{{display:inline-block;margin-top:20px;color:#2563eb;text-decoration:none;font-size:14px}}
-.back-link:hover{{text-decoration:underline}}
-.checklist{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px;margin-bottom:20px}}
-.checklist h3{{margin:0 0 10px 0;color:#1f2937;font-size:15px}}
-.checklist ul{{margin:0;padding-left:20px}}
-.checklist li{{margin:4px 0;font-size:13px;color:#334155}}
-.checklist code{{background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:12px;color:#0f172a}}
+body{font-family:Arial,sans-serif;margin:0;padding:32px;background:#f3f4f6;color:#111827}
+.container{max-width:760px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:28px}
+button{padding:10px 18px;background:#0f766e;color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid #2563eb;outline-offset:3px}
+button:disabled{opacity:.65;cursor:wait}
+#resultado{margin-top:16px;white-space:pre-wrap}
 </style>
 </head>
 <body>
-<div class='container'>
-  <h1>🧪 Diagnóstico SMTP — SmileTrack</h1>
-  <p class='subtitle'>Herramienta exclusiva para administradores. Ejecuta los 4 pasos del envío (configurar → conectar → autenticar → enviar) y devuelve un diagnóstico detallado por paso.</p>
-
-  <div class='checklist'>
-    <h3>✅ Antes de ejecutar el test, verifica:</h3>
-    <ul>
-      <li>El archivo <code>appsettings.Local.json</code> tiene <code>Smtp.Password</code> NO VACÍO.</li>
-      <li>Si usas Gmail: la contraseña debe ser una <strong>App Password de 16 caracteres</strong> (4 grupos de 4 separados por espacios). La contraseña normal NUNCA funciona.</li>
-      <li>La cuenta Gmail tiene activada la <strong>Verificación en 2 pasos</strong>.</li>
-      <li>Puerto recomendado: <code>587</code> (STARTTLS). Alternativa <code>465</code> (SSL). Prueba AMBOS si uno falla.</li>
-      <li>Windows Firewall / antivirus / VPN NO bloqueen el puerto saliente.</li>
-    </ul>
-  </div>
-
-  <div class='form-row'>
-    <label>
-      Correo de destino para la prueba
-      <input type='email' id='destino' placeholder='tucorreo@ejemplo.com' />
-    </label>
-    <button id='btnTest' onclick='ejecutarPrueba()'>▶ Ejecutar prueba SMTP</button>
-  </div>
-
-  <div id='resultado' class='result loading' style='display:none;'></div>
-  <a href='/acceso-y-seguridad/st-adm-01-dashboard' class='back-link'>← Volver al Dashboard</a>
-</div>
-
+<main class="container">
+  <h1>Diagn?stico SMTP</h1>
+  <p>La prueba enviar? un mensaje sin datos cl?nicos ?nicamente a la cuenta configurada en <code>Smtp:RecipientOverride</code>.</p>
+  <input type="hidden" name="__RequestVerificationToken" value="__CSRF_TOKEN__" />
+  <button id="btnTest" type="button">Ejecutar prueba SMTP</button>
+  <p id="resultado" role="status" aria-live="polite" hidden></p>
+  <a href="/acceso-y-seguridad/st-adm-01-dashboard">Volver al dashboard</a>
+</main>
 <script>
-async function ejecutarPrueba() {{
-    const btn = document.getElementById('btnTest');
-    const destino = document.getElementById('destino').value.trim();
-    const out = document.getElementById('resultado');
-    btn.disabled = true;
-    out.style.display = 'block';
-    out.className = 'result loading';
-    out.textContent = '⏳ Ejecutando diagnóstico SMTP (4 pasos)...';
-
-    try {{
-        const url = '/acceso-y-seguridad/st-adm-16-test-smtp/run?destino=' + encodeURIComponent(destino || '');
-        const r = await fetch(url, {{ method:'GET', credentials:'same-origin' }});
-        const json = await r.json();
-        out.className = 'result ' + (json.exito ? 'ok' : 'err');
-        out.textContent = json.detalle || '(sin detalle)';
-    }} catch (e) {{
-        out.className = 'result err';
-        out.textContent = '❌ Error del lado del cliente: ' + e.message + '\\n\\n' +
-            'Revisa la consola (F12) para más detalles. Verifica que: 1) estés logueado como Administrador, 2) el servidor esté corriendo.';
-    }} finally {{
-        btn.disabled = false;
-    }}
-}}
+document.getElementById('btnTest').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  const result = document.getElementById('resultado');
+  const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+  button.disabled = true;
+  result.hidden = false;
+  result.textContent = 'Ejecutando prueba SMTP?';
+  try {
+    const response = await fetch('/acceso-y-seguridad/st-adm-16-test-smtp/run', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-CSRF-TOKEN': token }
+    });
+    const payload = await response.json();
+    result.textContent = payload.detalle || 'La prueba finaliz? sin detalle.';
+  } catch {
+    result.textContent = 'No fue posible completar la prueba. Revisa la sesi?n y los registros del servidor.';
+  } finally {
+    button.disabled = false;
+  }
+});
 </script>
 </body>
-</html>", "text/html; charset=utf-8");
+</html>
+""";
+        string html = template.Replace("__CSRF_TOKEN__", token, StringComparison.Ordinal);
+        return Content(html, "text/html; charset=utf-8");
     }
 
-    [HttpGet]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     [Authorize(Roles = "Administrador")]
     [Route("acceso-y-seguridad/st-adm-16-test-smtp/run")]
-    public async Task<IActionResult> Stadm16RunTestSmtp([FromQuery] string? destino, CancellationToken ct = default)
+    public async Task<IActionResult> Stadm16RunTestSmtp(CancellationToken ct = default)
     {
         try
         {
-            var (exito, detalle) = await _emailService.ProbarConfiguracionSmtpAsync(destino ?? string.Empty, ct);
+            var (exito, detalle) = await _emailService.ProbarConfiguracionSmtpAsync(string.Empty, ct);
             return Ok(new { exito, detalle });
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            return Ok(new
+            throw;
+        }
+        catch
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new
             {
                 exito = false,
-                detalle = "EXCEPTION NO MANEJADA EN EL TEST:\n" +
-                          $"Tipo: {ex.GetType().FullName}\n" +
-                          $"Mensaje: {ex.Message}\n" +
-                          (ex.InnerException != null ? $"Inner: {ex.InnerException.Message}\n" : string.Empty) +
-                          $"StackTrace:\n{ex.StackTrace}"
+                detalle = "No fue posible completar la prueba SMTP. Revisa los registros del servidor."
             });
         }
     }
+
 }

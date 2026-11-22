@@ -44,7 +44,9 @@ public sealed class AccesoSeguridadControllerTests
             while (directorio is not null)
             {
                 string databaseDirectory = Path.Combine(directorio.FullName, "Database");
-                if (Directory.Exists(databaseDirectory))
+                if (Directory.Exists(databaseDirectory) &&
+                    (File.Exists(Path.Combine(databaseDirectory, "seed-usuarios-prueba.sql")) ||
+                     File.Exists(Path.Combine(databaseDirectory, "SEED_USUARIOS_PRUEBA.sql"))))
                 {
                     return databaseDirectory;
                 }
@@ -1052,6 +1054,66 @@ public sealed class AccesoSeguridadControllerTests
         Assert.Null(user.UltimoLogout);
     }
 
+    [Fact]
+    public void Stadm16RunTestSmtp_ExigePostYAntiforgery()
+    {
+        var method = typeof(AccesoYSeguridadController).GetMethod(
+            nameof(AccesoYSeguridadController.Stadm16RunTestSmtp));
+
+        Assert.NotNull(method);
+        Assert.NotNull(Attribute.GetCustomAttribute(method, typeof(HttpPostAttribute)));
+        Assert.NotNull(Attribute.GetCustomAttribute(method, typeof(ValidateAntiForgeryTokenAttribute)));
+        Assert.Null(Attribute.GetCustomAttribute(method, typeof(HttpGetAttribute)));
+    }
+
+    [Fact]
+    public async Task Stadm16TestSmtp_Get_NoEnviaCorreo()
+    {
+        await using var db = CrearContext();
+        var email = new FakeEmailService();
+        var ctx = new DefaultHttpContext();
+        var accessor = new HttpContextAccessor { HttpContext = ctx };
+        var controller = CrearControlador(
+            db,
+            CrearAuthService(db, accessor, email),
+            new FakeAntiforgery(),
+            email,
+            ctx);
+
+        var result = Assert.IsType<ContentResult>(controller.Stadm16TestSmtp());
+
+        Assert.Equal(0, email.SmtpTestCalls);
+        Assert.Contains("method: 'POST'", result.Content);
+        Assert.DoesNotContain("?destino=", result.Content);
+    }
+
+    [Fact]
+    public async Task Stadm16RunTestSmtp_ExcepcionInterna_NoExponeDetalles()
+    {
+        await using var db = CrearContext();
+        var email = new FakeEmailService
+        {
+            ErrorPruebaSmtp = new InvalidOperationException("smtp-internal-secret")
+        };
+        var ctx = new DefaultHttpContext();
+        var accessor = new HttpContextAccessor { HttpContext = ctx };
+        var controller = CrearControlador(
+            db,
+            CrearAuthService(db, accessor, email),
+            new FakeAntiforgery(),
+            email,
+            ctx);
+
+        var result = Assert.IsType<ObjectResult>(await controller.Stadm16RunTestSmtp());
+        string detalle = result.Value!.GetType().GetProperty("detalle")!.GetValue(result.Value)!.ToString()!;
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, result.StatusCode);
+        Assert.Equal(1, email.SmtpTestCalls);
+        Assert.Contains("registros del servidor", detalle, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("smtp-internal-secret", detalle, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("StackTrace", detalle, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class FakeAntiforgery : IAntiforgery
     {
         public bool Fallar { get; set; }
@@ -1076,12 +1138,21 @@ public sealed class AccesoSeguridadControllerTests
 
     private sealed class FakeEmailService : IEmailService
     {
+        public int SmtpTestCalls { get; private set; }
+        public Exception? ErrorPruebaSmtp { get; init; }
+
         public Task SendRecoveryCodeAsync(string recipientEmail, string code, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task SendCitaNotificacionAsync(string recipientEmail, string nombrePaciente, DateTime fechaCita, string profesional, string servicio, string nuevoEstado, CancellationToken cancellationToken = default, string? motivoCancelacion = null, string? mensajePersonalizado = null) => Task.CompletedTask;
 
         public Task SendFacturaRecordatorioAsync(string recipientEmail, string nombrePaciente, IReadOnlyList<FacturaRecordatorioEmail> facturas, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task<(bool Exito, string Detalle)> ProbarConfiguracionSmtpAsync(string correoDestino, CancellationToken cancellationToken = default) => Task.FromResult((true, "OK"));
+        public Task<(bool Exito, string Detalle)> ProbarConfiguracionSmtpAsync(string correoDestino, CancellationToken cancellationToken = default)
+        {
+            SmtpTestCalls++;
+            return ErrorPruebaSmtp is null
+                ? Task.FromResult((true, "OK"))
+                : Task.FromException<(bool Exito, string Detalle)>(ErrorPruebaSmtp);
+        }
     }
 }

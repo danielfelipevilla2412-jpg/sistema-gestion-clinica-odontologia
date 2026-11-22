@@ -31,6 +31,13 @@ public sealed class ProfesionalComisionService : IProfesionalComisionService
         if (profesional is null)
             throw new InvalidOperationException("El profesional especificado no existe.");
 
+        int citasAtendidas = await _context.Citas
+            .AsNoTracking()
+            .CountAsync(c => c.IdProfesional == idProfesional
+                && c.FechaHora >= fechaInicio
+                && c.FechaHora <= fechaFin
+                && c.Estado == "Atendida", ct);
+
         var facturas = await _context.Facturas
             .AsNoTracking()
             .Include(f => f.Detalles)
@@ -40,62 +47,6 @@ public sealed class ProfesionalComisionService : IProfesionalComisionService
                      && f.FechaFactura <= fechaFin
                      && f.Estado != "anulada")
             .ToListAsync(ct);
-
-        if (facturas.Count == 0)
-        {
-            var citasAtendidas = await _context.Citas
-                .AsNoTracking()
-                .Include(c => c.Servicio)
-                .Where(c => c.IdProfesional == idProfesional
-                         && c.FechaHora >= fechaInicio
-                         && c.FechaHora <= fechaFin
-                         && c.Estado == "Atendida")
-                .ToListAsync(ct);
-
-            if (citasAtendidas.Count > 0)
-            {
-                var gruposCitas = citasAtendidas
-                    .GroupBy(c => c.IdServicio)
-                    .Select(g =>
-                    {
-                        var servicio = g.First().Servicio;
-                        string nombreServicio = servicio?.Nombre ?? "Servicio Odontológico";
-                        decimal precioUnitario = servicio?.Precio ?? 100000m;
-                        int cantidad = g.Count();
-                        decimal subtotal = cantidad * precioUnitario;
-                        decimal honorarios = subtotal * (porcentajeComision / 100m);
-
-                        return new ReporteComisionServicioDto
-                        {
-                            IdServicio = g.Key ?? 0,
-                            NombreServicio = nombreServicio,
-                            CantidadAtendida = cantidad,
-                            PrecioUnitario = precioUnitario,
-                            SubtotalFacturado = subtotal,
-                            HonorariosGenerados = honorarios
-                        };
-                    })
-                    .ToList();
-
-                decimal totalFacturado = gruposCitas.Sum(g => g.SubtotalFacturado);
-                decimal totalHonorarios = gruposCitas.Sum(g => g.HonorariosGenerados);
-
-                return new ReporteComisionProfesionalDto
-                {
-                    IdProfesional = idProfesional,
-                    NombreProfesional = $"{profesional.Nombres} {profesional.Apellidos}".Trim(),
-                    FechaInicio = fechaInicio,
-                    FechaFin = fechaFin,
-                    TotalCitasAtendidas = citasAtendidas.Count,
-                    MontoTotalFacturado = totalFacturado,
-                    MontoTotalRecaudado = totalFacturado,
-                    PorcentajeComision = porcentajeComision,
-                    MontoTotalHonorarios = totalHonorarios,
-                    MontoComisionPendiente = 0m,
-                    DetalleServicios = gruposCitas
-                };
-            }
-        }
 
         var detallesPagados = facturas
             .Where(f => f.Estado == "pagada" && f.MontoPagado > 0)
@@ -135,7 +86,7 @@ public sealed class ProfesionalComisionService : IProfesionalComisionService
             NombreProfesional = $"{profesional.Nombres} {profesional.Apellidos}".Trim(),
             FechaInicio = fechaInicio,
             FechaFin = fechaFin,
-            TotalCitasAtendidas = facturas.Where(f => f.IdCita.HasValue).Select(f => f.IdCita!.Value).Distinct().Count(),
+            TotalCitasAtendidas = citasAtendidas,
             MontoTotalFacturado = montoTotalFacturado,
             MontoTotalRecaudado = montoTotalRecaudado,
             PorcentajeComision = porcentajeComision,

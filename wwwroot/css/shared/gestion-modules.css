@@ -152,6 +152,10 @@
     border-left-color: var(--info);
 }
 
+.main .stat-card[data-color="other"] {
+    border-left-color: var(--info);
+}
+
 .main .stat-card[data-color="confirmed"] {
     border-left-color: #3b82f6;
 }
@@ -175,6 +179,10 @@
 }
 
 .main .stat-card[data-color="purple"] .stat-number {
+    color: var(--info);
+}
+
+.main .stat-card[data-color="other"] .stat-number {
     color: var(--info);
 }
 

@@ -101,10 +101,7 @@ public class EmailServiceTests
         var (exito, detalle) = await servicio.ProbarConfiguracionSmtpAsync("paciente@test.com");
 
         Assert.False(exito);
-        Assert.Contains("PASO 1 FALLÓ", detalle);
-        Assert.Contains("Host", detalle);
-        Assert.Contains("Username", detalle);
-        Assert.Contains("Password", detalle);
+        Assert.Equal("PASO 1 FALLÓ — Configuración SMTP incompleta o inválida.", detalle);
     }
 
     [Fact]
@@ -122,11 +119,25 @@ public class EmailServiceTests
         var (exito, detalle) = await servicio.ProbarConfiguracionSmtpAsync("paciente@test.com");
 
         Assert.False(exito);
-        Assert.Contains("PASO 1 FALLÓ", detalle);
-        Assert.Contains("Password", detalle);
-        // Host y Username sí están presentes, por lo que no deben reportarse como faltantes.
-        Assert.DoesNotContain("Faltan: Host", detalle);
-        Assert.DoesNotContain("Username,", detalle);
+        Assert.Equal("PASO 1 FALLÓ — Configuración SMTP incompleta o inválida.", detalle);
+    }
+
+    [Fact]
+    public async Task ProbarConfiguracionSmtpAsync_SinRecipientOverride_FallaAntesDeConectar()
+    {
+        var opciones = new EmailServiceOptions
+        {
+            Host = "smtp.gmail.com",
+            Port = 587,
+            Username = "test@example.com",
+            Password = "placeholder"
+        };
+        var servicio = CrearServicio(opciones);
+
+        var (exito, detalle) = await servicio.ProbarConfiguracionSmtpAsync("destino-no-usado@example.invalid");
+
+        Assert.False(exito);
+        Assert.Equal("PASO 1 FALLÓ — Smtp:RecipientOverride es obligatorio para la prueba.", detalle);
     }
 
     [Fact]

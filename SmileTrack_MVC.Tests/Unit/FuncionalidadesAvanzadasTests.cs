@@ -180,12 +180,12 @@ public class FuncionalidadesAvanzadasTests
     }
 
     [Fact]
-    public async Task CalcularComisionesAsync_CalculaHonorariosCorrectamente()
+    public async Task CalcularComisionesAsync_SinFacturaNoPresentaEstimadosComoImportesReales()
     {
         var db = CreateInMemoryDb($"db_comisiones_{Guid.NewGuid()}");
         var profService = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
 
-        // Crear 3 citas atendidas para Dr. Pedro (100,000 COP c/u = 300,000 COP)
+        // Las citas atendidas sin facturas no demuestran facturaciÃ³n, recaudo ni honorarios.
         db.Citas.Add(new Cita { IdPaciente = 1, IdProfesional = 1, IdServicio = 1, FechaHora = DateTime.Today.AddDays(-2), Estado = "Atendida" });
         db.Citas.Add(new Cita { IdPaciente = 2, IdProfesional = 1, IdServicio = 1, FechaHora = DateTime.Today.AddDays(-1), Estado = "Atendida" });
         db.Citas.Add(new Cita { IdPaciente = 1, IdProfesional = 1, IdServicio = 1, FechaHora = DateTime.Today.AddDays(-1).AddHours(2), Estado = "Atendida" });
@@ -195,9 +195,49 @@ public class FuncionalidadesAvanzadasTests
 
         Assert.NotNull(reporte);
         Assert.Equal(3, reporte.TotalCitasAtendidas);
-        Assert.Equal(300000m, reporte.MontoTotalFacturado);
+        Assert.Equal(0m, reporte.MontoTotalFacturado);
+        Assert.Equal(0m, reporte.MontoTotalRecaudado);
         Assert.Equal(40m, reporte.PorcentajeComision);
-        Assert.Equal(120000m, reporte.MontoTotalHonorarios); // 40% de 300,000 = 120,000
+        Assert.Equal(0m, reporte.MontoTotalHonorarios);
+    }
+
+    [Fact]
+    public async Task CalcularComisionesAsync_FacturaPendienteSeparaFacturacionDeRecaudo()
+    {
+        var db = CreateInMemoryDb($"db_comisiones_factura_pendiente_{Guid.NewGuid()}");
+        var profService = new ProfesionalService(db, NullLogger<ProfesionalService>.Instance);
+        DateTime fecha = DateTime.Today.AddDays(-1);
+        db.Citas.Add(new Cita
+        {
+            IdPaciente = 1,
+            IdProfesional = 1,
+            IdServicio = 1,
+            FechaHora = fecha,
+            Estado = "Atendida"
+        });
+        db.Facturas.Add(new Factura
+        {
+            NumeroFactura = "TEST-PENDIENTE-1",
+            FechaFactura = fecha,
+            Subtotal = 250000m,
+            Total = 250000m,
+            Estado = "pendiente",
+            IdPaciente = 1,
+            IdProfesional = 1,
+            MontoPagado = 0m
+        });
+        await db.SaveChangesAsync();
+
+        var reporte = await profService.CalcularComisionesAsync(
+            1,
+            DateTime.Today.AddDays(-2),
+            DateTime.Today,
+            porcentajeComision: 40);
+
+        Assert.Equal(1, reporte.TotalCitasAtendidas);
+        Assert.Equal(250000m, reporte.MontoTotalFacturado);
+        Assert.Equal(0m, reporte.MontoTotalRecaudado);
+        Assert.Equal(0m, reporte.MontoTotalHonorarios);
     }
 
     [Fact]

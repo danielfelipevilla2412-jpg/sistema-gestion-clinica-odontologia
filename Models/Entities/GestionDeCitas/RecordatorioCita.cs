@@ -4,6 +4,7 @@ public sealed class RecordatorioCita
 {
     public int IdRecordatorio { get; set; }
     public int IdCita { get; set; }
+    public Guid? ProgramacionId { get; set; }
     public string Canal { get; set; } = "email";
     public string Estado { get; set; } = "pendiente";
     public DateTime ProgramadoPara { get; set; }
@@ -11,6 +12,9 @@ public sealed class RecordatorioCita
     public int Intentos { get; set; }
     public string? UltimoError { get; set; }
     public DateTime CreadoEn { get; set; }
+    public DateTime? ProximoIntentoEn { get; set; }
+    public Guid? ReservaId { get; set; }
+    public DateTime? ReservaHasta { get; set; }
 
     public Cita? Cita { get; set; }
 }

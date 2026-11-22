@@ -323,6 +323,7 @@ CREATE TABLE [dbo].[Cita](
 	[id_profesional] [int] NULL,
 	[id_servicio] [int] NULL,
 	[fecha_hora] [datetime2](7) NOT NULL,
+	[programacion_id] [uniqueidentifier] NOT NULL CONSTRAINT [DF_Cita_ProgramacionId] DEFAULT (newid()),
 	[estado] [nvarchar](30) NOT NULL,
 	[notas] [nvarchar](max) NULL,
 	[fecha] [date] NULL,
@@ -1539,6 +1540,7 @@ GO
 CREATE TABLE [dbo].[Recordatorio_Cita](
 	[id_recordatorio] [int] IDENTITY(1,1) NOT NULL,
 	[id_cita] [int] NOT NULL,
+	[programacion_id] [uniqueidentifier] NOT NULL CONSTRAINT [DF_Recordatorio_Cita_ProgramacionId] DEFAULT (newid()),
 	[canal] [varchar](20) NOT NULL,
 	[estado] [varchar](20) NOT NULL,
 	[programado_para] [datetime2](7) NOT NULL,
@@ -1546,6 +1548,9 @@ CREATE TABLE [dbo].[Recordatorio_Cita](
 	[intentos] [int] NOT NULL,
 	[ultimo_error] [varchar](500) NULL,
 	[creado_en] [datetime2](7) NOT NULL,
+	[proximo_intento_en] [datetime2](7) NULL,
+	[reserva_id] [uniqueidentifier] NULL,
+	[reserva_hasta] [datetime2](7) NULL,
 PRIMARY KEY CLUSTERED
 (
 	[id_recordatorio] ASC
@@ -2987,6 +2992,12 @@ CREATE NONCLUSTERED INDEX [IX_Recordatorio_Estado_Fecha] ON [dbo].[Recordatorio_
 	[programado_para] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 GO
+CREATE UNIQUE NONCLUSTERED INDEX [UX_Recordatorio_Cita_Programacion]
+ON [dbo].[Recordatorio_Cita]([id_cita], [canal], [programacion_id])
+GO
+CREATE NONCLUSTERED INDEX [IX_Recordatorio_Cita_Reclamo]
+ON [dbo].[Recordatorio_Cita]([estado], [proximo_intento_en], [reserva_hasta], [id_recordatorio])
+GO
 /****** Object:  Index [IX_RO_Historia]    Script Date: 12/11/2026 8:06:46 p. m. ******/
 CREATE NONCLUSTERED INDEX [IX_RO_Historia] ON [dbo].[Registro_Odontograma]
 (
@@ -3800,6 +3811,12 @@ GO
 ALTER TABLE [dbo].[Recordatorio_Cita]  WITH CHECK ADD CHECK  (([canal]='interno' OR [canal]='whatsapp' OR [canal]='sms' OR [canal]='email'))
 GO
 ALTER TABLE [dbo].[Recordatorio_Cita]  WITH CHECK ADD CHECK  (([estado]='cancelado' OR [estado]='fallido' OR [estado]='enviado' OR [estado]='pendiente'))
+GO
+ALTER TABLE [dbo].[Recordatorio_Cita] WITH CHECK ADD CONSTRAINT [CK_Recordatorio_Cita_Reserva]
+CHECK (([reserva_id] IS NULL AND [reserva_hasta] IS NULL) OR ([reserva_id] IS NOT NULL AND [reserva_hasta] IS NOT NULL))
+GO
+ALTER TABLE [dbo].[Recordatorio_Cita] WITH CHECK ADD CONSTRAINT [CK_Recordatorio_Cita_PendienteProximoIntento]
+CHECK ([estado] <> 'pendiente' OR [proximo_intento_en] IS NOT NULL)
 GO
 ALTER TABLE [dbo].[Ticket_Soporte]  WITH CHECK ADD CHECK  (([categoria]='otro' OR [categoria]='solicitud' OR [categoria]='consulta' OR [categoria]='incidente'))
 GO

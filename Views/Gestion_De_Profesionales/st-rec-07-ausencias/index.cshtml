@@ -26,7 +26,7 @@
     <section class="table-card" aria-labelledby="absenceFormTitle">
         <h2 class="card-title" id="absenceFormTitle">Registrar ausencia</h2>
         @Html.AntiForgeryToken()
-        <form id="absenceForm" class="filters-row">
+        <form id="absenceForm" class="filters-row" aria-labelledby="absenceFormTitle" aria-describedby="absenceFeedback">
             <input id="absenceId" type="hidden" />
             <div class="filter-wrap">
                 <label for="absenceProfessional">Profesional</label>

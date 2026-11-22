@@ -210,6 +210,102 @@ public class CitasApiValidationTests
     }
 
     [Fact]
+    public async Task Listar_UsaDuracionDeCadaCitaYDuracionGlobalComoFallback()
+    {
+        var db = CreateInMemoryDb($"citas_api_horafin_list_{Guid.NewGuid()}");
+        DateTime fecha = ColombiaClock.Today.AddDays(1).AddHours(9);
+        db.ConfiguracionesGenerales.Add(new SmileTrack_MVC.Models.Entities.ConfiguracionGeneral
+        {
+            IdConfiguracion = 1,
+            Clave = "cita_duracion_minutos",
+            Valor = "60"
+        });
+        db.Pacientes.AddRange(
+            new SmileTrack_MVC.Models.Entities.Paciente
+            {
+                IdPaciente = 1,
+                Nombres = "Paciente",
+                Apellidos = "Uno",
+                Estado = "activo"
+            },
+            new SmileTrack_MVC.Models.Entities.Paciente
+            {
+                IdPaciente = 2,
+                Nombres = "Paciente",
+                Apellidos = "Dos",
+                Estado = "activo"
+            });
+        db.Citas.AddRange(
+            new SmileTrack_MVC.Models.Entities.Cita
+            {
+                IdCita = 1,
+                IdPaciente = 1,
+                FechaHora = fecha,
+                DuracionMinutos = 90,
+                Estado = "Programada"
+            },
+            new SmileTrack_MVC.Models.Entities.Cita
+            {
+                IdCita = 2,
+                IdPaciente = 2,
+                FechaHora = fecha.AddHours(1),
+                DuracionMinutos = 0,
+                Estado = "Programada"
+            });
+        await db.SaveChangesAsync();
+
+        var result = await BuildController(db, "Administrador").Listar(
+            page: 1,
+            pageSize: 50,
+            estado: "Programada",
+            fecha: fecha.Date);
+
+        var response = Assert.IsType<OkObjectResult>(result);
+        var data = response.Value!.GetType().GetProperty("data")!.GetValue(response.Value)
+            !;
+        Assert.NotNull(data);
+        var itemType = data.GetType();
+        Assert.True(Equals(2, itemType.GetProperty("Count")!.GetValue(data)),
+            $"total={response.Value.GetType().GetProperty("total")?.GetValue(response.Value)}, page={response.Value.GetType().GetProperty("page")?.GetValue(response.Value)}, pageSize={response.Value.GetType().GetProperty("pageSize")?.GetValue(response.Value)}, count={itemType.GetProperty("Count")!.GetValue(data)}");
+        var itemProperty = itemType.GetProperty("Item")!;
+        var items = Enumerable.Range(0, 2).Select(index => itemProperty.GetValue(data, [index])!).ToList();
+        var resultsById = items.ToDictionary(
+            item => (int)item.GetType().GetProperty("IdCita")!.GetValue(item)!,
+            item => (TimeSpan)item.GetType().GetProperty("HoraFin")!.GetValue(item)!);
+        Assert.Equal(new TimeSpan(10, 30, 0), resultsById[1]);
+        Assert.Equal(new TimeSpan(11, 0, 0), resultsById[2]);
+    }
+
+    [Fact]
+    public async Task ObtenerPorId_UsaDuracionPropiaDeLaCita()
+    {
+        var db = CreateInMemoryDb($"citas_api_horafin_detail_{Guid.NewGuid()}");
+        db.ConfiguracionesGenerales.Add(new SmileTrack_MVC.Models.Entities.ConfiguracionGeneral
+        {
+            IdConfiguracion = 1,
+            Clave = "cita_duracion_minutos",
+            Valor = "60"
+        });
+        db.Citas.Add(new SmileTrack_MVC.Models.Entities.Cita
+        {
+            IdCita = 1,
+            IdPaciente = 1,
+            FechaHora = ColombiaClock.Today.AddHours(9),
+            DuracionMinutos = 30,
+            Estado = "Programada"
+        });
+        await db.SaveChangesAsync();
+
+        var result = await BuildController(db, "Administrador").ObtenerPorId(1);
+
+        var response = Assert.IsType<OkObjectResult>(result);
+        var data = response.Value!.GetType().GetProperty("data")!.GetValue(response.Value)!;
+        Assert.Equal(
+            new TimeSpan(9, 30, 0),
+            data.GetType().GetProperty("HoraFin")!.GetValue(data));
+    }
+
+    [Fact]
     public void GestionCitas_NormalizaEstadosFinalizadosComoAtendidos()
     {
         var method = typeof(GestionCitasController).GetMethod("NormalizarEstado", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);

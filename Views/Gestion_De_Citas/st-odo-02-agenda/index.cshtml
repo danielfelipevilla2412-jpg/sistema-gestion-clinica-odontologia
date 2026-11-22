@@ -308,29 +308,29 @@
                 <input type="hidden" name="IdProfesional" value="@Model.ProfessionalId" />
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="newApptDate">Fecha</label>
-                        <input type="date" id="newApptDate" name="Fecha" min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" required aria-required="true" />
+                        <label class="form-label" for="newApptDate">Fecha</label>
+                        <input class="form-input" type="date" id="newApptDate" name="Fecha" min="@SmileTrack_MVC.Helpers.ColombiaClock.Today.ToString("yyyy-MM-dd")" required aria-required="true" />
                     </div>
                     <div class="form-group">
-                        <label for="newApptStatus">Estado</label>
-                        <select id="newApptStatus" name="Estado" required aria-required="true">
+                        <label class="form-label" for="newApptStatus">Estado</label>
+                        <select class="form-input" id="newApptStatus" name="Estado" required aria-required="true">
                             <option value="Agendada" selected>Agendada</option>
                             <option value="Confirmada">Confirmada</option>
                             <option value="Cancelada">Cancelada</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="newApptStartTime">Hora Inicio</label>
-                        <input type="time" id="newApptStartTime" name="HoraInicio" required aria-required="true" />
+                        <label class="form-label" for="newApptStartTime">Hora Inicio</label>
+                        <input class="form-input" type="time" id="newApptStartTime" name="HoraInicio" required aria-required="true" />
                     </div>
                     <div class="form-group">
-                        <label for="newApptEndTime">Hora Fin</label>
-                        <input type="time" id="newApptEndTime" name="HoraFin" readonly aria-describedby="appointmentDurationHint" />
+                        <label class="form-label" for="newApptEndTime">Hora Fin</label>
+                        <input class="form-input" type="time" id="newApptEndTime" name="HoraFin" readonly aria-describedby="appointmentDurationHint" />
                         <span id="appointmentDurationHint" class="form-hint">Calculada según la duración configurada.</span>
                     </div>
                     <div class="form-group full-width">
-                        <label for="newApptPatient">Paciente</label>
-                        <select id="newApptPatient" name="IdPaciente" required aria-required="true">
+                        <label class="form-label" for="newApptPatient">Paciente</label>
+                        <select class="form-input" id="newApptPatient" name="IdPaciente" required aria-required="true">
                             <option value="">Seleccione paciente...</option>
                             @foreach (var paciente in Model.Pacientes)
                             {
@@ -339,8 +339,8 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="newApptOffice">Consultorio</label>
-                        <select id="newApptOffice" name="IdConsultorio" required aria-required="true">
+                        <label class="form-label" for="newApptOffice">Consultorio</label>
+                        <select class="form-input" id="newApptOffice" name="IdConsultorio" required aria-required="true">
                             <option value="">Seleccione consultorio</option>
                             @foreach (var consultorio in Model.Consultorios)
                             {
@@ -349,8 +349,8 @@
                         </select>
                     </div>
                     <div class="form-group full-width">
-                        <label for="newApptService">Servicio (Motivo de Consulta)</label>
-                        <select id="newApptService" name="IdServicio" required aria-required="true">
+                        <label class="form-label" for="newApptService">Servicio (Motivo de Consulta)</label>
+                        <select class="form-input" id="newApptService" name="IdServicio" required aria-required="true">
                             <option value="">Seleccione servicio</option>
                             @foreach (var servicio in Model.Servicios)
                             {
@@ -359,8 +359,8 @@
                         </select>
                     </div>
                     <div class="form-group full-width">
-                        <label for="newApptNotes">Observaciones</label>
-                        <textarea id="newApptNotes" name="Notas" rows="2" placeholder="Detalles adicionales..." data-i18n-ph="citas.notes_ph"></textarea>
+                        <label class="form-label" for="newApptNotes">Observaciones</label>
+                        <textarea class="form-input" id="newApptNotes" name="Notas" rows="2" placeholder="Detalles adicionales..." data-i18n-ph="citas.notes_ph"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">

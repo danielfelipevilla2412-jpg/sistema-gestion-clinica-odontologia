@@ -4,6 +4,8 @@
   const form = document.getElementById('absenceForm');
   const rows = document.getElementById('absenceRows');
   const feedback = document.getElementById('absenceFeedback');
+  const startDateInput = document.getElementById('absenceFechaInicio');
+  const endDateInput = document.getElementById('absenceFechaFin');
   const saveButton = document.getElementById('absenceSaveButton');
   const cancelEditButton = document.getElementById('absenceCancelEdit');
 
@@ -40,8 +42,11 @@
   const resetForm = () => {
     document.getElementById('absenceId').value = '';
     document.getElementById('absenceTipo').value = 'vacaciones';
-    document.getElementById('absenceFechaInicio').value = '';
-    document.getElementById('absenceFechaFin').value = '';
+    startDateInput.value = '';
+    endDateInput.value = '';
+    startDateInput.removeAttribute('aria-invalid');
+    endDateInput.removeAttribute('aria-invalid');
+    endDateInput.removeAttribute('aria-describedby');
     document.getElementById('absenceObservaciones').value = '';
     saveButton.textContent = 'Registrar ausencia';
     cancelEditButton.hidden = true;
@@ -151,7 +156,13 @@
       fechaFin: document.getElementById('absenceFechaFin').value,
       observaciones: document.getElementById('absenceObservaciones').value || null
     };
+    startDateInput.removeAttribute('aria-invalid');
+    endDateInput.removeAttribute('aria-invalid');
+    endDateInput.removeAttribute('aria-describedby');
     if (payload.fechaFin < payload.fechaInicio) {
+      endDateInput.setAttribute('aria-invalid', 'true');
+      endDateInput.setAttribute('aria-describedby', 'absenceFeedback');
+      endDateInput.focus();
       setFeedback('La fecha de fin debe ser igual o posterior a la fecha de inicio.', true);
       return;
     }
@@ -189,6 +200,14 @@
     } finally {
       saveButton.disabled = false;
     }
+  });
+
+  [startDateInput, endDateInput].forEach((input) => {
+    input.addEventListener('change', () => {
+      startDateInput.removeAttribute('aria-invalid');
+      endDateInput.removeAttribute('aria-invalid');
+      endDateInput.removeAttribute('aria-describedby');
+    });
   });
 
   rows.addEventListener('click', async (event) => {

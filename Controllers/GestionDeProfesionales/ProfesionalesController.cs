@@ -199,10 +199,11 @@ public partial class GestionProfesionalesController(
                     ViewData["OdoCitasAtendidasHoy"] = citasDelMes.Count(c =>
                         c.FechaHora.Date == hoy && EstadoCitaHelper.Normalize(c.Estado) == "atendida");
 
-                    decimal ingresosMes = citasDelMes
+                    // Es una estimación a precio de catálogo, no una factura ni un pago.
+                    decimal valorEstimadoServiciosMes = citasDelMes
                         .Where(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida" && c.Servicio != null)
                         .Sum(c => c.Servicio!.Precio);
-                    ViewData["OdoIngresosMes"] = ingresosMes;
+                    ViewData["OdoIngresosMes"] = valorEstimadoServiciosMes;
 
                     ViewData["OdoCitasAtendidas"] = citasDelMes.Count(c => EstadoCitaHelper.Normalize(c.Estado) == "atendida");
                     // Solo cuentan como "programadas" las citas que todavía no han pasado; las
@@ -230,7 +231,7 @@ public partial class GestionProfesionalesController(
                         .Take(3)
                         .ToList();
 
-                    // Ingresos reales de los últimos 3 meses del profesional autenticado.
+                    // Valor estimado de servicios atendidos a precio de catálogo; no mide facturación ni recaudo.
                     var inicioPeriodo = new DateTime(hoy.Year, hoy.Month, 1).AddMonths(-2);
 
                     var citasPeriodo = await _context.Citas

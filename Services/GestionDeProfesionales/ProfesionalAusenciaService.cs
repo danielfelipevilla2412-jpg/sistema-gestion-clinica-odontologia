@@ -480,6 +480,16 @@ public sealed class ProfesionalAusenciaService : IProfesionalAusenciaService
                 {
                     cita.Estado = "Cancelada";
                 }
+                var recordatoriosPendientes = await _context.RecordatoriosCita
+                    .Where(r => r.IdCita == cita.IdCita && r.Estado == "pendiente")
+                    .ToListAsync(ct);
+                foreach (var recordatorio in recordatoriosPendientes)
+                {
+                    recordatorio.Estado = "cancelado";
+                    recordatorio.ProximoIntentoEn = null;
+                    recordatorio.ReservaId = null;
+                    recordatorio.ReservaHasta = null;
+                }
                 cita.MotivoCancelacion = "Cancelación automática por ausencia médica del profesional sin disponibilidad de reemplazo.";
 
                 // Historial de cancelación

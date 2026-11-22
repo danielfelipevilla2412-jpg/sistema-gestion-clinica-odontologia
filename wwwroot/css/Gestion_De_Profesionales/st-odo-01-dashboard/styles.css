@@ -1,6 +1,6 @@
 .professional-dashboard {
   min-width: 0;
-  width: 100%;
+  width: auto;
 }
 
 .professional-dashboard [hidden] {

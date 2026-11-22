@@ -1,7 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using SmileTrack_MVC.Data;
-using SmileTrack_MVC.Helpers;
-
 namespace SmileTrack_MVC.Services.GestionDeCitas;
 
 public sealed class RecordatoriosCitasBackgroundService : BackgroundService
@@ -23,14 +19,8 @@ public sealed class RecordatoriosCitasBackgroundService : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             await ProcesarAsync(stoppingToken);
-            try
-            {
-                await Task.Delay(Intervalo, stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
+            try { await Task.Delay(Intervalo, stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
         }
     }
 
@@ -39,43 +29,13 @@ public sealed class RecordatoriosCitasBackgroundService : BackgroundService
         try
         {
             using IServiceScope scope = _scopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var recordatorios = scope.ServiceProvider.GetRequiredService<IRecordatorioCitaService>();
-            DateTime ahora = ColombiaClock.Now;
-            DateTime limite = ahora.AddHours(24);
-
-            var ids = await context.Citas
-                .AsNoTracking()
-                .Where(c => c.FechaHora >= ahora
-                    && c.FechaHora <= limite
-                    && (c.EstadoCita != null
-                        ? c.EstadoCita.NombreEstado != null &&
-                          EstadoCitaHelper.EstadosRecordables.Contains(c.EstadoCita.NombreEstado.Trim().ToLower())
-                        : c.Estado != null &&
-                          EstadoCitaHelper.EstadosRecordables.Contains(c.Estado.Trim().ToLower()))
-                    && !context.RecordatoriosCita.Any(r =>
-                        r.IdCita == c.IdCita
-                        && r.Estado == "enviado"
-                        && r.ProgramadoPara.Date == ahora.Date))
-                .OrderBy(c => c.FechaHora)
-                .Select(c => c.IdCita)
-                .Take(100)
-                .ToListAsync(ct);
-
-            if (ids.Count > 0)
-            {
-                await recordatorios.EnviarAsync(ids, ct: ct);
-                _logger.LogInformation(
-                    "Proceso automático de recordatorios completado para {Cantidad} citas.",
-                    ids.Count);
-            }
+            var resultado = await recordatorios.ProcesarPendientesAsync(ct);
+            if (resultado.Enviados > 0 || resultado.Fallidos > 0)
+                _logger.LogInformation("Recordatorios procesados: enviados={Enviados}, fallidos={Fallidos}.",
+                    resultado.Enviados, resultado.Fallidos);
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al procesar recordatorios automáticos.");
-        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) { _logger.LogError(ex, "Error al procesar recordatorios automáticos."); }
     }
 }

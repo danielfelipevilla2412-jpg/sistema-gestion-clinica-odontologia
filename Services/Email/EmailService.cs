@@ -633,37 +633,12 @@ Este es un mensaje automático, por favor no respondas a este correo.
         if (faltantes.Count > 0)
         {
             _logger.LogCritical(
-                "Configuración SMTP INCOMPLETA en appsettings.Local.json. Faltan los campos: {Faltantes}. " +
-                "Username detectado={User} Host={Host} Port={Port} PasswordLongitud={PwdLen}",
-                faltantes,
-                string.IsNullOrWhiteSpace(_options.Username) ? "(vacio)" : _options.Username,
-                string.IsNullOrWhiteSpace(_options.Host) ? "(vacio)" : _options.Host,
-                _options.Port,
-                string.IsNullOrWhiteSpace(_options.Password) ? 0 : _options.Password.Length);
+                "Configuración SMTP incompleta. Faltan las claves: {Faltantes}",
+                faltantes);
 
             throw new InvalidOperationException(
                 $"La configuración SMTP no está completa. Faltan: {string.Join(", ", faltantes)}. " +
-                "Revisa la sección 'Smtp' del archivo appsettings.Local.json.");
-        }
-
-        if (_options.Username.Contains('@') &&
-            _options.Username.EndsWith("@gmail.com", StringComparison.OrdinalIgnoreCase))
-        {
-            string cleanPwd = (_options.Password ?? string.Empty).Replace(" ", string.Empty, StringComparison.Ordinal);
-            if (cleanPwd.Length != 16)
-            {
-                _logger.LogWarning(
-                    "POSIBLE PROBLEMA Gmail: el Password tiene {Len} caracteres (limpio de espacios). " +
-                    "Las App Passwords de Google son EXACTAMENTE 16 caracteres (4 grupos de 4 separados por espacios). " +
-                    "Si estás usando la contraseña NORMAL de la cuenta, NUNCA funcionará. " +
-                    "Activa 2FA en myaccount.google.com/security y genera una 'Contraseña de Aplicación'. " +
-                    "Longitud detectada (sin espacios)={Len}",
-                    (_options.Password ?? string.Empty).Length, cleanPwd.Length);
-            }
-            else
-            {
-                _logger.LogInformation("Formato de Password compatible con Gmail App Password detectado (16 caracteres).");
-            }
+                "Revisa la sección 'Smtp' de la configuración de la aplicación.");
         }
 
         if (_options.Port is not (25 or 465 or 587 or 2525))
@@ -693,23 +668,25 @@ Este es un mensaje automático, por favor no respondas a este correo.
 
     public async Task<(bool Exito, string Detalle)> ProbarConfiguracionSmtpAsync(string correoDestino, CancellationToken cancellationToken = default)
     {
+        // Conserva la firma del contrato; el destinatario efectivo siempre es RecipientOverride.
+        _ = correoDestino;
         var pasos = new List<string>();
         try
         {
             ValidarConfiguracionSmtp();
-            pasos.Add("PASO 1 OK — Configuración SMTP válida (Host, Port, Username, Password presentes).");
         }
-        catch (Exception cfgEx)
+        catch (InvalidOperationException)
         {
-            pasos.Add($"PASO 1 FALLÓ — Configuración incompleta/inválida: {cfgEx.Message}");
-            return (false, string.Join("\n", pasos));
+            return (false, "PASO 1 FALLÓ — Configuración SMTP incompleta o inválida.");
         }
 
-        if (string.IsNullOrWhiteSpace(correoDestino))
+        string? recipientOverride = _options.RecipientOverride?.Trim();
+        if (string.IsNullOrWhiteSpace(recipientOverride))
         {
-            correoDestino = _options.Username;
-            pasos.Add($"INFO — No se indicó correo de destino; usando el remitente ({correoDestino}).");
+            return (false, "PASO 1 FALLÓ — Smtp:RecipientOverride es obligatorio para la prueba.");
         }
+
+        pasos.Add("PASO 1 OK — Configuración SMTP válida.");
 
         var socketOptions = _options.Port switch
         {
@@ -718,10 +695,6 @@ Este es un mensaje automático, por favor no respondas a este correo.
             _ => _options.EnableSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.None
         };
 
-        pasos.Add($"INFO — Parámetros SMTP: Host={_options.Host}, Puerto={_options.Port}, " +
-                  $"SSL/TLS={socketOptions}, Usuario={_options.Username}, " +
-                  $"PasswordLongitud={(_options.Password ?? string.Empty).Length} caracteres.");
-
         using var client = new SmtpClient();
         client.Timeout = 10_000;
 
@@ -729,94 +702,74 @@ Este es un mensaje automático, por favor no respondas a este correo.
         {
             try
             {
-                pasos.Add("PASO 2 — Conectando al servidor SMTP...");
                 await client.ConnectAsync(_options.Host, _options.Port, socketOptions, cancellationToken);
-                pasos.Add("PASO 2 OK — Conexión SMTP establecida.");
             }
-            catch (Exception connEx)
+            catch (Exception exception)
             {
-                pasos.Add($"PASO 2 FALLÓ — No se pudo conectar. Motivo: {connEx.GetType().Name} — {connEx.Message}");
-                pasos.Add("TIPOS DE ERROR DE CONEXIÓN COMUNES:");
-                pasos.Add("  • Puerto bloqueado por Windows Firewall, antivirus o VPN.");
-                pasos.Add("  • Host incorrecto (debe ser smtp.gmail.com para Gmail).");
-                pasos.Add("  • Puerto/SSL equivocado: Gmail exige 465 (SSL) o 587 (STARTTLS).");
-                pasos.Add("  • Proveedor de internet que bloquea el puerto.");
-                return (false, string.Join("\n", pasos));
+                _logger.LogWarning(
+                    "Prueba SMTP: falló la conexión. ExceptionType={ExceptionType}",
+                    exception.GetType().Name);
+                return (false, "PASO 2 FALLÓ — No se pudo establecer la conexión SMTP.");
             }
+
+            pasos.Add("PASO 2 OK — Conexión SMTP establecida.");
 
             try
             {
-                pasos.Add("PASO 3 — Autenticando credenciales SMTP...");
                 await client.AuthenticateAsync(_options.Username!, _options.Password!, cancellationToken);
-                pasos.Add("PASO 3 OK — Autenticación exitosa.");
             }
-            catch (Exception authEx)
+            catch (Exception exception)
             {
-                pasos.Add($"PASO 3 FALLÓ — Autenticación rechazada. Motivo: {authEx.GetType().Name} — {authEx.Message}");
-                pasos.Add("TIPOS DE ERROR DE AUTENTICACIÓN GMAIL MÁS COMUNES:");
-                pasos.Add("  • ❌ Estás usando la CONTRASEÑA NORMAL de Gmail (nunca funciona).");
-                pasos.Add("  • ✅ DEBES usar una 'Contraseña de Aplicación' (App Password) de 16 caracteres.");
-                pasos.Add("  • NO tienes activada la Verificación en 2 Pasos (requisito previo).");
-                pasos.Add("  • El usuario o la contraseña tienen espacios o errores de tipeo.");
-                pasos.Add("  • Google bloqueó el intento por actividad sospechosa; ingresa a la cuenta manualmente.");
+                _logger.LogWarning(
+                    "Prueba SMTP: falló la autenticación. ExceptionType={ExceptionType}",
+                    exception.GetType().Name);
+                pasos.Add("PASO 3 FALLÓ — Gmail rechazó la autenticación; revisa las credenciales guardadas.");
                 return (false, string.Join("\n", pasos));
             }
+
+            pasos.Add("PASO 3 OK — Autenticación SMTP aceptada.");
 
             try
             {
-                string host = _options.Host;
-                string port = _options.Port.ToString();
-                string remitente = _options.Username;
-                string remitenteHtml = WebUtility.HtmlEncode(_options.Username);
-                string fechaUtc = DateTime.UtcNow.ToString("o");
-
                 var mensaje = new MimeMessage();
-                mensaje.From.Add(new MailboxAddress("SmileTrack — Prueba SMTP", remitente));
-                mensaje.To.Add(new MailboxAddress(correoDestino, correoDestino));
-                mensaje.Subject = "SmileTrack — Prueba de configuración SMTP exitosa 🟢";
+                mensaje.From.Add(new MailboxAddress("SmileTrack — Prueba SMTP", _options.Username));
+                mensaje.To.Add(new MailboxAddress(recipientOverride, recipientOverride));
+                mensaje.Subject = "SmileTrack — Prueba SMTP";
+                mensaje.Body = new BodyBuilder
+                {
+                    TextBody = "Mensaje de prueba SMTP. No contiene datos de pacientes."
+                }.ToMessageBody();
 
-                string textBody =
-                    "Si estás leyendo este correo, ¡la configuración SMTP de SmileTrack está funcionando!\n\n" +
-                    "Detalles del test:\n" +
-                    $"- Servidor: {host}:{port}\n" +
-                    $"- Remitente: {remitente}\n" +
-                    $"- Fecha (UTC): {fechaUtc}\n\n" +
-                    "Puedes ignorar este correo; se envió como prueba de diagnóstico del sistema.\n";
-
-                string htmlBody =
-                    "<div style=\"font-family:Arial;padding:24px;background:#f0fdf4;border:1px solid #86efac;border-radius:12px;\">" +
-                    "<h2 style=\"margin:0 0 12px 0;color:#166534;\">🟢 Prueba SMTP exitosa</h2>" +
-                    "<p style=\"margin:0 0 8px 0;\">Si estás leyendo este correo, la configuración SMTP de <strong>SmileTrack</strong> está funcionando correctamente.</p>" +
-                    "<ul style=\"margin:8px 0;padding-left:20px;\">" +
-                    $"<li>Servidor: <strong>{host}:{port}</strong></li>" +
-                    $"<li>Remitente: <strong>{remitenteHtml}</strong></li>" +
-                    $"<li>Fecha (UTC): <strong>{fechaUtc}</strong></li>" +
-                    "</ul>" +
-                    "<p style=\"margin-top:16px;color:#6b7280;font-size:12px;\">Correo de diagnóstico autogenerado — puede eliminarse.</p>" +
-                    "</div>";
-
-                mensaje.Body = new BodyBuilder { TextBody = textBody, HtmlBody = htmlBody }.ToMessageBody();
-
-                pasos.Add($"PASO 4 — Enviando correo de prueba a {correoDestino}...");
                 await client.SendAsync(mensaje, cancellationToken);
-                pasos.Add("PASO 4 OK — Correo de prueba enviado. Revisa la bandeja de entrada (y SPAM por si acaso).");
             }
-            catch (Exception sendEx)
+            catch (Exception exception)
             {
-                pasos.Add($"PASO 4 FALLÓ — No se pudo enviar el correo. Motivo: {sendEx.GetType().Name} — {sendEx.Message}");
+                _logger.LogWarning(
+                    "Prueba SMTP: falló el envío. ExceptionType={ExceptionType}",
+                    exception.GetType().Name);
+                pasos.Add("PASO 4 FALLÓ — El servidor SMTP no aceptó el mensaje.");
                 return (false, string.Join("\n", pasos));
             }
 
-            pasos.Add("FIN — Todos los pasos completados correctamente. SMTP FUNCIONANDO.");
+            pasos.Add("PASO 4 OK — Mensaje aceptado por el servidor SMTP.");
+            pasos.Add("FIN — Revisa la bandeja de prueba y la carpeta de spam.");
             return (true, string.Join("\n", pasos));
         }
         finally
         {
-            try
+            if (client.IsConnected)
             {
-                if (client.IsConnected) await client.DisconnectAsync(true, cancellationToken);
+                try
+                {
+                    await client.DisconnectAsync(true, CancellationToken.None);
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(
+                        "Prueba SMTP: falló el cierre de la conexión. ExceptionType={ExceptionType}",
+                        exception.GetType().Name);
+                }
             }
-            catch { }
         }
     }
 }

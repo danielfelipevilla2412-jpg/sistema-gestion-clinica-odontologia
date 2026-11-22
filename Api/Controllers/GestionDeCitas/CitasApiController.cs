@@ -177,7 +177,8 @@ public sealed class CitasApiController : ControllerBase
             EstadoCatalogo = c.EstadoCita?.NombreEstado,
             c.FechaHora,
             HoraInicio = c.FechaHora.TimeOfDay,
-            HoraFin = c.FechaHora.AddMinutes(duracion).TimeOfDay,
+            HoraFin = c.FechaHora.AddMinutes(
+                c.DuracionMinutos > 0 ? c.DuracionMinutos : duracion).TimeOfDay,
             c.Estado,
             c.Notas
         }).ToList();
@@ -213,7 +214,8 @@ public sealed class CitasApiController : ControllerBase
                 cita.IdEstado,
                 cita.FechaHora,
                 HoraInicio = cita.FechaHora.TimeOfDay,
-                HoraFin = cita.FechaHora.AddMinutes(duracion).TimeOfDay,
+                HoraFin = cita.FechaHora.AddMinutes(
+                    cita.DuracionMinutos > 0 ? cita.DuracionMinutos : duracion).TimeOfDay,
                 cita.Estado,
                 cita.Notas
             },

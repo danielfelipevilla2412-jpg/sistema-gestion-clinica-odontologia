@@ -841,7 +841,7 @@ img {
 
 /* Responsive */
 @media (max-width: 900px) {
-    .main { margin-left: 0; padding: 16px; }
+    body .main { margin-left: 0; padding: 16px; }
     .form-grid { grid-template-columns: 1fr; }
     .full-width { grid-column: span 1; }
 }
