@@ -31,7 +31,7 @@ public sealed class PqrControllerTests
         return new AppDbContext(options);
     }
 
-    private static PqrController CrearControlador(AppDbContext db, int idUsuario = 10)
+    private static PqrController CrearControlador(AppDbContext db, int idUsuario = 10, string rol = "Paciente")
     {
         var controller = new PqrController(db, NullLogger<PqrController>.Instance);
 
@@ -42,7 +42,7 @@ public sealed class PqrControllerTests
                 User = new ClaimsPrincipal(new ClaimsIdentity(
                 [
                     new Claim(ClaimTypes.NameIdentifier, idUsuario.ToString()),
-                    new Claim(ClaimTypes.Role, "Paciente")
+                    new Claim(ClaimTypes.Role, rol)
                 ], "TestAuth"))
             }
         };
@@ -65,6 +65,163 @@ public sealed class PqrControllerTests
         FechaNacimiento = new DateTime(1992, 5, 5),
         Estado = "activo"
     };
+
+    [Theory]
+    [InlineData("Profesional")]
+    [InlineData("Auxiliar")]
+    [InlineData("Recepcionista")]
+    [InlineData("Administrador")]
+    public async Task CrearPqr_PersonalGuardaReporteSinPaciente(string rol)
+    {
+        await using var db = CrearContext();
+        db.Usuarios.Add(new Usuario { IdUsuario = 10, Nombre = "Daniel", Correo = "soporte@example.com" });
+        await db.SaveChangesAsync();
+
+        var controller = CrearControlador(db, rol: rol);
+        var result = await controller.CrearPqr("peticion", "Error de agenda", "No se puede guardar la cita.",
+            null, new FakeWebHostEnvironment(), moduloSoftware: "Agenda");
+
+        Assert.IsType<JsonResult>(result);
+        var reporte = await db.PQRs.SingleAsync();
+        Assert.Null(reporte.IdPaciente);
+        Assert.Equal(10, reporte.IdUsuario);
+        Assert.Equal("queja", reporte.Tipo);
+        Assert.Equal("Agenda", reporte.ModuloSoftware);
+    }
+
+    [Theory]
+    [InlineData("10000000000")]
+    [InlineData("12A45678")]
+    public async Task CrearPqr_CedulaInvalidaRechazaLaSolicitud(string documento)
+    {
+        await using var db = CrearContext();
+        var paciente = CrearPaciente(1, 10);
+        paciente.Documento = documento;
+        db.Pacientes.Add(paciente);
+        await db.SaveChangesAsync();
+
+        var result = await CrearControlador(db).CrearPqr("queja", "Asunto válido",
+            "Descripción suficientemente larga", null, new FakeWebHostEnvironment());
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Empty(await db.PQRs.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CrearPqr_PacienteGuardaProfesionalYFecha()
+    {
+        await using var db = CrearContext();
+        db.Pacientes.Add(CrearPaciente(1, 10));
+        db.Profesionales.Add(new() { IdProfesional = 7, Nombres = "Ana", Apellidos = "Pérez", Estado = "activo" });
+        await db.SaveChangesAsync();
+        var fecha = new DateOnly(2026, 1, 15);
+
+        var controller = CrearControlador(db);
+        var result = await controller.CrearPqr("queja", "Asunto válido", "Descripción suficientemente larga",
+            null, new FakeWebHostEnvironment(), idProfesional: 7, fechaServicio: fecha);
+
+        Assert.IsType<JsonResult>(result);
+        var pqr = await db.PQRs.SingleAsync();
+        Assert.Equal(7, pqr.IdProfesional);
+        Assert.Equal(fecha, pqr.FechaServicio);
+    }
+
+    [Fact]
+    public async Task ApiNotificacionesPqr_PacienteSoloRecibeRespuestasPropias()
+    {
+        await using var db = CrearContext();
+        db.Pacientes.AddRange(CrearPaciente(1, 10), CrearPaciente(2, 20));
+        db.PQRs.AddRange(
+            new PqrEntity { IdPqr = 1, IdPaciente = 1, IdUsuario = 10, FechaRespuesta = DateTime.UtcNow, Asunto = "Respuesta propia" },
+            new PqrEntity { IdPqr = 2, IdPaciente = 2, IdUsuario = 20, FechaRespuesta = DateTime.UtcNow, Asunto = "Respuesta ajena" },
+            new PqrEntity { IdPqr = 3, IdPaciente = 1, IdUsuario = 10, Asunto = "Sin respuesta" },
+            new PqrEntity { IdPqr = 4, IdPaciente = 1, IdUsuario = 20, FechaRespuesta = DateTime.UtcNow, Asunto = "Autor ajeno" },
+            new PqrEntity { IdPqr = 5, IdPaciente = 1, FechaRespuesta = DateTime.UtcNow, Asunto = "Autor sin confirmar" });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<OkObjectResult>(await CrearControlador(db).ApiNotificacionesPqr(default));
+        var aviso = Assert.Single(System.Text.Json.JsonSerializer.SerializeToElement(result.Value).EnumerateArray());
+        Assert.Equal(1, aviso.GetProperty("id").GetInt32());
+        Assert.EndsWith("st-pac-04-nueva-pqr?pqr=1", aviso.GetProperty("url").GetString());
+    }
+
+    [Fact]
+    public async Task ApiNotificacionesPqr_AdministradorRecibeSolicitudesNuevas()
+    {
+        await using var db = CrearContext();
+        db.PQRs.AddRange(
+            new PqrEntity { IdPqr = 4, Estado = "recibida", Asunto = "Solicitud nueva" },
+            new PqrEntity { IdPqr = 5, Estado = "en_proceso", Asunto = "En seguimiento" });
+        await db.SaveChangesAsync();
+
+        var controller = CrearControlador(db, rol: "Administrador");
+        var result = Assert.IsType<OkObjectResult>(await controller.ApiNotificacionesPqr(default));
+        var aviso = Assert.Single(System.Text.Json.JsonSerializer.SerializeToElement(result.Value).EnumerateArray());
+        Assert.Equal(4, aviso.GetProperty("id").GetInt32());
+        Assert.EndsWith("st-adm-17-gestion-pqr?pqr=4", aviso.GetProperty("url").GetString());
+    }
+
+    [Theory]
+    [InlineData("Profesional")]
+    [InlineData("Auxiliar")]
+    [InlineData("Recepcionista")]
+    public async Task ApiNotificacionesPqr_PersonalSoloRecibeRespuestasDeSusReportes(string rol)
+    {
+        await using var db = CrearContext();
+        db.Pacientes.Add(CrearPaciente(1, 10));
+        db.PQRs.AddRange(
+            new PqrEntity { IdPqr = 1, IdUsuario = 10, FechaRespuesta = DateTime.UtcNow },
+            new PqrEntity { IdPqr = 2, IdUsuario = 20, FechaRespuesta = DateTime.UtcNow },
+            new PqrEntity { IdPqr = 3, IdUsuario = 10 },
+            new PqrEntity { IdPqr = 4, IdUsuario = 10, IdPaciente = 1, FechaRespuesta = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+
+        var controller = CrearControlador(db, rol: rol);
+        var result = Assert.IsType<OkObjectResult>(await controller.ApiNotificacionesPqr(default));
+        var aviso = Assert.Single(System.Text.Json.JsonSerializer.SerializeToElement(result.Value).EnumerateArray());
+        Assert.Equal(1, aviso.GetProperty("id").GetInt32());
+        Assert.EndsWith("st-pac-04-nueva-pqr?pqr=1", aviso.GetProperty("url").GetString());
+    }
+
+    [Theory]
+    [InlineData("Paciente")]
+    [InlineData("Profesional")]
+    public async Task ApiRespuestasPropias_DevuelveRespuestasOrdenadasSoloAlSolicitante(string rol)
+    {
+        await using var db = CrearContext();
+        db.Pacientes.Add(CrearPaciente(1, 10));
+        db.PQRs.Add(new PqrEntity { IdPqr = 1, IdUsuario = 10, IdPaciente = rol == "Paciente" ? 1 : null });
+        var fecha = new DateTime(2026, 1, 1);
+        db.PqrHistorial.AddRange(
+            new PqrHistorial { IdPqr = 1, TipoEvento = "respuesta", Respuesta = "Segunda", FechaEvento = fecha.AddDays(1) },
+            new PqrHistorial { IdPqr = 1, TipoEvento = "estado", FechaEvento = fecha },
+            new PqrHistorial { IdPqr = 1, TipoEvento = "respuesta", Respuesta = "Primera", FechaEvento = fecha });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<OkObjectResult>(await CrearControlador(db, rol: rol).ApiRespuestasPropias(1));
+        var respuestas = System.Text.Json.JsonSerializer.SerializeToElement(result.Value).EnumerateArray();
+        Assert.Equal(new[] { "Primera", "Segunda" }, respuestas.Select(r => r.GetProperty("texto").GetString()).ToArray());
+        Assert.IsType<NotFoundResult>(await CrearControlador(db, idUsuario: 20, rol: rol).ApiRespuestasPropias(1));
+    }
+
+    [Theory]
+    [InlineData("pacientes", 1)]
+    [InlineData("soporte", 2)]
+    public async Task ApiListarPqrs_CombinaOrigenConEstado(string origen, int esperado)
+    {
+        await using var db = CrearContext();
+        db.PQRs.AddRange(
+            new PqrEntity { IdPqr = 1, IdPaciente = 1, Estado = "en_proceso" },
+            new PqrEntity { IdPqr = 2, ModuloSoftware = "Agenda", Estado = "en_proceso" },
+            new PqrEntity { IdPqr = 3, ModuloSoftware = "Agenda", Estado = "cerrada" },
+            new PqrEntity { IdPqr = 4, Estado = "en_proceso" });
+        await db.SaveChangesAsync();
+
+        var controller = CrearControlador(db, rol: "Administrador");
+        var result = Assert.IsType<OkObjectResult>(await controller.ApiListarPqrs(
+            origen: origen, estado: "en_proceso"));
+        Assert.Equal(new[] { esperado }, ObtenerIdsPqr(result));
+    }
 
     private static int Contar(IEnumerable datos)
     {

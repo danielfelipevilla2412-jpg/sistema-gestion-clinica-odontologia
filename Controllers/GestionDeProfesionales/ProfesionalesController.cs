@@ -918,11 +918,7 @@ public partial class GestionProfesionalesController(
 
                 string diagnostico = !string.IsNullOrWhiteSpace(nota.Diagnostico)
                     ? nota.Diagnostico!
-                    : !string.IsNullOrWhiteSpace(cita.Notas)
-                        ? cita.Notas.Trim()
-                        : !string.IsNullOrWhiteSpace(cita.MotivoConsulta)
-                            ? cita.MotivoConsulta.Trim()
-                            : "Sin diagnóstico registrado";
+                    : "Sin diagnóstico registrado";
 
                 string procedimiento = !string.IsNullOrWhiteSpace(nota.Procedimiento)
                     ? nota.Procedimiento!

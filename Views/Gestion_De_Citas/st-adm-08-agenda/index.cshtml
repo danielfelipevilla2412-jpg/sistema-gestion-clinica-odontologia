@@ -197,7 +197,7 @@
         </button>
         <h2 class="modal-title" id="modalNewApptTitle" data-i18n="adm08_modal_newappt_title">Agendar Nueva Cita</h2>
         <div class="appointment-form-content">
-            <form id="formNewAppointment">
+            <form id="formNewAppointment" data-submit-spinner="manual">
                 @Html.AntiForgeryToken()
                 <input type="hidden" id="appointmentId" name="IdCita" value="" />
                 <div class="form-grid">

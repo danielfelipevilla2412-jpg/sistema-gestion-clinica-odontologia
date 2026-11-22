@@ -541,3 +541,44 @@
     transition-duration: .01ms;
   }
 }
+
+.professional-treatment .add-plan-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.professional-treatment .page-header:has(.add-plan-trigger) {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: max(var(--space-4), 2.75rem);
+}
+
+.professional-treatment dialog.plan-editor {
+  position: fixed;
+  inset: 0 0 0 auto;
+  box-sizing: border-box;
+  width: min(100%, 34rem);
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: clamp(1rem, 4vw, 2rem);
+  border-radius: 0;
+  color: var(--text);
+  overflow: auto;
+}
+
+.professional-treatment .plan-editor::backdrop {
+  background: rgb(15 23 42 / 55%);
+}
+
+.professional-treatment [hidden] {
+  display: none !important;
+}
+
+.professional-treatment #planSaveError {
+  margin: 0;
+  color: #a51d2d;
+}

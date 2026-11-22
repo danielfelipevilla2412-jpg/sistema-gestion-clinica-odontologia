@@ -1,14 +1,11 @@
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
-@using Microsoft.AspNetCore.Antiforgery
-@inject IAntiforgery Antiforgery
+@model SmileTrack_MVC.Models.Entities.Paciente
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Nueva PQR";
     ViewData["Description"] = "Radica una petición, queja o reclamo ante SmileTrack.";
     ViewData["UseGestionModulesDesignSystem"] = true;
 
-    @* Token antiforgery consumido por script.js vía <meta name="csrf-request-token"> *@
-    var pqrRequestToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
 }
 
 @section Styles {
@@ -16,7 +13,6 @@
 }
 
 <main class="main pqr-nueva-page" id="main-content">
-    <meta name="csrf-request-token" content="@pqrRequestToken" />
 
     <header class="page-header">
         <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="layout_breadcrumb_aria">
@@ -65,57 +61,67 @@
 
             <div class="section-title section-title--spaced" data-i18n="pqr.applicant_data">2 - DATOS DEL SOLICITANTE</div>
 
-            <form id="pqrForm" method="post" action="/gestion-de-pqr/crear">
+            <form id="pqrForm" method="post" action="/gestion-de-pqr/crear" enctype="multipart/form-data" novalidate>
                 @Html.AntiForgeryToken()
                 <div class="form-row">
-                    <div class="form-group">
-                        <label data-i18n="common.name">Nombre completo</label>
-                        <input type="text" placeholder="Ej: María Fernanda López" required data-i18n-ph="common.name">
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="pacientes.document">Número de documento</label>
-                        <input type="text" placeholder="Cédula o T.I." required data-i18n-ph="pacientes.document">
-                    </div>
+                    <dl class="form-group pqr-account-data">
+                        <dt class="pqr-account-label" data-i18n="common.name">Nombre completo</dt>
+                        <dd class="pqr-account-value">@($"{Model?.Nombres} {Model?.Apellidos}".Trim())</dd>
+                    </dl>
+                    <dl class="form-group pqr-account-data">
+                        <dt class="pqr-account-label" data-i18n="pacientes.document">Número de documento</dt>
+                        <dd class="pqr-account-value">@Model?.Documento
+                        @if (Model != null && ViewData["DocumentoValido"] is false)
+                        {
+                            <small class="pqr-field-error" role="alert">La cédula registrada debe contener hasta 10 dígitos. Solicita la corrección de tu ficha.</small>
+                        }</dd>
+                    </dl>
+                </div>
+
+                <div class="form-row">
+                    <dl class="form-group pqr-account-data">
+                        <dt class="pqr-account-label" data-i18n="pac_pqr.label_email">Correo electrónico</dt>
+                        <dd class="pqr-account-value">@(string.IsNullOrWhiteSpace(Model?.Correo) ? "Sin registrar" : Model.Correo)</dd>
+                    </dl>
+                    <dl class="form-group pqr-account-data">
+                        <dt class="pqr-account-label" data-i18n="pac_pqr.label_phone">Teléfono de contacto</dt>
+                        <dd class="pqr-account-value">@(string.IsNullOrWhiteSpace(Model?.Telefono) ? "Sin registrar" : Model.Telefono)</dd>
+                    </dl>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label data-i18n="pac_pqr.label_email">Correo electrónico</label>
-                        <input type="email" placeholder="correo@ejemplo.com" required data-i18n-ph="pac_pqr.ph_email">
+                        <label for="pqrFechaServicio">Fecha del servicio (opcional)</label>
+                        <input id="pqrFechaServicio" name="fechaServicio" type="date" max="@DateTime.UtcNow.AddHours(-5).ToString("yyyy-MM-dd")">
                     </div>
                     <div class="form-group">
-                        <label data-i18n="pac_pqr.label_phone">Teléfono de contacto</label>
-                        <input type="tel" placeholder="+57 300 000 0000" required data-i18n-ph="pac_pqr.ph_phone">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label data-i18n="pac_pqr.label_service_date">Fecha del servicio</label>
-                        <input type="date" required>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="pac_pqr.label_dentist">Odontólogo tratante</label>
-                        <input type="text" placeholder="Nombre del profesional" data-i18n-ph="pac_pqr.ph_dentist">
+                        <label for="pqrProfesional">Odontólogo tratante (opcional)</label>
+                        <select id="pqrProfesional" name="idProfesional">
+                            <option value="">Seleccionar profesional</option>
+                            @foreach (var profesional in (IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)ViewData["Profesionales"]!)
+                            {
+                                <option value="@profesional.Value">@profesional.Text</option>
+                            }
+                        </select>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label data-i18n="pac_pqr.label_subject">Asunto *</label>
-                    <input type="text" id="pqrAsunto" name="asunto" placeholder="Ej: Demora en la atención de la cita" required data-i18n-ph="pac_pqr.ph_subject">
+                    <label for="pqrAsunto" data-i18n="pac_pqr.label_subject">Asunto *</label>
+                    <input type="text" id="pqrAsunto" name="asunto" minlength="3" maxlength="200" placeholder="Ej: Demora en la atención de la cita" required data-i18n-ph="pac_pqr.ph_subject">
                 </div>
 
                 <div class="form-group">
-                    <label data-i18n="pac_pqr.label_description">Descripción detallada *</label>
-                    <textarea id="pqrDescripcion" name="descripcion"
+                    <label for="pqrDescripcion" data-i18n="pac_pqr.label_description">Descripción detallada *</label>
+                    <textarea id="pqrDescripcion" name="descripcion" minlength="10" maxlength="1000"
                         placeholder="Describe con detalle tu solicitud, queja o reclamo. Incluye fechas, nombres y circunstancias relevantes."
                         required data-i18n-ph="pac_pqr.ph_description"></textarea>
                     <div class="char-counter">0 / 1000</div>
                 </div>
 
                 <div class="form-group">
-                    <label data-i18n="pac_pqr.label_attachment">Adjuntar soporte (opcional)</label>
-                    <div class="file-upload" id="fileUpload">
+                    <label for="fileInput" data-i18n="pac_pqr.label_attachment">Adjuntar soporte (opcional)</label>
+                    <div class="file-upload" id="fileUpload" role="button" tabindex="0" aria-label="Adjuntar soporte" aria-describedby="fileInputError">
                         <div class="file-upload-content" id="fileUploadContent">
                             <span class="material-symbols-outlined" aria-hidden="true">cloud_upload</span>
                             <div data-i18n="pac_pqr.upload_hint">Haz clic para adjuntar un archivo (PDF, JPG, PNG — máx. 5 MB)</div>
@@ -125,7 +131,11 @@
                 </div>
 
                 <div class="submit-section">
-                    <button type="submit" class="btn-submit">
+                    @if (Model == null)
+                    {
+                        <p class="pqr-field-error" role="alert">Tu cuenta no tiene una ficha de paciente asociada. Contacta a recepción.</p>
+                    }
+                    <button type="submit" class="btn-submit" disabled="@(ViewData["DocumentoValido"] is false)">
                         <span class="material-symbols-outlined" aria-hidden="true">send</span>
                         <span data-i18n="pac_pqr.submit">Radicar solicitud</span>
                     </button>
@@ -232,33 +242,7 @@
     </div>
 </main>
 
-<!-- Detalle de una PQR para el paciente -->
-<div class="pqr-detail-overlay" id="pqrDetailOverlay" hidden>
-    <div class="pqr-detail-modal" role="dialog" aria-modal="true" aria-labelledby="pqrDetailTitle">
-        <button type="button" class="pqr-detail-close" id="pqrDetailClose" aria-label="Cerrar" data-i18n-aria-label="common.close">&times;</button>
-        <div class="pqr-detail-header">
-            <div>
-                <span class="pqr-detail-ticket" id="pqrDetailTicket"></span>
-                <h2 id="pqrDetailTitle" data-i18n="pac_pqr.detail_title">Detalle de la PQR</h2>
-            </div>
-            <span class="badge process" id="pqrDetailStatus"></span>
-        </div>
-        <div class="pqr-detail-meta" id="pqrDetailMeta"></div>
-        <div class="pqr-detail-block">
-            <h3 data-i18n="pac_pqr.detail_subject">Asunto</h3>
-            <p id="pqrDetailSubject"></p>
-        </div>
-        <div class="pqr-detail-block">
-            <h3 data-i18n="pac_pqr.detail_description">Descripción</h3>
-            <p id="pqrDetailDescription"></p>
-        </div>
-        <div class="pqr-detail-response">
-            <h3 data-i18n="pac_pqr.detail_response">Respuesta de SmileTrack</h3>
-            <p id="pqrDetailResponse"></p>
-            <small id="pqrDetailResponseDate"></small>
-        </div>
-    </div>
-</div>
+@await Html.PartialAsync("~/Views/Gestion_De_PQR/_DetallePqr.cshtml")
 
 @section Scripts {
     <script>

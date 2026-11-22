@@ -19,25 +19,26 @@ Dependencias: ProfesionalesServiciosController, componentes compartidos del layo
     var nombresEspecialidades = ViewData["NombresEspecialidadesProfesional"] as List<string> ?? new();
     var compatibles = servicios.Where(s => s.Estado == "activo" && s.IdEspecialidad.HasValue && especialidades.Contains(s.IdEspecialidad.Value)).ToList();
     var cop = CultureInfo.GetCultureInfo("es-CO");
+    string PrecioCop(decimal valor) => $"{valor.ToString("#,0.##", cop)} COP";
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Profesionales/st-adm-07-gestion-profesionales/servicios-asignados.css" asp-append-version="true" />
 }
 <main class="main assigned-services-page" id="main-content">
     <header class="page-header">
+      <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="layout_breadcrumb_aria">
             <a href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" data-i18n="nav.gestion_profesionales">Gestión de Profesionales</a>
             <span class="bc-sep" aria-hidden="true">›</span>
             <span aria-current="page" data-i18n="asignados.title">Servicios asignados</span>
         </nav>
-        <div class="page-header-content">
-            <div class="page-header-title">
+        <div class="page-header-title">
                 <h1 class="page-title" data-i18n="asignados.title">Servicios asignados a profesionales</h1>
                 <p class="page-subtitle" data-i18n="asignados.subtitle">Asigna servicios según las especialidades registradas y configura precios en COP.</p>
-            </div>
-            <div class="page-header-actions">
+        </div>
+      </div>
+        <div class="page-header-actions">
                 <a class="btn-secondary" href="/gestion-de-profesionales/st-adm-07-gestion-profesionales" data-i18n="asignados.back">Volver a profesionales</a>
-            </div>
         </div>
     </header>
     @if (TempData["AsignacionError"] is string error) { <div class="assigned-feedback assigned-feedback-error" role="alert" data-i18n="@(TempData["AsignacionErrorI18n"])">@error</div> }
@@ -62,6 +63,7 @@ Dependencias: ProfesionalesServiciosController, componentes compartidos del layo
         </form>
     </section>
     @if (profesional is not null) {
+      <div class="assigned-workspace">
         <section class="table-card assigned-card" aria-labelledby="assignServiceTitle">
             <h2 class="card-title" id="assignServiceTitle" data-i18n="asignados.assign_title">Asignar o actualizar un servicio</h2>
             <p class="assigned-intro">
@@ -89,9 +91,9 @@ Dependencias: ProfesionalesServiciosController, componentes compartidos del layo
                                     data-asignado="@(existente is not null ? "true" : "false")"
                                     data-activo="@(existente?.Activo == true ? "true" : "false")"
                                     data-nombre="@s.Nombre"
-                                    data-precio-base="@s.Precio.ToString("C0", cop)"
+                                    data-precio-base="@s.Precio.ToString(CultureInfo.InvariantCulture)"
                                     data-precio="@(existente?.PrecioPersonalizado?.ToString("0.##", CultureInfo.InvariantCulture) ?? "")">
-                                @s.Nombre — base @s.Precio.ToString("C0", cop) @(existente is null ? "· Sin asignar" : existente.Activo ? "· Ya asignado (activo)" : "· Ya asignado (inactivo)")
+                                @s.Nombre — base @PrecioCop(s.Precio) @(existente is null ? "· Sin asignar" : existente.Activo ? "· Ya asignado (activo)" : "· Ya asignado (inactivo)")
                             </option>
                         }
                     </select>
@@ -99,9 +101,10 @@ Dependencias: ProfesionalesServiciosController, componentes compartidos del layo
                     <p id="estadoSeleccionServicio" class="assigned-selection-status" role="status" aria-live="polite" data-i18n="asignados.select_service_hint">Selecciona un servicio para consultar su estado.</p>
                     <div class="assigned-field">
                     <label for="precioPersonalizado" data-i18n="asignados.custom_price">Precio personalizado (COP, opcional)</label>
-                    <input id="precioPersonalizado" name="precioPersonalizado" class="filter-select" type="number" min="0.01" max="999999999" step="0.01" placeholder="Vacío = precio base" data-i18n-ph="asignados.base_price_placeholder" aria-describedby="ayudaPrecio" />
+                    <input id="precioPersonalizado" name="precioPersonalizado" class="filter-select" type="number" inputmode="decimal" min="0.01" max="999999999" step="0.01" placeholder="Vacío = precio base" data-i18n-ph="asignados.base_price_placeholder" aria-describedby="ayudaPrecio" />
                     <small id="ayudaPrecio" class="form-hint" data-i18n="asignados.price_help">Deja el campo vacío para utilizar el precio base. Si el servicio ya está asignado, se cargará su precio actual.</small>
                     </div>
+                    <p id="resumenPrecioAsignacion" class="assigned-selection-status" aria-live="polite" hidden></p>
                     <button id="guardarServicioAsignado" class="btn-primary" type="submit" disabled data-i18n="asignados.choose_service_button">Selecciona un servicio</button>
                 </form>
             }
@@ -129,9 +132,9 @@ Dependencias: ProfesionalesServiciosController, componentes compartidos del layo
                     @foreach (var a in asignaciones) {
                         <tr>
                             <td>@a.Servicio?.Nombre</td>
-                            <td>@a.Servicio?.Precio.ToString("C0", cop)</td>
-                            <td>@(a.PrecioPersonalizado.HasValue ? a.PrecioPersonalizado.Value.ToString("C0", cop) : "—")</td>
-                            <td>@((a.PrecioPersonalizado ?? a.Servicio?.Precio ?? 0).ToString("C0", cop))</td>
+                            <td>@(a.Servicio is null ? "—" : PrecioCop(a.Servicio.Precio))</td>
+                            <td>@(a.PrecioPersonalizado.HasValue ? PrecioCop(a.PrecioPersonalizado.Value) : "—")</td>
+                            <td>@((a.PrecioPersonalizado ?? a.Servicio?.Precio) is decimal aplicado ? PrecioCop(aplicado) : "—")</td>
                             <td><span class="status-badge @(a.Activo ? "activo" : "inactivo")" role="status" data-i18n="@(a.Activo ? "asignados.active" : "asignados.inactive")">@(a.Activo ? "Activa" : "Inactiva")</span></td>
                             <td><form method="post" action="/gestion-de-profesionales/servicios-asignados/estado" class="assigned-action-form">
                                 @Html.AntiForgeryToken()
@@ -145,6 +148,7 @@ Dependencias: ProfesionalesServiciosController, componentes compartidos del layo
                 </tbody></table></div>
             }
         </section>
+      </div>
     }
 </main>
 

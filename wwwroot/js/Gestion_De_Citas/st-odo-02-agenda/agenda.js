@@ -367,6 +367,14 @@ const initAppointmentModals = () => {
         });
       }
 
+      const followUpButton = modalElement.querySelector('#modalApptSeguimiento');
+      if (followUpButton) {
+        const patients = document.getElementById('newApptPatient');
+        const canFollowUp = ['atendida', 'completada', 'realizada', 'finalizada'].includes(currentStatus)
+          && !!selectedPatientId && Array.from(patients?.options ?? []).some(option => option.value === selectedPatientId);
+        followUpButton.hidden = !canFollowUp;
+      }
+
       renderAppointmentModalContent(modalContentElement, appointmentData);
 
       const historyUrl = selectedPatientId
@@ -454,7 +462,9 @@ const initNewAppointmentModal = () => {
 
   if (!modalNewElement) return;
 
-  const openNewAppointmentModal = (dateString = '') => {
+  const openNewAppointmentModal = (dateString = '', patientId = '') => {
+    const patient = document.getElementById('newApptPatient');
+    if (patient) patient.value = patientId;
     if (dateString) {
       const dateInputField = document.getElementById('newApptDate');
       if (dateInputField) dateInputField.value = dateString;
@@ -466,6 +476,13 @@ const initNewAppointmentModal = () => {
   };
 
   fabButton?.addEventListener('click', () => openNewAppointmentModal());
+  document.getElementById('modalApptSeguimiento')?.addEventListener('click', event => {
+    if (event.currentTarget.hidden || !selectedPatientId) return;
+    const patientId = selectedPatientId;
+    closeModalElement(document.getElementById('modalAppointment'));
+    openNewAppointmentModal('', patientId);
+    document.getElementById('newApptDate')?.focus();
+  });
 
   document.querySelectorAll('.appointment.available').forEach(availableSlot => {
     availableSlot.addEventListener('click', () => {

@@ -91,7 +91,8 @@
     <div class="overlay" id="overlay" aria-hidden="true"></div>
 
     @* Conmutador de idioma (ES / EN) — visible en todas las vistas del layout *@
-    @{ await Html.RenderPartialAsync("~/Views/shared/_LangSwitcher.cshtml"); }
+    @await Html.PartialAsync("~/Views/shared/_LangSwitcher.cshtml", null,
+        new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["MostrarAvisosPqr"] = true })
 
     @* Contenido de la vista *@
     @RenderBody()

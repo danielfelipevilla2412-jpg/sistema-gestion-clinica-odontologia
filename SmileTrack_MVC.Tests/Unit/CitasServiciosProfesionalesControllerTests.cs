@@ -113,6 +113,7 @@ public sealed class CitasServiciosProfesionalesControllerTests
         Assert.Single(items);
         var precio = items[0].GetType().GetProperty("precioAplicado")!.GetValue(items[0]);
         Assert.Equal(75000m, Convert.ToDecimal(precio));
+        Assert.Equal(50000m, Convert.ToDecimal(items[0].GetType().GetProperty("precioBase")!.GetValue(items[0])));
         Assert.True((bool)items[0].GetType().GetProperty("precioPersonalizado")!.GetValue(items[0])!);
     }
 

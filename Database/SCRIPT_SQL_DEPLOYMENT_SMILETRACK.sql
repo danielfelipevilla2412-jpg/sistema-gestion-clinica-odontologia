@@ -1444,7 +1444,10 @@ SET QUOTED_IDENTIFIER ON
 GO
 CREATE TABLE [dbo].[PQR](
 	[id_pqr] [int] IDENTITY(1,1) NOT NULL,
-	[id_paciente] [int] NOT NULL,
+	[id_paciente] [int] NULL,
+	[id_profesional] [int] NULL,
+	[fecha_servicio] [date] NULL,
+	[modulo_software] [nvarchar](100) NULL,
 	[id_usuario] [int] NULL,
 	[tipo] [varchar](20) NOT NULL,
 	[asunto] [varchar](200) NOT NULL,
@@ -2878,6 +2881,9 @@ REFERENCES [dbo].[Paciente] ([id_paciente])
 GO
 ALTER TABLE [dbo].[PQR] CHECK CONSTRAINT [FK_PQR_Paciente]
 GO
+ALTER TABLE dbo.PQR ADD CONSTRAINT FK_PQR_Profesional_Soporte
+    FOREIGN KEY (id_profesional) REFERENCES dbo.Profesional (id_profesional) ON DELETE SET NULL;
+GO
 ALTER TABLE [dbo].[PQR]  WITH CHECK ADD  CONSTRAINT [FK_PQR_Usuario] FOREIGN KEY([id_usuario])
 REFERENCES [dbo].[Usuario] ([id_usuario])
 GO
@@ -4072,6 +4078,19 @@ INSERT INTO [dbo].[Estado_Cita] ([nombre_estado])
 SELECT e.[nombre_estado] FROM @EstadosBrechas e
 WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Estado_Cita] actual WHERE LOWER(actual.[nombre_estado]) = LOWER(e.[nombre_estado]));
 GO
+IF OBJECT_ID(N'dbo.PQR_Aviso_Leido', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.PQR_Aviso_Leido (
+        id_usuario int NOT NULL,
+        clave nvarchar(64) NOT NULL,
+        CONSTRAINT PK_PQR_Aviso_Leido PRIMARY KEY (id_usuario, clave),
+        CONSTRAINT FK_PQR_Aviso_Leido_Usuario FOREIGN KEY (id_usuario)
+            REFERENCES dbo.Usuario (id_usuario) ON DELETE CASCADE
+    );
+END;
+GO
+
+
 USE [master]
 GO
 ALTER DATABASE [SmileTrackDB] SET  READ_WRITE

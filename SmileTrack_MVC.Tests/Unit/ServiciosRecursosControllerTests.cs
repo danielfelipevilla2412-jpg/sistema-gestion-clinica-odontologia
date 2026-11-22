@@ -50,6 +50,29 @@ public sealed class ServiciosRecursosControllerTests
         return controller;
     }
 
+    [Fact]
+    public async Task ApiImpactoDesactivacionServicio_CuentaAsignacionesActivasYCitasFuturasPendientes()
+    {
+        await using var db = CrearContext();
+        var hoy = SmileTrack_MVC.Helpers.ColombiaClock.Now;
+        db.Servicios.Add(new Servicio { IdServicio = 1, Nombre = "Consulta", Precio = 50000m, Categoria = "general" });
+        db.ProfesionalServicios.AddRange(
+            new() { IdServicio = 1, IdProfesional = 1, Activo = true },
+            new() { IdServicio = 1, IdProfesional = 2, Activo = false });
+        db.Citas.AddRange(
+            new() { IdServicio = 1, FechaHora = hoy.AddDays(1), Estado = "Confirmada" },
+            new() { IdServicio = 1, FechaHora = hoy.AddDays(1), Estado = "Cancelada" },
+            new() { IdServicio = 1, FechaHora = hoy.AddDays(-1), Estado = "Confirmada" },
+            new() { IdServicio = 2, FechaHora = hoy.AddDays(1), Estado = "Confirmada" });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<OkObjectResult>(await CrearControlador(db).ApiImpactoDesactivacionServicio(1));
+        var datos = System.Text.Json.JsonSerializer.SerializeToElement(result.Value).GetProperty("data");
+
+        Assert.Equal(1, datos.GetProperty("asignacionesActivas").GetInt32());
+        Assert.Equal(1, datos.GetProperty("citasFuturas").GetInt32());
+    }
+
     private static int Contar(IEnumerable datos)
     {
         int total = 0;

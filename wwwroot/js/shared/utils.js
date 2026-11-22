@@ -412,6 +412,14 @@ window.SmileTrack.utils = {
    * @param {number} value - Valor a formatear
    * @returns {string} Valor formateado
    */
+  formatServicePricing: function ({ precioBase, precioAplicado, precioPersonalizado }) {
+    const pesos = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    const format = value => `${pesos.format(value)} COP`;
+    const custom = precioPersonalizado ? format(precioAplicado) : 'Sin personalizar';
+    const source = precioPersonalizado ? 'personalizado' : 'base';
+    return `Base: ${format(precioBase)} · Personalizado: ${custom} · Aplicado: ${format(precioAplicado)} (${source}).`;
+  },
+
   formatCurrency: function (value) {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',

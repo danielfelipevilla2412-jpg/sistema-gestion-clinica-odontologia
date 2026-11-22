@@ -3,6 +3,7 @@
 
   const translate = key => window.I18N?.t(key) || key;
   const config = window.CONFIG_GENERAL;
+  let saving = false;
 
   const notify = (type, key) => {
     const service = window.ToastService?.[type];
@@ -56,10 +57,18 @@
     }
   });
 
+  const updateSaveState = (message) => {
+    const changed = JSON.stringify(readForm()) !== JSON.stringify(config);
+    document.getElementById('btnSaveChanges').disabled = saving || !changed;
+    document.getElementById('btnRestoreConfig').disabled = saving || !changed;
+    document.getElementById('configSaveStatus').textContent = message ??
+      (changed ? 'Tienes cambios por guardar.' : 'Sin cambios pendientes.');
+  };
+
   const handleSubmit = async event => {
     event.preventDefault();
     const form = event.currentTarget;
-    if (!form.reportValidity()) return;
+    if (saving || !form.reportValidity()) return;
 
     const updatedConfig = readForm();
     if (updatedConfig.appointment.open >= updatedConfig.appointment.close) {
@@ -69,8 +78,8 @@
       return;
     }
 
-    const saveButton = document.getElementById('btnSaveChanges');
-    saveButton.disabled = true;
+    saving = true;
+    updateSaveState('Guardando cambios…');
     try {
       const result = await window.apiRequest('/servicios-y-recursos/api/configuracion-general', {
         method: 'PUT',
@@ -88,17 +97,26 @@
       console.error('Error guardando la configuración general.', error);
       notify('error', 'config.save_error');
     } finally {
-      saveButton.disabled = false;
+      saving = false;
+      updateSaveState();
     }
   };
 
   const init = () => {
     render();
-    document.getElementById('configForm')?.addEventListener('submit', handleSubmit);
+    const form = document.getElementById('configForm');
+    form.addEventListener('submit', handleSubmit);
+    form.addEventListener('input', () => { if (!saving) updateSaveState(); });
+    document.getElementById('btnRestoreConfig').addEventListener('click', () => {
+      render();
+      updateSaveState();
+    });
+    updateSaveState();
     document.querySelectorAll('.toggle-switch').forEach(button => {
       button.addEventListener('click', () => {
         const checked = button.getAttribute('aria-checked') === 'true';
         button.setAttribute('aria-checked', String(!checked));
+        if (!saving) updateSaveState();
       });
     });
   };

@@ -1877,22 +1877,19 @@ public class HistoriaClinicaController(
             .Select(h => new { h.IdHistoria, h.IdPaciente })
             .ToListAsync();
         var historiaIds = historiasPaciente.Select(h => h.IdHistoria).ToArray();
-        var citasDisponibles = await _context.Citas
-            .AsNoTracking()
+        var citasDisponibles = await CitasAtendidasParaSesion(idProfesional.Value)
             .Where(c => pacienteIds.Contains(c.IdPaciente) && c.IdProfesional == idProfesional)
             .OrderByDescending(c => c.FechaHora)
-            .Select(c => new { id = c.IdCita, pacienteId = c.IdPaciente, fecha = c.FechaHora })
+            .Select(c => new { id = c.IdCita, pacienteId = c.IdPaciente, servicioId = c.IdServicio, fecha = c.FechaHora, servicio = c.Servicio!.Nombre })
             .ToListAsync();
         var notasDisponibles = await _context.NotasClinicas
             .AsNoTracking()
             .Where(n => historiaIds.Contains(n.IdHistoria))
             .OrderByDescending(n => n.Fecha)
-            .Select(n => new { id = n.IdNota, historiaId = n.IdHistoria, fecha = n.Fecha })
+            .Select(n => new { id = n.IdNota, historiaId = n.IdHistoria, citaId = n.IdCita, fecha = n.Fecha })
             .ToListAsync();
 
-        var servicios = await _context.Servicios
-            .AsNoTracking()
-            .Where(s => s.Estado.ToLower() == "activo")
+        var servicios = await ServiciosAsignadosParaTratamiento(idProfesional.Value)
             .OrderBy(s => s.Nombre)
             .Select(s => new { id = s.IdServicio, nombre = s.Nombre, categoria = s.Categoria })
             .ToListAsync();
@@ -1930,11 +1927,6 @@ public class HistoriaClinicaController(
         if (idProfesional is null || !await PuedeProfesionalAccederAPacienteAsync(request.PacienteId.Value))
             return Forbid();
 
-        var servicio = await _context.Servicios
-            .FirstOrDefaultAsync(s => s.IdServicio == request.ServicioId.Value && s.Estado.ToLower() == "activo");
-        if (servicio is null)
-            return UnprocessableEntity(new { success = false, message = "El servicio seleccionado no existe o está inactivo." });
-
         PlanTratamiento? plan = null;
         int sesionesEstimadasAnteriores = 0;
         if (request.IdPlan is > 0)
@@ -1949,7 +1941,13 @@ public class HistoriaClinicaController(
                 return Forbid();
             sesionesEstimadasAnteriores = plan.SesionesEstimadas;
         }
-        else
+        // Los planes existentes pueden seguir actualizándose con su servicio original.
+        if (plan?.IdServicio != request.ServicioId.Value
+            && !await ServiciosAsignadosParaTratamiento(idProfesional.Value)
+                .AnyAsync(s => s.IdServicio == request.ServicioId.Value))
+            return UnprocessableEntity(new { success = false, message = "El servicio seleccionado no está activo o no está asignado a tu perfil profesional." });
+
+        if (plan is null)
         {
             var pacienteExiste = await _context.Pacientes.AnyAsync(p => p.IdPaciente == request.PacienteId.Value);
             if (!pacienteExiste)
@@ -1992,6 +1990,12 @@ public class HistoriaClinicaController(
         });
     }
 
+    private IQueryable<Servicio> ServiciosAsignadosParaTratamiento(int idProfesional)
+        => _context.Servicios.AsNoTracking()
+            .Where(s => s.Estado.ToLower() == "activo"
+                && _context.ProfesionalServicios.Any(ps => ps.IdProfesional == idProfesional
+                    && ps.IdServicio == s.IdServicio && ps.Activo));
+
     // Yeray: Registra cada sesión como evento para que el conteo sea trazable y no dependa de citas ni facturación.
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -2002,8 +2006,8 @@ public class HistoriaClinicaController(
         [FromBody] PlanSesionRegistrarRequest? request,
         CancellationToken cancellationToken)
     {
-        if (request is null || request.FechaSesion > DateTime.UtcNow.AddMinutes(5))
-            return UnprocessableEntity(new { success = false, message = "Indica una fecha válida de sesión realizada." });
+        if (request?.CitaId is not > 0)
+            return UnprocessableEntity(new { success = false, message = "Selecciona una cita atendida." });
 
         int? idProfesional = await ObtenerIdProfesionalActualAsync();
         if (idProfesional is null)
@@ -2012,19 +2016,12 @@ public class HistoriaClinicaController(
         var plan = await _context.PlanesTratamiento
             .AsNoTracking()
             .Where(p => p.IdPlan == idPlan && p.IdProfesional == idProfesional)
-            .Select(p => new { p.IdPlan, p.IdHistoria, p.SesionesEstimadas, PacienteId = p.HistoriaClinica!.IdPaciente })
+            .Select(p => new { p.IdPlan, p.IdHistoria, p.IdServicio, p.SesionesEstimadas, PacienteId = p.HistoriaClinica!.IdPaciente })
             .FirstOrDefaultAsync(cancellationToken);
         if (plan is null)
             return NotFound(new { success = false, message = "El plan no existe o no pertenece al profesional." });
         if (!await PuedeProfesionalAccederAPacienteAsync(plan.PacienteId))
             return Forbid();
-
-        if (request.CitaId is > 0 && !await _context.Citas.AnyAsync(c =>
-                c.IdCita == request.CitaId && c.IdPaciente == plan.PacienteId && c.IdProfesional == idProfesional,
-                cancellationToken))
-        {
-            return UnprocessableEntity(new { success = false, message = "La cita no corresponde al paciente y profesional del plan." });
-        }
 
         if (request.NotaId is > 0 && !await _context.NotasClinicas.AnyAsync(n =>
                 n.IdNota == request.NotaId && n.IdHistoria == plan.IdHistoria,
@@ -2042,17 +2039,29 @@ public class HistoriaClinicaController(
 
         // Yeray: La sesión y su auditoría se confirman juntas para no dejar eventos clínicos sin trazabilidad.
         var executionStrategy = _context.Database.CreateExecutionStrategy();
-        await executionStrategy.ExecuteAsync(async () =>
+        var errorRegistro = await executionStrategy.ExecuteAsync(async () =>
         {
             await using var transaction = _context.Database.IsRelational()
-                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                ? await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken)
                 : null;
             try
             {
+                var fechaCita = await CitasAtendidasParaSesion(idProfesional.Value)
+                    .Where(c => c.IdCita == request.CitaId && c.IdPaciente == plan.PacienteId
+                        && c.IdServicio == plan.IdServicio)
+                    .Select(c => (DateTime?)c.FechaHora)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (fechaCita is null)
+                    return "La cita debe estar atendida y corresponder al paciente, profesional y servicio del plan.";
+
+                if (await _context.SesionesPlan.AnyAsync(s => s.IdPlan == idPlan
+                    && s.IdCita == request.CitaId && !s.Anulada, cancellationToken))
+                    return "Esta cita ya está vinculada a una sesión vigente del plan.";
+
                 var sesion = new PlanSesion
                 {
                     IdPlan = idPlan,
-                    FechaSesion = request.FechaSesion ?? DateTime.UtcNow,
+                    FechaSesion = fechaCita.Value.Date,
                     IdProfesionalRegistro = idProfesional.Value,
                     IdCita = request.CitaId,
                     IdNota = request.NotaId,
@@ -2069,6 +2078,7 @@ public class HistoriaClinicaController(
                     cancellationToken);
                 if (transaction is not null)
                     await transaction.CommitAsync(cancellationToken);
+                return (string?)null;
             }
             catch
             {
@@ -2078,6 +2088,9 @@ public class HistoriaClinicaController(
                 throw;
             }
         });
+
+        if (errorRegistro is not null)
+            return UnprocessableEntity(new { success = false, message = errorRegistro });
 
         int sesionesRealizadas = await _context.SesionesPlan
             .CountAsync(s => s.IdPlan == idPlan && !s.Anulada, cancellationToken);
@@ -2093,6 +2106,12 @@ public class HistoriaClinicaController(
             superaEstimacion
         });
     }
+
+    private IQueryable<Cita> CitasAtendidasParaSesion(int idProfesional)
+        => _context.Citas.AsNoTracking().Where(c => c.IdProfesional == idProfesional
+            && c.IdServicio != null
+            && (c.Estado.Trim().ToLower() == "atendida" || c.Estado.Trim().ToLower() == "completada"
+                || c.Estado.Trim().ToLower() == "realizada" || c.Estado.Trim().ToLower() == "finalizada"));
 
     // Yeray: Anula sin borrar la sesión y exige motivo para mantener una corrección auditable.
     [HttpPost]

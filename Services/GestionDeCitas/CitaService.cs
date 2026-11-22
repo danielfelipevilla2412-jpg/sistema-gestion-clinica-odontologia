@@ -57,14 +57,18 @@ public class CitaService : ICitaService
     private readonly ILogger<CitaService> _logger;
     private readonly SmileTrack_MVC.Services.Email.IEmailService? _emailService;
 
+    private readonly Microsoft.AspNetCore.Http.IHttpContextAccessor? _httpContextAccessor;
+
     public CitaService(
         AppDbContext context,
         ILogger<CitaService> logger,
-        SmileTrack_MVC.Services.Email.IEmailService? emailService = null)
+        SmileTrack_MVC.Services.Email.IEmailService? emailService = null,
+        Microsoft.AspNetCore.Http.IHttpContextAccessor? httpContextAccessor = null)
     {
         _context = context;
         _logger = logger;
         _emailService = emailService;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     // =========================================================================
@@ -508,12 +512,21 @@ public class CitaService : ICitaService
     // CREAR CITA (C-01, C-04)
     // =========================================================================
 
+    private async Task ValidarPermisoRecepcionAsync(string accion, CancellationToken ct)
+    {
+        var actor = _httpContextAccessor?.HttpContext?.User;
+        if (actor?.IsInRole("Recepcionista") == true && !actor.IsInRole("Administrador")
+            && !await PermisoReagendamiento.PermitidoAsync(_context, ct, accion))
+            throw new InvalidOperationException($"El rol Recepcionista no tiene permiso para {accion} citas.");
+    }
+
     public async Task<Cita> CrearAsync(
         CitaApiRequest request,
         CancellationToken ct = default,
         int? idUsuarioActor = null,
         string? ipOrigen = null)
     {
+        await ValidarPermisoRecepcionAsync("agendar", ct);
         if (request is null)
             throw new ArgumentNullException(nameof(request));
 
@@ -586,6 +599,8 @@ public class CitaService : ICitaService
                 throw new InvalidOperationException("El estado de la cita no es válido.");
 
             string estadoNuevo = NormalizarEstado(estadoEntidad.NombreEstado);
+            if (estadoNuevo == "cancelada")
+                await ValidarPermisoRecepcionAsync("cancelar", ct);
             if (estadoNuevo is not ("programada" or "confirmada"))
                 throw new InvalidOperationException("Una cita nueva solo puede crearse como Programada o Confirmada.");
 
@@ -705,6 +720,22 @@ public class CitaService : ICitaService
         string estadoAnteriorTexto = cita.Estado;
         DateTime fechaHoraAnterior = cita.FechaHora;
         bool fechaModificada = request.FechaHora != cita.FechaHora;
+        if (fechaModificada)
+        {
+            await ValidarPermisoRecepcionAsync("reagendar", ct);
+            var actor = _httpContextAccessor?.HttpContext?.User;
+            if (actor?.IsInRole("Profesional") == true && !actor.IsInRole("Administrador"))
+            {
+                if (!int.TryParse(actor.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var usuario)
+                    || usuario <= 0 || !cita.IdProfesional.HasValue
+                    || request.IdProfesional != cita.IdProfesional
+                    || !await _context.Profesionales.AnyAsync(p => p.IdProfesional == cita.IdProfesional && p.IdUsuario == usuario, ct))
+                    throw new InvalidOperationException("Solo puedes reagendar citas que tienes asignadas.");
+
+                if (!await PermisoReagendamiento.PermitidoAsync(_context, ct, profesional: true))
+                    throw new InvalidOperationException("El rol Profesional no tiene permiso para reagendar citas.");
+            }
+        }
         if (fechaModificada &&
             (cita.FechaHora < ColombiaClock.Now ||
              EstadoCitaHelper.EsEstadoFinal(cita.Estado) ||
@@ -733,6 +764,8 @@ public class CitaService : ICitaService
         {
             string estadoActual = NormalizarEstado(cita.Estado);
             string estadoNuevo = NormalizarEstado(estadoSolicitado.NombreEstado);
+            if (estadoActual != estadoNuevo && estadoNuevo == "cancelada")
+                await ValidarPermisoRecepcionAsync("cancelar", ct);
             if (estadoActual != estadoNuevo && !EstadoCitaHelper.IsTransitionAllowed(estadoActual, estadoNuevo))
                 throw new InvalidOperationException(EstadoCitaHelper.ConstruirMensajeTransicionNoPermitida(estadoActual, estadoNuevo));
         }
@@ -873,6 +906,8 @@ public class CitaService : ICitaService
 
         string estadoActual = NormalizarEstado(cita.Estado);
         string estadoNuevo = NormalizarEstado(nuevoEstado);
+        if (estadoNuevo == "cancelada" && NormalizarEstado(cita.Estado) != estadoNuevo)
+            await ValidarPermisoRecepcionAsync("cancelar", ct);
 
         if ((estadoNuevo is "en_proceso" or "atendida") &&
             (estadoNuevo == "atendida" ? cita.FechaHora.Date > ColombiaClock.Today : cita.FechaHora > ColombiaClock.Now))
@@ -1043,6 +1078,7 @@ public class CitaService : ICitaService
         int? idUsuarioActor = null,
         string? ipOrigen = null)
     {
+        await ValidarPermisoRecepcionAsync("cancelar", ct);
         var cita = await _context.Citas.FirstOrDefaultAsync(c => c.IdCita == id, ct);
         if (cita is null)
             return false;
