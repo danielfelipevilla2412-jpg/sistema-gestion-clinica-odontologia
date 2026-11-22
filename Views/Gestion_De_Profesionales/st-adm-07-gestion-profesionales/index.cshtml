@@ -53,7 +53,7 @@ NOTAS DE MANTENIMIENTO:
 
 
   <!-- ═════ MAIN ═════ -->
-  <main class="main" id="main-content">
+  <main class="main professionals-management-page" id="main-content">
 
     <!-- Header -->
     <header class="page-header">
@@ -66,10 +66,12 @@ NOTAS DE MANTENIMIENTO:
         <h1 class="page-title" data-i18n="gestionprofesionales_title">Gestión de Profesionales</h1>
         <p class="page-subtitle" data-i18n="gestionprofesionales_subtitle">Administra los odontólogos y especialistas de la clínica</p>
       </div>
+      <div class="page-header-actions">
       <a class="btn-secondary" href="/gestion-de-profesionales/servicios-asignados" data-i18n="gestionprofesionales_btn_servicios_asignados">Servicios asignados</a>
       <button class="btn-primary" id="profesionales-btn-nuevo" aria-label="Crear nuevo profesional" data-i18n-aria-label="gestionprofesionales_btn_nuevo_aria" data-i18n="gestionprofesionales_btn_nuevo">
         + Nuevo Profesional
       </button>
+      </div>
     </header>
 
     <!--
@@ -262,7 +264,7 @@ NOTAS DE MANTENIMIENTO:
                 </td>
                 <td><span class="badge-spec @((especialidadPrincipal ?? string.Empty).ToLowerInvariant())">@especialidadPrincipal</span></td>
                 <td>@profesional.RegistroMedico</td>
-                <td>@profesional.TarjetaProfesional</td>
+                <td>@(string.IsNullOrWhiteSpace(profesional.TarjetaProfesional) ? "—" : profesional.TarjetaProfesional)</td>
                 <td>@profesional.Telefono</td>
                 <td><span class="badge-status badge-@((profesional.Estado ?? string.Empty).ToLowerInvariant())">@profesional.Estado</span></td>
                 <td>

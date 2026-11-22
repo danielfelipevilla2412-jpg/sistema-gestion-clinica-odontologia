@@ -115,8 +115,11 @@ function renderPaginacion() {
   if (!panel) return;
   panel.hidden = false;
   safeGetElement('pqrPaginaInfo').textContent = `Página ${paginaActual} de ${totalPaginas} · ${totalFiltrado} resultados`;
-  safeGetElement('pqrAnterior').disabled = paginaActual <= 1;
-  safeGetElement('pqrSiguiente').disabled = paginaActual >= totalPaginas;
+  const anterior = safeGetElement('pqrAnterior');
+  const siguiente = safeGetElement('pqrSiguiente');
+  anterior.hidden = siguiente.hidden = totalPaginas <= 1;
+  anterior.disabled = paginaActual <= 1;
+  siguiente.disabled = paginaActual >= totalPaginas;
 }
 
 
@@ -154,14 +157,14 @@ const renderTable = () => {
         <td class="radicado">${escapeHtml(p.radicado)}</td>
         <td class="paciente-info">
           <strong>${escapeHtml(p.paciente)}</strong>
-          <span>${escapeHtml(p.documento)}</span>
+          ${p.documento && p.documento !== 'N/A' ? `<span>${escapeHtml(p.documento)}</span>` : ''}
         </td>
         <td><span class="badge ${tipoBadge.cls}">${escapeHtml(translate(tipoBadge.key, tipoBadge.label))}</span></td>
-        <td>${escapeHtml(p.titulo)}</td>
+        <td class="pqr-table-subject">${escapeHtml(p.titulo)}</td>
         <td><span class="badge ${estadoBadge.cls}">${escapeHtml(translate(estadoBadge.key, estadoBadge.label))}</span></td>
         <td><span class="badge ${prioridadBadge.cls}">${prioridadBadge.label}</span></td>
-        <td class="${vencida ? 'tiempo-vencido' : ''}">${escapeHtml(formatTiempoAbierto(p.fechaCreacionIso))}${vencida ? ' <span class="material-symbols-outlined" aria-hidden="true" style="font-size:16px;vertical-align:middle;color:var(--danger)">warning</span>' : ''}</td>
-        <td class="actions-cell">
+        <td class="pqr-table-date ${vencida ? 'tiempo-vencido' : ''}">${escapeHtml(p.fecha?.split(" ")[0]?.split("-").reverse().join("/") || "—")}${vencida ? ' <span class="material-symbols-outlined" aria-hidden="true" style="font-size:16px;vertical-align:middle;color:var(--danger)">warning</span>' : ''}</td>
+        <td class="pqr-table-actions">
           <button class="action-btn" type="button" data-action="view" data-id="${escapeHtml(id)}"
                       title="${escapeHtml(translate('pqr.view_details', 'Ver detalle'))}"
                       aria-label="${escapeHtml(translate('pqr.view_details_aria', 'Ver detalle de la solicitud {id}').replace('{id}', String(p.radicado)))}">
@@ -182,6 +185,14 @@ const renderStats = () => {
   setText('statVencidas', stats.vencidas);
 };
 
+function contextoPqr(pqr) {
+  return [
+    pqr.moduloSoftware && `Módulo o pantalla: ${pqr.moduloSoftware}`,
+    pqr.profesional && `Profesional: ${pqr.profesional}`,
+    pqr.fechaServicio && `Fecha del servicio: ${pqr.fechaServicio}`
+  ].filter(Boolean).join(' · ');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   if (Array.isArray(window.RAZOR_PQRS)) {
     window.RAZOR_PQRS.forEach(p => {
@@ -197,6 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fecha: p.date,
         fechaCreacionIso: p.fechaCreacionIso,
         descripcion: p.description,
+      contexto: contextoPqr(p),
         respuesta: p.respuesta,
         fechaRespuesta: p.fechaRespuesta,
         atendidaPor: p.atendidaPor,
@@ -208,14 +220,24 @@ document.addEventListener('DOMContentLoaded', () => {
   renderTable();
   renderStats();
   initResponseForm();
-  initPqrNotifications();
+
 
   safeGetElement('searchInput')?.addEventListener('input', () => { clearTimeout(busquedaTimer); busquedaTimer = setTimeout(() => cambiarFiltros(), 350); });
   safeGetElement('filterTipo')?.addEventListener('change', cambiarFiltros);
   safeGetElement('filterEstado')?.addEventListener('change', cambiarFiltros);
+  safeGetElement('filterOrigen')?.addEventListener('change', cambiarFiltros);
   safeGetElement('pqrAnterior')?.addEventListener('click', () => { if (paginaActual > 1) { paginaActual--; refreshPqrsFromServer(); } });
   safeGetElement('pqrSiguiente')?.addEventListener('click', () => { if (paginaActual < totalPaginas) { paginaActual++; refreshPqrsFromServer(); } });
-  refreshPqrsFromServer();
+  const radicado = new URLSearchParams(location.search).get('pqr');
+  const search = safeGetElement('searchInput');
+  if (search && /^[1-9]\d*$/.test(radicado || '')) {
+    search.value = `PQR-${radicado.padStart(4, '0')}`;
+    refreshPqrsFromServer().then(() => {
+      if (pqrsData[radicado] && search.value === `PQR-${radicado.padStart(4, '0')}`) showDetail(radicado);
+    });
+  } else {
+    refreshPqrsFromServer();
+  }
   safeGetElement('closeDetailButton')?.addEventListener('click', closeDetail);
   safeGetElement('detailOverlay')?.addEventListener('click', closeDetail);
   document.addEventListener('keydown', event => {
@@ -232,24 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ===== NOTIFICACIONES Y ACTUALIZACIÓN AUTOMÁTICA =====
 let pqrFirstRefresh = true;
-
-function updateNotificationBadge(stats) {
-  const badge = safeGetElement('pqrNotificationBadge');
-  if (!badge) return;
-
-  const count = Number(stats?.sinResponder || 0);
-  badge.textContent = count > 99 ? '99+' : String(count);
-  badge.classList.toggle('is-hidden', count === 0);
-
-  const button = safeGetElement('pqrNotificationBtn');
-  if (button) {
-    const label = count > 0
-      ? `${translate('pqr.notifications_aria', 'Nuevas solicitudes PQR')}: ${count}`
-      : translate('pqr.no_notifications', 'No hay nuevas solicitudes PQR');
-    button.title = label;
-    button.setAttribute('aria-label', label);
-  }
-}
 
 function applyPqrPayload(payload, { showNewToast = false } = {}) {
   if (!payload || payload.success !== true || !Array.isArray(payload.pqrs)) return;
@@ -270,6 +274,7 @@ function applyPqrPayload(payload, { showNewToast = false } = {}) {
       fecha: p.date,
       fechaCreacionIso: p.fechaCreacionIso,
       descripcion: p.description,
+      contexto: contextoPqr(p),
       respuesta: p.respuesta,
       fechaRespuesta: p.fechaRespuesta,
       atendidaPor: p.atendidaPor,
@@ -280,7 +285,6 @@ function applyPqrPayload(payload, { showNewToast = false } = {}) {
   window.RAZOR_PQR_STATS = payload.stats;
   renderTable();
   renderStats();
-  updateNotificationBadge(payload.stats);
   if (payload.paginacion) {
     paginaActual = payload.paginacion.pagina;
     totalPaginas = payload.paginacion.totalPaginas;
@@ -302,8 +306,9 @@ function applyPqrPayload(payload, { showNewToast = false } = {}) {
     safeGetElement('infoDocumento').textContent = data.documento;
     safeGetElement('infoEmail').textContent = data.email;
     safeGetElement('detailDescripcion').textContent = data.descripcion;
+    safeGetElement('detailContexto').textContent = data.contexto;
 
-    renderResponseThread(data);
+    cargarHistorialPqr(currentId);
     updateBadgeColors(data);
     updateStatusButtons(data.estado);
 
@@ -325,7 +330,13 @@ function applyPqrPayload(payload, { showNewToast = false } = {}) {
 async function refreshPqrsFromServer() {
   try {
     const solicitud = ++solicitudBandeja;
-    const params = new URLSearchParams({ pagina: String(paginaActual), buscar: safeGetElement('searchInput')?.value || '', tipo: safeGetElement('filterTipo')?.value || 'todos', estado: safeGetElement('filterEstado')?.value || 'todos' });
+    const params = new URLSearchParams({
+      pagina: String(paginaActual),
+      buscar: safeGetElement('searchInput')?.value || '',
+      tipo: safeGetElement('filterTipo')?.value || 'todos',
+      estado: safeGetElement('filterEstado')?.value || 'todos',
+      origen: safeGetElement('filterOrigen')?.value || 'todos'
+    });
     const response = await fetch(`/gestion-de-pqr/api/pqr?${params}`, {
       method: 'GET',
       credentials: 'same-origin',
@@ -346,25 +357,6 @@ async function refreshPqrsFromServer() {
   } catch (error) {
     console.error('Error actualizando la bandeja de PQR:', error);
   }
-}
-
-function initPqrNotifications() {
-  const button = safeGetElement('pqrNotificationBtn');
-  button?.addEventListener('click', () => {
-    const select = safeGetElement('filterEstado');
-    if (select) {
-      select.value = 'recibido';
-      cambiarFiltros();
-    }
-
-    safeGetElement('pqrsTable')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-
-  updateNotificationBadge(window.RAZOR_PQR_STATS);
-
-  // La vista ya llega cargada con los datos de Razor.
-  // No hacemos una consulta automática al entrar ni al abrir una PQR.
-  // La sincronización con el servidor se realiza después de enviar una respuesta.
 }
 
 // Show Management (la vista actual ya es la bandeja de gestión)
@@ -396,6 +388,7 @@ function showDetail(id) {
   document.getElementById('infoDocumento').textContent = data.documento;
   document.getElementById('infoEmail').textContent = data.email;
   document.getElementById('detailDescripcion').textContent = data.descripcion;
+  safeGetElement('detailContexto').textContent = data.contexto;
 
   const evidenciaSection = document.getElementById('evidenciaSection');
   const evidenciaLink = document.getElementById('evidenciaLink');
@@ -499,16 +492,15 @@ function updateBadgeColors(data) {
 }
 
 function updateStatusButtons(estado) {
-  const finalizada = ['resuelta', 'cerrada', 'rechazada'].includes(estado);
+  const bloqueada = sendingPqrResponse || ['resuelta', 'cerrada', 'rechazada'].includes(estado);
   document.querySelectorAll('.status-btn').forEach(btn => {
     btn.classList.remove('active');
-    btn.disabled = finalizada;
+    btn.disabled = bloqueada;
   });
   const respuesta = document.getElementById('responseTextarea');
   const btnRespuesta = document.getElementById('btnSendResponse');
-  const yaRespondida = Boolean(currentId && pqrsData[currentId]?.respuesta);
-  if (respuesta) respuesta.disabled = finalizada || yaRespondida;
-  if (btnRespuesta) btnRespuesta.disabled = finalizada || yaRespondida;
+  if (respuesta) respuesta.disabled = bloqueada;
+  if (btnRespuesta) btnRespuesta.disabled = bloqueada;
   const map = { recibida: 'recibido', en_proceso: 'proceso', resuelta: 'resuelto', cerrada: 'cerrado', rechazada: 'rechazado' };
   const btnClass = map[pendingPqrStatus || estado];
   if (btnClass) {
@@ -535,8 +527,8 @@ function closeDetail() {
 function changeStatus(btn, estado) {
   if (!currentId || sendingPqrResponse) return;
   const data = pqrsData[currentId];
-  if (!data || ['resuelta', 'cerrada', 'rechazada'].includes(data.estado) || data.respuesta) {
-    showToast('Esta PQR ya está finalizada o respondida y no admite cambios.', 'warning');
+  if (!data || ['resuelta', 'cerrada', 'rechazada'].includes(data.estado)) {
+    showToast('Esta PQR está finalizada y no admite cambios.', 'warning');
     return;
   }
   const permitted = data.estado === 'recibida'
@@ -556,8 +548,9 @@ function changeStatus(btn, estado) {
 function initResponseForm() {
   const btn = safeGetElement('btnSendResponse');
   btn?.addEventListener('click', async () => {
-    if (!currentId) return;
-    if (['resuelta', 'cerrada', 'rechazada'].includes(pqrsData[currentId]?.estado) || pqrsData[currentId]?.respuesta) {
+    if (!currentId || sendingPqrResponse) return;
+    const id = currentId;
+    if (['resuelta', 'cerrada', 'rechazada'].includes(pqrsData[id]?.estado)) {
       showToast('Esta PQR no admite nuevas respuestas.', 'warning');
       return;
     }
@@ -573,7 +566,7 @@ function initResponseForm() {
     sendingPqrResponse = true;
     btn.disabled = true;
     try {
-      const result = await pqrApiRequest(`/gestion-de-pqr/api/pqr/${currentId}/responder`, {
+      const result = await pqrApiRequest(`/gestion-de-pqr/api/pqr/${id}/responder`, {
         method: 'POST',
         body: { respuesta, nuevoEstado: pendingPqrStatus }
       });
@@ -583,7 +576,13 @@ function initResponseForm() {
         return;
       }
 
-      const data = pqrsData[currentId];
+      if (currentId !== id || !pqrsData[id]) {
+        showToast('Respuesta enviada correctamente.');
+        await refreshPqrsFromServer();
+        return;
+      }
+
+      const data = pqrsData[id];
       data.respuesta = result.data.respuesta;
       data.fechaRespuesta = result.data.fechaRespuesta;
       data.atendidaPor = result.data.atendidaPor;
@@ -603,7 +602,7 @@ function initResponseForm() {
       showToast(error instanceof Error ? error.message : 'Error de conexión al enviar la respuesta.', 'error');
     } finally {
       sendingPqrResponse = false;
-      if (currentId) updateStatusButtons(pqrsData[currentId].estado);
+      if (currentId && pqrsData[currentId]) updateStatusButtons(pqrsData[currentId].estado);
     }
   });
 }

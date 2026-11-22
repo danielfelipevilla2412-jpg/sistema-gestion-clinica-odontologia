@@ -71,11 +71,9 @@
 
   const formatPrice = (value) => {
     const locale = window.I18N?.lang === 'en' ? 'en-US' : 'es-CO';
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0
-    }).format(Number(value) || 0);
+    return `${new Intl.NumberFormat(locale, {
+      maximumFractionDigits: 2
+    }).format(Number(value) || 0)} COP`;
   };
 
   let services = Array.isArray(window.RAZOR_SERVICIOS) ? [...window.RAZOR_SERVICIOS] : [];
@@ -456,12 +454,42 @@
     }
   };
 
+  const confirmServiceDeactivation = (service, impact) => {
+    const dialog = document.getElementById('serviceImpactDialog');
+    if (dialog.open) return Promise.resolve(false);
+
+    document.getElementById('serviceImpactName').textContent = service.name;
+    document.getElementById('serviceImpactProfessionals').textContent = impact.asignacionesActivas;
+    document.getElementById('serviceImpactAppointments').textContent = impact.citasFuturas;
+    dialog.returnValue = 'cancelar';
+
+    dialog.showModal();
+    return new Promise(resolve => {
+      dialog.addEventListener('close', () => resolve(dialog.returnValue === 'desactivar'), { once: true });
+    });
+  };
+
+  const statusChangesInProgress = new Set();
+
   const toggleServiceStatus = async (id) => {
     const service = servicesStorage.getService(id);
-    if (!service) return;
+    if (!service || statusChangesInProgress.has(id)) return;
 
     const active = !Boolean(service.active);
+    statusChangesInProgress.add(id);
     try {
+      if (!active) {
+        const impacto = await window.apiRequest(`/servicios-y-recursos/api/servicios/${id}/impacto-desactivacion`, {
+          method: 'GET'
+        });
+        if (impacto?.success !== true || !impacto.data) {
+          showToast('No se pudo consultar el impacto de la desactivación.', 'error');
+          return;
+        }
+        const confirmar = await confirmServiceDeactivation(service, impacto.data);
+        if (!confirmar) return;
+      }
+
       const result = await window.apiRequest(`/servicios-y-recursos/api/servicios/${id}/estado`, {
         method: 'PUT',
         body: { estado: active ? 'activo' : 'inactivo' }
@@ -478,6 +506,8 @@
     } catch (error) {
       console.error('Error cambiando el estado del servicio.', error);
       showToast(translate('servicios.status_error'), 'error');
+    } finally {
+      statusChangesInProgress.delete(id);
     }
   };
 

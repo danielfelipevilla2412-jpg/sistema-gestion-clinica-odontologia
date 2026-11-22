@@ -108,6 +108,8 @@ function escapeHtml(value) {
         .replace(/'/g, '&#039;');
 }
 
+let pqrHistoryRequest = 0;
+
 function openPqrDetail(pqr) {
     const overlay = document.getElementById('pqrDetailOverlay');
     if (!overlay) return;
@@ -130,17 +132,7 @@ function openPqrDetail(pqr) {
     document.getElementById('pqrDetailSubject').textContent = pqr.Asunto || t('pac_pqr.no_subject', 'Sin asunto');
     document.getElementById('pqrDetailDescription').textContent = pqr.Descripcion || t('pac_pqr.no_description', 'Sin descripción.');
 
-    const responseElement = document.getElementById('pqrDetailResponse');
-    const responseDate = document.getElementById('pqrDetailResponseDate');
-    if (pqr.Respuesta && pqr.Respuesta.trim()) {
-        responseElement.textContent = pqr.Respuesta;
-        responseDate.textContent = pqr.FechaRespuesta
-            ? `${t('pac_pqr.answered_on', 'Respondida el')} ${formatPqrDate(pqr.FechaRespuesta)}`
-            : t('pac_pqr.response_registered', 'Respuesta registrada');
-    } else {
-        responseElement.textContent = t('pac_pqr.no_response_yet', 'Esta solicitud aún no tiene una respuesta registrada.');
-        responseDate.textContent = '';
-    }
+    loadPqrResponses(pqr);
 
     overlay.hidden = false;
     document.body.classList.add('pqr-modal-open');
@@ -149,8 +141,45 @@ function openPqrDetail(pqr) {
 function closePqrDetail() {
     const overlay = document.getElementById('pqrDetailOverlay');
     if (!overlay) return;
+    pqrHistoryRequest++;
     overlay.hidden = true;
     document.body.classList.remove('pqr-modal-open');
+}
+
+function renderPqrResponses(responses) {
+    const list = document.getElementById('pqrDetailResponses');
+    list.replaceChildren(...responses.map(response => {
+        const item = document.createElement('li');
+        const date = document.createElement('small');
+        date.textContent = formatPqrDate(response.fecha);
+        const text = document.createElement('p');
+        text.textContent = response.texto;
+        item.append(date, text);
+        return item;
+    }));
+}
+
+async function loadPqrResponses(pqr) {
+    const request = ++pqrHistoryRequest;
+    const status = document.getElementById('pqrDetailResponseStatus');
+    const latest = pqr.Respuesta?.trim() ? [{ texto: pqr.Respuesta, fecha: pqr.FechaRespuesta }] : [];
+    renderPqrResponses(latest);
+    status.textContent = 'Cargando historial…';
+
+    try {
+        const response = await fetch(`/gestion-de-pqr/api/pqr/${encodeURIComponent(pqr.IdPqr)}/respuestas`, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' }
+        });
+        if (!response.ok) throw new Error('No fue posible consultar las respuestas');
+        const responses = await response.json();
+        if (request !== pqrHistoryRequest) return;
+
+        renderPqrResponses(responses);
+        status.textContent = responses.length ? '' : 'Esta solicitud aún no tiene respuestas.';
+    } catch {
+        if (request === pqrHistoryRequest) status.textContent = 'No se pudo cargar el historial completo.';
+    }
 }
 
 function formatPqrDate(value) {
@@ -166,6 +195,9 @@ function formatPqrDate(value) {
 document.addEventListener('DOMContentLoaded', () => {
     initRequestTypes();
     renderRecentPqrs();
+    const id = new URLSearchParams(location.search).get('pqr');
+    const solicitud = window.RAZOR_MIS_PQRS.find(pqr => String(pqr.IdPqr) === id);
+    if (solicitud) openPqrDetail(solicitud);
     document.getElementById('pqrDetailClose')?.addEventListener('click', closePqrDetail);
     document.getElementById('pqrDetailOverlay')?.addEventListener('click', event => {
         if (event.target.id === 'pqrDetailOverlay') closePqrDetail();
@@ -175,40 +207,81 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Lee el RequestToken antiforgery generado por Razor en la vista.
-function getPqrAntiforgeryToken() {
-    const meta = document.querySelector('meta[name="csrf-request-token"]');
-    return meta?.getAttribute('content') || null;
+const pqrForm = document.getElementById('pqrForm');
+const pqrFields = Array.from(pqrForm.querySelectorAll('input[name]:not([type="hidden"]), select[name], textarea[name]'));
+const evidenceTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+
+function pqrFieldError(field) {
+    const value = field.value.trim();
+    if (field.required && !value) return 'Completa este campo.';
+    if (value && field.minLength > 0 && value.length < field.minLength)
+        return `Escribe al menos ${field.minLength} caracteres.`;
+    if (field.validity.tooLong || (field.maxLength > 0 && value.length > field.maxLength))
+        return `Usa hasta ${field.maxLength} caracteres.`;
+    if (field.validity.rangeOverflow) return 'La fecha del servicio no puede ser futura.';
+    if (field.validity.badInput) return 'Ingresa una fecha válida.';
+
+    const file = field.files?.[0];
+    if (file?.size > 5 * 1024 * 1024) return 'El archivo adjunto supera los 5 MB.';
+    if (file && file.size === 0) return 'El archivo adjunto está vacío.';
+    if (file && !evidenceTypes.includes(file.type)) return 'Adjunta un archivo PDF, JPG o PNG.';
+    return '';
+}
+
+for (const field of pqrFields) {
+    const error = document.createElement('small');
+    error.id = `${field.id}Error`;
+    error.className = 'pqr-field-error';
+    error.setAttribute('aria-live', 'polite');
+    field.closest('.form-group').append(error);
+    const description = field.getAttribute('aria-describedby');
+    field.setAttribute('aria-describedby', description ? `${description} ${error.id}` : error.id);
+    for (const event of ['input', 'change', 'blur']) {
+        field.addEventListener(event, () => showPqrFieldError(field, pqrFieldError(field)));
+    }
+}
+
+function showPqrFieldError(field, message) {
+    const error = document.getElementById(`${field.id}Error`);
+    if (error.textContent !== message) error.textContent = message;
+    if (message) field.setAttribute('aria-invalid', 'true');
+    else field.removeAttribute('aria-invalid');
 }
 
 // Form Submission — envía la PQR real al backend (PqrController.CrearPqr)
-document.getElementById('pqrForm').addEventListener('submit', async function (e) {
+pqrForm.addEventListener('submit', async function (e) {
     e.preventDefault();
+
+    const firstInvalid = pqrFields.filter(field => {
+        const message = pqrFieldError(field);
+        showPqrFieldError(field, message);
+        return Boolean(message);
+    })[0];
+    if (firstInvalid) {
+        if (firstInvalid.hidden) fileUploadContainer?.focus();
+        else firstInvalid.focus();
+        return;
+    }
+
+    if (this.querySelector('.btn-submit').disabled) return;
 
     const submitBtn = this.querySelector('.btn-submit');
     const originalContent = submitBtn.innerHTML;
     submitBtn.innerHTML = `<span class="material-symbols-outlined spin" aria-hidden="true">progress_activity</span> ${t('pac_pqr.processing', 'Procesando...')}`;
     submitBtn.disabled = true;
 
-    const asunto = document.getElementById('pqrAsunto')?.value?.trim() || t('pac_pqr.no_subject', 'Sin asunto');
-    const descripcion = document.getElementById('pqrDescripcion')?.value?.trim() || '';
-    const tipo = PQR_TYPE_MAP[selectedPqrType] || 'peticion';
-    const archivo = document.getElementById('fileInput')?.files?.[0] || null;
-
-    const formData = new FormData();
-    formData.append('tipo', tipo);
-    formData.append('asunto', asunto);
-    formData.append('descripcion', descripcion);
-    if (archivo) {
-        formData.append('evidencia', archivo);
-    }
+    const formData = new FormData(this);
+    const tipo = formData.get('tipo') || PQR_TYPE_MAP[selectedPqrType];
+    const asunto = formData.get('asunto').trim();
+    const descripcion = formData.get('descripcion').trim();
+    formData.set('tipo', tipo);
+    formData.set('asunto', asunto);
+    formData.set('descripcion', descripcion);
 
     try {
-        const csrfToken = getPqrAntiforgeryToken();
-        const response = await fetch('/gestion-de-pqr/crear', {
+        const response = await fetch(this.action, {
             method: 'POST',
             credentials: 'same-origin',
-            headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
             body: formData
         });
         const result = await response.json();
@@ -217,21 +290,19 @@ document.getElementById('pqrForm').addEventListener('submit', async function (e)
             showToast(`${t('pac_pqr.success_filed', 'Solicitud radicada exitosamente. Radicado: ')}PQR-${String(result.id).padStart(4, '0')}`);
             this.reset();
             resetFileUpload();
+            for (const field of pqrFields) showPqrFieldError(field, '');
+            document.querySelector('.char-counter').textContent = '0 / 1000';
 
             // Reflejar inmediatamente la nueva solicitud en "Radicados recientes".
-            const recentList = document.getElementById('recentPqrList');
-            if (recentList) {
-                const tipoLabel = pqrTypeLabel(tipo);
-                const nuevoItem = document.createElement('div');
-                nuevoItem.className = 'recent-item';
-                nuevoItem.innerHTML = `
-                    <div class="recent-code">PQR-${String(result.id).padStart(4, '0')}</div>
-                    <div class="recent-title">${asunto}</div>
-                    <div class="recent-date">${tipoLabel} · ${t('common.today', 'Hoy')}</div>
-                    <span class="badge process">${t('pac_pqr.st_received', 'Recibido')}</span>
-                `;
-                recentList.prepend(nuevoItem);
-            }
+            window.RAZOR_MIS_PQRS.unshift({
+                IdPqr: result.id,
+                Asunto: asunto,
+                Descripcion: descripcion,
+                Tipo: tipo,
+                Estado: 'recibida',
+                FechaCreacion: new Date().toISOString()
+            });
+            renderRecentPqrs();
             document.querySelectorAll('.request-card').forEach(card => card.classList.remove('selected'));
             document.querySelector('.request-card.petition')?.classList.add('selected');
             selectedPqrType = 'petition';
@@ -254,10 +325,19 @@ const fileInput = document.getElementById('fileInput');
 // El contenedor abre el selector nativo; el evento del propio input no debe reabrir el selector.
 fileInput?.addEventListener('click', event => event.stopPropagation());
 fileUploadContainer?.addEventListener('click', () => fileInput?.click());
+fileUploadContainer?.addEventListener('keydown', event => {
+    if (event.target === fileUploadContainer && ['Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+        fileInput?.click();
+    }
+});
 
-function resetFileUpload() {
+function resetFileUpload(clearInput = true) {
     const input = document.getElementById('fileInput');
-    if (input) input.value = '';
+    if (input && clearInput) {
+        input.value = '';
+        showPqrFieldError(input, '');
+    }
 
     const content = document.getElementById('fileUploadContent');
     if (!content) return;
@@ -270,21 +350,20 @@ function resetFileUpload() {
 
 // File Upload Preview
 fileInput?.addEventListener('change', function () {
+    if (!fileUploadContainer) return;
+    if (!this.files?.[0] || pqrFieldError(this)) {
+        resetFileUpload(false);
+        return;
+    }
     if (this.files && this.files[0]) {
         const fileName = this.files[0].name;
         const fileSize = (this.files[0].size / 1024 / 1024).toFixed(2);
-
-        if (fileSize > 5) {
-            showToast(t('pac_pqr.file_too_large', 'El archivo excede el tamaño máximo permitido (5 MB)'), 'error');
-            this.value = '';
-            return;
-        }
 
         const content = document.getElementById('fileUploadContent');
         if (!content) return;
         content.innerHTML = `
             <span class="material-symbols-outlined file-preview-icon" aria-hidden="true">check_circle</span>
-            <div class="file-preview-name">${fileName}</div>
+            <div class="file-preview-name">${escapeHtml(fileName)}</div>
             <div class="file-preview-size">${fileSize} MB</div>
             <button type="button" class="file-remove">
                 <span class="material-symbols-outlined" aria-hidden="true">delete</span> ${t('pac_pqr.remove_file', 'Eliminar archivo')}
@@ -298,7 +377,7 @@ fileInput?.addEventListener('change', function () {
 });
 
 // Character Counter for Textarea
-const textarea = document.querySelector('textarea');
+const textarea = document.getElementById('pqrDescripcion');
 textarea?.addEventListener('input', function () {
     const maxLength = 1000;
     const currentLength = this.value.length;

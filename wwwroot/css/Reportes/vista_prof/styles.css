@@ -293,3 +293,40 @@
     break-inside: avoid;
   }
 }
+
+.main.professional-reports {
+  gap: var(--space-4, 16px);
+}
+
+.main.professional-reports .page-header {
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: 0;
+}
+
+.professional-reports .page-header-content,
+.professional-reports .page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3, 12px);
+}
+
+.professional-reports .page-header-content {
+  justify-content: space-between;
+}
+
+.main.professional-reports .stats-grid {
+  margin-bottom: 0;
+}
+
+.professional-reports__panels {
+  align-items: start;
+  gap: var(--space-4, 16px);
+}
+
+@media screen {
+  .main.professional-reports .page-header {
+    padding-top: max(var(--space-4, 16px), 3rem);
+  }
+}

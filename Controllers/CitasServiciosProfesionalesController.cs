@@ -34,6 +34,7 @@ public sealed class CitasServiciosProfesionalesController : Controller
             {
                 idProfesional = ps.IdProfesional,
                 idServicio = ps.IdServicio,
+                precioBase = s.Precio,
                 precioAplicado = ps.PrecioPersonalizado ?? s.Precio,
                 precioPersonalizado = ps.PrecioPersonalizado.HasValue
             })

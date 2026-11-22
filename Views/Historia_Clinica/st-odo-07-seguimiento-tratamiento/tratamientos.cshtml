@@ -23,9 +23,13 @@
       <h1 class="page-title" data-i18n="historia.treatment_followup">Seguimiento de Tratamientos</h1>
       <p class="page-subtitle" data-i18n="odo07.subtitle">Consulta y actualiza los planes de tratamiento de tus pacientes.</p>
     </div>
+    <button type="button" class="btn-primary add-plan-trigger" data-open-plan aria-haspopup="dialog" disabled>
+      <span class="material-symbols-outlined" aria-hidden="true">add</span>
+      <span data-i18n="odo07.add_plan">Agregar tratamiento al plan</span>
+    </button>
   </header>
 
-  <section class="plan-editor" aria-labelledby="planEditorTitle">
+  <dialog id="planEditor" class="plan-editor" aria-labelledby="planEditorTitle">
     <h2 id="planEditorTitle" data-i18n="odo07.add_plan">Agregar tratamiento al plan</h2>
     <form id="planTratamientoForm">
       @Html.AntiForgeryToken()
@@ -61,10 +65,14 @@
         <textarea id="planObservacion" maxlength="1000" rows="2"></textarea>
       </div>
       <div class="form-field form-field--wide">
+        <p id="planSaveError" role="alert" hidden></p>
+      </div>
+      <div class="form-field--wide workflow-actions">
+        <button type="button" class="btn-secondary" data-close-dialog="planEditor" data-i18n="odo07.cancel">Cancelar</button>
         <button type="submit" id="guardarPlanTratamiento" class="btn-primary" data-i18n="odo07.save_to_plan">Guardar en el plan</button>
       </div>
     </form>
-  </section>
+  </dialog>
 
   @* Yeray: Registra fechas y vínculos opcionales de sesiones, y pide motivo antes de anular un evento. *@
   <dialog id="sessionDialog" class="workflow-dialog" aria-labelledby="sessionDialogTitle">
@@ -72,10 +80,11 @@
       @Html.AntiForgeryToken()
       <input id="sessionPlanId" type="hidden" />
       <h2 id="sessionDialogTitle" data-i18n="odo07.register_session">Registrar sesión realizada</h2>
+      <label for="sessionCita" data-i18n="odo07.attended_appointment">Cita atendida</label>
+      <select id="sessionCita" required></select>
+      <small id="sessionNoAppointments" role="status" data-i18n="odo07.no_attended_appointments" hidden>Aún no hay citas atendidas disponibles para este tratamiento.</small>
       <label for="sessionDate" data-i18n="odo07.session_date">Fecha de sesión</label>
-      <input id="sessionDate" type="date" required />
-      <label for="sessionCita" data-i18n="odo07.related_appointment">Cita relacionada (opcional)</label>
-      <select id="sessionCita"><option value="" data-i18n="odo07.no_appointment">Sin cita</option></select>
+      <input id="sessionDate" type="date" readonly />
       <label for="sessionNota" data-i18n="odo07.related_note">Nota clínica relacionada (opcional)</label>
       <select id="sessionNota"><option value="" data-i18n="odo07.no_note">Sin nota</option></select>
       <div class="workflow-actions">
@@ -205,6 +214,14 @@
 
     <div id="tratamientosList" aria-live="polite" role="list" aria-label="Lista de tratamientos" data-i18n-aria-label="odo07.list_aria">
       <!-- JS renderiza aquí -->
+    </div>
+
+    <div class="empty-state" id="emptyPlans" hidden>
+      <div class="empty-icon">
+        <span class="material-symbols-outlined" aria-hidden="true">medical_services</span>
+      </div>
+      <h3 data-i18n="odo07.no_plans">Aún no hay tratamientos registrados</h3>
+      <button class="btn-primary" type="button" data-open-plan aria-haspopup="dialog" data-i18n="odo07.add_plan" disabled>Agregar tratamiento al plan</button>
     </div>
 
     <div class="empty-state" id="emptyState" hidden role="status" aria-live="polite">

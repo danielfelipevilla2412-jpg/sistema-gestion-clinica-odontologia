@@ -181,6 +181,32 @@
   </section>
 </div>
 
+<dialog id="serviceImpactDialog" class="service-impact-dialog"
+        aria-labelledby="serviceImpactTitle" aria-describedby="serviceImpactNote">
+  <form method="dialog">
+    <header>
+      <span class="service-impact-icon material-symbols-outlined" aria-hidden="true">block</span>
+      <h2 id="serviceImpactTitle">Desactivar servicio</h2>
+      <p id="serviceImpactName"></p>
+    </header>
+    <dl class="service-impact-counts">
+      <div>
+        <dt>Profesionales con asignación activa</dt>
+        <dd id="serviceImpactProfessionals"></dd>
+      </div>
+      <div>
+        <dt>Citas futuras pendientes</dt>
+        <dd id="serviceImpactAppointments"></dd>
+      </div>
+    </dl>
+    <p id="serviceImpactNote">Las citas existentes se conservan. El servicio dejará de ofrecerse para nuevas citas.</p>
+    <footer class="service-impact-actions">
+      <button type="submit" value="cancelar" class="btn-secondary" autofocus data-i18n="common.cancel">Cancelar</button>
+      <button type="submit" value="desactivar" class="btn-primary service-impact-confirm">Desactivar servicio</button>
+    </footer>
+  </form>
+</dialog>
+
 @section Scripts {
   <script>
     window.RAZOR_SERVICIOS = @Html.Raw(ViewData["ServiciosJson"] ?? "[]");

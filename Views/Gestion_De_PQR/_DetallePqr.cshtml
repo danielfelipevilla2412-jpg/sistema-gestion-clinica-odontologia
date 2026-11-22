@@ -1,0 +1,27 @@
+<!-- Detalle de una PQR para el paciente -->
+<div class="pqr-detail-overlay" id="pqrDetailOverlay" hidden>
+    <div class="pqr-detail-modal" role="dialog" aria-modal="true" aria-labelledby="pqrDetailTitle">
+        <button type="button" class="pqr-detail-close" id="pqrDetailClose" aria-label="Cerrar" data-i18n-aria-label="common.close">&times;</button>
+        <div class="pqr-detail-header">
+            <div>
+                <span class="pqr-detail-ticket" id="pqrDetailTicket"></span>
+                <h2 id="pqrDetailTitle" data-i18n="pac_pqr.detail_title">Detalle de la PQR</h2>
+            </div>
+            <span class="badge process" id="pqrDetailStatus"></span>
+        </div>
+        <div class="pqr-detail-meta" id="pqrDetailMeta"></div>
+        <div class="pqr-detail-block">
+            <h3 data-i18n="pac_pqr.detail_subject">Asunto</h3>
+            <p id="pqrDetailSubject"></p>
+        </div>
+        <div class="pqr-detail-block">
+            <h3 data-i18n="pac_pqr.detail_description">Descripción</h3>
+            <p id="pqrDetailDescription"></p>
+        </div>
+        <div class="pqr-detail-response">
+            <h3>Historial de respuestas</h3>
+            <p id="pqrDetailResponseStatus" role="status"></p>
+            <ol id="pqrDetailResponses"></ol>
+        </div>
+    </div>
+</div>

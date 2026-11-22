@@ -44,7 +44,7 @@ NOTAS DE MANTENIMIENTO:
 
 
     <!-- ═══ MAIN ═══ -->
-    <main class="main" id="main-content">
+    <main class="main clinical-reports" id="main-content">
         @if (TempData["ErrorValidacion"] is string errorMessage)
         {
             <div class="report-error" role="alert">@errorMessage</div>
@@ -54,7 +54,14 @@ NOTAS DE MANTENIMIENTO:
         <header class="page-header">
             <div class="header-left">
                 <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="layout_breadcrumb_aria">
-                    <span data-i18n="reportesclinicos_breadcrumb_admin">Administración</span>
+                    @if (User.IsInRole("Profesional"))
+                    {
+                        <span data-i18n="common_role_profesional">Odontólogo</span>
+                    }
+                    else
+                    {
+                        <span data-i18n="reportesclinicos_breadcrumb_admin">Administración</span>
+                    }
                     <span class="bc-sep" aria-hidden="true">›</span>
                     <span class="bc-active" data-i18n="reportesclinicos_breadcrumb_current">Reportes Clínicos</span>
                 </nav>
@@ -77,7 +84,9 @@ NOTAS DE MANTENIMIENTO:
             </div>
             <div class="stat-card" data-color="purple">
                 <span class="material-symbols-outlined stat-icon" aria-hidden="true">monitoring</span>
-                <span class="stat-number" id="metricAttendanceRate" data-target="@(ViewData["TasaAsistencia"] ?? 0)" aria-live="polite">0</span>
+                <div class="attendance-value">
+                    <span class="stat-number" id="metricAttendanceRate" data-target="@(ViewData["TasaAsistencia"] ?? 0)" aria-live="polite">0</span><span class="stat-number">%</span>
+                </div>
                 <span class="stat-label" data-i18n="reportesclinicos_stat_asistencia">Tasa de asistencia</span>
             </div>
         </section>
@@ -156,7 +165,7 @@ NOTAS DE MANTENIMIENTO:
                         @foreach (var reporte in reportes)
                         {
                             <tr>
-                                <td class="td-profesional">
+                                <td><div class="clinical-patient">
                                     @{
                                         var name = reporte.NombrePaciente;
                                         var initials = reporte.Avatar;
@@ -166,7 +175,7 @@ NOTAS DE MANTENIMIENTO:
                                         <span class="p-name">@name</span>
                                         <span class="p-doc">@reporte.Documento · @reporte.Edad años</span>
                                     </div>
-                                </td>
+                                </div></td>
                                 <td>@reporte.UltimaConsulta.ToString("dd/MM/yyyy")</td>
                                 <td>@reporte.Diagnostico</td>
                                 <td>@reporte.Procedimiento</td>

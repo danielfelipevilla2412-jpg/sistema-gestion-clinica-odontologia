@@ -58,7 +58,7 @@ let tratamientosFiltrados = [];
 let allSesiones = [];
 let opcionesCitasSesion = [];
 let opcionesNotasSesion = [];
-let datosOpcionesPlan = {};
+let datosOpcionesPlan = null;
 let paginaActual = 1;
 let tratamientosPorPagina = 10;
 
@@ -88,7 +88,8 @@ const updateStats = (data) => {
 // ═══════════════════════════════════════════════════════════════════
 
 const populateFilters = (data) => {
-  const pacientes = [...new Set(data.map(t => t.paciente))].sort();
+  const pacientes = [...new Map(data.map(t => [String(t.pacienteId), t])).values()]
+    .sort((a, b) => a.paciente.localeCompare(b.paciente));
   const tipos = [...new Set(data.map(t => t.tipo))].sort();
   const odontologos = [...new Set(data.map(t => t.odontologo))].sort();
   
@@ -98,8 +99,8 @@ const populateFilters = (data) => {
     filterPaciente.replaceChildren(new Option(t('odo07.all_patients'), ''));
     pacientes.forEach(p => {
       const option = document.createElement('option');
-      option.value = p;
-      option.textContent = p;
+      option.value = String(p.pacienteId);
+      option.textContent = `${p.paciente} · ${p.cedula}`;
       filterPaciente.appendChild(option);
     });
     filterPaciente.value = currentValue;
@@ -155,7 +156,7 @@ const aplicarFiltros = () => {
       t.nombre.toLowerCase().includes(searchTerm) ||
       t.cedula.includes(searchTerm);
     
-    const matchPaciente = !pacienteFilter || t.paciente === pacienteFilter;
+    const matchPaciente = !pacienteFilter || String(t.pacienteId) === pacienteFilter;
     const matchEstado = !estadoFilter || t.estado === estadoFilter;
     const matchTipo = !tipoFilter || t.tipo === tipoFilter;
     const matchOdontologo = !odontologoFilter || t.odontologo === odontologoFilter;
@@ -240,11 +241,12 @@ const renderLista = () => {
   if (!list) return;
 
   const tratamientosPagina = obtenerPaginaActual();
+  safeGetElement('emptyPlans').hidden = !datosOpcionesPlan || allTratamientos.length > 0;
 
   if (!tratamientosPagina.length) {
     list.innerHTML = '';
     if (empty) {
-      empty.hidden = false;
+      empty.hidden = allTratamientos.length === 0;
     }
     return;
   }
@@ -390,12 +392,31 @@ const initEventos = () => {
     });
   }
 
+  const planEditor = safeGetElement('planEditor');
   const planForm = safeGetElement('planTratamientoForm');
+  const planSaveButton = safeGetElement('guardarPlanTratamiento');
+  document.querySelectorAll('[data-open-plan]').forEach(button => {
+    button.addEventListener('click', () => {
+      planForm.reset();
+      safeGetElement('planSaveError').hidden = true;
+      const patient = safeGetElement('planPaciente');
+      const filteredId = safeGetElement('filterPaciente').value;
+      if (Array.from(patient.options).some(option => option.value === filteredId)) {
+        patient.value = filteredId;
+      }
+      planEditor.showModal();
+      (patient.value ? safeGetElement('planServicio') : patient).focus();
+    });
+  });
+  planEditor.addEventListener('cancel', event => {
+    if (planSaveButton.disabled) event.preventDefault();
+  });
   planForm?.addEventListener('submit', event => {
     event.preventDefault();
     const button = safeGetElement('guardarPlanTratamiento');
     const pacienteId = Number(safeGetElement('planPaciente')?.value);
     const servicioId = Number(safeGetElement('planServicio')?.value);
+    if (button?.disabled) return;
     if (!pacienteId || !servicioId || !button) {
       showToast(t('odo07.select_patient_service_error'), 'warning');
       return;
@@ -414,7 +435,7 @@ const initEventos = () => {
   safeGetElement('tratamientosList')?.addEventListener('click', event => {
     const registrarSesion = event.target.closest('.btn-registrar-sesion');
     if (registrarSesion) {
-      const card = registrarSesion.closest('[data-plan-id]');
+      const card = registrarSesion.closest('.trat-card[data-plan-id]');
       if (card) abrirDialogoSesion(card);
       return;
     }
@@ -487,6 +508,8 @@ const poblarOpcionesPlan = (data) => {
   const servicioSelect = safeGetElement('planServicio');
   if (!pacienteSelect || !servicioSelect) return;
 
+  const selectedPatient = pacienteSelect.value;
+  const selectedService = servicioSelect.value;
   pacienteSelect.replaceChildren(new Option(t('odo07.select_patient'), ''));
   (data.pacientes || []).forEach(paciente => {
     pacienteSelect.add(new Option(`${paciente.nombre} · ${paciente.documento}`, paciente.id));
@@ -496,6 +519,8 @@ const poblarOpcionesPlan = (data) => {
   (data.servicios || []).forEach(servicio => {
     servicioSelect.add(new Option(`${servicio.nombre} · ${servicio.categoria}`, servicio.id));
   });
+  pacienteSelect.value = selectedPatient;
+  servicioSelect.value = selectedService;
 };
 
 const cargarPlanes = async () => {
@@ -509,16 +534,23 @@ const cargarPlanes = async () => {
   poblarOpcionesPlan(data);
   populateFilters(allTratamientos);
   updateStats(allTratamientos);
-  renderizarTodo();
+  document.querySelectorAll('[data-open-plan]').forEach(button => { button.disabled = false; });
+  aplicarFiltros();
 };
 
 const guardarPlan = async (payload, button) => {
   const token = document.querySelector('#planTratamientoForm input[name="__RequestVerificationToken"]')?.value;
+  const errorMessage = safeGetElement('planSaveError');
+  const editor = safeGetElement('planEditor');
+  const cancelButton = editor.querySelector('[data-close-dialog]');
+  errorMessage.hidden = true;
   if (!token) {
-    showToast(t('odo07.antiforgery_missing'), 'error');
+    errorMessage.hidden = false;
+    errorMessage.textContent = t('odo07.antiforgery_missing');
     return;
   }
   button.disabled = true;
+  cancelButton.disabled = true;
   try {
     const response = await fetch('/historia-clinica/st-odo-07-seguimiento-tratamiento/guardar', {
       method: 'POST',
@@ -530,13 +562,16 @@ const guardarPlan = async (payload, button) => {
     });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.message || t('odo07.save_plan_error'));
+    editor.close();
     showToast(result.advertencia ? t('odo07.over_estimate') : t('odo07.plan_saved'), result.advertencia ? 'warning' : 'success');
-    await cargarPlanes();
+    await cargarPlanes().catch(() => showToast(t('odo07.load_error'), 'error'));
   } catch (error) {
     console.error('No se pudo guardar el plan de tratamiento:', error);
-    showToast(error.message || t('odo07.save_plan_error'), 'error');
+    errorMessage.hidden = false;
+    errorMessage.textContent = error.message || t('odo07.save_plan_error');
   } finally {
     button.disabled = false;
+    cancelButton.disabled = false;
   }
 };
 
@@ -550,22 +585,37 @@ const abrirDialogoSesion = (card) => {
   const notaSelect = safeGetElement('sessionNota');
   const fechaInput = safeGetElement('sessionDate');
   safeGetElement('sessionPlanId').value = String(planId);
-  const hoy = new Date();
-  fechaInput.value = new Date(hoy.getTime() - hoy.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  citaSelect.replaceChildren(new Option(t('odo07.no_appointment'), ''));
-  opcionesCitasSesion.filter(cita => Number(cita.pacienteId) === patientId).forEach(cita => {
-    citaSelect.add(new Option(t('odo07.appointment_date', {
-      number: cita.id,
-      date: fmtFecha(String(cita.fecha).slice(0, 10))
-    }), cita.id));
+  const serviceId = Number(card.dataset.servicioId);
+  const linkedIds = new Set(allSesiones
+    .filter(session => Number(session.planId) === planId && !session.anulada)
+    .map(session => Number(session.citaId)));
+  const citas = opcionesCitasSesion.filter(cita => Number(cita.pacienteId) === patientId
+    && Number(cita.servicioId) === serviceId && !linkedIds.has(Number(cita.id)));
+  citaSelect.replaceChildren(new Option(t('odo07.select_attended_appointment'), ''));
+  citas.forEach(cita => {
+    const fecha = String(cita.fecha);
+    citaSelect.add(new Option([fmtFecha(fecha.slice(0, 10)), fecha.slice(11, 16), cita.servicio].join(' · '), cita.id));
   });
-  notaSelect.replaceChildren(new Option(t('odo07.no_note'), ''));
-  opcionesNotasSesion.filter(nota => Number(nota.historiaId) === historyId).forEach(nota => {
-    notaSelect.add(new Option(t('odo07.note_date', {
-      number: nota.id,
-      date: fmtFecha(String(nota.fecha).slice(0, 10))
-    }), nota.id));
-  });
+  const submit = dialog.querySelector('button[type="submit"]');
+  const syncAppointment = () => {
+    const cita = citas.find(item => String(item.id) === citaSelect.value);
+    fechaInput.value = cita ? String(cita.fecha).slice(0, 10) : '';
+    notaSelect.replaceChildren(new Option(t('odo07.no_note'), ''));
+    notaSelect.disabled = !cita;
+    submit.disabled = !cita;
+    if (!cita) return;
+    opcionesNotasSesion.filter(nota => Number(nota.historiaId) === historyId
+      && Number(nota.citaId) === Number(cita.id)).forEach(nota => {
+      notaSelect.add(new Option(t('odo07.note_date', {
+        number: nota.id,
+        date: fmtFecha(String(nota.fecha).slice(0, 10))
+      }), nota.id));
+    });
+  };
+  citaSelect.disabled = citas.length === 0;
+  safeGetElement('sessionNoAppointments').hidden = citas.length > 0;
+  citaSelect.onchange = syncAppointment;
+  syncAppointment();
   dialog.showModal();
 };
 
@@ -577,11 +627,17 @@ const abrirDialogoAnulacion = (idSesion) => {
 
 const enviarSesion = async (url, payload, dialog, button, successKey) => {
   const token = document.querySelector('#planTratamientoForm input[name="__RequestVerificationToken"]')?.value;
+  const errorMessage = safeGetElement('planSaveError');
+  const editor = safeGetElement('planEditor');
+  const cancelButton = editor.querySelector('[data-close-dialog]');
+  errorMessage.hidden = true;
   if (!token) {
-    showToast(t('odo07.antiforgery_missing'), 'error');
+    errorMessage.hidden = false;
+    errorMessage.textContent = t('odo07.antiforgery_missing');
     return;
   }
   button.disabled = true;
+  cancelButton.disabled = true;
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -613,7 +669,6 @@ const registrarSesionPlan = (event) => {
     return;
   }
   enviarSesion(`/historia-clinica/st-odo-07-seguimiento-tratamiento/${safeGetElement('sessionPlanId').value}/sesiones`, {
-    fechaSesion: safeGetElement('sessionDate').value,
     citaId: Number(safeGetElement('sessionCita').value) || null,
     notaId: Number(safeGetElement('sessionNota').value) || null
   }, dialog, button, 'odo07.session_registered');
@@ -647,7 +702,7 @@ const init = async () => {
 };
 
 document.addEventListener('i18n:change', () => {
-  poblarOpcionesPlan(datosOpcionesPlan);
+  if (datosOpcionesPlan) poblarOpcionesPlan(datosOpcionesPlan);
   populateFilters(allTratamientos);
   renderizarTodo();
 });

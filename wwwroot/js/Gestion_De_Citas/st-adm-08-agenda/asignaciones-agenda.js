@@ -28,7 +28,10 @@
         professional.value = previous;
       }
       save.disabled = false;
-      hint.textContent = 'Mostrando todos los profesionales activos. Selecciona un servicio para filtrar por especialidad.';
+      const selected = assignments?.find(a => String(a.idServicio) === service.value && String(a.idProfesional) === professional.value);
+      hint.textContent = selected
+        ? `Tarifa de referencia. ${window.SmileTrack.utils.formatServicePricing(selected)}`
+        : 'Mostrando todos los profesionales activos. Selecciona un servicio para filtrar por especialidad.';
     };
 
     const refresh = () => {
@@ -65,7 +68,7 @@
       const selected = allowed.find(a => String(a.idProfesional) === professional.value);
       save.disabled = !selected;
       if (!allowed.length) hint.textContent = 'No hay profesionales asignados activamente a este servicio. Puedes seleccionar uno, pero no guardar la cita hasta configurar la especialidad y la asignación del servicio.';
-      else if (selected) hint.textContent = `Precio de referencia: ${Number(selected.precioAplicado).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}${selected.precioPersonalizado ? ' (personalizado)' : ' (base)'}. No modifica facturación.`;
+      else if (selected) hint.textContent = `Tarifa de referencia. ${window.SmileTrack.utils.formatServicePricing(selected)}`;
       else hint.textContent = `${allowed.length} profesional(es) habilitado(s) para este servicio. La disponibilidad horaria se valida al guardar.`;
     };
     const load = async () => {

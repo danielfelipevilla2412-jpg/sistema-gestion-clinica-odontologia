@@ -604,3 +604,35 @@ img { max-width: 100%; height: auto; display: block; }
     font-size: 0.75rem;
     color: var(--text-muted);
 }
+
+.main.clinical-reports .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+
+.clinical-reports .attendance-value {
+    display: flex;
+    align-items: baseline;
+}
+
+.clinical-reports .clinical-patient {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.clinical-reports .clinical-patient .p-avatar {
+    flex-shrink: 0;
+}
+
+.clinical-reports .clinical-patient .p-name,
+.clinical-reports .clinical-patient .p-doc {
+    display: block;
+}
+
+.clinical-reports .table-wrap table {
+    min-width: 48rem;
+}
+
+.clinical-reports tbody tr:hover {
+    background-color: var(--primary-light);
+}

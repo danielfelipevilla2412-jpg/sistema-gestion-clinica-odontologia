@@ -45,7 +45,7 @@
         }
         const selected = assignments.find(a => String(a.idServicio) === service.value && String(a.idProfesional) === professional.value);
         hint.textContent = selected
-          ? `Precio de referencia: ${Number(selected.precioAplicado).toLocaleString('es-CO', {style:'currency',currency:'COP',maximumFractionDigits:0})}${selected.precioPersonalizado ? ' (personalizado)' : ' (base)'}. No modifica facturación.`
+          ? `Tarifa de referencia. ${window.SmileTrack.utils.formatServicePricing(selected)}`
           : 'Seleccione servicio y profesional. Solo se permiten asignaciones activas y compatibles.';
         updating = false;
       }

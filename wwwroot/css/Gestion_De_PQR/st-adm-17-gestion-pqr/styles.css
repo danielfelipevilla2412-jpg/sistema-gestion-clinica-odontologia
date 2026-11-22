@@ -312,6 +312,52 @@ tbody tr.selected {
     font-size: 12px;
     color: var(--text-light);
 }
+.pqr-page #pqrsTable .pqr-table-actions {
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.pqr-page #pqrsTable .pqr-table-subject {
+    min-width: 12ch;
+    overflow-wrap: anywhere;
+}
+
+.pqr-page #pqrsTable .pqr-table-date {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.pqr-page .pqr-pagination:not([hidden]) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 12px;
+    background: var(--bg-gray);
+    color: var(--text-light);
+    font-size: 13px;
+}
+
+.pqr-page .pqr-page-button {
+    width: auto;
+    min-height: 36px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: white;
+    color: var(--primary-blue);
+    font: inherit;
+    cursor: pointer;
+}
+
+.pqr-page .pqr-page-button:disabled {
+    color: var(--text-light);
+    opacity: .65;
+    cursor: default;
+}
+
 /* ==================== BADGES ==================== */
 .badge {
     display: inline-block;

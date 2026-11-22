@@ -33,6 +33,13 @@ public class PqrController : Controller
         };
     }
 
+    private bool UsaFormularioSoporte => User.IsInRole("Profesional") || User.IsInRole("Auxiliar") || User.IsInRole("Recepcionista") || User.IsInRole("Administrador");
+
+    private static bool CedulaValida(Paciente paciente) =>
+        !string.Equals(paciente.TipoDocumento, "CC", StringComparison.OrdinalIgnoreCase) ||
+        paciente.Documento is { Length: >= 1 and <= 10 } &&
+        paciente.Documento.All(digito => digito is >= '0' and <= '9');
+
     public PqrController(AppDbContext context, ILogger<PqrController> logger)
     {
         _context = context;
@@ -42,18 +49,121 @@ public class PqrController : Controller
     [HttpGet]
     [Authorize(Roles = "Paciente,Administrador,Profesional,Recepcionista,Auxiliar")]
     [Route("gestion-de-pqr/st-pac-04-nueva-pqr")]
-    public async Task<IActionResult> Stpac04NuevaPqr()
+    public async Task<IActionResult> Stpac04NuevaPqr([FromQuery] int? pqr = null)
     {
-        string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        int.TryParse(userIdStr, out int userId);
-        
-        var paciente = await _context.Pacientes.FirstOrDefaultAsync(p => p.IdUsuario == userId);
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId) || userId <= 0)
+            return Forbid();
+
+        if (UsaFormularioSoporte)
+        {
+            var usuario = await _context.Usuarios.AsNoTracking().SingleOrDefaultAsync(u => u.IdUsuario == userId);
+            if (usuario == null)
+                return Forbid();
+
+            var reportes = await ConsultarPqrsPropias(userId)
+                .OrderByDescending(p => p.IdPqr == pqr).ThenByDescending(p => p.FechaCreacion)
+                .Take(5).ToListAsync();
+            ViewData["MisPqrsJson"] = System.Text.Json.JsonSerializer.Serialize(reportes);
+            return View("~/Views/Gestion_De_PQR/soporte-personal/index.cshtml", usuario);
+        }
+
+        var paciente = await _context.Pacientes.AsNoTracking().FirstOrDefaultAsync(p => p.IdUsuario == userId);
         var misPqrs = paciente != null
-            ? await _context.PQRs.Where(p => p.IdPaciente == paciente.IdPaciente).OrderByDescending(p => p.FechaCreacion).ToListAsync()
+            ? await ConsultarPqrsPropias(userId).Where(p => p.IdPaciente == paciente.IdPaciente)
+                .OrderByDescending(p => p.IdPqr == pqr).ThenByDescending(p => p.FechaCreacion)
+                .Take(5).ToListAsync()
             : new List<PqrEntity>();
 
+        ViewData["Profesionales"] = await _context.Profesionales.AsNoTracking()
+            .Where(p => p.Estado == "activo").OrderBy(p => p.Nombres).ThenBy(p => p.Apellidos)
+            .Select(p => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem(p.Nombres + " " + p.Apellidos, p.IdProfesional.ToString()))
+            .ToListAsync();
+        ViewData["DocumentoValido"] = paciente != null && CedulaValida(paciente);
         ViewData["MisPqrsJson"] = System.Text.Json.JsonSerializer.Serialize(misPqrs);
-        return View("~/Views/Gestion_De_PQR/st-pac-04-nueva-pqr/index.cshtml");
+        return View("~/Views/Gestion_De_PQR/st-pac-04-nueva-pqr/index.cshtml", paciente);
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Administrador,Paciente,Profesional,Recepcionista,Auxiliar")]
+    [Route("gestion-de-pqr/api/notificaciones")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> ApiNotificacionesPqr(CancellationToken ct)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId) || userId <= 0)
+            return Forbid();
+
+        var administrador = User.IsInRole("Administrador");
+        var avisos = await ConsultarAvisosPqrAsync(userId, administrador, ct);
+        var claves = avisos.Select(a => a.Clave).ToArray();
+        var leidos = claves.Length == 0 ? new List<string>() : await _context.PqrAvisosLeidos.AsNoTracking()
+            .Where(a => a.IdUsuario == userId && claves.Contains(a.Clave))
+            .Select(a => a.Clave).ToListAsync(ct);
+
+        return Ok(avisos.Select(a => new
+        {
+            id = a.Id,
+            asunto = a.Asunto,
+            radicado = $"PQR-{a.Id:D4}",
+            clave = a.Clave,
+            leido = leidos.Contains(a.Clave),
+            url = administrador
+                ? $"/gestion-de-pqr/st-adm-17-gestion-pqr?pqr={a.Id}"
+                : $"/gestion-de-pqr/st-pac-04-nueva-pqr?pqr={a.Id}"
+        }));
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Administrador,Paciente,Profesional,Recepcionista,Auxiliar")]
+    [ValidateAntiForgeryToken]
+    [Route("gestion-de-pqr/api/notificaciones/leida")]
+    public async Task<IActionResult> ApiMarcarAvisoPqrLeido([FromBody] string? clave, CancellationToken ct)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId) || userId <= 0)
+            return Forbid();
+
+        if (string.IsNullOrWhiteSpace(clave) || clave.Length > 64)
+            return BadRequest();
+
+        var avisos = await ConsultarAvisosPqrAsync(userId, User.IsInRole("Administrador"), ct);
+        if (!avisos.Any(a => a.Clave == clave))
+            return NotFound();
+
+        await _context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO dbo.PQR_Aviso_Leido (id_usuario, clave)
+            SELECT {userId}, {clave}
+            WHERE NOT EXISTS (
+                SELECT 1 FROM dbo.PQR_Aviso_Leido WITH (UPDLOCK, HOLDLOCK)
+                WHERE id_usuario = {userId} AND clave = {clave}
+            )
+            """, ct);
+
+        return NoContent();
+    }
+
+    private IQueryable<PqrEntity> ConsultarPqrsPropias(int userId)
+    {
+        var propias = _context.PQRs.AsNoTracking().Where(p => p.IdUsuario == userId);
+        return UsaFormularioSoporte
+            ? propias.Where(p => p.IdPaciente == null)
+            : propias.Where(p => p.Paciente != null && p.Paciente.IdUsuario == userId);
+    }
+
+    private sealed record AvisoPqr(int Id, string Asunto, string Clave);
+
+    private async Task<List<AvisoPqr>> ConsultarAvisosPqrAsync(int userId, bool administrador, CancellationToken ct)
+    {
+        var consulta = administrador
+            ? _context.PQRs.AsNoTracking().Where(p => p.Estado == "recibida")
+            : ConsultarPqrsPropias(userId).Where(p => p.FechaRespuesta.HasValue);
+
+        var avisos = await consulta
+            .OrderByDescending(p => administrador ? p.FechaCreacion : p.FechaRespuesta)
+            .ThenByDescending(p => p.IdPqr)
+            .Select(p => new { p.IdPqr, p.Asunto, p.FechaRespuesta })
+            .Take(20).ToListAsync(ct);
+
+        return avisos.Select(p => new AvisoPqr(p.IdPqr, p.Asunto,
+            administrador ? $"nueva:{p.IdPqr}" : $"respuesta:{p.IdPqr}:{p.FechaRespuesta?.Ticks}")).ToList();
     }
 
     [HttpPost]
@@ -65,17 +175,20 @@ public class PqrController : Controller
         [FromForm] string asunto,
         [FromForm] string descripcion,
         IFormFile? evidencia,
-        [FromServices] IWebHostEnvironment env)
+        [FromServices] IWebHostEnvironment env,
+        [FromForm] int? idProfesional = null,
+        [FromForm] DateOnly? fechaServicio = null,
+        [FromForm] string? moduloSoftware = null)
     {
         // ── Validaciones básicas ────────────────────────────────────────────
-        if (string.IsNullOrWhiteSpace(asunto) || asunto.Trim().Length < 3)
+        if (string.IsNullOrWhiteSpace(asunto) || asunto.Trim().Length is < 3 or > 200)
         {
-            return BadRequest(new { success = false, message = "El asunto debe tener al menos 3 caracteres." });
+            return BadRequest(new { success = false, message = "El asunto debe tener entre 3 y 200 caracteres." });
         }
 
-        if (string.IsNullOrWhiteSpace(descripcion) || descripcion.Trim().Length < 10)
+        if (string.IsNullOrWhiteSpace(descripcion) || descripcion.Trim().Length is < 10 or > 1000)
         {
-            return BadRequest(new { success = false, message = "La descripción debe tener al menos 10 caracteres." });
+            return BadRequest(new { success = false, message = "La descripción debe tener entre 10 y 1000 caracteres." });
         }
 
         string tipoNormalizado = (tipo ?? "").Trim().ToLowerInvariant();
@@ -84,16 +197,18 @@ public class PqrController : Controller
             tipoNormalizado = "peticion";
         }
 
-        string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        int.TryParse(userIdStr, out int userId);
+        if (!ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Revisa el formato de los campos del formulario." });
 
-        // El PQR siempre debe quedar asociado al paciente real que lo radica;
-        // si el usuario autenticado no tiene un registro de Paciente asociado
-        // (por ejemplo, personal administrativo probando el formulario), se
-        // rechaza en vez de adjuntarlo a un paciente arbitrario de la base
-        // de datos (bug anterior: `?? await _context.Pacientes.FirstOrDefaultAsync()`).
-        var paciente = await _context.Pacientes.FirstOrDefaultAsync(p => p.IdUsuario == userId);
-        if (paciente == null)
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId) || userId <= 0)
+            return Forbid();
+
+        var esPersonal = UsaFormularioSoporte;
+        if (!esPersonal && !User.IsInRole("Paciente"))
+            return Forbid();
+
+        var paciente = esPersonal ? null : await _context.Pacientes.FirstOrDefaultAsync(p => p.IdUsuario == userId);
+        if (!esPersonal && paciente == null)
         {
             return BadRequest(new
             {
@@ -103,6 +218,35 @@ public class PqrController : Controller
         }
 
         // ── Adjunto de evidencia (opcional) ─────────────────────────────────
+        moduloSoftware = moduloSoftware?.Trim();
+        if (esPersonal)
+        {
+            if (!await _context.Usuarios.AnyAsync(u => u.IdUsuario == userId))
+                return Forbid();
+
+            if (string.IsNullOrEmpty(moduloSoftware) || moduloSoftware.Length > 100)
+                return BadRequest(new { success = false, message = "Indica un módulo o pantalla de hasta 100 caracteres." });
+
+            tipoNormalizado = "queja";
+            idProfesional = null;
+            fechaServicio = null;
+        }
+        else
+        {
+            if (!CedulaValida(paciente!))
+                return BadRequest(new { success = false, message = "La cédula registrada debe contener hasta 10 dígitos. Solicita la corrección de tu ficha." });
+
+            if (idProfesional.HasValue && !await _context.Profesionales.AnyAsync(p =>
+                p.IdProfesional == idProfesional.Value && p.Estado == "activo"))
+                return BadRequest(new { success = false, message = "Selecciona un profesional activo del listado." });
+
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-5));
+            if (fechaServicio > hoy)
+                return BadRequest(new { success = false, message = "La fecha del servicio no puede ser futura." });
+
+            moduloSoftware = null;
+        }
+
         string? rutaRelativaEvidencia = null;
         if (evidencia is { Length: > 0 })
         {
@@ -117,11 +261,16 @@ public class PqrController : Controller
                 return BadRequest(new { success = false, message = "Tipo de archivo no permitido. Solo JPG, PNG y PDF." });
             }
 
-            string carpetaRelativa = Path.Combine("uploads", "pqr", paciente.IdPaciente.ToString());
+            string carpetaRelativa = Path.Combine("uploads", "pqr", paciente?.IdPaciente.ToString() ?? $"soporte-{userId}");
             string carpetaFisica = Path.Combine(env.WebRootPath, carpetaRelativa);
             Directory.CreateDirectory(carpetaFisica);
 
-            string extension = Path.GetExtension(evidencia.FileName);
+            string extension = contentType switch
+            {
+                "image/jpeg" => ".jpg",
+                "image/png" => ".png",
+                _ => ".pdf"
+            };
             string nombreFisico = $"{Guid.NewGuid():N}{extension}";
             string rutaFisica = Path.Combine(carpetaFisica, nombreFisico);
 
@@ -135,8 +284,11 @@ public class PqrController : Controller
 
         var nuevaPqr = new PqrEntity
         {
-            IdPaciente = paciente.IdPaciente,
-            IdUsuario = userId > 0 ? userId : null,
+            IdPaciente = paciente?.IdPaciente,
+            IdUsuario = userId,
+            IdProfesional = idProfesional,
+            FechaServicio = fechaServicio,
+            ModuloSoftware = moduloSoftware,
             Tipo = tipoNormalizado,
             Asunto = asunto.Trim(),
             Descripcion = descripcion.Trim(),
@@ -152,25 +304,43 @@ public class PqrController : Controller
         return Json(new { success = true, message = "PQR registrada exitosamente.", id = nuevaPqr.IdPqr });
     }
 
-    [HttpGet]
-    [Authorize(Roles = "Administrador")]
-    [Route("gestion-de-pqr/st-adm-17-gestion-pqr")]
-    public async Task<IActionResult> Stadm17GestionPqr()
+    private static async Task<IReadOnlyList<object>> CargarBandejaAsync(
+        IQueryable<PqrEntity> consulta, CancellationToken ct = default)
     {
-        var pqrsDb = await _context.PQRs
-            .Include(p => p.Paciente)
-            .Include(p => p.AtendidaPorUsuario)
-            .OrderByDescending(p => p.FechaCreacion)
-            .Take(25)
-            .ToListAsync();
+        var registros = await consulta.Select(p => new
+        {
+            p.IdPqr,
+            patient = p.Paciente != null ? p.Paciente.Nombres + " " + p.Paciente.Apellidos
+                : p.Usuario != null ? p.Usuario.Nombre + " " + p.Usuario.Apellidos : "Anónimo",
+            p.ModuloSoftware,
+            p.FechaServicio,
+            profesional = p.Profesional != null ? p.Profesional.Nombres + " " + p.Profesional.Apellidos : null,
+            documento = p.Paciente == null ? "N/A" : p.Paciente.Documento ?? "N/A",
+            email = (p.Paciente == null ? null : p.Paciente.Correo)
+                ?? (p.Usuario == null ? null : p.Usuario.Correo) ?? "N/A",
+            p.Tipo,
+            p.Asunto,
+            p.Descripcion,
+            p.Estado,
+            p.Prioridad,
+            p.FechaCreacion,
+            p.Respuesta,
+            p.FechaRespuesta,
+            atendidaPor = p.AtendidaPorUsuario != null
+                ? p.AtendidaPorUsuario.Nombre + " " + p.AtendidaPorUsuario.Apellidos : null,
+            p.EvidenciaAdjunto
+        }).ToListAsync(ct);
 
-        var pqrs = pqrsDb.Select(p => new
+        return registros.Select(p => new
         {
             id = p.IdPqr,
             ticket = $"PQR-{p.IdPqr:D4}",
-            patient = p.Paciente != null ? $"{p.Paciente.Nombres} {p.Paciente.Apellidos}" : "Anónimo",
-            documento = p.Paciente?.Documento ?? "N/A",
-            email = p.Paciente?.Correo ?? "N/A",
+            p.patient,
+            moduloSoftware = p.ModuloSoftware,
+            fechaServicio = p.FechaServicio?.ToString("yyyy-MM-dd"),
+            p.profesional,
+            p.documento,
+            p.email,
             type = p.Tipo,
             subject = p.Asunto,
             description = p.Descripcion,
@@ -179,10 +349,20 @@ public class PqrController : Controller
             date = p.FechaCreacion.ToString("yyyy-MM-dd HH:mm"),
             fechaCreacionIso = p.FechaCreacion.ToString("o"),
             respuesta = p.Respuesta,
-            fechaRespuesta = p.FechaRespuesta.HasValue ? p.FechaRespuesta.Value.ToString("yyyy-MM-dd HH:mm") : null,
-            atendidaPor = p.AtendidaPorUsuario != null ? $"{p.AtendidaPorUsuario.Nombre} {p.AtendidaPorUsuario.Apellidos}" : null,
+            fechaRespuesta = p.FechaRespuesta?.ToString("yyyy-MM-dd HH:mm"),
+            p.atendidaPor,
             evidenciaAdjunto = p.EvidenciaAdjunto
         }).ToList();
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Administrador")]
+    [Route("gestion-de-pqr/st-adm-17-gestion-pqr")]
+    public async Task<IActionResult> Stadm17GestionPqr()
+    {
+        var pqrs = await CargarBandejaAsync(_context.PQRs.AsNoTracking()
+            .OrderByDescending(p => p.FechaCreacion).ThenByDescending(p => p.IdPqr)
+            .Take(25));
 
         // Estadísticas reales (antes eran números fijos en el HTML: 6, 1, 1, 2)
         var stats = new
@@ -212,13 +392,18 @@ public class PqrController : Controller
         [FromQuery] string? buscar = null,
         [FromQuery] string? tipo = null,
         [FromQuery] string? estado = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        [FromQuery] string? origen = null)
     {
         const int tamanoPagina = 25;
         pagina = Math.Max(1, pagina);
         buscar = buscar?.Trim();
         if (buscar?.Length > 100)
             return BadRequest(new { success = false, message = "La búsqueda no puede superar 100 caracteres." });
+
+        origen = origen?.Trim().ToLowerInvariant();
+        if (!string.IsNullOrEmpty(origen) && origen is not ("todos" or "pacientes" or "soporte"))
+            return BadRequest(new { success = false, message = "Origen de PQR no válido." });
 
         // Estadísticas globales independientes de los filtros.
         var total = await _context.PQRs.AsNoTracking().CountAsync(ct);
@@ -230,14 +415,25 @@ public class PqrController : Controller
             && p.FechaCreacion < limite, ct);
 
         var consulta = _context.PQRs.AsNoTracking().AsQueryable();
+        consulta = origen switch
+        {
+            "pacientes" => consulta.Where(p => p.IdPaciente != null),
+            "soporte" => consulta.Where(p => p.IdPaciente == null && p.ModuloSoftware != null),
+            _ => consulta
+        };
         if (!string.IsNullOrWhiteSpace(buscar))
         {
             var termino = buscar;
             var numero = termino.StartsWith("PQR-", StringComparison.OrdinalIgnoreCase)
                 ? termino[4..] : termino;
             var esRadicado = int.TryParse(numero, out var idBuscado);
-            consulta = consulta.Where(p =>
+            consulta = esRadicado && termino.StartsWith("PQR-", StringComparison.OrdinalIgnoreCase)
+                ? consulta.Where(p => p.IdPqr == idBuscado)
+                : consulta.Where(p =>
                 p.Asunto.Contains(termino) ||
+                (p.ModuloSoftware != null && p.ModuloSoftware.Contains(termino)) ||
+                (p.IdPaciente == null && p.Usuario != null &&
+                    (p.Usuario.Nombre.Contains(termino) || p.Usuario.Apellidos.Contains(termino))) ||
                 (p.Paciente != null && (p.Paciente.Nombres.Contains(termino)
                     || p.Paciente.Apellidos.Contains(termino))) ||
                 (esRadicado && p.IdPqr == idBuscado));
@@ -264,27 +460,9 @@ public class PqrController : Controller
         var totalFiltrado = await consulta.CountAsync(ct);
         var totalPaginas = Math.Max(1, (int)Math.Ceiling(totalFiltrado / (double)tamanoPagina));
         pagina = Math.Min(pagina, totalPaginas);
-        var registros = await consulta
-            .Include(p => p.Paciente)
-            .Include(p => p.AtendidaPorUsuario)
+        var pqrs = await CargarBandejaAsync(consulta
             .OrderByDescending(p => p.FechaCreacion).ThenByDescending(p => p.IdPqr)
-            .Skip((pagina - 1) * tamanoPagina).Take(tamanoPagina)
-            .ToListAsync(ct);
-
-        var pqrs = registros.Select(p => new
-        {
-            id = p.IdPqr, ticket = $"PQR-{p.IdPqr:D4}",
-            patient = p.Paciente != null ? $"{p.Paciente.Nombres} {p.Paciente.Apellidos}" : "Anónimo",
-            documento = p.Paciente?.Documento ?? "N/A", email = p.Paciente?.Correo ?? "N/A",
-            type = p.Tipo, subject = p.Asunto, description = p.Descripcion,
-            status = p.Estado, priority = p.Prioridad,
-            date = p.FechaCreacion.ToString("yyyy-MM-dd HH:mm"),
-            fechaCreacionIso = p.FechaCreacion.ToString("o"),
-            respuesta = p.Respuesta,
-            fechaRespuesta = p.FechaRespuesta?.ToString("yyyy-MM-dd HH:mm"),
-            atendidaPor = p.AtendidaPorUsuario != null ? $"{p.AtendidaPorUsuario.Nombre} {p.AtendidaPorUsuario.Apellidos}" : null,
-            evidenciaAdjunto = p.EvidenciaAdjunto
-        }).ToList();
+            .Skip((pagina - 1) * tamanoPagina).Take(tamanoPagina), ct);
 
         return Ok(new
         {
@@ -313,6 +491,42 @@ public class PqrController : Controller
                 h.Respuesta, h.TipoEvento, h.FechaEvento })
             .ToListAsync(ct);
         return Ok(new { success = true, eventos });
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Paciente,Profesional,Recepcionista,Auxiliar")]
+    [Route("gestion-de-pqr/api/pqr/{id:int}/respuestas")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> ApiRespuestasPropias(int id, CancellationToken ct = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var usuarioId) || usuarioId <= 0)
+            return Forbid();
+
+        var solicitud = await ConsultarPqrsPropias(usuarioId)
+            .Where(p => p.IdPqr == id)
+            .Select(p => new { p.Respuesta, p.FechaRespuesta })
+            .SingleOrDefaultAsync(ct);
+
+        if (solicitud == null)
+            return NotFound();
+
+        var eventos = await _context.PqrHistorial.AsNoTracking()
+            .Where(h => h.IdPqr == id && h.TipoEvento == "respuesta"
+                && h.Respuesta != null && h.Respuesta.Trim() != "")
+            .OrderBy(h => h.FechaEvento).ThenBy(h => h.IdHistorial)
+            .Select(h => new { h.Respuesta, h.FechaEvento })
+            .ToListAsync(ct);
+
+        var respuestas = eventos.Select(h => new
+        {
+            texto = h.Respuesta,
+            fecha = (DateTime?)DateTime.SpecifyKind(h.FechaEvento, DateTimeKind.Utc)
+        }).ToList();
+
+        if (respuestas.Count == 0 && !string.IsNullOrWhiteSpace(solicitud.Respuesta))
+            respuestas.Add(new { texto = solicitud.Respuesta, fecha = solicitud.FechaRespuesta });
+
+        return Ok(respuestas);
     }
 
     [HttpPut]
