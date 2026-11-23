@@ -50,6 +50,29 @@ public sealed class ServiciosRecursosControllerTests
         return controller;
     }
 
+    [Fact]
+    public async Task ApiImpactoDesactivacionServicio_CuentaAsignacionesActivasYCitasFuturasPendientes()
+    {
+        await using var db = CrearContext();
+        var hoy = SmileTrack_MVC.Helpers.ColombiaClock.Now;
+        db.Servicios.Add(new Servicio { IdServicio = 1, Nombre = "Consulta", Precio = 50000m, Categoria = "general" });
+        db.ProfesionalServicios.AddRange(
+            new() { IdServicio = 1, IdProfesional = 1, Activo = true },
+            new() { IdServicio = 1, IdProfesional = 2, Activo = false });
+        db.Citas.AddRange(
+            new() { IdServicio = 1, FechaHora = hoy.AddDays(1), Estado = "Confirmada" },
+            new() { IdServicio = 1, FechaHora = hoy.AddDays(1), Estado = "Cancelada" },
+            new() { IdServicio = 1, FechaHora = hoy.AddDays(-1), Estado = "Confirmada" },
+            new() { IdServicio = 2, FechaHora = hoy.AddDays(1), Estado = "Confirmada" });
+        await db.SaveChangesAsync();
+
+        var result = Assert.IsType<OkObjectResult>(await CrearControlador(db).ApiImpactoDesactivacionServicio(1));
+        var datos = System.Text.Json.JsonSerializer.SerializeToElement(result.Value).GetProperty("data");
+
+        Assert.Equal(1, datos.GetProperty("asignacionesActivas").GetInt32());
+        Assert.Equal(1, datos.GetProperty("citasFuturas").GetInt32());
+    }
+
     private static int Contar(IEnumerable datos)
     {
         int total = 0;
@@ -82,7 +105,7 @@ public sealed class ServiciosRecursosControllerTests
     {
         await using var db = CrearContext();
         db.ConfiguracionesGenerales.AddRange(
-            new ConfiguracionGeneral { IdConfiguracion = 1, Clave = "cita_duracion_default", Valor = "45", Modulo = "general" },
+            new ConfiguracionGeneral { IdConfiguracion = 1, Clave = "cita_duracion_minutos", Valor = "45", Modulo = "general" },
             new ConfiguracionGeneral { IdConfiguracion = 2, Clave = "nombre_clinica", Valor = "Clinica Test", Modulo = "general" });
         await db.SaveChangesAsync();
 
@@ -103,7 +126,7 @@ public sealed class ServiciosRecursosControllerTests
         db.ConfiguracionesGenerales.Add(new ConfiguracionGeneral
         {
             IdConfiguracion = 1,
-            Clave = "cita_duracion_default",
+            Clave = "cita_duracion_minutos",
             Valor = "30",
             Modulo = "citas"
         });
@@ -119,7 +142,7 @@ public sealed class ServiciosRecursosControllerTests
         var result = await controller.ApiActualizarConfiguracionGeneral(request, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(45, int.Parse((await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "cita_duracion_default")).Valor));
+        Assert.Equal(45, int.Parse((await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "cita_duracion_minutos")).Valor));
         Assert.Equal("Clínica de prueba", (await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "nombre_clinica")).Valor);
         Assert.Equal("false", (await db.ConfiguracionesGenerales.SingleAsync(c => c.Clave == "notif_email")).Valor);
         Assert.Equal(9, await db.ConfiguracionesGenerales.CountAsync());

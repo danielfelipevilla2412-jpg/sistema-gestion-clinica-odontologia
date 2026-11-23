@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="~/css/Gestion_De_Pacientes/st-rec-02-registrar-paciente/nuevo_paciente.css" asp-append-version="true" />
 }
 
-<main class="main" id="main-content">
+<main class="main patient-registration" id="main-content">
 
   <!-- Page header -->
   <header class="page-header">
@@ -102,15 +102,21 @@
           <div class="form-group">
             <label class="form-label" for="genero" data-i18n="pacientes.gender">Género</label>
             <select id="genero" name="genero" class="form-select" autocomplete="off">
+              <option value="">Seleccione…</option>
               @foreach (var (valor, etiqueta) in RegistrarPacienteViewModel.Generos)
               {
-                  var generoSelected = valor == "M";
-                  <option value="@valor" selected="@generoSelected">@etiqueta</option>
+                  <option value="@valor">@etiqueta</option>
               }
             </select>
           </div>
 
           <!-- Teléfono -->
+        </div>
+      </section>
+      <section class="form-card" aria-labelledby="contactTitle">
+        <h2 class="form-card-title" id="contactTitle">Contacto y acudiente</h2>
+        <p id="guardianRequirement" role="status" hidden>Para este paciente registra el nombre y el teléfono del acudiente.</p>
+        <div class="form-grid">
           <div class="form-group">
             <label class="form-label" for="telefono" data-i18n="common.phone">Teléfono</label>
             <input type="tel" id="telefono" name="telefono" class="form-input" placeholder="Ej. 312 456 7890"
@@ -131,16 +137,7 @@
           </div>
 
           <!-- Grupo sanguíneo — desde RegistrarPacienteViewModel.GruposSanguineos -->
-          <div class="form-group">
-            <label class="form-label" for="grupoSanguineo" data-i18n="gestion_pacientes_blood_type">Grupo sanguíneo</label>
-            <select id="grupoSanguineo" name="grupoSanguineo" class="form-select" autocomplete="off">
-              <option value="" data-i18n="pacientes.select_placeholder">Seleccione...</option>
-              @foreach (var gs in RegistrarPacienteViewModel.GruposSanguineos)
-              {
-                  <option value="@gs">@gs</option>
-              }
-            </select>
-          </div>
+
 
           <!-- Ciudad — desde RegistrarPacienteViewModel.Ciudades -->
           <div class="form-group">
@@ -179,6 +176,21 @@
           </div>
 
           <!-- Alergias -->
+        </div>
+      </section>
+      <section class="form-card" aria-labelledby="healthTitle">
+        <h2 class="form-card-title" id="healthTitle">Información de salud</h2>
+        <div class="form-group">
+            <label class="form-label" for="grupoSanguineo" data-i18n="gestion_pacientes_blood_type">Grupo sanguíneo</label>
+            <select id="grupoSanguineo" name="grupoSanguineo" class="form-select" autocomplete="off">
+              <option value="" data-i18n="pacientes.select_placeholder">Seleccione...</option>
+              @foreach (var gs in RegistrarPacienteViewModel.GruposSanguineos)
+              {
+                  <option value="@gs">@gs</option>
+              }
+            </select>
+          </div>
+        <div class="form-grid">
           <div class="form-group">
             <label class="form-label" for="alergias" data-i18n="gestion_pacientes_known_allergies">Alergias conocidas</label>
             <input type="text" id="alergias" name="alergias" class="form-input" placeholder="Ninguna conocida"
@@ -214,12 +226,24 @@
       </div>
 
       <div class="form-actions">
-        <button type="button" class="btn-secondary" id="cancelBtn1" data-i18n="common.cancel">Cancelar</button>
-        <button type="submit" class="btn-success" id="saveBtn" data-i18n="pacientes.save_patient">Guardar paciente</button>
+        <a class="btn-secondary" id="cancelBtn1" href="/gestion-de-pacientes/st-rec-pacientes">Volver al listado</a>
+        <button type="submit" class="btn-primary" id="saveBtn" data-i18n="pacientes.save_patient">Guardar paciente</button>
       </div>
 
     </div>
   </form>
+  <section class="form-card registration-result" id="registrationResult" hidden tabindex="-1" aria-labelledby="registrationTitle">
+    <h2 id="registrationTitle">Ficha registrada</h2>
+    <p>Acceso al portal pendiente. El paciente puede crear su cuenta y completar Mi perfil para vincular la ficha.</p>
+    <div class="form-actions">
+      <a class="btn-secondary" href="/gestion-de-pacientes/st-rec-pacientes">Volver al listado</a>
+      <a class="btn-secondary" id="registrationProfile">Ver ficha</a>
+      @if (ViewData["PuedeAgendarPaciente"] is true)
+      {
+        <a class="btn-primary" id="registrationBook">Agendar cita</a>
+      }
+    </div>
+  </section>
 
 </main>
 

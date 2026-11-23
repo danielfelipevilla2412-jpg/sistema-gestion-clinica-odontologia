@@ -8,6 +8,24 @@
         const estado = document.getElementById('estadoSeleccionServicio');
         const boton = document.getElementById('guardarServicioAsignado');
         const profesionalSelector = document.getElementById('profesionalId');
+        const resumen = document.getElementById('resumenPrecioAsignacion');
+
+        function actualizarResumenPrecio() {
+            if (!resumen || !selector || !precio) return;
+            const base = selector.selectedOptions[0]?.dataset.precioBase;
+            resumen.hidden = base == null;
+            if (base == null) return;
+            if (!precio.validity.valid) {
+                resumen.textContent = 'Revisa el precio personalizado para calcular la tarifa.';
+                return;
+            }
+            const personalizado = precio.value !== '';
+            resumen.textContent = window.SmileTrack.utils.formatServicePricing({
+                precioBase: Number(base),
+                precioAplicado: personalizado ? precio.valueAsNumber : Number(base),
+                precioPersonalizado: personalizado
+            });
+        }
 
         function actualizarFormulario() {
             if (!selector || !precio || !estado || !boton) return;
@@ -17,6 +35,7 @@
                 estado.textContent = translate('asignados.select_service_hint');
                 boton.textContent = translate('asignados.choose_service_button');
                 boton.disabled = true;
+                actualizarResumenPrecio();
                 return;
             }
             const asignado = opcion.dataset.asignado === 'true';
@@ -32,6 +51,7 @@
                 : activo ? 'asignados.update_assignment' : 'asignados.update_reactivate';
             boton.textContent = translate(buttonKey);
             boton.disabled = false;
+            actualizarResumenPrecio();
         }
 
         const localizeProfessionalOptions = () => {
@@ -58,15 +78,16 @@
                     : option.dataset.activo === 'true'
                         ? 'asignados.already_active'
                         : 'asignados.already_inactive';
-                option.textContent = `${option.dataset.nombre} — ${option.dataset.precioBase} · ${translate(stateKey)}`;
+                option.textContent = `${option.dataset.nombre} — ${new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(Number(option.dataset.precioBase))} COP · ${translate(stateKey)}`;
             });
         };
 
         selector?.addEventListener('change', actualizarFormulario);
+        precio?.addEventListener('input', actualizarResumenPrecio);
         document.addEventListener('i18n:change', () => {
             localizeProfessionalOptions();
             localizeOptions();
-            actualizarFormulario();
+            actualizarResumenPrecio();
         });
         localizeProfessionalOptions();
         localizeOptions();

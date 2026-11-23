@@ -179,7 +179,7 @@ window.AppointmentUtils = (() => {
      * @param {string} [loadingText]
      */
     const bindFormSubmitSpinner = (form, loadingText = 'Guardando...') => {
-        if (!form) return;
+        if (!form || form.dataset.submitSpinner === 'manual') return;
         form.addEventListener('submit', (e) => {
             // Solo aplicar si el formulario pasa la validación HTML5 nativa
             if (!form.checkValidity()) return;

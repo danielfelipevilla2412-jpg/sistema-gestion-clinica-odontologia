@@ -413,6 +413,7 @@
       "gestion_pacientes_title": "SmileTrack — Gestión de Pacientes",
       "gestion_pacientes_page_title": "Gestión de Pacientes",
       "gestion_pacientes_page_subtitle": "Historial de pacientes — Solo lectura",
+      "gestion_pacientes_directory_subtitle": "Consulta las fichas y próximas citas de los pacientes",
       "gestion_pacientes_meta_description": "Gestión de pacientes del centro odontológico",
       "gestion_pacientes_buscar_paciente": "Buscar paciente",
       "gestion_pacientes_buscar_placeholder": "Buscar paciente, cédula o diagnóstico...",
@@ -452,7 +453,8 @@
       "gestion_pacientes_table_aria": "Tabla de pacientes",
       "gestion_pacientes_column_patient": "Paciente",
       "gestion_pacientes_column_last_visit": "Última consulta",
-      "gestion_pacientes_column_diagnosis": "Diagnóstico",
+      "gestion_pacientes_column_diagnosis": "Último servicio",
+      "gestion_pacientes_book_appointment": "Agendar cita",
       "gestion_pacientes_column_next_visit": "Próxima cita",
       "gestion_pacientes_column_allergies": "Alergias",
       "gestion_pacientes_empty_title": "No se encontraron pacientes",
@@ -629,6 +631,12 @@
       "billing.invoice_load_error": "No fue posible cargar las facturas.",
       "layout_breadcrumb_aria": "Ruta de navegación",
       "rec01_title": "Panel de Recepción",
+      "rec01.confirmed_today": "Confirmadas hoy",
+      "rec01.pending_confirmation": "Pendientes de confirmación",
+      "rec01.unpaid_invoices": "Facturas con saldo pendiente",
+      "rec01.agenda_today": "Agenda de hoy",
+      "rec01.open_appointments": "Ir a Gestión de Citas",
+      "rec01.review_overdue": "Revisar facturas vencidas",
       "rec01_alert_banner_title": "Próximas citas — en los siguientes 30 minutos",
       "profile.edit": "Editar perfil",
 
@@ -690,6 +698,9 @@
       "common.today": "Hoy",
       "common.breadcrumb_nav": "Ruta de navegación",
       "rec05.subtitle": "Gestiona los recordatorios automáticos y manuales de citas para pacientes",
+      "rec05.sent_today": "Enviados hoy",
+      "rec05.pending_send": "Pendientes de envío",
+      "rec05.automatic_note": "Con el correo configurado, SmileTrack revisa cada 5 minutos las citas programadas o confirmadas de las próximas 24 horas.",
       "rec05.history_title": "Enviados recientemente",
       "rec05.view_all_aria": "Ver historial completo de recordatorios enviados",
       "rec05.history_scroller_aria": "Historial de recordatorios enviados",
@@ -931,6 +942,7 @@
       "odo07.no_appointment": "Sin cita",
       "odo07.no_note": "Sin nota",
       "odo07.no_results": "No se encontraron tratamientos",
+      "odo07.no_plans": "Aún no hay tratamientos registrados",
       "odo07.no_results_help": "Ajusta los filtros o la búsqueda e inténtalo de nuevo.",
       "odo07.no_sessions": "No hay sesiones registradas.",
       "odo07.note_date": "Nota #{number} · {date}",
@@ -966,6 +978,10 @@
       "odo07.service": "Servicio",
       "odo07.session_annulled": "Sesión anulada con motivo registrado.",
       "odo07.session_date": "Fecha de sesión",
+      "odo07.attended_appointment": "Cita atendida",
+      "odo07.select_attended_appointment": "Selecciona una cita atendida",
+      "odo07.no_attended_appointments": "Aún no hay citas atendidas disponibles para este tratamiento.",
+      "odo07.session_date_help": "Selecciona la fecha real de atención. Puedes elegir hoy o una fecha anterior.",
       "odo07.session_followup_aria": "Seguimiento de sesiones",
       "odo07.session_progress_aria": "Progreso de sesiones: {progress}%",
       "odo07.session_registered": "Sesión realizada registrada.",
@@ -2697,6 +2713,7 @@
       ,"pac_miscitas.no_service": "Sin servicio"
       ,"pac_miscitas.count_result": "resultado"
       ,"pac_miscitas.count_results": "resultados"
+      ,"pac_miscitas.title": "Mis citas"
       ,"pac_miscitas.empty_filtered": "No hay citas que coincidan con los filtros."
       ,"pac_miscitas.cancel_notice": "Para cancelaciones con menos de 2 horas de anticipación, por favor comuníquese directamente con recepción."
       ,"pac_miscitas.view_detail_aria": "Ver detalle de cita"
@@ -2726,6 +2743,15 @@
       ,"pac_notif.unread_dot_aria": "No leída"
       ,"pac_notif.count_result": "resultado"
       ,"pac_notif.count_results": "resultados"
+      ,"notifications.type_label": "Tipo"
+      ,"notifications.filter_rescheduled": "Reagendamientos"
+      ,"notifications.read_filter": "Estado de lectura"
+      ,"notifications.unread_tab": "Sin leer"
+      ,"notifications.all_tab": "Todas"
+      ,"notifications.view_appointment": "Ver cita"
+      ,"pac_notif.empty_matches": "Ninguna notificación coincide con los filtros."
+      ,"pac_notif.empty_unread": "Estás al día. Consulta Todas para ver el historial."
+      ,"pac_notif.empty_history": "Todavía no tienes notificaciones."
       ,"pac_notif.toast_mark_read_error": "No se pudo marcar la notificación como leída"
       ,"pac_notif.toast_mark_read_success": "Notificación marcada como leída"
       ,"pac_notif.toast_deleted": "Notificación eliminada"
@@ -3282,6 +3308,7 @@
       "gestion_pacientes_title": "SmileTrack — Patient Management",
       "gestion_pacientes_page_title": "Patient Management",
       "gestion_pacientes_page_subtitle": "Patient history — Read-only",
+      "gestion_pacientes_directory_subtitle": "View patient records and upcoming appointments",
       "gestion_pacientes_meta_description": "Dental center patient management",
       "gestion_pacientes_buscar_paciente": "Search patient",
       "gestion_pacientes_buscar_placeholder": "Search patient, ID or diagnosis...",
@@ -3321,7 +3348,8 @@
       "gestion_pacientes_table_aria": "Patient table",
       "gestion_pacientes_column_patient": "Patient",
       "gestion_pacientes_column_last_visit": "Last visit",
-      "gestion_pacientes_column_diagnosis": "Diagnosis",
+      "gestion_pacientes_column_diagnosis": "Last service",
+      "gestion_pacientes_book_appointment": "Book appointment",
       "gestion_pacientes_column_next_visit": "Next appointment",
       "gestion_pacientes_column_allergies": "Allergies",
       "gestion_pacientes_empty_title": "No patients found",
@@ -3498,6 +3526,12 @@
       "billing.invoice_load_error": "Could not load the invoices.",
       "layout_breadcrumb_aria": "Breadcrumb",
       "rec01_title": "Reception Dashboard",
+      "rec01.confirmed_today": "Confirmed today",
+      "rec01.pending_confirmation": "Awaiting confirmation",
+      "rec01.unpaid_invoices": "Invoices with an outstanding balance",
+      "rec01.agenda_today": "Today schedule",
+      "rec01.open_appointments": "Go to Appointments",
+      "rec01.review_overdue": "Review overdue invoices",
       "rec01_alert_banner_title": "Upcoming appointments — next 30 minutes",
       "profile.edit": "Edit profile",
 
@@ -3559,6 +3593,9 @@
       "common.today": "Today",
       "common.breadcrumb_nav": "Breadcrumb navigation",
       "rec05.subtitle": "Manage automated and manual appointment reminders for patients",
+      "rec05.sent_today": "Sent today",
+      "rec05.pending_send": "Pending reminders",
+      "rec05.automatic_note": "With email configured, SmileTrack checks scheduled or confirmed appointments in the next 24 hours every 5 minutes.",
       "rec05.history_title": "Recently sent",
       "rec05.view_all_aria": "View full history of sent reminders",
       "rec05.history_scroller_aria": "History of sent reminders",
@@ -3800,6 +3837,7 @@
       "odo07.no_appointment": "No appointment",
       "odo07.no_note": "No note",
       "odo07.no_results": "No treatments found",
+      "odo07.no_plans": "No treatments have been recorded yet",
       "odo07.no_results_help": "Adjust the filters or search and try again.",
       "odo07.no_sessions": "No sessions have been recorded.",
       "odo07.note_date": "Note #{number} · {date}",
@@ -3835,6 +3873,10 @@
       "odo07.service": "Service",
       "odo07.session_annulled": "Session annulled with a reason recorded.",
       "odo07.session_date": "Session date",
+      "odo07.attended_appointment": "Attended appointment",
+      "odo07.select_attended_appointment": "Choose an attended appointment",
+      "odo07.no_attended_appointments": "There are no attended appointments available for this treatment yet.",
+      "odo07.session_date_help": "Select the date of the session. Choose today or an earlier date.",
       "odo07.session_followup_aria": "Session follow-up",
       "odo07.session_progress_aria": "Session progress: {progress}%",
       "odo07.session_registered": "Completed session recorded.",
@@ -5569,6 +5611,7 @@
       ,"pac_miscitas.no_service": "No service"
       ,"pac_miscitas.count_result": "result"
       ,"pac_miscitas.count_results": "results"
+      ,"pac_miscitas.title": "My appointments"
       ,"pac_miscitas.empty_filtered": "No appointments match the filters."
       ,"pac_miscitas.cancel_notice": "For cancellations less than 2 hours in advance, please contact reception directly."
       ,"pac_miscitas.view_detail_aria": "View appointment details"
@@ -5598,6 +5641,15 @@
       ,"pac_notif.unread_dot_aria": "Unread"
       ,"pac_notif.count_result": "result"
       ,"pac_notif.count_results": "results"
+      ,"notifications.type_label": "Type"
+      ,"notifications.filter_rescheduled": "Rescheduled"
+      ,"notifications.read_filter": "Read status"
+      ,"notifications.unread_tab": "Unread"
+      ,"notifications.all_tab": "All"
+      ,"notifications.view_appointment": "View appointment"
+      ,"pac_notif.empty_matches": "No notifications match the filters."
+      ,"pac_notif.empty_unread": "You are up to date. Select All to see your history."
+      ,"pac_notif.empty_history": "You have no notifications yet."
       ,"pac_notif.toast_mark_read_error": "The notification could not be marked as read"
       ,"pac_notif.toast_mark_read_success": "Notification marked as read"
       ,"pac_notif.toast_deleted": "Notification deleted"

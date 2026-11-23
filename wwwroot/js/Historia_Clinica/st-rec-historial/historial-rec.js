@@ -190,7 +190,7 @@ const renderTable = (list) => {
     const actionCell = document.createElement('td');
     const actionButton = document.createElement('button');
     actionButton.type = 'button';
-    actionButton.className = 'btn-view';
+    actionButton.className = 'btn-secondary btn-view';
     actionButton.textContent = 'Historial';
     actionCell.appendChild(actionButton);
     tr.append(patientCell, documentCell, dentistCell, lastVisitCell, alertCell, stateCell, actionCell);
@@ -310,6 +310,15 @@ const filterPatients = () => {
 
 const initFilters = () => {
   let searchTimer;
+  safeGetElement('historyClearFilters')?.addEventListener('click', () => {
+    clearTimeout(searchTimer);
+    for (const id of ['searchInput', 'filterOdontologo', 'filterAlerta', 'filterEstado']) {
+      const field = safeGetElement(id);
+      if (field instanceof HTMLSelectElement) field.selectedIndex = 0;
+      else if (field) field.value = '';
+    }
+    filterPatients();
+  });
   safeGetElement('searchInput')?.addEventListener('input', () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(filterPatients, 250);

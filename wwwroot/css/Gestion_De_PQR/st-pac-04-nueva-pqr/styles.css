@@ -384,6 +384,54 @@ body {
     gap: 15px;
     margin-bottom: 15px;
 }
+.pqr-nueva-page .pqr-field-error {
+  display: block;
+  color: var(--pqr-error-color, #b42318);
+  margin-top: 4px;
+}
+
+.pqr-nueva-page .pqr-field-error:empty {
+  display: none;
+}
+
+.pqr-nueva-page [aria-invalid="true"] {
+  border-color: var(--pqr-error-color, #b42318);
+}
+
+.pqr-nueva-page .pqr-account-data {
+    margin: 0 0 15px;
+}
+
+.pqr-nueva-page .pqr-account-label {
+    margin-bottom: 5px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-dark);
+}
+
+.pqr-nueva-page .pqr-account-value {
+    margin: 0;
+    color: var(--text-dark);
+    overflow-wrap: anywhere;
+}
+
+#pqrDetailResponses {
+    margin: 0;
+    padding-inline-start: 1.4rem;
+    overflow-wrap: anywhere;
+}
+
+#pqrDetailResponses li + li {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+#pqrDetailResponseStatus:empty,
+#pqrDetailResponses:empty {
+    display: none;
+}
+
 .form-group {
     margin-bottom: 15px;
 }

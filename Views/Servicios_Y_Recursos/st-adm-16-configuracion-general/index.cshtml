@@ -31,8 +31,9 @@
                 <div class="config-list">
                     <div class="form-group">
                         <label for="defaultDuration" class="form-label" data-i18n="config.duration">Duración predeterminada (minutos)</label>
-                        <input type="number" id="defaultDuration" class="form-input" min="5" max="180" step="5" required>
+                        <input type="number" id="defaultDuration" class="form-input" min="5" max="180" step="1" required>
                     </div>
+                    <p class="form-help">La duración predeterminada se usa cuando la cita no tiene otra duración definida.</p>
                     <div class="form-group">
                         <label for="openTime" class="form-label" data-i18n="config.opening_time">Horario de apertura</label>
                         <input type="time" id="openTime" class="form-input" required>
@@ -46,7 +47,7 @@
 
             <section class="config-card" aria-labelledby="centerTitle">
                 <h2 class="card-title" id="centerTitle" data-i18n="config.center_data">Datos del centro</h2>
-                <p class="card-subtitle" data-i18n="config.center_hint">Información que aparece en documentos y comunicaciones.</p>
+                <p class="card-subtitle" >Identificación y dirección registradas para la clínica.</p>
                 <div class="config-list">
                     <div class="form-group">
                         <label for="centerName" class="form-label" data-i18n="config.clinic_name">Nombre de la clínica</label>
@@ -66,6 +67,7 @@
 
             <section class="config-card" aria-labelledby="notificationsTitle">
                 <h2 class="card-title" id="notificationsTitle" data-i18n="common.notifications">Notificaciones</h2>
+                <p class="card-subtitle">Estas preferencias se guardan. Los envíos automáticos y las alertas requieren integración con sus respectivos canales.</p>
                 <div class="toggle-list">
                     <div class="toggle-item">
                         <span class="toggle-info">
@@ -99,11 +101,14 @@
 
             <section class="config-card config-note" aria-labelledby="settingsNoteTitle">
                 <h2 class="card-title" id="settingsNoteTitle" data-i18n="config.save_title">Guardar configuración</h2>
-                <p class="card-subtitle" data-i18n="config.save_hint">Los cambios se aplicarán al sistema cuando guardes el formulario.</p>
-                <button type="submit" class="btn-primary btn-submit" id="btnSaveChanges">
+                <p class="card-subtitle" id="configSaveStatus" role="status">Sin cambios pendientes.</p>
+                <div class="config-actions">
+                <button type="button" class="btn-secondary" id="btnRestoreConfig" disabled>Descartar cambios</button>
+                <button type="submit" class="btn-primary btn-submit" id="btnSaveChanges" disabled>
                     <span class="material-symbols-outlined" aria-hidden="true">save</span>
                     <span data-i18n="config.save">Guardar cambios</span>
                 </button>
+                </div>
             </section>
         </div>
     </form>

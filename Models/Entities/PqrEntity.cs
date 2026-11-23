@@ -5,7 +5,10 @@ namespace SmileTrack_MVC.Models.Entities;
 public class PqrEntity
 {
     public int IdPqr { get; set; }
-    public int IdPaciente { get; set; }
+    public int? IdPaciente { get; set; }
+    public int? IdProfesional { get; set; }
+    public DateOnly? FechaServicio { get; set; }
+    public string? ModuloSoftware { get; set; }
     public int? IdUsuario { get; set; }
     public string Tipo { get; set; } = "peticion"; // peticion, queja, reclamo, sugerencia
     public string Asunto { get; set; } = string.Empty;
@@ -18,6 +21,7 @@ public class PqrEntity
     public int? AtendidaPor { get; set; }
     public string? EvidenciaAdjunto { get; set; }
 
+    public Profesional? Profesional { get; set; }
     public Paciente? Paciente { get; set; }
     public Usuario? Usuario { get; set; }
     public Usuario? AtendidaPorUsuario { get; set; }

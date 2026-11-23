@@ -23,10 +23,10 @@
   <link rel="stylesheet" href="@Url.Content("~/css/Gestion_De_Pacientes/st-adm-05-gestion-pacientes/styles.css")" asp-append-version="true" />
 }
 
-<main class="main patients-page" id="main-content">
+<main class="main patients-page" id="main-content" data-can-book="@(esRecepcionista && ViewData["PuedeAgendarPaciente"] is true ? "true" : "false")">
   @Html.AntiForgeryToken()
 
-  <header class="page-header">
+  <header class="page-header patients-header">
     <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="gestion_pacientes_breadcrumb_aria">
       @if (esRecepcionista)
       {
@@ -45,10 +45,13 @@
         <p class="page-subtitle" data-i18n="gestion_pacientes_page_subtitle">Historial de pacientes — Solo lectura</p>
       </div>
       <div class="page-header-actions">
-        <div class="search-wrap">
-          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
-          <input type="search" id="searchPatients" class="search-input" data-i18n-ph="gestion_pacientes_buscar_placeholder" placeholder="Buscar paciente, cédula o diagnóstico..." data-i18n-aria-label="gestion_pacientes_buscar_paciente" aria-label="Buscar paciente" />
-        </div>
+        @if (esRecepcionista)
+        {
+          <a class="btn-primary" href="/gestion-de-pacientes/st-rec-02-registrar-paciente">
+            <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
+            <span data-i18n="patients.new">Nuevo paciente</span>
+          </a>
+        }
       </div>
     </div>
   </header>
@@ -82,6 +85,10 @@
 
     <section class="filters-bar filters-section no-print" aria-label="Filtros de búsqueda" data-i18n-aria-label="gestion_pacientes_filters_aria">
       <div class="filters-row">
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+          <input type="search" id="searchPatients" class="search-input" data-i18n-ph="gestion_pacientes_buscar_placeholder" placeholder="Buscar paciente, cédula o diagnóstico..." data-i18n-aria-label="gestion_pacientes_buscar_paciente" aria-label="Buscar paciente" />
+        </div>
         <div class="filter-group">
           <label class="filter-label" for="filterEstado" data-i18n="gestion_pacientes_filter_status">Estado</label>
           <select id="filterEstado" class="filter-select" aria-label="Filtrar por estado del paciente" data-i18n-aria-label="gestion_pacientes_filter_status_aria">
@@ -124,14 +131,14 @@
     </section>
 
     <section class="table-section" aria-labelledby="tableTitle">
-      <h2 class="visually-hidden" id="tableTitle" data-i18n="gestion_pacientes_table_title">Lista de pacientes</h2>
+      <h2 class="patients-list-title" id="tableTitle" data-i18n="gestion_pacientes_table_title">Lista de pacientes</h2>
 
       <div class="table-wrap" id="patientsTableWrap" role="region" aria-label="Tabla de pacientes" data-i18n-aria-label="gestion_pacientes_table_aria" tabindex="0">
         <div class="patients-grid" role="grid" aria-labelledby="tableTitle">
           <div class="table-header" role="row">
             <div class="table-col col-paciente" role="columnheader" data-i18n="gestion_pacientes_column_patient">Paciente</div>
             <div class="table-col col-fecha" role="columnheader" data-i18n="gestion_pacientes_column_last_visit">Última consulta</div>
-            <div class="table-col col-diagnostico" role="columnheader" data-i18n="gestion_pacientes_column_diagnosis">Diagnóstico</div>
+            <div class="table-col col-diagnostico" role="columnheader" data-i18n="gestion_pacientes_column_diagnosis">Último servicio</div>
             <div class="table-col col-cita" role="columnheader" data-i18n="gestion_pacientes_column_next_visit">Próxima cita</div>
             <div class="table-col col-alergias" role="columnheader" data-i18n="gestion_pacientes_column_allergies">Alergias</div>
             <div class="table-col col-acciones" role="columnheader" data-i18n="table.actions">Acciones</div>

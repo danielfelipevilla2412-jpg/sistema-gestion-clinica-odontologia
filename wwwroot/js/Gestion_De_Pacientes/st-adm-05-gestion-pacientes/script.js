@@ -358,6 +358,12 @@ const renderPatients = async () => {
                 data-label="${escapeHtml(translate('table.actions'))}"
               >
                 <div class="actions-cell">
+                  ${safeGetElement('main-content')?.dataset.canBook === 'true' && patient.Estado?.trim().toLowerCase() === 'activo'
+                    && Number.isSafeInteger(Number(patient.Id)) && Number(patient.Id) > 0 ? `
+                    <a class="action-btn" href="/gestion-de-citas/st-rec-03-gestion-citas?nueva=1&amp;pacienteId=${encodeURIComponent(patient.Id)}">
+                      <span class="material-symbols-outlined action-icon" aria-hidden="true">event_available</span>
+                      <span class="action-label">${escapeHtml(translate('gestion_pacientes_book_appointment'))}</span>
+                    </a>` : ''}
 
                   <button
                     type="button"

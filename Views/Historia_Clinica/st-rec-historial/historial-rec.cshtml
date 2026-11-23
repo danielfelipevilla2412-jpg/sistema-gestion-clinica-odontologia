@@ -1,4 +1,5 @@
-﻿@{
+﻿@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
     Layout = "_Layout";
     ViewData["Title"] = "Historial Clínico";
     ViewData["UseGestionModulesDesignSystem"] = true;
@@ -8,7 +9,7 @@
     <link rel="stylesheet" href="~/css/Historia_Clinica/st-rec-historial/historial-rec.css" asp-append-version="true" />
 }
 
-<main class="main history-page" id="main-content">
+<main class="main history-page reception-history" id="main-content">
 
     <header class="page-header">
         <div class="header-left">
@@ -90,6 +91,7 @@
                 <option value="100">100 por página</option>
             </select>
         </label>
+        <button type="button" class="btn-secondary" id="historyClearFilters">Limpiar filtros</button>
     </section>
 
     <!-- Tabla -->

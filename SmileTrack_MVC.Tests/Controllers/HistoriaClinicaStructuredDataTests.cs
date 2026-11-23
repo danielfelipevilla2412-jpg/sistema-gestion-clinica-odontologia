@@ -207,8 +207,8 @@ public class HistoriaClinicaStructuredDataTests
     {
         await using var db = await CrearBaseAsync();
         var (controller, paciente, _) = CrearControlador(db);
-        var fechaMapeoAnterior = DateTime.UtcNow.AddDays(-2);
-        var fechaMapeoNuevo = DateTime.UtcNow.AddDays(-1);
+        var fechaMapeoAnterior = new DateTime(2026, 1, 10, 12, 0, 0);
+        var fechaMapeoNuevo = fechaMapeoAnterior.AddDays(1);
         var historia = new HistoriaClinica
         {
             IdPaciente = paciente.IdPaciente,
@@ -398,7 +398,15 @@ public class HistoriaClinicaStructuredDataTests
         db.Servicios.Add(servicio);
         await db.SaveChangesAsync();
 
-        await controller.GuardarPlanTratamiento(new PlanTratamientoGuardarRequest
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = profesional.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            Activo = true
+        });
+        await db.SaveChangesAsync();
+
+        var resultado = await controller.GuardarPlanTratamiento(new PlanTratamientoGuardarRequest
         {
             PacienteId = paciente.IdPaciente,
             ServicioId = servicio.IdServicio,
@@ -407,6 +415,7 @@ public class HistoriaClinicaStructuredDataTests
             Observacion = "Valorar pieza temporal"
         });
 
+        Assert.IsType<JsonResult>(resultado);
         var plan = await db.PlanesTratamiento.SingleAsync();
         Assert.Equal(paciente.IdPaciente, plan.HistoriaClinica!.IdPaciente);
         Assert.Equal(servicio.IdServicio, plan.IdServicio);
@@ -443,11 +452,27 @@ public class HistoriaClinicaStructuredDataTests
         db.PlanesTratamiento.Add(plan);
         await db.SaveChangesAsync();
 
-        var result = await controller.RegistrarSesionPlan(plan.IdPlan, new PlanSesionRegistrarRequest(), CancellationToken.None);
+        var cita = new Cita
+        {
+            IdPaciente = paciente.IdPaciente,
+            IdProfesional = profesional.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            FechaHora = DateTime.Today.AddDays(-1).AddHours(9),
+            Estado = "Atendida"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var request = new PlanSesionRegistrarRequest { CitaId = cita.IdCita };
+        var result = await controller.RegistrarSesionPlan(plan.IdPlan, request, CancellationToken.None);
+        var duplicado = await controller.RegistrarSesionPlan(plan.IdPlan, request, CancellationToken.None);
+        Assert.IsType<UnprocessableEntityObjectResult>(duplicado);
 
         Assert.IsType<JsonResult>(result);
         var sesion = await db.SesionesPlan.SingleAsync();
         Assert.Equal(plan.IdPlan, sesion.IdPlan);
+        Assert.Equal(cita.IdCita, sesion.IdCita);
+        Assert.Equal(cita.FechaHora.Date, sesion.FechaSesion);
         Assert.Equal(profesional.IdProfesional, sesion.IdProfesionalRegistro);
         Assert.False(sesion.Anulada);
         Assert.Contains("superan la estimación", (string?)result.GetType().GetProperty("Value")?.GetValue(result)?.GetType().GetProperty("message")?.GetValue(result.GetType().GetProperty("Value")?.GetValue(result)));

@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="~/css/Facturacion_Y_Pagos/st-rec-04-generar-factura/styles.css" asp-append-version="true" />
 }
 
-<main class="main" id="main-content">
+<main class="main reception-invoice" id="main-content">
 
   <!-- Page header -->
   <header class="page-header">
@@ -23,11 +23,11 @@
         <span class="bc-active" aria-current="page" data-i18n="facturacion.new_invoice">Nueva factura</span>
       </nav>
       <h1 class="page-title" data-i18n="facturacion.new_invoice">Generar Factura</h1>
-      <p class="page-subtitle" id="invoiceSubtitle">Cita del 20 Mar 2026 · Pedro Garc&#237;a · Dr. Carlos M&#233;ndez</p>
+      <p class="page-subtitle" id="invoiceSubtitle">Selecciona el paciente, el profesional y los servicios que vas a facturar.</p>
     </div>
     <!-- Badge de estado con role status para anuncio dinámico -->
     <span class="status-badge status-pendiente" id="statusBadge" role="status" aria-live="polite">
-      <span aria-hidden="true"></span> <span data-i18n="facturacion.status_pending">Pendiente de pago</span>
+      <span aria-hidden="true"></span> <span>Borrador</span>
     </span>
   </header>
 
@@ -41,11 +41,7 @@
         <p class="invoice-address" data-i18n="facturacion.company_address">Calle 45 #12-30, Bogotá D.C.</p>
       </div>
       <div class="invoice-meta">
-        <p class="invoice-number" data-i18n-aria-label="facturacion.invoice_number_aria" aria-label="Número de factura">FAC-2026-0018</p>
-        <div class="invoice-dates">
-          <p><strong data-i18n="facturacion.issue_date">Fecha:</strong> <time datetime="2026-03-20">20 de marzo 2026</time></p>
-          <p><strong data-i18n="facturacion.due_date">Vence:</strong> <time datetime="2026-03-27">27 de marzo 2026</time></p>
-        </div>
+        <p class="invoice-number" data-i18n-aria-label="facturacion.invoice_number_aria" aria-label="Número de factura">Por emitir</p>
       </div>
     </div>
     <div class="invoice-info">
@@ -56,8 +52,7 @@
       </div>
       <div class="invoice-info-section">
         <p class="invoice-info-label" data-i18n="citas.professional">Profesional</p>
-        <p class="invoice-info-value" id="invoiceProfessional">Dr. Carlos Méndez</p>
-        <p class="invoice-info-sub" data-i18n="facturacion.general_dentistry">Odontología General</p>
+        <p class="invoice-info-value" id="invoiceProfessional">Seleccione un profesional</p>
       </div>
     </div>
   </section>
@@ -69,7 +64,7 @@
   }
   @Html.AntiForgeryToken()
   <!-- Formulario de selección con aria-labels en controles -->
-  <div class="form-row no-print">
+  <div class="form-row invoice-selector no-print">
     <div class="form-group">
       <label class="form-label" for="pacienteSelect" data-i18n="citas.patient">Paciente</label>
       <select id="pacienteSelect" class="form-select" aria-label="Seleccionar paciente" data-i18n-aria-label="facturacion.select_patient_aria">
@@ -98,7 +93,7 @@
       </select>
     </div>
     <div class="form-group">
-      <label class="form-label" for="servicioSelect" data-i18n="facturacion.invoice">Añadir Servicio</label>
+      <label class="form-label" for="servicioSelect" >Servicio</label>
       <div class="service-add-row">
         <select id="servicioSelect" class="form-select" aria-label="Seleccionar servicio a añadir" data-i18n-aria-label="facturacion.select_service_aria">
           @if (serviciosFactura.Count == 0)
@@ -114,7 +109,7 @@
             }
           }
         </select>
-        <button class="btn-add" id="btnAddService" type="button" aria-label="Añadir servicio seleccionado a la factura" data-i18n-aria-label="facturacion.add_service_aria" disabled="@(serviciosFactura.Count == 0)">
+        <button class="btn-add" id="btnAddService" type="button" aria-label="Añadir servicio seleccionado a la factura" data-i18n-aria-label="facturacion.add_service_aria" disabled>
           <span class="material-symbols-outlined" aria-hidden="true">add</span>
           <span data-i18n="facturacion.add_service">Añadir</span>
         </button>
@@ -123,6 +118,7 @@
   </div>
 
   <!-- Tabla de items con estructura accesible -->
+  <div class="invoice-items-wrap">
   <table class="items-table" aria-label="Detalle de servicios facturados">
     <thead>
       <tr>
@@ -136,6 +132,8 @@
     </thead>
     <tbody id="invoiceItemsBody" aria-live="polite"></tbody>
   </table>
+  <p class="invoice-items-empty">Todavía no hay servicios en la factura.</p>
+  </div>
 
   <!-- Totales con aria-live para actualización dinámica -->
   <div class="totals-section" aria-label="Resumen de totales">

@@ -249,3 +249,43 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+.main.reception-reminders .stats-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.reception-reminders .reminders-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.reception-reminders .reminders-feed {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+.reception-reminders .reminders-automation-note {
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+.reception-reminders .section-header,
+.reception-reminders .history-header {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.reception-reminders #btnSendAllMobile,
+.reception-reminders .btn-alert-action {
+  width: auto;
+}
+.reception-reminders #btnSendAllMobile {
+  display: inline-flex;
+  max-width: 100%;
+}
+.reception-reminders .patient-meta {
+  flex-wrap: wrap;
+}
+@media (max-width: 1050px) {
+  .reception-reminders .reminders-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

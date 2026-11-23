@@ -2232,12 +2232,17 @@ public class GestionCitasController(
     [Route("gestion-de-citas/st-aux-10-citas-finalizadas")]
     public async Task<IActionResult> Staux10CitasFinalizadas(
         [FromQuery] int? editId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        [FromQuery] DateOnly? fecha = null)
     {
+        var hoy = DateOnly.FromDateTime(ColombiaClock.Today);
+        var jornada = fecha.HasValue && fecha.Value <= hoy ? fecha.Value : hoy;
+        ViewData["FechaFinalizadas"] = jornada;
+        ViewData["HoyFinalizadas"] = hoy;
         try
         {
             ViewData["CitasFinalizadasData"] =
-                await ConstruirCitasFinalizadasAsync(ct);
+                await ConstruirCitasFinalizadasAsync(jornada, ct);
 
             return View(
                 "~/Views/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.cshtml");
@@ -2257,12 +2262,13 @@ public class GestionCitasController(
     }
 
     private async Task<object> ConstruirCitasFinalizadasAsync(
-        CancellationToken ct)
+        DateOnly jornada, CancellationToken ct)
     {
-        var hoy = ColombiaClock.Today;
+        var inicio = jornada.ToDateTime(TimeOnly.MinValue);
+        var fin = jornada.ToDateTime(TimeOnly.MaxValue);
 
         static string MapEstadoLabel(string estado) =>
-            NormalizarEstado(estado) switch
+            EstadoCitaHelper.Normalize(estado) switch
             {
                 "atendida" or
                 "completada" or
@@ -2273,7 +2279,7 @@ public class GestionCitasController(
                     => "Cancelada",
 
                 "no_asistida" or
-                "no-show"
+                "no_asistio" or "no_asistió"
                     => "No asistió",
 
                 _ => "Pendiente"
@@ -2284,12 +2290,10 @@ public class GestionCitasController(
             .Include(c => c.Paciente)
             .Include(c => c.Profesional)
             .Include(c => c.Servicio)
-            .Where(c => c.FechaHora >= hoy && c.FechaHora < hoy.AddDays(1))
+            .Include(c => c.EstadoCita)
+            .Where(c => c.FechaHora >= inicio && c.FechaHora <= fin)
             .OrderBy(c => c.FechaHora)
             .ToListAsync(ct);
-        citasHoy = citasHoy
-            .Where(c => MapEstadoLabel(c.Estado) != "Pendiente")
-            .ToList();
 
         var citas =
             citasHoy
@@ -2300,7 +2304,7 @@ public class GestionCitasController(
                         fecha = c.FechaHora.ToString("dd/MM/yyyy"),
                         hora =
                             c.FechaHora.ToString("HH:mm"),
-                        esHoy = c.FechaHora.Date == hoy,
+                        motivoCancelacion = c.MotivoCancelacion,
 
                         paciente =
                             c.Paciente?.NombresCompleto ??
@@ -2316,14 +2320,14 @@ public class GestionCitasController(
                             "Servicio no especificado",
 
                         estado =
-                            MapEstadoLabel(c.Estado)
+                            MapEstadoLabel(c.EstadoCita?.NombreEstado ?? c.Estado)
                     })
                 .Where(c => c.estado != "Pendiente")
                 .ToList();
 
         return new
         {
-            fechaResumen = hoy.ToString("yyyy-MM-dd"),
+            fechaResumen = jornada.ToString("yyyy-MM-dd"),
             citas
         };
     }
@@ -2929,9 +2933,7 @@ public class GestionCitasController(
                 ct);
 
             ViewData["DashboardRecData"] =
-                await _citasDashboardService.ObtenerDashboardRecepcionAsync(
-                    ColombiaClock.Today,
-                    ct);
+                await ConstruirDashboardRecepcionAsync(ct);
 
             return View(
                 "~/Views/Gestion_De_Citas/st-rec-01-dashboard/index.cshtml");
@@ -2993,27 +2995,43 @@ public class GestionCitasController(
     public async Task<IActionResult> ObtenerResumenDashboardRecepcion(
         CancellationToken ct = default)
     {
-        var dashboard = await _citasDashboardService.ObtenerDashboardRecepcionAsync(
-            ColombiaClock.Today,
-            ct);
+        return Ok(await ConstruirDashboardRecepcionAsync(ct));
+    }
 
-        return Ok(new
+    private async Task<object> ConstruirDashboardRecepcionAsync(CancellationToken ct)
+    {
+        var dashboard = await _citasDashboardService.ObtenerDashboardRecepcionAsync(
+            ColombiaClock.Today, ct);
+        var ahora = ColombiaClock.Now;
+        var estadosProgramados = new[] { "agendada", "programada", "programado", "confirmada", "confirmado" };
+        var siguienteCita = dashboard.Stats.CitasHoy == 0
+            ? await _context.Citas.AsNoTracking()
+                .Where(c => c.FechaHora > ahora && estadosProgramados.Contains(
+                    (c.EstadoCita == null ? c.Estado : c.EstadoCita.NombreEstado).Trim().ToLower()))
+                .OrderBy(c => c.FechaHora).ThenBy(c => c.IdCita)
+                .Select(c => new
+                {
+                    id = c.IdCita,
+                    fecha = c.FechaHora,
+                    profesional = c.Profesional == null
+                        ? "Sin profesional asignado"
+                        : c.Profesional.Nombres + " " + c.Profesional.Apellidos
+                })
+                .FirstOrDefaultAsync(ct)
+            : null;
+
+        return new
         {
             success = true,
-            stats = new
-            {
-                citasHoy = dashboard.Stats.CitasHoy,
-                confirmadas = dashboard.Stats.Confirmadas,
-                pendientes = dashboard.Stats.Pendientes,
-                facturasPendientes = dashboard.Stats.FacturasPendientes
-            },
-            alertas = new
-            {
-                sinConfirmar = dashboard.Alertas.SinConfirmar,
-                facturasVencidas = dashboard.Alertas.FacturasVencidas
-            },
-            horaActualTexto = dashboard.HoraActualTexto
-        });
+            appointments = dashboard.Appointments,
+            fechaHoraTexto = dashboard.FechaHoraTexto,
+            horaActualIso = dashboard.HoraActualIso,
+            horaActualTexto = dashboard.HoraActualTexto,
+            stats = dashboard.Stats,
+            alertas = dashboard.Alertas,
+            siguienteCita,
+            proximasCitas = dashboard.ProximasCitas
+        };
     }
 
     // ================================================================
@@ -3031,10 +3049,23 @@ public class GestionCitasController(
         [FromQuery] string? estado = null,
         [FromQuery] string? profesional = null,
         [FromQuery] string? fecha = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        [FromQuery] string? vista = null,
+        [FromQuery] int? verId = null,
+        [FromQuery] DateOnly? desde = null,
+        [FromQuery] DateOnly? hasta = null)
     {
         try
         {
+            vista = vista is "hoy" or "historial" or "todas" ? vista : "proximas";
+            ViewData["VistaRecepcion"] = vista;
+            ViewData["VerCitaId"] = verId;
+            ViewData["CitasDesde"] = desde?.ToString("yyyy-MM-dd");
+            ViewData["CitasHasta"] = hasta?.ToString("yyyy-MM-dd");
+            foreach (var accion in new[] { "agendar", "reagendar", "cancelar" })
+                ViewData[$"Recepcion_{accion}"] = User.IsInRole("Administrador")
+                    || await PermisoReagendamiento.PermitidoAsync(_context, ct, accion);
+
             await CargarDatosCitas(
                 editId,
                 "/gestion-de-citas/st-rec-03-gestion-citas",
@@ -3047,7 +3078,7 @@ public class GestionCitasController(
                     Profesional = profesional,
                     Fecha = fecha
                 },
-                ct);
+                ct, vista, verId, desde, hasta);
 
             await CargarKpisRecepcionHoy(ct);
 
@@ -3530,7 +3561,11 @@ public class GestionCitasController(
         int? editId,
         string returnUrl,
         PaginationQuery? query = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? vistaRecepcion = null,
+        int? verId = null,
+        DateOnly? desde = null,
+        DateOnly? hasta = null)
     {
         try
         {
@@ -3550,11 +3585,194 @@ public class GestionCitasController(
                         pagination.PageSize,
                         100);
 
-            var paged = await _citaService.ObtenerListadoGestionAsync(
-                pagination,
-                page,
-                pageSize,
-                ct);
+            IQueryable<Cita> citasQuery =
+                _context.Citas
+                    .AsNoTracking()
+                    .Include(c => c.Paciente)
+                    .Include(c => c.Profesional)
+                    .ThenInclude(p => p!.Usuario)
+                    .Include(c => c.Profesional)
+                    .ThenInclude(p => p!.Especialidades)
+                    .ThenInclude(pe => pe.Especialidad)
+                    .Include(c => c.Servicio)
+                    .Include(c => c.Consultorio)
+                    .Include(c => c.EstadoCita);
+
+            if (!string.IsNullOrWhiteSpace(
+                    pagination.Search))
+            {
+                string searchTerm =
+                    pagination.Search.Trim();
+
+                string pattern =
+                    $"%{searchTerm}%";
+
+                citasQuery =
+                    citasQuery.Where(
+                        c =>
+                            (
+                                c.Paciente != null &&
+                                (
+                                    EF.Functions.Like(
+                                        c.Paciente.Nombres,
+                                        pattern) ||
+
+                                    EF.Functions.Like(
+                                        c.Paciente.Apellidos,
+                                        pattern)
+                                )
+                            )
+
+                            ||
+
+                            (
+                                c.Profesional != null &&
+                                c.Profesional.Usuario != null &&
+                                (
+                                    EF.Functions.Like(
+                                        c.Profesional.Usuario.Nombre,
+                                        pattern) ||
+
+                                    EF.Functions.Like(
+                                        c.Profesional.Usuario.Apellidos,
+                                        pattern)
+                                )
+                            )
+
+                            ||
+
+                            (
+                                c.Notas != null &&
+                                EF.Functions.Like(
+                                    c.Notas,
+                                    pattern)
+                            )
+
+                            ||
+
+                            (
+                                c.Servicio != null &&
+                                EF.Functions.Like(
+                                    c.Servicio.Nombre,
+                                    pattern)
+                            )
+                        );
+            }
+
+            if (!string.IsNullOrWhiteSpace(pagination.Estado))
+            {
+                string estado = NormalizarEstado(pagination.Estado);
+
+                string[] estadosPermitidos = estado switch
+                {
+                    "programada" => ["programada", "Programada", "agendada", "Agendada"],
+                    "confirmada" => ["confirmada", "Confirmada"],
+                    "atendida" => ["atendida", "Atendida", "completada", "Completada", "realizada", "Realizada"],
+                    "cancelada" => ["cancelada", "Cancelada", "cancelado", "Cancelado"],
+                    "no_asistida" => ["no_asistida", "No asistida", "no_asistio", "No asistió", "no asistio", "no-show", "No Show", "inasistencia", "Inasistencia"],
+                    _ => [pagination.Estado.Trim()]
+                };
+
+                citasQuery = citasQuery.Where(c =>
+                    (c.Estado != null && estadosPermitidos.Contains(c.Estado)) ||
+                    (c.EstadoCita != null &&
+                     c.EstadoCita.NombreEstado != null &&
+                     estadosPermitidos.Contains(c.EstadoCita.NombreEstado)));
+            }
+
+            if (int.TryParse(
+                    pagination.Profesional,
+                    out int idProfesional) &&
+                idProfesional > 0)
+            {
+                citasQuery =
+                    citasQuery.Where(
+                        c =>
+                            c.IdProfesional ==
+                            idProfesional);
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    pagination.Fecha) &&
+                DateTime.TryParseExact(
+                    pagination.Fecha.Trim(),
+                    "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None,
+                    out var fechaValida))
+            {
+                var inicio =
+                    fechaValida.Date;
+
+                var fin =
+                    inicio.AddDays(1);
+
+                citasQuery =
+                    citasQuery.Where(
+                        c =>
+                            c.FechaHora >= inicio &&
+                            c.FechaHora < fin);
+            }
+
+            // POR QUÉ: las citas que ya vencieron y siguen en un estado no final (en espera /
+            // pendiente) no deben listarse. Solo se muestran si el usuario filtra por fecha o por
+            // estado, de modo que el histórico sigue siendo auditable.
+            if (desde is { } fechaDesde && hasta is { } fechaHasta && fechaDesde <= fechaHasta)
+            {
+                var inicio = fechaDesde.ToDateTime(TimeOnly.MinValue);
+                var fin = fechaHasta.ToDateTime(TimeOnly.MaxValue);
+                var finalesPeriodo = EstadoCitaHelper.EstadosFinales;
+                citasQuery = citasQuery.Where(c => c.FechaHora <= fin
+                    && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > inicio
+                    && !finalesPeriodo.Contains((c.EstadoCita == null ? c.Estado : c.EstadoCita.NombreEstado).Trim().ToLower()));
+            }
+
+            var ahoraRecepcion = ColombiaClock.Now;
+            if (verId is > 0)
+                citasQuery = citasQuery.Where(c => c.IdCita == verId.Value);
+            else if (vistaRecepcion == "hoy")
+                citasQuery = citasQuery.Where(c => c.FechaHora >= ahoraRecepcion.Date
+                    && c.FechaHora < ahoraRecepcion.Date.AddDays(1));
+            else if (vistaRecepcion is "proximas" or "historial")
+            {
+                var finales = EstadoCitaHelper.EstadosFinales;
+                if (vistaRecepcion == "proximas")
+                    citasQuery = citasQuery.Where(c => c.FechaHora >= ahoraRecepcion
+                        && !finales.Contains((c.EstadoCita == null ? c.Estado : c.EstadoCita.NombreEstado).Trim().ToLower()));
+                else
+                    citasQuery = citasQuery.Where(c => c.FechaHora < ahoraRecepcion
+                        || finales.Contains((c.EstadoCita == null ? c.Estado : c.EstadoCita.NombreEstado).Trim().ToLower()));
+            }
+
+            if (vistaRecepcion is null && string.IsNullOrWhiteSpace(pagination.Fecha) &&
+                string.IsNullOrWhiteSpace(pagination.Estado))
+            {
+                var ahoraFiltro = ColombiaClock.Now;
+                string[] estadosFinales =
+                    EstadoCitaHelper.EstadosFinales;
+
+                citasQuery =
+                    citasQuery.Where(
+                        c =>
+                            c.FechaHora >= ahoraFiltro ||
+                            (c.Estado != null &&
+                             estadosFinales.Contains(
+                                 c.Estado.ToLower())) ||
+                            (c.EstadoCita != null &&
+                             c.EstadoCita.NombreEstado != null &&
+                             estadosFinales.Contains(
+                                 c.EstadoCita.NombreEstado.ToLower())));
+            }
+
+            citasQuery = vistaRecepcion is "proximas" or "hoy"
+                ? citasQuery.OrderBy(c => c.FechaHora).ThenBy(c => c.IdCita)
+                : citasQuery.OrderByDescending(c => c.FechaHora).ThenByDescending(c => c.IdCita);
+
+            var paged =
+                await citasQuery.ToPagedResultAsync(
+                    page,
+                    pageSize,
+                    ct);
 
             ViewData["Citas"] =
                 paged.Items.ToList();

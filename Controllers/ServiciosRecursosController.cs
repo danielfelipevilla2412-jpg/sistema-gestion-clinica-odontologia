@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 
@@ -99,7 +100,7 @@ public class ServiciosRecursosController : Controller
         {
             appointment = new
             {
-                duration = int.TryParse(ObtenerValor("cita_duracion_default", "30"), out int dur) ? dur : 30,
+                duration = int.TryParse(ObtenerValor("cita_duracion_minutos", "60"), out int dur) && dur > 0 ? dur : 60,
                 open = ObtenerValor("horario_apertura", "07:00"),
                 close = ObtenerValor("horario_cierre", "18:00")
             },
@@ -139,7 +140,7 @@ public class ServiciosRecursosController : Controller
 
         var valores = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["cita_duracion_default"] = request.Appointment.Duration.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["cita_duracion_minutos"] = request.Appointment.Duration.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["horario_apertura"] = request.Appointment.Open,
             ["horario_cierre"] = request.Appointment.Close,
             ["nombre_clinica"] = request.Center.Name.Trim(),
@@ -445,6 +446,27 @@ public class ServiciosRecursosController : Controller
             _logger.LogError(ex, "Error cambiando el estado del servicio {IdServicio}.", id);
             return StatusCode(500, new { success = false, message = "No fue posible cambiar el estado del servicio." });
         }
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Administrador")]
+    [Route("servicios-y-recursos/api/servicios/{id:int}/impacto-desactivacion")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> ApiImpactoDesactivacionServicio(int id, CancellationToken ct = default)
+    {
+        if (!await _context.Servicios.AsNoTracking().AnyAsync(s => s.IdServicio == id, ct))
+            return NotFound(new { success = false, message = "Servicio no encontrado." });
+
+        var asignacionesActivas = await _context.ProfesionalServicios.AsNoTracking()
+            .CountAsync(ps => ps.IdServicio == id && ps.Activo, ct);
+
+        var ahora = ColombiaClock.Now;
+        var citasFuturas = await _context.Citas.AsNoTracking()
+            .CountAsync(c => c.IdServicio == id && c.FechaHora > ahora
+                && !EstadoCitaHelper.EstadosFinales.Contains(
+                    (c.EstadoCita == null ? c.Estado : c.EstadoCita.NombreEstado).Trim().ToLower()), ct);
+
+        return Ok(new { success = true, data = new { asignacionesActivas, citasFuturas } });
     }
 
     // La eliminación es lógica: nunca se borra físicamente un servicio del catálogo,

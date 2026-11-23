@@ -308,3 +308,94 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+.main.finalized-page .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.main.finalized-page .finalized-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  background: var(--white, #fff);
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+}
+
+.finalized-page .finalized-toolbar form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .5rem;
+}
+
+.finalized-page .finalized-date-field {
+  display: grid;
+  gap: .35rem;
+  margin-right: .25rem;
+}
+
+.finalized-page .finalized-date-field label {
+  font-size: .8rem;
+  font-weight: 600;
+}
+
+.finalized-page #finalizedDate {
+  box-sizing: border-box;
+  width: min(12rem, 100%);
+  min-height: 2.5rem;
+  padding: .45rem .7rem;
+  border: 1px solid var(--border);
+  background: var(--white, #fff);
+  color: inherit;
+  border-radius: .5rem;
+  font: inherit;
+}
+
+.finalized-page #finalizedDate::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+.finalized-page .finalized-toolbar a[aria-current="date"] {
+  background: var(--primary-light, #eef2ff);
+  color: var(--primary, #1a56cc);
+  border-color: currentColor;
+}
+
+.finalized-page .finalized-export {
+  display: grid;
+  justify-items: end;
+  gap: .35rem;
+}
+
+.finalized-page #finalizedExportScope {
+  color: var(--text-muted);
+}
+
+@media (max-width: 850px) {
+  .main.finalized-page .finalized-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .finalized-page .finalized-export {
+    justify-items: start;
+  }
+}
+.finalized-page .btn-export:disabled { opacity: .55; cursor: not-allowed; }
+.finalized-page .table-tabs { flex-wrap: wrap; }
+.finalized-page .table-wrap { overflow-x: auto; }
+.finalized-page .table-base { min-width: 42rem; }
+.finalized-page #finalizedPagination[hidden] { display: none; }
+.finalized-page dialog {
+  position: fixed; inset: 0; margin: auto;
+  width: min(30rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem);
+  padding: 1.25rem; overflow: auto; border: 1px solid var(--border); border-radius: .75rem;
+  color: var(--text); background: var(--white, #fff);
+}
+.finalized-page dialog::backdrop { background: rgb(15 23 42 / 55%); }
+.finalized-page dialog dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: .55rem; margin: 1rem 0; }
+.finalized-page dialog dt { font-weight: 600; }
+.finalized-page dialog dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 580px) {
+  .main.finalized-page .stats-grid { grid-template-columns: minmax(0, 1fr); }
+}

@@ -171,12 +171,22 @@ const renderAppointments = () => {
   tableBody.innerHTML = '';
 
   if (receptionAppointmentsList.length === 0) {
+    const next = window.smiletrackDashboardRecData?.siguienteCita;
+    const nextDate = next?.fecha?.slice(0, 10);
+    const nextLabel = nextDate
+      ? new Intl.DateTimeFormat(document.documentElement.lang || 'es-CO', {
+          dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC'
+        }).format(new Date(next.fecha + 'Z'))
+      : '';
     tableBody.innerHTML = `
       <tr>
         <td colspan="6" style="text-align:center;padding:20px;">
           <div class="empty-state" role="status">
             <span class="empty-icon" aria-hidden="true">📅</span>
-            <p>No hay citas programadas.</p>
+            <p>No hay citas para hoy.</p>
+            ${nextDate ? `<p><strong>Próxima cita</strong> · ${escapeHtml(nextLabel)} · ${escapeHtml(next.profesional)}</p>
+              <a class="btn-secondary" href="/gestion-de-citas/st-rec-03-gestion-citas?verId=${encodeURIComponent(next.id)}">Ver cita</a>
+              <a class="btn-secondary" href="/gestion-de-citas/st-rec-03-gestion-citas?vista=proximas&fecha=${encodeURIComponent(nextDate)}">Ver próximas citas</a>` : ''}
           </div>
         </td>
       </tr>`;
@@ -276,16 +286,13 @@ const renderServerSummaryStats = () => {
     }
   });
 
-  // "Facturas pendientes" llega ya formateado como moneda (p. ej. "$1.2k"): no es animable.
   const facturasPendientesElement = safeGetElement('statFacturasPendientes');
   if (facturasPendientesElement) {
     facturasPendientesElement.textContent = stats.facturasPendientes ?? '0';
   }
 
-  const systemLastCheckElement = safeGetElement('systemLastCheck');
-  if (systemLastCheckElement) {
-    systemLastCheckElement.textContent = dashboardData.horaActualTexto || '';
-  }
+  const agendaDate = safeGetElement('receptionAgendaDate');
+  if (agendaDate) agendaDate.textContent = dashboardData.fechaHoraTexto || '';
 
   renderAlertWidgets(dashboardData);
 
@@ -312,7 +319,7 @@ const handleTableAction = (event) => {
     return;
   }
 
-  window.location.href = `/gestion-de-citas/st-rec-03-gestion-citas?editId=${encodeURIComponent(appointmentId)}`;
+  window.location.href = `/gestion-de-citas/st-rec-03-gestion-citas?verId=${encodeURIComponent(appointmentId)}`;
 };
 
 const setupHeaderActionButtons = () => {
@@ -335,7 +342,7 @@ const setupHeaderActionButtons = () => {
 // Los botones "Notificar" se dirigen al módulo de recordatorios (st-rec-05),
 // que concentra el envío real de notificaciones a pacientes.
 const setupAlertButtons = () => {
-  document.querySelectorAll('.btn-notify').forEach(buttonElement => {
+  document.querySelectorAll('button.btn-notify').forEach(buttonElement => {
     buttonElement.addEventListener('click', () => {
       window.location.href = '/gestion-de-citas/st-rec-05-recordatorios';
     });

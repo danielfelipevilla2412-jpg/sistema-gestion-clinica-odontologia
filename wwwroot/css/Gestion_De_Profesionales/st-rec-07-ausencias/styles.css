@@ -1,0 +1,79 @@
+.absences-page .absence-heading,
+.absences-page .absence-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.absences-page .absence-heading { justify-content: space-between; padding: 1rem; }
+.absences-page .absence-heading h2, .absence-dialog h2 { margin: 0; font-size: 1.125rem; }
+.absences-page .absence-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: .75rem;
+  padding: 0 1rem 1rem;
+}
+.absences-page label { display: grid; gap: .35rem; }
+.absences-page select, .absences-page input[type="date"], .absences-page textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: .55rem;
+  border: 1px solid var(--border, #d7e0ec);
+  border-radius: .45rem;
+  background: var(--white, #fff);
+  color: inherit;
+  font: inherit;
+}
+.absences-page .table-wrap { overflow-x: auto; }
+.absences-page .table-base { min-width: 45rem; }
+.absences-page td.absence-actions { display: table-cell; }
+.absences-page td.absence-actions button { margin: .1rem; }
+.absence-badge { display: inline-block; padding: .2rem .55rem; border-radius: 1rem; background: #e2e8f0; color: #334155; }
+.absence-badge[data-state="curso"] { background: #dcfce7; color: #166534; }
+.absence-badge[data-state="proximas"] { background: #dbeafe; color: #1e40af; }
+.absence-dialog {
+  box-sizing: border-box;
+  width: min(42rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 1.25rem;
+  border: 1px solid var(--border, #d7e0ec);
+  border-radius: .85rem;
+  background: var(--white, #fff);
+  color: var(--text, #172b4d);
+}
+.absence-dialog::backdrop { background: rgb(15 23 42 / 55%); }
+.absence-dialog form { margin-top: 1rem; }
+.absence-dialog .absence-fields { padding: 0 0 .75rem; }
+.absence-dialog textarea { resize: vertical; }
+.absence-dialog .absence-actions { justify-content: flex-end; }
+.absence-impact { background: #eff6ff; color: #172b4d; padding: .75rem; margin-bottom: .75rem; border-radius: .45rem; }
+.absence-impact h3 { margin: 0; font-size: 1rem; }
+.absence-impact ul { max-height: 9rem; overflow: auto; }
+.absence-impact a { color: #1e40af; text-decoration: underline; }
+.absence-impact label:not([hidden]) { display: flex; align-items: center; }
+.absences-page [hidden] { display: none !important; }
+#absenceFormFeedback { color: #a51d2d; }
+
+.absences-page dialog.absence-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  overflow: auto;
+}
+.absences-page .absence-dialog .absence-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.absences-page .absence-dialog .absence-fields > :nth-child(-n+2) {
+  grid-column: 1 / -1;
+}
+.absences-page .absence-dialog .absence-fields > label {
+  min-width: 0;
+}
+.absence-dialog .absence-observations {
+  margin-bottom: .75rem;
+}
+@media (max-width: 440px) {
+  .absences-page .absence-dialog .absence-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

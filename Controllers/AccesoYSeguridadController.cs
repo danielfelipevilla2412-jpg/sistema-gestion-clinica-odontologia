@@ -612,6 +612,11 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
     [Route("acceso-y-seguridad/st-adm-03-gestion-roles")]
     public async Task<IActionResult> Stadm03GestionRoles()
     {
+        var permisos = new Dictionary<string, bool>();
+        foreach (var accion in new[] { "agendar", "reagendar", "cancelar" })
+            permisos[accion] = await PermisoReagendamiento.PermitidoAsync(_context, HttpContext.RequestAborted, accion);
+        ViewData["PermisosRecepcion"] = permisos;
+        ViewData["ProfesionalReagenda"] = await PermisoReagendamiento.PermitidoAsync(_context, HttpContext.RequestAborted, profesional: true);
         var rolesDb = await _context.Roles.ToListAsync();
         ViewData["RolesJson"] = System.Text.Json.JsonSerializer.Serialize(rolesDb);
         return View("~/Views/Acceso_Y_Seguridad/st-adm-03-gestion-roles/index.cshtml", rolesDb);
@@ -621,6 +626,53 @@ public class AccesoYSeguridadController(AppDbContext context, IAuthService authS
     [Authorize(Roles = "Administrador")]
     [Route("acceso-y-seguridad/st-adm-04-matriz-permisos")]
     public IActionResult Stadm04MatrizPermisos() => Redirect("/acceso-y-seguridad/st-adm-03-gestion-roles");
+
+    [HttpPost]
+    [Authorize(Roles = "Administrador")]
+    [ValidateAntiForgeryToken]
+    [Route("acceso-y-seguridad/gestion-roles/recepcion-permiso")]
+    public async Task<IActionResult> CambiarPermisoRecepcion([FromForm] string accion, [FromForm] bool? permitido, CancellationToken ct, [FromForm] bool profesional = false)
+    {
+        if (!ModelState.IsValid || !permitido.HasValue || accion is not ("agendar" or "reagendar" or "cancelar")
+            || (profesional && accion != "reagendar"))
+            return BadRequest();
+
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actor) || actor <= 0)
+            return Forbid();
+
+        var clave = profesional ? PermisoReagendamiento.ClaveProfesional : PermisoReagendamiento.Clave(accion);
+        var rol = profesional ? "Profesional" : "Recepción";
+        await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            _context.ChangeTracker.Clear();
+            await using var transaccion = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+            var ajuste = await _context.ConfiguracionesGenerales.SingleOrDefaultAsync(c => c.Clave == clave, ct);
+            var anterior = ajuste == null || ajuste.Valor == "true";
+            if (anterior != permitido.Value)
+            {
+                var nuevo = permitido.Value ? "true" : "false";
+                if (ajuste == null)
+                    _context.ConfiguracionesGenerales.Add(new ConfiguracionGeneral { Clave = clave, Valor = nuevo, Modulo = "citas" });
+                else
+                    ajuste.Valor = nuevo;
+
+                _context.Auditorias.Add(new Auditoria
+                {
+                    IdUsuario = actor,
+                    TablaAfectada = "Configuracion_General",
+                    Accion = ajuste == null ? "INSERT" : "UPDATE",
+                    DatosAnteriores = System.Text.Json.JsonSerializer.Serialize(new { permiso = clave, permitido = anterior }),
+                    DatosNuevos = System.Text.Json.JsonSerializer.Serialize(new { permiso = clave, permitido = permitido.Value }),
+                    Descripcion = $"Cambio del permiso de {rol}: {accion}."
+                });
+                await _context.SaveChangesAsync(ct);
+            }
+
+            await transaccion.CommitAsync(ct);
+        });
+        TempData["PermisoReagendarMensaje"] = $"Permiso de {accion} para {rol} actualizado.";
+        return RedirectToAction(nameof(Stadm03GestionRoles));
+    }
 
     [HttpGet]
     [Authorize(Roles = "Administrador")]

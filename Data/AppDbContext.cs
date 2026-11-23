@@ -55,6 +55,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<PagoFactura> Pagos => Set<PagoFactura>();
     public DbSet<CodigoRecuperacion> CodigosRecuperacion => Set<CodigoRecuperacion>();
     public DbSet<PqrEntity> PQRs => Set<PqrEntity>();
+    public DbSet<PqrAvisoLeido> PqrAvisosLeidos => Set<PqrAvisoLeido>();
     public DbSet<PqrHistorial> PqrHistorial => Set<PqrHistorial>();
     public DbSet<TicketSoporte> TicketsSoporte => Set<TicketSoporte>();
     public DbSet<Inventario> Inventarios => Set<Inventario>();
@@ -894,6 +895,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<PqrAvisoLeido>(entity =>
+        {
+            entity.ToTable("PQR_Aviso_Leido", "dbo");
+            entity.HasKey(a => new { a.IdUsuario, a.Clave });
+            entity.Property(a => a.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(a => a.Clave).HasColumnName("clave").HasMaxLength(64);
+            entity.HasOne<Usuario>().WithMany().HasForeignKey(a => a.IdUsuario).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<PqrHistorial>(entity =>
         {
             entity.ToTable("PQR_Historial");
@@ -913,6 +923,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.ToTable("PQR", tableBuilder => tableBuilder.UseSqlOutputClause(false));
             entity.HasKey(p => p.IdPqr);
             entity.Property(p => p.IdPqr).HasColumnName("id_pqr");
+            entity.Property(p => p.IdProfesional).HasColumnName("id_profesional");
+            entity.Property(p => p.FechaServicio).HasColumnName("fecha_servicio");
+            entity.Property(p => p.ModuloSoftware).HasColumnName("modulo_software").HasMaxLength(100);
+            entity.HasOne(p => p.Profesional).WithMany().HasForeignKey(p => p.IdProfesional).OnDelete(DeleteBehavior.SetNull);
             entity.Property(p => p.IdPaciente).HasColumnName("id_paciente");
             entity.Property(p => p.IdUsuario).HasColumnName("id_usuario");
             entity.Property(p => p.Tipo).HasColumnName("tipo");

@@ -1,0 +1,73 @@
+@model SmileTrack_MVC.Models.Entities.Usuario
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Soporte de SmileTrack";
+    ViewData["UseGestionModulesDesignSystem"] = true;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_PQR/st-pac-04-nueva-pqr/styles.css" asp-append-version="true" />
+}
+
+<main class="main pqr-nueva-page" id="main-content">
+    <header class="page-header">
+        <h1 class="page-title">Reportar un problema en SmileTrack</h1>
+    </header>
+
+    <div class="content-grid">
+        <div class="main-form">
+            <form id="pqrForm" method="post" action="/gestion-de-pqr/crear" enctype="multipart/form-data" novalidate>
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="tipo" value="queja">
+                <div class="form-row">
+                    <dl class="form-group pqr-account-data">
+                        <dt class="pqr-account-label">Nombre completo</dt>
+                        <dd class="pqr-account-value">@($"{Model.Nombre} {Model.Apellidos}".Trim())</dd>
+                    </dl>
+                    <dl class="form-group pqr-account-data">
+                        <dt class="pqr-account-label">Correo electrónico</dt>
+                        <dd class="pqr-account-value">@Model.Correo</dd>
+                    </dl>
+                </div>
+                <div class="form-group">
+                    <label for="pqrModulo">Módulo o pantalla *</label>
+                    <input id="pqrModulo" name="moduloSoftware" maxlength="100" placeholder="Ej. Agenda de citas" required>
+                </div>
+                <div class="form-group">
+                    <label for="pqrAsunto">Asunto *</label>
+                    <input id="pqrAsunto" name="asunto" minlength="3" maxlength="200" placeholder="Ej. Error al guardar una cita" required>
+                </div>
+                <div class="form-group">
+                    <label for="pqrDescripcion">Descripción del problema *</label>
+                    <textarea id="pqrDescripcion" name="descripcion" minlength="10" maxlength="1000" required
+                              placeholder="Indica qué estabas haciendo, qué esperabas que ocurriera y qué mensaje o resultado apareció."></textarea>
+                    <div class="char-counter">0 / 1000</div>
+                </div>
+                <div class="form-group">
+                    <label for="fileInput">Adjuntar evidencia (opcional)</label>
+                    <input id="fileInput" name="evidencia" type="file" accept=".pdf,.jpg,.jpeg,.png" aria-describedby="pqrEvidenciaAyuda">
+                    <small id="pqrEvidenciaAyuda">PDF, JPG o PNG de hasta 5 MB. Oculta los datos de pacientes antes de adjuntar capturas.</small>
+                </div>
+                <div class="submit-section">
+                    <button type="submit" class="btn-submit">Radicar reporte</button>
+                </div>
+            </form>
+        </div>
+
+        <aside class="sidebar-right">
+            <div class="info-card">
+                <h2>Reportes recientes</h2>
+                <div id="recentPqrList" aria-live="polite"></div>
+            </div>
+        </aside>
+    </div>
+</main>
+
+@await Html.PartialAsync("~/Views/Gestion_De_PQR/_DetallePqr.cshtml")
+
+@section Scripts {
+    <script>
+        window.RAZOR_MIS_PQRS = @Html.Raw(ViewData["MisPqrsJson"] ?? "[]");
+    </script>
+    <script src="~/js/Gestion_De_PQR/st-pac-04-nueva-pqr/script.js" asp-append-version="true" defer></script>
+}
