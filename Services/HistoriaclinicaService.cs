@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
@@ -7,6 +5,8 @@ using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.HistoriasClinicas;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace SmileTrack_MVC.Services;
 
@@ -189,15 +189,15 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
                 fechaRegistro = DateTime.UtcNow;
                 _context.RegistrosOdontograma.Add(new RegistroOdontograma
                 {
-                    IdHistoria    = historia.IdHistoria,
-                    NumeroFdi     = numeroFdi,
-                    NombrePieza   = registroPieza.NombrePieza,
-                    Estado        = ultimo.Key ?? "sano",
-                    Observacion   = ultimo.Obs,
+                    IdHistoria = historia.IdHistoria,
+                    NumeroFdi = numeroFdi,
+                    NombrePieza = registroPieza.NombrePieza,
+                    Estado = ultimo.Key ?? "sano",
+                    Observacion = ultimo.Obs,
                     FechaRegistro = fechaRegistro,
                     IdProfesional = idProfesional,
                     // Yeray (2025): antes siempre null; ahora se usa la cita validada
-                    IdCita        = citaIdValidado
+                    IdCita = citaIdValidado
                 });
             }
 
@@ -419,6 +419,14 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
         if (!citaPertenece)
             return (false, "La cita no pertenece al paciente indicado.");
 
+        int? idUsuarioActor = idProfesional is > 0
+            ? await _context.Profesionales
+                .AsNoTracking()
+                .Where(p => p.IdProfesional == idProfesional.Value)
+                .Select(p => p.IdUsuario)
+                .FirstOrDefaultAsync(ct)
+            : null;
+
         var executionStrategy = _context.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(async () =>
         {
@@ -457,7 +465,11 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
                     return (false, odontogramaMessage);
                 }
 
-                var citaActualizada = await _citaService.CambiarEstadoAsync(request.CitaId, "Atendida", idProfesional, ct);
+                var citaActualizada = await _citaService.CambiarEstadoAsync(
+                    request.CitaId,
+                    "Atendida",
+                    idUsuarioActor,
+                    ct);
                 if (citaActualizada is null)
                 {
                     await transaction.RollbackAsync(ct);

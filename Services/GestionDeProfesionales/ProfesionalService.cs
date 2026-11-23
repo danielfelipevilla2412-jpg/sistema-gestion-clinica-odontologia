@@ -23,12 +23,13 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using System.ComponentModel.DataAnnotations;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Api.Profesionales;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.Shared;
+using SmileTrack_MVC.Services.GestionDeProfesionales;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -40,6 +41,9 @@ public partial class ProfesionalService : IProfesionalService
     private readonly AppDbContext _context;
     private readonly ILogger<ProfesionalService> _logger;
     private readonly IMemoryCache? _memoryCache;
+    private readonly IProfesionalComisionService _comisionService;
+    private readonly IProfesionalHorarioService _horarioService;
+    private readonly IProfesionalAusenciaService _ausenciaService;
 
     // ── Reglas de negocio — delegan al Helper centralizado (P-04, P-05) ─────
 
@@ -73,10 +77,24 @@ public partial class ProfesionalService : IProfesionalService
         AppDbContext context,
         ILogger<ProfesionalService> logger,
         IMemoryCache? memoryCache = null)
+        : this(context, logger, new ProfesionalComisionService(context), memoryCache)
+    {
+    }
+
+    public ProfesionalService(
+        AppDbContext context,
+        ILogger<ProfesionalService> logger,
+        IProfesionalComisionService comisionService,
+        IMemoryCache? memoryCache = null,
+        IProfesionalHorarioService? horarioService = null,
+        IProfesionalAusenciaService? ausenciaService = null)
     {
         _context = context;
         _logger = logger;
+        _comisionService = comisionService;
         _memoryCache = memoryCache;
+        _horarioService = horarioService ?? new ProfesionalHorarioService(context);
+        _ausenciaService = ausenciaService ?? new ProfesionalAusenciaService(context);
     }
 
     // ── Listado paginado ──────────────────────────────────────────────────────
@@ -385,9 +403,9 @@ public partial class ProfesionalService : IProfesionalService
 
                         _context.ProfesionalEspecialidades.Add(new Profesional_Especialidad
                         {
-                            IdProfesional  = profesional.IdProfesional,
+                            IdProfesional = profesional.IdProfesional,
                             IdEspecialidad = idEsp,
-                            Principal      = espIdx == 0   // la primera es la principal
+                            Principal = espIdx == 0   // la primera es la principal
                         });
                     }
 
@@ -637,9 +655,9 @@ public partial class ProfesionalService : IProfesionalService
 
                         _context.ProfesionalEspecialidades.Add(new Profesional_Especialidad
                         {
-                            IdProfesional  = id,
+                            IdProfesional = id,
                             IdEspecialidad = idEsp,
-                            Principal      = espIdx == 0
+                            Principal = espIdx == 0
                         });
                     }
 
@@ -957,412 +975,54 @@ public partial class ProfesionalService : IProfesionalService
 
     // ── Helpers privados ──────────────────────────────────────────────────────
 
-    public async Task<ProfesionalApiCollectionResult<HorarioProfesionalApiDto>> ObtenerHorariosAsync(
+    public Task<ProfesionalApiCollectionResult<HorarioProfesionalApiDto>> ObtenerHorariosAsync(
         int id,
         int? usuarioActualId = null,
         bool esAdministrador = true,
         CancellationToken ct = default)
-    {
-        var profesional = await _context.Profesionales.AsNoTracking()
-            .Where(p => p.IdProfesional == id)
-            .Select(p => new { p.IdProfesional, p.IdUsuario })
-            .FirstOrDefaultAsync(ct);
-        if (profesional is null)
-            return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Fail(
-                "Profesional no encontrado.", 404);
+        => _horarioService.ObtenerAsync(id, usuarioActualId, esAdministrador, ct);
 
-        if (!esAdministrador &&
-            (!usuarioActualId.HasValue || profesional.IdUsuario != usuarioActualId.Value))
-        {
-            return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Fail(
-                "No tienes permiso para consultar el horario de otro profesional.", 403);
-        }
-
-        var horarios = await _context.HorariosProfesional
-            .AsNoTracking()
-            .Where(h => h.IdProfesional == id && h.Activo)
-            .OrderBy(h => h.DiaSemana)
-            .ThenBy(h => h.HoraInicio)
-            .Select(h => new HorarioProfesionalApiDto
-            {
-                IdHorario = h.IdHorario,
-                DiaSemana = h.DiaSemana,
-                HoraInicio = h.HoraInicio.ToString("HH:mm"),
-                HoraFin = h.HoraFin.ToString("HH:mm"),
-                Activo = h.Activo
-            })
-            .ToListAsync(ct);
-
-        return ProfesionalApiCollectionResult<HorarioProfesionalApiDto>.Ok(horarios);
-    }
-
-    public async Task<ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>> ActualizarHorariosAsync(
+    public Task<ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>> ActualizarHorariosAsync(
         int id,
         IReadOnlyCollection<HorarioSemanalApiRequest> horarios,
         int? usuarioActualId,
         bool esAdministrador,
         CancellationToken ct = default)
-    {
-        if (horarios.Count == 0)
-            return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
-                "Debe enviar al menos un día de la semana para actualizar el horario.", 422);
-        bool existe = await _context.Profesionales.AsNoTracking()
-            .AnyAsync(p => p.IdProfesional == id, ct);
-        if (!existe)
-            return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
-                "Profesional no encontrado.", 404);
+        => _horarioService.ActualizarAsync(id, horarios, usuarioActualId, esAdministrador, ct);
 
-        if (!esAdministrador)
-        {
-            bool esPropietario = usuarioActualId.HasValue && await _context.Profesionales
-                .AsNoTracking()
-                .AnyAsync(p => p.IdProfesional == id && p.IdUsuario == usuarioActualId.Value, ct);
-            if (!esPropietario)
-                return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
-                    "No tienes permiso para modificar el horario de otro profesional.", 403);
-        }
-
-        var diasValidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Lunes", "Martes", "Miércoles", "Miercoles", "Jueves", "Viernes", "Sábado", "Sabado", "Domingo"
-        };
-
-        static string NormalizarDiaSemana(string dia) => dia.Trim().ToLowerInvariant() switch
-        {
-            "lunes" => "Lunes",
-            "martes" => "Martes",
-            "miércoles" or "miercoles" => "Miercoles",
-            "jueves" => "Jueves",
-            "viernes" => "Viernes",
-            "sábado" or "sabado" => "Sabado",
-            "domingo" => "Domingo",
-            _ => dia.Trim()
-        };
-
-        static string? ObtenerDiaSemana(HorarioSemanalApiRequest bloque) =>
-            !string.IsNullOrWhiteSpace(bloque.DiaSemana) ? bloque.DiaSemana :
-            !string.IsNullOrWhiteSpace(bloque.DayFull) ? bloque.DayFull :
-            bloque.Day;
-
-        var bloquesActivos = horarios.Where(b => b.Active).ToList();
-        bool hayBloqueInvalido = bloquesActivos.Any(b =>
-        {
-            var diaSemana = ObtenerDiaSemana(b);
-            return string.IsNullOrWhiteSpace(diaSemana) ||
-                   !diasValidos.Contains(diaSemana) ||
-                   !TimeOnly.TryParse(b.Start, out var inicio) ||
-                   !TimeOnly.TryParse(b.End, out var fin) ||
-                   fin <= inicio;
-        });
-        if (hayBloqueInvalido)
-            return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
-                "Cada día activo debe tener un día válido y una hora de inicio y fin válidas.", 422);
-
-        // RN-16: Detectar solapamientos entre bloques del mismo día.
-        // Dos bloques se solapan si: inicioA < finB && inicioB < finA
-        // Bloques consecutivos (finA == inicioB) se permiten explícitamente.
-        var porDia = bloquesActivos
-            .Select(b => new
-            {
-                Dia    = NormalizarDiaSemana(ObtenerDiaSemana(b)!),
-                Inicio = TimeOnly.TryParse(b.Start, out var si) ? si : (TimeOnly?)null,
-                Fin    = TimeOnly.TryParse(b.End,   out var sf) ? sf : (TimeOnly?)null
-            })
-            .Where(x => x.Inicio.HasValue && x.Fin.HasValue)
-            .GroupBy(x => x.Dia);
-
-        foreach (var grupo in porDia)
-        {
-            var bloques = grupo.OrderBy(x => x.Inicio).ToList();
-            for (int i = 0; i < bloques.Count - 1; i++)
-            {
-                // Solapamiento: inicio del bloque siguiente < fin del bloque anterior
-                if (bloques[i + 1].Inicio!.Value < bloques[i].Fin!.Value)
-                    return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
-                        $"Los bloques del día '{grupo.Key}' se solapan. Corrija los horarios antes de guardar (RN-16).", 422);
-            }
-        }
-
-        var nuevosHorarios = bloquesActivos
-            .Select(b => new { Bloque = b, Inicio = TimeOnly.TryParse(b.Start, out var inicio) ? inicio : (TimeOnly?)null, Fin = TimeOnly.TryParse(b.End, out var fin) ? fin : (TimeOnly?)null })
-            .Where(x => x.Inicio.HasValue && x.Fin.HasValue && x.Fin > x.Inicio)
-            .Select(x => new HorarioProfesional
-            {
-                IdProfesional = id,
-                DiaSemana = NormalizarDiaSemana(ObtenerDiaSemana(x.Bloque)!),
-                HoraInicio = x.Inicio!.Value,
-                HoraFin = x.Fin!.Value,
-                Activo = true
-            })
-            .ToList();
-
-        var citasFuturas = await _context.Citas
-            .AsNoTracking()
-            .Include(c => c.EstadoCita)
-            .Include(c => c.Servicio)
-            .Where(c => c.IdProfesional == id && c.FechaHora >= ColombiaClock.Today)
-            .ToListAsync(ct);
-
-        foreach (var cita in citasFuturas)
-        {
-            string estado = EstadoCitaHelper.Normalize(cita.EstadoCita?.NombreEstado ?? cita.Estado);
-            if (EstadoCitaHelper.EstadosFinales.Contains(estado))
-                continue;
-
-            int duracionCita = cita.DuracionMinutos > 0
-                ? cita.DuracionMinutos
-                : cita.Servicio?.DuracionMinutos > 0
-                    ? cita.Servicio.DuracionMinutos
-                    : 60;
-            DateTime finCita = cita.FechaHora.AddMinutes(duracionCita);
-            if (finCita <= ColombiaClock.Now)
-                continue;
-
-            string diaCita = NormalizarDiaSemana(cita.FechaHora.DayOfWeek switch
-            {
-                DayOfWeek.Monday => "Lunes",
-                DayOfWeek.Tuesday => "Martes",
-                DayOfWeek.Wednesday => "Miercoles",
-                DayOfWeek.Thursday => "Jueves",
-                DayOfWeek.Friday => "Viernes",
-                DayOfWeek.Saturday => "Sabado",
-                _ => "Domingo"
-            });
-            TimeOnly inicioCita = TimeOnly.FromDateTime(cita.FechaHora);
-            TimeOnly finCitaDia = TimeOnly.FromDateTime(finCita);
-            bool quedaCubierta = nuevosHorarios.Any(h =>
-                h.DiaSemana == diaCita &&
-                h.HoraInicio <= inicioCita &&
-                h.HoraFin >= finCitaDia);
-
-            if (!quedaCubierta)
-                return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Fail(
-                    $"El nuevo horario dejaría la cita futura #{cita.IdCita} fuera de disponibilidad. Reagende o cancele esa cita antes de cambiar el horario.", 409);
-        }
-
-        var existentes = await _context.HorariosProfesional
-            .Where(h => h.IdProfesional == id)
-            .ToListAsync(ct);
-        _context.HorariosProfesional.RemoveRange(existentes);
-        if (nuevosHorarios.Count > 0)
-            await _context.HorariosProfesional.AddRangeAsync(nuevosHorarios, ct);
-        await _context.SaveChangesAsync(ct);
-
-        var actualizado = await ObtenerHorariosAsync(id, usuarioActualId, esAdministrador, ct);
-        return ProfesionalApiCollectionOperationResult<HorarioProfesionalApiDto>.Ok(
-            "Horario actualizado correctamente.", actualizado.Data);
-    }
-
-    public async Task<ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>> ObtenerAusenciasAsync(
+    public Task<ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>> ObtenerAusenciasAsync(
         int id,
         CancellationToken ct = default)
-    {
-        bool existe = await _context.Profesionales.AsNoTracking()
-            .AnyAsync(p => p.IdProfesional == id, ct);
-        if (!existe)
-            return ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>.Fail(
-                "Profesional no encontrado.", 404);
+        => _ausenciaService.ObtenerAusenciasAsync(id, ct);
 
-        var ausencias = await _context.AusenciasProfesional
-            .AsNoTracking()
-            .Where(a => a.IdProfesional == id)
-            .OrderByDescending(a => a.FechaInicio)
-            .Select(a => new AusenciaProfesionalApiDto
-            {
-                IdAusencia = a.IdAusencia,
-                Tipo = a.Tipo,
-                FechaInicio = a.FechaInicio.ToString("yyyy-MM-dd"),
-                FechaFin = a.FechaFin.ToString("yyyy-MM-dd"),
-                Duracion = a.Duracion,
-                Observaciones = a.Observaciones
-            })
-            .ToListAsync(ct);
-
-        return ProfesionalApiCollectionResult<AusenciaProfesionalApiDto>.Ok(ausencias);
-    }
-
-    public async Task<ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>> ObtenerCitasAfectadasPorAusenciaAsync(
+    public Task<ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>> ObtenerCitasAfectadasPorAusenciaAsync(
         int id,
         DateOnly fechaInicio,
         DateOnly fechaFin,
         CancellationToken ct = default)
-    {
-        if (id <= 0 || fechaInicio == default || fechaFin == default || fechaFin < fechaInicio)
-            return ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>.Fail(
-                "Indica un rango de fechas de ausencia válido.", 400);
+        => _ausenciaService.ObtenerCitasAfectadasPorAusenciaAsync(id, fechaInicio, fechaFin, ct);
 
-        bool existe = await _context.Profesionales.AsNoTracking()
-            .AnyAsync(p => p.IdProfesional == id, ct);
-        if (!existe)
-            return ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>.Fail(
-                "Profesional no encontrado.", 404);
-
-        DateTime inicio = fechaInicio.ToDateTime(TimeOnly.MinValue);
-        DateTime fin = fechaFin.ToDateTime(TimeOnly.MaxValue);
-        var citasAfectadas = await _context.Citas
-            .AsNoTracking()
-            .Include(c => c.Paciente)
-            .Include(c => c.Servicio)
-            .Where(c => c.IdProfesional == id
-                     && c.FechaHora <= fin
-                     && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > inicio
-                     && !EstadoCitaHelper.EstadosFinales.Contains(
-                         ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()))
-            .OrderBy(c => c.FechaHora)
-            .Select(c => new CitaAfectadaAusenciaApiDto
-            {
-                IdCita = c.IdCita,
-                FechaHora = c.FechaHora,
-                Paciente = c.Paciente == null ? "Paciente" : (c.Paciente.Nombres + " " + c.Paciente.Apellidos).Trim(),
-                Servicio = c.Servicio == null ? "Consulta" : c.Servicio.Nombre,
-                Estado = c.Estado ?? string.Empty
-            })
-            .ToListAsync(ct);
-
-        return ProfesionalApiCollectionResult<CitaAfectadaAusenciaApiDto>.Ok(citasAfectadas);
-    }
-
-    public async Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> CrearAusenciaAsync(
+    public Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> CrearAusenciaAsync(
         int id,
         AusenciaProfesionalApiRequest request,
         int? operadorId,
         CancellationToken ct = default)
-    {
-        var validation = await ValidarAusenciaAsync(id, request, ct);
-        if (!validation.Success)
-            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(validation.Message, validation.StatusCode);
+        => _ausenciaService.CrearAusenciaAsync(id, request, operadorId, ct);
 
-        var ausencia = new AusenciaProfesional
-        {
-            IdProfesional = id,
-            Tipo = request.Tipo.Trim().ToLowerInvariant(),
-            FechaInicio = request.FechaInicio,
-            FechaFin = request.FechaFin,
-            Duracion = request.FechaFin.DayNumber - request.FechaInicio.DayNumber + 1,
-            Observaciones = request.Observaciones?.Trim(),
-            AprobadoPor = operadorId
-        };
-
-        var citasAfectadas = await ObtenerCitasAfectadasPorAusenciaAsync(id, request.FechaInicio, request.FechaFin, ct);
-        if (!citasAfectadas.Success)
-            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(
-                citasAfectadas.Message, citasAfectadas.ErrorStatusCode ?? 500);
-
-        _context.AusenciasProfesional.Add(ausencia);
-        await _context.SaveChangesAsync(ct);
-
-        string mensaje = citasAfectadas.Data.Count == 0
-            ? "Ausencia registrada correctamente."
-            : $"Ausencia registrada. ADVERTENCIA: existen {citasAfectadas.Data.Count} cita(s) programada(s) que requieren gestión.";
-
-        var ausenciaDto = MapAusencia(ausencia);
-        ausenciaDto.CitasAfectadas = citasAfectadas.Data;
-        return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Ok(
-            mensaje, [ausenciaDto]);
-    }
-
-    public async Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> ActualizarAusenciaAsync(
+    public Task<ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>> ActualizarAusenciaAsync(
         int id,
         int idAusencia,
         AusenciaProfesionalApiRequest request,
         int? operadorId,
         CancellationToken ct = default)
-    {
-        var ausencia = await _context.AusenciasProfesional
-            .FirstOrDefaultAsync(a => a.IdAusencia == idAusencia && a.IdProfesional == id, ct);
-        if (ausencia is null)
-            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail("Ausencia no encontrada.", 404);
+        => _ausenciaService.ActualizarAusenciaAsync(id, idAusencia, request, operadorId, ct);
 
-        var validation = await ValidarAusenciaAsync(id, request, ct, idAusencia);
-        if (!validation.Success)
-            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(validation.Message, validation.StatusCode);
-
-        var citasAfectadas = await ObtenerCitasAfectadasPorAusenciaAsync(id, request.FechaInicio, request.FechaFin, ct);
-        if (!citasAfectadas.Success)
-            return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Fail(
-                citasAfectadas.Message, citasAfectadas.ErrorStatusCode ?? 500);
-
-        ausencia.Tipo = request.Tipo.Trim().ToLowerInvariant();
-        ausencia.FechaInicio = request.FechaInicio;
-        ausencia.FechaFin = request.FechaFin;
-        ausencia.Duracion = request.FechaFin.DayNumber - request.FechaInicio.DayNumber + 1;
-        ausencia.Observaciones = request.Observaciones?.Trim();
-        ausencia.AprobadoPor = operadorId;
-        await _context.SaveChangesAsync(ct);
-
-        string mensaje = citasAfectadas.Data.Count == 0
-            ? "Ausencia actualizada correctamente."
-            : $"Ausencia actualizada. ADVERTENCIA: existen {citasAfectadas.Data.Count} cita(s) programada(s) que requieren gestión.";
-
-        var ausenciaDto = MapAusencia(ausencia);
-        ausenciaDto.CitasAfectadas = citasAfectadas.Data;
-        return ProfesionalApiCollectionOperationResult<AusenciaProfesionalApiDto>.Ok(
-            mensaje, [ausenciaDto]);
-    }
-
-    public async Task<ProfesionalApiOperationResult> EliminarAusenciaAsync(
+    public Task<ProfesionalApiOperationResult> EliminarAusenciaAsync(
         int id,
         int idAusencia,
         int? operadorId,
         CancellationToken ct = default)
-    {
-        var ausencia = await _context.AusenciasProfesional
-            .FirstOrDefaultAsync(a => a.IdAusencia == idAusencia && a.IdProfesional == id, ct);
-        if (ausencia is null)
-            return ProfesionalApiOperationResult.Fail("Ausencia no encontrada.", 404);
-
-        _context.AusenciasProfesional.Remove(ausencia);
-        await _context.SaveChangesAsync(ct);
-        return ProfesionalApiOperationResult.Ok("Ausencia eliminada correctamente.");
-    }
-
-    private async Task<(bool Success, string Message, int StatusCode)> ValidarAusenciaAsync(
-        int id,
-        AusenciaProfesionalApiRequest request,
-        CancellationToken ct,
-        int? idAusenciaExcluir = null)
-    {
-        if (request is null || id <= 0)
-            return (false, "Datos de ausencia inválidos.", 400);
-        if (!await _context.Profesionales.AnyAsync(p => p.IdProfesional == id, ct))
-            return (false, "Profesional no encontrado.", 404);
-        if (request.FechaInicio == default || request.FechaFin == default || request.FechaFin < request.FechaInicio)
-            return (false, "La fecha de fin debe ser igual o posterior a la fecha de inicio.", 400);
-
-        string[] tiposPermitidos = ["vacaciones", "incapacidad", "permiso", "otro"];
-        if (string.IsNullOrWhiteSpace(request.Tipo) ||
-            !tiposPermitidos.Contains(request.Tipo.Trim(), StringComparer.OrdinalIgnoreCase))
-            return (false, "El tipo de ausencia no es válido.", 400);
-
-        bool rangoSolapado = await _context.AusenciasProfesional.AnyAsync(a =>
-            a.IdProfesional == id &&
-            a.IdAusencia != (idAusenciaExcluir ?? 0) &&
-            a.FechaInicio <= request.FechaFin &&
-            a.FechaFin >= request.FechaInicio,
-            ct);
-        if (rangoSolapado)
-            return (false, "El rango de ausencia se solapa con otra ausencia registrada para este profesional.", 409);
-
-        return (true, string.Empty, 200);
-    }
-
-    private static string NombreDia(DayOfWeek dayOfWeek) => dayOfWeek switch
-    {
-        DayOfWeek.Monday => "Lunes",
-        DayOfWeek.Tuesday => "Martes",
-        DayOfWeek.Wednesday => "Miercoles",
-        DayOfWeek.Thursday => "Jueves",
-        DayOfWeek.Friday => "Viernes",
-        DayOfWeek.Saturday => "Sabado",
-        _ => "Domingo"
-    };
-
-    private static string NormalizarDiaSemana(string dia) => string.Concat(
-        dia.Trim().Normalize(System.Text.NormalizationForm.FormD)
-            .Where(character => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) !=
-                                System.Globalization.UnicodeCategory.NonSpacingMark))
-        .ToLowerInvariant();
-
+        => _ausenciaService.EliminarAusenciaAsync(id, idAusencia, operadorId, ct);
     private async Task<string?> ObtenerErrorCredencialesParaActivacionAsync(
         int idProfesional,
         CancellationToken ct)
@@ -1385,49 +1045,6 @@ public partial class ProfesionalService : IProfesionalService
 
         return null;
     }
-
-    private static bool HorarioCubreIntervalo(
-        IReadOnlyCollection<HorarioProfesional> horarios,
-        DateTime inicio,
-        DateTime fin)
-    {
-        if (fin <= inicio)
-            return false;
-
-        DateOnly primerDia = DateOnly.FromDateTime(inicio);
-        DateOnly ultimoDia = DateOnly.FromDateTime(fin.AddTicks(-1));
-        for (DateOnly dia = primerDia; dia <= ultimoDia; dia = dia.AddDays(1))
-        {
-            DateTime inicioDia = dia.ToDateTime(TimeOnly.MinValue);
-            DateTime finDia = inicioDia.AddDays(1);
-            TimeOnly inicioTramo = inicio > inicioDia
-                ? TimeOnly.FromDateTime(inicio)
-                : TimeOnly.MinValue;
-            TimeOnly finTramo = fin < finDia
-                ? TimeOnly.FromDateTime(fin)
-                : new TimeOnly(23, 59);
-            string diaNombre = NormalizarDiaSemana(NombreDia(dia.DayOfWeek));
-
-            bool cubierto = horarios.Any(h =>
-                NormalizarDiaSemana(h.DiaSemana) == diaNombre &&
-                h.HoraInicio <= inicioTramo &&
-                h.HoraFin >= finTramo);
-            if (!cubierto)
-                return false;
-        }
-
-        return true;
-    }
-
-    private static AusenciaProfesionalApiDto MapAusencia(AusenciaProfesional ausencia) => new()
-    {
-        IdAusencia = ausencia.IdAusencia,
-        Tipo = ausencia.Tipo,
-        FechaInicio = ausencia.FechaInicio.ToString("yyyy-MM-dd"),
-        FechaFin = ausencia.FechaFin.ToString("yyyy-MM-dd"),
-        Duracion = ausencia.Duracion,
-        Observaciones = ausencia.Observaciones
-    };
 
     /// <summary>
     /// M1 (RF-15/CU-PRO-06): Retorna las citas activas del profesional que se solapan
@@ -1684,139 +1301,16 @@ public partial class ProfesionalService : IProfesionalService
 
     // ── Métodos Avanzados de Comisiones y Reasignación por Ausencia ──────────
 
-    public async Task<SmileTrack_MVC.Models.DTOs.ReporteComisionProfesionalDto> CalcularComisionesAsync(
+    public Task<SmileTrack_MVC.Models.DTOs.ReporteComisionProfesionalDto> CalcularComisionesAsync(
         int idProfesional,
         DateTime fechaInicio,
         DateTime fechaFin,
         decimal porcentajeComision = 40,
         CancellationToken ct = default)
-    {
-        if (fechaFin < fechaInicio)
-            throw new InvalidOperationException("La fecha de fin no puede ser anterior a la fecha de inicio.");
-        if (porcentajeComision is < 0 or > 100)
-            throw new InvalidOperationException("El porcentaje de comisión debe estar entre 0 y 100.");
+        => _comisionService.CalcularComisionesAsync(
+            idProfesional, fechaInicio, fechaFin, porcentajeComision, ct);
 
-        var profesional = await _context.Profesionales.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.IdProfesional == idProfesional, ct);
-
-        if (profesional is null)
-            throw new InvalidOperationException("El profesional especificado no existe.");
-
-        var facturas = await _context.Facturas
-            .AsNoTracking()
-            .Include(f => f.Detalles)
-            .ThenInclude(d => d.Servicio)
-            .Where(f => f.IdProfesional == idProfesional
-                     && f.FechaFactura >= fechaInicio
-                     && f.FechaFactura <= fechaFin
-                     && f.Estado != "anulada")
-            .ToListAsync(ct);
-
-        if (facturas.Count == 0)
-        {
-            var citasAtendidas = await _context.Citas
-                .AsNoTracking()
-                .Include(c => c.Servicio)
-                .Where(c => c.IdProfesional == idProfesional
-                         && c.FechaHora >= fechaInicio
-                         && c.FechaHora <= fechaFin
-                         && c.Estado == "Atendida")
-                .ToListAsync(ct);
-
-            if (citasAtendidas.Count > 0)
-            {
-                var gruposCitas = citasAtendidas
-                    .GroupBy(c => c.IdServicio)
-                    .Select(g =>
-                    {
-                        var srv = g.First().Servicio;
-                        string nombreServicio = srv?.Nombre ?? "Servicio Odontológico";
-                        decimal precioUnitario = srv?.Precio ?? 100000m;
-                        int cantidad = g.Count();
-                        decimal subtotal = cantidad * precioUnitario;
-                        decimal honorarios = subtotal * (porcentajeComision / 100m);
-
-                        return new SmileTrack_MVC.Models.DTOs.ReporteComisionServicioDto
-                        {
-                            IdServicio = g.Key ?? 0,
-                            NombreServicio = nombreServicio,
-                            CantidadAtendida = cantidad,
-                            PrecioUnitario = precioUnitario,
-                            SubtotalFacturado = subtotal,
-                            HonorariosGenerados = honorarios
-                        };
-                    })
-                    .ToList();
-
-                decimal totalFacturado = gruposCitas.Sum(g => g.SubtotalFacturado);
-                decimal totalHonorarios = gruposCitas.Sum(g => g.HonorariosGenerados);
-
-                return new SmileTrack_MVC.Models.DTOs.ReporteComisionProfesionalDto
-                {
-                    IdProfesional = idProfesional,
-                    NombreProfesional = $"{profesional.Nombres} {profesional.Apellidos}".Trim(),
-                    FechaInicio = fechaInicio,
-                    FechaFin = fechaFin,
-                    TotalCitasAtendidas = citasAtendidas.Count,
-                    MontoTotalFacturado = totalFacturado,
-                    MontoTotalRecaudado = totalFacturado,
-                    PorcentajeComision = porcentajeComision,
-                    MontoTotalHonorarios = totalHonorarios,
-                    MontoComisionPendiente = 0m,
-                    DetalleServicios = gruposCitas
-                };
-            }
-        }
-
-        var detallesPagados = facturas
-            .Where(f => f.Estado == "pagada" && f.MontoPagado > 0)
-            .SelectMany(f => f.Detalles.Select(d => new { Factura = f, Detalle = d }))
-            .ToList();
-
-        var gruposServicio = detallesPagados
-            .GroupBy(x => x.Detalle.IdServicio)
-            .Select(g =>
-            {
-                var primerServicio = g.First().Detalle.Servicio;
-                string nombreServicio = primerServicio?.Nombre ?? "Servicio Odontológico";
-                decimal precioUnitario = g.First().Detalle.PrecioUnitario;
-                int cantidad = g.Sum(x => x.Detalle.Cantidad);
-                decimal subtotal = g.Sum(x => x.Detalle.SubtotalLinea);
-                decimal honorarios = subtotal * (porcentajeComision / 100m);
-
-                return new SmileTrack_MVC.Models.DTOs.ReporteComisionServicioDto
-                {
-                    IdServicio = g.Key ?? 0,
-                    NombreServicio = nombreServicio,
-                    CantidadAtendida = cantidad,
-                    PrecioUnitario = precioUnitario,
-                    SubtotalFacturado = subtotal,
-                    HonorariosGenerados = honorarios
-                };
-            })
-            .ToList();
-
-        decimal montoTotalFacturado = facturas.Sum(f => f.Total);
-        decimal montoTotalRecaudado = facturas.Sum(f => f.MontoPagado);
-        decimal montoTotalHonorarios = gruposServicio.Sum(g => g.HonorariosGenerados);
-
-        return new SmileTrack_MVC.Models.DTOs.ReporteComisionProfesionalDto
-        {
-            IdProfesional = idProfesional,
-            NombreProfesional = $"{profesional.Nombres} {profesional.Apellidos}".Trim(),
-            FechaInicio = fechaInicio,
-            FechaFin = fechaFin,
-            TotalCitasAtendidas = facturas.Where(f => f.IdCita.HasValue).Select(f => f.IdCita!.Value).Distinct().Count(),
-            MontoTotalFacturado = montoTotalFacturado,
-            MontoTotalRecaudado = montoTotalRecaudado,
-            PorcentajeComision = porcentajeComision,
-            MontoTotalHonorarios = montoTotalHonorarios,
-            MontoComisionPendiente = 0m,
-            DetalleServicios = gruposServicio
-        };
-    }
-
-    public async Task<SmileTrack_MVC.Models.DTOs.ResultadoReasignacionAusenciaDto> RegistrarAusenciaConReasignacionAsync(
+    public Task<SmileTrack_MVC.Models.DTOs.ResultadoReasignacionAusenciaDto> RegistrarAusenciaConReasignacionAsync(
         int idProfesional,
         DateTime fechaInicio,
         DateTime fechaFin,
@@ -1824,263 +1318,8 @@ public partial class ProfesionalService : IProfesionalService
         int? idUsuarioActor = null,
         string? observaciones = null,
         CancellationToken ct = default)
-    {
-        var profesional = await _context.Profesionales.FirstOrDefaultAsync(p => p.IdProfesional == idProfesional, ct);
-        if (profesional is null)
-            throw new InvalidOperationException("El profesional especificado no existe.");
-
-        var dateInicio = DateOnly.FromDateTime(fechaInicio);
-        var dateFin = DateOnly.FromDateTime(fechaFin);
-        string tipoAusencia = string.IsNullOrWhiteSpace(motivo) ? "incapacidad" : motivo.Trim();
-        if (NormalizarDiaSemana(tipoAusencia) == "incapacidad medica")
-            tipoAusencia = "incapacidad";
-        var validacionAusencia = await ValidarAusenciaAsync(idProfesional,
-            new AusenciaProfesionalApiRequest
-            {
-                Tipo = tipoAusencia,
-                FechaInicio = dateInicio,
-                FechaFin = dateFin,
-                Observaciones = observaciones
-            }, ct);
-        if (!validacionAusencia.Success)
-            throw new InvalidOperationException(validacionAusencia.Message);
-
-        var inicioAusencia = dateInicio.ToDateTime(TimeOnly.MinValue);
-        var finAusencia = dateFin.ToDateTime(TimeOnly.MaxValue);
-
-        // 1. Registrar la ausencia del profesional
-        var ausencia = new AusenciaProfesional
-        {
-            IdProfesional = idProfesional,
-            FechaInicio = dateInicio,
-            FechaFin = dateFin,
-            Tipo = tipoAusencia,
-            Observaciones = string.IsNullOrWhiteSpace(observaciones)
-                ? "Registrado con reasignación automática de citas."
-                : observaciones.Trim(),
-            AprobadoPor = idUsuarioActor
-        };
-        _context.AusenciasProfesional.Add(ausencia);
-
-        // 2. Buscar citas afectadas no canceladas
-        var citasAfectadas = await _context.Citas
-            .Where(c => c.IdProfesional == idProfesional
-                     && c.FechaHora <= finAusencia
-                     && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > inicioAusencia
-                     && !EstadoCitaHelper.EstadosFinales.Contains(
-                         ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower()))
-            .ToListAsync(ct);
-
-        var resultado = new SmileTrack_MVC.Models.DTOs.ResultadoReasignacionAusenciaDto
-        {
-            IdProfesional = idProfesional,
-            FechaInicio = fechaInicio,
-            FechaFin = fechaFin,
-            TotalCitasAfectadas = citasAfectadas.Count
-        };
-
-        var profesionalesActivos = await _context.Profesionales
-            .Where(p => p.IdProfesional != idProfesional && p.Estado == "activo")
-            .ToListAsync(ct);
-        var idsProfesionalesCandidatos = profesionalesActivos.Select(p => p.IdProfesional).ToList();
-        var especialidadesCandidatas = await _context.ProfesionalEspecialidades
-            .AsNoTracking()
-            .Where(pe => idsProfesionalesCandidatos.Contains(pe.IdProfesional))
-            .ToListAsync(ct);
-        var especialidadesPorProfesional = especialidadesCandidatas
-            .GroupBy(item => item.IdProfesional)
-            .ToDictionary(group => group.Key, group => group.Select(item => item.IdEspecialidad).ToList());
-        var especialidadPorServicio = await _context.Servicios
-            .AsNoTracking()
-            .Where(s => s.Estado == "activo")
-            .ToDictionaryAsync(s => s.IdServicio, s => s.IdEspecialidad, ct);
-
-        int reasignadas = 0;
-        int canceladas = 0;
-        var huecosReservados = new HashSet<(int IdProfesional, DateTime Inicio, DateTime Fin)>();
-
-        foreach (var cita in citasAfectadas)
-        {
-            int duracion = cita.DuracionMinutos > 0 ? cita.DuracionMinutos : 30;
-            DateTime finCita = cita.FechaHora.AddMinutes(duracion);
-            DateOnly dateCita = DateOnly.FromDateTime(cita.FechaHora);
-            DateOnly ultimoDiaCita = DateOnly.FromDateTime(finCita.AddTicks(-1));
-
-            Profesional? candidatoElegido = null;
-
-            foreach (var candidato in profesionalesActivos)
-            {
-                // Una reasignación debe respetar las mismas reglas que una asignación nueva.
-                // Si la cita no tiene servicio o el servicio no tiene especialidad configurada,
-                // no se inventa un profesional sustituto.
-                if (cita.IdServicio is not int idServicio ||
-                    !especialidadPorServicio.TryGetValue(idServicio, out int? especialidadServicio) ||
-                    !especialidadServicio.HasValue)
-                    continue;
-
-                bool asignacionActiva = await _context.ProfesionalServicios
-                    .AsNoTracking()
-                    .AnyAsync(ps => ps.IdProfesional == candidato.IdProfesional
-                                 && ps.IdServicio == idServicio
-                                 && ps.Activo, ct);
-                if (!asignacionActiva) continue;
-
-                var idsEspecialidadesCandidato = especialidadesPorProfesional.TryGetValue(
-                    candidato.IdProfesional, out var idsCandidato)
-                    ? idsCandidato
-                    : new List<int>();
-                if (!idsEspecialidadesCandidato.Contains(especialidadServicio.Value))
-                    continue;
-
-                // Verificar ausencias del candidato
-                bool candidatoConAusencia = await _context.AusenciasProfesional
-                    .AnyAsync(a => a.IdProfesional == candidato.IdProfesional
-                                && a.FechaInicio <= ultimoDiaCita
-                                && a.FechaFin >= dateCita, ct);
-
-                if (candidatoConAusencia) continue;
-
-                bool candidatoConBloqueo = await _context.BloqueosProfesional
-                    .AnyAsync(b => b.IdProfesional == candidato.IdProfesional
-                                && b.FechaInicio < finCita
-                                && b.FechaFin > cita.FechaHora, ct);
-                if (candidatoConBloqueo) continue;
-
-                var horariosCandidato = await _context.HorariosProfesional
-                    .AsNoTracking()
-                    .Where(h => h.IdProfesional == candidato.IdProfesional && h.Activo)
-                    .ToListAsync(ct);
-                if (horariosCandidato.Count == 0)
-                    continue;
-
-                if (!HorarioCubreIntervalo(horariosCandidato, cita.FechaHora, finCita))
-                    continue;
-
-                // La sustitución conserva paciente y consultorio, así que los tres recursos
-                // deben estar libres para el intervalo completo.
-                bool candidatoConConflicto = await _context.Citas
-                    .AnyAsync(c => c.IdCita != cita.IdCita
-                                && (c.IdProfesional == candidato.IdProfesional
-                                    || c.IdPaciente == cita.IdPaciente
-                                    || (cita.IdConsultorio.HasValue && c.IdConsultorio == cita.IdConsultorio))
-                                && !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
-                                    ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower())
-                                && c.FechaHora < finCita
-                                && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > cita.FechaHora, ct);
-
-                if (candidatoConConflicto) continue;
-                if (huecosReservados.Contains((candidato.IdProfesional, cita.FechaHora, finCita)))
-                    continue;
-
-                candidatoElegido = candidato;
-                break;
-            }
-
-            if (candidatoElegido is not null)
-            {
-                huecosReservados.Add((candidatoElegido.IdProfesional, cita.FechaHora, finCita));
-                int idAnterior = cita.IdProfesional ?? 0;
-                cita.IdProfesional = candidatoElegido.IdProfesional;
-
-                // Historial de reasignación
-                _context.CitasHistorialEstado.Add(new CitaHistorialEstado
-                {
-                    IdCita = cita.IdCita,
-                    IdEstado = cita.IdEstado,
-                    EstadoTexto = cita.Estado,
-                    IdUsuario = idUsuarioActor,
-                    Motivo = $"Reasignada automáticamente por ausencia del profesional #{idAnterior} a #{candidatoElegido.IdProfesional}",
-                    FechaCambio = ColombiaClock.Now
-                });
-
-                // Notificación al paciente
-                _context.Notificaciones.Add(new Notificacion
-                {
-                    IdPaciente = cita.IdPaciente,
-                    IdCita = cita.IdCita,
-                    Tipo = "cambio_profesional",
-                    Titulo = "Reasignación de profesional",
-                    Contenido = $"Tu cita del {cita.FechaHora:dd/MM/yyyy HH:mm} ha sido asignada a {candidatoElegido.Nombres} {candidatoElegido.Apellidos} por ausencia médica.",
-                    Canal = "interno",
-                    Estado = "enviada",
-                    FechaProgramada = ColombiaClock.Now,
-                    FechaEnvio = ColombiaClock.Now,
-                    CreadaEn = ColombiaClock.Now
-                });
-
-                reasignadas++;
-                resultado.DetallesCitas.Add(new SmileTrack_MVC.Models.DTOs.CitaReasignadaInfo
-                {
-                    IdCita = cita.IdCita,
-                    IdPaciente = cita.IdPaciente,
-                    FechaHora = cita.FechaHora,
-                    Reasignada = true,
-                    IdNuevoProfesional = candidatoElegido.IdProfesional,
-                    NombreNuevoProfesional = $"{candidatoElegido.Nombres} {candidatoElegido.Apellidos}".Trim(),
-                    Mensaje = "Reasignación exitosa"
-                });
-            }
-            else
-            {
-                string estadoAnterior = cita.Estado;
-                var estadoCancelada = await _context.EstadosCita.FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "cancelada", ct);
-                if (estadoCancelada is not null)
-                {
-                    cita.IdEstado = estadoCancelada.IdEstado;
-                    cita.Estado = estadoCancelada.NombreEstado;
-                }
-                else
-                {
-                    cita.Estado = "Cancelada";
-                }
-                cita.MotivoCancelacion = "Cancelación automática por ausencia médica del profesional sin disponibilidad de reemplazo.";
-
-                // Historial de cancelación
-                _context.CitasHistorialEstado.Add(new CitaHistorialEstado
-                {
-                    IdCita = cita.IdCita,
-                    IdEstado = cita.IdEstado,
-                    EstadoTexto = cita.Estado,
-                    IdUsuario = idUsuarioActor,
-                    Motivo = "Cancelación automática por ausencia médica del profesional sin disponibilidad de reemplazo.",
-                    FechaCambio = ColombiaClock.Now
-                });
-
-                // Notificación al paciente
-                _context.Notificaciones.Add(new Notificacion
-                {
-                    IdPaciente = cita.IdPaciente,
-                    IdCita = cita.IdCita,
-                    Tipo = "cancelacion_emergencia",
-                    Titulo = "Cita cancelada por fuerza mayor",
-                    Contenido = $"Tu cita del {cita.FechaHora:dd/MM/yyyy HH:mm} fue cancelada por incapacidad del profesional. Por favor contacta a recepción para reprogramar.",
-                    Canal = "interno",
-                    Estado = "enviada",
-                    FechaProgramada = ColombiaClock.Now,
-                    FechaEnvio = ColombiaClock.Now,
-                    CreadaEn = ColombiaClock.Now
-                });
-
-                canceladas++;
-                resultado.DetallesCitas.Add(new SmileTrack_MVC.Models.DTOs.CitaReasignadaInfo
-                {
-                    IdCita = cita.IdCita,
-                    IdPaciente = cita.IdPaciente,
-                    FechaHora = cita.FechaHora,
-                    Reasignada = false,
-                    Mensaje = "Cancelada por falta de profesional sustituto disponible"
-                });
-            }
-        }
-
-        await _context.SaveChangesAsync(ct);
-
-        resultado.TotalReasignadas = reasignadas;
-        resultado.TotalCanceladas = canceladas;
-
-        return resultado;
-    }
-
+        => _ausenciaService.RegistrarAusenciaConReasignacionAsync(
+            idProfesional, fechaInicio, fechaFin, motivo, idUsuarioActor, observaciones, ct);
     // ── Excepciones internas ──────────────────────────────────────────────────
 
     private sealed class CorreoDuplicadoException : Exception { }

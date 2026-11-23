@@ -32,6 +32,7 @@ NOTAS DE MANTENIMIENTO:
 // ═══════════════════════════════════════════════════════════════════
 const API_BASE = '/api';
 const API_PAGE_SIZE = 10;
+let citaSubmissionInProgress = false;
 let configuredDurationMinutes = 60;
 let currentApiPage = 1;
 let totalApiRecords = 0;
@@ -517,11 +518,13 @@ const openEditModal = (id, appointment = appointmentStorage.findById(id)) => {
 
 const submitEditAppointment = (e) => {
   e.preventDefault();
+  if (citaSubmissionInProgress) return;
   const form = e.currentTarget;
   if (!validateForm(form)) {
     window.ToastService.error('Por favor completa los campos requeridos.');
     return;
   }
+  citaSubmissionInProgress = true;
   const submitBtn = form.querySelector('[type="submit"]');
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -842,11 +845,13 @@ const initNewAppointmentButtons = () => {
 
 const submitNewAppointment = (e) => {
   e.preventDefault();
+  if (citaSubmissionInProgress) return;
   const form = e.currentTarget;
   if (!validateForm(form)) {
     window.ToastService.error('Por favor completa los campos requeridos.');
     return;
   }
+  citaSubmissionInProgress = true;
   const submitBtn = form.querySelector('[type="submit"]');
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -900,6 +905,8 @@ const guardarCitaPorApi = async (form, actualizar, submitBtn) => {
       submitBtn.disabled = false;
       submitBtn.textContent = actualizar ? 'Actualizar cita' : 'Guardar cita';
     }
+  } finally {
+    citaSubmissionInProgress = false;
   }
 };
 

@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.GestionDeCitas;
 using Xunit;
 
@@ -19,14 +20,8 @@ namespace SmileTrack_MVC.Tests.Unit;
 /// <summary>
 /// Pruebas del <see cref="CitasVencidasBackgroundService"/>. Se invoca por reflexión su método
 /// privado <c>CerrarCitasVencidasAsync(corte, ct)</c> evitando ExecuteAsync (bucle infinito).
-/// El servicio solo resuelve AppDbContext desde el scope.
-///
-/// LIMITACIÓN CONOCIDA: el cierre de citas vencidas se materializa con
-/// <c>ExecuteUpdateAsync</c>, y el proveedor InMemory NO soporta ExecuteUpdate/ExecuteUpdateAsync
-/// (lanza InvalidOperationException). El servicio captura esa excepción y la registra, por lo que
-/// la transición real de estado ("No asistio") NO puede observarse con InMemory. Por eso las
-/// pruebas se centran en: (a) que las citas que NO deben cerrarse no se modifican y
-/// (b) que el servicio no propaga el fallo del proveedor (contrato del try/catch del bucle).
+/// Las pruebas invocan el proceso acotado por reflexión y usan ICitaService real con InMemory para
+/// verificar tanto la transición como su historial y auditoría.
 /// </summary>
 public sealed class CitasVencidasBackgroundServiceTests
 {
@@ -53,6 +48,9 @@ public sealed class CitasVencidasBackgroundServiceTests
         // para que todos compartan el mismo store InMemory.
         services.AddDbContext<AppDbContext>(options => options
             .UseInMemoryDatabase(dbName));
+        services.AddScoped<ICitaService>(sp => new CitaService(
+            sp.GetRequiredService<AppDbContext>(),
+            NullLogger<CitaService>.Instance));
         return services.BuildServiceProvider();
     }
 
@@ -165,7 +163,7 @@ public sealed class CitasVencidasBackgroundServiceTests
     }
 
     [Fact]
-    public async Task CerrarCitasVencidasAsync_ConCitaVencidaPendiente_NoPropagaElFalloDelProveedor()
+    public async Task CerrarCitasVencidasAsync_ConCitaVencidaPendiente_RegistraEstadoHistorialYAuditoria()
     {
         string dbName = NuevaDb();
 
@@ -190,10 +188,26 @@ public sealed class CitasVencidasBackgroundServiceTests
         var servicio = new CitasVencidasBackgroundService(
             provider.GetRequiredService<IServiceScopeFactory>(), grabador);
 
-        // El proveedor InMemory no soporta ExecuteUpdateAsync; el servicio debe capturarlo y loguearlo.
         await InvocarCerrarCitasVencidasAsync(servicio, ColombiaClock.Today, CancellationToken.None);
 
+        using var dbVerificacion = LeerDb(dbName);
+        var cita = await dbVerificacion.Citas.AsNoTracking().FirstAsync(c => c.IdCita == 100);
+        Assert.Equal("No asistio", cita.Estado);
+        Assert.Equal(9, cita.IdEstado);
+
+        var historial = await dbVerificacion.CitasHistorialEstado.AsNoTracking()
+            .SingleAsync(h => h.IdCita == cita.IdCita);
+        Assert.Equal("No asistio", historial.EstadoTexto);
+        Assert.Contains("Programada", historial.Motivo);
+        Assert.Contains("No asistio", historial.Motivo);
+
+        var auditoria = await dbVerificacion.Auditorias.AsNoTracking()
+            .SingleAsync(a => a.IdRegistro == cita.IdCita && a.TablaAfectada == "Cita");
+        Assert.Equal("CitasVencidasBackgroundService", auditoria.IpOrigen);
+        Assert.Contains("Programada", auditoria.DatosAnteriores);
+        Assert.Contains("No asistio", auditoria.DatosNuevos);
+
         Assert.Contains(grabador.Mensajes,
-            m => m.StartsWith("Error") && m.Contains("No fue posible cerrar las citas vencidas"));
+            m => m.Contains("Cierre automático de citas vencidas"));
     }
 }

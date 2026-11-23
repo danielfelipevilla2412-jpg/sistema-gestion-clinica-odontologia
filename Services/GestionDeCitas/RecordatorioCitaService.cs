@@ -32,10 +32,6 @@ public sealed class RecordatorioCitaService : IRecordatorioCitaService
             return (0, 0, []);
 
         DateTime ahora = ColombiaClock.Now;
-        string[] estadosRecordables =
-        [
-            "programada", "agendada", "confirmada", "confirmado"
-        ];
 
         var citas = await _context.Citas
             .Include(c => c.Paciente)
@@ -46,8 +42,8 @@ public sealed class RecordatorioCitaService : IRecordatorioCitaService
             .Where(c => idsUnicos.Contains(c.IdCita)
                 && c.FechaHora >= ahora
                 && (c.EstadoCita != null
-                    ? estadosRecordables.Contains(c.EstadoCita.NombreEstado.Trim().ToLower())
-                    : c.Estado != null && estadosRecordables.Contains(c.Estado.Trim().ToLower())))
+                    ? EstadoCitaHelper.EstadosRecordables.Contains(c.EstadoCita.NombreEstado.Trim().ToLower())
+                    : c.Estado != null && EstadoCitaHelper.EstadosRecordables.Contains(c.Estado.Trim().ToLower())))
             .ToListAsync(ct);
 
         int enviados = 0;

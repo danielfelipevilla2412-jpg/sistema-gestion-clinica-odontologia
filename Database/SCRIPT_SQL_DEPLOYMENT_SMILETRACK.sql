@@ -3026,7 +3026,7 @@ ALTER TABLE [dbo].[Notificacion]  WITH CHECK ADD CHECK  (([canal]='whatsapp' OR 
 GO
 ALTER TABLE [dbo].[Notificacion]  WITH CHECK ADD CHECK  (([estado]='cancelada' OR [estado]='fallida' OR [estado]='leida' OR [estado]='enviada' OR [estado]='pendiente'))
 GO
-ALTER TABLE [dbo].[Notificacion]  WITH CHECK ADD  CONSTRAINT [CK_Notificacion_tipo] CHECK  (([tipo]='pago' OR [tipo]='factura' OR [tipo]='alerta' OR [tipo]='mensaje' OR [tipo]='cancelacion' OR [tipo]='confirmacion' OR [tipo]='recordatorio'))
+ALTER TABLE [dbo].[Notificacion]  WITH CHECK ADD  CONSTRAINT [CK_Notificacion_tipo] CHECK  (([tipo]='pago' OR [tipo]='factura' OR [tipo]='alerta' OR [tipo]='mensaje' OR [tipo]='cancelacion' OR [tipo]='confirmacion' OR [tipo]='recordatorio' OR [tipo]='cambio_estado'))
 GO
 ALTER TABLE [dbo].[Notificacion] CHECK CONSTRAINT [CK_Notificacion_tipo]
 GO

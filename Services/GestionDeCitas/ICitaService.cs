@@ -23,6 +23,7 @@
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.DTOs.GestionDeCitas;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Models.Shared;
 
 namespace SmileTrack_MVC.Services;
 
@@ -48,6 +49,12 @@ public interface ICitaService
         DateTime? fecha = null,
         CancellationToken ct = default);
 
+    Task<PagedResult<Cita>> ObtenerListadoGestionAsync(
+        PaginationQuery pagination,
+        int page,
+        int pageSize,
+        CancellationToken ct = default);
+
     Task<Cita?> ObtenerPorIdAsync(
         int id,
         CancellationToken ct = default);
@@ -62,8 +69,9 @@ public interface ICitaService
         int id,
         CitaApiUpdateDto request,
         CancellationToken ct = default,
-        int? idUsuarioActor = null,
-        string? ipOrigen = null);
+        int? operadorId = null,
+        string? ipOrigen = null,
+        string? motivoHistorial = null);
 
     Task<Cita?> CambiarEstadoAsync(
         int id,
@@ -97,7 +105,8 @@ public interface ICitaService
         int idPaciente,
         CitaSolicitudPacienteDto dto,
         CancellationToken ct = default,
-        int? idUsuarioActor = null);
+        int? idUsuarioActor = null,
+        string? ipOrigen = null);
 
     Task<ListaEsperaCita> RegistrarListaEsperaAsync(
         int idPaciente,
@@ -133,7 +142,8 @@ public interface ICitaService
         int idCita,
         string motivo,
         int? idUsuarioActor = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        string? ipOrigen = null);
 
     /// <summary>
     /// Obtiene la lista de profesionales activos que tienen disponibilidad en la fecha y horario solicitados,
@@ -155,7 +165,8 @@ public interface ICitaService
         int idCita,
         CitaConfirmacionAsignacionDto dto,
         CancellationToken ct = default,
-        int? idUsuarioActor = null);
+        int? idUsuarioActor = null,
+        string? ipOrigen = null);
 
     /// <summary>
     /// Envía recordatorios de cita por correo electrónico a los pacientes seleccionados.

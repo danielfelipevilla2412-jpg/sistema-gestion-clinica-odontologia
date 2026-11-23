@@ -1,30 +1,23 @@
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.SqlClient;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
-using System.Text;
-using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.IdentityModel.Tokens;
 using SmileTrack_MVC.Data;
-using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Services;
-using SmileTrack_MVC.Services.Email;
-using System.Security.Claims;
+using SmileTrack_MVC.Services.Perfiles;
+using System.Globalization;
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Sockets;
-using System.Globalization;
+using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
-using System.IO;
 using System.Text.RegularExpressions;
-using SmileTrack_MVC.Services.Perfiles;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -103,6 +96,7 @@ builder.Services.AddControllersWithViews()
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
+builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionQueryService, SmileTrack_MVC.Services.Facturacion.FacturacionQueryService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Perfiles.IPerfilPacienteService, SmileTrack_MVC.Services.Perfiles.PerfilPacienteService>();
 
@@ -327,11 +321,18 @@ builder.Services.AddHealthChecks()
     .AddSqlServer(connectionString, name: "sqlserver", timeout: TimeSpan.FromSeconds(5));
 
 builder.Services.AddScoped<ICitaService, CitaService>();
+builder.Services.AddScoped<ICitaQueryService, CitaQueryService>();
+builder.Services.AddScoped<
+    ICitaDisponibilidadService,
+    SmileTrack_MVC.Services.GestionDeCitas.CitaDisponibilidadService>();
 builder.Services.AddScoped<IAgendaService, AgendaService>();
 builder.Services.AddScoped<IPanelOperativoService, PanelOperativoService>();
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.ICitasDashboardService,
     SmileTrack_MVC.Services.CitasDashboardService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.GestionDeCitas.IPacienteNotificacionQueryService,
+    SmileTrack_MVC.Services.GestionDeCitas.PacienteNotificacionQueryService>();
 
 // Cierre automático de citas vencidas: se ejecuta a diario a las 23:59 y deja la agenda limpia
 // al día siguiente (las citas en espera que ya pasaron pasan a "No asistio").
@@ -654,6 +655,15 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.IProfesionalService,
     SmileTrack_MVC.Services.ProfesionalService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IProfesionalComisionService,
+    SmileTrack_MVC.Services.GestionDeProfesionales.ProfesionalComisionService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IProfesionalHorarioService,
+    SmileTrack_MVC.Services.GestionDeProfesionales.ProfesionalHorarioService>();
+builder.Services.AddScoped<
+    SmileTrack_MVC.Services.IProfesionalAusenciaService,
+    SmileTrack_MVC.Services.GestionDeProfesionales.ProfesionalAusenciaService>();
 
 builder.Services.AddScoped<
     SmileTrack_MVC.Services.IPacienteService,
@@ -1188,11 +1198,6 @@ static async Task ApplyDevelopmentSchemaMigrationsAsync(
         """;
 
     var schemaState = Convert.ToInt32(await schemaCommand.ExecuteScalarAsync());
-    if (schemaState == 1)
-    {
-        return;
-    }
-
     if (schemaState == -1)
     {
         logger.LogInformation(
@@ -1200,12 +1205,15 @@ static async Task ApplyDevelopmentSchemaMigrationsAsync(
         return;
     }
 
-    string[] migrationFiles =
-    [
-        "MIGRATION_Consentimiento.sql",
-        "MIGRATION_Reporte_Generado.sql",
-        "upgrade-auth-identifiers.sql"
-    ];
+    string[] migrationFiles = schemaState == 1
+        ? ["MIGRATION_BRECHAS_PROFESIONALES_CITAS.sql"]
+        :
+        [
+            "MIGRATION_Consentimiento.sql",
+            "MIGRATION_Reporte_Generado.sql",
+            "upgrade-auth-identifiers.sql",
+            "MIGRATION_BRECHAS_PROFESIONALES_CITAS.sql"
+        ];
 
     foreach (string migrationFile in migrationFiles)
     {

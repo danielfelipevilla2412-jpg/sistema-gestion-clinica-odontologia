@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Services.Email;
 using SmileTrack_MVC.Services.GestionDeCitas;
@@ -84,6 +85,79 @@ public sealed class RecordatoriosCitasBackgroundServiceTests
         await using var verificacion = new AppDbContext(options);
         Assert.Equal(100, await verificacion.RecordatoriosCita.CountAsync());
         Assert.Equal(100, await verificacion.RecordatoriosCita.CountAsync(r => r.Estado == "enviado"));
+        Assert.Equal(100, await verificacion.Auditorias.CountAsync(a => a.Accion == "EMAIL_RECORDATORIO"));
+    }
+
+    [Fact]
+    public async Task ProcesarAsync_FiltraEstadosNoRecordablesAntesDelLimiteDelLote()
+    {
+        string dbName = Guid.NewGuid().ToString();
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(dbName)
+            .Options;
+        DateTime ahora = ColombiaClock.Now;
+
+        await using (var db = new AppDbContext(options))
+        {
+            db.Pacientes.Add(new Paciente
+            {
+                IdPaciente = 1,
+                Nombres = "Paciente",
+                Apellidos = "Prueba",
+                Correo = "paciente@example.test",
+                Estado = "activo"
+            });
+            db.Profesionales.Add(new Profesional
+            {
+                IdProfesional = 1,
+                Nombres = "Profesional",
+                Apellidos = "Prueba",
+                Estado = "activo",
+                RegistroMedico = "RM-RECORDATORIOS-FILTRO"
+            });
+            db.Citas.AddRange(
+                Enumerable.Range(1, 100).Select(index => new Cita
+                {
+                    IdCita = index,
+                    IdPaciente = 1,
+                    IdProfesional = 1,
+                    FechaHora = ahora.AddHours(1 + index % 10),
+                    DuracionMinutos = 60,
+                    Estado = "Cancelada"
+                }));
+            db.Citas.Add(new Cita
+            {
+                IdCita = 101,
+                IdPaciente = 1,
+                IdProfesional = 1,
+                FechaHora = ahora.AddHours(23),
+                DuracionMinutos = 60,
+                Estado = "Programada"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var services = new ServiceCollection();
+        services.AddDbContext<AppDbContext>(builder => builder.UseInMemoryDatabase(dbName));
+        services.AddSingleton<IEmailService, CapturingEmailService>();
+        services.AddScoped<IRecordatorioCitaService, RecordatorioCitaService>();
+        services.AddLogging();
+        await using var provider = services.BuildServiceProvider();
+
+        var servicio = new RecordatoriosCitasBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<RecordatoriosCitasBackgroundService>.Instance);
+        var metodo = typeof(RecordatoriosCitasBackgroundService).GetMethod(
+            "ProcesarAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(metodo);
+        await (Task)metodo!.Invoke(servicio, new object[] { CancellationToken.None })!;
+
+        await using var verificacion = new AppDbContext(options);
+        var recordatorio = await verificacion.RecordatoriosCita.SingleAsync();
+        Assert.Equal(101, recordatorio.IdCita);
+        Assert.Equal("enviado", recordatorio.Estado);
+        Assert.Single(await verificacion.Auditorias.ToListAsync());
     }
 
     [Fact]

@@ -8,16 +8,20 @@ using System.Threading.Tasks;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Api.Controllers;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
 using SmileTrack_MVC.Models.DTOs;
 using SmileTrack_MVC.Models.Entities;
+using SmileTrack_MVC.Models.Shared;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Email;
+using SmileTrack_MVC.Services.GestionDeCitas;
 using Xunit;
 
 namespace SmileTrack_MVC.Tests.Unit;
@@ -43,6 +47,103 @@ public class CitaServiceTests
         Assert.Equal(1, kpi.Atendidas);
         Assert.Equal(1, kpi.Canceladas);
         Assert.Equal(0, kpi.DiferenciaSemana);
+    }
+
+    [Fact]
+    public void CitaService_SeResuelveConServiciosDeConsultaYDisponibilidad()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<AppDbContext>(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        services.AddScoped<ICitaQueryService, CitaQueryService>();
+        services.AddScoped<ICitaDisponibilidadService, CitaDisponibilidadService>();
+        services.AddScoped<ICitaService, CitaService>();
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        Assert.IsType<CitaService>(scope.ServiceProvider.GetRequiredService<ICitaService>());
+    }
+
+    [Fact]
+    public async Task ObtenerAsync_MantieneAlcanceDePacienteYPaginacion()
+    {
+        await using var db = CrearDb();
+        var paciente = new Paciente { Nombres = "Ana", Apellidos = "Prueba", Estado = "activo" };
+        var otroPaciente = new Paciente { Nombres = "Luis", Apellidos = "Prueba", Estado = "activo" };
+        db.Pacientes.AddRange(paciente, otroPaciente);
+        await db.SaveChangesAsync();
+
+        DateTime baseFecha = ColombiaClock.Now.AddDays(2);
+        db.Citas.AddRange(
+            new Cita { IdPaciente = paciente.IdPaciente, FechaHora = baseFecha, Estado = "Programada" },
+            new Cita { IdPaciente = otroPaciente.IdPaciente, FechaHora = baseFecha.AddHours(1), Estado = "Programada" },
+            new Cita { IdPaciente = paciente.IdPaciente, FechaHora = baseFecha.AddHours(2), Estado = "Programada" });
+        await db.SaveChangesAsync();
+
+        var (items, total) = await CrearServicio(db).ObtenerAsync(
+            page: 2,
+            pageSize: 1,
+            role: "Paciente",
+            idPaciente: paciente.IdPaciente);
+
+        Assert.Equal(2, total);
+        Assert.Single(items);
+        Assert.Equal(baseFecha, items[0].FechaHora);
+
+        var (sinIdentidad, totalSinIdentidad) = await CrearServicio(db).ObtenerAsync(
+            page: 1,
+            pageSize: 10,
+            role: "Paciente");
+
+        Assert.Empty(sinIdentidad);
+        Assert.Equal(0, totalSinIdentidad);
+    }
+
+    [Fact]
+    public async Task ObtenerListadoGestionAsync_AplicaFiltrosYPaginaSolicitada()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        DateTime fecha = ProximaFecha(DayOfWeek.Monday).Date;
+        db.Citas.AddRange(
+            new Cita
+            {
+                IdPaciente = datos.Paciente.IdPaciente,
+                IdProfesional = datos.Profesional.IdProfesional,
+                FechaHora = fecha.AddHours(9),
+                Estado = "Programada"
+            },
+            new Cita
+            {
+                IdPaciente = datos.Paciente.IdPaciente,
+                IdProfesional = datos.Profesional.IdProfesional,
+                FechaHora = fecha.AddHours(10),
+                Estado = "Programada"
+            },
+            new Cita
+            {
+                IdPaciente = datos.Paciente.IdPaciente,
+                IdProfesional = datos.Profesional.IdProfesional,
+                FechaHora = fecha.AddDays(1).AddHours(9),
+                Estado = "Atendida"
+            });
+        await db.SaveChangesAsync();
+
+        var result = await CrearServicio(db).ObtenerListadoGestionAsync(
+            new PaginationQuery
+            {
+                Estado = "Programada",
+                Profesional = datos.Profesional.IdProfesional.ToString(),
+                Fecha = fecha.ToString("yyyy-MM-dd")
+            },
+            page: 2,
+            pageSize: 1);
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Single(result.Items);
+        Assert.Equal(fecha.AddHours(9), result.Items[0].FechaHora);
     }
 
     [Fact]
@@ -241,20 +342,30 @@ public class CitaServiceTests
         db.Citas.Add(cita);
         await db.SaveChangesAsync();
 
+        string motivo = new('x', 500);
         var resultado = await CrearServicio(db).RechazarSolicitudAsync(
             cita.IdCita,
-            "No hay disponibilidad",
-            idUsuarioActor: 27);
+            motivo,
+            idUsuarioActor: 27,
+            ipOrigen: "127.0.0.1");
 
         Assert.Equal("Rechazada", resultado?.Estado);
         Assert.Equal(estadoRechazada.IdEstado, resultado?.IdEstado);
         var historial = await db.CitasHistorialEstado.SingleAsync();
         Assert.Equal(27, historial.IdUsuario);
-        Assert.Contains("No hay disponibilidad", historial.Motivo);
+        Assert.Contains(motivo, historial.Motivo);
         var notificacion = await db.Notificaciones.SingleAsync();
         Assert.Equal(cita.IdPaciente, notificacion.IdPaciente);
         Assert.Equal("cita_rechazada", notificacion.Tipo);
-        Assert.Contains("No hay disponibilidad", notificacion.Contenido);
+        Assert.Contains(motivo, notificacion.Contenido);
+        var auditoria = await db.Auditorias.SingleAsync();
+        Assert.Equal(27, auditoria.IdUsuario);
+        Assert.Equal("127.0.0.1", auditoria.IpOrigen);
+        Assert.NotNull(auditoria.Descripcion);
+        Assert.True(auditoria.Descripcion.Length <= 255);
+        Assert.Contains("Solicitada", auditoria.DatosAnteriores);
+        Assert.Contains("Rechazada", auditoria.DatosNuevos);
+        Assert.Contains(motivo, auditoria.DatosNuevos);
     }
 
     [Fact]
@@ -312,6 +423,52 @@ public class CitaServiceTests
     }
 
     [Fact]
+    public async Task ConfirmarYAsignarCitaAsync_RegistraEstadoYActorEnElHistorial()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var estadoSolicitada = db.EstadosCita.Single(e => e.NombreEstado == "Solicitada");
+        var estadoConfirmada = new EstadoCita { NombreEstado = "Confirmada" };
+        db.EstadosCita.Add(estadoConfirmada);
+        var fecha = ProximaFecha(DayOfWeek.Monday).Date.AddHours(9);
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdServicio = datos.Servicio.IdServicio,
+            IdEstado = estadoSolicitada.IdEstado,
+            FechaHora = fecha,
+            Estado = "Solicitada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var actualizada = await CrearServicio(db).ConfirmarYAsignarCitaAsync(
+            cita.IdCita,
+            new CitaConfirmacionAsignacionDto
+            {
+                IdCita = cita.IdCita,
+                IdProfesional = datos.Profesional.IdProfesional,
+                IdConsultorio = datos.Consultorio.IdConsultorio,
+                Fecha = fecha.Date,
+                HoraInicio = fecha.TimeOfDay
+            },
+            idUsuarioActor: 43,
+            ipOrigen: "127.0.0.2");
+
+        Assert.Equal("Confirmada", actualizada?.Estado);
+        var historial = await db.CitasHistorialEstado.SingleAsync();
+        Assert.Equal(cita.IdCita, historial.IdCita);
+        Assert.Equal(estadoConfirmada.IdEstado, historial.IdEstado);
+        Assert.Equal(43, historial.IdUsuario);
+        Assert.Contains("confirmada", historial.Motivo, StringComparison.OrdinalIgnoreCase);
+        var auditoria = await db.Auditorias.SingleAsync();
+        Assert.Equal(43, auditoria.IdUsuario);
+        Assert.Equal("127.0.0.2", auditoria.IpOrigen);
+        Assert.Contains("Solicitada", auditoria.DatosAnteriores);
+        Assert.Contains("Confirmada", auditoria.DatosNuevos);
+    }
+
+    [Fact]
     public async Task CrearAsync_AceptaAliasProgramadaCuandoElCatalogoUsaAgendada()
     {
         await using var db = CrearDb();
@@ -348,10 +505,18 @@ public class CitaServiceTests
             IdConsultorio = datos.Consultorio.IdConsultorio,
             FechaHora = fecha,
             Estado = "Programada"
-        });
+        }, idUsuarioActor: 31, ipOrigen: "127.0.0.3");
 
         Assert.NotNull(cita);
         Assert.Equal("Agendada", cita.Estado);
+        var historial = await db.CitasHistorialEstado.SingleAsync();
+        Assert.Equal(cita.IdCita, historial.IdCita);
+        Assert.Equal("Agendada", historial.EstadoTexto);
+        var auditoria = await db.Auditorias.SingleAsync();
+        Assert.Equal(cita.IdCita, auditoria.IdRegistro);
+        Assert.Equal(31, auditoria.IdUsuario);
+        Assert.Equal("127.0.0.3", auditoria.IpOrigen);
+        Assert.Contains("Agendada", auditoria.DatosNuevos);
     }
 
     [Fact]
@@ -597,6 +762,80 @@ public class CitaServiceTests
     }
 
     [Fact]
+    public async Task CambiarEstadoAsync_GuardaHistorialConActorAlCambiarEstado()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var estadoConfirmada = new EstadoCita { NombreEstado = "Confirmada" };
+        db.EstadosCita.Add(estadoConfirmada);
+        await db.SaveChangesAsync();
+
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            IdEstado = db.EstadosCita.Single(e => e.NombreEstado == "Programada").IdEstado,
+            FechaHora = ColombiaClock.Now.AddDays(1),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        await CrearServicio(db).CambiarEstadoAsync(
+            cita.IdCita,
+            "Confirmada",
+            idUsuarioActor: 42,
+            ipOrigen: "192.0.2.1");
+
+        var historial = await db.CitasHistorialEstado.SingleAsync();
+        Assert.Equal(cita.IdCita, historial.IdCita);
+        Assert.Equal(estadoConfirmada.IdEstado, historial.IdEstado);
+        Assert.Equal("Confirmada", historial.EstadoTexto);
+        Assert.Equal(42, historial.IdUsuario);
+        Assert.Contains("Programada", historial.Motivo);
+        Assert.Contains("Confirmada", historial.Motivo);
+
+        var auditoria = await db.Auditorias.SingleAsync();
+        Assert.Equal(42, auditoria.IdUsuario);
+        Assert.Equal("192.0.2.1", auditoria.IpOrigen);
+        Assert.Contains("Programada", auditoria.DatosAnteriores);
+        Assert.Contains("Confirmada", auditoria.DatosNuevos);
+    }
+
+    [Fact]
+    public async Task CambiarEstadoAsync_NoPersisteEstadoSiFallaElGuardadoDelHistorial()
+    {
+        string databaseName = Guid.NewGuid().ToString();
+        await using var db = CrearDb(databaseName, new FallarSiSeAgregaHistorialInterceptor());
+        var datos = SeedBase(db);
+        db.EstadosCita.Add(new EstadoCita { NombreEstado = "Confirmada" });
+        await db.SaveChangesAsync();
+
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            IdEstado = db.EstadosCita.Single(e => e.NombreEstado == "Programada").IdEstado,
+            FechaHora = ColombiaClock.Now.AddDays(1),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CrearServicio(db).CambiarEstadoAsync(cita.IdCita, "Confirmada"));
+
+        await using var verificationDb = CrearDb(databaseName);
+        var persistida = await verificationDb.Citas.SingleAsync(c => c.IdCita == cita.IdCita);
+        Assert.Equal("Programada", persistida.Estado);
+        Assert.Empty(await verificationDb.CitasHistorialEstado.ToListAsync());
+    }
+
+    [Fact]
     public async Task CambiarEstadoAsync_RechazaReactivacionDeEstadoTerminal()
     {
         await using var db = CrearDb();
@@ -754,15 +993,67 @@ public class CitaServiceTests
         Assert.InRange(historial.FechaCambio, antesDeActualizar, despuesDeActualizar);
     }
 
+    [Fact]
+    public async Task ActualizarAsync_RegistraCambioDeEstadoConUsuarioEnLaMismaOperacion()
+    {
+        await using var db = CrearDb();
+        var datos = SeedBase(db);
+        var estadoConfirmada = new EstadoCita { NombreEstado = "Confirmada" };
+        db.EstadosCita.Add(estadoConfirmada);
+        await db.SaveChangesAsync();
+
+        var cita = new Cita
+        {
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            IdEstado = db.EstadosCita.Single(e => e.NombreEstado == "Programada").IdEstado,
+            FechaHora = ProximaFecha(DayOfWeek.Monday).AddHours(9),
+            Estado = "Programada"
+        };
+        db.Citas.Add(cita);
+        await db.SaveChangesAsync();
+
+        var actualizada = await CrearServicio(db).ActualizarAsync(cita.IdCita, new CitaApiUpdateDto
+        {
+            IdCita = cita.IdCita,
+            IdPaciente = datos.Paciente.IdPaciente,
+            IdProfesional = datos.Profesional.IdProfesional,
+            IdServicio = datos.Servicio.IdServicio,
+            IdConsultorio = datos.Consultorio.IdConsultorio,
+            FechaHora = cita.FechaHora,
+            Estado = "Confirmada",
+            IdEstado = estadoConfirmada.IdEstado,
+            IdUsuarioModificacion = 42
+        }, operadorId: 42, ipOrigen: "127.0.0.4");
+
+        Assert.Equal("Confirmada", actualizada?.Estado);
+        var historial = await db.CitasHistorialEstado.SingleAsync();
+        Assert.Equal(cita.IdCita, historial.IdCita);
+        Assert.Equal(estadoConfirmada.IdEstado, historial.IdEstado);
+        Assert.Equal(42, historial.IdUsuario);
+        Assert.Contains("Programada", historial.Motivo);
+        Assert.Contains("Confirmada", historial.Motivo);
+        var auditoria = await db.Auditorias.SingleAsync();
+        Assert.Equal(42, auditoria.IdUsuario);
+        Assert.Equal("127.0.0.4", auditoria.IpOrigen);
+        Assert.Contains("Programada", auditoria.DatosAnteriores);
+        Assert.Contains("Confirmada", auditoria.DatosNuevos);
+    }
+
     private static CitaService CrearServicio(AppDbContext db) =>
         new(db, NullLogger<CitaService>.Instance);
 
-    private static AppDbContext CrearDb()
+    private static AppDbContext CrearDb(
+        string? databaseName = null,
+        ISaveChangesInterceptor? interceptor = null)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new AppDbContext(options);
+        var builder = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString());
+        if (interceptor is not null)
+            builder.AddInterceptors(interceptor);
+        return new AppDbContext(builder.Options);
     }
 
     private static (Paciente Paciente, Profesional Profesional, Servicio Servicio, Consultorio Consultorio) SeedBase(AppDbContext db)
@@ -950,6 +1241,9 @@ public class CitaServiceTests
         Assert.Null(cita.IdConsultorio);
         Assert.Equal(fecha.Date.AddHours(9), cita.FechaHora);
         Assert.Equal("Solicitada", cita.Estado);
+        var historial = await db.CitasHistorialEstado.SingleAsync();
+        Assert.Equal(cita.IdCita, historial.IdCita);
+        Assert.Equal("Solicitada", historial.EstadoTexto);
     }
 
     [Fact]
@@ -966,12 +1260,18 @@ public class CitaServiceTests
                 Fecha = fecha.Date,
                 HoraInicio = TimeSpan.FromHours(9),
                 IdServicio = datos.Servicio.IdServicio
-            });
+            },
+            idUsuarioActor: datos.Paciente.IdUsuario,
+            ipOrigen: "127.0.0.5");
 
         Assert.Equal("Solicitada", solicitud.Estado);
         Assert.Null(solicitud.IdProfesional);
         Assert.Null(solicitud.IdProfesionalPreferido);
         Assert.Null(solicitud.IdConsultorio);
+        var auditoria = await db.Auditorias.SingleAsync();
+        Assert.Equal(datos.Paciente.IdUsuario, auditoria.IdUsuario);
+        Assert.Equal("127.0.0.5", auditoria.IpOrigen);
+        Assert.Contains("Solicitada", auditoria.DatosNuevos);
     }
 
     [Fact]
@@ -1039,6 +1339,16 @@ public class CitaServiceTests
         Assert.Equal(fecha, citaAsignada.FechaHora);
         Assert.Equal("asignada", entrada.Estado);
         Assert.Equal(citaAsignada.IdCita, entrada.IdCitaAsignada);
+        var auditoriaAsignacion = await db.Auditorias.SingleAsync(a =>
+            a.TablaAfectada == "Cita" && a.IdRegistro == citaAsignada.IdCita);
+        Assert.Equal("INSERT", auditoriaAsignacion.Accion);
+        Assert.Null(auditoriaAsignacion.IdUsuario);
+        Assert.Equal("ListaEsperaAutomatica", auditoriaAsignacion.IpOrigen);
+        Assert.Contains("Confirmada", auditoriaAsignacion.DatosNuevos);
+        Assert.Collection(
+            await db.CitasHistorialEstado.OrderBy(h => h.IdHistorial).ToListAsync(),
+            historialCancelacion => Assert.Equal(citaCancelada.IdCita, historialCancelacion.IdCita),
+            historialAsignacion => Assert.Equal(citaAsignada.IdCita, historialAsignacion.IdCita));
     }
 
     [Fact]
@@ -1131,7 +1441,11 @@ public class CitaServiceTests
         await db.SaveChangesAsync();
 
         // Act
-        bool resultado = await CrearServicio(db).CancelarAsync(cita.IdCita, "Cancelación administrativa");
+        bool resultado = await CrearServicio(db).CancelarAsync(
+            cita.IdCita,
+            "Cancelación administrativa",
+            idUsuarioActor: 17,
+            ipOrigen: "192.0.2.2");
 
         // Assert
         Assert.True(resultado);
@@ -1140,6 +1454,19 @@ public class CitaServiceTests
             string.Equals(citaActualizada?.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase),
             $"Se esperaba 'Cancelada', se obtuvo: '{citaActualizada?.Estado}'");
         Assert.Equal("Cancelación administrativa", citaActualizada?.MotivoCancelacion);
+        var historial = await db.CitasHistorialEstado.SingleAsync();
+        Assert.Equal(cita.IdCita, historial.IdCita);
+        Assert.Equal(17, historial.IdUsuario);
+        Assert.Contains("Cancelación administrativa", historial.Motivo);
+        var auditoria = await db.Auditorias.SingleAsync();
+        Assert.Equal(17, auditoria.IdUsuario);
+        Assert.Equal("192.0.2.2", auditoria.IpOrigen);
+        Assert.Contains("Programada", auditoria.DatosAnteriores);
+        using var snapshotNuevo = System.Text.Json.JsonDocument.Parse(auditoria.DatosNuevos!);
+        Assert.Equal("Cancelada", snapshotNuevo.RootElement.GetProperty("Estado").GetString());
+        Assert.Equal(
+            "Cancelación administrativa",
+            snapshotNuevo.RootElement.GetProperty("MotivoCancelacion").GetString());
     }
 
     [Fact]
@@ -1510,6 +1837,15 @@ public class CitaServiceTests
         Assert.Equal("enviado", registro.Estado);
         Assert.NotNull(registro.EnviadoEn);
         Assert.Single(await db.Auditorias.ToListAsync());
+
+        var (reenvios, fallidosReenvio, idsReenviados) =
+            await service.EnviarRecordatoriosAsync([cita.IdCita]);
+
+        Assert.Equal(0, reenvios);
+        Assert.Equal(0, fallidosReenvio);
+        Assert.Empty(idsReenviados);
+        Assert.Single(await db.RecordatoriosCita.ToListAsync());
+        Assert.Single(await db.Auditorias.ToListAsync());
     }
 
     private sealed class CapturingEmailService : IEmailService
@@ -1545,5 +1881,23 @@ public class CitaServiceTests
             string correoDestino,
             CancellationToken cancellationToken = default)
             => Task.FromResult((true, "OK"));
+    }
+
+    private sealed class FallarSiSeAgregaHistorialInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            bool agregaHistorial = eventData.Context?.ChangeTracker
+                .Entries<CitaHistorialEstado>()
+                .Any(entry => entry.State == EntityState.Added) == true;
+
+            if (agregaHistorial)
+                throw new InvalidOperationException("Fallo intencional al guardar el historial.");
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
     }
 }

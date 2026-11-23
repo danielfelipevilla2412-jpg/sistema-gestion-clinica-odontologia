@@ -1,14 +1,14 @@
 # Requisitos funcionales de profesionales y citas
 
 **Proyecto:** SmileTrack  
-**Estado:** propuesta actualizada para aprobación funcional  
+**Estado:** propuesta alineada con decisiones de producto del 2026-11-20; requiere aprobación formal del dueño del producto
 **Alcance de revisión:** implementación local de los módulos de profesionales y citas
 
 ## Alcance y límites de la verificación
 
 Este documento describe los requisitos que se busca cumplir con el código actual. La revisión incluye controladores, servicios, vistas, JavaScript, scripts SQL y pruebas automatizadas. La revisión visual autenticada de sesiones anteriores cubrió pantallas representativas de los cinco roles y fue de solo lectura.
 
-Las pruebas automatizadas no equivalen a una prueba end-to-end. En esta revisión no se enviaron formularios con datos reales, no se verificó la entrega de correo, no se aplicó la migración a una base de datos real y no se repitió la navegación autenticada después de los cambios funcionales. Por ello, “implementado” describe el código y sus pruebas disponibles, no una aceptación integral del producto.
+Las pruebas automatizadas no equivalen a una prueba end-to-end. No se enviaron formularios autenticados con datos reales, no se verificó la entrega de correo ni se aplicó la migración a una base de datos real. Por ello, “implementado” describe el código y sus pruebas disponibles, no una aceptación integral del producto.
 
 Los encabezados originales usaban `RF-15` a `RF-32` mientras que el campo identificador iba de `RF-10` a `RF-27`. Para evitar duplicados, se mantiene como identificador canónico el campo `RF-10` a `RF-27`; la etiqueta original se conserva en la segunda columna.
 
@@ -132,18 +132,25 @@ Las prioridades y criterios siguientes son una propuesta basada en impacto opera
 **Nombre:** Cancelación y reprogramación  
 **Descripción:** El sistema deberá permitir cancelar citas elegibles con un motivo obligatorio de 5 a 500 caracteres y reagendar citas elegibles a una fecha futura.  
 **Prioridad:** Alta  
-**Actor(es):** Paciente, Recepcionista, Administrador  
+**Actor(es):** Paciente, Recepcionista, Administrador, Profesional (solo sus propias citas)
+
 **Precondición:** El actor está autenticado y la cita existe; para cancelaciones iniciadas por pacientes, deben faltar al menos dos horas para la cita.  
-**Postcondición (criterio de aceptación):** La cancelación guarda el motivo y libera los recursos; el backend rechaza cancelaciones fuera del límite del paciente y rechaza reagendar citas de origen pasadas o canceladas, o a una fecha no futura.  
+
+**Postcondición (criterio de aceptación):** La cancelación guarda el motivo y libera los recursos; el backend rechaza cancelaciones fuera del límite del paciente y permite al Profesional cancelar únicamente sus propias citas. También rechaza reagendar citas de origen pasadas o canceladas, o a una fecha no futura.
+
 **Responsable de desarrollo:** Johan Santamaria
+
+**Alineación de CU-CIT-05 — Cancelar una cita:** aplica los mismos actores y restricciones de RF-20: Paciente, Recepcionista y Administrador; Profesional únicamente para sus propias citas. El motivo es obligatorio (5–500 caracteres) y al Paciente se le exige cancelar con al menos dos horas de anticipación.
 
 ### RF-21 — Gestionar estados y atención
 
 **Identificador:** RF-21 (etiqueta original RF-26)  
 **Nombre:** Flujo operativo de estados de cita  
-**Descripción:** El sistema deberá conservar separados los estados Cancelada y No asistió y aplicar transiciones permitidas según el rol: Recepción registra llegada/sala de espera, el profesional inicia y finaliza la atención de sus citas y Administración gestiona las transiciones autorizadas.  
+**Descripción:** El sistema deberá conservar separados los estados Cancelada y No asistió y aplicar transiciones permitidas según el rol: Recepción registra llegada/sala de espera, el Auxiliar solo puede cambiar una cita a En sala de espera o En proceso cuando la transición sea válida, el Profesional inicia y finaliza la atención de sus citas y Administración gestiona las transiciones autorizadas.
+
 **Prioridad:** Crítica  
-**Actor(es):** Recepcionista, Profesional, Administrador  
+**Actor(es):** Recepcionista, Profesional, Administrador, Auxiliar
+
 **Precondición:** El actor inició sesión, tiene autorización para la cita y la transición está permitida desde el estado actual.  
 **Postcondición (criterio de aceptación):** La transición válida actualiza estado e historial y produce las notificaciones aplicables; una transición inválida o no autorizada se rechaza sin modificar la cita. Los filtros y KPI distinguen inasistencia de cancelación.  
 **Responsable de desarrollo:** Johan Santamaria
@@ -174,7 +181,8 @@ Las prioridades y criterios siguientes son una propuesta basada en impacto opera
 
 **Identificador:** RF-24 (etiqueta original RF-29)  
 **Nombre:** Lista de espera y asignación de franja liberada  
-**Descripción:** El sistema deberá permitir al paciente inscribirse en lista de espera para un servicio y rango de fechas, con profesional preferido opcional; al liberarse una cita, deberá intentar asignar la franja al primer candidato compatible que siga disponible.  
+**Descripción:** El sistema deberá permitir al paciente inscribirse en lista de espera para un servicio y rango de fechas, con profesional preferido opcional; al liberarse una cita, deberá asignar automáticamente la franja al primer candidato compatible que siga disponible, sin aprobación intermedia de Recepción.
+
 **Prioridad:** Media  
 **Actor(es):** Paciente, sistema  
 **Precondición:** El paciente inició sesión y el servicio y rango de fechas de la inscripción son válidos.  
@@ -220,7 +228,7 @@ El ejemplo “Gestión de citas — RF8 — permitir crear una orden de compra�
 
 ## Estado de verificación
 
-Validación automatizada de esta revisión: **492 pruebas aprobadas, 0 fallidas**; `node --check` para los JavaScript modificados y `git diff --check` sin errores. Se encontró `sqlcmd`, pero no había una instancia SQL Server accesible en `localhost`; por tanto, no se aplicó ni ejecutó la migración.
+Validación automatizada al 2026-11-20: **521 pruebas aprobadas, 0 fallidas y 1 omitida de 522 casos**; `git diff --check` sin errores. La migración se aplicó a una base de pruebas SQL Server desechable y la prueba de integración valida el cambio de estado, su auditoría/historial y la notificación. Node.js no está disponible en este entorno, por lo que no se repitió `node --check`; esta aplicación no valida otras bases ni el despliegue.
 
 | ID | Resultado del código y pruebas disponibles | Límite que permanece |
 |---|---|---|
@@ -234,25 +242,26 @@ Validación automatizada de esta revisión: **492 pruebas aprobadas, 0 fallidas*
 | RF-17 | Implementado en consultas: profesional y período filtran los resultados; se conserva el aislamiento del profesional autenticado. | No se ejecutó el reporte con identidades distintas en una prueba end-to-end. |
 | RF-18 | Implementado en backend, con validaciones de agenda y duración. | Los formularios no se enviaron durante esta revisión. |
 | RF-19 | Implementado y cubierto por pruebas de conflictos de recursos. | La concurrencia real depende de aplicar y validar la base de datos de destino. |
-| RF-20 | Implementado en servicio/API: motivo, límites, anticipación de cancelación del paciente y guardas de reagendamiento. | No se enviaron solicitudes autenticadas de cancelación o reagendamiento. |
-| RF-21 | Implementado en helper, controladores MVC/API y vistas: transición de estado por rol; las rutas de edición también validan permisos para no saltarse el control de estado. | No se probó manualmente el rechazo HTTP por cada rol en el navegador. |
+| RF-20 | Implementado en servicio/API: motivo, límites, anticipación de cancelación del paciente y guardas de reagendamiento; Profesional solo cancela citas propias. | No se enviaron solicitudes autenticadas de cancelación o reagendamiento. |
+| RF-21 | Implementado en helper, controladores MVC/API y vistas: transición de estado por rol; Auxiliar limitado a En sala de espera y En proceso. | No se probó manualmente el rechazo HTTP por cada rol en el navegador. |
 | RF-22 | Implementado en vistas y endpoints de agenda, con manejo de error. | No se simuló una caída de servicio en la comprobación visual. |
 | RF-23 | Implementado: solicitud pendiente sin profesional ni consultorio asignados, profesional preferido opcional y confirmación de Recepción. | La confirmación no se probó en una sesión autenticada posterior a los cambios. |
 | RF-24 | Implementado en inscripción, persistencia y asignación transaccional al cancelar, con comprobación de compatibilidad y conflictos. | Requiere validar con una base migrada y casos concurrentes. |
 | RF-25 | Implementado en el código de notificaciones y recordatorios. | No se verificó la entrega real por correo. |
 | RF-26 | Implementado en los módulos existentes. | No se guardaron registros de asistencia/procedimiento en esta revisión. |
-| RF-27 | Implementado: KPI de inasistencias separado y renderizado en el dashboard. | Los KPI se actualizan al recargar; el polling no forma parte del requisito vigente. |
+| RF-27 | Implementado: KPI de inasistencias separado; el resumen de recepción ahora se actualiza por polling cada 30 segundos. | No se verificó visualmente el refresco autenticado en navegador; el polling es una mejora adicional. |
 
 ### Criterios transversales de rol
 
 - Recepción puede confirmar solicitudes y marcar llegada/sala de espera; no puede iniciar ni finalizar una atención.
+- Auxiliar solo puede cambiar estados a En sala de espera o En proceso; no puede usar la API para otras transiciones.
 - El profesional solo opera sus citas; sus transiciones clínicas son iniciar y finalizar la atención.
 - Los controles de rol se aplican tanto a las rutas de cambio de estado como a las rutas de edición que también reciben un estado.
 - El catálogo de estados conserva Cancelada y No asistió como valores distintos. No se debe equiparar cancelación con inasistencia en reportes o filtros.
 
 ## Acciones pendientes para aceptación integral
 
-1. Aplicar `Database/MIGRATION_BRECHAS_PROFESIONALES_CITAS.sql` a una base existente y comprobar que la versión de SQL Server y sus nombres de objetos coincidan con el entorno destino. No se ejecutó aquí.
+1. Aplicar `Database/MIGRATION_BRECHAS_PROFESIONALES_CITAS.sql` a cada base destino existente y comprobar que la versión de SQL Server y sus nombres de objetos coincidan con el entorno. Solo se ejecutó en la base de pruebas desechable.
 2. Completar tarjetas profesionales faltantes en registros ya existentes.
 3. Hacer pruebas end-to-end con datos de prueba para altas/ediciones, solicitudes, lista de espera, ausencias, cancelaciones, reagendamientos y transiciones permitidas/denegadas por rol.
 4. Verificar la entrega de notificaciones con la configuración SMTP/servicio correspondiente.

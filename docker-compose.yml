@@ -85,7 +85,7 @@ services:
       # La app se conecta al contenedor SQL por nombre de servicio (smiletrack-net)
       ConnectionStrings__DefaultConnection: >-
         Server=sqlserver;Database=SmileTrackDB;User Id=sa;
-        Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Connect Timeout=30;
+        Password=${MSSQL_SA_PASSWORD:?Define_MSSQL_SA_PASSWORD_in_.env};TrustServerCertificate=True;Connect Timeout=30;
       Jwt__Key: "${JWT_KEY:?Configura JWT_KEY en el archivo .env}"
       Jwt__Issuer: "SmileTrack"
       Jwt__Audience: "SmileTrackClient"

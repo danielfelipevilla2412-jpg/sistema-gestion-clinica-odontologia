@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
@@ -10,59 +9,39 @@ namespace SmileTrack_MVC.Services.Facturacion;
 public sealed class FacturacionService : IFacturacionService
 {
     private readonly AppDbContext _db;
-    public FacturacionService(AppDbContext db) => _db = db;
+    private readonly IFacturacionQueryService _queries;
 
-    public async Task<IReadOnlyList<FacturaListItemDto>> ListarAsync(string? buscar, string? estado, DateTime? desde, DateTime? hasta, CancellationToken ct)
-        => await ListarAsync(buscar, estado, desde, hasta, null, null, ct);
-
-    public async Task<IReadOnlyList<FacturaListItemDto>> ListarAsync(string? buscar, string? estado, DateTime? desde, DateTime? hasta, int? idCita, int? idProfesional, CancellationToken ct)
+    public FacturacionService(AppDbContext db)
+        : this(db, new FacturacionQueryService(db))
     {
-        var q = _db.Facturas.AsNoTracking().Include(x => x.Paciente).AsQueryable();
-        if (!string.IsNullOrWhiteSpace(buscar))
-        {
-            buscar = buscar.Trim();
-            q = q.Where(x => x.NumeroFactura.Contains(buscar) ||
-                (x.Paciente != null && (x.Paciente.Nombres + " " + x.Paciente.Apellidos).Contains(buscar)) ||
-                (x.Paciente != null && x.Paciente.Documento.Contains(buscar)));
-        }
-        if (!string.IsNullOrWhiteSpace(estado)) q = q.Where(x => x.Estado == estado.Trim().ToLower());
-        if (desde.HasValue) q = q.Where(x => x.FechaFactura >= desde.Value.Date);
-        if (hasta.HasValue) q = q.Where(x => x.FechaFactura < hasta.Value.Date.AddDays(1));
-        if (idCita.HasValue) q = q.Where(x => x.IdCita == idCita.Value);
-        if (idProfesional.HasValue) q = q.Where(x => x.IdProfesional == idProfesional.Value);
-
-        var invoices = await q.OrderByDescending(x => x.FechaFactura).Select(x => new FacturaListItemDto
-        {
-            Id = x.IdFactura, Numero = x.NumeroFactura, IdPaciente = x.IdPaciente, IdCita = x.IdCita, IdProfesional = x.IdProfesional,
-            Paciente = x.Paciente == null ? "Paciente" : x.Paciente.Nombres + " " + x.Paciente.Apellidos,
-            Documento = x.Paciente == null ? "N/A" : x.Paciente.Documento,
-            Fecha = x.FechaFactura, Subtotal = x.Subtotal, Descuento = x.Descuento, Total = x.Total,
-            MontoPagado = x.MontoPagado, Pendiente = Math.Max(x.Total - x.MontoPagado, 0),
-            FechaPago = x.FechaPago, Estado = x.Estado, Notas = x.Notas
-        }).ToListAsync(ct);
-
-        if (invoices.Count == 0) return invoices;
-
-        var invoiceIds = invoices.Select(x => x.Id).ToArray();
-        var serviceRows = await _db.DetallesFactura.AsNoTracking()
-            .Where(x => invoiceIds.Contains(x.IdFactura))
-            .Select(x => new { x.IdFactura, x.Descripcion })
-            .ToListAsync(ct);
-        var servicesByInvoice = serviceRows
-            .GroupBy(x => x.IdFactura)
-            .ToDictionary(group => group.Key, group => string.Join(", ", group.Select(x => x.Descripcion)));
-
-        foreach (var invoice in invoices)
-            invoice.Servicios = servicesByInvoice.GetValueOrDefault(invoice.Id, string.Empty);
-
-        return invoices;
     }
 
-    public async Task<FacturaDto?> ObtenerAsync(int id, CancellationToken ct)
+    public FacturacionService(AppDbContext db, IFacturacionQueryService queries)
     {
-        var x = await _db.Facturas.AsNoTracking().Include(f => f.Paciente).Include(f => f.Detalles).Include(f => f.Pagos).FirstOrDefaultAsync(f => f.IdFactura == id, ct);
-        return x == null ? null : Map(x);
+        _db = db;
+        _queries = queries;
     }
+
+    public Task<IReadOnlyList<FacturaListItemDto>> ListarAsync(
+        string? buscar,
+        string? estado,
+        DateTime? desde,
+        DateTime? hasta,
+        CancellationToken ct) =>
+        _queries.ListarAsync(buscar, estado, desde, hasta, null, null, ct);
+
+    public Task<IReadOnlyList<FacturaListItemDto>> ListarAsync(
+        string? buscar,
+        string? estado,
+        DateTime? desde,
+        DateTime? hasta,
+        int? idCita,
+        int? idProfesional,
+        CancellationToken ct) =>
+        _queries.ListarAsync(buscar, estado, desde, hasta, idCita, idProfesional, ct);
+
+    public Task<FacturaDto?> ObtenerAsync(int id, CancellationToken ct) =>
+        _queries.ObtenerAsync(id, ct);
 
     public async Task<FacturaDto> CrearDesdeCitaAsync(int idCita, int idUsuario, CancellationToken ct)
     {
@@ -240,21 +219,8 @@ public sealed class FacturacionService : IFacturacionService
         _db.Facturas.Remove(f); await _db.SaveChangesAsync(ct); return true;
     }
 
-    public async Task<IReadOnlyList<PagoDto>?> ListarPagosAsync(int id, CancellationToken ct)
-    {
-        var existe = await _db.Facturas.AnyAsync(f => f.IdFactura == id, ct);
-        if (!existe) return null;
-        return await _db.Pagos.AsNoTracking().Where(p => p.IdFactura == id).OrderByDescending(p => p.FechaUtc).Select(p => new PagoDto
-        {
-            Id = p.IdPago,
-            Monto = p.Monto,
-            FechaPago = p.FechaUtc.ToLocalTime(),
-            MetodoPago = p.MetodoPago,
-            Referencia = p.Referencia,
-            RegistradoPor = p.RegistradoPor,
-            Observaciones = p.Observaciones
-        }).ToListAsync(ct);
-    }
+    public Task<IReadOnlyList<PagoDto>?> ListarPagosAsync(int id, CancellationToken ct) =>
+        _queries.ListarPagosAsync(id, ct);
 
     public async Task<FacturaDto?> RegistrarPagoAsync(int id, RegistrarPagoRequest request, int idUsuario, CancellationToken ct)
     {
@@ -387,6 +353,4 @@ public sealed class FacturacionService : IFacturacionService
             Fecha = DateTime.UtcNow
         });
     private async Task<string> NuevoNumeroAsync(CancellationToken ct) { var year = ColombiaClock.Now.Year; var n = await _db.Facturas.CountAsync(x => x.FechaFactura.Year == year, ct) + 1; string v; do { v = $"FAC-{year}-{n:D5}"; n++; } while (await _db.Facturas.AnyAsync(x => x.NumeroFactura == v, ct)); return v; }
-    private static bool EsEstadoFacturable(string? estado) => estado?.Trim().ToLowerInvariant() is "atendida" or "completada" or "finalizada";
-    private static FacturaDto Map(Factura x) => new() { Id=x.IdFactura, Numero=x.NumeroFactura, IdPaciente=x.IdPaciente, IdCita=x.IdCita, IdProfesional=x.IdProfesional, Paciente=x.Paciente==null?"Paciente":$"{x.Paciente.Nombres} {x.Paciente.Apellidos}", Documento=x.Paciente?.Documento??"N/A", Fecha=x.FechaFactura, Subtotal=x.Subtotal, Descuento=x.Descuento, Total=x.Total, MontoPagado=x.MontoPagado, Pendiente=Math.Max(x.Total-x.MontoPagado,0), Estado=x.Estado, Notas=x.Notas, FechaPago=x.FechaPago, Detalles=x.Detalles.Select(d=>new FacturaDetalleDto { Id=d.IdDetalle, IdServicio=d.IdServicio, Descripcion=d.Descripcion, Cantidad=d.Cantidad, PrecioUnitario=d.PrecioUnitario, Descuento=d.Descuento, Subtotal=d.SubtotalLinea }).ToList(), Pagos=x.Pagos.Select(p=>new PagoDto { Id=p.IdPago, Monto=p.Monto, FechaPago=p.FechaUtc.ToLocalTime(), MetodoPago=p.MetodoPago, Referencia=p.Referencia, RegistradoPor=p.RegistradoPor, Observaciones=p.Observaciones }).ToList() };
 }

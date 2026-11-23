@@ -15,6 +15,7 @@ using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Models.ViewModels;
 using SmileTrack_MVC.Services;
 using SmileTrack_MVC.Services.Email;
+using SmileTrack_MVC.Services.GestionDeCitas;
 using Xunit;
 
 namespace SmileTrack_MVC.Tests.Unit;
@@ -38,10 +39,11 @@ public sealed class GestionCitasControllerTests
             new CitaService(db, NullLogger<CitaService>.Instance),
             new FakePanelOperativoService(),
             new FakeAntiforgery(),
-            new FakeCitasDashboardService(),
+            new FakeCitasDashboardService(db),
             new FakeAgendaService(),
             new MemoryCache(new MemoryCacheOptions()),
-            new SmileTrack_MVC.Services.Perfiles.PerfilPacienteService(db));
+            new SmileTrack_MVC.Services.Perfiles.PerfilPacienteService(db),
+            new PacienteNotificacionQueryService(db));
 
         var claims = new List<Claim>();
         if (idUsuario.HasValue)
@@ -213,7 +215,27 @@ public sealed class GestionCitasControllerTests
 
     private sealed class FakeCitasDashboardService : ICitasDashboardService
     {
+        private readonly CitasDashboardService _inner;
+
+        public FakeCitasDashboardService(AppDbContext db)
+        {
+            _inner = new CitasDashboardService(
+                db,
+                new CitaService(db, NullLogger<CitaService>.Instance),
+                NullLogger<CitasDashboardService>.Instance);
+        }
+
         public Task<CitasDashboardViewModel> ObtenerDashboardAsync(DateTime fechaReferencia, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        public Task<SmileTrack_MVC.Models.ViewModels.GestionDeCitas.CitasDashboardRecepcionViewModel> ObtenerDashboardRecepcionAsync(
+            DateTime fechaReferencia,
+            CancellationToken cancellationToken = default) =>
+            _inner.ObtenerDashboardRecepcionAsync(fechaReferencia, cancellationToken);
+
+        public Task<PanelOperativoDashboardMetricsViewModel> ObtenerMetricasPanelOperativoAsync(
+            DateTime fechaReferencia,
+            CancellationToken cancellationToken = default) =>
+            _inner.ObtenerMetricasPanelOperativoAsync(fechaReferencia, cancellationToken);
     }
 
     private sealed class FakeAgendaService : IAgendaService

@@ -31,6 +31,11 @@ public static class EstadoCitaHelper
         "cancelada", "cancelado", "rechazada", "rechazado", "solicitada", "solicitado", "pendiente"
     ];
 
+    public static readonly string[] EstadosRecordables =
+    [
+        "programada", "agendada", "confirmada", "confirmado"
+    ];
+
     /// <summary>
     /// Estados que representan el cierre definitivo de una cita (ya no requiere seguimiento).
     /// Se expone como arreglo para poder usarlo directamente en consultas EF: .Contains(...) se
@@ -121,7 +126,8 @@ public static class EstadoCitaHelper
         string? nuevoEstado,
         bool esAdministrador,
         bool esRecepcionista,
-        bool esProfesional)
+        bool esProfesional,
+        bool esAuxiliar = false)
     {
         string actual = Normalize(estadoActual);
         string destino = Normalize(nuevoEstado);
@@ -130,6 +136,8 @@ public static class EstadoCitaHelper
             return false;
         if (actual == destino || esAdministrador)
             return true;
+        if (esAuxiliar)
+            return destino is "en_sala_de_espera" or "en_proceso";
         if (esProfesional)
             return destino is "en_proceso" or "atendida";
         if (esRecepcionista)

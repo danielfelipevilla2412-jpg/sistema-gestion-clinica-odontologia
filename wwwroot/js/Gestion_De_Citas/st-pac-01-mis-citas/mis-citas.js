@@ -416,6 +416,7 @@ const handleNewAppointmentSubmit = async () => {
   const timeSelect = safeGetElement('citaHora');
   const noteTextarea = safeGetElement('citaNota');
   const confirmButton = safeGetElement('confirmarNuevaCita');
+  if (confirmButton?.disabled) return;
 
   if (!dateInput?.value || !serviceSelect?.value || !timeSelect?.value) {
     const firstInvalidField = [dateInput, serviceSelect, timeSelect]

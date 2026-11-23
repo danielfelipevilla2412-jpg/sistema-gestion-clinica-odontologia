@@ -85,8 +85,10 @@ public partial class GestionProfesionalesController
             {
                 _context.ProfesionalServicios.Add(new ProfesionalServicio
                 {
-                    IdProfesional = profesionalId, IdServicio = servicioId,
-                    PrecioPersonalizado = precio, Activo = true
+                    IdProfesional = profesionalId,
+                    IdServicio = servicioId,
+                    PrecioPersonalizado = precio,
+                    Activo = true
                 });
             }
             else

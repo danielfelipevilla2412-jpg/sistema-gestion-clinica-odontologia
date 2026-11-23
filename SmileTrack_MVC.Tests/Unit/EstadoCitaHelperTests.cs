@@ -54,16 +54,21 @@ public class EstadoCitaHelperTests
     }
 
     [Theory]
-    [InlineData("Confirmada", "En sala de espera", false, true, false, true)]
-    [InlineData("En sala de espera", "En atención", false, true, false, false)]
-    [InlineData("En sala de espera", "En atención", false, false, true, true)]
-    [InlineData("Programada", "Atendida", true, false, false, true)]
+    [InlineData("Confirmada", "En sala de espera", false, true, false, false, true)]
+    [InlineData("En sala de espera", "En atención", false, true, false, false, false)]
+    [InlineData("En sala de espera", "En atención", false, false, true, false, true)]
+    [InlineData("Programada", "Atendida", true, false, false, false, true)]
+    [InlineData("Confirmada", "En sala de espera", false, false, false, true, true)]
+    [InlineData("En sala de espera", "En atención", false, false, false, true, true)]
+    [InlineData("Confirmada", "No asistió", false, false, false, true, false)]
+    [InlineData("En sala de espera", "Atendida", false, false, false, true, false)]
     public void PuedeTransicionarPorRol_EnforcesOperationalPermissions(
         string actual,
         string destino,
         bool administrador,
         bool recepcionista,
         bool profesional,
+        bool auxiliar,
         bool esperado)
     {
         Assert.Equal(
@@ -73,7 +78,8 @@ public class EstadoCitaHelperTests
                 destino,
                 administrador,
                 recepcionista,
-                profesional));
+                profesional,
+                auxiliar));
     }
 
     [Theory]

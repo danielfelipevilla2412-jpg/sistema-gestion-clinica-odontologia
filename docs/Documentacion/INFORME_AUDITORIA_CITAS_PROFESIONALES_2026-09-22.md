@@ -1,9 +1,12 @@
 # Informe de auditoría de gestión de citas y profesionales
 
 **Proyecto:** SmileTrack  
-**Fecha de revisión:** 22 de septiembre de 2026  
+**Fecha de revisión original:** 22 de septiembre de 2026
+**Estado reevaluado:** 20 de noviembre de 2026
 **Fuentes funcionales:** `CU_RN_SmileTrack.docx` y `RF_Especificos_SmileTrack.docx` (versión consolidada 2.0, septiembre de 2026).  
 **Alcance del código:** controladores MVC y API, servicios, modelos/DTO, vistas y JavaScript de Gestión de Citas y Gestión de Profesionales.
+
+> **Nota de vigencia:** las secciones 1–7 registran la revisión estática original de septiembre. Las correcciones implementadas posteriormente y los hallazgos que siguen pendientes se detallan en la sección 8; esa sección prevalece para el estado actual. La revisión de noviembre sí ejecutó la suite automatizada.
 
 ## 1. Conclusión ejecutiva
 
@@ -248,3 +251,36 @@ La cobertura de los CU sigue la cobertura de sus RF relacionados, con los casos 
 - [ProfesionalesApiController.cs](../Controllers/Api/GestionDeProfesionales/ProfesionalesApiController.cs): endpoints del módulo de profesionales.
 - [ProfesionalesController.cs](../Controllers/GestionDeProfesionales/ProfesionalesController.cs): tableros, perfil y reportes clínicos.
 - [CitaCancelacionDto.cs](../Models/DTOs/GestionDeCitas/CitaCancelacionDto.cs): validación del motivo.
+
+## 8. Reevaluación posterior de hallazgos
+
+Se contrastaron los hallazgos anteriores con el código vigente el 20 de noviembre de 2026. “Resuelto” indica que se encontró implementación en el repositorio; no implica una prueba end-to-end en producción.
+
+| Hallazgo | Estado actual | Evidencia / trabajo pendiente |
+|---|---|---|
+| A1 — motivo de cancelación | **Resuelto** | DTO y servicio exigen motivo; el flujo API rechaza cuerpo ausente/inválido. |
+| A2 — profesional sin horario | **Resuelto** | La validación de disponibilidad rechaza al profesional sin horario individual. |
+| A3 — solapamientos de horarios | **Resuelto** | `ActualizarHorariosAsync` rechaza cruces y permite bloques consecutivos. |
+| A4 — especialidades múltiples y valor por defecto | **Resuelto** | El DTO acepta varias; el servicio valida asignaciones y aplica Odontología General cuando corresponde. |
+| A5 — permiso de cambio de estado | **Resuelto según decisión de producto (20-11-2026)** | API/MVC permiten Auxiliar solo para En sala de espera y En proceso; `EstadoCitaHelper` también exige una transición válida desde el estado actual. |
+| A6 — aislamiento de reportes | **Resuelto** | Los reportes del rol Profesional se fuerzan al ID propio; sin asociación no se abre el reporte general. |
+| M1 — alerta de citas en ausencia | **Resuelto** | Crear/actualizar ausencia devuelve las citas afectadas y una advertencia; no modifica esas citas en ese flujo. |
+| M2 — servicios por especialidad | **Resuelto** | La lista deriva servicios de especialidades y usa el valor predeterminado; la elegibilidad de citas también valida especialidad. |
+| M3 — correo al cancelar | **Resuelto** | La cancelación intenta correo después de persistir; una falla queda como advertencia y no revierte la operación. |
+| M4 — snapshots de auditoría | **Parcialmente resuelto (20-11-2026)** | Creación, actualización/reagenda, cambio de estado, cancelación, solicitud, confirmación/rechazo y asignación automática desde lista de espera se auditan desde `CitaService` con snapshots donde corresponde; MVC/API propagan actor e IP y se retiraron duplicados de esas rutas. Una integración SQL Server valida rollback y persistencia del cambio de estado; faltan otros flujos y revisar el registro de recordatorios. |
+| M5 — KPIs y estados del dashboard | **Parcialmente resuelto** | Se agregó polling de resumen cada 30 segundos y clases/etiquetas explícitas para Cancelada y No asistió. La tarjeta de facturas pendientes se refresca; verificar en navegador el comportamiento completo. |
+| M6 — actor de transición | **Resuelto en caminos interactivos revisados** | API/MVC propagan usuario e IP; finalización desde historia clínica resuelve el ID de usuario asociado al profesional. Operaciones de fondo pueden no tener actor humano. |
+| M7 — lista de espera | **Decisión confirmada y reflejada en RF-24 (20-11-2026)** | Se asigna automáticamente al primer candidato compatible, sin aprobación intermedia de Recepción. El requisito vigente está en [REQUERIMIENTOS_FUNCIONALES_ALINEADOS_IMPLEMENTACION.md](Gestion_De_Citas_Y_Profesionales/REQUERIMIENTOS_FUNCIONALES_ALINEADOS_IMPLEMENTACION.md); las afirmaciones de M7 anteriores describen la revisión histórica. |
+| M8 — estado inicial | **Parcial / contrato por fijar** | Solicitudes de paciente y citas creadas por recepción usan estados distintos de acuerdo con el flujo, pero debe mantenerse un catálogo/alias coherente en filtros y KPIs. |
+| M9 — cancelación por Profesional | **Decisión confirmada y reflejada en RF-20/CU-CIT-05 (20-11-2026)** | Se permite cancelar solo citas propias, con motivo y reglas de fecha/estado. La alineación vigente quedó documentada en [REQUERIMIENTOS_FUNCIONALES_ALINEADOS_IMPLEMENTACION.md](Gestion_De_Citas_Y_Profesionales/REQUERIMIENTOS_FUNCIONALES_ALINEADOS_IMPLEMENTACION.md). |
+| B1 — reglas compartidas entre rutas | **Parcialmente resuelto** | Auditoría de los flujos principales se centralizó en el servicio; quedan eventos de fondo y ampliar la verificación SQL Server a otros flujos. |
+
+### Validación posterior
+
+La suite completa `SmileTrack_MVC.Tests` obtuvo **521 pruebas aprobadas y 1 omitida de 522 casos** en `net9.0`, incluida una prueba de integración SQL Server que valida rollback y persistencia de estado, historial, auditoría y notificación de citas. Esta cobertura no acredita los demás flujos SQL ni el despliegue.
+
+### Decisiones de producto confirmadas
+
+1. Auxiliar puede cambiar solo a En sala de espera o En proceso.
+2. La asignación de lista de espera es automática al liberarse la franja.
+3. Profesional puede cancelar solo citas propias.
