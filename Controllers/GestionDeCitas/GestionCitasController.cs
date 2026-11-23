@@ -2326,12 +2326,17 @@ public sealed class CambiarEstadoCitaDto
     [Route("gestion-de-citas/st-aux-10-citas-finalizadas")]
     public async Task<IActionResult> Staux10CitasFinalizadas(
         [FromQuery] int? editId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        [FromQuery] DateOnly? fecha = null)
     {
+        var hoy = DateOnly.FromDateTime(ColombiaClock.Today);
+        var jornada = fecha.HasValue && fecha.Value <= hoy ? fecha.Value : hoy;
+        ViewData["FechaFinalizadas"] = jornada;
+        ViewData["HoyFinalizadas"] = hoy;
         try
         {
             ViewData["CitasFinalizadasData"] =
-                await ConstruirCitasFinalizadasAsync(ct);
+                await ConstruirCitasFinalizadasAsync(jornada, ct);
 
             return View(
                 "~/Views/Gestion_De_Citas/st-aux-10-citas-finalizadas/citas-finalizadas.cshtml");
@@ -2351,12 +2356,13 @@ public sealed class CambiarEstadoCitaDto
     }
 
     private async Task<object> ConstruirCitasFinalizadasAsync(
-        CancellationToken ct)
+        DateOnly jornada, CancellationToken ct)
     {
-        var hoy = ColombiaClock.Today;
+        var inicio = jornada.ToDateTime(TimeOnly.MinValue);
+        var fin = jornada.ToDateTime(TimeOnly.MaxValue);
 
         static string MapEstadoLabel(string estado) =>
-            NormalizarEstado(estado) switch
+            EstadoCitaHelper.Normalize(estado) switch
             {
                 "atendida" or
                 "completada" or
@@ -2367,7 +2373,7 @@ public sealed class CambiarEstadoCitaDto
                     => "Cancelada",
 
                 "no_asistida" or
-                "no-show"
+                "no_asistio" or "no_asistió"
                     => "No asistió",
 
                 _ => "Pendiente"
@@ -2378,12 +2384,10 @@ public sealed class CambiarEstadoCitaDto
             .Include(c => c.Paciente)
             .Include(c => c.Profesional)
             .Include(c => c.Servicio)
-            .Where(c => c.FechaHora >= hoy && c.FechaHora < hoy.AddDays(1))
+            .Include(c => c.EstadoCita)
+            .Where(c => c.FechaHora >= inicio && c.FechaHora <= fin)
             .OrderBy(c => c.FechaHora)
             .ToListAsync(ct);
-        citasHoy = citasHoy
-            .Where(c => MapEstadoLabel(c.Estado) != "Pendiente")
-            .ToList();
 
         var citas =
             citasHoy
@@ -2394,7 +2398,7 @@ public sealed class CambiarEstadoCitaDto
                         fecha = c.FechaHora.ToString("dd/MM/yyyy"),
                         hora =
                             c.FechaHora.ToString("HH:mm"),
-                        esHoy = c.FechaHora.Date == hoy,
+                        motivoCancelacion = c.MotivoCancelacion,
 
                         paciente =
                             c.Paciente?.NombresCompleto ??
@@ -2410,14 +2414,14 @@ public sealed class CambiarEstadoCitaDto
                             "Servicio no especificado",
 
                         estado =
-                            MapEstadoLabel(c.Estado)
+                            MapEstadoLabel(c.EstadoCita?.NombreEstado ?? c.Estado)
                     })
                 .Where(c => c.estado != "Pendiente")
                 .ToList();
 
         return new
         {
-            fechaResumen = hoy.ToString("yyyy-MM-dd"),
+            fechaResumen = jornada.ToString("yyyy-MM-dd"),
             citas
         };
     }
@@ -3371,14 +3375,7 @@ public sealed class CambiarEstadoCitaDto
                 })
                 .ToList();
 
-        int confirmadas =
-            citasHoy.Count(
-                c =>
-                    NormalizarEstado(c.Estado) is
-                        "confirmada" or
-                        "atendida" or
-                        "completada" or
-                        "realizada");
+        int confirmadas = citasHoy.Count(c => NormalizarEstado(c.Estado) == "confirmada");
 
         int pendientes =
             citasHoy.Count(
@@ -3386,15 +3383,8 @@ public sealed class CambiarEstadoCitaDto
                     NormalizarEstado(c.Estado) ==
                     "programada");
 
-        decimal facturasPendientes =
-            await _context.Facturas
-                .Where(
-                    f =>
-                        f.Estado == "pendiente" ||
-                        f.Estado == "parcial")
-                .SumAsync(
-                    f => f.Total,
-                    ct);
+        int facturasPendientes = await _context.Facturas.CountAsync(
+            f => f.Estado == "pendiente" || f.Estado == "parcial", ct);
 
         // Regla canónica (idéntica a ConstruirRecordatoriosAsync/st-rec-05):
         // una factura se considera vencida cuando sigue pendiente y fue emitida
@@ -3408,6 +3398,22 @@ public sealed class CambiarEstadoCitaDto
                 ct);
 
         var ahora = ColombiaClock.Now;
+        var estadosProgramados = new[] { "agendada", "programada", "programado", "confirmada", "confirmado" };
+        var siguienteCita = citasHoy.Count == 0
+            ? await _context.Citas.AsNoTracking()
+                .Where(c => c.FechaHora > ahora && estadosProgramados.Contains(
+                    (c.EstadoCita == null ? c.Estado : c.EstadoCita.NombreEstado).Trim().ToLower()))
+                .OrderBy(c => c.FechaHora).ThenBy(c => c.IdCita)
+                .Select(c => new
+                {
+                    id = c.IdCita,
+                    fecha = c.FechaHora,
+                    profesional = c.Profesional == null
+                        ? "Sin profesional asignado"
+                        : c.Profesional.Nombres + " " + c.Profesional.Apellidos
+                })
+                .FirstOrDefaultAsync(ct)
+            : null;
 
         var proximas =
             citasHoy
@@ -3464,13 +3470,10 @@ public sealed class CambiarEstadoCitaDto
                 confirmadas,
                 pendientes,
 
-                facturasPendientes =
-                    facturasPendientes >= 1000
-                        ? $"${facturasPendientes / 1000:0.#}k"
-                        : $"${facturasPendientes:0}"
+                facturasPendientes
             },
 
-            // Datos reales para los widgets "Alertas pendientes" y "Estado del sistema".
+            // Conteos de la bandeja de alertas.
             // sinConfirmar reutiliza el conteo de citas de hoy aún en estado "programada".
             alertas = new
             {
@@ -3478,6 +3481,7 @@ public sealed class CambiarEstadoCitaDto
                 facturasVencidas
             },
 
+            siguienteCita,
             proximasCitas = proximas
         };
     }
@@ -3497,10 +3501,23 @@ public sealed class CambiarEstadoCitaDto
         [FromQuery] string? estado = null,
         [FromQuery] string? profesional = null,
         [FromQuery] string? fecha = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        [FromQuery] string? vista = null,
+        [FromQuery] int? verId = null,
+        [FromQuery] DateOnly? desde = null,
+        [FromQuery] DateOnly? hasta = null)
     {
         try
         {
+            vista = vista is "hoy" or "historial" or "todas" ? vista : "proximas";
+            ViewData["VistaRecepcion"] = vista;
+            ViewData["VerCitaId"] = verId;
+            ViewData["CitasDesde"] = desde?.ToString("yyyy-MM-dd");
+            ViewData["CitasHasta"] = hasta?.ToString("yyyy-MM-dd");
+            foreach (var accion in new[] { "agendar", "reagendar", "cancelar" })
+                ViewData[$"Recepcion_{accion}"] = User.IsInRole("Administrador")
+                    || await PermisoReagendamiento.PermitidoAsync(_context, ct, accion);
+
             await CargarDatosCitas(
                 editId,
                 "/gestion-de-citas/st-rec-03-gestion-citas",
@@ -3513,7 +3530,7 @@ public sealed class CambiarEstadoCitaDto
                     Profesional = profesional,
                     Fecha = fecha
                 },
-                ct);
+                ct, vista, verId, desde, hasta);
 
             await CargarKpisRecepcionHoy(ct);
 
@@ -3996,7 +4013,11 @@ public sealed class CambiarEstadoCitaDto
         int? editId,
         string returnUrl,
         PaginationQuery? query = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? vistaRecepcion = null,
+        int? verId = null,
+        DateOnly? desde = null,
+        DateOnly? hasta = null)
     {
         try
         {
@@ -4148,7 +4169,34 @@ public sealed class CambiarEstadoCitaDto
             // POR QUÉ: las citas que ya vencieron y siguen en un estado no final (en espera /
             // pendiente) no deben listarse. Solo se muestran si el usuario filtra por fecha o por
             // estado, de modo que el histórico sigue siendo auditable.
-            if (string.IsNullOrWhiteSpace(pagination.Fecha) &&
+            if (desde is { } fechaDesde && hasta is { } fechaHasta && fechaDesde <= fechaHasta)
+            {
+                var inicio = fechaDesde.ToDateTime(TimeOnly.MinValue);
+                var fin = fechaHasta.ToDateTime(TimeOnly.MaxValue);
+                var finalesPeriodo = EstadoCitaHelper.EstadosFinales;
+                citasQuery = citasQuery.Where(c => c.FechaHora <= fin
+                    && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : 30) > inicio
+                    && !finalesPeriodo.Contains((c.EstadoCita == null ? c.Estado : c.EstadoCita.NombreEstado).Trim().ToLower()));
+            }
+
+            var ahoraRecepcion = ColombiaClock.Now;
+            if (verId is > 0)
+                citasQuery = citasQuery.Where(c => c.IdCita == verId.Value);
+            else if (vistaRecepcion == "hoy")
+                citasQuery = citasQuery.Where(c => c.FechaHora >= ahoraRecepcion.Date
+                    && c.FechaHora < ahoraRecepcion.Date.AddDays(1));
+            else if (vistaRecepcion is "proximas" or "historial")
+            {
+                var finales = EstadoCitaHelper.EstadosFinales;
+                if (vistaRecepcion == "proximas")
+                    citasQuery = citasQuery.Where(c => c.FechaHora >= ahoraRecepcion
+                        && !finales.Contains((c.EstadoCita == null ? c.Estado : c.EstadoCita.NombreEstado).Trim().ToLower()));
+                else
+                    citasQuery = citasQuery.Where(c => c.FechaHora < ahoraRecepcion
+                        || finales.Contains((c.EstadoCita == null ? c.Estado : c.EstadoCita.NombreEstado).Trim().ToLower()));
+            }
+
+            if (vistaRecepcion is null && string.IsNullOrWhiteSpace(pagination.Fecha) &&
                 string.IsNullOrWhiteSpace(pagination.Estado))
             {
                 var ahoraFiltro = ColombiaClock.Now;
@@ -4168,10 +4216,9 @@ public sealed class CambiarEstadoCitaDto
                                  c.EstadoCita.NombreEstado.ToLower())));
             }
 
-            citasQuery =
-                citasQuery
-                    .OrderByDescending(
-                        c => c.FechaHora);
+            citasQuery = vistaRecepcion is "proximas" or "hoy"
+                ? citasQuery.OrderBy(c => c.FechaHora).ThenBy(c => c.IdCita)
+                : citasQuery.OrderByDescending(c => c.FechaHora).ThenByDescending(c => c.IdCita);
 
             var paged =
                 await citasQuery.ToPagedResultAsync(

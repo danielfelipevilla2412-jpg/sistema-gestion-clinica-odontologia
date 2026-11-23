@@ -174,3 +174,18 @@
 @media (max-width: 680px) {
     .history-filters { grid-template-columns: 1fr; }
 }
+
+.main.reception-history .history-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+    gap: .75rem;
+    padding: 1rem;
+}
+.reception-history .history-filters .search-wrap { grid-column: 1 / -1; }
+.reception-history .history-filters .status-select { width: 100%; }
+.reception-history .td-paciente { display: flex; align-items: center; gap: .65rem; }
+.reception-history .pac-avatar { flex: 0 0 2.25rem; }
+.reception-history .pac-email { overflow-wrap: anywhere; }
+.reception-history .table-wrap { overflow-x: auto; }
+.reception-history .table-base { min-width: 45rem; }
+.reception-history .badge-admin { margin-right: min(11rem, 25vw); }

@@ -94,6 +94,23 @@ public partial class GestionProfesionalesController(
 
     [HttpGet]
     [Authorize(Roles = "Administrador,Recepcionista")]
+    [Route("gestion-de-profesionales/ausencias/datos")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> ListarAusenciasRecepcion(CancellationToken ct)
+    {
+        var data = await _context.AusenciasProfesional.AsNoTracking()
+            .OrderBy(a => a.FechaInicio).ThenBy(a => a.IdAusencia)
+            .Select(a => new
+            {
+                a.IdAusencia, a.IdProfesional, a.Tipo, a.FechaInicio, a.FechaFin, a.Observaciones,
+                profesional = a.Profesional == null ? "Sin asignar" : a.Profesional.Nombres + " " + a.Profesional.Apellidos
+            }).ToListAsync(ct);
+
+        return Ok(new { data, hoy = DateOnly.FromDateTime(SmileTrack_MVC.Helpers.ColombiaClock.Today) });
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Administrador,Recepcionista")]
     [Route("gestion-de-profesionales/ausencias")]
     public async Task<IActionResult> AusenciasProfesionales(CancellationToken ct = default)
     {

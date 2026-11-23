@@ -1,3 +1,4 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @* ============================================
    SmileTrack — Módulo: Gestión de Citas
    Vista: Citas Finalizadas (st-aux-10-citas-finalizadas)
@@ -19,21 +20,8 @@
     ViewData["Title"] = "Citas Finalizadas";
     ViewData["UseGestionModulesDesignSystem"] = true;
     var citasFinalizadasDataJson = System.Text.Json.JsonSerializer.Serialize(ViewData["CitasFinalizadasData"] ?? new object());
-    var fechaResumen = SmileTrack_MVC.Helpers.ColombiaClock.Today;
-    using (var citasFinalizadasDocument = System.Text.Json.JsonDocument.Parse(citasFinalizadasDataJson))
-    {
-        if (citasFinalizadasDocument.RootElement.TryGetProperty("fechaResumen", out var fechaResumenJson) &&
-            fechaResumenJson.ValueKind == System.Text.Json.JsonValueKind.String &&
-            DateTime.TryParseExact(
-                fechaResumenJson.GetString(),
-                "yyyy-MM-dd",
-                System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.None,
-                out var fechaResumenParseada))
-        {
-            fechaResumen = fechaResumenParseada.Date;
-        }
-    }
+    var hoy = ViewData["HoyFinalizadas"] is DateOnly fechaHoy ? fechaHoy : DateOnly.FromDateTime(SmileTrack_MVC.Helpers.ColombiaClock.Today);
+    var fechaResumen = ViewData["FechaFinalizadas"] is DateOnly jornada ? jornada : hoy;
 }
 
 @section Styles {
@@ -41,24 +29,43 @@
 }
 
   <!-- ═════ MAIN ═════ -->
-  <main class="main" id="main-content">
+  <main class="main finalized-page" id="main-content">
 
+    @if (TempData["ErrorValidacion"] is string error)
+    {
+      <p role="alert">@error</p>
+    }
     <!-- Header con metadatos accesibles -->
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
-          <span data-i18n="common_role_auxiliar">Auxiliar</span>
+          <span>Gestión de Citas</span>
           <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active" data-i18n="status.attended">Citas finalizadas</span>
+          <span class="bc-active">Citas finalizadas</span>
         </nav>
-        <h1 class="page-title">Citas Finalizadas del Día</h1>
+        <h1 class="page-title">Citas finalizadas</h1>
         <p class="page-subtitle">Resumen de la jornada · <time datetime="@fechaResumen.ToString("yyyy-MM-dd")">@fechaResumen.ToString("d 'de' MMMM yyyy", new System.Globalization.CultureInfo("es-ES"))</time></p>
       </div>
-      <button class="btn-export" id="btnExport" aria-label="Descargar resumen de citas finalizadas" data-i18n-aria-label="table.export">
+    </header>
+
+    <div class="finalized-toolbar">
+      <form method="get">
+        <div class="finalized-date-field">
+          <label for="finalizedDate">Fecha de la jornada</label>
+        <input id="finalizedDate" name="fecha" type="date" required value="@fechaResumen.ToString("yyyy-MM-dd")" max="@hoy.ToString("yyyy-MM-dd")" />
+        </div>
+        <button type="submit" class="btn-primary">Consultar</button>
+        <a class="btn-secondary" href="?fecha=@hoy.ToString("yyyy-MM-dd")" aria-current="@(fechaResumen == hoy ? "date" : null)">Hoy</a>
+        <a class="btn-secondary" href="?fecha=@hoy.AddDays(-1).ToString("yyyy-MM-dd")" aria-current="@(fechaResumen == hoy.AddDays(-1) ? "date" : null)">Ayer</a>
+      </form>
+      <div class="finalized-export">
+      <button class="btn-export" id="btnExport" type="button" disabled aria-describedby="finalizedExportScope" aria-label="Descargar resumen de citas finalizadas" data-i18n-aria-label="table.export">
         <span class="material-symbols-outlined" aria-hidden="true">download</span>
         <span class="btn-text">Descargar resumen</span>
       </button>
-    </header>
+        <small id="finalizedExportScope" aria-live="polite"></small>
+      </div>
+    </div>
 
     <!-- Stats Grid: patrón canónico (stats-grid + stat-card[data-color]) unificado con
          st-adm-07, st-rec-01, st-adm-01 y el resto del módulo de Citas/Profesionales.
@@ -72,12 +79,12 @@
       <div class="stat-card" data-color="red">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
         <span class="stat-number" id="countCanceladas">0</span>
-        <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
+        <span class="stat-label" >Canceladas</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">person_off</span>
         <span class="stat-number" id="countNoAsistio">0</span>
-        <span class="stat-label" data-i18n="status.no_show">No asistió</span>
+        <span class="stat-label" >Inasistencias</span>
       </div>
     </section>
 
@@ -97,7 +104,7 @@
       </button>
       <button type="button" class="tab-btn" aria-pressed="false" data-tab="no-show" id="tab-no-show">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_busy</span>
-        No asistió
+        Inasistencias
       </button>
     </div>
 
@@ -111,6 +118,7 @@
             <th scope="col" data-i18n="citas.professional">PROFESIONAL</th>
             <th scope="col" data-i18n="citas.service">SERVICIO</th>
             <th scope="col" data-i18n="citas.status">ESTADO</th>
+            <th scope="col">Acciones</th>
           </tr>
         </thead>
         <tbody id="appointmentsBody">
@@ -119,7 +127,7 @@
       </table>
     </div>
 
-    <nav class="pagination" aria-label="Paginación de citas finalizadas">
+    <nav id="finalizedPagination" hidden class="pagination" aria-label="Paginación de citas finalizadas">
       <span class="pagination-info" id="finalizedPaginationInfo" aria-live="polite">Mostrando 0 de 0 citas</span>
       <div class="pagination-buttons">
         <button type="button" class="pagination-btn" id="finalizedPreviousPage" aria-label="Página anterior" disabled>← Anterior</button>
@@ -128,6 +136,11 @@
       </div>
     </nav>
 
+    <dialog id="finalizedDetail" aria-labelledby="finalizedDetailTitle">
+      <h2 id="finalizedDetailTitle">Detalle de la cita</h2>
+      <dl id="finalizedDetailFields"></dl>
+      <form method="dialog"><button class="btn-secondary">Cerrar</button></form>
+    </dialog>
   </main>
 
   <!-- Mobile bottom nav con aria-label para navegación móvil -->

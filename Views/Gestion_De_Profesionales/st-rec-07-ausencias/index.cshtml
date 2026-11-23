@@ -5,7 +5,7 @@
     var profesionales = ViewData["ProfesionalesAusencias"] as List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
 }
 
-<main class="main" id="main-content">
+<main class="main absences-page" id="main-content">
     <header class="page-header">
         <div class="header-left">
             <nav class="breadcrumb" aria-label="Ruta de navegación">
@@ -14,8 +14,9 @@
                 <span class="bc-active" aria-current="page">Ausencias de profesionales</span>
             </nav>
             <h1 class="page-title">Ausencias de profesionales</h1>
-            <p class="page-subtitle">Registra y consulta los períodos que bloquean la disponibilidad.</p>
+            <p class="page-subtitle">Consulta y registra periodos sin disponibilidad para agendar citas.</p>
         </div>
+        <button id="absenceNew" class="btn-primary" type="button">Nueva ausencia</button>
     </header>
 
     @if (TempData["ErrorValidacion"] is string error)
@@ -23,74 +24,96 @@
         <div class="alert alert-danger" role="alert">@error</div>
     }
 
-    <section class="table-card" aria-labelledby="absenceFormTitle">
-        <h2 class="card-title" id="absenceFormTitle">Registrar ausencia</h2>
-        @Html.AntiForgeryToken()
-        <form id="absenceForm" class="filters-row">
-            <input id="absenceId" type="hidden" />
-            <div class="filter-wrap">
-                <label for="absenceProfessional">Profesional</label>
-                <select id="absenceProfessional" class="status-select" required>
-                    <option value="">Selecciona un profesional</option>
+    <p id="absenceFeedback" role="status"></p>
+    <section class="table-card absences-list" aria-labelledby="absenceListTitle">
+        <div class="absence-heading">
+            <h2 id="absenceListTitle">Ausencias registradas</h2>
+            <button id="absenceReload" class="btn-secondary" type="button">Actualizar</button>
+        </div>
+        <div class="absence-fields">
+            <label>Profesional
+                <select id="absenceFilterProfessional">
+                    <option value="">Todos los profesionales</option>
                     @foreach (var profesional in profesionales)
                     {
                         <option value="@profesional.IdProfesional">@profesional.Apellidos, @profesional.Nombres</option>
                     }
                 </select>
-            </div>
-            <div class="filter-wrap">
-                <label for="absenceTipo">Tipo</label>
-                <select id="absenceTipo" class="status-select" required>
-                    <option value="vacaciones">Vacaciones</option>
-                    <option value="incapacidad">Incapacidad</option>
-                    <option value="permiso">Permiso</option>
-                    <option value="otro">Otro</option>
+            </label>
+            <label>Tipo
+                <select id="absenceFilterType">
+                    <option value="">Todos los tipos</option>
+                    <option value="vacaciones">Vacaciones</option><option value="incapacidad">Incapacidad</option>
+                    <option value="permiso">Permiso</option><option value="otro">Otro</option>
                 </select>
-            </div>
-            <div class="filter-wrap">
-                <label for="absenceFechaInicio">Desde</label>
-                <input id="absenceFechaInicio" class="status-select" type="date" required />
-            </div>
-            <div class="filter-wrap">
-                <label for="absenceFechaFin">Hasta</label>
-                <input id="absenceFechaFin" class="status-select" type="date" required />
-            </div>
-            <div class="filter-wrap">
-                <label for="absenceObservaciones">Observaciones</label>
-                <input id="absenceObservaciones" class="status-select" type="text" maxlength="500" />
-            </div>
-            <div class="action-buttons-row">
-                <button id="absenceSaveButton" class="btn-primary" type="submit">Registrar ausencia</button>
-                <button id="absenceCancelEdit" class="btn-secondary" type="button" hidden>Cancelar edición</button>
-            </div>
-        </form>
-        <p id="absenceFeedback" role="status" aria-live="polite"></p>
-    </section>
-
-    <section class="table-card" aria-labelledby="absenceListTitle">
-        <div class="page-header">
-            <h2 class="card-title" id="absenceListTitle">Ausencias registradas</h2>
-            <button id="absenceReload" class="btn-secondary" type="button">Actualizar</button>
+            </label>
+            <label>Periodo
+                <select id="absenceFilterPeriod">
+                    <option value="vigentes">En curso y próximas</option>
+                    <option value="curso">En curso</option>
+                    <option value="proximas">Próximas</option>
+                    <option value="historial">Finalizadas</option>
+                    <option value="todas">Todas</option>
+                </select>
+            </label>
         </div>
         <div class="table-wrap">
             <table class="table-base">
-                <thead>
-                    <tr>
-                        <th scope="col">Profesional</th>
-                        <th scope="col">Tipo</th>
-                        <th scope="col">Desde</th>
-                        <th scope="col">Hasta</th>
-                        <th scope="col">Observaciones</th>
-                        <th scope="col">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="absenceRows">
-                    <tr><td colspan="6">Selecciona un profesional para consultar sus ausencias.</td></tr>
-                </tbody>
+                <thead><tr>
+                    <th scope="col">Profesional</th><th scope="col">Tipo</th><th scope="col">Periodo</th>
+                    <th scope="col">Estado</th><th scope="col">Observaciones</th><th scope="col">Acciones</th>
+                </tr></thead>
+                <tbody id="absenceRows"><tr><td colspan="6">Cargando ausencias…</td></tr></tbody>
             </table>
         </div>
     </section>
+
+    <dialog class="absence-dialog" id="absenceDialog" aria-labelledby="absenceFormTitle">
+        <h2 id="absenceFormTitle">Nueva ausencia</h2>
+        <p class="absence-dialog-help">Durante este periodo, el profesional no estará disponible para nuevas citas. Su cuenta seguirá activa.</p>
+        <form id="absenceForm">
+            @Html.AntiForgeryToken()
+            <input id="absenceId" type="hidden" />
+            <div class="absence-fields">
+                <label>Profesional
+                    <select id="absenceProfessional" required>
+                        <option value="">Selecciona un profesional</option>
+                        @foreach (var profesional in profesionales)
+                        {
+                            <option value="@profesional.IdProfesional">@profesional.Apellidos, @profesional.Nombres</option>
+                        }
+                    </select>
+                </label>
+                <label>Tipo
+                    <select id="absenceTipo" required>
+                        <option value="vacaciones">Vacaciones</option><option value="incapacidad">Incapacidad</option>
+                        <option value="permiso">Permiso</option><option value="otro">Otro</option>
+                    </select>
+                </label>
+                <label>Desde <input id="absenceFechaInicio" type="date" required /></label>
+                <label>Hasta <input id="absenceFechaFin" type="date" required /></label>
+            </div>
+            <label class="absence-observations">Observaciones <textarea id="absenceObservaciones" rows="3" maxlength="500"></textarea></label>
+            <p id="absenceFormFeedback" role="alert"></p>
+            <section id="absenceImpact" class="absence-impact" hidden aria-labelledby="absenceImpactTitle">
+                <h3 id="absenceImpactTitle">Citas afectadas</h3>
+                <p id="absenceImpactText" role="status"></p>
+                <ul id="absenceImpactList"></ul>
+                <a id="absenceAgendaLink" target="_blank" rel="noopener" hidden>Ver periodo en Gestión de Citas</a>
+                <label id="absenceConfirmImpact" hidden><input id="absenceConfirmInput" type="checkbox" /> Confirmo que revisé el impacto.</label>
+            </section>
+            <div class="absence-actions">
+                <button id="absencePreview" class="btn-secondary" type="button">Revisar impacto</button>
+                <button id="absenceCancelEdit" class="btn-secondary" type="button">Cancelar</button>
+                <button id="absenceSaveButton" class="btn-primary" type="submit">Registrar ausencia</button>
+            </div>
+        </form>
+    </dialog>
 </main>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/Gestion_De_Profesionales/st-rec-07-ausencias/styles.css" asp-append-version="true" />
+}
 
 @section Scripts {
     <script src="~/js/Gestion_De_Profesionales/st-rec-07-ausencias/ausencias.js" asp-append-version="true" defer></script>

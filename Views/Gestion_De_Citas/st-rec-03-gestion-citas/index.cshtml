@@ -1,4 +1,4 @@
-﻿@* ============================================
+@* ============================================
    SmileTrack — Módulo: Gestión de Citas
    Vista: Gestión de Citas Recepción (st-rec-03-gestion-citas)
    ============================================
@@ -38,15 +38,15 @@
   var resultPageSize = pageResult?.PageSize ?? 10;
   var resultRangeStart = resultItemCount > 0 ? (resultPage - 1) * resultPageSize + 1 : 0;
   var resultRangeEnd = resultItemCount > 0 ? Math.Min(resultRangeStart + resultItemCount - 1, resultTotalCount) : 0;
-  var estadoFilterNormalized = SmileTrack_MVC.Helpers.EstadoCitaHelper.Normalize(ViewData["EstadoFilter"]?.ToString());
-  var activeTab = estadoFilterNormalized switch
-  {
-    "cancelada" => "cancelled",
-    "no_asistida" => "no-show",
-    _ => string.IsNullOrWhiteSpace(estadoFilterNormalized) ? "all" : ""
-  };
+  var vista = ViewData["VistaRecepcion"] as string ?? "proximas";
+  var ahora = SmileTrack_MVC.Helpers.ColombiaClock.Now;
+  var puedeAgendar = ViewData["Recepcion_agendar"] is true;
+  var puedeReagendar = ViewData["Recepcion_reagendar"] is true;
+  var puedeCancelar = ViewData["Recepcion_cancelar"] is true;
   var editingCita = ViewData["EditingCita"] as SmileTrack_MVC.Models.Entities.Cita;
-  var isEditing = editingCita != null;
+  var isEditing = editingCita != null && puedeReagendar && editingCita.FechaHora > ahora
+    && !SmileTrack_MVC.Helpers.EstadoCitaHelper.EsEstadoFinal(editingCita.Estado)
+    && !SmileTrack_MVC.Helpers.EstadoCitaHelper.EsEstadoFinal(editingCita.EstadoCita?.NombreEstado);
 
   var statRecHoy = (int)(ViewData["StatRecHoy"] ?? 0);
   var statRecConfirmadas = (int)(ViewData["StatRecConfirmadas"] ?? 0);
@@ -56,13 +56,13 @@
 
 
   <!-- ═════ MAIN ═════ -->
-  <main class="main" id="main-content">
+  <main class="main reception-appointments" id="main-content" data-view-appointment="@ViewData["VerCitaId"]">
 
     <!-- Page header -->
     <header class="page-header">
       <div class="header-left">
         <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="nav.sidebar_label">
-          <span data-i18n="nav.group_citas">Recepción</span>
+          <span data-i18n="common_role_recepcionista">Recepción</span>
           <span class="bc-sep" aria-hidden="true">›</span>
           <span class="bc-active" aria-current="page" data-i18n="citas.title">Gestión de citas</span>
         </nav>
@@ -78,11 +78,14 @@
           <span class="material-symbols-outlined" aria-hidden="true">print</span>
           <span data-i18n="form.print">Imprimir</span>
         </button>
+        @if (puedeAgendar)
+        {
         <button class="btn-primary" id="btnNuevaCita" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new"><span data-i18n="citas.new">➕ Nueva cita</span></button>
+        }
       </div>
     </header>
 
-    <!-- Stats Grid -->
+    <h2 class="today-summary-title">Resumen de hoy</h2>
     <section class="stats-grid" aria-label="Resumen de citas del día" data-i18n-aria-label="citas.dashboard_title">
       <div class="stat-card" data-color="blue">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event</span>
@@ -92,17 +95,17 @@
       <div class="stat-card" data-color="green">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
         <span class="stat-number" id="metricConfirmed" data-target="@statRecConfirmadas" aria-live="polite">0</span>
-        <span class="stat-label" data-i18n="status.confirmed">Confirmadas</span>
+        <span class="stat-label" >Confirmadas hoy</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule</span>
         <span class="stat-number" id="metricPending" data-target="@statRecPendientes" aria-live="polite">0</span>
-        <span class="stat-label" data-i18n="status.pending">Pendientes</span>
+        <span class="stat-label" >Pendientes hoy</span>
       </div>
       <div class="stat-card" data-color="purple">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
         <span class="stat-number" id="metricCancelled" data-target="@statRecCanceladasHoy" aria-live="polite">0</span>
-        <span class="stat-label" data-i18n="status.cancelled">Canceladas hoy</span>
+        <span class="stat-label" >Canceladas hoy</span>
       </div>
     </section>
 
@@ -120,23 +123,24 @@
     </section>
 
     <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
-    <div class="table-tabs" role="group" aria-label="Filtrar citas por estado">
-      <button type="button" class="tab-btn @(activeTab == "all" ? "active" : "")" aria-pressed="@(activeTab == "all" ? "true" : "false")" data-tab="all" id="tab-all">
-        <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_note</span>
-        Todas las citas
-      </button>
-      <button type="button" class="tab-btn @(activeTab == "cancelled" ? "active" : "")" aria-pressed="@(activeTab == "cancelled" ? "true" : "false")" data-tab="cancelled" id="tab-cancelled">
-        <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
-        Cancelaciones
-      </button>
-      <button type="button" class="tab-btn @(activeTab == "no-show" ? "active" : "")" aria-pressed="@(activeTab == "no-show" ? "true" : "false")" data-tab="no-show" id="tab-no-show">
-        <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_busy</span>
-        No asistió
-      </button>
-    </div>
+    <nav class="table-tabs" aria-label="Periodo de las citas">
+      @foreach (var (clave, etiqueta) in new[] { ("proximas", "Próximas"), ("hoy", "Hoy"), ("historial", "Historial"), ("todas", "Todas") })
+      {
+        <a class="tab-btn @(vista == clave ? "active" : "")" aria-current="@(vista == clave ? "page" : null)"
+           href="@Url.Action("Strec03GestionCitas", "GestionCitas", new { vista = clave, search = ViewData["SearchFilter"], estado = ViewData["EstadoFilter"], profesional = ViewData["ProfesionalFilter"], fecha = ViewData["FechaFilter"], desde = ViewData["CitasDesde"], hasta = ViewData["CitasHasta"], pageSize = resultPageSize })">@etiqueta</a>
+      }
+    </nav>
 
+    @if (ViewData["CitasDesde"] is string desde && ViewData["CitasHasta"] is string hasta)
+    {
+      <p role="status">Periodo de ausencia: @desde a @hasta</p>
+    }
     <section class="filters-section" aria-label="Filtros de citas" data-i18n-aria-label="citas.filter_status">
       <form method="get" class="filters-row">
+        <input type="hidden" name="vista" value="@vista" />
+        <input type="hidden" name="desde" value="@ViewData["CitasDesde"]" />
+        <input type="hidden" name="hasta" value="@ViewData["CitasHasta"]" />
+        <input type="hidden" name="pageSize" value="@resultPageSize" />
         <div class="search-wrap">
           <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
           <input type="search" class="search-input" id="searchPatient" name="search" placeholder="Buscar paciente…"
@@ -184,7 +188,7 @@
         </div>
         <input type="hidden" name="page" value="1" />
         <button class="btn-primary" type="submit" data-i18n="form.search">Aplicar</button>
-        <a class="btn-secondary" href="@Url.Action("Strec03GestionCitas", "GestionCitas")" data-i18n="form.clear">Limpiar</a>
+        <a class="btn-secondary" href="@Url.Action("Strec03GestionCitas", "GestionCitas", new { vista, pageSize = resultPageSize })" data-i18n="form.clear">Limpiar</a>
       </form>
     </section>
 
@@ -200,8 +204,7 @@
         <table class="table-base" aria-label="Listado de citas">
           <thead>
             <tr>
-              <th scope="col" data-i18n="citas.date">Fecha</th>
-              <th scope="col" data-i18n="citas.time">Hora</th>
+              <th scope="col">Fecha y hora</th>
               <th scope="col" data-i18n="citas.patient">Paciente</th>
               <th scope="col" data-i18n="citas.professional">Profesional</th>
               <th scope="col" data-i18n="citas.service">Servicio</th>
@@ -214,14 +217,17 @@
             @if (!citas.Any())
             {
               <tr>
-                <td colspan="8">
+                <td colspan="7">
                   <div class="empty-state" role="status" aria-label="Sin citas registradas" style="padding:48px 24px;text-align:center;">
                     <span class="material-symbols-outlined" aria-hidden="true" style="font-size:3rem;color:var(--text-muted,#94a3b8);display:inline-block;margin-bottom:12px;">calendar_month</span>
                     <p style="font-size:1.05rem;font-weight:600;color:var(--text-primary,#1e293b);margin:0 0 6px;">Sin citas para mostrar</p>
                     <p style="font-size:.9rem;color:var(--text-muted,#64748b);margin:0 0 20px;">No hay citas que coincidan con los filtros seleccionados.</p>
+                    @if (puedeAgendar)
+                    {
                     <button type="button" class="btn-primary" id="btnNuevaCitaEmpty" onclick="document.getElementById('btnNuevaCita')?.click()" aria-label="Crear nueva cita">
-                      <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">add</span>Agendar primera cita
+                      <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle;margin-right:4px;" aria-hidden="true">add</span>Nueva cita
                     </button>
+                    }
                   </div>
                 </td>
               </tr>
@@ -240,6 +246,9 @@
               var citaConsultorio = cita.Consultorio?.Nombre ?? "—";
               var citaEstado = cita.EstadoCita?.NombreEstado ?? cita.Estado ?? "Sin estado";
               var citaNotas = cita.Notas ?? "";
+              var permiteCambios = cita.FechaHora > ahora
+                && !SmileTrack_MVC.Helpers.EstadoCitaHelper.EsEstadoFinal(citaEstado)
+                && !SmileTrack_MVC.Helpers.EstadoCitaHelper.EsEstadoFinal(cita.Estado);
 
               @* Avatar: iniciales del paciente (máx. 2 letras) para el bloque paciente *@
               var pacNombre = citaPaciente.Trim();
@@ -267,8 +276,8 @@
               };
 
               <tr>
-                <td class="col-fecha">@citaFecha</td>
-                <td class="col-hora">
+                <td class="col-fecha">
+                  <span class="appointment-date">@citaFecha</span>
                   <span class="pill-hora" aria-label="Hora: @citaHora">@citaHora</span>
                 </td>
                 <td class="col-paciente">
@@ -310,12 +319,14 @@
                       <span class="material-symbols-outlined action-icon" aria-hidden="true">visibility</span>
                       <span class="btn-text">Ver</span>
                     </button>
+                    @if (puedeReagendar && permiteCambios)
+                    {
                     <button type="button"
                             class="action-btn btn-secondary btn-edit edit"
                             data-action="edit"
                             data-id="@cita.IdCita"
-                            aria-label="Editar la cita de @citaPaciente"
-                            title="Editar la cita de @citaPaciente"
+                            aria-label="Reagendar la cita de @citaPaciente"
+                            title="Reagendar la cita de @citaPaciente"
                             data-paciente="@citaPaciente"
                             data-profesional="@citaProfesional"
                             data-servicio="@citaServicio"
@@ -331,9 +342,10 @@
                             data-hora-iso="@citaHoraIso"
                             data-duracion-minutos="@cita.DuracionMinutos">
                       <span class="material-symbols-outlined action-icon" aria-hidden="true">edit</span>
-                      <span class="btn-text">Editar</span>
+                      <span class="btn-text">Reagendar</span>
                     </button>
-                    @if (estadoLower != "cancelada" && estadoLower != "cancelado" && cita.FechaHora > DateTime.Now)
+                    }
+                    @if (puedeCancelar && permiteCambios)
                     {
                       <button type="button"
                               class="action-btn btn-danger btn-delete"
@@ -361,7 +373,7 @@
         <div class="pagination-buttons">
           @if (pageResult != null && pageResult.HasPreviousPage)
           {
-            <a class="pagination-btn" id="prevPage" aria-label="Página anterior" href="@Url.Action("Strec03GestionCitas", "GestionCitas", new { page = pageResult.Page - 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], estado = ViewData["EstadoFilter"], profesional = ViewData["ProfesionalFilter"], fecha = ViewData["FechaFilter"] })">← Anterior</a>
+            <a class="pagination-btn" id="prevPage" aria-label="Página anterior" href="@Url.Action("Strec03GestionCitas", "GestionCitas", new { vista, page = pageResult.Page - 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], estado = ViewData["EstadoFilter"], profesional = ViewData["ProfesionalFilter"], fecha = ViewData["FechaFilter"], desde = ViewData["CitasDesde"], hasta = ViewData["CitasHasta"] })">← Anterior</a>
           }
           else
           {
@@ -371,12 +383,12 @@
             @for (var i = 1; i <= (pageResult?.TotalPages ?? 1); i++)
             {
               var isActive = i == (pageResult?.Page ?? 1);
-              <a class="pagination-number @(isActive ? "active" : string.Empty)" role="listitem" aria-current="@(isActive ? "page" : null)" href="@Url.Action("Strec03GestionCitas", "GestionCitas", new { page = i, pageSize = pageResult?.PageSize ?? 10, search = ViewData["SearchFilter"], estado = ViewData["EstadoFilter"], profesional = ViewData["ProfesionalFilter"], fecha = ViewData["FechaFilter"] })">@i</a>
+              <a class="pagination-number @(isActive ? "active" : string.Empty)" role="listitem" aria-current="@(isActive ? "page" : null)" href="@Url.Action("Strec03GestionCitas", "GestionCitas", new { vista, page = i, pageSize = pageResult?.PageSize ?? 10, search = ViewData["SearchFilter"], estado = ViewData["EstadoFilter"], profesional = ViewData["ProfesionalFilter"], fecha = ViewData["FechaFilter"], desde = ViewData["CitasDesde"], hasta = ViewData["CitasHasta"] })">@i</a>
             }
           </div>
           @if (pageResult != null && pageResult.HasNextPage)
           {
-            <a class="pagination-btn" id="nextPage" aria-label="Página siguiente" href="@Url.Action("Strec03GestionCitas", "GestionCitas", new { page = pageResult.Page + 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], estado = ViewData["EstadoFilter"], profesional = ViewData["ProfesionalFilter"], fecha = ViewData["FechaFilter"] })">Siguiente →</a>
+            <a class="pagination-btn" id="nextPage" aria-label="Página siguiente" href="@Url.Action("Strec03GestionCitas", "GestionCitas", new { vista, page = pageResult.Page + 1, pageSize = pageResult.PageSize, search = ViewData["SearchFilter"], estado = ViewData["EstadoFilter"], profesional = ViewData["ProfesionalFilter"], fecha = ViewData["FechaFilter"], desde = ViewData["CitasDesde"], hasta = ViewData["CitasHasta"] })">Siguiente →</a>
           }
           else
           {
@@ -409,7 +421,10 @@
   </nav>
 
   <!-- FAB móvil -->
+  @if (puedeAgendar)
+  {
   <button class="fab" id="fabNuevaCita" aria-label="Crear nueva cita">➕</button>
+  }
 
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -508,7 +523,7 @@
       <div id="modalViewContent" class="appointment-detail-content"></div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" id="modalViewCancel" aria-label="Cerrar detalles de la cita">Cerrar</button>
-        <button type="button" class="btn-primary" id="modalViewEdit" aria-label="Editar la cita mostrada actualmente">Editar cita</button>
+        <button type="button" class="btn-primary" id="modalViewEdit" hidden aria-label="Reagendar la cita mostrada actualmente">Reagendar cita</button>
       </div>
     </div>
   </div>

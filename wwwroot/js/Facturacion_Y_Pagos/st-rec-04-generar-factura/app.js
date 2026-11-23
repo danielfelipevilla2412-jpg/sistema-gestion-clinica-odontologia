@@ -253,6 +253,7 @@ const addService = () => {
   if (!servicioSelect) return;
 
   const option = servicioSelect.options[servicioSelect.selectedIndex];
+  if (!option?.value) return;
   const serviceId = option.value;
   const price = parseFloat(option.dataset.price);
   const desc = option.dataset.desc;
@@ -772,7 +773,16 @@ const init = () => {
 
   const btnAddService = safeGetElement('btnAddService');
   if (btnAddService) {
-    btnAddService.addEventListener('click', addService);
+    const serviceSelect = safeGetElement('servicioSelect');
+    const syncAddButton = () => {
+      btnAddService.disabled = !serviceSelect?.value || Boolean(window.currentInvoiceId) || window.isPaid;
+    };
+    serviceSelect?.addEventListener('change', syncAddButton);
+    btnAddService.addEventListener('click', () => {
+      addService();
+      syncAddButton();
+    });
+    syncAddButton();
   }
 
   // Limpieza de listeners al unload para evitar memory leaks

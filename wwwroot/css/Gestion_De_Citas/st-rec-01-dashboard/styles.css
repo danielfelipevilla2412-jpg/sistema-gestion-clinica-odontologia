@@ -336,3 +336,26 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+.reception-dashboard .reception-agenda-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.reception-dashboard .reception-agenda-heading h2 {
+  font-size: 1.1rem;
+  margin: 0 0 4px;
+}
+
+.reception-dashboard #receptionAgendaDate {
+  color: var(--text-muted);
+}
+
+.reception-dashboard a.btn-notify {
+  display: block;
+  text-align: center;
+}

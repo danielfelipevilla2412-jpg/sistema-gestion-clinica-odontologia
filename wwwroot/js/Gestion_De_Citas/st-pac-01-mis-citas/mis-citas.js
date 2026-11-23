@@ -567,8 +567,7 @@ const getFilteredAppointments = () => {
     const matchTab = currentFilterTab === 'all'
         || (currentFilterTab === 'pending' && ['Solicitada', 'Agendada', 'Confirmada', 'En curso'].includes(item.estado))
       || (currentFilterTab === 'completed' && item.estado === 'Completada')
-        || (currentFilterTab === 'cancelled' && ['Cancelada', 'No asistió'].includes(item.estado))
-        || (currentFilterTab === 'rejected' && item.estado === 'Rechazada');
+        || (currentFilterTab === 'cancelled' && item.estado === 'Cancelada')
     return matchQuery && matchStatus && matchTab;
   });
 };
@@ -577,45 +576,32 @@ const updateAppointmentStats = () => {
   const totalCount = appointmentsList.length;
   const completedCount = appointmentsList.filter(c => c.estado === 'Completada').length;
   const pendingCount = appointmentsList.filter(c => ['Solicitada', 'Agendada', 'Confirmada', 'En curso'].includes(c.estado)).length;
-  const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada' || c.estado === 'No asistió').length;
-  const rejectedCount = appointmentsList.filter(c => c.estado === 'Rechazada').length;
+  const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada').length;
 
   const totalEl = safeGetElement('cnt-total');
   const completedEl = safeGetElement('cnt-completadas');
   const pendingEl = safeGetElement('cnt-pendientes');
   const cancelledEl = safeGetElement('cnt-canceladas');
-  const rejectedEl = safeGetElement('cnt-rechazadas');
   if (totalEl) totalEl.textContent = totalCount;
   if (completedEl) completedEl.textContent = completedCount;
   if (pendingEl) pendingEl.textContent = pendingCount;
   if (cancelledEl) cancelledEl.textContent = cancelledCount;
-  if (rejectedEl) rejectedEl.textContent = rejectedCount;
 
-  const progressBar = safeGetElement('progressBar');
-  const progressLabel = safeGetElement('progressLabel');
-  const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  if (progressBar) {
-    progressBar.style.width = percentage + '%';
-    progressBar.closest('[role="progressbar"]')?.setAttribute('aria-valuenow', percentage);
-  }
-  if (progressLabel) progressLabel.textContent = `${completedCount} ${t('pac_miscitas.progress_of', 'de')} ${totalCount} ${t('pac_miscitas.progress_completed', 'citas completadas')}`;
 };
 
 const animateAppointmentCounters = () => {
   const totalCount = appointmentsList.length;
   const completedCount = appointmentsList.filter(c => c.estado === 'Completada').length;
   const pendingCount = appointmentsList.filter(c => ['Solicitada', 'Agendada', 'Confirmada', 'En curso'].includes(c.estado)).length;
-  const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada' || c.estado === 'No asistió').length;
-  const rejectedCount = appointmentsList.filter(c => c.estado === 'Rechazada').length;
+  const cancelledCount = appointmentsList.filter(c => c.estado === 'Cancelada').length;
 
-  const nodes = [safeGetElement('cnt-total'), safeGetElement('cnt-completadas'), safeGetElement('cnt-pendientes'), safeGetElement('cnt-canceladas'), safeGetElement('cnt-rechazadas')];
+  const nodes = [safeGetElement('cnt-total'), safeGetElement('cnt-completadas'), safeGetElement('cnt-pendientes'), safeGetElement('cnt-canceladas')];
   nodes.forEach(n => { if (n) delete n.dataset.animated; });
   if (typeof window.animateCounter === 'function') {
     window.animateCounter(safeGetElement('cnt-total'), totalCount);
     window.animateCounter(safeGetElement('cnt-completadas'), completedCount);
     window.animateCounter(safeGetElement('cnt-pendientes'), pendingCount);
     window.animateCounter(safeGetElement('cnt-canceladas'), cancelledCount);
-    window.animateCounter(safeGetElement('cnt-rechazadas'), rejectedCount);
   }
 };
 
@@ -1039,6 +1025,10 @@ const initializeMisCitasModule = async () => {
     animateAppointmentCounters();
     updateAppointmentStats();
     renderAppointmentsTable();
+    const requestedAppointment = Number(new URLSearchParams(window.location.search).get('editId'));
+    if (Number.isSafeInteger(requestedAppointment) && requestedAppointment > 0) {
+      openAppointmentDetailModal(requestedAppointment);
+    }
   } catch (err) {
     console.error('[SmileTrack] Error init mis-citas.js (paciente):', err);
     displayUserErrorMessage(err.message || t('pac_miscitas.error_init', 'Error cargando módulo "Mis Citas". Intente recargar.'));

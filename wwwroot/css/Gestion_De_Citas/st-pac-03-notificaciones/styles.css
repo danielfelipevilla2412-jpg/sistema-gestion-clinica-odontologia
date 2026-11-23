@@ -157,3 +157,58 @@ NOTAS DE MANTENIMIENTO:
   .chip { padding: 5px 10px; font-size: .7rem; }
 }
 /* El sidebar desplegable (.nav-group*) lo aporta sidebar.css. */
+
+.patient-notifications .notification-views,
+.patient-notifications .notification-card__footer,
+.patient-notifications .card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.patient-notifications .notification-views {
+  margin-bottom: 12px;
+}
+
+.patient-notifications .toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 15rem) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.patient-notifications .notification-type {
+  display: grid;
+  gap: 4px;
+}
+
+.patient-notifications .notification-type select {
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+}
+
+.patient-notifications .count-label {
+  align-self: center;
+}
+
+.patient-notifications .notification-card__footer {
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.patient-notifications .empty-state[hidden] {
+  display: none;
+}
+
+@media (max-width: 650px) {
+  .patient-notifications .toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

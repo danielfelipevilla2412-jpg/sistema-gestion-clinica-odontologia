@@ -323,3 +323,32 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+.reception-invoice .invoice-selector,
+.reception-invoice .invoice-items-wrap {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: var(--white, #fff);
+    border: 1px solid var(--border);
+    border-radius: .75rem;
+}
+.reception-invoice .invoice-selector {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+.reception-invoice .invoice-selector > :last-child { grid-column: 1 / -1; }
+.reception-invoice .service-add-row { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
+.reception-invoice .service-add-row select { flex: 1 1 15rem; min-width: 0; }
+.reception-invoice .invoice-items-wrap { overflow-x: auto; }
+.reception-invoice .items-table { min-width: 35rem; }
+.reception-invoice .invoice-items-empty { padding: .8rem .25rem 0; color: var(--text-muted); }
+.reception-invoice .invoice-items-wrap:has(#invoiceItemsBody tr) .invoice-items-empty { display: none; }
+.reception-invoice .btn-add:disabled { opacity: .6; cursor: not-allowed; }
+@media (max-width: 650px) {
+    .reception-invoice .invoice-selector { grid-template-columns: minmax(0, 1fr); }
+}
+@media print {
+    .reception-invoice .invoice-items-wrap { overflow: visible; }
+    .reception-invoice .items-table { min-width: 0; }
+}

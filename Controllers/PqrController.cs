@@ -116,7 +116,7 @@ public class PqrController : Controller
     [Authorize(Roles = "Administrador,Paciente,Profesional,Recepcionista,Auxiliar")]
     [ValidateAntiForgeryToken]
     [Route("gestion-de-pqr/api/notificaciones/leida")]
-    public async Task<IActionResult> ApiMarcarAvisoPqrLeido([FromBody] string? clave, CancellationToken ct)
+    public async Task<IActionResult> ApiMarcarAvisoPqrLeido([FromForm] string? clave, CancellationToken ct)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId) || userId <= 0)
             return Forbid();
