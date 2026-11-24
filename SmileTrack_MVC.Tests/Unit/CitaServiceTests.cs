@@ -1219,10 +1219,12 @@ public class CitaServiceTests
     }
 
     [Fact]
-    public async Task AgendarCitaPacienteAsync_CreaSolicitudPendienteSinReservarRecursos()
+    public async Task AgendarCitaPacienteAsync_ConfirmaYReservaRecursos()
     {
         await using var db = CrearDb();
         var datos = SeedBase(db);
+        db.EstadosCita.Add(new EstadoCita { NombreEstado = "Confirmada" });
+        await db.SaveChangesAsync();
         var fecha = ProximaFecha(DayOfWeek.Monday);
         var dto = new CitaSolicitudPacienteDto
         {
@@ -1236,21 +1238,23 @@ public class CitaServiceTests
         var cita = await CrearServicio(db).AgendarCitaPacienteAsync(datos.Paciente.IdPaciente, dto);
 
         Assert.Equal(datos.Paciente.IdPaciente, cita.IdPaciente);
-        Assert.Null(cita.IdProfesional);
-        Assert.Equal(datos.Profesional.IdProfesional, cita.IdProfesionalPreferido);
-        Assert.Null(cita.IdConsultorio);
+        Assert.Equal(datos.Profesional.IdProfesional, cita.IdProfesional);
+        Assert.Null(cita.IdProfesionalPreferido);
+        Assert.Equal(datos.Consultorio.IdConsultorio, cita.IdConsultorio);
         Assert.Equal(fecha.Date.AddHours(9), cita.FechaHora);
-        Assert.Equal("Solicitada", cita.Estado);
+        Assert.Equal("Confirmada", cita.Estado);
         var historial = await db.CitasHistorialEstado.SingleAsync();
         Assert.Equal(cita.IdCita, historial.IdCita);
-        Assert.Equal("Solicitada", historial.EstadoTexto);
+        Assert.Equal("Confirmada", historial.EstadoTexto);
     }
 
     [Fact]
-    public async Task AgendarCitaPacienteAsync_AceptaSolicitudSinProfesionalPreferido()
+    public async Task AgendarCitaPacienteAsync_AsignaProfesionalCuandoNoHayPreferencia()
     {
         await using var db = CrearDb();
         var datos = SeedBase(db);
+        db.EstadosCita.Add(new EstadoCita { NombreEstado = "Confirmada" });
+        await db.SaveChangesAsync();
         var fecha = ProximaFecha(DayOfWeek.Monday);
 
         var solicitud = await CrearServicio(db).AgendarCitaPacienteAsync(
@@ -1264,14 +1268,14 @@ public class CitaServiceTests
             idUsuarioActor: datos.Paciente.IdUsuario,
             ipOrigen: "127.0.0.5");
 
-        Assert.Equal("Solicitada", solicitud.Estado);
-        Assert.Null(solicitud.IdProfesional);
+        Assert.Equal("Confirmada", solicitud.Estado);
+        Assert.Equal(datos.Profesional.IdProfesional, solicitud.IdProfesional);
         Assert.Null(solicitud.IdProfesionalPreferido);
-        Assert.Null(solicitud.IdConsultorio);
+        Assert.Equal(datos.Consultorio.IdConsultorio, solicitud.IdConsultorio);
         var auditoria = await db.Auditorias.SingleAsync();
         Assert.Equal(datos.Paciente.IdUsuario, auditoria.IdUsuario);
         Assert.Equal("127.0.0.5", auditoria.IpOrigen);
-        Assert.Contains("Solicitada", auditoria.DatosNuevos);
+        Assert.Contains("Confirmada", auditoria.DatosNuevos);
     }
 
     [Fact]
@@ -1378,7 +1382,7 @@ public class CitaServiceTests
         Assert.DoesNotContain(TimeSpan.FromHours(9), horarios);
         Assert.Contains(TimeSpan.FromHours(10), horarios);
 
-        var solicitud = await CrearServicio(db).AgendarCitaPacienteAsync(
+        await Assert.ThrowsAsync<SmileTrack_MVC.Exceptions.CitaConflictException>(() => CrearServicio(db).AgendarCitaPacienteAsync(
             datos.Paciente.IdPaciente,
             new CitaSolicitudPacienteDto
             {
@@ -1386,12 +1390,9 @@ public class CitaServiceTests
                 IdProfesional = datos.Profesional.IdProfesional,
                 Fecha = fecha.Date,
                 HoraInicio = TimeSpan.FromHours(9)
-            });
+            }));
 
-        Assert.Equal("Solicitada", solicitud.Estado);
-        Assert.Null(solicitud.IdProfesional);
-        Assert.Null(solicitud.IdConsultorio);
-        Assert.Equal(2, await db.Citas.CountAsync());
+        Assert.Single(await db.Citas.ToListAsync());
     }
 
     [Fact]

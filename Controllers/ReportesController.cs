@@ -447,14 +447,18 @@ public class ReportesController : Controller
     }
 
     [HttpGet]
+    [Authorize(Roles = "Recepcionista,Administrador")]
     [Route("reportes/vista-recepcion")]
-    public async Task<IActionResult> VistaRecepcion()
+    public async Task<IActionResult> VistaRecepcion(CancellationToken ct = default)
     {
         var userName = User.Identity?.Name ?? "Recepcionista";
-        var hoy = DateTime.Today;
+        var hoy = ColombiaClock.Today;
+        var manana = hoy.AddDays(1);
+        ViewData["FechaOperativa"] = hoy;
 
         var citasHoy = await _context.Citas
-            .Where(c => c.FechaHora.Date == hoy)
+            .AsNoTracking()
+            .Where(c => c.FechaHora >= hoy && c.FechaHora < manana)
             .OrderBy(c => c.FechaHora)
             .Select(c => new
             {
@@ -463,101 +467,75 @@ public class ReportesController : Controller
                 c.IdProfesional,
                 c.IdServicio,
                 c.FechaHora,
-                c.Estado,
+                Estado = c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado,
                 ProfesionalNombre = c.Profesional != null ? c.Profesional.Nombres + " " + c.Profesional.Apellidos : "Sin asignar",
                 ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : "Consulta general"
             })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var pacientesRecientesDb = await _context.Pacientes
             .OrderByDescending(p => p.IdPaciente)
             .Take(4)
-            .ToListAsync();
+            .ToListAsync(ct);
 
 
-        var pacientesDisponibles = await _context.Pacientes
-            .Where(p => p.Estado == "activo")
-            .OrderBy(p => p.Nombres)
-            .Select(p => new OpcionSelectViewModel { Id = p.IdPaciente, Nombre = p.Nombres + " " + p.Apellidos })
-            .ToListAsync();
+        var cultura = CultureInfo.GetCultureInfo("es-CO");
+        var estadosProgramados = new[] { "agendada", "agendado", "programada", "programado", "confirmada", "confirmado" };
+        var siguientes = await _context.Citas.AsNoTracking()
+            .Where(c => c.FechaHora >= manana && estadosProgramados.Contains(
+                ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? "").Trim().ToLower()))
+            .OrderBy(c => c.FechaHora).ThenBy(c => c.IdCita)
+            .Take(3)
+            .Select(c => new
+            {
+                c.IdCita,
+                c.FechaHora,
+                Profesional = c.Profesional != null ? c.Profesional.Nombres + " " + c.Profesional.Apellidos : "Sin asignar",
+                Servicio = c.Servicio != null ? c.Servicio.Nombre : "Consulta general"
+            })
+            .ToListAsync(ct);
 
-        var profesionalesDisponibles = await _context.Profesionales
-            .Where(p => p.Estado == "activo")
-            .OrderBy(p => p.Nombres)
-            .Select(p => new OpcionSelectViewModel { Id = p.IdProfesional, Nombre = p.Nombres + " " + p.Apellidos })
-            .ToListAsync();
+        var proximasCitas = siguientes.Select(c => new AgendaItemViewModel
+        {
+            IdCita = c.IdCita,
+            Time = c.FechaHora.ToString("d MMM yyyy · HH:mm", cultura),
+            Professional = c.Profesional,
+            Service = c.Servicio
+        }).ToList();
 
-        var serviciosDisponibles = await _context.Servicios
-            .Where(s => s.Estado == "activo")
-            .OrderBy(s => s.Nombre)
-            .Select(s => new OpcionSelectViewModel { Id = s.IdServicio, Nombre = s.Nombre })
-            .ToListAsync();
-
+        var atendidas = citasHoy.Count(c => string.Equals(c.Estado, "Atendida", StringComparison.OrdinalIgnoreCase));
+        var canceladas = citasHoy.Count(c => string.Equals(c.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase));
         var model = new ReportesOperativosViewModel
         {
             ReceptionistName = userName,
-            ReceptionistAvatarUrl = "/images/Imagenes/Logos/logo.jpg",
-
-            Kpis = new List<KpiOperativoViewModel>
+            ProximasCitas = proximasCitas,
+            Kpis =
+            [
+                new() { Label = "Citas del día", Value = citasHoy.Count.ToString(), Icon = "calendar_month" },
+                new() { Label = "Atendidas", Value = atendidas.ToString(), Icon = "check_circle" },
+                new() { Label = "Canceladas", Value = canceladas.ToString(), Icon = "event_busy" }
+            ],
+            Agenda = citasHoy.Select(c => new AgendaItemViewModel
             {
-                new() { Label = "Citas Totales", Value = citasHoy.Count > 0 ? citasHoy.Count.ToString() : "24", Subtitle = "Programadas hoy", Icon = "event", ColorVariant = "primary" },
-                new() { Label = "Atendidas", Value = citasHoy.Count(c => c.Estado == "Atendida").ToString(), Subtitle = "Del total de hoy", Icon = "check_circle", ColorVariant = "secondary" },
-                new() { Label = "Cobrado en Turno", Value = "$12.450", Subtitle = "Flujo operativo real", Icon = "payments", ColorVariant = "tertiary" },
-                new() { Label = "Pagos Pendientes", Value = "3", Subtitle = "Acción requerida", Icon = "pending_actions", ColorVariant = "error" },
-            },
-
-                Agenda = citasHoy.Count > 0
-                ? citasHoy.Select(c => new AgendaItemViewModel
+                IdCita = c.IdCita,
+                Time = c.FechaHora.ToString("HH:mm", cultura),
+                Professional = c.ProfesionalNombre,
+                Service = c.ServicioNombre,
+                Status = c.Estado ?? "Sin estado",
+                StatusVariant = c.Estado?.ToLowerInvariant() switch
                 {
-                    IdCita = c.IdCita,
-                    IdPaciente = c.IdPaciente,
-                    IdProfesional = c.IdProfesional,
-                    IdServicio = c.IdServicio,
-                    Time = c.FechaHora.ToString("hh:mm tt"),
-                    Professional = c.ProfesionalNombre,
-                    Service = c.ServicioNombre,
-                    Status = c.Estado,
-                    StatusVariant = c.Estado == "Atendida" ? "secondary" : c.Estado == "Confirmada" ? "primary" : c.Estado == "Cancelada" ? "error" : "neutral",
-                    IsCancelled = c.Estado == "Cancelada"
-                }).ToList()
-                : new List<AgendaItemViewModel>
-                {
-                    new() { Time = "09:00 AM", Professional = "Dra. Marta Ruiz", Service = "Limpieza Profunda", Status = "Atendida", StatusVariant = "secondary", IdCita = 0 },
-                    new() { Time = "10:30 AM", Professional = "Dr. Lucas Silva", Service = "Ortodoncia Control", Status = "Confirmada", StatusVariant = "primary", IdCita = 0 },
-                    new() { Time = "11:15 AM", Professional = "Dra. Marta Ruiz", Service = "Evaluación Inicial", Status = "Pendiente", StatusVariant = "neutral", IdCita = 0 },
-                    new() { Time = "12:00 PM", Professional = "Dr. Jorge Blanco", Service = "Extracción", Status = "Cancelada", StatusVariant = "error", IsCancelled = true, IdCita = 0 },
-                },
-
-            PacientesRecientes = pacientesRecientesDb.Count > 0
-                ? pacientesRecientesDb.Select(p => new PacienteRecienteViewModel
-                {
-                    IdPaciente = p.IdPaciente,
-                    Initials = $"{(string.IsNullOrEmpty(p.Nombres) ? "" : p.Nombres[0].ToString())}{(string.IsNullOrEmpty(p.Apellidos) ? "" : p.Apellidos[0].ToString())}".ToUpperInvariant(),
-                    Name = $"{p.Nombres} {p.Apellidos}",
-                    ContactInfo = !string.IsNullOrWhiteSpace(p.Telefono) ? p.Telefono : (p.Correo ?? ""),
-                    AvatarColorVariant = "primary"
-                }).ToList()
-                : new List<PacienteRecienteViewModel>
-                {
-                    new() { Initials = "RM", Name = "Roberto Méndez", ContactInfo = "+57 300 234 5678", AvatarColorVariant = "primary", IdPaciente = 0 },
-                    new() { Initials = "LC", Name = "Lucía Castro", ContactInfo = "lucia.castro@email.com", AvatarColorVariant = "secondary", IdPaciente = 0 },
-                },
-
-            Cobros = new List<CobroItemViewModel>
+                    "atendida" => "green",
+                    "confirmada" => "blue",
+                    "cancelada" => "red",
+                    _ => "neutral"
+                }
+            }).ToList(),
+            PacientesRecientes = pacientesRecientesDb.Select(p => new PacienteRecienteViewModel
             {
-                new() { Method = "Tarjeta", Icon = "💳", IconColorVariant = "secondary", PatientName = "Ana Martínez", Folio = "#8821", Amount = 3200m, Time = "10:45 AM" },
-                new() { Method = "Efectivo", Icon = "💵", IconColorVariant = "primary", PatientName = "Carlos Ruiz", Folio = "#8819", Amount = 1500m, Time = "09:30 AM" },
-            },   
-            SaldosPendientes = new List<SaldoPendienteViewModel>
-            {
-                new() { PatientName = "Enrique Peña", Amount = 4200m },
-                new() { PatientName = "Sofía Luna", Amount = 850m },
-            },
-
-            CierreParcialCaja = 12450m,
-            PacientesDisponibles = pacientesDisponibles,
-            ProfesionalesDisponibles = profesionalesDisponibles,
-            ServiciosDisponibles = serviciosDisponibles,
+                IdPaciente = p.IdPaciente,
+                Name = $"{p.Nombres} {p.Apellidos}",
+                ContactInfo = !string.IsNullOrWhiteSpace(p.Telefono) ? p.Telefono : p.Correo ?? ""
+            }).ToList()
         };
 
         return View("~/Views/Reportes/vista_recepcion/index.cshtml", model);

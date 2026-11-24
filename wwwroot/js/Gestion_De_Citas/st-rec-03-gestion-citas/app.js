@@ -714,11 +714,9 @@ const fetchSolicitudesPendientes = async () => {
             return;
           }
 
-          const consultorioId = document.querySelector('#newConsultorio')?.value || document.querySelector('#modalNewAppointment [name="IdConsultorio"]')?.value || 1;
           const payload = {
             idCita: idCita,
             idProfesional: Number(profesionales[0].idProfesional ?? profesionales[0].IdProfesional),
-            idConsultorio: Number(consultorioId),
             fecha: fecha,
             horaInicio: `${horaBase}:00`,
             notas: solicitud.notas || solicitud.motivoConsulta || ''

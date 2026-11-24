@@ -143,7 +143,7 @@ const filterFinalizedAppointments = (dataList) => {
   };
 
 const getFilterLabel = () =>
-  document.querySelector('.finalized-page [data-tab][aria-pressed="true"]')?.textContent.trim().split('\n').at(-1).trim() || 'Todas';
+  document.querySelector('.finalized-page [data-tab][aria-pressed="true"]')?.querySelector(".stat-label, .finalized-all-label")?.textContent.trim() || 'Todas';
 
 const updateFinalizedPagination = (totalItems) => {
     const pageCount = Math.ceil(totalItems / FINALIZED_PAGE_SIZE);
@@ -190,29 +190,18 @@ const renderAppointmentsTable = (dataList) => {
     `${day}/${month}/${year} · ${getFilterLabel()} · ${filteredAppointments.length} cita(s)`;
   safeGetElement('btnExport').disabled = filteredAppointments.length === 0;
 
-  if (filteredAppointments.length === 0) {
-    const emptyRow = document.createElement('tr');
-    emptyRow.className = 'empty-state-row';
-    emptyRow.setAttribute('role', 'row');
-    emptyRow.setAttribute('aria-label', 'Estado vacío');
-    const emptyCell = document.createElement('td');
-    emptyCell.colSpan = 6;
-    emptyCell.className = 'empty-state-cell';
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'empty-state-content';
-    contentDiv.setAttribute('role', 'status');
-    contentDiv.setAttribute('aria-live', 'polite');
-    const iconDiv = document.createElement('div');
-    iconDiv.className = 'empty-state-icon';
-    iconDiv.setAttribute('aria-hidden', 'true');
-    iconDiv.textContent = '📅';
-    const messageParagraph = document.createElement('p');
-    messageParagraph.className = 'empty-state-message';
-    messageParagraph.textContent = dataList.length ? 'No hay citas con este estado.' : 'No hay citas finalizadas para esta fecha.';
-    contentDiv.append(iconDiv, messageParagraph);
-    emptyCell.appendChild(contentDiv);
-    emptyRow.appendChild(emptyCell);
-    tableBody.replaceChildren(emptyRow);
+  const hasResults = filteredAppointments.length > 0;
+  safeGetElement('finalizedTable').hidden = !hasResults;
+  safeGetElement('finalizedEmpty').hidden = hasResults || !window.smiletrackCitasFinalizadasData?.citas;
+  if (!hasResults) {
+    tableBody.replaceChildren();
+    safeGetElement('finalizedEmptyMessage').textContent = dataList.length
+      ? 'No hay citas con este estado.' : 'No hay citas finalizadas para esta fecha.';
+    const lastDay = safeGetElement('finalizedLastDay');
+    const lastDate = window.smiletrackCitasFinalizadasData?.ultimaJornada;
+    lastDay.hidden = dataList.length > 0 || !lastDate;
+    if (lastDate) lastDay.href = '?fecha=' + encodeURIComponent(lastDate);
+    safeGetElement('finalizedClearStatus').hidden = dataList.length === 0;
     return;
   }
 
@@ -323,7 +312,13 @@ const setupExportButtonListener = () => {
 // ═══════════════════════════════════════════════════════════════════
 
 const setupFinalizedTableControls = () => {
-    const tabButtons = document.querySelectorAll('.table-tabs .tab-btn');
+    const tabButtons = document.querySelectorAll('.finalized-page [data-tab]');
+
+    safeGetElement('finalizedClearStatus').addEventListener('click', () => {
+      const all = safeGetElement('tab-all');
+      all.click();
+      all.focus();
+    });
 
     tabButtons.forEach(tabButton => {
       tabButton.addEventListener('click', () => {

@@ -182,12 +182,12 @@ public class MobileSolicitudCitasController : ControllerBase
                 success = true,
                 id = cita.IdCita,
                 estado = cita.Estado,
-                message = "Solicitud enviada para revisión."
+                message = "Tu cita quedó confirmada."
             });
         }
         catch (InvalidOperationException ex)
         {
-            if (ex.Message.Contains("horario", StringComparison.OrdinalIgnoreCase))
+            if (ex is SmileTrack_MVC.Exceptions.CitaConflictException || ex.Message.Contains("horario", StringComparison.OrdinalIgnoreCase))
             {
                 var horariosDisponibles = await _citaService.ObtenerHorariosSolicitudPacienteAsync(
                     paciente.IdPaciente,

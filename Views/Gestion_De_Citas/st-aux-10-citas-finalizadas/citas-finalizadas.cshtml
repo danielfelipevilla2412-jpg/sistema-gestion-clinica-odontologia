@@ -55,13 +55,21 @@
         <input id="finalizedDate" name="fecha" type="date" required value="@fechaResumen.ToString("yyyy-MM-dd")" max="@hoy.ToString("yyyy-MM-dd")" />
         </div>
         <button type="submit" class="btn-primary">Consultar</button>
+        @if (fechaResumen > DateOnly.MinValue)
+        {
+          <a class="btn-secondary" href="?fecha=@fechaResumen.AddDays(-1).ToString("yyyy-MM-dd")" aria-label="Jornada anterior">‹</a>
+        }
+        @if (fechaResumen < hoy)
+        {
+          <a class="btn-secondary" href="?fecha=@fechaResumen.AddDays(1).ToString("yyyy-MM-dd")" aria-label="Jornada siguiente">›</a>
+        }
         <a class="btn-secondary" href="?fecha=@hoy.ToString("yyyy-MM-dd")" aria-current="@(fechaResumen == hoy ? "date" : null)">Hoy</a>
         <a class="btn-secondary" href="?fecha=@hoy.AddDays(-1).ToString("yyyy-MM-dd")" aria-current="@(fechaResumen == hoy.AddDays(-1) ? "date" : null)">Ayer</a>
       </form>
       <div class="finalized-export">
       <button class="btn-export" id="btnExport" type="button" disabled aria-describedby="finalizedExportScope" aria-label="Descargar resumen de citas finalizadas" data-i18n-aria-label="table.export">
         <span class="material-symbols-outlined" aria-hidden="true">download</span>
-        <span class="btn-text">Descargar resumen</span>
+        <span class="btn-text">Descargar resumen CSV</span>
       </button>
         <small id="finalizedExportScope" aria-live="polite"></small>
       </div>
@@ -71,45 +79,38 @@
          st-adm-07, st-rec-01, st-adm-01 y el resto del módulo de Citas/Profesionales.
          Antes usaba summary-cards/summary-card.green que era un diseño ad-hoc distinto. -->
     <section class="stats-grid" aria-label="Resumen de citas por estado">
-      <div class="stat-card" data-color="green">
+      <button type="button" class="stat-card finalized-filter" data-color="green" data-tab="attended" aria-pressed="false">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">task_alt</span>
         <span class="stat-number" id="countAtendidas">0</span>
         <span class="stat-label" data-i18n="status.attended">Atendidas</span>
-      </div>
-      <div class="stat-card" data-color="red">
+      </button>
+      <button type="button" class="stat-card finalized-filter" data-color="red" data-tab="cancelled" aria-pressed="false">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_busy</span>
         <span class="stat-number" id="countCanceladas">0</span>
         <span class="stat-label" >Canceladas</span>
-      </div>
-      <div class="stat-card" data-color="orange">
+      </button>
+      <button type="button" class="stat-card finalized-filter" data-color="orange" data-tab="no-show" aria-pressed="false">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">person_off</span>
         <span class="stat-number" id="countNoAsistio">0</span>
         <span class="stat-label" >Inasistencias</span>
-      </div>
+      </button>
     </section>
 
     <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
     <div class="table-tabs" role="group" aria-label="Filtrar citas finalizadas por estado">
       <button type="button" class="tab-btn active" aria-pressed="true" data-tab="all" id="tab-all">
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">task_alt</span>
-        Todas las finalizadas
-      </button>
-      <button type="button" class="tab-btn" aria-pressed="false" data-tab="attended" id="tab-attended">
-        <span class="material-symbols-outlined tab-icon" aria-hidden="true">check_circle</span>
-        Atendidas
-      </button>
-      <button type="button" class="tab-btn" aria-pressed="false" data-tab="cancelled" id="tab-cancelled">
-        <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
-        Canceladas
-      </button>
-      <button type="button" class="tab-btn" aria-pressed="false" data-tab="no-show" id="tab-no-show">
-        <span class="material-symbols-outlined tab-icon" aria-hidden="true">event_busy</span>
-        Inasistencias
+        <span class="finalized-all-label">Todas las finalizadas</span>
       </button>
     </div>
 
     <!-- Tabla de citas con estructura accesible -->
-    <div class="table-wrap">
+    <div class="finalized-empty" id="finalizedEmpty" hidden>
+      <p id="finalizedEmptyMessage" role="status"></p>
+      <a class="btn-secondary" id="finalizedLastDay" hidden>Consultar última jornada con registros</a>
+      <button type="button" class="btn-secondary" id="finalizedClearStatus" hidden>Ver todas las finalizadas</button>
+    </div>
+    <div class="table-wrap" id="finalizedTable" hidden>
       <table class="table-base" aria-label="Listado de citas finalizadas del día">
         <thead>
           <tr>

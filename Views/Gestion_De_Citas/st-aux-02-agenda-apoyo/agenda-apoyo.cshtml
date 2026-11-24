@@ -1,180 +1,129 @@
-@* ============================================
-   SmileTrack — Módulo: Gestión de Citas
-   Vista: Agenda de Apoyo Clínico (st-aux-02-agenda-apoyo)
-   ============================================
-   Archivo: Views/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.cshtml
-
-   PROPÓSITO Y JUSTIFICACIÓN:
-   Muestra las citas del día organizadas cronológicamente para la preparación del instrumental odontológico y asistencia.
-
-   REGLAS DE RENDERIZADO Y NEGOCIO:
-   - Resalta alergias críticas y tipo de intervención.
-
-   DEPENDENCIAS:
-   - CSS: ~/css/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.css
-   - JS: ~/js/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.js
-   ============================================ *@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using System.Globalization
+@using SmileTrack_MVC.Helpers
+@using SmileTrack_MVC.Models.ViewModels.GestionDeCitas
 @{
-    Layout = "_Layout";
-    ViewData["Title"] = "Agenda de Apoyo Clínico";
+    ViewData["Title"] = "Agenda de Apoyo";
     ViewData["UseGestionModulesDesignSystem"] = true;
-    var agendaApoyoData = ViewData["AgendaApoyoData"] as SmileTrack_MVC.Models.ViewModels.GestionDeCitas.AgendaApoyoViewModel
-        ?? new SmileTrack_MVC.Models.ViewModels.GestionDeCitas.AgendaApoyoViewModel();
-    var agendaApoyoCitas = agendaApoyoData.Citas;
-    var agendaApoyoDataJson = System.Text.Json.JsonSerializer.Serialize(agendaApoyoData);
-    var fechaActual = ViewData["AgendaApoyoFecha"] is DateTime fechaValida
-        ? fechaValida.Date
-        : SmileTrack_MVC.Helpers.ColombiaClock.Today;
-    var inicioSemanaActual = fechaActual;
-    var esVistaSemana = ViewData["AgendaApoyoSemana"] is true;
-    var metaTexto = esVistaSemana
-        ? $"Semana del {inicioSemanaActual:dd MMM yyyy} al {inicioSemanaActual.AddDays(6):dd MMM yyyy}"
-        : $"Citas del día {fechaActual:dd MMM yyyy}";
+    var agenda = ViewData["AgendaApoyoData"] as AgendaApoyoViewModel;
+    var citas = agenda?.Citas ?? new List<AgendaApoyoCitaItemViewModel>();
+    var fecha = ViewData["AgendaApoyoFecha"] is DateTime inicio ? inicio : ColombiaClock.Today;
+    var semana = ViewData["AgendaApoyoSemana"] is true;
+    var paso = semana ? 7 : 1;
+    var parametro = semana ? "weekStart" : "fecha";
+    var ahora = ColombiaClock.Now;
+    var cultura = CultureInfo.GetCultureInfo("es-CO");
+    var periodo = semana ? $"{fecha.ToString("d MMM", cultura)} – {fecha.AddDays(6).ToString("d MMM yyyy", cultura)}" : fecha.ToString("dddd d 'de' MMMM 'de' yyyy", cultura);
+    string FechaIso(DateTime dia) => dia.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    string Preparacion(int id) => $"/gestion-de-pacientes/st-aux-03-preparacion-consulta?citaId={id}";
+    bool PuedePreparar(AgendaApoyoCitaItemViewModel cita) =>
+        User.IsInRole("Auxiliar") && cita.FechaHora.Date == ahora.Date && cita.Activa;
 }
-
 @section Styles {
     <link rel="stylesheet" href="~/css/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.css" asp-append-version="true" />
 }
-
-  <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
-
-    <!-- Page header con metadatos accesibles -->
+<main class="main agenda-apoyo" id="main-content">
     <header class="page-header">
-      <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
-          <span data-i18n="common_role_auxiliar">Auxiliar</span>
-          <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active" data-i18n="nav.agenda">Agenda</span>
-        </nav>
-        <h1 class="page-title" data-i18n="nav.agenda">Agenda de Apoyo Clínico</h1>
-        <p class="page-subtitle" id="phMeta" aria-live="polite" data-meta-text="@metaTexto">@metaTexto</p>
-      </div>
+        <div class="header-left">
+            <nav class="breadcrumb" aria-label="Ruta de navegación">Auxiliar › Agenda de Apoyo</nav>
+            <h1 class="page-title">Agenda de Apoyo</h1>
+            <p class="page-subtitle">@periodo</p>
+        </div>
     </header>
 
-    <div class="filtros-bar" role="toolbar" aria-label="Navegación y filtros de agenda">
-      @await Component.InvokeAsync("ToggleVistas", new { vistaActiva = Context.Request.Query.ContainsKey("weekStart") ? "semana" : "dia" })
-      <a class="btn-secondary" href="?fecha=@fechaActual.AddDays(-1).ToString("yyyy-MM-dd")" aria-label="Día anterior">‹ Día</a>
-      <a class="btn-secondary" href="?fecha=@fechaActual.AddDays(1).ToString("yyyy-MM-dd")" aria-label="Día siguiente">Día ›</a>
-      <a class="btn-secondary" href="?weekStart=@inicioSemanaActual.AddDays(-7).ToString("yyyy-MM-dd")" aria-label="Semana anterior">‹ Semana</a>
-      <a class="btn-secondary" href="?weekStart=@inicioSemanaActual.AddDays(7).ToString("yyyy-MM-dd")" aria-label="Semana siguiente">Semana ›</a>
-    </div>
+    <section class="table-card apoyo-panel">
+        <nav class="apoyo-controls" aria-label="Navegación de agenda">
+            <div class="apoyo-controls">
+                <a class="@(semana ? "btn-secondary" : "btn-primary")" aria-current="@(!semana ? "page" : null)" href="?fecha=@FechaIso(fecha)">Día</a>
+                <a class="@(semana ? "btn-primary" : "btn-secondary")" aria-current="@(semana ? "page" : null)" href="?weekStart=@FechaIso(fecha)">Semana</a>
+            </div>
+            <div class="apoyo-controls">
+                <a class="btn-secondary" href="?@(parametro)=@FechaIso(fecha.AddDays(-paso))" aria-label="@(semana ? "Semana anterior" : "Día anterior")">‹</a>
+                <strong>@periodo</strong>
+                <a class="btn-secondary" href="?@(parametro)=@FechaIso(fecha.AddDays(paso))" aria-label="@(semana ? "Semana siguiente" : "Día siguiente")">›</a>
+                <a class="btn-secondary" href="?fecha=@FechaIso(ahora.Date)">Hoy</a>
+            </div>
+        </nav>
 
-    <!-- Contenido principal -->
-    <div class="content">
-
-      <!-- Barra de filtros con role toolbar y accesibilidad -->
-      <div class="filtros-bar" role="toolbar" aria-label="Filtros de agenda" data-i18n-aria-label="table.filter">
-
-        <!-- Dropdown profesional accesible -->
-        <div class="dropdown-wrap">
-          <button class="filter-btn filter-dropdown" id="btnProfesional" aria-haspopup="true" aria-expanded="false"
-            aria-controls="dropdownMenu">
-            <span data-i18n="citas.filter_professional">Todos los profesionales</span> <span class="dd-arrow" aria-hidden="true">▼</span>
-          </button>
-          <div class="dropdown-menu" id="dropdownMenu" role="menu" aria-label="Seleccionar profesional">
-            <div class="dd-item active" role="menuitem" tabindex="0" data-value="todos">Todos los profesionales</div>
-            @{
-                var profesionalesUnicos = agendaApoyoCitas
-                    .Select(c => c.Profesional)
-                    .Where(p => !string.IsNullOrWhiteSpace(p) && p != "Sin asignar")
-                    .Distinct();
-            }
-            @foreach (var prof in profesionalesUnicos.OrderBy(p => p))
-            {
-                <div class="dd-item" role="menuitem" tabindex="0" data-value="@prof">@prof</div>
-            }
-          </div>
-        </div>
-
-        <!-- Filtros de tipo con role radiogroup -->
-        <div role="radiogroup" aria-label="Filtrar por tipo de cita" class="filter-group">
-          <button class="filter-btn active" id="f-todos" role="radio" aria-checked="true" data-value="todos" data-i18n="table.filter">Todos los tipos</button>
-          <button class="filter-btn tipo-consulta" id="f-consulta" role="radio" aria-checked="false"
-            data-value="consulta">Consulta</button>
-          <button class="filter-btn tipo-procedimiento" id="f-procedimiento" role="radio" aria-checked="false"
-            data-value="procedimiento">Procedimiento</button>
-          <button class="filter-btn tipo-urgencia" id="f-urgencia" role="radio" aria-checked="false"
-            data-value="urgencia">Urgencia</button>
-        </div>
-
-      </div>
-
-      <!-- Tabla de citas con estructura accesible -->
-      <div class="table-card">
-        <div class="table-scroll">
-          <table class="table-base agenda-table" aria-label="Agenda de citas que requieren asistencia">
-            <thead>
-              <tr>
-                <th scope="col">DÍA</th>
-                <th scope="col" data-i18n="citas.time">HORA</th>
-                <th scope="col" data-i18n="citas.patient">PACIENTE</th>
-                <th scope="col" data-i18n="citas.professional">PROFESIONAL</th>
-                <th scope="col" data-i18n="pqr.type">TIPO</th>
-                <th scope="col" data-i18n="historia.observations">ALERGIAS</th>
-                <th scope="col" data-i18n="citas.status">ESTADO</th>
-              </tr>
-            </thead>
-            <tbody id="agendaBody" aria-live="polite">
-              @if (agendaApoyoCitas.Count == 0)
-              {
-                <tr>
-                  <td colspan="7" style="text-align:center;padding:24px;">No hay citas programadas para este período.</td>
-                </tr>
-              }
-              else
-              {
-                @foreach (var cita in agendaApoyoCitas)
-                {
-                  <tr>
-                    <td>@cita.Fecha</td>
-                    <td>@cita.Hora</td>
-                    <td>@cita.Paciente</td>
-                    <td>@cita.Profesional</td>
-                    <td>@cita.Tipo</td>
-                    <td>@(string.IsNullOrWhiteSpace(cita.Alergia) ? "—" : cita.Alergia)</td>
-                    <td>@cita.Estado</td>
-                  </tr>
-                }
-              }
-            </tbody>
-          </table>
-        </div>
-        <div class="table-empty" id="tableEmpty" style="display:none" role="status" aria-live="polite">
-          No hay citas que coincidan con el filtro seleccionado.
-        </div>
-      </div>
-
-    </div>
-
-  </main>
-
-  <!-- Mobile bottom nav con aria-label para navegación móvil -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
-    <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span></span>
-      <span>Panel</span>
-    </a>
-    <a href="/gestion-de-citas/st-aux-02-agenda-apoyo" class="mobile-nav-item active" aria-current="page">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
-      <span>Agenda</span>
-    </a>
-    <a href="/gestion-de-pacientes/st-aux-05-historial-parcial" class="mobile-nav-item">
-      <span class="mobile-nav-icon"><span class="material-symbols-outlined" aria-hidden="true">history</span></span>
-      <span>Historial</span>
-    </a>
-  </nav>
-
-  <!-- Toast con aria-atomic para anuncio completo de notificaciones -->
-  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Estilos para contenido solo accesible por screen readers -->
-
-  <script>
-    window.smiletrackAgendaApoyoData = @Html.Raw(agendaApoyoDataJson);
-  </script>
+        @if (agenda is null)
+        {
+            <p class="apoyo-message" role="alert">No se pudo cargar la agenda. Vuelve a intentarlo.</p>
+        }
+        else if (citas.Count == 0)
+        {
+            <p class="apoyo-message">@(semana ? "No hay citas para esta semana." : "No hay citas para este día.")</p>
+        }
+        else
+        {
+            <div class="apoyo-controls apoyo-filters" id="apoyoFiltros" hidden>
+                <label>Profesional
+                    <select id="apoyoProfesional">
+                        <option value="">Todos los profesionales</option>
+                        @foreach (var profesional in citas.Select(c => c.Profesional).Distinct().OrderBy(p => p))
+                        {
+                            <option value="@profesional">@profesional</option>
+                        }
+                    </select>
+                </label>
+                <label>Tipo de cita
+                    <select id="apoyoTipo">
+                        <option value="">Todos los tipos</option>
+                        <option value="consulta">Consulta</option>
+                        <option value="procedimiento">Procedimiento</option>
+                        <option value="urgencia">Urgencia</option>
+                    </select>
+                </label>
+                <button class="btn-secondary" type="button" id="apoyoLimpiar" hidden>Limpiar filtros</button>
+                <span id="apoyoCantidad" role="status"></span>
+            </div>
+            <div class="apoyo-message apoyo-next" id="apoyoSiguiente" hidden aria-live="polite">
+                <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+                <div><strong>Siguiente cita</strong><p id="apoyoSiguienteTexto"></p></div>
+                <a class="btn-secondary" id="apoyoSiguienteAccion" hidden>Ir a preparación</a>
+            </div>
+            <p class="apoyo-message" id="apoyoSinResultados" hidden>Ninguna cita coincide con los filtros.</p>
+            <div class="apoyo-table-scroll" id="apoyoTabla">
+                <table class="table-base" aria-label="Citas del período">
+                    <thead>
+                        <tr>
+                            @if (semana) { <th scope="col">Día</th> }
+                            <th scope="col">Hora</th><th scope="col">Paciente</th><th scope="col">Profesional</th>
+                            <th scope="col">Tipo</th><th scope="col">Estado</th><th scope="col">Alertas</th>
+                            @if (User.IsInRole("Auxiliar")) { <th scope="col">Preparación</th> }
+                        </tr>
+                    </thead>
+                    <tbody id="agendaBody">
+                        @foreach (var cita in citas)
+                        {
+                            var urgente = cita.Tipo == "urgencia";
+                            <tr data-profesional="@cita.Profesional" data-tipo="@cita.Tipo"
+                                data-proxima="@(cita.Activa && cita.FechaHora >= ahora ? $"{cita.Fecha} · {cita.Hora} · {cita.Profesional} · {cita.Estado}" : null)">
+                                @if (semana) { <td>@cita.Fecha</td> }
+                                <td><strong>@cita.Hora</strong></td><td>@cita.Paciente</td><td>@cita.Profesional</td>
+                                <td><span class="apoyo-badge @(urgente ? "apoyo-alert" : "")">@cultura.TextInfo.ToTitleCase(cita.Tipo)</span></td>
+                                <td><span class="apoyo-badge">@cita.Estado</span></td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(cita.Alergia))
+                                    {
+                                        <details><summary class="apoyo-alert">Alergia registrada</summary><p>@cita.Alergia</p></details>
+                                    }
+                                    else { <span>—</span> }
+                                </td>
+                                @if (User.IsInRole("Auxiliar"))
+                                {
+                                    <td>
+                                        @if (PuedePreparar(cita)) { <a class="btn-secondary" data-preparacion href="@Preparacion(cita.Id)">Preparar consulta</a> }
+                                        else { <span>—</span> }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</main>
 @section Scripts {
     <script src="~/js/Gestion_De_Citas/st-aux-02-agenda-apoyo/agenda-apoyo.js" asp-append-version="true" defer></script>
-    <script src="~/js/shared/validation-utils.js" asp-append-version="true" defer></script>
-    <script src="~/js/shared/appointment-utils.js" asp-append-version="true" defer></script>
 }

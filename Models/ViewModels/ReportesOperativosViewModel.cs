@@ -11,6 +11,7 @@ namespace SmileTrack_MVC.Models.ViewModels
 
         // Agenda del día
         public List<AgendaItemViewModel> Agenda { get; set; } = new();
+        public List<AgendaItemViewModel> ProximasCitas { get; set; } = new();
 
         // Pacientes recientes
         public List<PacienteRecienteViewModel> PacientesRecientes { get; set; } = new();

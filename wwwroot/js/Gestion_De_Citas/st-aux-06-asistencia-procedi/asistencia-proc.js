@@ -181,9 +181,6 @@ const procedureStorage = {
 const renderDatosCita = () => {
   const dashboardData = window.smiletrackAsistenciaProcedData || {};
 
-  const subtitleElement = safeGetElement('apSubtitle');
-  if (subtitleElement) subtitleElement.textContent = dashboardData.citaId ? `${dashboardData.procedimiento} — ${dashboardData.profesional} — ${dashboardData.consultorio}` : 'No hay un procedimiento en curso asignado';
-
   const setElementText = (elementId, valText) => { const element = safeGetElement(elementId); if (element) element.textContent = valText || '—'; };
   setElementText('apPaciente', dashboardData.paciente);
   setElementText('apProfesional', dashboardData.profesional);
@@ -206,7 +203,7 @@ const renderDatosCita = () => {
   const sinAlertas = safeGetElement('apSinAlertas');
 
   let hasAlerts = false;
-  if (bannerElement) bannerElement.style.display = 'none';
+  if (bannerElement && !dashboardData.alergia) bannerElement.style.display = 'none';
   if (alergiaItem) alergiaItem.style.display = 'none';
   if (antecedentesItem) antecedentesItem.style.display = 'none';
   if (sinAlertas) sinAlertas.style.display = '';
