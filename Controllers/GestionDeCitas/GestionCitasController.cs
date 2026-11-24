@@ -1447,8 +1447,9 @@ public class GestionCitasController(
             .Include(c => c.Paciente)
             .Include(c => c.Profesional)
             .Include(c => c.Servicio)
+            .Include(c => c.EstadoCita)
             .Where(c => c.FechaHora >= inicio && c.FechaHora < fin)
-            .OrderBy(c => c.FechaHora)
+            .OrderBy(c => c.FechaHora).ThenBy(c => c.IdCita)
             .ToListAsync(ct);
 
         static string InferirTipoCita(
@@ -1492,6 +1493,8 @@ public class GestionCitasController(
                 "no asistió"
                     => "No asistió",
 
+                "confirmada" => "Confirmada",
+                "programada" => "Programada",
                 _ => "Pendiente"
             };
 
@@ -1499,6 +1502,9 @@ public class GestionCitasController(
             c => new AgendaApoyoCitaItemViewModel
             {
                 Id = c.IdCita,
+                FechaHora = c.FechaHora,
+                Activa = !EstadoCitaHelper.EsEstadoFinal(c.EstadoCita?.NombreEstado ?? c.Estado)
+                    && !EstadoCitaHelper.EsEstadoCancelado(c.Estado),
                 Fecha = c.FechaHora.ToString("ddd dd/MM", new System.Globalization.CultureInfo("es-CO")),
                 Hora = c.FechaHora.ToString("HH:mm"),
                 Paciente =
@@ -1521,7 +1527,7 @@ public class GestionCitasController(
                         : c.Paciente!.Alergias,
 
                 Estado =
-                    MapEstadoLabel(c.Estado)
+                    MapEstadoLabel(c.EstadoCita?.NombreEstado ?? c.Estado)
             })
             .ToList();
 
@@ -2325,8 +2331,26 @@ public class GestionCitasController(
                 .Where(c => c.estado != "Pendiente")
                 .ToList();
 
+        string? ultimaJornada = null;
+        if (citas.Count == 0)
+        {
+            var estadosResumen = new[]
+            {
+                "atendida", "completada", "realizada", "finalizada", "cancelada", "cancelado",
+                "no asistio", "no asistió", "no_asistida", "no_asistio", "no_asistió", "no-show", "no_show"
+            };
+            var ultimaFecha = await _context.Citas.AsNoTracking()
+                .Where(c => c.FechaHora < inicio && estadosResumen.Contains(
+                    ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : null) ?? c.Estado ?? "").Trim().ToLower()))
+                .OrderByDescending(c => c.FechaHora)
+                .Select(c => (DateTime?)c.FechaHora)
+                .FirstOrDefaultAsync(ct);
+            ultimaJornada = ultimaFecha?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         return new
         {
+            ultimaJornada,
             fechaResumen = jornada.ToString("yyyy-MM-dd"),
             citas
         };

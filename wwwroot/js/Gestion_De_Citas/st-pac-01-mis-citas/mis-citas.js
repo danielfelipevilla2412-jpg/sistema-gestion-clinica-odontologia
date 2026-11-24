@@ -469,8 +469,8 @@ const handleNewAppointmentSubmit = async () => {
         modalElement.setAttribute('aria-hidden', 'true');
         modalElement.setAttribute('inert', '');
       }
-      notifyUser('success', t('common.success', 'Solicitud recibida'),
-        `Tu solicitud para el ${dateInput.value} a las ${timeSelect.value} quedó pendiente de confirmación por recepción.`);
+      notifyUser('success', t('common.success', 'Cita confirmada'),
+        payload.message || 'Tu cita quedó confirmada.');
       professionalOptionsRequestId += 1;
       availableTimesRequestId += 1;
       await fetchPatientAppointments();

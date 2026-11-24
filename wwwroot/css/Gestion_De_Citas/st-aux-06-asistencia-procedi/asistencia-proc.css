@@ -274,3 +274,65 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+.asistencia-procedimiento .asistencia-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem;
+  margin-bottom: 1rem;
+  padding: .85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+}
+.asistencia-procedimiento .asistencia-actions label { font-weight: 650; }
+.asistencia-procedimiento .asistencia-actions select { flex: 1 1 16rem; min-width: 0; max-width: 100%; }
+.asistencia-procedimiento .procedure-empty-state { padding: 1.25rem 1rem; }
+
+.main.asistencia-procedimiento .asistencia-actions {
+  gap: 1rem;
+  align-items: end;
+  padding: 1.25rem;
+}
+.asistencia-procedimiento .asistencia-choice {
+  display: grid;
+  gap: .55rem;
+  flex: 1 1 24rem;
+  min-width: 0;
+}
+.main.asistencia-procedimiento .asistencia-choice label { font-size: 1.125rem; }
+.main.asistencia-procedimiento .asistencia-choice .status-select {
+  width: 100%;
+  min-height: 3rem;
+  font-size: 1rem;
+}
+.main.asistencia-procedimiento #officeStatusLink { min-height: 3rem; }
+.main.asistencia-procedimiento #procedureContent {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+.asistencia-procedimiento .asistencia-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+.main.asistencia-procedimiento .asistencia-facts .data-row {
+  display: grid;
+  justify-content: start;
+  gap: .25rem;
+  padding: .8rem;
+  border: 1px solid var(--border, #dbe4f0);
+  border-radius: 8px;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.main.asistencia-procedimiento .data-card-title,
+.main.asistencia-procedimiento .status-label { font-size: 1.125rem; }
+.main.asistencia-procedimiento .status-badge,
+.main.asistencia-procedimiento .alert-item { font-size: 1rem; }
+@media (max-width: 900px) {
+  .main.asistencia-procedimiento #procedureContent { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .asistencia-procedimiento .asistencia-facts { grid-template-columns: minmax(0, 1fr); }
+}

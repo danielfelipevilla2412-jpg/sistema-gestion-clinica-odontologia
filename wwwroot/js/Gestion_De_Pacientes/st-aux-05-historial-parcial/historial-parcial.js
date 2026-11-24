@@ -34,7 +34,7 @@ class PartialHistoryController {
     this._limite = serverData.limite || DEFAULT_MAX_RECORD_LIMIT;
     this._historial = (serverData.consultas || []).map(item => ({
       ...item,
-      fecha: item.fecha ? window.CommonUtils.formatFechaLocal(item.fecha) : ''
+      fecha: item.fecha ? (window.CommonUtils?.formatFechaLocal?.(item.fecha) ?? item.fecha) : ''
     }));
     this._tratamientos = serverData.tratamientos || [];
     this._documentos = serverData.documentos || [];
@@ -62,7 +62,7 @@ class PartialHistoryController {
     if (!p.id) return 'Selecciona un paciente para consultar su información clínica.';
     const cantidad = this._historial.length;
     const etiquetaCitas = cantidad === 1 ? '1 cita atendida reciente' : `${cantidad} citas atendidas recientes`;
-    return `${p.nombre} · ${p.tipoDoc} ${p.documento} · ${etiquetaCitas} · Acceso parcial · Actualizado: ${p.ultimaActualizacion || 'Sin actividad'}`;
+    return `${p.nombre} · ${p.tipoDoc} ${String(p.documento || "").length >= 4 ? "••••" + String(p.documento).slice(-4) : "—"} · ${etiquetaCitas} · Acceso parcial · Actualizado: ${p.ultimaActualizacion || 'Sin actividad'}`;
   }
 }
 
@@ -72,7 +72,7 @@ const partialHistoryControllerInstance = new PartialHistoryController();
 // 3. UTILIDADES Y HELPERS
 // ═══════════════════════════════════════════════════════════════════
 
-const safeGetElement = window.CommonUtils.safeGetElement;
+const safeGetElement = id => document.getElementById(id);
 
 const updateElementWithAriaLabel = (elementId, valueText) => {
   const element = safeGetElement(elementId);
@@ -94,8 +94,8 @@ const updateElementWithAriaLabel = (elementId, valueText) => {
 // ═══════════════════════════════════════════════════════════════════
 
 const renderMedicalAlertCard = (alertsData) => {
-  updateElementWithAriaLabel('alergia', alertsData.alergias.join(', ') || 'Ninguna conocida');
-  updateElementWithAriaLabel('medicamentos', alertsData.medicamentos.join(', ') || 'Ninguno');
+  updateElementWithAriaLabel('alergia', alertsData.alergias.join(', ') || 'Sin alergias registradas');
+  updateElementWithAriaLabel('medicamentos', alertsData.medicamentos.join(', ') || 'Sin medicamentos registrados');
   updateElementWithAriaLabel('grupoSang', alertsData.grupoSanguineo || '—');
   updateElementWithAriaLabel('antecedentesMedicos', alertsData.antecedentesMedicos || 'Sin antecedentes registrados');
 
@@ -105,12 +105,9 @@ const renderMedicalAlertCard = (alertsData) => {
     cardElement.setAttribute('role', hasAllergies ? 'alert' : 'status');
     cardElement.setAttribute('aria-live', hasAllergies ? 'assertive' : 'polite');
 
-    if (!hasAllergies && !alertsData.medicamentos.length) {
-      cardElement.style.opacity = '.6';
-      cardElement.setAttribute('aria-label', 'Sin alertas médicas registradas para este paciente');
-    } else {
-      cardElement.removeAttribute('aria-label');
-    }
+    cardElement.classList.toggle('tiene-alerta', hasAllergies);
+    safeGetElement('alergia').classList.toggle('red', hasAllergies);
+    safeGetElement('historialClinicoTitulo').textContent = hasAllergies ? 'Alergias registradas y resumen clínico' : 'Resumen clínico';
   }
 };
 
@@ -219,7 +216,7 @@ const renderRelatedRecords = (elementId, items, type) => {
   list.replaceChildren();
   if (!items.length) {
     const empty = document.createElement('li');
-    empty.textContent = 'Sin registros disponibles.';
+    empty.textContent = type === 'treatment' ? 'Sin planes de tratamiento registrados.' : 'Sin documentos clínicos disponibles.';
     list.appendChild(empty);
     return;
   }
@@ -260,7 +257,32 @@ const setupMobileNavigationMenu = () => {
 };
 
 const initializeHistorialParcialModule = async () => {
-    setupMobileNavigationMenu();
+    const form = safeGetElement('historialPacienteForm');
+    const search = safeGetElement('historialPacienteBuscar');
+    const select = safeGetElement('pacienteSelect');
+    const options = [...select.options].slice(1);
+    const normalize = value => value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+    search.addEventListener('input', () => {
+      const query = normalize(search.value);
+      const matches = options.filter(option => normalize(option.textContent).includes(query));
+      const selected = select.value;
+      select.replaceChildren(new Option('Seleccionar paciente', ''), ...matches);
+      if (matches.some(option => option.value === selected)) select.value = selected;
+      safeGetElement('historialBusquedaEstado').textContent = query
+        ? (matches.length ? matches.length + ' coincidencia(s)' : 'No hay coincidencias.')
+        : '';
+    });
+    form.addEventListener('submit', () => {
+      safeGetElement('historialCarga').hidden = false;
+      const content = safeGetElement('historialPacienteContenido');
+      if (content) content.hidden = true;
+    });
+    window.addEventListener('pageshow', () => {
+      safeGetElement('historialCarga').hidden = true;
+      const content = safeGetElement('historialPacienteContenido');
+      if (content) content.hidden = false;
+    });
+    if (!safeGetElement('historialPacienteContenido')) return;
 
     const [alertsData, consultationsList] = await Promise.all([
       partialHistoryControllerInstance.getAlertas(),

@@ -399,3 +399,26 @@ img { max-width: 100%; height: auto; display: block; }
 @media (max-width: 580px) {
   .main.finalized-page .stats-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+.finalized-page [hidden] { display: none !important; }
+.finalized-page .finalized-filter {
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+}
+.finalized-page .finalized-filter[aria-pressed="true"] {
+  outline: 2px solid #235bc5;
+  outline-offset: -2px;
+  background: #f1f6ff;
+}
+.finalized-page .finalized-filter:focus-visible {
+  outline: 2px solid #235bc5;
+  outline-offset: 2px;
+}
+.finalized-page .finalized-empty {
+  padding: 1rem;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: #fff;
+}
+.finalized-page .finalized-empty p { margin: 0 0 .65rem; }

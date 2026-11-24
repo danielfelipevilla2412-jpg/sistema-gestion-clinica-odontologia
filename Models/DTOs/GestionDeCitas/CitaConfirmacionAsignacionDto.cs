@@ -16,9 +16,8 @@ public sealed class CitaConfirmacionAsignacionDto
     [Range(1, int.MaxValue, ErrorMessage = "Profesional seleccionado inválido.")]
     public int IdProfesional { get; set; }
 
-    [Required(ErrorMessage = "El consultorio es obligatorio.")]
     [Range(1, int.MaxValue, ErrorMessage = "Consultorio seleccionado inválido.")]
-    public int IdConsultorio { get; set; }
+    public int? IdConsultorio { get; set; }
 
     [Required(ErrorMessage = "La fecha definitiva es obligatoria.")]
     public DateTime Fecha { get; set; }

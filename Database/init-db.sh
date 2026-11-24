@@ -11,7 +11,7 @@ SQL_SERVER=${SQL_SERVER_HOST:-localhost}
 DATABASE=SmileTrackDB
 BOOTSTRAP_TABLE=dbo.SmileTrackBootstrap
 BOOTSTRAP_ID=1
-MIGRATION_DIRECTORY=/docker-entrypoint-initdb.d
+SQL_DIRECTORY=/docker-entrypoint-initdb.d
 
 if [ -z "${MSSQL_SA_PASSWORD:-}" ]; then
   echo "❌ MSSQL_SA_PASSWORD no está configurada."
@@ -53,7 +53,7 @@ if [ "$DB_EXISTS" = "1" ]; then
     exit 1
   fi
 
-  echo "🔄 Aplicando migraciones compatibles a la base existente..."
+  echo "🔄 Validando el esquema de la base existente..."
 else
   if [ "$DB_EXISTS" != "0" ]; then
     echo "❌ SQL Server devolvió un estado inesperado para la base de datos."
@@ -63,22 +63,11 @@ else
   echo "🚀 Creando la base de datos desde el script SQL..."
   if ! "$SQLCMD" \
     -S "$SQL_SERVER" -U sa -P "$MSSQL_SA_PASSWORD" \
-    -C -b -i "$MIGRATION_DIRECTORY/SCRIPT_SQL_UNICO_SMILETRACK.sql"; then
+    -C -b -i "$SQL_DIRECTORY/SCRIPT_SQL_DEPLOYMENT_SMILETRACK.sql"; then
     echo "❌ Error al ejecutar el script SQL."
     exit 1
   fi
 fi
-
-for migration in MIGRATION_Consentimiento.sql MIGRATION_Reporte_Generado.sql upgrade-auth-identifiers.sql; do
-  if ! "$SQLCMD" \
-    -S "$SQL_SERVER" -U sa -P "$MSSQL_SA_PASSWORD" \
-    -C -b -d "$DATABASE" \
-    -i "$MIGRATION_DIRECTORY/$migration"; then
-    echo "❌ Error al ejecutar $migration."
-    exit 1
-  fi
-  echo "✅ Migración aplicada: $migration"
-done
 
 if ! SCHEMA_READY=$("$SQLCMD" \
   -S "$SQL_SERVER" -U sa -P "$MSSQL_SA_PASSWORD" \
@@ -121,7 +110,7 @@ if ! SCHEMA_READY=$("$SQLCMD" \
 fi
 SCHEMA_READY=$(printf '%s' "$SCHEMA_READY" | tr -d '[:space:]')
 if [ "$SCHEMA_READY" != "1" ]; then
-  echo "❌ El esquema de SmileTrack sigue incompleto después de las migraciones."
+  echo "❌ El esquema de SmileTrack está incompleto."
   exit 1
 fi
 

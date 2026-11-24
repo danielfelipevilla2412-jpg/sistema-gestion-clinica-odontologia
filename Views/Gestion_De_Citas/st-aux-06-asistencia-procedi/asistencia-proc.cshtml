@@ -1,3 +1,4 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @* ============================================
    SmileTrack — Módulo: Gestión de Citas
    Vista: Asistencia en Procedimiento (st-aux-06-asistencia-procedi)
@@ -26,11 +27,11 @@
     var estadoNormalizado = asistenciaData.EstadoNormalizado;
     var procedimientoEnCurso = estadoNormalizado == "en_proceso";
     var citaSeleccionadaConsultorioId = asistenciaData.ConsultorioId ?? 0;
-    var estadoConsultorioUrl = citaSeleccionadaId > 0
-      ? $"/gestion-de-citas/st-aux-09-estado-consultorio?citaId={citaSeleccionadaId}" +
-        (citaSeleccionadaConsultorioId > 0 ? $"&consultorioId={citaSeleccionadaConsultorioId}" : string.Empty)
-      : "/gestion-de-citas/st-aux-09-estado-consultorio";
-    var asistenciaProcedDataJson = System.Text.Json.JsonSerializer.Serialize(asistenciaData);
+    var citaSeleccionada = citasSelector.FirstOrDefault(c => c.IdCita == citaSeleccionadaId);
+    var urlConsultorioAsignado = citaSeleccionadaId > 0 && citaSeleccionadaConsultorioId > 0
+        ? $"/gestion-de-citas/st-aux-09-estado-consultorio?consultorioId={citaSeleccionadaConsultorioId}&citaId={citaSeleccionadaId}"
+        : null;
+    var asistenciaProcedDataJson = System.Text.Json.JsonSerializer.Serialize(asistenciaData, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
 }
 
 @section Styles {
@@ -38,7 +39,7 @@
 }
 
   <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
+  <main class="main asistencia-procedimiento" id="main-content">
     @Html.AntiForgeryToken()
 
     <!-- Breadcrumb y header -->
@@ -50,25 +51,38 @@
           <span class="bc-active" data-i18n="citas.procedure_assistance">Asistencia en procedimiento</span>
         </nav>
         <h1 class="page-title" data-i18n="citas.procedure_assistance">Asistencia en Procedimiento</h1>
-        <p class="page-subtitle" id="apSubtitle" data-i18n="common.loading">Cargando…</p>
+        <p class="page-subtitle">Consulta las citas de hoy y apoya el procedimiento.</p>
       </div>
-      <div class="header-actions">
-        <label for="citaSelect" class="visually-hidden">Seleccionar cita</label>
+    </header>
+
+    @if (citasSelector.Count > 0)
+    {
+      <div class="asistencia-actions" role="group" aria-label="Cita y consultorio">
+        <div class="asistencia-choice">
+        <label for="citaSelect">Cita del día</label>
         <select id="citaSelect" class="status-select" aria-label="Seleccionar cita del día">
           <option value="">Seleccionar cita del día</option>
           @foreach (var cita in citasSelector)
           {
             <option value="@cita.IdCita" selected="@(cita.IdCita == citaSeleccionadaId ? "selected" : null)">
-              @cita.FechaHora.ToString("HH:mm") - @(cita.Paciente?.NombresCompleto ?? "Paciente")
+              @cita.FechaHora.ToString("HH:mm") · @(cita.Paciente?.NombresCompleto ?? "Paciente") · @SmileTrack_MVC.Helpers.EstadoCitaHelper.ResolveEstadoNombre(cita.EstadoCita?.NombreEstado ?? cita.Estado)
             </option>
           }
         </select>
-        <a class="btn-secondary" id="officeStatusLink" href="@estadoConsultorioUrl">
-          <span class="material-symbols-outlined" aria-hidden="true">medical_services</span>
-          Ver consultorio
-        </a>
+        </div>
+        @if (urlConsultorioAsignado is not null)
+        {
+          <a class="btn-secondary" id="officeStatusLink" href="@urlConsultorioAsignado">
+            <span class="material-symbols-outlined" aria-hidden="true">medical_services</span>
+            Ver consultorio asignado
+          </a>
+        }
+        else if (citaSeleccionadaId > 0)
+        {
+          <span>Sin consultorio asignado</span>
+        }
       </div>
-    </header>
+    }
 
     <!-- Alerta médica con role alert para anuncio inmediato -->
     <div class="alert-banner" id="apAlertBanner" role="alert" aria-live="assertive" style="display:none;">
@@ -78,8 +92,16 @@
 
     <section class="procedure-empty-state" id="apEmptyState" style="@(citaSeleccionadaId > 0 ? "display:none;" : null)" aria-live="polite">
       <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
-      <h2>Selecciona una cita</h2>
-      <p>Elige una cita de hoy para consultar los datos y las alertas del paciente. La atención se iniciará automáticamente a la hora programada.</p>
+      @if (citasSelector.Count == 0)
+      {
+        <h2>No hay citas elegibles hoy</h2>
+        <a class="btn-secondary" href="/gestion-de-citas/st-aux-02-agenda-apoyo">Ver Agenda de Apoyo</a>
+      }
+      else
+      {
+        <h2>Selecciona una cita</h2>
+        <p>Elige una cita de hoy para consultar su estado y las alertas del paciente.</p>
+      }
     </section>
 
     <!-- Layout de contenido -->
@@ -109,10 +131,16 @@
         <!-- Datos de la cita -->
         <div class="data-card">
           <h3 class="data-card-title" data-i18n="citas.appointment_data">Datos de la cita</h3>
+          <div class="asistencia-facts">
+          @if (citaSeleccionada is not null)
+          {
+            <div class="data-row"><strong>Hora programada:</strong> <time datetime="@citaSeleccionada.FechaHora.ToString("yyyy-MM-ddTHH:mm")">@citaSeleccionada.FechaHora.ToString("HH:mm")</time></div>
+          }
           <div class="data-row"><strong>Paciente:</strong> <span id="apPaciente">—</span></div>
           <div class="data-row"><strong>Profesional:</strong> <span id="apProfesional">—</span></div>
           <div class="data-row"><strong>Servicio:</strong> <span id="apServicio">—</span></div>
           <div class="data-row"><strong>Consultorio:</strong> <span id="apConsultorio">—</span></div>
+          </div>
         </div>
 
       </div>

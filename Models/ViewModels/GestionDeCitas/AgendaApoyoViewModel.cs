@@ -12,6 +12,8 @@ public class AgendaApoyoViewModel
 public class AgendaApoyoCitaItemViewModel
 {
     public int Id { get; set; }
+    public DateTime FechaHora { get; set; }
+    public bool Activa { get; set; }
     public string Fecha { get; set; } = string.Empty;
     public string Hora { get; set; } = string.Empty;
     public string Paciente { get; set; } = string.Empty;
