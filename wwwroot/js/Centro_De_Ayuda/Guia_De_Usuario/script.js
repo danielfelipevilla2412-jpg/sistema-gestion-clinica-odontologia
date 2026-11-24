@@ -85,8 +85,8 @@ function showAttachmentError(message) {
 function showSelectedAttachment(file) {
   if (!file || !screenshotInput || !uploadPreview || !uploadFileName) return;
 
-  if (file.size > 10 * 1024 * 1024) {
-    showAttachmentError('El archivo no puede superar 10 MB.');
+  if (file.size > 5 * 1024 * 1024) {
+    showAttachmentError('El archivo no puede superar 5 MB.');
     return;
   }
 

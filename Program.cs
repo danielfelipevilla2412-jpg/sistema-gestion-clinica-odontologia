@@ -95,6 +95,8 @@ builder.Services.AddControllersWithViews()
     });
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IChatbotService, ChatbotService>();
+builder.Services.Configure<SmileTrack_MVC.Services.ChatbotOptions>(
+    builder.Configuration.GetSection("Chatbot"));
 builder.Services.AddScoped<SmileTrack_MVC.Services.CentroDeAyuda.ICentroDeAyudaService, SmileTrack_MVC.Services.CentroDeAyuda.CentroDeAyudaService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionQueryService, SmileTrack_MVC.Services.Facturacion.FacturacionQueryService>();
 builder.Services.AddScoped<SmileTrack_MVC.Services.Facturacion.IFacturacionService, SmileTrack_MVC.Services.Facturacion.FacturacionService>();
@@ -141,6 +143,14 @@ static string GetRateLimitPartitionKey(HttpContext context)
     return address.IsIPv4MappedToIPv6
         ? address.MapToIPv4().ToString()
         : address.ToString();
+}
+
+static string GetChatbotRateLimitPartitionKey(HttpContext context)
+{
+    var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    return string.IsNullOrWhiteSpace(userId)
+        ? $"ip:{GetRateLimitPartitionKey(context)}"
+        : $"user:{userId}";
 }
 
 static FixedWindowRateLimiterOptions CreateFixedWindowOptions(
@@ -193,6 +203,35 @@ builder.Services.AddRateLimiter(options =>
             _ => CreateFixedWindowOptions(
                 permitLimit: 5,
                 window: TimeSpan.FromHours(1))));
+
+    options.AddPolicy("ChatbotMessageByUser", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetChatbotRateLimitPartitionKey(context),
+            _ => CreateFixedWindowOptions(
+                permitLimit: int.TryParse(
+                    builder.Configuration["Chatbot:MessagesPerMinute"],
+                    out var messageLimit) && messageLimit > 0
+                    ? messageLimit
+                    : 15,
+                window: TimeSpan.FromMinutes(1))));
+
+    options.AddPolicy("ChatbotTicketByUser", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetChatbotRateLimitPartitionKey(context),
+            _ => CreateFixedWindowOptions(
+                permitLimit: int.TryParse(
+                    builder.Configuration["Chatbot:TicketRequestsPer15Minutes"],
+                    out var ticketLimit) && ticketLimit > 0
+                    ? ticketLimit
+                    : 5,
+                window: TimeSpan.FromMinutes(15))));
+
+    options.AddPolicy("ChatbotTicketReadByUser", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetChatbotRateLimitPartitionKey(context),
+            _ => CreateFixedWindowOptions(
+                permitLimit: 60,
+                window: TimeSpan.FromMinutes(1))));
 
     options.AddFixedWindowLimiter("PerfilPaciente", opt =>
     {
@@ -1020,6 +1059,14 @@ app.Use(async (context, next) =>
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments(
+            "/uploads/centro-ayuda",
+            StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    if (context.Request.Path.StartsWithSegments(
             "/uploads/documentos-clinicos",
             StringComparison.OrdinalIgnoreCase))
     {
@@ -1062,8 +1109,8 @@ app.UseRouting();
 
 
 
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();
 
 app.UseAuthorization();
 

@@ -4,5 +4,12 @@ namespace SmileTrack_MVC.Services;
 
 public interface IChatbotService
 {
-    ChatbotResponse Respond(string? role, string? userName, string? currentPath, string message);
+    ChatbotResponse Respond(
+        string? role,
+        string? userName,
+        string? currentPath,
+        string message,
+        string? conversationKey = null);
+
+    void ResetConversation(string conversationKey);
 }

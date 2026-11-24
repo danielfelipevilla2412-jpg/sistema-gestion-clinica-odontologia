@@ -113,8 +113,8 @@ public class CentroDeAyudaController : Controller
         var request = new CentroAyudaTicketRequest
         {
             Asunto = model.Subject,
-            Categoria = model.Category?.ToString().ToLowerInvariant() ?? "errortecnico",
-            ModuloAfectado = model.Module?.ToString().ToLowerInvariant() ?? "otronoestoyseguro",
+            Categoria = MapCategory(model.Category!.Value),
+            ModuloAfectado = MapModule(model.Module!.Value),
             Severidad = model.Severity?.ToLowerInvariant() ?? "baja",
             Descripcion = model.Description,
             CapturaPantalla = model.Screenshot
@@ -138,6 +138,23 @@ public class CentroDeAyudaController : Controller
         TempData["SupportTicketMessage"] = "Gracias. Tu ticket se ha registrado correctamente y será atendido en breve.";
         return RedirectToAction(nameof(Soporte));
     }
+
+    private static string MapCategory(TicketCategory category) => category switch
+    {
+        TicketCategory.ErrorTecnico or TicketCategory.ProblemaAcceso or TicketCategory.ProblemaReporteDato => "incidente",
+        TicketCategory.SolicitudCambio => "solicitud",
+        TicketCategory.DudaConsulta => "consulta",
+        _ => "otro"
+    };
+
+    private static string MapModule(AffectedModule module) => module switch
+    {
+        AffectedModule.ReportesAnalitica => "reportes",
+        AffectedModule.GestionPacientes => "pacientes",
+        AffectedModule.GestionCitas => "citas",
+        AffectedModule.FacturacionPagos => "facturacion",
+        _ => "sistema"
+    };
 
     private static SupportTicketViewModel BuildSupportTicketViewModel(SupportTicketViewModel? model)
     {

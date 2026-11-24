@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmileTrack_MVC.Data;
 using SmileTrack_MVC.Helpers;
+using SmileTrack_MVC.Models.Api;
 using SmileTrack_MVC.Models.Api.CentroDeAyuda;
 using SmileTrack_MVC.Models.Entities;
 
@@ -75,6 +76,70 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
             .FirstOrDefaultAsync(t => t.IdTicket == id, ct);
 
         return entity is null ? null : ToDto(entity);
+    }
+
+    public async Task<(IReadOnlyList<ChatbotTicketSummary> Items, int TotalCount)> ObtenerTicketsUsuarioAsync(
+        int usuarioId, int page, int pageSize, CancellationToken ct)
+    {
+        if (usuarioId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(usuarioId));
+
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var query = _db.TicketsSoporte
+            .AsNoTracking()
+            .Where(ticket => ticket.IdUsuario == usuarioId);
+
+        var total = await query.CountAsync(ct);
+        var tickets = await query
+            .OrderByDescending(ticket => ticket.FechaCreacion)
+            .ThenByDescending(ticket => ticket.IdTicket)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(ticket => new ChatbotTicketSummary
+            {
+                Reference = ticket.Referencia,
+                Subject = ticket.Asunto,
+                Module = ticket.ModuloAfectado,
+                Severity = ticket.Severidad,
+                Status = ticket.Estado,
+                CreatedAt = ticket.FechaCreacion,
+                AnsweredAt = ticket.FechaRespuesta,
+                Response = ticket.Respuesta
+            })
+            .ToListAsync(ct);
+
+        return (tickets, total);
+    }
+
+    public async Task<ChatbotTicketSummary?> ObtenerTicketUsuarioAsync(
+        string referencia, int usuarioId, CancellationToken ct)
+    {
+        if (usuarioId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(usuarioId));
+
+        if (string.IsNullOrWhiteSpace(referencia))
+            return null;
+
+        var normalizedReference = referencia.Trim();
+        var ticket = await _db.TicketsSoporte
+            .AsNoTracking()
+            .Where(item => item.IdUsuario == usuarioId && item.Referencia == normalizedReference)
+            .Select(item => new ChatbotTicketSummary
+            {
+                Reference = item.Referencia,
+                Subject = item.Asunto,
+                Module = item.ModuloAfectado,
+                Severity = item.Severidad,
+                Status = item.Estado,
+                CreatedAt = item.FechaCreacion,
+                AnsweredAt = item.FechaRespuesta,
+                Response = item.Respuesta
+            })
+            .FirstOrDefaultAsync(ct);
+
+        return ticket;
     }
 
     public async Task<(CentroAyudaTicketDto? Data, string? Error)> CrearTicketAsync(
@@ -224,6 +289,8 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
         if (!allowed.Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException("El archivo debe ser una imagen, PDF, documento de Word o archivo de texto.");
 
+        await ValidateAttachmentContentAsync(file);
+
         var folder = Path.Combine(_environment.WebRootPath ?? "wwwroot", "uploads", "centro-ayuda");
         Directory.CreateDirectory(folder);
 
@@ -235,6 +302,55 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
         await file.CopyToAsync(stream, ct);
 
         return $"/uploads/centro-ayuda/{safeName}";
+    }
+
+    private static async Task ValidateAttachmentContentAsync(IFormFile file)
+    {
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var allowedExtensions = new HashSet<string>(
+            [".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf", ".doc", ".docx", ".txt"],
+            StringComparer.Ordinal);
+        if (!allowedExtensions.Contains(extension))
+            throw new InvalidOperationException("La extensión del archivo no está permitida.");
+
+        var signature = new byte[12];
+        await using var stream = file.OpenReadStream();
+        var read = await stream.ReadAsync(signature.AsMemory(0, signature.Length));
+        var header = signature.Take(read).ToArray();
+
+        var valid = extension switch
+        {
+            ".jpg" or ".jpeg" => read >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF,
+            ".png" => read >= 8 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E &&
+                      header[3] == 0x47 && header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A,
+            ".gif" => read >= 6 && header[..6].SequenceEqual("GIF87a"u8.ToArray()) ||
+                      read >= 6 && header[..6].SequenceEqual("GIF89a"u8.ToArray()),
+            ".pdf" => read >= 4 && header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46,
+            ".webp" => read >= 12 && header[..4].SequenceEqual("RIFF"u8.ToArray()) &&
+                       header[8..12].SequenceEqual("WEBP"u8.ToArray()),
+            ".doc" => read >= 8 && header[0] == 0xD0 && header[1] == 0xCF && header[2] == 0x11 &&
+                      header[3] == 0xE0 && header[4] == 0xA1 && header[5] == 0xB1 &&
+                      header[6] == 0x1A && header[7] == 0xE1,
+            ".docx" => read >= 4 && header[0] == 0x50 && header[1] == 0x4B &&
+                       (header[2] == 0x03 || header[2] == 0x05 || header[2] == 0x07),
+            ".txt" => IsProbablyText(header),
+            _ => false
+        };
+
+        if (!valid)
+            throw new InvalidOperationException("El contenido del archivo no coincide con su extensión.");
+    }
+
+    private static bool IsProbablyText(byte[] header)
+    {
+        if (header.Length == 0)
+            return true;
+        return header.All(character =>
+            character == 0x09 ||
+            character == 0x0A ||
+            character == 0x0D ||
+            character >= 0x20 && character <= 0x7E ||
+            character >= 0x80);
     }
 
     private void EliminarAdjunto(string? relativePath)
@@ -276,4 +392,5 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
         AtendidoPor = t.AtendidoPor,
         AtendidoPorNombre = t.AtendidoPorUsuario is null ? null : $"{t.AtendidoPorUsuario.Nombre} {t.AtendidoPorUsuario.Apellidos}".Trim()
     };
+
 }

@@ -1,4 +1,5 @@
 using SmileTrack_MVC.Models.Api.CentroDeAyuda;
+using SmileTrack_MVC.Models.Api;
 
 namespace SmileTrack_MVC.Services.CentroDeAyuda;
 
@@ -8,6 +9,12 @@ public interface ICentroDeAyudaService
         int page, int pageSize, string? search, string? estado, string? categoria, CancellationToken ct);
 
     Task<CentroAyudaTicketDto?> ObtenerTicketAsync(int id, CancellationToken ct);
+
+    Task<(IReadOnlyList<ChatbotTicketSummary> Items, int TotalCount)> ObtenerTicketsUsuarioAsync(
+        int usuarioId, int page, int pageSize, CancellationToken ct);
+
+    Task<ChatbotTicketSummary?> ObtenerTicketUsuarioAsync(
+        string referencia, int usuarioId, CancellationToken ct);
 
     Task<(CentroAyudaTicketDto? Data, string? Error)> CrearTicketAsync(
         CentroAyudaTicketRequest request, int usuarioId, CancellationToken ct);

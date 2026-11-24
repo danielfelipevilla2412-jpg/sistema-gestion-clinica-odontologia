@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmileTrack_MVC.Data;
+using SmileTrack_MVC.Models.Api;
 using SmileTrack_MVC.Models.Api.CentroDeAyuda;
 using SmileTrack_MVC.Models.Entities;
 using SmileTrack_MVC.Services.CentroDeAyuda;
@@ -62,6 +63,44 @@ public sealed class CentroDeAyudaServiceTests
         var resultado = await CrearServicio(context).ObtenerTicketAsync(999, default);
 
         Assert.Null(resultado);
+    }
+
+    [Fact]
+    public async Task ObtenerTicketsUsuarioAsync_FiltraSiemprePorPropietario()
+    {
+        await using var context = CrearContext();
+        context.Usuarios.AddRange(UsuarioBase(1, "Uno", "User"), UsuarioBase(2, "Dos", "User"));
+        var ownTicket = Ticket(1, "ST-OWN", "abierto", new DateTime(2026, 1, 1));
+        var otherTicket = Ticket(2, "ST-OTHER", "abierto", new DateTime(2026, 1, 2));
+        otherTicket.IdUsuario = 2;
+        context.TicketsSoporte.AddRange(ownTicket, otherTicket);
+        await context.SaveChangesAsync();
+
+        var (items, total) = await CrearServicio(context)
+            .ObtenerTicketsUsuarioAsync(usuarioId: 1, page: 1, pageSize: 10, ct: default);
+
+        var item = Assert.Single(items);
+        Assert.Equal(1, total);
+        Assert.Equal("ST-OWN", item.Reference);
+    }
+
+    [Fact]
+    public async Task ObtenerTicketUsuarioAsync_OcultaTicketDeOtroUsuario()
+    {
+        await using var context = CrearContext();
+        context.Usuarios.AddRange(UsuarioBase(1, "Uno", "User"), UsuarioBase(2, "Dos", "User"));
+        var ticket = Ticket(1, "ST-PRIVATE", "en_proceso", new DateTime(2026, 1, 1));
+        ticket.IdUsuario = 2;
+        ticket.Respuesta = "Respuesta privada";
+        context.TicketsSoporte.Add(ticket);
+        await context.SaveChangesAsync();
+
+        var service = CrearServicio(context);
+        var ownResult = await service.ObtenerTicketUsuarioAsync("ST-PRIVATE", usuarioId: 1, ct: default);
+        var otherResult = await service.ObtenerTicketUsuarioAsync("ST-PRIVATE", usuarioId: 2, ct: default);
+
+        Assert.Null(ownResult);
+        Assert.Equal("Respuesta privada", otherResult!.Response);
     }
 
     [Fact]
