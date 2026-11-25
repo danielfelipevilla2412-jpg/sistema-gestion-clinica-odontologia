@@ -10,4 +10,5 @@ public sealed class ChatbotOptions
     public int ConversationRetentionMinutes { get; set; } = 30;
     public int MaxConversationStates { get; set; } = 5000;
     public int TicketRequestsPer15Minutes { get; set; } = 5;
+    public int GlobalRequestsPerMinute { get; set; } = 120;
 }

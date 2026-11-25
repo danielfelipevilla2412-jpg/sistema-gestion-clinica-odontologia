@@ -1,0 +1,26 @@
+@startuml
+start
+:Recibir mensaje autenticado;
+:Validar longitud <= 500;
+:Normalizar texto;
+if (Es reinicio?) then (sí)
+  :Eliminar contexto del usuario;
+elseif (Es saludo?) then (sí)
+  :Presentar bienvenida y sugerencias;
+elseif (Es consulta de ticket?) then (sí)
+  :Verificar identificación y ofrecer consulta propia;
+elseif (Es creación de ticket?) then (sí)
+  :Abrir formulario interno;
+else
+  :Buscar en catálogo por rol y relevancia;
+  if (Sin coincidencia?) then (sí)
+    :Fallback y ticket opcional;
+  elseif (Coincidencias ambiguas?) then (sí)
+    :Solicitar aclaración;
+  else
+    :Construir respuesta y enlaces autorizados;
+  endif
+endif
+:Actualizar contexto temporal;
+stop
+@enduml

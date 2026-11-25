@@ -1,6 +1,6 @@
 namespace SmileTrack_MVC.Services;
 
-internal sealed record ChatbotKnowledgeEntry(
+public sealed record ChatbotKnowledgeEntry(
     string Id,
     string Title,
     string Module,
@@ -11,7 +11,7 @@ internal sealed record ChatbotKnowledgeEntry(
     IReadOnlyList<string> Questions,
     IReadOnlyList<string> Steps);
 
-internal static class ChatbotKnowledgeCatalog
+public static class ChatbotKnowledgeCatalog
 {
     private static readonly string[] AllRoles =
         ["Administrador", "Recepcionista", "Profesional", "Auxiliar", "Paciente"];
@@ -175,8 +175,155 @@ internal static class ChatbotKnowledgeCatalog
             AllRoles,
             ["vista", "pantalla", "módulo", "sección", "qué hace", "cómo uso", "ayuda contextual"],
             ["¿Qué hace esta vista?", "¿Cómo uso esta pantalla?", "¿Qué opciones tengo aquí?"],
-            [])
+            []),
+        new(
+            "patient-registration-help",
+            "Registrar un paciente",
+            "Gestión de Pacientes",
+            "/gestion-de-pacientes/st-rec-02-registrar-paciente",
+            "Recepción puede registrar un paciente y continuar con la gestión de su cita. Deben completarse los datos obligatorios y validar el documento antes de guardar.",
+            ["Administrador", "Recepcionista"],
+            ["registrar", "nuevo paciente", "crear paciente", "alta paciente", "documento paciente"],
+            ["¿Cómo registro un paciente?", "¿Cómo doy de alta a un paciente?", "¿Qué datos necesito para crear un paciente?"],
+            ["Abre Gestión de Pacientes.", "Selecciona registrar paciente.", "Completa los datos obligatorios.", "Verifica documento y datos básicos.", "Guarda y continúa con la cita si corresponde."]),
+        new(
+            "patient-search-help",
+            "Buscar o consultar un paciente",
+            "Gestión de Pacientes",
+            "/gestion-de-pacientes/st-rec-pacientes",
+            "Recepción y Administración pueden consultar pacientes mediante las vistas habilitadas para su rol.",
+            ["Administrador", "Recepcionista", "Auxiliar", "Profesional"],
+            ["buscar paciente", "consultar paciente", "localizar paciente", "paciente registrado", "historial paciente"],
+            ["¿Dónde busco un paciente?", "¿Cómo encuentro un paciente registrado?", "¿Cómo consulto los datos de un paciente?"],
+            ["Abre la vista de pacientes autorizada para tu rol.", "Usa nombre, documento u otro filtro disponible.", "Selecciona el paciente.", "Consulta solamente la información permitida para tu rol."]),
+        new(
+            "clinical-history-help",
+            "Consultar la historia clínica",
+            "Historia Clínica",
+            "/historia-clinica/st-odo-03-historial",
+            "El profesional consulta la historia clínica desde su acceso autorizado y puede registrar notas o tratamientos según el flujo disponible.",
+            ["Administrador", "Recepcionista", "Profesional", "Paciente"],
+            ["historia clinica", "historial", "expediente", "antecedentes", "notas clinicas"],
+            ["¿Dónde veo el historial clínico?", "¿Cómo consulto la historia de un paciente?", "¿Dónde están las notas clínicas?"],
+            ["Abre Historia Clínica desde tu menú.", "Busca o selecciona el paciente permitido.", "Consulta los apartados disponibles para tu rol.", "No compartas datos clínicos innecesarios en el chat."]),
+        new(
+            "odontogram-help",
+            "Odontograma",
+            "Historia Clínica",
+            "/historia-clinica/st-odo-04-odontograma",
+            "El profesional puede consultar y actualizar el odontograma dentro de la historia clínica según las acciones habilitadas.",
+            ["Profesional"],
+            ["odontograma", "dientes", "piezas", "estado dental", "marcar diente"],
+            ["¿Cómo uso el odontograma?", "¿Dónde registro las piezas dentales?", "¿Cómo marco una pieza?"],
+            ["Abre Historia Clínica.", "Selecciona el odontograma.", "Escoge la pieza y el estado disponible.", "Guarda los cambios y verifica el resultado."]),
+        new(
+            "treatment-plan-help",
+            "Seguimiento de tratamientos",
+            "Historia Clínica",
+            "/historia-clinica/st-odo-07-seguimiento-tratamiento",
+            "El profesional puede consultar planes y registrar sesiones de seguimiento dentro de su vista autorizada.",
+            ["Profesional"],
+            ["tratamiento", "seguimiento", "plan tratamiento", "sesion", "evolucion"],
+            ["¿Cómo registro una sesión de tratamiento?", "¿Dónde veo los tratamientos?", "¿Cómo hago seguimiento?"],
+            ["Abre Seguimiento de tratamientos.", "Selecciona el paciente o plan correspondiente.", "Revisa el estado del plan.", "Registra la sesión mediante la acción disponible."]),
+        new(
+            "assistant-preparation-help",
+            "Preparación de consulta",
+            "Gestión de Citas",
+            "/gestion-de-pacientes/st-aux-03-preparacion-consulta",
+            "El auxiliar puede preparar una consulta y revisar información operativa autorizada antes de la atención.",
+            ["Auxiliar"],
+            ["preparar consulta", "preoperacion", "preparacion", "insumos consulta", "consulta siguiente"],
+            ["¿Cómo preparo una consulta?", "¿Qué debe revisar el auxiliar?", "¿Dónde preparo la atención?"],
+            ["Abre Preparación de consulta.", "Selecciona la cita o paciente asignado.", "Revisa los datos operativos disponibles.", "Completa el registro permitido y verifica el resultado."]),
+        new(
+            "billing-admin-help",
+            "Gestión de facturación",
+            "Facturación y Pagos",
+            "/facturacion-y-pagos/st-adm-12-facturacion",
+            "Administración puede consultar y gestionar la facturación desde su vista habilitada.",
+            ["Administrador"],
+            ["facturacion", "facturas", "pagos", "cobro", "administrar factura"],
+            ["¿Dónde gestiono facturas?", "¿Cómo consulto pagos?", "¿Dónde veo la facturación?"],
+            ["Abre Gestión de Facturación.", "Selecciona el filtro o registro requerido.", "Consulta el detalle disponible.", "Usa las acciones autorizadas para corregir o registrar el pago."]),
+        new(
+            "billing-reception-help",
+            "Generar factura o registrar pago",
+            "Facturación y Pagos",
+            "/facturacion-y-pagos/st-rec-04-generar-factura",
+            "Recepción puede generar una factura o continuar el flujo de pago disponible para la cita y el paciente correspondientes.",
+            ["Recepcionista"],
+            ["generar factura", "nuevo pago", "registrar pago", "facturar cita", "cobrar paciente"],
+            ["¿Cómo genero una factura?", "¿Cómo registro un pago?", "¿Dónde facturo una cita?"],
+            ["Abre Generar Factura y Pago.", "Selecciona paciente o cita según el flujo.", "Revisa conceptos y valores mostrados.", "Confirma únicamente después de comprobar los datos."]),
+        new(
+            "reports-admin-help",
+            "Reportes administrativos",
+            "Reportes",
+            "/reportes/vista-admin",
+            "Administración puede consultar reportes operativos y analítica desde las vistas habilitadas.",
+            ["Administrador"],
+            ["reportes", "estadisticas", "analitica", "indicadores", "dashboard reportes"],
+            ["¿Dónde veo los reportes?", "¿Cómo consulto estadísticas?", "¿Qué información muestran los reportes?"],
+            ["Abre Reportes.", "Selecciona el periodo o filtro disponible.", "Revisa los indicadores mostrados.", "No expongas cifras sensibles fuera del entorno autorizado."]),
+        new(
+            "pqr-help",
+            "Peticiones, quejas y reclamos",
+            "Gestión de PQR",
+            "/gestion-de-pqr/st-pac-04-nueva-pqr",
+            "Las PQR permiten registrar una petición, queja, reclamo o sugerencia. Administración gestiona las solicitudes desde su vista correspondiente.",
+            ["Administrador", "Recepcionista", "Profesional", "Auxiliar", "Paciente"],
+            ["pqr", "peticion", "queja", "reclamo", "sugerencia", "nueva solicitud"],
+            ["¿Cómo envío una PQR?", "¿Dónde registro una queja?", "¿Cuál es la diferencia entre petición y reclamo?"],
+            ["Abre Nueva Solicitud PQR.", "Selecciona el tipo correspondiente.", "Completa asunto y descripción sin datos innecesarios.", "Adjunta evidencia solo si está permitido y guarda."]),
+        new(
+            "profile-help",
+            "Perfil y contraseña",
+            "Perfil",
+            "/acceso-y-seguridad/cambiar-contrasena",
+            "Cada usuario autenticado puede consultar o actualizar los datos disponibles de su perfil y cambiar su propia contraseña siguiendo las validaciones de seguridad.",
+            ["Administrador", "Recepcionista", "Profesional", "Auxiliar", "Paciente"],
+            ["perfil", "mis datos", "contraseña", "clave", "cambiar password", "seguridad cuenta"],
+            ["¿Cómo cambio mi contraseña?", "¿Dónde edito mi perfil?", "¿Cómo actualizo mis datos?"],
+            ["Abre tu perfil o Cambiar contraseña.", "Ingresa los datos requeridos.", "Respeta las reglas de longitud y confirmación.", "Guarda y verifica el mensaje de resultado."]),
+        new(
+            "services-help",
+            "Servicios y recursos",
+            "Servicios y Recursos",
+            "/servicios-y-recursos/st-adm-10-servicios",
+            "Administración gestiona el catálogo de servicios y recursos. Un profesional puede consultar los servicios disponibles para su actividad.",
+            ["Administrador", "Profesional"],
+            ["servicios", "catalogo", "recursos", "equipos", "inventario"],
+            ["¿Dónde veo los servicios?", "¿Cómo consulto los recursos?", "¿Dónde se configura un servicio?"],
+            ["Abre Servicios y Recursos.", "Selecciona catálogo, equipos o inventario según tu rol.", "Consulta o utiliza las acciones habilitadas.", "Antes de desactivar un servicio revisa las dependencias mostradas."]),
+        new(
+            "users-help",
+            "Gestión de usuarios y roles",
+            "Acceso y Seguridad",
+            "/acceso-y-seguridad/st-adm-02-gestion-usuarios",
+            "Solo Administración puede gestionar usuarios y roles desde las vistas habilitadas.",
+            ["Administrador"],
+            ["usuarios", "crear cuenta", "activar usuario", "roles", "permisos", "matriz permisos"],
+            ["¿Cómo gestiono usuarios?", "¿Dónde asigno un rol?", "¿Cómo activo o desactivo una cuenta?"],
+            ["Abre Gestión de Usuarios.", "Busca o selecciona la cuenta.", "Revisa estado y datos permitidos.", "Cambia rol o estado solo si corresponde a tu responsabilidad administrativa."]),
+        new(
+            "save-error-help",
+            "Error al guardar información",
+            "Ayuda General",
+            "/",
+            "Si una operación no permite guardar, revise los campos obligatorios, mensajes de validación y valores seleccionados. No repita el envío si ya apareció una confirmación de éxito.",
+            ["Administrador", "Recepcionista", "Profesional", "Auxiliar", "Paciente"],
+            ["no guarda", "no me deja guardar", "error guardar", "no se guarda", "fallo al guardar", "porque no guarda"],
+            ["¿Por qué no me deja guardar?", "No puedo guardar la información.", "La operación no se completa al guardar."],
+            ["Revisa los campos marcados como obligatorios.", "Verifica que las fechas, horarios y selecciones sean válidas.", "Lee el mensaje de error mostrado.", "Corrige el dato indicado y vuelve a intentar una sola vez.", "Si persiste, crea un ticket desde el chatbot."])
     ];
+
+    public static IReadOnlyList<ChatbotKnowledgeEntry> EntriesSnapshot => Entries;
+    public static int EntryCount => Entries.Count;
+    public static int ModuleCount => Entries.Select(entry => entry.Module).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+    public static int ViewCount => Entries.Select(entry => entry.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+    public static int ProcedureCount => Entries.Count(entry => entry.Steps.Count > 0);
+    public static int QuestionCount => Entries.Sum(entry => entry.Questions.Count);
 
     public static IReadOnlyList<ChatbotKnowledgeEntry> ForRole(string role) =>
         Entries.Where(entry => entry.Roles.Contains(role, StringComparer.OrdinalIgnoreCase)).ToArray();
@@ -187,10 +334,18 @@ internal static class ChatbotKnowledgeCatalog
         if (normalizedPath is null)
             return null;
 
-        return Entries
+        var matches = Entries
             .Where(entry =>
                 string.Equals(NormalizePath(entry.Path), normalizedPath, StringComparison.OrdinalIgnoreCase) &&
-                entry.Roles.Contains(role, StringComparer.OrdinalIgnoreCase))
+                entry.Roles.Contains(role, StringComparer.OrdinalIgnoreCase));
+
+        // En la raíz "/" solo una entrada de página (sin pasos) describe realmente
+        // la vista actual; las entradas de ayuda generales ancladas a "/" no deben
+        // presentarse como la pantalla en la que está el usuario.
+        if (normalizedPath == "/")
+            matches = matches.Where(entry => entry.Steps.Count == 0);
+
+        return matches
             .OrderByDescending(entry => entry.Id.StartsWith("help-", StringComparison.Ordinal))
             .ThenBy(entry => entry.Steps.Count > 0)
             .FirstOrDefault();

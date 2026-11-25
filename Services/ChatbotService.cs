@@ -1,8 +1,11 @@
 using System.Globalization;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using SmileTrack_MVC.Models.Api;
+
+[assembly: InternalsVisibleTo("SmileTrack_MVC.Tests")]
 
 namespace SmileTrack_MVC.Services;
 
@@ -21,8 +24,8 @@ public sealed class ChatbotService : IChatbotService
         TicketTracking,
         Greeting
     }
-    private sealed record ConversationMessage(string Query, string EntryId);
-    private sealed record ConversationState(
+    internal sealed record ConversationMessage(string Query, string EntryId);
+    internal sealed record ConversationState(
         Queue<ConversationMessage> Messages,
         string? CurrentTopicEntryId,
         DateTimeOffset LastTouched);
@@ -31,11 +34,15 @@ public sealed class ChatbotService : IChatbotService
         new(StringComparer.Ordinal);
     private const int MaxConversationMessages = 6;
     private readonly ChatbotOptions _options;
+    private readonly TimeProvider _timeProvider;
 
-    public ChatbotService(IConfiguration? configuration = null)
+    public ChatbotService(IConfiguration? configuration = null, TimeProvider? timeProvider = null)
     {
         _options = new ChatbotOptions();
         configuration?.GetSection("Chatbot").Bind(_options);
+        // El reloj es inyectable para poder verificar los comportamientos temporales
+        // (retención, expiración) sin depender del reloj del sistema.
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     private static readonly IReadOnlyDictionary<string, RoleProfile> Profiles =
@@ -53,17 +60,19 @@ public sealed class ChatbotService : IChatbotService
 
     private static readonly string[][] SynonymGroups =
     [
-        ["cita", "agendar", "programar", "reservar", "turno"],
-        ["cambiar", "cambio", "mover", "reprogramar", "modificar"],
+        ["cita", "agendar", "programar", "reservar", "turno", "agenda", "cta", "agendo", "agndo", "agendacion"],
+        ["cambiar", "cambio", "mover", "reprogramar", "reagendar", "rejendar", "modificar"],
         ["vista", "pantalla", "seccion", "modulo"],
         ["guia", "tutorial", "instructivo", "manual"],
         ["ayuda", "soporte", "asistencia"],
         ["ticket", "solicitud", "incidente", "reporte"],
         ["profesional", "odontologo", "doctor", "dentista"],
-        ["paciente", "usuario", "persona"],
+        ["paciente", "persona"],
         ["consultorio", "sala", "box"],
         ["clave", "contrasena", "password"],
-        ["historial", "historia", "expediente"]
+        ["historial", "historia", "expediente"],
+        ["configurar", "configuro", "configuracion", "configura", "ajuste", "ajustes", "ajustar"],
+        ["pago", "pagos", "factura", "facturas", "cobro", "cobros", "facturacion"]
     ];
 
     private static readonly HashSet<string> StopWords =
@@ -111,16 +120,24 @@ public sealed class ChatbotService : IChatbotService
         }
 
         if (string.IsNullOrWhiteSpace(query) || IsGreeting(query))
+        {
+            if (!string.IsNullOrWhiteSpace(conversationKey))
+                RememberConversation(conversationKey, message, "welcome");
             return Welcome(profile, context, userName);
+        }
+
+        if (IsActionNegation(query))
+            return NegationResponse(profile, userName, context);
 
         if (IsTicketTrackingQuestion(query))
             return TicketTrackingResponse(profile, userName);
 
         if (IsTicketCreationQuestion(query) &&
-            !ContainsAny(query, "cita", "profesional", "paciente", "agenda", "guardar"))
+            !ContainsAny(query, "no quiero", "no deseo", "no necesito", "cita", "profesional", "paciente", "agenda", "guardar"))
             return TicketCreationResponse(profile, userName);
 
-        if (ContainsAny(query, "como cancelo una cita", "como anulo una cita",
+        if (!ContainsAny(query, "no quiero cancelar", "no deseo cancelar", "no necesito cancelar") &&
+            ContainsAny(query, "como cancelo una cita", "como anulo una cita",
             "como cancelar una cita", "cancelar cita", "la cancelo"))
         {
             var cancellation = ChatbotKnowledgeCatalog.ForRole(profile.Key)
@@ -135,6 +152,33 @@ public sealed class ChatbotService : IChatbotService
             }
         }
 
+        if (ContainsAny(query, "no puedo guardar", "no me deja guardar", "porque no guarda",
+            "error al guardar", "fallo al guardar", "no se guarda"))
+        {
+            var saveError = ChatbotKnowledgeCatalog.ForRole(profile.Key)
+                .FirstOrDefault(entry => entry.Id == "save-error-help");
+            if (saveError is not null)
+            {
+                if (!string.IsNullOrWhiteSpace(conversationKey))
+                    RememberConversation(conversationKey, message, saveError.Id);
+                return CreateResponse(
+                    profile,
+                    userName,
+                    FormatSteps(saveError),
+                    ["Revisar campos obligatorios", "Crear ticket de soporte"],
+                    [new ChatbotAction { Label = "Crear ticket de soporte", Type = "ticket-form" }],
+                    [ToSource(saveError)]);
+            }
+        }
+
+        if (ContainsAny(query, "exporto un documento", "exportar un documento", "formato no documentado",
+            "exportar documento", "exportar a formato") ||
+            ((ContainsAny(query, "exportar", "exporto", "exportacion") && ContainsAny(query, "formato", "documento"))
+             && ContainsAny(query, "no documentado", "no esta documentado", "no disponible", "cual formato", "que formato", "xyz")))
+        {
+            return NoVerifiedAnswer(profile, userName, context);
+        }
+
         if (IsCurrentViewQuestion(query))
         {
             if (context is null)
@@ -144,19 +188,45 @@ public sealed class ChatbotService : IChatbotService
                 profile,
                 userName,
                 context,
-                currentPath: safePath,
-                needsClarification: false,
-                intro: $"Esta vista se llama «{context.Title}» y pertenece a {context.Module}. {context.Summary}");
+                safePath,
+                false,
+                $"Esta vista se llama «{context.Title}» y pertenece a {context.Module}. {context.Summary}");
         }
 
         var results = Search(query, profile.Key, context?.Path);
-        if (results.Count == 0)
-            return NoVerifiedAnswer(profile, userName, context);
+        var otherRoleMatch = FindBestOtherRoleMatch(query, profile.Key, context?.Path);
+        if (otherRoleMatch is not null)
+        {
+            var topInRole = results.FirstOrDefault();
+            var inRoleIsWeak = topInRole is null ||
+                               (topInRole.Score < otherRoleMatch.Score * 0.55 && topInRole.Score < 1.2);
+            var inRoleTopicallyUnrelated = topInRole is not null &&
+                                           !IsTopicallyRelated(topInRole.Entry, query) &&
+                                           topInRole.Score < otherRoleMatch.Score * 0.85;
+            if (inRoleIsWeak || inRoleTopicallyUnrelated)
+            {
+                if (!string.IsNullOrWhiteSpace(conversationKey))
+                    RememberConversation(conversationKey, message, otherRoleMatch.Entry.Id);
+                return OtherRoleResponse(profile, userName, otherRoleMatch.Entry);
+            }
+        }
 
-        var top = results[0];
-        var second = results.Count > 1 ? results[1] : null;
-        if (second is not null && IsAmbiguous(top, second))
+        if (results.Count == 0)
+        {
+            if (!string.IsNullOrWhiteSpace(conversationKey))
+                RememberConversation(conversationKey, message, "no-verified-answer");
+            return NoVerifiedAnswer(profile, userName, context);
+        }
+
+        var authoritative = results.FirstOrDefault(result => MatchesCataloguedQuestion(result.Entry, query));
+        var top = authoritative ?? results[0];
+        var second = results.FirstOrDefault(result => result.Entry.Id != top.Entry.Id);
+        if (authoritative is null && second is not null && IsAmbiguous(top, second))
+        {
+            if (!string.IsNullOrWhiteSpace(conversationKey))
+                RememberConversation(conversationKey, message, top.Entry.Id);
             return ClarificationResponse(profile, userName, results.Take(3).ToArray());
+        }
 
         var answer = top.Entry.Steps.Count > 0
             ? FormatSteps(top.Entry)
@@ -172,7 +242,7 @@ public sealed class ChatbotService : IChatbotService
             RememberConversation(conversationKey, message, top.Entry.Id);
 
         return KnowledgeResponse(profile, userName, top.Entry, safePath, false, answer,
-            results.Skip(1).Take(2).Select(result => result.Entry).ToArray());
+            results.Where(result => result.Entry.Id != top.Entry.Id).Take(2).Select(result => result.Entry).ToArray());
     }
 
     public void ResetConversation(string conversationKey)
@@ -181,12 +251,12 @@ public sealed class ChatbotService : IChatbotService
             ConversationStates.TryRemove(conversationKey, out _);
     }
 
-    private ConversationState? GetConversationState(string conversationKey)
+    internal ConversationState? GetConversationState(string conversationKey)
     {
         if (!ConversationStates.TryGetValue(conversationKey, out var state))
             return null;
 
-        if (DateTimeOffset.UtcNow - state.LastTouched >
+        if (_timeProvider.GetUtcNow() - state.LastTouched >
             TimeSpan.FromMinutes(_options.ConversationRetentionMinutes))
         {
             ConversationStates.TryRemove(conversationKey, out _);
@@ -195,22 +265,24 @@ public sealed class ChatbotService : IChatbotService
         return state;
     }
 
-    private void PurgeConversationStates()
+    internal void PurgeConversationStates()
     {
-        var cutoff = DateTimeOffset.UtcNow -
+        var cutoff = _timeProvider.GetUtcNow() -
                      TimeSpan.FromMinutes(_options.ConversationRetentionMinutes);
         foreach (var item in ConversationStates)
         {
-            if (item.Value.LastTouched < cutoff)
+            if (item.Value is null || item.Value.LastTouched < cutoff)
                 ConversationStates.TryRemove(item.Key, out _);
         }
 
-        if (ConversationStates.Count <= _options.MaxConversationStates)
+        var overflow = ConversationStates.Count - _options.MaxConversationStates;
+        if (overflow <= 0)
             return;
 
         foreach (var item in ConversationStates
-                     .OrderBy(entry => entry.Value.LastTouched)
-                     .Take(ConversationStates.Count - _options.MaxConversationStates))
+                     .Where(entry => entry.Value is not null)
+                     .OrderBy(entry => entry.Value!.LastTouched)
+                     .Take(overflow))
         {
             ConversationStates.TryRemove(item.Key, out _);
         }
@@ -218,18 +290,22 @@ public sealed class ChatbotService : IChatbotService
 
     private void RememberConversation(string conversationKey, string query, string entryId)
     {
-        var state = ConversationStates.AddOrUpdate(
+        var now = _timeProvider.GetUtcNow();
+        // El estado se reemplaza por una copia inmutable en cada actualización para
+        // evitar mutar Queue<ConversationMessage> en caliente bajo AddOrUpdate concurrente.
+        ConversationStates.AddOrUpdate(
             conversationKey,
             _ => new ConversationState(
                 new Queue<ConversationMessage>([new ConversationMessage(query, entryId)]),
                 entryId,
-                DateTimeOffset.UtcNow),
+                now),
             (_, existing) =>
             {
-                existing.Messages.Enqueue(new ConversationMessage(query, entryId));
-                while (existing.Messages.Count > MaxConversationMessages)
-                    existing.Messages.Dequeue();
-                return new ConversationState(existing.Messages, entryId, DateTimeOffset.UtcNow);
+                var messages = new Queue<ConversationMessage>(existing.Messages);
+                messages.Enqueue(new ConversationMessage(query, entryId));
+                while (messages.Count > MaxConversationMessages)
+                    messages.Dequeue();
+                return new ConversationState(messages, entryId, now);
             });
         PurgeConversationStates();
     }
@@ -283,11 +359,10 @@ public sealed class ChatbotService : IChatbotService
         CreateResponse(
             profile,
             userName,
-            "Puedo ayudarte a registrar un ticket. Describe el problema sin incluir contraseñas ni datos clínicos. Para adjuntar evidencia, abre el formulario completo de soporte.",
+            "Puedo ayudarte a registrar un ticket desde este asistente. Describe el problema sin incluir contraseñas ni datos clínicos y puedes adjuntar evidencia en el formulario.",
             ["Crear ticket de soporte", "Adjuntar evidencia"],
             [
-                new ChatbotAction { Label = "Crear ticket aquí", Type = "ticket-form" },
-                CreateLink("Formulario completo y adjuntos", "/centro-de-ayuda/soporte")
+                new ChatbotAction { Label = "Crear ticket aquí", Type = "ticket-form" }
             ],
             []);
 
@@ -326,6 +401,24 @@ public sealed class ChatbotService : IChatbotService
                 new ChatbotAction { Label = "Crear ticket de soporte", Type = "ticket-form" }
             }.Where(action => action is not null).Select(action => action!).ToArray(),
             []);
+
+    private static ChatbotResponse NegationResponse(
+        RoleProfile profile,
+        string? userName,
+        ChatbotKnowledgeEntry? context)
+    {
+        var actions = new List<ChatbotAction>();
+        if (context is not null)
+            actions.Add(CreateLink(context.Title, context.Path));
+
+        return CreateResponse(
+            profile,
+            userName,
+            "Entendido, no realizaré esa acción. Si necesitas algo distinto, puedo buscar una guía verificada, explicar la vista actual o consultar tus tickets existentes.",
+            ["Buscar guías", "Consultar mis tickets"],
+            actions,
+            []);
+    }
 
     private static ChatbotResponse ClarificationResponse(
         RoleProfile profile,
@@ -457,7 +550,7 @@ public sealed class ChatbotService : IChatbotService
     {
         var keywordMatches = CountMatches(Tokenize(string.Join(' ', entry.Keywords)), queryTokens);
         var questionMatches = CountMatches(Tokenize(string.Join(' ', entry.Questions)), queryTokens);
-        var titleMatches = CountMatches(Tokenize($"{entry.Title} {entry.Module}"), queryTokens);
+        var titleMatches = CountMatches(Tokenize(entry.Title), queryTokens);
         var summaryMatches = CountMatches(Tokenize(entry.Summary), queryTokens);
         var stepMatches = CountMatches(Tokenize(string.Join(' ', entry.Steps)), queryTokens);
 
@@ -520,9 +613,25 @@ public sealed class ChatbotService : IChatbotService
         ContainsAny(message, "que hace esta vista", "que hace esta pantalla", "como uso esta vista",
             "como uso esta pantalla", "que puedo hacer aqui", "ayuda contextual", "en esta vista");
 
+    private static bool IsActionNegation(string message) =>
+        ContainsAny(message, "no quiero", "no deseo", "no necesito", "no me interesa", "no por ahora") &&
+        ContainsAny(message, "ticket", "cita", "cancelar", "anular", "crear", "programar",
+            "agendar", "reservar", "eliminar", "borrar", "modificar", "reportar", "problema",
+            "soporte", "abrir", "enviar", "solicitar");
+
+    private static bool MatchesCataloguedQuestion(ChatbotKnowledgeEntry entry, string query)
+    {
+        var normalizedQuery = Normalize(query);
+        return entry.Questions.Any(question =>
+            string.Equals(Normalize(question), normalizedQuery, StringComparison.Ordinal));
+    }
+
     private static bool IsTicketTrackingQuestion(string message) =>
-        ContainsAny(message, "mis tickets", "mi ticket", "seguimiento", "estado del ticket",
-            "consultar ticket", "consultar solicitud", "ver ticket", "referencia del ticket");
+        ContainsAny(message, "mis tickets", "mi ticket", "estado del ticket",
+            "estado de mi ticket", "consultar ticket", "consultar mis tickets", "ver mis tickets",
+            "seguimiento de ticket", "seguimiento del ticket", "seguimiento de mi ticket",
+            "seguimiento de solicitud", "seguimiento de soporte", "seguimiento del caso") ||
+        (ContainsAny(message, "seguimiento", "estado") && ContainsAny(message, "ticket", "solicitud", "soporte", "caso"));
 
     private static bool IsTicketCreationQuestion(string message) =>
         ContainsAny(message, "crear ticket", "nuevo ticket", "reportar problema", "reportar error",
@@ -567,7 +676,7 @@ public sealed class ChatbotService : IChatbotService
 
     private static bool IsReasonableFuzzyMatch(string left, string right)
     {
-        if (left.Length < 5 || right.Length < 5)
+        if (left.Length < 6 || right.Length < 6)
             return false;
 
         var distance = LevenshteinDistance(left, right);
@@ -652,5 +761,80 @@ public sealed class ChatbotService : IChatbotService
         }
 
         return builder.ToString().Trim();
+    }
+
+    private static bool IsTopicallyRelated(ChatbotKnowledgeEntry entry, string query)
+    {
+        var generic = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "como", "donde", "puedo", "quiero", "necesito", "hacer", "ver", "tengo",
+            "debo", "para", "con", "esta", "este", "del", "los", "las", "una", "unos",
+            "unas", "por", "que", "hay", "ser", "deberia", "corresponde", "admin",
+            "administrador", "recepcionista", "profesional", "auxiliar", "paciente",
+            "gestionar", "gestion", "usar", "consultar", "abrir"
+        };
+
+        var queryTokens = Tokenize(query)
+            .Where(token => token.Length >= 4 && !generic.Contains(token))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (queryTokens.Length == 0)
+            return false;
+
+        var entryTokens = Tokenize(string.Join(" ",
+                new[] { entry.Title, entry.Summary, entry.Module }
+                    .Concat(entry.Keywords)
+                    .Concat(entry.Questions)))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return queryTokens.Any(queryToken =>
+            entryTokens.Any(entryToken =>
+                entryToken == queryToken ||
+                (queryToken.Length >= 4 && entryToken.Length >= 4 &&
+                 (entryToken.StartsWith(queryToken, StringComparison.Ordinal) ||
+                  queryToken.StartsWith(entryToken, StringComparison.Ordinal))) ||
+                IsReasonableFuzzyMatch(entryToken, queryToken)));
+    }
+
+    private static ChatbotResponse OtherRoleResponse(
+        RoleProfile profile,
+        string? userName,
+        ChatbotKnowledgeEntry entry)
+    {
+        var allowedRoles = string.Join(", ", entry.Roles);
+        var message =
+            $"No encuentro una guía verificada para tu rol {profile.Label}. " +
+            $"La funcionalidad consultada corresponde a un rol diferente: {allowedRoles}. " +
+            "Puedo orientarte con tareas de tu rol o ayudarte a crear un ticket.";
+
+        var actions = new List<ChatbotAction>
+        {
+            new() { Label = "Crear ticket de soporte", Type = "ticket-form" }
+        };
+
+        return CreateResponse(
+            profile,
+            userName,
+            message,
+            ["Buscar guías", "Crear ticket de soporte"],
+            actions,
+            []);
+    }
+
+    private SearchResult? FindBestOtherRoleMatch(string query, string role, string? currentPath)
+    {
+        var originalTokens = Tokenize(query).ToHashSet(StringComparer.Ordinal);
+        var queryTokens = ExpandTokens(originalTokens);
+        if (queryTokens.Count == 0)
+            return null;
+
+        return ChatbotKnowledgeCatalog.EntriesSnapshot
+            .Where(entry => !entry.Roles.Contains(role, StringComparer.OrdinalIgnoreCase))
+            .Select(entry => new SearchResult(entry, Score(entry, query, queryTokens, originalTokens.Count, currentPath)))
+            .Where(result => result.Score >= _options.HighRelevanceThreshold)
+            .OrderByDescending(result => result.Score)
+            .ThenBy(result => result.Entry.Title, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
     }
 }

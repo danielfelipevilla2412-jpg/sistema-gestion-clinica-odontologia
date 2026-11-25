@@ -106,7 +106,9 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
                 Status = ticket.Estado,
                 CreatedAt = ticket.FechaCreacion,
                 AnsweredAt = ticket.FechaRespuesta,
-                Response = ticket.Respuesta
+                Response = ticket.Respuesta,
+                AttachmentPath = ticket.CapturaPantalla,
+                HasAttachment = ticket.CapturaPantalla != null
             })
             .ToListAsync(ct);
 
@@ -135,7 +137,9 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
                 Status = item.Estado,
                 CreatedAt = item.FechaCreacion,
                 AnsweredAt = item.FechaRespuesta,
-                Response = item.Respuesta
+                Response = item.Respuesta,
+                AttachmentPath = item.CapturaPantalla,
+                HasAttachment = item.CapturaPantalla != null
             })
             .FirstOrDefaultAsync(ct);
 
@@ -168,7 +172,15 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
         ticket.CapturaPantalla = await GuardarAdjuntoAsync(request.CapturaPantalla, ct);
 
         _db.TicketsSoporte.Add(ticket);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            EliminarAdjunto(ticket.CapturaPantalla);
+            throw;
+        }
 
         return (await ObtenerTicketAsync(ticket.IdTicket, ct), null);
     }
@@ -291,7 +303,7 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
 
         await ValidateAttachmentContentAsync(file);
 
-        var folder = Path.Combine(_environment.WebRootPath ?? "wwwroot", "uploads", "centro-ayuda");
+        var folder = Path.Combine(_environment.ContentRootPath, "private_uploads", "centro-ayuda");
         Directory.CreateDirectory(folder);
 
         var extension = Path.GetExtension(file.FileName);
@@ -301,7 +313,7 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
         await using var stream = new FileStream(fullPath, FileMode.CreateNew);
         await file.CopyToAsync(stream, ct);
 
-        return $"/uploads/centro-ayuda/{safeName}";
+        return $"private_uploads/centro-ayuda/{safeName}";
     }
 
     private static async Task ValidateAttachmentContentAsync(IFormFile file)
@@ -360,16 +372,19 @@ public sealed class CentroDeAyudaService : ICentroDeAyudaService
 
         try
         {
-            var normalized = relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-            var root = Path.GetFullPath(Path.Combine(_environment.WebRootPath ?? "wwwroot", "uploads", "centro-ayuda"));
-            var full = Path.GetFullPath(Path.Combine(_environment.WebRootPath ?? "wwwroot", normalized.Replace("uploads" + Path.DirectorySeparatorChar + "centro-ayuda" + Path.DirectorySeparatorChar, "")));
+            var root = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, "private_uploads", "centro-ayuda"))
+                + Path.DirectorySeparatorChar;
+            var relative = relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar).Replace("\\", Path.DirectorySeparatorChar.ToString());
+            if (!relative.StartsWith("private_uploads" + Path.DirectorySeparatorChar + "centro-ayuda" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                return;
 
+            var full = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, relative));
             if (full.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(full))
                 File.Delete(full);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "No fue posible eliminar el adjunto {Path}.", relativePath);
+            _logger.LogWarning(ex, "No fue posible eliminar un adjunto de soporte.");
         }
     }
 

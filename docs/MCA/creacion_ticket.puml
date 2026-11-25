@@ -1,0 +1,28 @@
+@startuml
+actor Usuario
+participant "chatbot.js" as JS
+participant "ChatbotApiController" as API
+participant "CentroDeAyudaService" as Service
+participant "AppDbContext" as DB
+
+Usuario -> JS : Solicita crear ticket
+JS -> Usuario : Formulario interno
+Usuario -> JS : Completa datos y adjunto
+JS -> Usuario : Revisión previa
+alt Cancela
+  JS -> Usuario : No se creó ticket
+else Confirma
+  JS -> API : POST multipart confirmed=true + idempotencyKey
+  API -> API : Valida usuario, modelo y confirmación
+  API -> Service : CrearTicketAsync
+  Service -> Service : Valida valores y adjunto
+  Service -> DB : Guarda ticket
+  alt Persistencia falla
+    Service -> Service : Elimina adjunto nuevo huérfano
+    Service --> API : Error
+  else Éxito
+    Service --> API : Ticket y referencia
+  end
+  API --> JS : Resultado
+end
+@enduml

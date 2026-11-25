@@ -1,0 +1,27 @@
+@startuml
+actor Usuario
+participant "_Chatbot.cshtml" as UI
+participant "chatbot.js" as JS
+participant "ChatbotApiController" as API
+participant "ChatbotService" as CHAT
+participant "ChatbotKnowledgeCatalog" as CAT
+participant "CentroDeAyudaService" as TICKET
+participant "AppDbContext" as DB
+
+Usuario -> UI : Abre asistente
+UI -> JS : Inicializa sesión y vista actual
+Usuario -> JS : Envía consulta
+JS -> API : POST /api/chatbot/message
+API -> CHAT : Respond(role, path, message, key)
+CHAT -> CAT : Busca entradas por rol y relevancia
+CHAT --> API : Respuesta, acciones y fuentes
+API --> JS : JSON
+JS --> Usuario : Presenta respuesta
+Usuario -> JS : Confirma ticket
+JS -> API : POST /api/chatbot/tickets multipart
+API -> TICKET : CrearTicketAsync(usuario autenticado)
+TICKET -> TICKET : Valida, almacena adjunto privado
+TICKET -> DB : Persiste ticket
+TICKET --> API : Ticket creado
+API --> JS : Referencia
+@enduml

@@ -16,6 +16,268 @@
 				"isDefault": true
 			},
 			"detail": "Builds the SmileTrackDB SQL project"
+		},
+		{
+			"label": "MCA: build and focused tests",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj",
+				"--filter",
+				"FullyQualifiedName~Chatbot|FullyQualifiedName~CentroDeAyuda",
+				"--logger",
+				"console;verbosity=minimal"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "MCA: build and focused tests",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj",
+				"--filter",
+				"\"FullyQualifiedName~Chatbot|FullyQualifiedName~CentroDeAyuda\"",
+				"--logger",
+				"\"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA: focused chatbot tests",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj",
+				"--filter",
+				"FullyQualifiedName~Chatbot",
+				"--logger",
+				"console;verbosity=minimal"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA focused build test",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" --filter \"FullyQualifiedName~Chatbot\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA test no incremental",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" --no-incremental --filter \"FullyQualifiedName~Chatbot\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA test no build",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" --no-build --filter \"FullyQualifiedName~Chatbot\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA test bypass static assets",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" -p:StaticWebAssetsEnabled=false --filter \"FullyQualifiedName~Chatbot\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA focused final",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" -p:StaticWebAssetsEnabled=false --filter \"FullyQualifiedName~Chatbot\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA full suite final",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" -p:StaticWebAssetsEnabled=false --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA normal application build",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet build \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.csproj\" --nologo"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "MCA normal test project build",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet build \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" --nologo"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "MCA normal focused tests",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" --filter \"FullyQualifiedName~Chatbot\" --logger \"trx;LogFileName=MCA-Chatbot.trx\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA normal full suite TRX",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" --logger \"trx;LogFileName=MCA-Full.trx\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA Chatbot and Centro tests",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" --filter \"FullyQualifiedName~Chatbot|FullyQualifiedName~CentroDeAyuda\" --logger \"trx;LogFileName=MCA-Focalizadas.trx\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA Chatbot API and service tests",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" --filter \"FullyQualifiedName~ChatbotServiceTests|FullyQualifiedName~ChatbotApiControllerTests\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "MCA Centro tests",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"dotnet test \"C:\\Users\\johan\\sistema-gestion-clinica-odontologia\\SmileTrack_MVC.Tests\\SmileTrack_MVC.Tests.csproj\" --filter \"FullyQualifiedName~CentroDeAyuda\" --logger \"console;verbosity=minimal\""
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "inspect dotnet and static assets",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				"cd /d C:\\Users\\johan\\sistema-gestion-clinica-odontologia && dotnet --version && dotnet --list-sdks && dotnet --info"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
 		}
 	]
 }

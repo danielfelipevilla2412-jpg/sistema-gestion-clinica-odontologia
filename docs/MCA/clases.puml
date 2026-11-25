@@ -1,0 +1,20 @@
+@startuml
+class ChatbotService
+class ChatbotKnowledgeCatalog
+class ChatbotKnowledgeEntry
+class ChatbotApiController
+class ChatbotTicketSummary
+class CentroDeAyudaService
+class CentroAyudaTicketRequest
+class TicketSoporte
+class AppDbContext
+
+ChatbotApiController --> ChatbotService
+ChatbotApiController --> CentroDeAyudaService
+ChatbotKnowledgeCatalog --> ChatbotKnowledgeEntry
+ChatbotService --> ChatbotKnowledgeCatalog
+CentroDeAyudaService --> AppDbContext
+CentroDeAyudaService --> CentroAyudaTicketRequest
+CentroDeAyudaService --> TicketSoporte
+CentroDeAyudaService --> ChatbotTicketSummary
+@enduml

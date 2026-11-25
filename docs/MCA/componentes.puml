@@ -1,0 +1,26 @@
+@startuml
+package "Presentación" {
+  component "_Chatbot.cshtml"
+  component "chatbot.js"
+  component "chatbot.css"
+}
+package "API" {
+  component "ChatbotApiController"
+}
+package "Dominio MCA" {
+  component "ChatbotService"
+  component "ChatbotKnowledgeCatalog"
+  component "CentroDeAyudaService"
+}
+package "Datos" {
+  database "AppDbContext"
+  folder "private_uploads/centro-ayuda"
+}
+"_Chatbot.cshtml" --> "chatbot.js"
+"chatbot.js" --> "ChatbotApiController"
+"ChatbotApiController" --> "ChatbotService"
+"ChatbotApiController" --> "CentroDeAyudaService"
+"ChatbotService" --> "ChatbotKnowledgeCatalog"
+"CentroDeAyudaService" --> "AppDbContext"
+"CentroDeAyudaService" --> "private_uploads/centro-ayuda"
+@enduml

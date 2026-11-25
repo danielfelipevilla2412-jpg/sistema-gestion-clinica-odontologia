@@ -60,6 +60,16 @@ public sealed class ChatbotApiControllerTests
     }
 
     [Fact]
+    public void Message_MensajeDe500Caracteres_RetornaOk()
+    {
+        var controller = CrearControlador(new FakeCentroDeAyudaService());
+
+        var result = controller.Message(new ChatbotRequest { Message = new string('a', 500) });
+
+        Assert.IsType<OkObjectResult>(result.Result);
+    }
+
+    [Fact]
     public void Message_MensajeValido_RetornaOkConRespuesta()
     {
         var controller = CrearControlador(new FakeCentroDeAyudaService(), "Paciente");

@@ -40,6 +40,9 @@ public sealed class ChatbotTicketRequest
     public string? IdempotencyKey { get; init; }
 
     public IFormFile? Attachment { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? AttachmentPath { get; init; }
 }
 
 public sealed class ChatbotResponse
@@ -70,4 +73,7 @@ public sealed class ChatbotTicketSummary
     public DateTime CreatedAt { get; init; }
     public DateTime? AnsweredAt { get; init; }
     public string? Response { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? AttachmentPath { get; init; }
+    public bool HasAttachment { get; init; }
 }

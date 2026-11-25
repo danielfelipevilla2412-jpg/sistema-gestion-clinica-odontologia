@@ -267,11 +267,15 @@
         submit.textContent = "Enviar ticket";
         ticketForm.appendChild(submit);
 
-        const fullFormLink = document.createElement("a");
-        fullFormLink.className = "chatbot__full-form";
-        fullFormLink.href = "/centro-de-ayuda/soporte";
-        fullFormLink.textContent = "Abrir formulario completo para adjuntar evidencia";
-        ticketForm.appendChild(fullFormLink);
+        const cancel = document.createElement("button");
+        cancel.className = "chatbot__ticket-edit";
+        cancel.type = "button";
+        cancel.textContent = "Cancelar";
+        cancel.addEventListener("click", () => {
+            ticketForm.remove();
+            addMessage("Registro cancelado. No se creó ningún ticket.", "bot");
+        });
+        ticketForm.appendChild(cancel);
 
         ticketForm.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -326,8 +330,7 @@
                 addMessage(reference
                     ? `Tu ticket quedó registrado con la referencia ${reference}. Puedes consultar su estado desde este asistente.`
                     : "Tu ticket quedó registrado correctamente. Puedes consultar su estado desde este asistente.", "bot", [
-                    { label: "Consultar mis tickets", type: "ticket-list" },
-                    { label: "Formulario completo y adjuntos", url: "/centro-de-ayuda/soporte", type: "link" }
+                    { label: "Consultar mis tickets", type: "ticket-list" }
                 ]);
                 renderSuggestions(["Consultar mis tickets", "Buscar guías", "Crear ticket de soporte"]);
             } catch (submissionError) {
@@ -391,9 +394,12 @@
 
             const ticket = data.data;
             const responseText = ticket.response ? `\nRespuesta: ${ticket.response}` : "\nAún no hay respuesta de soporte.";
+            const actions = ticket.hasAttachment
+                ? [{ label: "Descargar adjunto", url: `/api/chatbot/tickets/mine/${encodeURIComponent(ticket.reference)}/attachment`, type: "link" }]
+                : [];
             addMessage(
                 `Ticket ${ticket.reference}: ${ticket.subject}\nEstado: ${ticket.status}\nMódulo: ${ticket.module}${responseText}`,
-                "bot");
+                "bot", actions);
         } catch (error) {
             addMessage(error.message || "No fue posible consultar el ticket.", "bot");
         }
@@ -435,7 +441,7 @@
     closeButton.addEventListener("click", close);
     if (resetButton) resetButton.addEventListener("click", resetConversation);
     document.addEventListener("click", (event) => {
-        const link = event.target.closest('a[href="/acceso-y-seguridad/login"]');
+        const link = event.target.closest('a[href="/acceso-y-seguridad/login"], a[href="/acceso-y-seguridad/logout"], form[action="/acceso-y-seguridad/logout"] button[type="submit"]');
         if (!link) return;
         try {
             window.sessionStorage.removeItem("smiletrack-chatbot-session");

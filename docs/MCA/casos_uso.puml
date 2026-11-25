@@ -1,0 +1,28 @@
+@startuml
+left to right direction
+actor Administrador
+actor Recepcionista
+actor Profesional
+actor Auxiliar
+actor Paciente
+actor "Usuario autenticado" as Autenticado
+Autenticado <|-- Administrador
+Autenticado <|-- Recepcionista
+Autenticado <|-- Profesional
+Autenticado <|-- Auxiliar
+Autenticado <|-- Paciente
+rectangle MCA {
+  usecase "Consultar ayuda contextual" as UC1
+  usecase "Consultar funcionalidades" as UC2
+  usecase "Crear ticket con adjunto" as UC3
+  usecase "Consultar tickets propios" as UC4
+  usecase "Descargar adjunto propio" as UC5
+  usecase "Reiniciar conversación" as UC6
+}
+Autenticado --> UC1
+Autenticado --> UC2
+Autenticado --> UC3
+Autenticado --> UC4
+Autenticado --> UC5
+Autenticado --> UC6
+@enduml

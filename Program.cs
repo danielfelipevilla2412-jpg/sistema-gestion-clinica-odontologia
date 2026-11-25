@@ -232,6 +232,24 @@ builder.Services.AddRateLimiter(options =>
                 permitLimit: 60,
                 window: TimeSpan.FromMinutes(1))));
 
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        if (!context.Request.Path.StartsWithSegments("/api/chatbot", StringComparison.OrdinalIgnoreCase))
+        {
+            return RateLimitPartition.GetNoLimiter("none");
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            "chatbot-global",
+            _ => CreateFixedWindowOptions(
+                permitLimit: int.TryParse(
+                    builder.Configuration["Chatbot:GlobalRequestsPerMinute"],
+                    out var globalLimit) && globalLimit > 0
+                    ? globalLimit
+                    : 120,
+                window: TimeSpan.FromMinutes(1)));
+    });
+
     options.AddFixedWindowLimiter("PerfilPaciente", opt =>
     {
         opt.PermitLimit = 30;

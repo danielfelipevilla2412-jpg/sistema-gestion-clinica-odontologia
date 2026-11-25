@@ -1,0 +1,16 @@
+@startuml
+actor Usuario
+participant "chatbot.js"
+participant "ChatbotApiController"
+participant "ChatbotService"
+participant "ChatbotKnowledgeCatalog"
+
+Usuario -> "chatbot.js" : Escribe consulta
+"chatbot.js" -> "ChatbotApiController" : POST message
+"ChatbotApiController" -> "ChatbotService" : Respond(role, path, message, key)
+"ChatbotService" -> "ChatbotKnowledgeCatalog" : Filtrar por rol y relevancia
+"ChatbotKnowledgeCatalog" --> "ChatbotService" : Entrada o resultados ambiguos
+"ChatbotService" --> "ChatbotApiController" : Respuesta segura
+"ChatbotApiController" --> "chatbot.js" : JSON
+"chatbot.js" --> Usuario : Mensaje, enlaces y sugerencias
+@enduml

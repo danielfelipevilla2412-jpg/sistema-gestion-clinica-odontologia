@@ -189,6 +189,50 @@ public sealed class ChatbotApiController(
             : Ok(new { success = true, data = ticket });
     }
 
+    [HttpGet("tickets/mine/{reference}/attachment")]
+    [EnableRateLimiting("ChatbotTicketReadByUser")]
+    public async Task<IActionResult> GetMyTicketAttachment(string reference, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(reference) || reference.Length > 20)
+            return BadRequest(new { success = false, message = "Referencia inválida." });
+
+        var userId = GetCurrentUserId();
+        if (userId is null)
+            return Unauthorized(new { success = false, message = "No fue posible identificar al usuario." });
+
+        var ticket = await centroDeAyudaService.ObtenerTicketUsuarioAsync(reference, userId.Value, ct);
+        if (ticket is null || string.IsNullOrWhiteSpace(ticket.AttachmentPath))
+            return NotFound(new { success = false, message = "Archivo no encontrado." });
+
+        var relative = ticket.AttachmentPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var root = Path.GetFullPath(Path.Combine(HttpContext.RequestServices
+            .GetRequiredService<IWebHostEnvironment>().ContentRootPath, "private_uploads", "centro-ayuda"))
+            + Path.DirectorySeparatorChar;
+        var fullPath = Path.GetFullPath(Path.Combine(HttpContext.RequestServices
+            .GetRequiredService<IWebHostEnvironment>().ContentRootPath, relative));
+
+        if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(fullPath))
+            return NotFound(new { success = false, message = "Archivo no encontrado." });
+
+        var contentType = Path.GetExtension(fullPath).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".pdf" => "application/pdf",
+            ".doc" => "application/msword",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".txt" => "text/plain",
+            _ => "application/octet-stream"
+        };
+
+        Response.Headers.CacheControl = "no-store, no-cache";
+        Response.Headers.Pragma = "no-cache";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return PhysicalFile(fullPath, contentType, Path.GetFileName(fullPath), enableRangeProcessing: false);
+    }
+
     private int? GetCurrentUserId()
     {
         var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);

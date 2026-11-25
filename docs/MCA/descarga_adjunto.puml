@@ -1,0 +1,21 @@
+@startuml
+actor Propietario
+participant "chatbot.js" as JS
+participant "ChatbotApiController" as API
+participant "CentroDeAyudaService" as Service
+participant "AppDbContext" as DB
+
+Propietario -> JS : Selecciona Descargar adjunto
+JS -> API : GET /api/chatbot/tickets/mine/{ref}/attachment
+API -> API : Obtiene IdUsuario de claim
+API -> Service : ObtenerTicketUsuarioAsync(ref, usuario)
+Service -> DB : Filtra por IdUsuario y referencia
+alt Ticket ajeno o inexistente
+  API --> JS : 404
+else Archivo válido
+  API -> API : Resuelve ruta privada dentro del root permitido
+  API --> JS : Archivo autenticado
+else Archivo ausente
+  API --> JS : 404
+end
+@enduml
