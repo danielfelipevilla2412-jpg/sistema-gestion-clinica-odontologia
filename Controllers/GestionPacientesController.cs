@@ -130,7 +130,7 @@ public class GestionPacientesController : Controller
                 AlergiasTexto   = p.Alergias,
                 Estado          = p.Estado,
                 LastVisit       = ultima?.FechaHora,
-                Diagnosis       = ultima?.Servicio?.Nombre ?? ultima?.Notas ?? string.Empty,
+                Diagnosis       = ultima?.Servicio?.Nombre ?? string.Empty,
                 NextVisit       = proxima?.FechaHora,
                 Allergies       = alergias,
                 Color           = colores[i % colores.Length],
@@ -312,7 +312,7 @@ public class GestionPacientesController : Controller
                 MedicamentosTexto = p.Medicamentos,
                 Estado         = p.Estado,
                 LastVisit      = ultima?.FechaHora,
-                Diagnosis      = ultima?.Servicio?.Nombre ?? ultima?.Notas ?? string.Empty,
+                Diagnosis      = ultima?.Servicio?.Nombre ?? string.Empty,
                 NextVisit      = proxima?.FechaHora,
                 Allergies      = alergias,
                 Color          = colores[colorIdx],
@@ -414,7 +414,7 @@ public class GestionPacientesController : Controller
             TotalCitas       = citas.Count,
             CitasPendientes  = citas.Count(c => c.FechaHora > ahora && c.Estado != "Cancelada"),
             LastVisit        = ultima?.FechaHora,
-            Diagnosis        = ultima?.Servicio?.Nombre ?? ultima?.Notas ?? string.Empty,
+            Diagnosis        = ultima?.Servicio?.Nombre ?? string.Empty,
             NextVisit        = proxima?.FechaHora,
             // Yeray (2025) - ruta relativa del archivo adjunto (foto/documento)
             ArchivoAdjunto   = p.ArchivoAdjunto,
@@ -496,6 +496,7 @@ public class GestionPacientesController : Controller
         // Reutiliza la misma lógica de Stadm05GestionPacientes, cambiando
         // únicamente el sidebar que se inyecta (via ViewData).
         ViewData["SidebarPartial"] = "_SidebarRecepcionista";
+        ViewData["PuedeAgendarPaciente"] = await PermisoReagendamiento.PermitidoAsync(_context, HttpContext.RequestAborted, "agendar");
         return await Stadm05GestionPacientes();
     }
 
@@ -503,8 +504,9 @@ public class GestionPacientesController : Controller
     [HttpGet]
     [Authorize(Roles = "Recepcionista")]
     [Route("gestion-de-pacientes/st-rec-02-registrar-paciente")]
-    public IActionResult Strec02RegistrarPaciente()
+    public async Task<IActionResult> Strec02RegistrarPaciente()
     {
+        ViewData["PuedeAgendarPaciente"] = await PermisoReagendamiento.PermitidoAsync(_context, HttpContext.RequestAborted, "agendar");
         return View(
             "~/Views/Gestion_De_Pacientes/st-rec-02-registrar-paciente/nuevo_paciente.cshtml",
             new RegistrarPacienteViewModel());
@@ -791,18 +793,17 @@ public class GestionPacientesController : Controller
             if (TieneSustanciaAlergiaNoValida(alergias))
                 return BadRequest(new { ok = false, message = "Cada alergia debe tener como máximo 150 caracteres." });
 
-            bool existe =
-                await _context.Pacientes.AnyAsync(
-                    p =>
-                        p.Documento ==
-                        documentoNormalizado);
+            var fichaExistente = await _context.Pacientes.AsNoTracking()
+                .Where(p => p.Documento == documentoNormalizado)
+                .Select(p => (int?)p.IdPaciente).FirstOrDefaultAsync();
 
-            if (existe)
+            if (fichaExistente.HasValue)
             {
                 return Conflict(
                     new
                     {
                         ok = false,
+                        idPacienteExistente = fichaExistente.Value,
                         message =
                             "Ya existe un paciente con ese documento."
                     });

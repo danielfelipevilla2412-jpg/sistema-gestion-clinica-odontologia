@@ -207,8 +207,8 @@ public class HistoriaClinicaStructuredDataTests
     {
         await using var db = await CrearBaseAsync();
         var (controller, paciente, _) = CrearControlador(db);
-        var fechaMapeoAnterior = DateTime.UtcNow.AddDays(-2);
-        var fechaMapeoNuevo = DateTime.UtcNow.AddDays(-1);
+        var fechaMapeoAnterior = new DateTime(2026, 1, 10, 12, 0, 0);
+        var fechaMapeoNuevo = fechaMapeoAnterior.AddDays(1);
         var historia = new HistoriaClinica
         {
             IdPaciente = paciente.IdPaciente,
@@ -405,7 +405,15 @@ public class HistoriaClinicaStructuredDataTests
         });
         await db.SaveChangesAsync();
 
-        await controller.GuardarPlanTratamiento(new PlanTratamientoGuardarRequest
+        db.ProfesionalServicios.Add(new ProfesionalServicio
+        {
+            IdProfesional = profesional.IdProfesional,
+            IdServicio = servicio.IdServicio,
+            Activo = true
+        });
+        await db.SaveChangesAsync();
+
+        var resultado = await controller.GuardarPlanTratamiento(new PlanTratamientoGuardarRequest
         {
             PacienteId = paciente.IdPaciente,
             ServicioId = servicio.IdServicio,
@@ -414,6 +422,7 @@ public class HistoriaClinicaStructuredDataTests
             Observacion = "Valorar pieza temporal"
         });
 
+        Assert.IsType<JsonResult>(resultado);
         var plan = await db.PlanesTratamiento.SingleAsync();
         Assert.Equal(paciente.IdPaciente, plan.HistoriaClinica!.IdPaciente);
         Assert.Equal(servicio.IdServicio, plan.IdServicio);

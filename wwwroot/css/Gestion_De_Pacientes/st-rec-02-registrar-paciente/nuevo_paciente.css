@@ -196,3 +196,15 @@ img { max-width: 100%; height: auto; display: block; }
   white-space: nowrap;
   border: 0;
 }
+
+.main.patient-registration #patientForm[hidden],
+.main.patient-registration [hidden] { display: none !important; }
+.main.patient-registration .form-card { margin-bottom: 1rem; }
+.patient-registration .registration-result { max-width: 48rem; }
+.patient-registration .registration-result h2 { margin-top: 0; }
+.patient-registration .registration-result p { margin: .75rem 0; }
+.patient-registration #guardianRequirement { margin: 0 0 1rem; padding: .65rem; border-radius: .5rem; background: #fff4dc; color: #784600; }
+.main.patient-registration .form-actions { flex-wrap: wrap; gap: .65rem; }
+@media (max-width: 680px) {
+  .main.patient-registration .form-grid { grid-template-columns: minmax(0, 1fr); }
+}

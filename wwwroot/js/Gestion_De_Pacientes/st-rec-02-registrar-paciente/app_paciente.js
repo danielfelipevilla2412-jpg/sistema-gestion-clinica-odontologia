@@ -264,7 +264,6 @@ const init = () => {
   if (fechaNac) {
     fechaNac.max = today;
     // [MEJORA]: Valor por defecto solo si está vacío
-    if (!fechaNac.value) fechaNac.value = '1995-08-15';
   }
   // Inicializar componentes de UI
   initMobileMenu();
@@ -274,12 +273,19 @@ const init = () => {
 
   // Botones de cancelar
   const cancelBtn1 = safeGetElement('cancelBtn1');
-  const handleCancel = () => {
-    if (confirm('¿Estás seguro de cancelar? Los datos no guardados se perderán.')) {
-      window.history.back();
-    }
+  cancelBtn1?.addEventListener('click', event => {
+    if (!confirm('¿Volver al listado? Se perderán los datos sin guardar.')) event.preventDefault();
+  });
+  const syncGuardianRequirement = () => {
+    const birth = fechaNac.value;
+    const cutoff = today.replace(/^\d{4}/, year => String(Number(year) - 18));
+    const required = safeGetElement('tipoDoc').value === 'TI' || !!birth && birth > cutoff;
+    safeGetElement('guardianRequirement').hidden = !required;
+    for (const id of ['contactoEmergencia', 'telefonoEmergencia']) safeGetElement(id).required = required;
   };
-  if (cancelBtn1) cancelBtn1.addEventListener('click', handleCancel);
+  fechaNac.addEventListener('change', syncGuardianRequirement);
+  safeGetElement('tipoDoc').addEventListener('change', syncGuardianRequirement);
+  syncGuardianRequirement();
 
   // ── Envío del formulario ──
   const patientForm = safeGetElement('patientForm');
@@ -295,7 +301,7 @@ const init = () => {
       }
 
       const saveBtn = safeGetElement('saveBtn');
-      if (!saveBtn) return;
+      if (!saveBtn || saveBtn.disabled) return;
 
       const originalContent = saveBtn.innerHTML;
 
@@ -326,20 +332,31 @@ const init = () => {
 
         const result = await response.json();
 
-        if (!response.ok) {
+        if (response.status === 409 && Number.isSafeInteger(result.idPacienteExistente)) {
+          const link = document.createElement('a');
+          link.className = 'btn-secondary';
+          link.href = `/gestion-de-pacientes/${result.idPacienteExistente}`;
+          link.textContent = 'Abrir ficha existente';
+          safeGetElement('duplicatePatientAction')?.remove();
+          link.id = 'duplicatePatientAction';
+          saveBtn.after(link);
+          link.focus();
+        }
+        if (!response.ok || !result.ok) {
           throw new Error(result.message || 'No fue posible registrar el paciente.');
         }
 
         showToast(result.message, 'success');
         if (autoHC && result.codigoHistoria) autoHC.textContent = result.codigoHistoria;
 
-        saveBtn.disabled = false;
-        saveBtn.removeAttribute('aria-busy');
-        saveBtn.innerHTML = originalContent;
-
-        setTimeout(() => {
-          window.location.href = '/gestion-de-pacientes/st-adm-05-gestion-pacientes';
-        }, 1500);
+        safeGetElement('registrationProfile').href = `/gestion-de-pacientes/${result.idPaciente}`;
+        const appointmentLink = safeGetElement('registrationBook');
+        if (appointmentLink) appointmentLink.href =
+          `/gestion-de-citas/st-rec-03-gestion-citas?nueva=1&pacienteId=${result.idPaciente}`;
+        const feedback = safeGetElement('registrationResult');
+        patientForm.hidden = true;
+        feedback.hidden = false;
+        feedback.focus();
 
       } catch (error) {
         console.error('[SmileTrack][Paciente] Error al registrar:', error);

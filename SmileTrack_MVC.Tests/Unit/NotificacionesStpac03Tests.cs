@@ -40,15 +40,17 @@ public sealed class NotificacionesStpac03Tests
     }
 
     [Fact]
-    public void VistaNotificaciones_ContieneModalDetallesYChipsFiltro()
+    public void VistaNotificaciones_ContieneModalYFiltrosDeLecturaYTipo()
     {
         var viewSource = File.ReadAllText(RepoFile("Views", "Gestion_De_Citas", "st-pac-03-notificaciones", "index.cshtml"));
 
         Assert.Contains("id=\"modalNotifDetail\"", viewSource, StringComparison.Ordinal);
-        Assert.Contains("id=\"btnToggleUnread\"", viewSource, StringComparison.Ordinal);
-        Assert.Contains("data-filter=\"waitlist\"", viewSource, StringComparison.Ordinal);
-        Assert.Contains("data-filter=\"invoice\"", viewSource, StringComparison.Ordinal);
-        Assert.Contains("data-filter=\"reminder\"", viewSource, StringComparison.Ordinal);
+        Assert.Contains("data-read-filter=\"unread\"", viewSource, StringComparison.Ordinal);
+        Assert.Contains("data-read-filter=\"all\"", viewSource, StringComparison.Ordinal);
+        Assert.Contains("id=\"filterNotificationType\"", viewSource, StringComparison.Ordinal);
+        Assert.Contains("option value=\"waitlist\"", viewSource, StringComparison.Ordinal);
+        Assert.Contains("option value=\"invoice\"", viewSource, StringComparison.Ordinal);
+        Assert.Contains("option value=\"reminder\"", viewSource, StringComparison.Ordinal);
     }
 
     [Fact]

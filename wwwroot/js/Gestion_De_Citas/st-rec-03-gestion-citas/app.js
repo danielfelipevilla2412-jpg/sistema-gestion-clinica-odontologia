@@ -477,6 +477,8 @@ const openViewModal = (id, appointment = appointmentStorage.findById(id)) => {
   if (editBtn) {
     const fresh = editBtn.cloneNode(true);
     editBtn.replaceWith(fresh);
+    fresh.hidden = !Array.from(document.querySelectorAll('#appointmentsTable [data-action="edit"]'))
+      .some(button => button.dataset.id === String(id));
     fresh.addEventListener('click', () => { modalManager.close('modalViewAppointment'); openEditModal(id, a); });
   }
   modalManager.open('modalViewAppointment');
@@ -712,11 +714,9 @@ const fetchSolicitudesPendientes = async () => {
             return;
           }
 
-          const consultorioId = document.querySelector('#newConsultorio')?.value || document.querySelector('#modalNewAppointment [name="IdConsultorio"]')?.value || 1;
           const payload = {
             idCita: idCita,
             idProfesional: Number(profesionales[0].idProfesional ?? profesionales[0].IdProfesional),
-            idConsultorio: Number(consultorioId),
             fecha: fecha,
             horaInicio: `${horaBase}:00`,
             notas: solicitud.notas || solicitud.motivoConsulta || ''
@@ -809,7 +809,7 @@ const fetchSolicitudesPendientes = async () => {
 };
 
 const initNewAppointmentButtons = () => {
-  const open = () => {
+  const open = (patientId = '') => {
     const form = safeGetElement('formNewAppointment');
     if (form) {
       form.reset();
@@ -822,10 +822,19 @@ const initNewAppointmentButtons = () => {
     if (alert) alert.style.display = 'none';
     // Restaurar lista de profesionales completa
     _originalDoctorOptions = null;
+    const patient = safeGetElement('newPatient');
+    if (patientId && patient) {
+      const option = Array.from(patient.options).find(item => item.value === patientId && !item.disabled);
+      if (option) patient.value = option.value;
+      else showToast('El paciente no está disponible para agendar. Selecciona otro paciente.', 'error');
+    }
     modalManager.open('modalNewAppointment');
   };
-  safeGetElement('btnNuevaCita')?.addEventListener('click', open);
-  safeGetElement('fabNuevaCita')?.addEventListener('click', open);
+  const newAppointmentButton = safeGetElement('btnNuevaCita');
+  newAppointmentButton?.addEventListener('click', () => open());
+  const params = new URLSearchParams(window.location.search);
+  if (newAppointmentButton && params.get('nueva') === '1') open(params.get('pacienteId') || '');
+  safeGetElement('fabNuevaCita')?.addEventListener('click', () => open());
 
   // Filtrado dinámico: actualizar profesionales disponibles cuando cambian fecha u hora
   safeGetElement('newDate')?.addEventListener('change', actualizarProfesionalesDisponibles);
@@ -966,6 +975,12 @@ const init = async () => {
     initMobileMenu();
     initModalHandlers();
     initNewAppointmentButtons();
+    const requestedId = safeGetElement('main-content')?.dataset.viewAppointment;
+    if (requestedId) {
+      const detailButton = Array.from(document.querySelectorAll('#appointmentsTable [data-action="view"]'))
+        .find(button => button.dataset.id === requestedId);
+      if (detailButton) openViewModal(requestedId, appointmentFromTableButton(detailButton));
+    }
 
     // Asignar submit handlers
     const newForm = safeGetElement('formNewAppointment');

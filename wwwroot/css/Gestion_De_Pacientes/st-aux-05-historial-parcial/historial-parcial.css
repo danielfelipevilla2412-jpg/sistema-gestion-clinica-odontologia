@@ -250,3 +250,18 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+.main.historial-aux [hidden] { display: none !important; }
+.historial-aux .historial-selector, .historial-aux .historial-ficha { padding: 1rem; margin-bottom: 1rem; }
+.historial-aux .historial-selector h2 { margin: 0 0 .8rem; font-size: 1.15rem; }
+.historial-aux .historial-selector form { display: flex; align-items: end; flex-wrap: wrap; gap: .85rem; }
+.historial-aux .historial-selector form > div { display: grid; gap: .35rem; flex: 1 1 16rem; min-width: 0; }
+.historial-aux .historial-selector input, .historial-aux .historial-selector select { width: 100%; min-height: 2.75rem; padding: .5rem .7rem; border: 1px solid var(--border); border-radius: 6px; }
+.historial-aux .historial-ficha { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .7rem; }
+.historial-aux .historial-ficha p { margin: 0; font-weight: 600; }
+.historial-aux #historialBusquedaEstado:empty { display: none; }
+.historial-aux .historial-inicio { padding: .9rem 1rem; color: #445670; }
+.historial-aux .historial-clinico-resumen:not(.tiene-alerta) { background: #fff; border-color: #dbe4f0; }
+.historial-aux .historial-clinico-resumen:not(.tiene-alerta) .alerta-medica-title { color: #203b6d; }
+.historial-aux .historial-clinico-resumen:not(.tiene-alerta) .alerta-medica-title .material-symbols-outlined,
+.historial-aux .historial-clinico-resumen:not(.tiene-alerta) .allergy-icon { display: none; }

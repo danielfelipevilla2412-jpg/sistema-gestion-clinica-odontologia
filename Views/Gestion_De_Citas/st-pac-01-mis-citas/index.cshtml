@@ -16,7 +16,7 @@
    ============================================ *@
 @{
   Layout = "_Layout";
-  ViewData["Title"] = "Mis Citas";
+  ViewData["Title"] = "Mis citas";
   var perfilPacienteCompleto = ViewData["PerfilPacienteCompleto"] as bool? ?? false;
 }
 
@@ -26,7 +26,7 @@
 }
 
   <!-- MAIN: área de contenido principal de la página -->
-  <main class="main" id="main-content">
+  <main class="main patient-appointments" id="main-content">
     @Html.AntiForgeryToken()
     <!-- Cabecera de página con breadcrumb, título, subtítulo y botón para solicitar nueva cita -->
     <header class="page-header">
@@ -34,9 +34,9 @@
         <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="common.breadcrumb_nav">
           <span data-i18n="common_role_patient">Paciente</span>
           <span class="bc-sep" aria-hidden="true">›</span>
-          <span class="bc-active" data-i18n="citas.title">Mis citas</span>
+          <span class="bc-active" data-i18n="pac_miscitas.title">Mis citas</span>
         </nav>
-        <h1 class="page-title" data-i18n="citas.title">Mis Citas</h1>
+        <h1 class="page-title" data-i18n="pac_miscitas.title">Mis citas</h1>
         <p class="page-subtitle" data-i18n="citas.pac_subtitle">Gestiona y consulta tus citas odontológicas personales</p>
       </div>
       @if (perfilPacienteCompleto)
@@ -74,11 +74,6 @@
         <span class="stat-number" id="cnt-canceladas" data-target="0">0</span>
         <span class="stat-label" data-i18n="status.cancelled">Canceladas</span>
       </div>
-      <div class="stat-card" data-color="purple">
-        <span class="material-symbols-outlined stat-icon" aria-hidden="true">block</span>
-        <span class="stat-number" id="cnt-rechazadas" data-target="0">0</span>
-        <span class="stat-label" data-i18n="citas.stat_rejected">Solicitudes rechazadas</span>
-      </div>
     </section>
 
     <!-- Tabs de filtrado rápido por estado (patrón canónico st-adm-09) -->
@@ -99,22 +94,9 @@
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">cancel</span>
         <span data-i18n="citas.tab_cancelled">Canceladas</span>
       </button>
-      <button type="button" class="tab-btn" aria-pressed="false" data-tab="rejected" id="tab-rejected">
-        <span class="material-symbols-outlined tab-icon" aria-hidden="true">block</span>
-        <span data-i18n="citas.tab_rejected">Rechazadas</span>
-      </button>
     </div>
 
-    <!-- TABLA: sección con barra de progreso, filtros y tabla completa de citas -->
     <section class="agenda-section" aria-label="Listado de citas">
-      <!-- Barra de progreso que muestra el porcentaje de citas completadas -->
-      <div class="progress-row">
-        <div class="progress-bar-bg" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-          <div class="progress-bar" id="progressBar" style="width:0%"></div>
-        </div>
-        <span class="progress-label" id="progressLabel">Cargando...</span>
-      </div>
-
       <!-- Barra de filtros estandarizada (patrón canónico filters-section / filters-row) -->
       <section class="filters-section" aria-label="Filtros de citas" data-i18n-aria-label="table.filter">
         <div class="filters-row">

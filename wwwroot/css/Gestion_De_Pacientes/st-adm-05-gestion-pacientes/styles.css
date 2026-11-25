@@ -465,3 +465,72 @@
 #modalPatient #editPatientForm .allergy-entry { display: flex; align-items: center; gap: 8px; }
 #modalPatient #editPatientForm .allergy-entry .form-input { min-width: 0; flex: 1; }
 #modalPatient #editPatientForm .error-message:not([hidden]) { display: block; }
+.main.patients-page .patients-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: .3rem;
+  padding: 16px 22px;
+}
+
+.main.patients-page .patients-header .page-header-content {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.main.patients-page .patients-header .page-header-actions {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+}
+
+.main.patients-page .patients-header .page-header-actions:empty {
+  display: none;
+}
+
+.main.patients-page .filters-bar {
+  background: var(--white, #fff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, .75rem);
+  padding: .85rem;
+  margin-bottom: 1rem;
+}
+
+.main.patients-page .filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .65rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.main.patients-page .filters-row .search-wrap {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+.main.patients-page .filters-row .filter-group {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+
+.main.patients-page .filters-row .filter-select {
+  width: 100%;
+}
+
+.patients-page .patients-list-title {
+  font-size: 1rem;
+  margin: 0;
+  padding: .85rem 1rem;
+}
+
+@media screen {
+  .main.patients-page .patients-header .breadcrumb {
+    padding-right: min(12rem, 45%);
+  }
+}

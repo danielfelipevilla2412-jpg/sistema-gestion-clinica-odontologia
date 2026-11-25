@@ -735,3 +735,36 @@ button { font-family: inherit; cursor: pointer; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+.main.reception-appointments .header-actions,
+.main.reception-appointments .filters-row,
+.main.reception-appointments .table-tabs {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.reception-appointments .header-actions .btn-primary {
+  order: -1;
+}
+
+.reception-appointments .today-summary-title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.reception-appointments .appointment-date {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.reception-appointments .table-wrap {
+  overflow-x: auto;
+}
+
+.reception-appointments .table-base {
+  min-width: 48rem;
+}
+
+#modalViewEdit[hidden] {
+  display: none;
+}

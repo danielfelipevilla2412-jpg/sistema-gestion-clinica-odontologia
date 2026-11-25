@@ -422,14 +422,14 @@ public sealed class CitasApiController : ControllerBase
             return StatusCode(StatusCodes.Status201Created, new
             {
                 success = true,
-                message = "Tu solicitud quedó pendiente de confirmación por recepción.",
+                message = "Tu cita quedó confirmada.",
                 id = cita.IdCita,
                 estado = cita.Estado
             });
         }
         catch (InvalidOperationException ex)
         {
-            if (ex.Message.Contains("horario", StringComparison.OrdinalIgnoreCase))
+            if (ex is SmileTrack_MVC.Exceptions.CitaConflictException || ex.Message.Contains("horario", StringComparison.OrdinalIgnoreCase))
             {
                 var horariosDisponibles = await _citaService.ObtenerHorariosSolicitudPacienteAsync(
                     idPaciente.Value,

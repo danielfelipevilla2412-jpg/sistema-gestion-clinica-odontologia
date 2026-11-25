@@ -38,7 +38,7 @@ NOTAS DE MANTENIMIENTO:
 }
 
   <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
+  <main class="main reception-reminders" id="main-content">
     @Html.AntiForgeryToken()
     @if (TempData["ErrorValidacion"] is string errorMessage)
     {
@@ -56,7 +56,7 @@ NOTAS DE MANTENIMIENTO:
         <h1 class="page-title" data-i18n="notifications.title">Recordatorios y Notificaciones</h1>
         <p class="page-subtitle" data-i18n="rec05.subtitle">Gestiona recordatorios automáticos y manuales por correo electrónico</p>
       </div>
-      <a href="/gestion-de-citas/st-rec-03-gestion-citas" class="btn-primary" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new">+ Nueva cita</a>
+      <a href="/gestion-de-citas/st-rec-03-gestion-citas?nueva=1" class="btn-secondary" aria-label="Crear nueva cita" data-i18n-aria-label="citas.new">+ Nueva cita</a>
     </header>
 
     <!-- Stats con aria-label para sección de estadÍdsticas (patrón canónico st-adm-09) -->
@@ -64,27 +64,29 @@ NOTAS DE MANTENIMIENTO:
       <div class="stat-card" data-color="green">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">send</span>
         <span class="stat-number" id="statsSentCount" data-target="@enviadosHoy" aria-live="polite">@enviadosHoy</span>
-        <span class="stat-label" data-i18n="status.sent">Enviados hoy</span>
+        <span class="stat-label" data-i18n="rec05.sent_today">Enviados hoy</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule_send</span>
         <span class="stat-number" id="statsPendingCount" data-target="@pendientes.Count()" aria-live="polite">@pendientes.Count()</span>
-        <span class="stat-label" data-i18n="status.pending">Pendientes de envío</span>
+        <span class="stat-label" data-i18n="rec05.pending_send">Pendientes de envío</span>
       </div>
     </section>
 
+    <p class="reminders-automation-note" data-i18n="rec05.automatic_note">Con el correo configurado, SmileTrack revisa cada 5 minutos las citas programadas o confirmadas de las próximas 24 horas.</p>
+
     <!-- Grid: Lista + Alertas -->
-    <div class="dashboard-grid">
+    <div class="dashboard-grid reminders-layout">
 
       <!-- Columna izquierda: Recordatorios pendientes + Historial -->
-      <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="reminders-feed">
 
         <!-- Recordatorios pendientes con role region -->
         <section class="reminders-section" aria-labelledby="pendingTitle">
           <div class="section-header">
-            <h2 id="pendingTitle" data-i18n="status.pending">Pendientes de envío</h2>
+            <h2 id="pendingTitle" data-i18n="rec05.pending_send">Pendientes de envío</h2>
             <button class="btn-success" id="btnSendSelected"
-              aria-label="Enviar recordatorios a pacientes seleccionados"><span class="material-symbols-outlined" aria-hidden="true">send</span> Enviar</button>
+              aria-label="Enviar recordatorios a pacientes seleccionados"><span class="material-symbols-outlined" aria-hidden="true">send</span> Enviar selección</button>
           </div>
 
           <!-- Lista con role list y aria-live para anuncios dinámicos -->
@@ -176,7 +178,7 @@ NOTAS DE MANTENIMIENTO:
             </div>
           </div>
           <!-- Alerta amarilla: facturas vencidas -->
-          <div class="alert-item-card yellow-alert" role="listitem" style="@(facturasVencidas > 0 ? "" : "display:none;")">
+          <div class="alert-item-card yellow-alert" id="facturas-vencidas" role="listitem" style="@(facturasVencidas > 0 ? "" : "display:none;")">
             <div class="alert-icon-box material-symbols-outlined" aria-hidden="true">receipt_long</div>
             <div class="alert-content-box">
               <h4>@facturasVencidas factura@(facturasVencidas == 1 ? "" : "s") vencida@(facturasVencidas == 1 ? "" : "s")</h4>

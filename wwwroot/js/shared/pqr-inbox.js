@@ -11,45 +11,65 @@
     let notices = [];
     let loading = false;
 
-    function markRead(notice) {
-        if (notice.leido) return;
-        fetch('/gestion-de-pqr/api/notificaciones/leida', {
-            method: 'POST',
-            credentials: 'same-origin',
-            keepalive: true,
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': inbox.dataset.token },
-            body: JSON.stringify(notice.clave)
-        }).then(response => {
-            if (response.ok && !response.redirected) {
-                notice.leido = true;
-                render();
-                refresh();
+    async function markRead(notice) {
+        try {
+            const response = await fetch('/gestion-de-pqr/api/notificaciones/leida', {
+                method: 'POST',
+                credentials: 'same-origin',
+                keepalive: true,
+                signal: AbortSignal.timeout(10000),
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': inbox.dataset.token },
+                body: new URLSearchParams({ clave: notice.clave })
+            });
+            if (response.status !== 204 || response.redirected) {
+                const code = response.redirected ? 'sesión no disponible' : `HTTP ${response.status}`;
+                throw new Error(code);
             }
-        }).catch(() => {});
+            notices = notices.filter(item => item.clave !== notice.clave);
+            render();
+            return true;
+        } catch (error) {
+            status.hidden = false;
+            status.textContent = `No se pudo guardar la lectura (${error.message}). Intenta de nuevo.`;
+            return false;
+        }
     }
 
     function render() {
-        const unread = notices.filter(notice => !notice.leido).length;
+        const pending = notices.filter(notice => !notice.leido);
+        const unread = pending.length;
         count.hidden = unread === 0;
         count.textContent = String(unread);
         summary.setAttribute('aria-label', unread ? `${title}, ${unread} sin leer` : title);
 
-        list.replaceChildren(...notices.map(notice => {
+        list.replaceChildren(...pending.map(notice => {
             const row = document.createElement('li');
             const link = document.createElement('a');
             link.href = notice.url;
             link.textContent = `${notice.radicado} · ${notice.asunto}`;
             const label = document.createElement('small');
             label.textContent = admin ? 'Nueva solicitud' : 'Respuesta recibida';
-            if (!notice.leido) label.textContent += ' · Sin leer';
             link.append(label);
-            link.addEventListener('click', () => markRead(notice));
+            link.addEventListener('click', async event => {
+                if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+                    void markRead(notice);
+                    return;
+                }
+                event.preventDefault();
+                if (link.getAttribute('aria-busy') === 'true') return;
+                link.setAttribute('aria-busy', 'true');
+                if (await markRead(notice)) {
+                    window.location.assign(link.href);
+                } else {
+                    link.removeAttribute('aria-busy');
+                }
+            });
             link.addEventListener('auxclick', event => { if (event.button === 1) markRead(notice); });
             row.append(link);
             return row;
         }));
-        status.hidden = notices.length > 0;
-        status.textContent = admin ? 'No hay solicitudes nuevas pendientes.' : 'Aún no tienes respuestas.';
+        status.hidden = unread > 0;
+        status.textContent = admin ? 'No hay solicitudes nuevas pendientes.' : 'No tienes respuestas sin leer.';
     }
 
     async function refresh() {

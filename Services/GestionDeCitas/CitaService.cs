@@ -105,12 +105,12 @@ public class CitaService : ICitaService
         _queries = queries;
         _disponibilidad = disponibilidad;
         _emailService = emailService;
+        _httpContextAccessor = httpContextAccessor;
         _recordatorioCitaService = recordatorioCitaService ??
             new RecordatorioCitaService(
                 context,
                 emailService,
                 NullLogger<RecordatorioCitaService>.Instance);
-        _httpContextAccessor = httpContextAccessor;
     }
 
     // =========================================================================
@@ -340,11 +340,21 @@ public class CitaService : ICitaService
             throw new InvalidOperationException($"El rol Recepcionista no tiene permiso para {accion} citas.");
     }
 
-    public async Task<Cita> CrearAsync(
+    public Task<Cita> CrearAsync(
         CitaApiRequest request,
         CancellationToken ct = default,
         int? idUsuarioActor = null,
         string? ipOrigen = null)
+    {
+        return CrearCitaAsync(request, false, ct, idUsuarioActor, ipOrigen);
+    }
+
+    private async Task<Cita> CrearCitaAsync(
+        CitaApiRequest request,
+        bool asignarConsultorio,
+        CancellationToken ct,
+        int? idUsuarioActor,
+        string? ipOrigen)
     {
         await ValidarPermisoRecepcionAsync("agendar", ct);
         if (request is null)
@@ -372,12 +382,6 @@ public class CitaService : ICitaService
             throw new InvalidOperationException("El servicio seleccionado no está disponible.");
         }
 
-        if (request.IdConsultorio is <= 0 ||
-            !await _context.Consultorios.AnyAsync(c => c.IdConsultorio == request.IdConsultorio && (c.Estado == "disponible" || c.Estado == "activo"), ct))
-        {
-            throw new InvalidOperationException("El consultorio seleccionado no está disponible.");
-        }
-
         if (request.FechaHora < ColombiaClock.Now.AddMinutes(-5))
         {
             throw new InvalidOperationException("No se puede agendar una cita en un horario pasado.");
@@ -400,10 +404,21 @@ public class CitaService : ICitaService
 
         var citaCreada = await ExecuteWithSerializableTransactionAsync(async () =>
         {
+            var idConsultorio = asignarConsultorio
+                ? await BuscarConsultorioLibreAsync(request.FechaHora, duracion, null, ct)
+                : request.IdConsultorio;
+            if (asignarConsultorio && idConsultorio is null)
+                throw new CitaConflictException("No hay consultorios disponibles para el horario seleccionado.");
+            if (idConsultorio is > 0 && !await _context.Consultorios.AnyAsync(
+                    c => c.IdConsultorio == idConsultorio && (c.Estado == "disponible" || c.Estado == "activo"), ct))
+                throw new InvalidOperationException("El consultorio seleccionado no está disponible.");
+            if (idConsultorio is <= 0)
+                throw new InvalidOperationException("El consultorio seleccionado no está disponible.");
+
             var conflicto = await VerificarConflictoCompletoAsync(
                 request.IdProfesional!.Value,
                 request.IdPaciente,
-                request.IdConsultorio,
+                idConsultorio,
                 request.FechaHora,
                 duracion,
                 null,
@@ -429,7 +444,7 @@ public class CitaService : ICitaService
                 IdPaciente = request.IdPaciente,
                 IdProfesional = request.IdProfesional,
                 IdServicio = request.IdServicio,
-                IdConsultorio = request.IdConsultorio,
+                IdConsultorio = idConsultorio,
                 FechaHora = request.FechaHora,
                 IdEstado = estadoEntidad.IdEstado,
                 Estado = estadoEntidad.NombreEstado,
@@ -1054,86 +1069,41 @@ public class CitaService : ICitaService
         if (!horarioValido)
             throw new InvalidOperationException(mensajeHorario ?? "El horario solicitado está fuera del horario de atención.");
 
-        if (dto.IdProfesional is > 0)
-        {
-            var elegibles = await _disponibilidad.ObtenerProfesionalesElegiblesPorServicioAsync(servicio.IdServicio, ct);
-            if (!elegibles.Any(p => p.IdProfesional == dto.IdProfesional.Value))
-                throw new InvalidOperationException("El profesional preferido no está habilitado para el servicio seleccionado.");
-        }
+        var disponibles = await _disponibilidad.ObtenerProfesionalesDisponiblesAsync(
+            fechaHora.Date, fechaHora.TimeOfDay, duracion, servicio.IdServicio, ct);
+        var profesional = disponibles.OrderBy(p => p.IdProfesional)
+            .FirstOrDefault(p => dto.IdProfesional == null || p.IdProfesional == dto.IdProfesional);
+        if (profesional is null)
+            throw new CitaConflictException("No hay un profesional disponible para el horario seleccionado.");
 
-        var estadoSolicitud = await ResolverEstadoCatalogoAsync("Solicitada", ct);
-        if (estadoSolicitud is null)
-            throw new InvalidOperationException("No está configurado el estado 'Solicitada' en el catálogo de citas.");
-
-        var cita = new Cita
+        return await CrearCitaAsync(new CitaApiRequest
         {
             IdPaciente = idPaciente,
-            IdProfesional = null,
-            IdProfesionalPreferido = dto.IdProfesional,
+            IdProfesional = profesional.IdProfesional,
             IdServicio = servicio.IdServicio,
-            IdConsultorio = null,
             FechaHora = fechaHora,
-            IdEstado = estadoSolicitud.IdEstado,
-            Estado = estadoSolicitud.NombreEstado,
-            Notas = dto.Notas?.Trim(),
-            MotivoConsulta = dto.Notas?.Trim(),
-            DuracionMinutos = duracion,
-            FechaCreacion = ColombiaClock.Now
-        };
+            Estado = "Confirmada",
+            Notas = dto.Notas
+        }, true, ct, idUsuarioActor, ipOrigen);
+    }
 
-        await ExecuteWithSerializableTransactionAsync(async () =>
-        {
-            bool solicitudDuplicada = await _context.Citas.AnyAsync(c =>
-                c.IdPaciente == idPaciente &&
-                c.IdServicio == servicio.IdServicio &&
-                c.FechaHora == fechaHora &&
-                (c.Estado != null && (c.Estado.ToLower() == "solicitada" || c.Estado.ToLower() == "pendiente")),
-                ct);
-            if (solicitudDuplicada)
-                throw new InvalidOperationException("Ya tienes una solicitud pendiente para ese servicio y horario.");
+    private Task<int?> BuscarConsultorioLibreAsync(DateTime inicio, int duracion, int? idExcluir, CancellationToken ct)
+    {
+        var fin = inicio.AddMinutes(duracion);
+        var excluir = idExcluir ?? 0;
+        var ocupadas = _context.Citas.Where(c =>
+            c.IdCita != excluir && c.IdConsultorio.HasValue
+            && !EstadoCitaHelper.EstadosQueLiberanRecursos.Contains(
+                ((c.EstadoCita != null ? c.EstadoCita.NombreEstado : c.Estado) ?? string.Empty).Trim().ToLower())
+            && c.FechaHora < fin
+            && c.FechaHora.AddMinutes(c.DuracionMinutos > 0 ? c.DuracionMinutos : duracion) > inicio);
 
-            _context.Citas.Add(cita);
-            AgregarHistorialEstado(cita, idUsuarioActor, "Solicitud de cita enviada por el paciente.");
-            await _context.SaveChangesAsync(ct);
-            _context.Auditorias.Add(new Auditoria
-            {
-                Accion = "INSERT",
-                TablaAfectada = "Cita",
-                IdRegistro = cita.IdCita,
-                Descripcion = LimitarDescripcionAuditoria($"Solicitud de cita creada por el paciente. IdPaciente={cita.IdPaciente}, Fecha={cita.FechaHora:yyyy-MM-dd HH:mm}"),
-                DatosNuevos = System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    cita.IdPaciente,
-                    cita.IdProfesional,
-                    cita.IdProfesionalPreferido,
-                    cita.IdServicio,
-                    cita.IdConsultorio,
-                    cita.IdEstado,
-                    cita.Estado,
-                    cita.FechaHora
-                }),
-                IdUsuario = idUsuarioActor,
-                IpOrigen = ipOrigen ?? "CitaService",
-                Fecha = ColombiaClock.Now
-            });
-            await _context.SaveChangesAsync(ct);
-            return true;
-        }, ct);
-
-        try
-        {
-            await CrearNotificacionInternaCitaAsync(
-                cita.IdCita, idPaciente, "solicitud_cita",
-                "Solicitud recibida",
-                $"Recibimos tu solicitud para el {fechaHora:dd/MM/yyyy} a las {fechaHora:HH:mm}. Recepción debe confirmarla.",
-                ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogWarning(ex, "No se pudo completar el registro secundario de la solicitud {IdCita}.", cita.IdCita);
-        }
-
-        return cita;
+        return _context.Consultorios.AsNoTracking()
+            .Where(c => (c.Estado == "disponible" || c.Estado == "activo")
+                && !ocupadas.Any(a => a.IdConsultorio == c.IdConsultorio))
+            .OrderBy(c => c.IdConsultorio)
+            .Select(c => (int?)c.IdConsultorio)
+            .FirstOrDefaultAsync(ct);
     }
 
     public async Task<ListaEsperaCita> RegistrarListaEsperaAsync(
@@ -1193,14 +1163,27 @@ public class CitaService : ICitaService
         return entrada;
     }
 
-    public Task<List<TimeSpan>> ObtenerHorariosSolicitudPacienteAsync(
+    public async Task<List<TimeSpan>> ObtenerHorariosSolicitudPacienteAsync(
         int idPaciente,
         int idServicio,
         int? idProfesionalPreferido,
         DateTime fecha,
         CancellationToken ct = default)
-        => _disponibilidad.ObtenerHorariosSolicitudPacienteAsync(
+    {
+        var horarios = await _disponibilidad.ObtenerHorariosSolicitudPacienteAsync(
             idPaciente, idServicio, idProfesionalPreferido, fecha, ct);
+        if (horarios.Count == 0)
+            return horarios;
+
+        int duracion = await _disponibilidad.ObtenerDuracionServicioAsync(idServicio, ct);
+        var disponibles = new List<TimeSpan>();
+        foreach (var hora in horarios)
+        {
+            if (await BuscarConsultorioLibreAsync(fecha.Date.Add(hora), duracion, null, ct) is not null)
+                disponibles.Add(hora);
+        }
+        return disponibles;
+    }
 
     /// <inheritdoc/>
     public Task<List<TimeSpan>> ObtenerHorariosDisponiblesPacienteAsync(
@@ -1341,125 +1324,137 @@ public class CitaService : ICitaService
         if (dto is null)
             throw new ArgumentNullException(nameof(dto));
 
-        // Serializar la lectura, validación y escritura evita que dos confirmaciones
-        // concurrentes acepten los mismos recursos. El correo queda fuera de la
-        // transacción porque es un efecto externo.
-        var cita = await ExecuteWithSerializableTransactionAsync<Cita?>(async () =>
+        await ValidarPermisoRecepcionAsync("agendar", ct);
+        var confirmada = await ExecuteWithSerializableTransactionAsync<Cita?>(async () =>
         {
-            var solicitud = await _context.Citas
+            var cita = await _context.Citas
                 .Include(c => c.Paciente)
                 .Include(c => c.Servicio)
                 .FirstOrDefaultAsync(c => c.IdCita == idCita, ct);
 
-            if (solicitud is null)
+            if (cita is null)
                 return null;
-            if (NormalizarEstado(solicitud.Estado) is not ("solicitada" or "pendiente"))
+            if (NormalizarEstado(cita.Estado) is not ("solicitada" or "pendiente"))
                 throw new InvalidOperationException("La solicitud ya fue atendida y no está pendiente de asignación.");
 
-            if (!await _context.Profesionales.AnyAsync(
-                    p => p.IdProfesional == dto.IdProfesional && p.Estado == "activo", ct))
+            if (!await _context.Profesionales.AnyAsync(p => p.IdProfesional == dto.IdProfesional && p.Estado == "activo", ct))
                 throw new InvalidOperationException("El profesional seleccionado no es válido o no está activo.");
 
-            if (!await _context.Consultorios.AnyAsync(
-                    c => c.IdConsultorio == dto.IdConsultorio &&
-                         (c.Estado == "disponible" || c.Estado == "activo"), ct))
+            if (!await _context.Consultorios.AnyAsync(c => c.IdConsultorio == dto.IdConsultorio && (c.Estado == "disponible" || c.Estado == "activo"), ct))
                 throw new InvalidOperationException("El consultorio seleccionado no está disponible.");
 
             DateTime fechaHora = dto.Fecha.Date.Add(dto.HoraInicio);
             if (fechaHora < ColombiaClock.Now.AddMinutes(-5))
                 throw new InvalidOperationException("No se puede agendar una cita en fecha u hora pasada.");
 
-            if (solicitud.IdServicio is not > 0)
+            if (cita.IdServicio is not > 0)
                 throw new InvalidOperationException("La solicitud no tiene un servicio válido asignado y no puede confirmarse.");
 
-            int duracion = await _disponibilidad.ObtenerDuracionServicioAsync(solicitud.IdServicio.Value, ct);
+            int duracion = await _disponibilidad.ObtenerDuracionServicioAsync(cita.IdServicio.Value, ct);
 
-            var (horarioValido, mensajeHorario) =
-                await ValidarHorarioClinicaAsync(fechaHora, duracion, ct);
+            // Validar horario clínica
+            var (horarioValido, mensajeHorario) = await ValidarHorarioClinicaAsync(fechaHora, duracion, ct);
             if (!horarioValido)
                 throw new CitaConflictException(mensajeHorario!);
 
-            var disponibilidad = await _disponibilidad.ValidarDisponibilidadProfesionalAsync(
-                dto.IdProfesional, solicitud.IdServicio.Value, fechaHora, duracion, ct);
-            if (!disponibilidad.EsValida)
-                throw new CitaConflictException(disponibilidad.Mensaje!);
+            // Validar disponibilidad del profesional
+            var disp = await _disponibilidad.ValidarDisponibilidadProfesionalAsync(dto.IdProfesional, cita.IdServicio ?? 0, fechaHora, duracion, ct);
+            if (!disp.EsValida)
+                throw new CitaConflictException(disp.Mensaje!);
 
+            var habilitados = _context.Consultorios.AsNoTracking()
+                .Where(c => c.Estado == "disponible" || c.Estado == "activo");
+            var idConsultorio = dto.IdConsultorio;
+            if (idConsultorio.HasValue)
+            {
+                if (!await habilitados.AnyAsync(c => c.IdConsultorio == idConsultorio.Value, ct))
+                    throw new InvalidOperationException("El consultorio seleccionado no está disponible.");
+            }
+            else
+            {
+                idConsultorio = await BuscarConsultorioLibreAsync(fechaHora, duracion, idCita, ct);
+
+                if (!idConsultorio.HasValue)
+                    throw new CitaConflictException("No hay consultorios disponibles para el horario solicitado.");
+            }
+
+            // Validar conflicto de recursos excluyendo la cita actual
             var conflicto = await VerificarConflictoCompletoAsync(
                 idProfesional: dto.IdProfesional,
-                idPaciente: solicitud.IdPaciente,
-                idConsultorio: dto.IdConsultorio,
+                idPaciente: cita.IdPaciente,
+                idConsultorio: idConsultorio,
                 fechaHora: fechaHora,
                 duracionMinutos: duracion,
                 idCitaExcluir: idCita,
                 ct: ct);
+
             if (conflicto.HayConflicto)
                 throw new CitaConflictException(conflicto.Mensaje);
 
+            // Obtener estado 'Confirmada'
             var estadoConfirmada = await _context.EstadosCita
                 .AsNoTracking()
                 .FirstOrDefaultAsync(e => e.NombreEstado.ToLower() == "confirmada", ct);
+
             if (estadoConfirmada is null)
                 throw new InvalidOperationException("No está configurado el estado 'Confirmada' en el catálogo de estados de citas.");
 
             var datosAnteriores = new
             {
-                solicitud.IdPaciente,
-                solicitud.IdProfesional,
-                solicitud.IdProfesionalPreferido,
-                solicitud.IdServicio,
-                solicitud.IdConsultorio,
-                solicitud.IdEstado,
-                solicitud.Estado,
-                solicitud.FechaHora
+                cita.IdPaciente,
+                cita.IdProfesional,
+                cita.IdProfesionalPreferido,
+                cita.IdServicio,
+                cita.IdConsultorio,
+                cita.IdEstado,
+                cita.Estado,
+                cita.FechaHora
             };
-            solicitud.IdProfesional = dto.IdProfesional;
-            solicitud.IdProfesionalPreferido = null;
-            solicitud.IdConsultorio = dto.IdConsultorio;
-            bool cambioHorario = solicitud.Reprogramar(fechaHora);
-            if (!EsEstadoRecordable(solicitud.Estado) || cambioHorario)
-                solicitud.NuevaProgramacion();
-            solicitud.IdEstado = estadoConfirmada.IdEstado;
-            solicitud.Estado = estadoConfirmada.NombreEstado;
-            solicitud.DuracionMinutos = duracion;
-            await SincronizarRecordatoriosAsync(solicitud, nuevaProgramacion: true, ct);
+            cita.IdProfesional = dto.IdProfesional;
+            cita.IdProfesionalPreferido = null;
+            cita.IdConsultorio = idConsultorio;
+            cita.FechaHora = fechaHora;
+            cita.IdEstado = estadoConfirmada.IdEstado;
+            cita.Estado = estadoConfirmada.NombreEstado;
+            cita.DuracionMinutos = duracion;
             if (!string.IsNullOrWhiteSpace(dto.Notas))
-                solicitud.Notas = dto.Notas.Trim();
+                cita.Notas = dto.Notas.Trim();
 
             AgregarHistorialEstado(
-                solicitud,
+                cita,
                 idUsuarioActor,
                 $"Solicitud confirmada y asignada a profesional #{dto.IdProfesional}.");
             _context.Auditorias.Add(new Auditoria
             {
                 Accion = "UPDATE",
                 TablaAfectada = "Cita",
-                IdRegistro = solicitud.IdCita,
+                IdRegistro = cita.IdCita,
                 Descripcion = "Cita confirmada y asignada por recepción.",
                 DatosAnteriores = System.Text.Json.JsonSerializer.Serialize(datosAnteriores),
                 DatosNuevos = System.Text.Json.JsonSerializer.Serialize(new
                 {
-                    solicitud.IdPaciente,
-                    solicitud.IdProfesional,
-                    solicitud.IdProfesionalPreferido,
-                    solicitud.IdServicio,
-                    solicitud.IdConsultorio,
-                    solicitud.IdEstado,
-                    solicitud.Estado,
-                    solicitud.FechaHora
+                    cita.IdPaciente,
+                    cita.IdProfesional,
+                    cita.IdProfesionalPreferido,
+                    cita.IdServicio,
+                    cita.IdConsultorio,
+                    cita.IdEstado,
+                    cita.Estado,
+                    cita.FechaHora
                 }),
                 IdUsuario = idUsuarioActor,
                 IpOrigen = ipOrigen ?? "CitaService",
                 Fecha = ColombiaClock.Now
             });
             await _context.SaveChangesAsync(ct);
-            return solicitud;
-        }, ct, clearTrackerOnRetry: true);
+            return cita;
+        }, ct);
 
-        if (cita is null)
+        if (confirmada is null)
             return null;
 
         // Notificar al paciente por correo si hay servicio de email configurado
-        if (_emailService is not null && cita.Paciente is not null && !string.IsNullOrWhiteSpace(cita.Paciente.Correo))
+        if (_emailService is not null && confirmada.Paciente is not null && !string.IsNullOrWhiteSpace(confirmada.Paciente.Correo))
         {
             var profesional = await _context.Profesionales
                 .Include(p => p.Usuario)
@@ -1473,11 +1468,11 @@ public class CitaService : ICitaService
             try
             {
                 await _emailService.SendCitaNotificacionAsync(
-                    cita.Paciente.Correo,
-                    $"{cita.Paciente.Nombres} {cita.Paciente.Apellidos}".Trim(),
-                    cita.FechaHora,
+                    confirmada.Paciente.Correo,
+                    $"{confirmada.Paciente.Nombres} {confirmada.Paciente.Apellidos}".Trim(),
+                    confirmada.FechaHora,
                     string.IsNullOrWhiteSpace(profNombre) ? "Profesional asignado" : profNombre,
-                    cita.Servicio?.Nombre ?? "Consulta Odontológica",
+                    confirmada.Servicio?.Nombre ?? "Consulta Odontológica",
                     "confirmada",
                     ct);
             }
@@ -1487,7 +1482,7 @@ public class CitaService : ICitaService
             }
         }
 
-        return cita;
+        return confirmada;
     }
     // =========================================================================
     // ENVIAR RECORDATORIOS POR CORREO

@@ -1,3 +1,4 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @* ============================================
    SmileTrack — Módulo: Gestión de Pacientes
    Vista: Historial Clínico Parcial (st-aux-05-historial-parcial)
@@ -44,7 +45,7 @@
 }
 
   <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
+  <main class="main historial-aux" id="main-content">
 
     <!-- Page header con metadatos del paciente -->
     <header class="page-header">
@@ -55,28 +56,58 @@
           <span class="bc-active" data-i18n="historia.title">Historial Clínico</span>
         </nav>
         <h1 class="page-title" data-i18n="historia.title">Historial Clínico — Solo Lectura</h1>
-        <p class="page-subtitle" id="patientMeta" aria-live="polite" data-i18n="common.loading">Cargando...</p>
-      </div>
-      <div class="header-actions">
-        <label for="pacienteSelect" class="visually-hidden">Seleccionar paciente</label>
-        <select id="pacienteSelect" class="status-select" aria-label="Seleccionar paciente">
-          <option value="">Seleccionar paciente</option>
-          @foreach (var paciente in pacientes.Where(p => p.Estado == "activo"))
-          {
-            <option value="@paciente.IdPaciente" selected="@(paciente.IdPaciente == pacienteSeleccionadoId ? "selected" : null)">@paciente.NombresCompleto</option>
-          }
-        </select>
+        <p class="page-subtitle">Consulta clínica parcial · Solo lectura</p>
       </div>
     </header>
 
-    <!-- Contenido principal -->
-    <div class="content">
+    <section class="table-card historial-selector" aria-labelledby="historialSelectorTitle">
+      <h2 id="historialSelectorTitle">Seleccionar paciente</h2>
+      <form method="get" id="historialPacienteForm">
+        <div>
+          <label for="historialPacienteBuscar">Buscar por nombre o últimos 4 caracteres del documento</label>
+          <input type="search" id="historialPacienteBuscar" autocomplete="off" />
+        </div>
+        <div>
+          <label for="pacienteSelect">Paciente</label>
+          <select id="pacienteSelect" name="pacienteId" class="status-select" required>
+            <option value="">Seleccionar paciente</option>
+            @foreach (var paciente in pacientes.Where(p => p.Estado == "activo").OrderBy(p => p.NombresCompleto))
+            {
+              var documento = paciente.Documento?.Trim() ?? "";
+              var sufijo = documento.Length >= 4 ? documento[^4..] : "";
+              <option value="@paciente.IdPaciente" data-sufijo="@sufijo" selected="@(paciente.IdPaciente == pacienteSeleccionadoId ? "selected" : null)">@paciente.NombresCompleto @(sufijo.Length > 0 ? $"· ••••{sufijo}" : "")</option>
+            }
+          </select>
+        </div>
+        <button type="submit" class="btn-primary">Consultar historial</button>
+      </form>
+      <p id="historialBusquedaEstado" role="status"></p>
+      <p id="historialCarga" role="status" hidden>Cargando historial…</p>
+    </section>
+
+    @if (TempData["ErrorValidacion"] is string error)
+    {
+      <p role="alert">@error</p>
+    }
+    @if (pacienteSeleccionadoId == 0)
+    {
+      <p class="historial-inicio">@(Context.Request.Query.ContainsKey("pacienteId") || Context.Request.Query.ContainsKey("editId")
+          ? "El historial de ese paciente no está disponible. Selecciona un paciente de la lista."
+          : "Elige un paciente para consultar sus atenciones y registros clínicos.")</p>
+    }
+    else
+    {
+    <div class="content" id="historialPacienteContenido">
+      <section class="table-card historial-ficha" aria-label="Paciente seleccionado">
+        <p id="patientMeta"></p>
+        <a class="btn-secondary" href="/gestion-de-pacientes/st-aux-05-historial-parcial#historialPacienteBuscar">Cambiar paciente</a>
+      </section>
 
       <!-- Alerta médica: role/aria-live arrancan neutros y el JS los escala a "alert"/"assertive"
            solo si el paciente tiene alergias registradas (ver renderAlerta en el JS). Los spans
            internos NO llevan aria-live propio: anidar live regions es un anti-patrón ARIA que
            hacía que el navegador anunciara los cambios como "polite" en vez de "assertive". -->
-      <div class="alerta-medica" id="alertaMedica" role="status" aria-live="polite">
+      <div class="alerta-medica historial-clinico-resumen" id="alertaMedica" role="status" aria-live="polite">
         <div class="alerta-medica-title">
           <span class="material-symbols-outlined" aria-hidden="true">warning</span>
           <span data-i18n="common.warning">ALERTA MÉDICA — LEER ANTES DE PROCEDER</span>
@@ -138,6 +169,7 @@
 
     </div>
 
+    }
   </main>
 
   <!-- Toast container con atributos ARIA para notificaciones -->
@@ -147,11 +179,6 @@
 
   <script>
     window.smiletrackHistorialParcialData = @Html.Raw(historialParcialDataJson);
-    document.getElementById('pacienteSelect')?.addEventListener('change', function () {
-      const params = new URLSearchParams(window.location.search);
-      if (this.value) params.set('pacienteId', this.value); else params.delete('pacienteId');
-      window.location.search = params.toString();
-    });
   </script>
 @section Scripts {
     <script src="~/js/Gestion_De_Pacientes/st-aux-05-historial-parcial/historial-parcial.js" asp-append-version="true" defer></script>

@@ -27,8 +27,8 @@
       headers,
       credentials: 'same-origin'
     });
-    const payload = await response.json();
-    if (!response.ok || payload?.success === false) {
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload || payload.success === false) {
       throw new Error(payload?.message || `La solicitud falló (${response.status}).`);
     }
     return payload;
@@ -52,153 +52,202 @@
     cancelEditButton.hidden = true;
   };
 
-  const createCell = (text) => {
-    const cell = document.createElement('td');
-    cell.textContent = text || '—';
-    return cell;
-  };
+  const byId = id => document.getElementById(id);
+  const dialog = byId('absenceDialog');
+  const start = byId('absenceFechaInicio');
+  const end = byId('absenceFechaFin');
+  const editingId = byId('absenceId');
+  const previewButton = byId('absencePreview');
+  const impact = byId('absenceImpact');
+  const confirmImpact = byId('absenceConfirmInput');
+  const formFeedback = byId('absenceFormFeedback');
+  const states = { curso: 'En curso', proximas: 'Próxima', historial: 'Finalizada' };
+  let absences = [];
+  let today = '';
+  let busy = false;
+  let reviewedCount = null;
 
-  const renderAbsences = (items) => {
+  function invalidatePreview() {
+    end.min = start.value;
+    reviewedCount = null;
+    impact.hidden = true;
+    confirmImpact.checked = false;
+    formFeedback.textContent = '';
+  }
+
+  function openForm(item) {
+    form.reset();
+    editingId.value = item?.idAusencia || '';
+    professionalSelect.disabled = !!item;
+    professionalSelect.value = item?.idProfesional || byId('absenceFilterProfessional').value;
+    byId('absenceTipo').value = item?.tipo || 'vacaciones';
+    start.value = item?.fechaInicio || '';
+    end.value = item?.fechaFin || '';
+    byId('absenceObservaciones').value = item?.observaciones || '';
+    byId('absenceFormTitle').textContent = item ? 'Editar ausencia' : 'Nueva ausencia';
+    saveButton.textContent = item ? 'Guardar cambios' : 'Registrar ausencia';
+    cancelEditButton.textContent = item ? 'Cancelar edición' : 'Cerrar';
+    invalidatePreview();
+    dialog.showModal();
+  }
+
+  function cell(text) {
+    const td = document.createElement('td');
+    td.textContent = text || '—';
+    return td;
+  }
+
+  function render() {
+    const professional = byId('absenceFilterProfessional').value;
+    const type = byId('absenceFilterType').value;
+    const period = byId('absenceFilterPeriod').value;
     rows.replaceChildren();
-    if (!items.length) {
-      const row = document.createElement('tr');
-      const cell = createCell('No hay ausencias registradas para este profesional.');
-      cell.colSpan = 6;
-      row.appendChild(cell);
-      rows.appendChild(row);
-      return;
-    }
+    for (const item of absences) {
+      const state = item.fechaFin < today ? 'historial' : item.fechaInicio > today ? 'proximas' : 'curso';
+      if ((professional && String(item.idProfesional) !== professional) || (type && item.tipo !== type)) continue;
+      if (period !== 'todas' && !(period === 'vigentes' ? state !== 'historial' : state === period)) continue;
 
-    for (const item of items) {
-      const row = document.createElement('tr');
-      row.append(
-        createCell(professionalSelect.selectedOptions[0]?.textContent),
-        createCell(item.tipo),
-        createCell(item.fechaInicio),
-        createCell(item.fechaFin),
-        createCell(item.observaciones)
-      );
-
-      const actions = document.createElement('td');
-      const edit = document.createElement('button');
-      edit.type = 'button';
-      edit.className = 'btn-secondary';
-      edit.textContent = 'Editar';
-      edit.dataset.action = 'edit';
-      edit.dataset.id = String(item.idAusencia);
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'btn-danger';
-      remove.textContent = 'Eliminar';
-      remove.dataset.action = 'delete';
-      remove.dataset.id = String(item.idAusencia);
-      actions.append(edit, remove);
-      row.appendChild(actions);
-      rows.appendChild(row);
-    }
-  };
-
-  const loadAbsences = async () => {
-    const professionalId = professionalSelect.value;
-    resetForm();
-    if (!professionalId) {
-      renderAbsences([]);
-      setFeedback('');
-      return;
-    }
-
-    rows.replaceChildren();
-    const loadingRow = document.createElement('tr');
-    const loadingCell = createCell('Cargando ausencias…');
-    loadingCell.colSpan = 6;
-    loadingRow.appendChild(loadingCell);
-    rows.appendChild(loadingRow);
-
-    try {
-      const payload = await apiRequest(`${apiBase}/${encodeURIComponent(professionalId)}/ausencias`);
-      renderAbsences(Array.isArray(payload.data) ? payload.data : []);
-      setFeedback('');
-    } catch (error) {
-      renderAbsences([]);
-      setFeedback(`No se pudieron cargar las ausencias: ${error.message}`, true);
-    }
-  };
-
-  const previewConflicts = async (professionalId, payload) => {
-    const query = new URLSearchParams({
-      fechaInicio: payload.fechaInicio,
-      fechaFin: payload.fechaFin
-    });
-    return apiRequest(`${apiBase}/${encodeURIComponent(professionalId)}/ausencias/preview?${query}`);
-  };
-
-  const confirmAffectedAppointments = (appointments) => {
-    const details = appointments.map((appointment) =>
-      `${appointment.fechaHora} — ${appointment.paciente} (${appointment.servicio})`
-    ).join('\n');
-    return window.confirm(
-      `Hay ${appointments.length} cita(s) dentro del período. Si continúas, el sistema intentará reasignarlas y cancelará las que no pueda reasignar.\n\n${details}\n\n¿Deseas continuar?`
-    );
-  };
-
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const professionalId = professionalSelect.value;
-    if (!professionalId) {
-      setFeedback('Selecciona un profesional.', true);
-      return;
-    }
-
-    const absenceId = document.getElementById('absenceId').value;
-    const payload = {
-      tipo: document.getElementById('absenceTipo').value,
-      fechaInicio: document.getElementById('absenceFechaInicio').value,
-      fechaFin: document.getElementById('absenceFechaFin').value,
-      observaciones: document.getElementById('absenceObservaciones').value || null
-    };
-    startDateInput.removeAttribute('aria-invalid');
-    endDateInput.removeAttribute('aria-invalid');
-    endDateInput.removeAttribute('aria-describedby');
-    if (payload.fechaFin < payload.fechaInicio) {
-      endDateInput.setAttribute('aria-invalid', 'true');
-      endDateInput.setAttribute('aria-describedby', 'absenceFeedback');
-      endDateInput.focus();
-      setFeedback('La fecha de fin debe ser igual o posterior a la fecha de inicio.', true);
-      return;
-    }
-
-    saveButton.disabled = true;
-    try {
-      let result;
-      if (absenceId) {
-        result = await apiRequest(
-          `${apiBase}/${encodeURIComponent(professionalId)}/ausencias/${encodeURIComponent(absenceId)}`,
-          { method: 'PUT', body: JSON.stringify(payload) }
-        );
-      } else {
-        const preview = await previewConflicts(professionalId, payload);
-        if (preview.count > 0) {
-          if (!confirmAffectedAppointments(preview.data || [])) return;
-          result = await apiRequest(
-            `${apiBase}/${encodeURIComponent(professionalId)}/ausencias-reasignar`,
-            { method: 'POST', body: JSON.stringify(payload) }
-          );
-        } else {
-          result = await apiRequest(
-            `${apiBase}/${encodeURIComponent(professionalId)}/ausencias`,
-            { method: 'POST', body: JSON.stringify(payload) }
-          );
-        }
+      const row = rows.insertRow();
+      const status = cell('');
+      const badge = document.createElement('span');
+      badge.className = 'absence-badge';
+      badge.dataset.state = state;
+      badge.textContent = states[state];
+      status.replaceChildren(badge);
+      const actions = cell('');
+      actions.className = 'absence-actions';
+      actions.replaceChildren();
+      for (const [action, label] of [['edit', 'Editar'], ['delete', 'Eliminar']]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = action === 'edit' ? 'btn-secondary' : 'btn-danger';
+        button.dataset.action = action;
+        button.dataset.id = item.idAusencia;
+        button.textContent = label;
+        actions.append(button);
       }
+      const typeLabel = byId('absenceFilterType').querySelector(`option[value="${['vacaciones','incapacidad','permiso','otro'].includes(item.tipo) ? item.tipo : 'otro'}"]`)?.textContent;
+      const formatDate = date => date.split('-').reverse().join('/');
+      row.append(cell(item.profesional), cell(typeLabel), cell(`${formatDate(item.fechaInicio)} – ${formatDate(item.fechaFin)}`),
+        status, cell(item.observaciones), actions);
+    }
+    if (!rows.children.length) {
+      const empty = cell('No hay ausencias para estos filtros.');
+      empty.colSpan = 6;
+      rows.insertRow().append(empty);
+    }
+  }
 
-      const successMessage = result.message || 'Ausencia guardada correctamente.';
-      resetForm();
-      await loadAbsences();
-      setFeedback(successMessage);
+  async function loadAbsences() {
+    const reload = byId('absenceReload');
+    reload.disabled = true;
+    try {
+      const result = await apiRequest('/gestion-de-profesionales/ausencias/datos');
+      absences = result.data;
+      today = result.hoy;
+      render();
     } catch (error) {
-      setFeedback(`No se pudo guardar la ausencia: ${error.message}`, true);
+      setFeedback(`No se pudieron cargar las ausencias: ${error.message}`, true);
     } finally {
-      saveButton.disabled = false;
+      reload.disabled = false;
+    }
+  }
+
+  function setBusy(value) {
+    busy = value;
+    for (const control of [previewButton, saveButton, cancelEditButton, start, end, byId('absenceTipo'), byId('absenceObservaciones'), confirmImpact]) {
+      control.disabled = value;
+    }
+    professionalSelect.disabled = value || !!editingId.value;
+  }
+
+  function validate() {
+    formFeedback.textContent = '';
+    if (!form.reportValidity()) return false;
+    if (end.value < start.value) {
+      formFeedback.textContent = 'La fecha final debe ser igual o posterior a la inicial.';
+      return false;
+    }
+    if (absences.some(item => String(item.idProfesional) === professionalSelect.value
+      && String(item.idAusencia) !== editingId.value && item.fechaInicio <= end.value && item.fechaFin >= start.value)) {
+      formFeedback.textContent = 'El periodo se cruza con otra ausencia del profesional.';
+      return false;
+    }
+    return true;
+  }
+
+  async function preview() {
+    const query = new URLSearchParams({ fechaInicio: start.value, fechaFin: end.value });
+    const result = await apiRequest(`${apiBase}/${professionalSelect.value}/ausencias/preview?${query}`);
+    const list = byId('absenceImpactList');
+    list.replaceChildren();
+    for (const appointment of result.data) {
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = `/gestion-de-citas/st-rec-03-gestion-citas?verId=${encodeURIComponent(appointment.idCita)}`;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      const [date, time] = String(appointment.fechaHora).split('T');
+      link.textContent = `${date.split('-').reverse().join('/')} ${(time || '').slice(0, 5)} · ${appointment.paciente} · ${appointment.servicio}`;
+      item.append(link);
+      list.append(item);
+    }
+    byId('absenceImpactText').textContent = result.count === 0 ? 'No hay citas afectadas.'
+      : editingId.value
+        ? `${result.count} cita(s) requieren gestión manual después de guardar los cambios.`
+        : `${result.count} cita(s) afectadas. Al confirmar, el sistema intentará reasignarlas y cancelará las que no pueda reasignar.`;
+    const agenda = byId('absenceAgendaLink');
+    const filters = new URLSearchParams({ vista: 'todas', profesional: professionalSelect.value, desde: start.value, hasta: end.value });
+    agenda.href = `/gestion-de-citas/st-rec-03-gestion-citas?${filters}`;
+    agenda.hidden = result.count === 0;
+    byId('absenceConfirmImpact').hidden = result.count === 0;
+    reviewedCount = result.count;
+    impact.hidden = false;
+  }
+
+  previewButton.addEventListener('click', async () => {
+    if (busy || !validate()) return;
+    invalidatePreview();
+    setBusy(true);
+    try { await preview(); }
+    catch (error) { formFeedback.textContent = error.message; }
+    finally { setBusy(false); }
+  });
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (busy || !validate()) return;
+    const payload = {
+      tipo: byId('absenceTipo').value,
+      fechaInicio: start.value,
+      fechaFin: end.value,
+      observaciones: byId('absenceObservaciones').value.trim() || null
+    };
+    const id = editingId.value;
+    const base = `${apiBase}/${professionalSelect.value}/ausencias`;
+    setBusy(true);
+    try {
+      if (reviewedCount === null) {
+        await preview();
+        formFeedback.textContent = 'Revisa el resultado antes de confirmar el guardado.';
+        return;
+      }
+      if (reviewedCount > 0 && !confirmImpact.checked) {
+        formFeedback.textContent = 'Confirma que revisaste las citas afectadas.';
+        return;
+      }
+      const result = await apiRequest(id ? `${base}/${id}` : reviewedCount > 0 ? `${base}-reasignar` : base, {
+        method: id ? 'PUT' : 'POST',
+        body: JSON.stringify(payload)
+      });
+      dialog.close();
+      setFeedback(result.message || 'Ausencia guardada.');
+      await loadAbsences();
+    } catch (error) {
+      invalidatePreview();
+      formFeedback.textContent = error.message;
+    } finally {
+      setBusy(false);
     }
   });
 
@@ -210,52 +259,32 @@
     });
   });
 
-  rows.addEventListener('click', async (event) => {
+  rows.addEventListener('click', async event => {
     const button = event.target.closest('button[data-action]');
-    if (!button) return;
-
-    const professionalId = professionalSelect.value;
-    const absenceId = button.dataset.id;
-    if (!professionalId || !absenceId) return;
-
+    const item = button && absences.find(a => String(a.idAusencia) === button.dataset.id);
+    if (!item) return;
     if (button.dataset.action === 'edit') {
-      try {
-        const payload = await apiRequest(`${apiBase}/${encodeURIComponent(professionalId)}/ausencias`);
-        const item = (payload.data || []).find((absence) => String(absence.idAusencia) === absenceId);
-        if (!item) throw new Error('La ausencia seleccionada ya no está disponible.');
-        document.getElementById('absenceId').value = String(item.idAusencia);
-        document.getElementById('absenceTipo').value = item.tipo;
-        document.getElementById('absenceFechaInicio').value = item.fechaInicio;
-        document.getElementById('absenceFechaFin').value = item.fechaFin;
-        document.getElementById('absenceObservaciones').value = item.observaciones || '';
-        saveButton.textContent = 'Guardar cambios';
-        cancelEditButton.hidden = false;
-        document.getElementById('absenceFormTitle').scrollIntoView({ behavior: 'smooth' });
-        setFeedback('Editando ausencia seleccionada.');
-      } catch (error) {
-        setFeedback(`No se pudo cargar la ausencia: ${error.message}`, true);
-      }
+      openForm(item);
       return;
     }
-
-    if (!window.confirm('¿Eliminar esta ausencia? Esta acción no se puede deshacer.')) return;
+    if (!window.confirm('¿Eliminar esta ausencia?')) return;
     button.disabled = true;
     try {
-      const result = await apiRequest(
-        `${apiBase}/${encodeURIComponent(professionalId)}/ausencias/${encodeURIComponent(absenceId)}`,
-        { method: 'DELETE' }
-      );
-      const successMessage = result.message || 'Ausencia eliminada.';
+      const result = await apiRequest(`${apiBase}/${item.idProfesional}/ausencias/${item.idAusencia}`, { method: 'DELETE' });
+      setFeedback(result.message || 'Ausencia eliminada.');
       await loadAbsences();
-      setFeedback(successMessage);
     } catch (error) {
-      setFeedback(`No se pudo eliminar la ausencia: ${error.message}`, true);
+      setFeedback(error.message, true);
     } finally {
       button.disabled = false;
     }
   });
 
-  professionalSelect.addEventListener('change', loadAbsences);
-  cancelEditButton.addEventListener('click', resetForm);
-  document.getElementById('absenceReload').addEventListener('click', loadAbsences);
+  for (const id of ['absenceFilterProfessional', 'absenceFilterType', 'absenceFilterPeriod']) byId(id).addEventListener('change', render);
+  for (const control of [professionalSelect, start, end]) control.addEventListener('input', invalidatePreview);
+  dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
+  cancelEditButton.addEventListener('click', () => dialog.close());
+  byId('absenceNew').addEventListener('click', () => openForm());
+  byId('absenceReload').addEventListener('click', loadAbsences);
+  loadAbsences();
 })();

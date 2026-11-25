@@ -26,7 +26,7 @@
 }
 
   <!-- ----- MAIN ----- -->
-  <main class="main" id="main-content">
+  <main class="main reception-dashboard" id="main-content">
 
     <!-- Page header -->
     <header class="page-header">
@@ -61,25 +61,21 @@
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event</span>
         <span class="stat-number" id="statCitasHoy" data-target="0" aria-live="polite">0</span>
         <span class="stat-label" data-i18n="rec01.stat_today">Citas hoy</span>
-        <span class="stat-sub">Hoy</span>
       </div>
       <div class="stat-card" data-color="green">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">event_available</span>
         <span class="stat-number" id="statConfirmadas" data-target="0" aria-live="polite">0</span>
-        <span class="stat-label" data-i18n="status.confirmed">Confirmadas</span>
-        <span class="stat-sub">Este turno</span>
+        <span class="stat-label" data-i18n="rec01.confirmed_today">Confirmadas hoy</span>
       </div>
       <div class="stat-card" data-color="orange">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">schedule</span>
         <span class="stat-number" id="statPendientes" data-target="0" aria-live="polite">0</span>
-        <span class="stat-label" data-i18n="status.pending">Pendientes</span>
-        <span class="stat-sub">Por atender</span>
+        <span class="stat-label" data-i18n="rec01.pending_confirmation">Pendientes de confirmación</span>
       </div>
       <div class="stat-card" data-color="purple">
         <span class="material-symbols-outlined stat-icon" aria-hidden="true">receipt_long</span>
         <span class="stat-number" id="statFacturasPendientes" data-target="0" aria-live="polite">0</span>
-        <span class="stat-label" data-i18n="rec01.stat_invoices_pending">Facturas pendientes</span>
-        <span class="stat-sub">Sin pagar</span>
+        <span class="stat-label" data-i18n="rec01.unpaid_invoices">Facturas con saldo pendiente</span>
       </div>
     </section>
 
@@ -87,7 +83,10 @@
     <!-- [MEJORA]: role="group" para botones relacionados -->
     <div class="action-buttons-row" role="group" aria-label="Acciones rápidas" data-i18n-aria-label="rec01.quick_actions_aria">
       <!-- [MEJORA]: aria-label descriptivo para cada botón -->
-      <button class="btn-primary" id="btnNuevoPaciente" aria-label="Registrar nuevo paciente en el sistema" data-i18n-aria-label="rec01.btn_new_patient_aria">
+      <a class="btn-primary" href="/gestion-de-citas/st-rec-03-gestion-citas?nueva=1">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span> <span data-i18n="citas.new">Nueva cita</span>
+      </a>
+      <button class="btn-secondary" id="btnNuevoPaciente" aria-label="Registrar nuevo paciente en el sistema" data-i18n-aria-label="rec01.btn_new_patient_aria">
         <span class="material-symbols-outlined" aria-hidden="true">person_add</span> <span data-i18n="patients.new">Nuevo paciente</span>
       </button>
       <button class="btn-secondary" id="btnGenerarFactura" aria-label="Generar nueva factura para paciente" data-i18n-aria-label="rec01.btn_generate_invoice_aria">
@@ -100,6 +99,13 @@
 
       <!-- Table Section -->
       <div class="table-section">
+        <div class="reception-agenda-heading">
+          <div>
+            <h2 data-i18n="rec01.agenda_today">Agenda de hoy</h2>
+            <p id="receptionAgendaDate"></p>
+          </div>
+          <a class="btn-secondary" href="/gestion-de-citas/st-rec-03-gestion-citas" data-i18n="rec01.open_appointments">Ir a Gestión de Citas</a>
+        </div>
         <div class="table-wrap">
           <!-- [MEJORA]: aria-label y role para tabla accesible -->
           <table class="table-base" aria-label="Listado de citas del día" data-i18n-aria-label="rec01.table_aria">
@@ -145,18 +151,10 @@
                 <span class="icon orange material-symbols-outlined" aria-hidden="true">receipt_long</span>
                 <span id="alertFacturasVencidasText">0 facturas vencidas</span>
               </div>
-              <button class="btn-notify btn-notify-orange" data-alert="facturas-vencidas"
-                aria-label="Enviar recordatorio de pago por facturas vencidas">Notificar</button>
+              <a class="btn-notify btn-notify-orange" href="/gestion-de-citas/st-rec-05-recordatorios#facturas-vencidas" data-i18n="rec01.review_overdue">Revisar facturas vencidas</a>
             </div>
             <p id="alertsEmptyState" style="font-size:.8rem;color:var(--text-muted);display:none;">Sin alertas pendientes.</p>
           </div>
-        </div>
-
-        <!-- Sistema en línea -->
-        <div class="sidebar-card">
-          <h4 class="sidebar-card-title"><span class="material-symbols-outlined" aria-hidden="true">monitor_heart</span> Estado del sistema</h4>
-          <p style="font-size:.85rem;color:var(--text-muted);">Todos los servicios operativos</p>
-          <p style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">última verificación: <span id="systemLastCheck">—</span></p>
         </div>
 
       </aside>

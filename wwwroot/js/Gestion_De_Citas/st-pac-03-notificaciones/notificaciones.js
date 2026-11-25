@@ -36,7 +36,7 @@ let notificationsList = initialRawNotifications.map(item => ({
 }));
 
 let currentFilterType = 'all';
-let showOnlyUnreadState = false;
+let showOnlyUnreadState = true;
 let lastActiveTriggerElement = null;
 
 // ═══════════════════════════════════════════════════════════════════
@@ -216,8 +216,9 @@ const createNotificationCardElement = (item) => {
       <div class="notification-card__footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
         <time class="notification-card__time" datetime="${escapeHtml(item.time)}">${escapeHtml(item.displayTime)}</time>
         <div class="card-actions" style="display:flex; gap:6px;">
-          <button type="button" class="btn-icon btn-view-detail" data-id="${item.id}" title="${t('pqr.view_details', 'Ver detalle')}" aria-label="${t('pac_notif.view_detail_aria', 'Ver detalle de la notificación')}">
-            <span class="material-symbols-outlined" style="font-size:1.1rem;">visibility</span>
+          <button type="button" class="btn-secondary btn-view-detail" data-id="${item.id}" title="${t('pqr.view_details', 'Ver detalle')}" aria-label="${t('pac_notif.view_detail_aria', 'Ver detalle de la notificación')}">
+            <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+            ${t('pqr.view_details', 'Ver detalle')}
           </button>
           ${!item.leida ? `
           <button type="button" class="btn-icon btn-mark-read" data-id="${item.id}" title="${t('pac_notif.mark_read', 'Marcar como leída')}" aria-label="${t('pac_notif.mark_read', 'Marcar como leída')}">
@@ -248,19 +249,21 @@ const renderNotificationsList = () => {
     ? `${filteredData.length} ${t('pac_notif.count_result', 'resultado')}`
     : `${filteredData.length} ${t('pac_notif.count_results', 'resultados')}`;
   
+  const markAllButton = safeGetElement('btnMarkAllRead');
+  if (markAllButton) markAllButton.disabled = notificationsList.every(item => item.leida);
+
+  if (emptyStateElement) emptyStateElement.hidden = filteredData.length > 0;
   if (!filteredData.length) {
-    if (emptyStateElement) {
-      emptyStateElement.style.display = 'flex';
-      emptyStateElement.setAttribute('aria-hidden', 'false');
-    }
+    const emptyText = safeGetElement('notificationEmptyText');
+    const hasFilters = !!safeGetElement('searchInput')?.value.trim() || currentFilterType !== 'all';
+    if (emptyText) emptyText.textContent = hasFilters
+      ? t('pac_notif.empty_matches', 'Ninguna notificación coincide con los filtros.')
+      : showOnlyUnreadState
+        ? t('pac_notif.empty_unread', 'Estás al día. Consulta Todas para ver el historial.')
+        : t('pac_notif.empty_history', 'Todavía no tienes notificaciones.');
     return;
   }
-  
-  if (emptyStateElement) {
-    emptyStateElement.style.display = 'none';
-    emptyStateElement.setAttribute('aria-hidden', 'true');
-  }
-  
+
   filteredData.forEach(item => {
     const cardElement = createNotificationCardElement(item);
     listContainer.appendChild(cardElement);
@@ -294,6 +297,9 @@ const openModalDetail = (notif, triggerElement) => {
   if (actionButton) {
     if (notif.urlAccion) {
       actionButton.href = notif.urlAccion;
+      safeGetElement('notificationActionLabel').textContent = notif.idCita
+        ? t('notifications.view_appointment', 'Ver cita')
+        : t('notifications.go_to_section', 'Ir a la sección');
       actionButton.style.display = 'inline-flex';
     } else {
       actionButton.style.display = 'none';
@@ -319,6 +325,8 @@ const closeModalDetail = () => {
 
   if (lastActiveTriggerElement && typeof lastActiveTriggerElement.focus === 'function' && document.contains(lastActiveTriggerElement)) {
     lastActiveTriggerElement.focus();
+  } else {
+    document.querySelector('[data-read-filter][aria-pressed="true"]')?.focus();
   }
   lastActiveTriggerElement = null;
 };
@@ -417,36 +425,6 @@ const markAllNotificationsAsRead = async () => {
   }
 };
 
-const handleFilterChipClick = (chipElement) => {
-  document.querySelectorAll('.chip').forEach(chip => {
-    chip.classList.remove('chip--active');
-    chip.setAttribute('aria-pressed', 'false');
-  });
-  
-  chipElement.classList.add('chip--active');
-  chipElement.setAttribute('aria-pressed', 'true');
-  
-  currentFilterType = chipElement.dataset.filter;
-  renderNotificationsList();
-};
-
-const toggleUnreadFilterMode = () => {
-  showOnlyUnreadState = !showOnlyUnreadState;
-  const toggleBtn = safeGetElement('btnToggleUnread');
-  const toggleLabel = safeGetElement('lblToggleUnread');
-  if (toggleBtn) {
-    toggleBtn.setAttribute('aria-pressed', String(showOnlyUnreadState));
-    toggleBtn.classList.toggle('btn-primary', showOnlyUnreadState);
-    toggleBtn.classList.toggle('btn-secondary', !showOnlyUnreadState);
-  }
-  if (toggleLabel) toggleLabel.textContent = showOnlyUnreadState ? t('notifications.show_all', 'Ver todas') : t('notifications.only_unread', 'Solo no leídas');
-  renderNotificationsList();
-};
-
-// ═══════════════════════════════════════════════════════════════════
-// 7. INICIALIZACIÓN Y EVENT LISTENERS
-// ═══════════════════════════════════════════════════════════════════
-
 const setupModalEventListeners = () => {
   const modalElement = safeGetElement('modalNotifDetail');
   safeGetElement('modalNotifClose')?.addEventListener('click', closeModalDetail);
@@ -477,10 +455,22 @@ const initializeNotificationsModule = () => {
     });
   }
   
-  document.querySelectorAll('.chip').forEach(chipElement => {
-    chipElement.addEventListener('click', () => handleFilterChipClick(chipElement));
+  const modeButtons = document.querySelectorAll('[data-read-filter]');
+  modeButtons.forEach(button => button.addEventListener('click', () => {
+    showOnlyUnreadState = button.dataset.readFilter === 'unread';
+    modeButtons.forEach(item => {
+      const active = item === button;
+      item.setAttribute('aria-pressed', String(active));
+      item.classList.toggle('btn-primary', active);
+      item.classList.toggle('btn-secondary', !active);
+    });
+    renderNotificationsList();
+  }));
+  safeGetElement('filterNotificationType')?.addEventListener('change', event => {
+    currentFilterType = event.target.value;
+    renderNotificationsList();
   });
-  
+
   const searchInputElement = safeGetElement('searchInput');
   if (searchInputElement) {
     const debouncedRenderHandler = debounce(renderNotificationsList, DEBOUNCE_DELAY_MS);
@@ -488,7 +478,6 @@ const initializeNotificationsModule = () => {
   }
   
   safeGetElement('btnMarkAllRead')?.addEventListener('click', markAllNotificationsAsRead);
-  safeGetElement('btnToggleUnread')?.addEventListener('click', toggleUnreadFilterMode);
 
   fetchNotificationsApi();
 };

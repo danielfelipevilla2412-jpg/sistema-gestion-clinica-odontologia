@@ -248,3 +248,35 @@ td.td-doctor { font-weight: 600; font-size: .82rem; }
 @media (max-width: 480px) {
   .main .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+.main.patient-appointments .page-header {
+  gap: var(--space-3, 12px);
+}
+
+.main.patient-appointments .page-header .btn-primary {
+  align-self: flex-end;
+}
+
+.main.patient-appointments .stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.main.patient-appointments .table-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.main.patient-appointments .table-wrap {
+  overflow-x: auto;
+}
+
+.main.patient-appointments #citasTable {
+  min-width: 40rem;
+}
+
+@media (max-width: 850px) {
+  .main.patient-appointments .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
