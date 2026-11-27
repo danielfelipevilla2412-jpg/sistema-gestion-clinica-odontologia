@@ -150,12 +150,31 @@ List<SmileTrack_MVC.Models.Entities.Profesional> ?? new();
                             <select id="filterStatus" name="estado" class="status-select" aria-label="Filtrar por estado" data-i18n-aria-label="adm09_filter_status_aria">
                                 <option value="" data-i18n="adm09_filter_status_all">Todos los estados</option>
                                 @{
-                                    var estados = new[] { "programada", "confirmada", "atendida", "cancelada", "no_asistida" };
+                                    var estados = new[]
+                                    {
+                                        "solicitada",
+                                        "programada",
+                                        "confirmada",
+                                        "en_sala_de_espera",
+                                        "en_proceso",
+                                        "atendida",
+                                        "rechazada",
+                                        "cancelada",
+                                        "no_asistida"
+                                    };
                                     foreach (var estado in estados)
                                     {
                                         var isSelected = estadoFilterNormalized == estado;
+                                        var nombreEstado = estado switch
+                                        {
+                                            "en_sala_de_espera" => "En sala de espera",
+                                            "en_proceso" => "En atención",
+                                            "no_asistida" => "No asistió",
+                                            _ => char.ToUpper(estado[0]) + estado.Substring(1)
+                                        };
                                         <option value="@estado" selected="@isSelected">
-                                            @(estado == "no_asistida" ? "No asistió" : char.ToUpper(estado[0]) + estado.Substring(1))</option>
+                                            @nombreEstado
+                                        </option>
                                         }
                                     }
                                 </select>

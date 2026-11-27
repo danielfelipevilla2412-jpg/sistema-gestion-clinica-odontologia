@@ -25,7 +25,7 @@ public sealed class ChatbotServiceTests
         var response = _chatbot.Respond(
             "Recepcionista",
             null,
-            "/centro-de-ayuda/guias-tutoriales",
+            "/",
             "¿Cómo programo una cita?");
 
         Assert.Contains("agenda correspondiente", response.Message, StringComparison.OrdinalIgnoreCase);
@@ -33,7 +33,22 @@ public sealed class ChatbotServiceTests
         Assert.Contains(response.Actions, action =>
             action.Url == "/gestion-de-citas/st-rec-03-gestion-citas");
         Assert.Contains(response.Sources, source =>
-            source.Url == "/centro-de-ayuda/como-programar-cita");
+            source.Url == "/gestion-de-citas/st-rec-03-gestion-citas");
+    }
+
+    [Fact]
+    public void Respond_AppointmentQuestion_UsesAdministratorAgenda()
+    {
+        var response = _chatbot.Respond(
+            "Administrador",
+            null,
+            "/",
+            "¿Cómo programo una cita?");
+
+        Assert.Contains(response.Actions, action =>
+            action.Url == "/gestion-de-citas/st-adm-08-agenda");
+        Assert.Contains(response.Sources, source =>
+            source.Url == "/gestion-de-citas/st-adm-08-agenda");
     }
 
     [Fact]
@@ -78,7 +93,7 @@ public sealed class ChatbotServiceTests
 
         Assert.Contains("programar una cita", response.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(response.Sources, source =>
-            source.Url == "/centro-de-ayuda/como-programar-cita");
+            source.Url == "/gestion-de-citas/st-rec-03-gestion-citas");
     }
 
     [Fact]
@@ -116,12 +131,12 @@ public sealed class ChatbotServiceTests
         var response = _chatbot.Respond(
             "Paciente",
             null,
-            "/centro-de-ayuda/soporte",
+            "/",
             "Necesito reportar un problema");
 
         Assert.Contains(response.Actions, action => action.Type == "ticket-form");
         Assert.DoesNotContain(response.Actions, action =>
-            action.Url == "/centro-de-ayuda/soporte");
+            action.Url.StartsWith("/centro-de-ayuda/", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

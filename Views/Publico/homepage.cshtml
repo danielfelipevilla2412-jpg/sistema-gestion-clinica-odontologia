@@ -42,44 +42,13 @@
                 </div>
             </div>
 
-            <aside class="home-hero-visual" aria-label="Servicios odontológicos activos">
+            <aside class="home-hero-visual" aria-hidden="true">
                 <div class="home-hero-orbit home-hero-orbit-outer"></div>
-                <div class="home-hero-orbit home-hero-orbit-inner"></div>
                 <div class="home-tooth-art" aria-hidden="true">
                     <svg viewBox="0 0 100 100" role="presentation">
                         <path d="M50 8c-10 0-15 6-22 6-10 0-17 8-16 20 1 11 8 19 12 30 4 11 5 28 13 28 7 0 7-23 13-23s6 23 13 23c8 0 9-17 13-28 4-11 11-19 12-30 1-12-6-20-16-20-7 0-12-6-22-6Z" />
                         <path class="home-tooth-shine" d="M31 25c-5 5-6 13-3 19" />
                     </svg>
-                </div>
-                <div class="home-hero-service-card">
-                    <div class="home-hero-service-heading">
-                        <span class="material-symbols-outlined" aria-hidden="true">medical_services</span>
-                        <div>
-                            <span data-i18n="home.glass_services_title">Servicios activos</span>
-                            <small>@Model.Services.Count <span data-i18n="home.active_services_label">en el catálogo</span></small>
-                        </div>
-                    </div>
-                    @if (Model.Services.Count == 0)
-                    {
-                        <p class="home-empty-preview" data-i18n="home.services_empty">
-                            Los servicios aparecerán aquí cuando se registren y activen en el catálogo.
-                        </p>
-                    }
-                    else
-                    {
-                        @foreach (var service in Model.Services.Take(3))
-                        {
-                            <div class="home-hero-service-row">
-                                <span class="home-service-dot" aria-hidden="true"></span>
-                                <div>
-                                    <strong>@service.Name</strong>
-                                    <small>@service.DurationMinutes min · @service.Category</small>
-                                </div>
-                                <span class="home-service-price">@service.Price.ToString("C0", CultureInfo.GetCultureInfo("es-CO"))</span>
-                            </div>
-                        }
-                    }
-                    <a class="home-card-link" href="#servicios" data-i18n="home.view_services">Ver catálogo</a>
                 </div>
             </aside>
         </div>

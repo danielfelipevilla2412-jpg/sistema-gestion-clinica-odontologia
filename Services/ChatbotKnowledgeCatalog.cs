@@ -68,15 +68,12 @@ public static class ChatbotKnowledgeCatalog
         Page("profile-reception", "Perfil del Recepcionista", "Perfil", "/perfiles/st-rec-06-perfil-recepcionista", ["Recepcionista"], "Perfil de Recepción.", "perfil", "mis datos"),
         Page("profile-assistant", "Mi Perfil", "Perfil", "/perfiles/st-aux-11-perfil-auxiliar", ["Auxiliar"], "Perfil del auxiliar.", "perfil", "mis datos"),
         Page("profile-patient", "Mi perfil", "Perfil", "/perfiles/st-pac-perfil-paciente", ["Paciente"], "Perfil del paciente.", "perfil", "mis datos"),
-        Page("help-index", "Guías y Tutoriales", "Centro de Ayuda", "/centro-de-ayuda/guias-tutoriales", AllRoles, "Catálogo actual de guías y accesos de ayuda.", "guías", "tutorial", "artículo", "ayuda"),
-        Page("help-appointment", "Cómo programar una cita", "Centro de Ayuda", "/centro-de-ayuda/como-programar-cita", AllRoles, "Guía paso a paso para programar una cita.", "cita", "programar", "agendar", "nueva cita"),
-        Page("help-support", "Soporte y Tickets", "Centro de Ayuda", "/centro-de-ayuda/soporte", AllRoles, "Formulario MVC de soporte con campos de asunto, tipo, módulo, severidad, descripción y adjunto opcional. El servicio admite archivos de hasta 5 MB.", "soporte", "ticket", "problema", "incidente", "adjunto", "captura"),
         new(
             "appointment-guide-steps",
             "Pasos para programar una cita",
-            "Gestión de Citas",
-            "/centro-de-ayuda/como-programar-cita",
-            "La guía existente indica que se debe abrir la agenda, iniciar Nueva Cita, seleccionar al paciente, asignar profesional, servicio, consultorio y horario, revisar los datos y guardar.",
+            "Asistente SmileTrack",
+            "/gestion-de-citas/st-adm-08-agenda",
+            "El chatbot orienta sobre los pasos generales para programar una cita y ofrece la agenda autorizada al rol.",
             ["Administrador", "Recepcionista"],
             ["cita", "programar", "agendar", "reservar", "crear", "nueva cita", "pasos"],
             ["¿Cómo programo una cita?", "¿Cómo agendo una cita?", "¿Cómo creo una cita nueva?"],
@@ -149,29 +146,29 @@ public static class ChatbotKnowledgeCatalog
         new(
             "support-faq-attachments",
             "Adjuntar evidencia a un ticket",
-            "Centro de Ayuda",
-            "/centro-de-ayuda/soporte",
-            "El formulario completo acepta imágenes, PDF, Word y texto. El límite validado por el servicio es 5 MB. El chat ofrece un enlace al formulario completo.",
+            "Asistente SmileTrack",
+            "",
+            "El formulario de tickets del chatbot permite adjuntar evidencia; el servicio valida los formatos y el límite de tamaño.",
             AllRoles,
             ["ticket", "soporte", "adjuntar", "archivo", "captura", "evidencia"],
             ["¿Qué archivos puedo adjuntar?", "¿Cómo adjunto una captura?", "¿Cuál es el tamaño máximo del archivo?"],
-            ["Abre Soporte y Tickets.", "Completa los datos del reporte.", "Adjunta evidencia de hasta 5 MB y envía el formulario."]),
+            ["Abre el chatbot.", "Selecciona crear un ticket.", "Adjunta la evidencia en el formulario y revisa los datos antes de enviarlo."]),
         new(
             "support-ticket-status",
             "Estados de un ticket",
-            "Centro de Ayuda",
-            "/centro-de-ayuda/soporte",
+            "Asistente SmileTrack",
+            "",
             "Los estados definidos por el servicio son abierto, en_proceso, resuelto y cerrado. El estado actual y la respuesta solo se consultan mediante las funciones autorizadas del sistema.",
             AllRoles,
             ["ticket", "estado", "seguimiento", "solicitud", "referencia"],
             ["¿Qué significa el estado de mi ticket?", "¿Cómo consulto una solicitud?", "¿Cómo hago seguimiento a soporte?"],
-            ["Abierto: ticket registrado.", "En proceso: el ticket está siendo atendido.", "Resuelto o cerrado: el ticket figura como finalizado."]),
+            ["Abierto: ticket registrado.", "En proceso: el ticket está siendo atendido.", "Resuelto o cerrado: el ticket figura como finalizado.", "Usa Consultar mis tickets en el chatbot para ver tus solicitudes."]),
         new(
             "help-context",
             "Ayuda de la vista actual",
-            "Centro de Ayuda",
-            "/centro-de-ayuda/guias-tutoriales",
-            "Puedo identificar vistas registradas en el catálogo, explicar su propósito y abrirlas si están disponibles para tu rol. Si el catálogo no contiene instrucciones verificadas para una vista, te lo indicaré.",
+            "Asistente SmileTrack",
+            "",
+            "El chatbot puede explicar vistas registradas y mostrar enlaces autorizados. Si no encuentra instrucciones verificadas, lo indicará.",
             AllRoles,
             ["vista", "pantalla", "módulo", "sección", "qué hace", "cómo uso", "ayuda contextual"],
             ["¿Qué hace esta vista?", "¿Cómo uso esta pantalla?", "¿Qué opciones tengo aquí?"],
@@ -321,7 +318,11 @@ public static class ChatbotKnowledgeCatalog
     public static IReadOnlyList<ChatbotKnowledgeEntry> EntriesSnapshot => Entries;
     public static int EntryCount => Entries.Count;
     public static int ModuleCount => Entries.Select(entry => entry.Module).Distinct(StringComparer.OrdinalIgnoreCase).Count();
-    public static int ViewCount => Entries.Select(entry => entry.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+    public static int ViewCount => Entries
+        .Where(entry => NormalizePath(entry.Path) is not null)
+        .Select(entry => entry.Path)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Count();
     public static int ProcedureCount => Entries.Count(entry => entry.Steps.Count > 0);
     public static int QuestionCount => Entries.Sum(entry => entry.Questions.Count);
 

@@ -239,11 +239,6 @@ body.public-site #main-content {
   height: 440px;
 }
 
-.home-hero-orbit-inner {
-  width: 348px;
-  height: 348px;
-}
-
 .home-tooth-art {
   position: absolute;
   top: 43%;
@@ -274,30 +269,6 @@ body.public-site #main-content {
   stroke-width: 4;
 }
 
-.home-hero-service-card {
-  position: absolute;
-  right: -360px;
-  bottom: -150px;
-  z-index: 2;
-  width: min(380px, 94%);
-  padding: 19px 20px 14px;
-  border: 1px solid var(--home-line);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 22px 56px rgba(15, 32, 87, 0.16);
-}
-
-.home-hero-service-heading {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 0 0 13px;
-  color: var(--home-ink);
-  font-size: 14px;
-  font-weight: 750;
-}
-
-.home-hero-service-heading > .material-symbols-outlined,
 .home-service-card-icon {
   display: grid;
   width: 40px;
@@ -307,68 +278,6 @@ body.public-site #main-content {
   border-radius: 12px;
   background: var(--home-primary-light);
   color: var(--home-primary);
-}
-
-.home-hero-service-heading small,
-.home-hero-service-row small {
-  display: block;
-  margin-top: 3px;
-  color: var(--home-muted);
-  font-size: 10px;
-  font-weight: 500;
-}
-
-.home-hero-service-row {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  min-height: 54px;
-  border-top: 1px solid var(--home-line);
-  color: var(--home-ink);
-}
-
-.home-hero-service-row strong {
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.home-hero-service-row small {
-  font-size: 10px;
-}
-
-.home-service-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--success);
-}
-
-.home-service-price {
-  color: var(--home-primary-dark);
-  font-size: 11px;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.home-empty-preview {
-  margin: 8px 0 12px;
-  color: var(--home-muted);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.home-card-link {
-  display: inline-flex;
-  margin-top: 12px;
-  color: var(--home-primary);
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.home-card-link:hover {
-  text-decoration: underline;
 }
 
 .home-trust-strip {
@@ -730,22 +639,11 @@ body.public-site #main-content {
     height: 360px;
   }
 
-  .home-hero-orbit-inner {
-    width: 280px;
-    height: 280px;
-  }
-
   .home-tooth-art {
     width: 210px;
     height: 210px;
   }
 
-  .home-hero-service-card {
-    right: -24px;
-    width: 100%;
-    padding-right: 14px;
-    padding-left: 14px;
-  }
 }
 
 @media (max-width: 760px) {
@@ -791,11 +689,6 @@ body.public-site #main-content {
     height: 320px;
   }
 
-  .home-hero-orbit-inner {
-    width: 245px;
-    height: 245px;
-  }
-
   .home-tooth-art {
     top: 44%;
     width: 190px;
@@ -805,13 +698,6 @@ body.public-site #main-content {
   .home-tooth-art svg {
     width: 112px;
     height: 112px;
-  }
-
-  .home-hero-service-card {
-    right: 0;
-    bottom: 0;
-    width: min(390px, 100%);
-    margin: 0 auto;
   }
 
   .home-trust-strip {
@@ -899,22 +785,6 @@ body.public-site #main-content {
     min-height: 48px;
     padding: 0 15px;
     font-size: 13px;
-  }
-
-  .home-hero-service-card {
-    padding: 14px 12px 10px;
-  }
-
-  .home-hero-service-row {
-    gap: 7px;
-  }
-
-  .home-hero-service-row strong {
-    font-size: 11px;
-  }
-
-  .home-service-price {
-    font-size: 10px;
   }
 
   .home-section-inner {

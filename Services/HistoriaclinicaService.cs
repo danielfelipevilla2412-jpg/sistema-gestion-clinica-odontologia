@@ -128,7 +128,7 @@ public sealed class HistoriaClinicaService : IHistoriaClinicaService
             .FirstOrDefaultAsync(h => h.IdPaciente == pacienteId, ct);
         historia ??= await CrearHistoriaClinicaAsync(pacienteId, ct);
         if (!historia.Activa)
-            historia.Activa = true;
+            return (false, "La historia clínica del paciente está inactiva.", null);
 
         JsonObject estadoActual;
         try

@@ -331,18 +331,6 @@ public sealed class ChatbotService : IChatbotService
         if (context is not null)
             actions.Add(CreateLink(context.Title, context.Path));
 
-        foreach (var helpPath in new[]
-                 {
-                     "/centro-de-ayuda/guias-tutoriales",
-                     "/centro-de-ayuda/como-programar-cita",
-                     "/centro-de-ayuda/soporte"
-                 })
-        {
-            var helpEntry = ChatbotKnowledgeCatalog.FindForRole(helpPath, profile.Key);
-            if (helpEntry is not null)
-                actions.Add(CreateLink(helpEntry.Title, helpEntry.Path));
-        }
-
         return CreateResponse(profile, userName, message, suggestions, actions, []);
     }
 
@@ -395,11 +383,7 @@ public sealed class ChatbotService : IChatbotService
             userName,
             "No puedo identificar esa vista dentro del catálogo autorizado para tu rol. Indícame el nombre del módulo o selecciona una guía disponible.",
             ["Buscar guías", "Crear ticket de soporte"],
-            new ChatbotAction?[]
-            {
-                CreateLinkIfAllowed(profile, "Guías y Tutoriales", "/centro-de-ayuda/guias-tutoriales"),
-                new ChatbotAction { Label = "Crear ticket de soporte", Type = "ticket-form" }
-            }.Where(action => action is not null).Select(action => action!).ToArray(),
+            [new ChatbotAction { Label = "Crear ticket de soporte", Type = "ticket-form" }],
             []);
 
     private static ChatbotResponse NegationResponse(
@@ -427,7 +411,13 @@ public sealed class ChatbotService : IChatbotService
     {
         var suggestions = results.Select(result => result.Entry.Title).Distinct().ToArray();
         var actions = results
-            .Select(result => CreateLink(result.Entry.Title, result.Entry.Path))
+            .Select(result => new
+            {
+                result.Entry,
+                Path = ResolveEntryPath(result.Entry, profile)
+            })
+            .Where(item => ChatbotKnowledgeCatalog.NormalizePath(item.Path) is not null)
+            .Select(item => CreateLink(item.Entry.Title, item.Path))
             .DistinctBy(action => action.Url, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -437,7 +427,7 @@ public sealed class ChatbotService : IChatbotService
             $"Encontré varias opciones parecidas. ¿Cuál necesitas? {string.Join(" / ", suggestions)}.",
             suggestions,
             actions,
-            results.Select(result => ToSource(result.Entry)).DistinctBy(source => source.Id).ToArray(),
+            GetSources(profile, results.Select(result => result.Entry)),
             needsClarification: true);
     }
 
@@ -451,30 +441,29 @@ public sealed class ChatbotService : IChatbotService
         IReadOnlyList<ChatbotKnowledgeEntry>? additionalEntries = null)
     {
         var actions = new List<ChatbotAction>();
-        if (!string.Equals(
+        var entryPath = ResolveEntryPath(entry, profile);
+        if (ChatbotKnowledgeCatalog.NormalizePath(entryPath) is not null &&
+            !string.Equals(
                 ChatbotKnowledgeCatalog.NormalizePath(currentPath),
-                ChatbotKnowledgeCatalog.NormalizePath(entry.Path),
+                ChatbotKnowledgeCatalog.NormalizePath(entryPath),
                 StringComparison.OrdinalIgnoreCase))
         {
-            actions.Add(CreateLink(entry.Title, entry.Path));
+            actions.Add(CreateLink(
+                entry.Id == "appointment-guide-steps" ? "Abrir agenda" : entry.Title,
+                entryPath));
         }
 
-        if (entry.Id == "appointment-guide-steps")
-        {
-            var agendaPath = profile.Key switch
-            {
-                "administrador" => "/gestion-de-citas/st-adm-08-agenda",
-                "recepcionista" => "/gestion-de-citas/st-rec-03-gestion-citas",
-                _ => null
-            };
-            if (agendaPath is not null)
-                actions.Add(CreateLink("Abrir agenda", agendaPath));
-        }
+        if (entry.Id == "support-faq-attachments")
+            actions.Add(new ChatbotAction { Label = "Crear ticket aquí", Type = "ticket-form" });
+        else if (entry.Id == "support-ticket-status")
+            actions.Add(new ChatbotAction { Label = "Consultar mis tickets", Type = "ticket-list" });
 
         foreach (var additional in additionalEntries ?? [])
         {
-            if (!string.Equals(additional.Path, entry.Path, StringComparison.OrdinalIgnoreCase))
-                actions.Add(CreateLink(additional.Title, additional.Path));
+            var additionalPath = ResolveEntryPath(additional, profile);
+            if (ChatbotKnowledgeCatalog.NormalizePath(additionalPath) is not null &&
+                !string.Equals(additionalPath, entryPath, StringComparison.OrdinalIgnoreCase))
+                actions.Add(CreateLink(additional.Title, additionalPath));
         }
 
         return CreateResponse(
@@ -483,10 +472,33 @@ public sealed class ChatbotService : IChatbotService
             intro,
             additionalEntries?.Select(item => item.Title).ToArray() ?? [],
             actions,
-            new[] { ToSource(entry) }.Concat(
-                (additionalEntries ?? []).Select(ToSource)).DistinctBy(source => source.Id).ToArray(),
+            GetSources(profile, new[] { entry }.Concat(additionalEntries ?? [])),
             needsClarification);
     }
+
+    private static string ResolveEntryPath(ChatbotKnowledgeEntry entry, RoleProfile profile) =>
+        entry.Id == "appointment-guide-steps"
+            ? profile.Key switch
+            {
+                "administrador" => "/gestion-de-citas/st-adm-08-agenda",
+                "recepcionista" => "/gestion-de-citas/st-rec-03-gestion-citas",
+                _ => string.Empty
+            }
+            : entry.Path;
+
+    private static ChatbotKnowledgeSource[] GetSources(
+        RoleProfile profile,
+        IEnumerable<ChatbotKnowledgeEntry> entries) =>
+        entries
+            .Select(entry => new ChatbotKnowledgeSource
+            {
+                Id = entry.Id,
+                Title = entry.Title,
+                Url = ResolveEntryPath(entry, profile)
+            })
+            .Where(source => ChatbotKnowledgeCatalog.NormalizePath(source.Url) is not null)
+            .DistinctBy(source => source.Id)
+            .ToArray();
 
     private static ChatbotResponse CreateResponse(
         RoleProfile profile,
@@ -716,11 +728,6 @@ public sealed class ChatbotService : IChatbotService
         Url = path,
         Type = "link"
     };
-
-    private static ChatbotAction? CreateLinkIfAllowed(RoleProfile profile, string label, string path) =>
-        ChatbotKnowledgeCatalog.FindForRole(path, profile.Key) is null
-            ? null
-            : CreateLink(label, path);
 
     private static RoleProfile ResolveProfile(string? role)
     {

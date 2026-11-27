@@ -3689,9 +3689,13 @@ public class GestionCitasController(
 
                 string[] estadosPermitidos = estado switch
                 {
+                    "solicitada" => ["solicitada", "Solicitada", "solicitado", "Solicitado", "pendiente", "Pendiente"],
                     "programada" => ["programada", "Programada", "agendada", "Agendada"],
                     "confirmada" => ["confirmada", "Confirmada"],
+                    "en_sala_de_espera" => ["en_sala_de_espera", "En sala de espera", "sala de espera", "en_espera", "En espera"],
+                    "en_proceso" => ["en_proceso", "En atención", "en_atencion", "En consulta", "en_consulta"],
                     "atendida" => ["atendida", "Atendida", "completada", "Completada", "realizada", "Realizada"],
+                    "rechazada" => ["rechazada", "Rechazada", "rechazado", "Rechazado"],
                     "cancelada" => ["cancelada", "Cancelada", "cancelado", "Cancelado"],
                     "no_asistida" => ["no_asistida", "No asistida", "no_asistio", "No asistió", "no asistio", "no-show", "No Show", "inasistencia", "Inasistencia"],
                     _ => [pagination.Estado.Trim()]

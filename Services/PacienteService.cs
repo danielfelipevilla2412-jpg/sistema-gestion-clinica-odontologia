@@ -118,7 +118,7 @@ public sealed class PacienteService : IPacienteService
         if (paciente is null) return null;
 
         var citasPaciente = await _context.Citas.AsNoTracking().Where(c => c.IdPaciente == id).ToListAsync(ct);
-        var ahora = DateTime.Now;
+        var ahora = ColombiaClock.Now;
 
         var ultima = citasPaciente.Where(c => c.FechaHora <= ahora).OrderByDescending(c => c.FechaHora).FirstOrDefault();
         var proxima = citasPaciente.Where(c => c.FechaHora > ahora && c.Estado != "Cancelada").OrderBy(c => c.FechaHora).FirstOrDefault();
@@ -161,6 +161,7 @@ public sealed class PacienteService : IPacienteService
                 Direccion = string.IsNullOrWhiteSpace(dto.Direccion) ? null : dto.Direccion.Trim(),
                 GrupoSanguineo = string.IsNullOrWhiteSpace(dto.GrupoSanguineo) ? null : dto.GrupoSanguineo.Trim().ToUpperInvariant(),
                 Alergias = string.IsNullOrWhiteSpace(dto.Alergias) ? null : dto.Alergias.Trim(),
+                Medicamentos = string.IsNullOrWhiteSpace(dto.Medicamentos) ? null : dto.Medicamentos.Trim(),
                 AntecedentesMedicos = string.IsNullOrWhiteSpace(dto.AntecedentesMedicos) ? null : dto.AntecedentesMedicos.Trim(),
                 ContactoEmergencia = string.IsNullOrWhiteSpace(dto.ContactoEmergencia) ? null : dto.ContactoEmergencia.Trim(),
                 TelefonoEmergencia = string.IsNullOrWhiteSpace(dto.TelefonoEmergencia) ? null : dto.TelefonoEmergencia.Trim(),
@@ -232,6 +233,8 @@ public sealed class PacienteService : IPacienteService
                 paciente.Direccion = string.IsNullOrWhiteSpace(dto.Direccion) ? null : dto.Direccion.Trim();
             if (dto.Alergias is not null)
                 await PacienteAlergiaSync.SynchronizeAsync(_context, paciente, dto.Alergias, ct);
+            if (dto.Medicamentos is not null)
+                paciente.Medicamentos = string.IsNullOrWhiteSpace(dto.Medicamentos) ? null : dto.Medicamentos.Trim();
             if (dto.AntecedentesMedicos is not null)
                 paciente.AntecedentesMedicos = string.IsNullOrWhiteSpace(dto.AntecedentesMedicos) ? null : dto.AntecedentesMedicos.Trim();
             if (dto.ContactoEmergencia is not null)
@@ -302,11 +305,17 @@ public sealed class PacienteService : IPacienteService
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(estado))
+                return PacienteApiOperationResult.Fail("El estado es obligatorio.", 422);
+
+            var estadoNormalizado = estado.Trim().ToLowerInvariant();
+            if (estadoNormalizado is not ("activo" or "inactivo" or "retirado"))
+                return PacienteApiOperationResult.Fail("El estado debe ser activo, inactivo o retirado.", 422);
+
             var paciente = await _context.Pacientes.FirstOrDefaultAsync(p => p.IdPaciente == id, ct);
             if (paciente is null)
                 return PacienteApiOperationResult.NotFound();
 
-            var estadoNormalizado = estado.Trim().ToLowerInvariant();
             if (estadoNormalizado != "activo" &&
                 await _context.Citas.AnyAsync(c =>
                     c.IdPaciente == id &&
@@ -365,6 +374,9 @@ public sealed class PacienteService : IPacienteService
             Alergias = string.IsNullOrWhiteSpace(p.Alergias)
             ? []
             : p.Alergias.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+            Medicamentos = string.IsNullOrWhiteSpace(p.Medicamentos)
+            ? []
+            : p.Medicamentos.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
             AntecedentesMedicos = p.AntecedentesMedicos,
             ContactoEmergencia = p.ContactoEmergencia,
             TelefonoEmergencia = p.TelefonoEmergencia,

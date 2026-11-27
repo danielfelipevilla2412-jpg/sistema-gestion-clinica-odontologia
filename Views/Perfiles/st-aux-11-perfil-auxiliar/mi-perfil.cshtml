@@ -10,12 +10,12 @@
 
 <main class="main" id="main-content">
 
-    <!-- Header con saludo dinámico accesible -->
+    <!-- Header con saludo dinÃ¡mico accesible -->
     <header class="page-header">
       <div class="header-left">
-        <nav class="breadcrumb" aria-label="Ruta de navegación" data-i18n-aria-label="sidebar_main_nav">
+        <nav class="breadcrumb" aria-label="Ruta de navegaciÃ³n" data-i18n-aria-label="sidebar_main_nav">
           <span data-i18n="common_role_auxiliar">Auxiliar</span>
-          <span class="bc-sep" aria-hidden="true">›</span>
+          <span class="bc-sep" aria-hidden="true">â€º</span>
           <span class="bc-active" aria-current="page" data-i18n="profile.title">Mi perfil</span>
         </nav>
         <p class="greeting" id="greeting" aria-live="polite">Cargando saludo...</p>
@@ -30,15 +30,15 @@
       <!-- Columna izquierda: Datos personales -->
       <section class="profile-card" aria-labelledby="personalDataTitle">
         <div class="profile-header">
-          <div class="avatar-large" id="userAvatar" aria-label="Avatar de usuario: Sara Jiménez">SJ</div>
+          <div class="avatar-large" id="userAvatar" aria-label="Avatar de usuario: Sara JimÃ©nez">SJ</div>
           <h2 class="profile-title" id="personalDataTitle" data-i18n="common.personal_data">Datos personales</h2>
-          <button class="btn-edit" id="btnEditProfile" aria-label="Editar información personal">
+          <button class="btn-edit" id="btnEditProfile" aria-label="Editar informaciÃ³n personal">
             <span>Editar</span><span class="material-symbols-outlined edit-icon" aria-hidden="true">edit</span>
           </button>
         </div>
 
         <div class="profile-content">
-          <!-- Grid de información personal con estructura accesible -->
+          <!-- Grid de informaciÃ³n personal con estructura accesible -->
           <div class="info-grid" role="list">
             <div class="info-group" role="listitem">
               <label class="info-label" for="nombres">Nombres</label>
@@ -47,15 +47,15 @@
             </div>
             <div class="info-group" role="listitem">
               <label class="info-label" for="apellidos">Apellidos</label>
-              <span class="info-value" id="apellidos">Jiménez</span>
+              <span class="info-value" id="apellidos">JimÃ©nez</span>
             </div>
             <div class="info-group" role="listitem">
               <label class="info-label" for="tipoDoc">Tipo documento</label>
               <span class="info-value" id="tipoDoc">CC</span>
             </div>
             <div class="info-group" role="listitem">
-              <label class="info-label" for="numeroDoc">Número de documento</label>
-              <span class="info-value" id="numeroDoc" aria-label="Número de documento: 1234567890">—</span>
+              <label class="info-label" for="numeroDoc">NÃºmero de documento</label>
+              <span class="info-value" id="numeroDoc" aria-label="NÃºmero de documento: 1234567890">â€”</span>
             </div>
             <div class="info-group" role="listitem">
               <label class="info-label" for="fechaIngreso">Fecha de ingreso</label>
@@ -70,11 +70,11 @@
               </span>
             </div>
             <div class="info-group" role="listitem">
-              <label class="info-label" for="telefono">TelÉfono</label>
+              <label class="info-label" for="telefono">TelÃ©fono</label>
               <span class="info-value" id="telefono">312456 7890</span>
             </div>
             <div class="info-group" role="listitem">
-              <label class="info-label" for="email">Correo electrÓnico</label>
+              <label class="info-label" for="email">Correo electrÃ³nico</label>
               <span class="info-value" id="email">auxiliar@smiletrack.co</span>
             </div>
           </div>
@@ -90,32 +90,32 @@
         </div>
       </section>
 
-      <!-- Columna derecha: Cambio de contraseña -->
+      <!-- Columna derecha: Cambio de contraseÃ±a -->
       <aside class="password-card" aria-labelledby="passwordTitle">
-        <h3 class="password-title" id="passwordTitle">Cambiar contraseña</h3>
+        <h3 class="password-title" id="passwordTitle">Cambiar contraseÃ±a</h3>
 
-        <!-- Formulario con validación accesible -->
+        <!-- Formulario con validaciÃ³n accesible -->
         <form id="passwordForm" novalidate aria-describedby="passwordRequirements">
 
           <div class="form-group">
-            <label class="form-label" for="currentPassword">Contraseña actual <span class="required"
+            <label class="form-label" for="currentPassword">ContraseÃ±a actual <span class="required"
                 aria-hidden="true">*</span></label>
             <div class="input-with-icon">
-              <button type="button" class="toggle-password" id="toggleCurrent" aria-label="Mostrar contraseña actual"
+              <button type="button" class="toggle-password" id="toggleCurrent" aria-label="Mostrar contraseÃ±a actual"
                 aria-pressed="false" aria-controls="currentPassword">
                 <span class="visually-hidden">Mostrar/ocultar</span><span class="material-symbols-outlined" aria-hidden="true">visibility</span>
               </button>
               <input type="password" class="form-input" id="currentPassword" name="currentPassword"
                 placeholder="" required autocomplete="current-password" aria-required="true" />
             </div>
-            <span class="error-message" id="error-currentPassword">Por favor ingresa tu contraseña actual</span>
+            <span class="error-message" id="error-currentPassword">Por favor ingresa tu contraseÃ±a actual</span>
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="newPassword">Nueva contraseña <span class="required"
+            <label class="form-label" for="newPassword">Nueva contraseÃ±a <span class="required"
                 aria-hidden="true">*</span></label>
             <div class="input-with-icon">
-              <button type="button" class="toggle-password" id="toggleNew" aria-label="Mostrar nueva contraseña"
+              <button type="button" class="toggle-password" id="toggleNew" aria-label="Mostrar nueva contraseÃ±a"
                 aria-pressed="false" aria-controls="newPassword">
                 <span class="visually-hidden">Mostrar/ocultar</span><span class="material-symbols-outlined" aria-hidden="true">visibility</span>
               </button>
@@ -123,34 +123,34 @@
                 required autocomplete="new-password" aria-required="true"
                 aria-describedby="passwordStrength passwordRequirements" />
             </div>
-            <!-- Indicador de fuerza de contraseña accesible -->
+            <!-- Indicador de fuerza de contraseÃ±a accesible -->
             <div class="password-strength" id="passwordStrength" role="progressbar" aria-valuenow="0" aria-valuemin="0"
-              aria-valuemax="100" aria-label="Fortaleza de contraseña: Débil">
-              <span class="visually-hidden" id="strengthText">Débil</span>
+              aria-valuemax="100" aria-label="Fortaleza de contraseÃ±a: DÃ©bil">
+              <span class="visually-hidden" id="strengthText">DÃ©bil</span>
             </div>
             <small id="passwordRequirements" class="password-requirements">
-              Mínimo 8 caracteres, 1 mayúscula, 1 número y 1 sÍmbolo
+              MÃ­nimo 8 caracteres, 1 mayÃºscula, 1 nÃºmero y 1 sÃ­mbolo
             </small>
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="confirmPassword">Confirmar nueva contraseña <span class="required"
+            <label class="form-label" for="confirmPassword">Confirmar nueva contraseÃ±a <span class="required"
                 aria-hidden="true">*</span></label>
             <div class="input-with-icon">
               <button type="button" class="toggle-password" id="toggleConfirm"
-                aria-label="Mostrar confirmación de contraseña" aria-pressed="false" aria-controls="confirmPassword">
+                aria-label="Mostrar confirmaciÃ³n de contraseÃ±a" aria-pressed="false" aria-controls="confirmPassword">
                 <span class="visually-hidden">Mostrar/ocultar</span><span class="material-symbols-outlined" aria-hidden="true">visibility</span>
               </button>
               <input type="password" class="form-input" id="confirmPassword" name="confirmPassword"
                 placeholder="" required autocomplete="new-password" aria-required="true" />
             </div>
-            <span class="error-message" id="error-confirmPassword">Las contraseñas no coinciden</span>
+            <span class="error-message" id="error-confirmPassword">Las contraseÃ±as no coinciden</span>
           </div>
 
           <div class="form-divider" aria-hidden="true"></div>
 
           <button type="submit" class="btn-update" id="btnUpdatePassword"
-            aria-label="Actualizar contraseña de acceso">Actualizar contraseña</button>
+            aria-label="Actualizar contraseÃ±a de acceso">Actualizar contraseÃ±a</button>
         </form>
       </aside>
 
@@ -158,8 +158,8 @@
 
   </main>
 
-  <!-- Mobile bottom nav con aria-label para navegación móvil -->
-  <nav class="mobile-nav" aria-label="Navegación móvil">
+  <!-- Mobile bottom nav con aria-label para navegaciÃ³n mÃ³vil -->
+  <nav class="mobile-nav" aria-label="NavegaciÃ³n mÃ³vil">
     <a href="/gestion-de-citas/st-aux-01-panel-operativo/panel-operativo" class="mobile-nav-item">
       <span class="material-symbols-outlined mobile-nav-icon" aria-hidden="true">space_dashboard</span>
       <span>Panel</span>

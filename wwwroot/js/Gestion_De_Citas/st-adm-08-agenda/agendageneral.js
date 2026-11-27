@@ -408,6 +408,10 @@ const initializeNewAppointmentModal = () => {
         modalOverlay.setAttribute('aria-hidden', 'true');
         modalOverlay.setAttribute('inert', '');
         document.body.classList.remove('modal-open');
+        statusSelect?.querySelectorAll('[data-transition-hidden="true"]').forEach(option => {
+            option.hidden = false;
+            delete option.dataset.transitionHidden;
+        });
         statusSelect?.querySelectorAll('[data-transient-status]').forEach(option => option.remove());
         formElement.reset();
         setFormStatus('');
@@ -435,6 +439,14 @@ const initializeNewAppointmentModal = () => {
             : normalizedStatus === 'confirmada'
                 ? 'Confirmada'
                 : data.status;
+        const currentStatus = window.CommonUtils?.normalizeAppointmentStatus(statusValue)
+            || String(statusValue || '').trim().toLowerCase();
+        const allowedStatuses = new Set(
+            String(data.allowedEditStatuses || '')
+                .split(',')
+                .map(status => status.trim())
+                .filter(Boolean)
+        );
         if (statusSelect && statusValue && !Array.from(statusSelect.options).some(option => option.value === statusValue)) {
             const currentStatusOption = document.createElement('option');
             currentStatusOption.value = statusValue;
@@ -442,6 +454,14 @@ const initializeNewAppointmentModal = () => {
             currentStatusOption.dataset.transientStatus = 'true';
             statusSelect.appendChild(currentStatusOption);
         }
+        statusSelect?.querySelectorAll('option').forEach(option => {
+            const optionStatus = window.CommonUtils?.normalizeAppointmentStatus(option.value)
+                || String(option.value || '').trim().toLowerCase();
+            if (!allowedStatuses.has(optionStatus) && optionStatus !== currentStatus) {
+                option.hidden = true;
+                option.dataset.transitionHidden = 'true';
+            }
+        });
 
         const valuesMap = {
             appointmentId: data.id,
@@ -649,7 +669,8 @@ const initializeAppointmentDetailModal = () => {
             professionalRegistry: targetElement.dataset.professionalRegistry || '',
             professionalUserStatus: targetElement.dataset.professionalUserStatus || '',
             officeName: targetElement.dataset.officeName || 'Sin consultorio',
-            serviceName: targetElement.dataset.serviceName || 'Sin servicio'
+            serviceName: targetElement.dataset.serviceName || 'Sin servicio',
+            allowedEditStatuses: targetElement.dataset.allowedEditStatuses || ''
         };
         contentElement.innerHTML = '';
         const detailRows = [

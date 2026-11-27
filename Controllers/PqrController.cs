@@ -524,7 +524,7 @@ public class PqrController : Controller
         }).ToList();
 
         if (respuestas.Count == 0 && !string.IsNullOrWhiteSpace(solicitud.Respuesta))
-            respuestas.Add(new { texto = solicitud.Respuesta, fecha = solicitud.FechaRespuesta });
+            respuestas.Add(new { texto = (string?)solicitud.Respuesta, fecha = solicitud.FechaRespuesta });
 
         return Ok(respuestas);
     }

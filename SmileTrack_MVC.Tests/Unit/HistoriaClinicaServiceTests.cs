@@ -103,6 +103,47 @@ public class HistoriaClinicaServiceTests
     }
 
     [Fact]
+    public async Task GuardarOdontogramaApiAsync_InactiveHistoryReturnsConflictWithoutReactivation()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        var paciente = new Paciente
+        {
+            Nombres = "Paciente",
+            Apellidos = "Prueba",
+            Documento = "654321",
+            FechaNacimiento = new DateTime(1990, 1, 1)
+        };
+        db.Pacientes.Add(paciente);
+        await db.SaveChangesAsync();
+        var historia = new HistoriaClinica
+        {
+            IdPaciente = paciente.IdPaciente,
+            FechaApertura = DateTime.UtcNow.AddYears(-1),
+            Activa = false
+        };
+        db.HistoriasClinicas.Add(historia);
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).GuardarOdontogramaApiAsync(
+            paciente.IdPaciente,
+            new OdontogramaGuardarRequest
+            {
+                PacienteId = paciente.IdPaciente,
+                MapeoFDI = new Dictionary<string, string>(),
+                Registros = new Dictionary<string, OdontogramaRegistroPayload>()
+            },
+            idProfesional: null);
+
+        Assert.False(result.Success);
+        Assert.Equal(409, result.ErrorStatusCode);
+        Assert.False(historia.Activa);
+    }
+
+    [Fact]
     public async Task GuardarOdontogramaInternoAsync_RemappingMovesCurrentStateAndRetainsOldHistory()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
